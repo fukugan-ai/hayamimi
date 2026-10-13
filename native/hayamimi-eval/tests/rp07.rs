@@ -146,7 +146,6 @@ fn recognition_p95_us(results: &Results, variant: &str) -> Option<u64> {
 
 /// T-RP-7-008 and the acceptance test `rp07_transfers_between_stages_are_measured_and_small`.
 #[test]
-#[ignore = "reads the real results"]
 fn rp07_transfers_between_stages_are_measured_and_small() -> TestResult {
     let results = real_results()?;
     check_transfer_fields(&results)?;
@@ -167,7 +166,6 @@ fn rp07_transfers_between_stages_are_measured_and_small() -> TestResult {
 
 /// T-RP-7-008 under its case-table name.
 #[test]
-#[ignore = "reads the real results"]
 fn measured_transfers_stay_under_the_budget() -> TestResult {
     rp07_transfers_between_stages_are_measured_and_small()
 }

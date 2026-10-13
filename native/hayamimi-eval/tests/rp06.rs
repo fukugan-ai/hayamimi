@@ -257,7 +257,6 @@ fn gpu_model_without_a_node_table_row_is_rejected() {
 /// whisper-tiny models and the BERT, has a row in the node table. The count of CPU nodes of
 /// a run is judged against these rows by the cases above.
 #[test]
-#[ignore = "reads the real design and the real results"]
 fn real_node_table_has_a_row_for_every_gpu_model() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;

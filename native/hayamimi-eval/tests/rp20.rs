@@ -142,7 +142,6 @@ fn the_fixture_cells_use_the_document_header() {
 /// T-RP-20-007 and the acceptance test `rp20_every_stage_placement_is_measured`:
 /// the design table and `docs/results/gpu_stages.md` as they are now.
 #[test]
-#[ignore = "reads the real design and the real results"]
 fn rp20_every_stage_placement_is_measured() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;
@@ -153,7 +152,6 @@ fn rp20_every_stage_placement_is_measured() -> TestResult {
 
 /// T-RP-20-007 under its case-table name.
 #[test]
-#[ignore = "reads the real design and the real results"]
 fn every_stage_placement_is_measured() -> TestResult {
     rp20_every_stage_placement_is_measured()
 }

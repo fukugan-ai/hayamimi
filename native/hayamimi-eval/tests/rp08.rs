@@ -406,7 +406,6 @@ fn cpu_row_naming_no_evidence_and_no_source_is_rejected() -> TestResult {
 /// T-RP-8-008 and the acceptance test `rp08_every_cpu_stage_has_its_evidence`:
 /// the design table and `docs/results/gpu_stages.md` as they are now.
 #[test]
-#[ignore = "reads the real design and the real results"]
 fn rp08_every_cpu_stage_has_its_evidence() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;
@@ -429,7 +428,6 @@ fn rp08_every_cpu_stage_has_its_evidence() -> TestResult {
 
 /// T-RP-8-008 under its case-table name.
 #[test]
-#[ignore = "reads the real design and the real results"]
 fn real_stage_table_has_evidence_for_every_row() -> TestResult {
     rp08_every_cpu_stage_has_its_evidence()
 }
