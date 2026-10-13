@@ -1,0 +1,3 @@
+GET /stats/eurofxref/eurofxref-daily.xml?q=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%82 HTTP/1.1
+Host: 127.0.0.1
+

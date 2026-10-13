@@ -1,0 +1,19 @@
+# Proper names that must carry over. When a Japanese form appears in the
+# source, the English form must appear in the translation, and the other way
+# round (case is ignored).
+
+[[term]]
+en = "Zoom"
+ja = ["Zoom", "ズーム"]
+
+[[term]]
+en = "Teams"
+ja = ["Teams", "チームズ"]
+
+[[term]]
+en = "YouTube"
+ja = ["YouTube", "ユーチューブ"]
+
+[[term]]
+en = "OBS"
+ja = ["OBS"]

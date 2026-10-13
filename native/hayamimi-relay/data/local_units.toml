@@ -1,0 +1,391 @@
+# Local units, unit spellings and conversion factors.
+# A unit is read from the source text through `aliases` (after the number) or
+# `prefix` (before the number). `place` lists extra spellings that are only
+# used to find the same figure again inside a translation.
+# A row converts `from` into `to` for the language that reads the subtitle:
+#   to = (from + pre) * factor / divisor + post
+
+[reader.ja]
+currency = "jpy"
+
+[reader.en]
+currency = "usd"
+
+# ---- currency -----------------------------------------------------------
+
+[[unit]]
+id = "usd"
+kind = "currency"
+aliases = ["USD", "dollar", "dollars", "ドル", "米ドル"]
+prefix = ["US$", "$"]
+place = []
+
+[[unit]]
+id = "jpy"
+kind = "currency"
+aliases = ["JPY", "yen", "円"]
+prefix = []
+place = []
+
+[[unit]]
+id = "gbp"
+kind = "currency"
+aliases = ["GBP", "pound sterling", "pounds sterling"]
+prefix = ["£"]
+place = ["pound", "pounds", "ポンド"]
+
+[[unit]]
+id = "cad"
+kind = "currency"
+aliases = ["CAD", "Canadian dollar", "Canadian dollars", "カナダドル"]
+prefix = ["CA$", "C$"]
+place = ["dollar", "dollars", "ドル"]
+
+[[unit]]
+id = "aud"
+kind = "currency"
+aliases = ["AUD", "Australian dollar", "Australian dollars", "豪ドル", "オーストラリアドル"]
+prefix = ["AU$", "A$"]
+place = ["dollar", "dollars", "ドル"]
+
+[[unit]]
+id = "eur"
+kind = "currency"
+aliases = ["EUR", "euro", "euros", "ユーロ"]
+prefix = ["€"]
+place = []
+
+# ---- length -------------------------------------------------------------
+
+[[unit]]
+id = "mile"
+kind = "length"
+aliases = ["mile", "miles", "マイル"]
+prefix = []
+place = []
+
+[[unit]]
+id = "ft"
+kind = "length"
+aliases = ["ft", "feet", "foot", "フィート"]
+prefix = []
+place = []
+
+[[unit]]
+id = "inch"
+kind = "length"
+aliases = ["inch", "inches", "インチ", "″"]
+prefix = []
+place = []
+
+[[unit]]
+id = "yd"
+kind = "length"
+aliases = ["yd", "yds", "yard", "yards", "ヤード"]
+prefix = []
+place = []
+
+[[unit]]
+id = "km"
+kind = "length"
+aliases = ["km", "kilometer", "kilometers", "kilometre", "kilometres", "キロメートル"]
+prefix = []
+place = []
+
+[[unit]]
+id = "m"
+kind = "length"
+aliases = ["m", "meter", "meters", "metre", "metres", "メートル"]
+prefix = []
+place = []
+
+[[unit]]
+id = "cm"
+kind = "length"
+aliases = ["cm", "centimeter", "centimeters", "centimetre", "centimetres", "センチメートル", "センチ"]
+prefix = []
+place = []
+
+# ---- mass ---------------------------------------------------------------
+
+[[unit]]
+id = "lb"
+kind = "mass"
+aliases = ["lb", "lbs"]
+prefix = []
+place = ["pound", "pounds", "ポンド"]
+
+[[unit]]
+id = "oz"
+kind = "mass"
+aliases = ["oz", "ounce", "ounces", "オンス"]
+prefix = []
+place = []
+
+[[unit]]
+id = "kg"
+kind = "mass"
+aliases = ["kg", "kilogram", "kilograms", "キログラム"]
+prefix = []
+place = []
+
+[[unit]]
+id = "g"
+kind = "mass"
+aliases = ["g", "gram", "grams", "グラム"]
+prefix = []
+place = []
+
+# ---- temperature --------------------------------------------------------
+
+[[unit]]
+id = "f"
+kind = "temperature"
+aliases = ["°F", "° F", "℉", "degrees Fahrenheit", "華氏"]
+prefix = []
+place = []
+
+[[unit]]
+id = "c"
+kind = "temperature"
+aliases = ["°C", "° C", "℃", "degrees Celsius", "摂氏"]
+prefix = []
+place = []
+
+# ---- volume -------------------------------------------------------------
+
+[[unit]]
+id = "us_gallon"
+kind = "volume"
+aliases = ["US gallon", "US gallons", "米ガロン"]
+prefix = []
+place = []
+
+[[unit]]
+id = "us_floz"
+kind = "volume"
+aliases = ["US fl oz", "fl oz", "fl. oz", "fluid ounce", "fluid ounces", "液量オンス"]
+prefix = []
+place = []
+
+[[unit]]
+id = "l"
+kind = "volume"
+aliases = ["L", "liter", "liters", "litre", "litres", "リットル"]
+prefix = []
+place = []
+
+[[unit]]
+id = "ml"
+kind = "volume"
+aliases = ["mL", "milliliter", "milliliters", "millilitre", "millilitres", "ミリリットル"]
+prefix = []
+place = []
+
+# ---- area ---------------------------------------------------------------
+
+[[unit]]
+id = "sqft"
+kind = "area"
+aliases = ["sq ft", "sq. ft", "square feet", "square foot", "平方フィート"]
+prefix = []
+place = []
+
+[[unit]]
+id = "m2"
+kind = "area"
+aliases = ["m²", "m2", "㎡", "square meter", "square meters", "square metre", "square metres", "平方メートル", "平米"]
+prefix = []
+place = []
+
+[[unit]]
+id = "acre"
+kind = "area"
+aliases = ["acre", "acres", "エーカー"]
+prefix = []
+place = []
+
+[[unit]]
+id = "tsubo"
+kind = "area"
+aliases = ["坪", "tsubo"]
+prefix = []
+place = []
+
+[[unit]]
+id = "tatami"
+kind = "area"
+aliases = ["畳", "tatami"]
+prefix = []
+place = []
+
+# ---- spellings that cannot be resolved to one unit ----------------------
+# A figure followed by one of these is reported as skipped (ambiguous).
+
+[[ambiguous]]
+kind = "mass"
+aliases = ["pound", "pounds", "ポンド", "ton", "tons", "トン"]
+
+[[ambiguous]]
+kind = "volume"
+aliases = ["gallon", "gallons", "ガロン"]
+
+[[ambiguous]]
+kind = "length"
+aliases = ["in", "キロ"]
+
+[[ambiguous]]
+kind = "temperature"
+aliases = ["degree", "degrees"]
+
+# ---- conversions for a Japanese reader ----------------------------------
+
+[[conversion]]
+reader = "ja"
+from = "mile"
+to = "km"
+factor = 1.609344
+
+[[conversion]]
+reader = "ja"
+from = "ft"
+to = "m"
+factor = 0.3048
+
+[[conversion]]
+reader = "ja"
+from = "inch"
+to = "cm"
+factor = 2.54
+
+[[conversion]]
+reader = "ja"
+from = "yd"
+to = "m"
+factor = 0.9144
+
+[[conversion]]
+reader = "ja"
+from = "lb"
+to = "kg"
+factor = 0.4535924
+
+[[conversion]]
+reader = "ja"
+from = "oz"
+to = "g"
+factor = 28.34952
+
+[[conversion]]
+reader = "ja"
+from = "f"
+to = "c"
+pre = -32.0
+divisor = 1.8
+
+[[conversion]]
+reader = "ja"
+from = "us_gallon"
+to = "l"
+factor = 3.785412
+
+[[conversion]]
+reader = "ja"
+from = "us_floz"
+to = "ml"
+factor = 29.57353
+
+[[conversion]]
+reader = "ja"
+from = "sqft"
+to = "m2"
+factor = 0.09290304
+
+[[conversion]]
+reader = "ja"
+from = "acre"
+to = "m2"
+factor = 4046.873
+
+# ---- conversions for an English reader ----------------------------------
+
+[[conversion]]
+reader = "en"
+from = "km"
+to = "mile"
+divisor = 1.609344
+
+[[conversion]]
+reader = "en"
+from = "m"
+to = "ft"
+divisor = 0.3048
+
+[[conversion]]
+reader = "en"
+from = "cm"
+to = "inch"
+divisor = 2.54
+
+[[conversion]]
+reader = "en"
+from = "kg"
+to = "lb"
+divisor = 0.4535924
+
+[[conversion]]
+reader = "en"
+from = "g"
+to = "oz"
+divisor = 28.34952
+
+[[conversion]]
+reader = "en"
+from = "c"
+to = "f"
+factor = 1.8
+post = 32.0
+
+[[conversion]]
+reader = "en"
+from = "l"
+to = "us_gallon"
+divisor = 3.785412
+
+[[conversion]]
+reader = "en"
+from = "ml"
+to = "us_floz"
+divisor = 29.57353
+
+[[conversion]]
+reader = "en"
+from = "m2"
+to = "sqft"
+divisor = 0.09290304
+
+# 1 tsubo = 400/121 m2 (1 shaku = 10/33 m); 1 tatami = 1.62 m2 as used in listings.
+[[conversion]]
+reader = "en"
+from = "tsubo"
+to = "m2"
+factor = 400.0
+divisor = 121.0
+
+[[conversion]]
+reader = "en"
+from = "tsubo"
+to = "sqft"
+via = "m2"
+
+[[conversion]]
+reader = "en"
+from = "tatami"
+to = "m2"
+factor = 1.62
+
+[[conversion]]
+reader = "en"
+from = "tatami"
+to = "sqft"
+via = "m2"

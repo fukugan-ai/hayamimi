@@ -991,7 +991,16 @@ test の材料の置き場：
   `testdata/` には png と wav（画面と声の録り物）も在り、まとめて外すと、確かめていない物まで公開の repo（origin は GitHub）に出るからである。
 - 写す物は 2 本とする。
   - `conv20.tsv`：`testdata/conv20.tsv` を 1 byte も変えずに写す（見出し 1 行と 40 行）。調整用の 40 行の正本はこの写しとし、3.5 の調整用の組と `eval` の既定もこの path を指す。
-  - `cat_q8_rows.tsv`：`testdata/probe1_cat-translate-3.3b.log` から、test が引く 7 行（j01、j08、j12、e01、e20、e09、e16）の id と出力の列だけを写す。出力は末尾の `</s>` を含めて変えない。見出しには model の名前、量子化、日付だけを書く。log の頭の行は写さない。local の path（利用者の home の directory 名）を含むからである。
+  - `cat_q8_rows.tsv`：`testdata/probe1_cat-translate-3.3b.log` から、test が引く 7 行（j01、j08、j12、e01、e20、e09、e16）を写す。
+    見出し行は置かない。
+    1 行はタブで区切った 5 列で、id、curl_ms、server_ms、tokens、output の順に並ぶ。
+    数値の 3 列は log の見出しの定義どおりで、curl の `time_total`（ms）、server の `prompt_ms + predicted_ms`（ms）、生成した token の数である。
+    test が読むのは 1 列目の id と 5 列目の output だけで（`tests/support/mod.rs` の `cat_outputs`）、数値の 3 列は読まない。
+    output は末尾の `</s>` を含めて変えない。
+    写した行は、CAT-Translate-3.3b 正式版を自分で Q8_0 へ変換した物の 2026-10-13 の出力である。
+    model の名前、量子化、日付はこの本文に書き、file には書かない。
+    log の頭の行は写さない。
+    local の path（利用者の home の directory 名）を含むからである。
 - 公開してよいかを数えた結果（2026-10-13）：メールの `@`、URL、Windows と Linux の home の path、利用者の account の名前、電話番号の形を 1 本の `rg -n -i` の式にして 2 本に掛けた（式は account の名前を含むので、この文書には写さない）。
   `conv20.tsv` は 0 件で、中身は agent が書いた会議の定型文である。
   log は 2 件で、陽性対照を兼ねる。3 行目の利用者の home の path と、5 行目の model の置き場の path で、どちらも写さない頭の行に在る。
@@ -1045,9 +1054,8 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 
 この文書の外で、実装の commit と同じ手番で直す物：
 
-- `docs/design/goals.md` の「GPU はオプション」。会話字幕の訳だけは GPU が要る（3.6）。
 - `docs/guide/embedding.md` と `embedding.ja.md` の event の表に、3.3 の 5 項目を足す。
-- `THIRD_PARTY_NOTICES.md` に、9 の手順で選んだ model の許諾、字形 2 つの配布条件、ECB の参照為替の出典（S4）を足す。
+- `THIRD_PARTY_NOTICES.md` に、9 の手順で選んだ model の許諾、字形 2 つの配布条件を足す（ECB の参照為替の出典は書き済み）。
 - `scripts/eval_translate.py` に `--dump-pairs` と `--score-hyps` を足す（3.5）。
 - `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-11」に替える。
 - hooks の repo に、held-out の directory の名前に当たる Read、Grep、Glob、Bash を止める PreToolUse の gate を作る（3.5）。作るのは hook-engineer の席である。

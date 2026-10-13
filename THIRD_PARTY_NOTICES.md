@@ -92,6 +92,27 @@ outside `models/`), not by `download_models.py`.
 | [pytest](https://github.com/pytest-dev/pytest) | MIT |
 | [OpenCC](https://github.com/BYVoid/OpenCC) | Apache-2.0 |
 
+## Exchange-rate data
+
+`hayamimi-relay fx-fetch` downloads the euro foreign exchange reference rates
+once a day (one GET, no query, no body) and saves them as `fx_rates.json` in
+the local data directory of the user's machine. The relay uses the file only
+to append converted currency amounts in parentheses to subtitles, together
+with the date the ECB gave the rates.
+
+| Data | Publisher | Source | Notes |
+|---|---|---|---|
+| Euro foreign exchange reference rates (daily file) | European Central Bank | [eurofxref-daily.xml](https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml); description: [euro reference exchange rates](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html) | The ECB updates the rates on every TARGET business day at around 16:00 CET. It publishes them for information and does not recommend using them for transactions, so a converted amount in a subtitle is an approximation. |
+
+Rejected options (採らない手段):
+
+- Shipping exchange-rate data in this repository. The file exists only after a fetch.
+- Writing a placeholder rate file when a fetch fails and no earlier file exists. Without a file, subtitles carry no currency conversion; length, mass and the other conversions do not depend on rates and are still added.
+
+Test fixtures under `native/hayamimi-relay/tests/fixtures/` imitate the layout
+of the ECB file and hold a few of its values. They are test inputs, not a rate
+feed.
+
 ## Bundled test data
 
 `tests/golden/ja/` contains eight audio clips from **FLEURS**
@@ -114,6 +135,11 @@ project (MIT-licensed offline captioning app) by ishiki-emo. Credit and thanks
 to that project -- see the README credits section.
 
 ## TODO verify
+
+- NOT VERIFIED: the ECB's terms for reusing the euro foreign exchange
+  reference rates were not read for this notice. Read them on the ECB website,
+  starting from the description page in the "Exchange-rate data" table, before
+  redistributing a fetched `fx_rates.json` or a product that bundles one.
 
 - `sherpa-onnx-whisper-tiny`'s HuggingFace model card
   (`csukuangfj/sherpa-onnx-whisper-tiny`) returned 404 during this pass; the
