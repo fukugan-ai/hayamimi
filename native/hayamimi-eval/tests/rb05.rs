@@ -31,8 +31,9 @@ const MIN_SILENCE_MS: i64 = 350;
 /// How many times `hayamimi-eval stream --repeat` plays the recording.
 const REPEATS: usize = 5;
 /// Two means of the server's `latency_ms` agree when they differ by at most
-/// 0.1 ms, in units of 10^-6 ms.
-const MEAN_TOLERANCE_MICROS: i64 = 100_000;
+/// 0.5 ms, in units of 10^-6 ms. The log rounds each value to whole
+/// milliseconds, which moves a mean by at most half a millisecond.
+const MEAN_TOLERANCE_MICROS: i64 = 500_000;
 /// The utterances the frame fixtures are built for.
 const FIXTURE_UTTERANCES: usize = 23;
 
@@ -243,7 +244,7 @@ fn mean_micros(values: &[i64]) -> Result<i64, Failure> {
 }
 
 /// The WebSocket capture and the server's log hold the same `final`
-/// events: the same number of them, and means that differ by at most 0.1 ms.
+/// events: the same number of them, and means that differ by at most 0.5 ms.
 /// The values are in units of 10^-6 ms.
 fn check_final_latency_agreement(ws: &[i64], log: &[i64]) -> Result<(), Failure> {
     if ws.is_empty() && log.is_empty() {
@@ -666,14 +667,14 @@ fn rb05_python_latency_has_p50_p95_per_run_ws_and_log_final_counts_must_be_equal
 }
 
 #[test]
-fn rb05_python_latency_has_p50_p95_per_run_final_latency_mean_difference_edge_is_0_1_ms() {
+fn rb05_python_latency_has_p50_p95_per_run_final_latency_mean_difference_edge_is_0_5_ms() {
     let ws = [266_800_000; 123];
-    assert!(check_final_latency_agreement(&ws, &[266_900_000; 123]).is_ok());
-    assert!(check_final_latency_agreement(&ws, &[266_900_001; 123]).is_err());
+    assert!(check_final_latency_agreement(&ws, &[267_300_000; 123]).is_ok());
+    assert!(check_final_latency_agreement(&ws, &[267_300_001; 123]).is_err());
 }
 
 #[test]
-fn rb05_python_latency_has_p50_p95_per_run_ws_and_log_final_latency_means_agree_within_0_1_ms()
+fn rb05_python_latency_has_p50_p95_per_run_ws_and_log_final_latency_means_agree_within_0_5_ms()
 -> TestResult {
     for (n, _) in runs()? {
         final_latency_agreement_of_run(n)?;

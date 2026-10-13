@@ -11,8 +11,8 @@ use std::path::Path;
 
 use hayamimi_eval::cer::cer;
 use support::{
-    FIXTURES, Failure, RESULTS, Row, TestResult, load_rows, micros, nearest_rank, read, run_files,
-    section, table_rows,
+    FIXTURES, Failure, RESULTS, Row, TestResult, load_rows, micros, nearest_rank, parse_rows, read,
+    run_files, section, table_rows,
 };
 
 const SILENCES: [&str; 4] = ["0.20", "0.25", "0.30", "0.35"];
@@ -118,8 +118,34 @@ fn first_run(silence: &str) -> Result<Vec<Row>, Failure> {
     }
 }
 
-fn l_asr_percentiles(rows: &[Row]) -> Result<(i64, i64), Failure> {
-    let values: Vec<i64> = rows.iter().filter_map(Row::l_asr_ms).collect();
+/// The recognition delays `L_asr` of the valid samples of a run, in whole
+/// milliseconds. A sample is valid when it has a `final` and `L_asr - L_dec`
+/// reaches the run's `--min-silence`; samples without a `final` and samples
+/// whose end is wrong are left out.
+fn valid_l_asr(rows: &[Row], silence: &str) -> Result<Vec<i64>, Failure> {
+    // `--min-silence` is in seconds; the gap below is in units of 10^-6 ms.
+    let limit = micros(silence)? * 1000;
+    let mut found = Vec::new();
+    for row in rows {
+        let Some(t_final) = row.t_final else {
+            continue;
+        };
+        let Some(l_dec) = row.final_latency_ms else {
+            return Err(format!(
+                "utterance {} repeat {}: a final without latency_ms",
+                row.utt, row.repeat
+            ));
+        };
+        let gap = (t_final - row.t_end) * 1000 - (l_dec * 1_000_000.0).round() as i64;
+        if gap >= limit {
+            found.extend(row.l_asr_ms());
+        }
+    }
+    Ok(found)
+}
+
+fn l_asr_percentiles(rows: &[Row], silence: &str) -> Result<(i64, i64), Failure> {
+    let values = valid_l_asr(rows, silence)?;
     Ok((nearest_rank(&values, 50)?, nearest_rank(&values, 95)?))
 }
 
@@ -155,10 +181,10 @@ fn rb06_min_silence_sweep_names_one_value_table_missing_a_row_is_rejected() {
 }
 
 #[test]
-fn rb06_min_silence_sweep_names_one_value_table_values_match_recomputed_l_asr_percentiles()
+fn rb06_min_silence_sweep_names_one_value_table_values_match_recomputed_l_asr_percentiles_over_valid_samples()
 -> TestResult {
     for row in sweep_table(&summary_section()?)? {
-        let (p50, p95) = l_asr_percentiles(&first_run(&row.silence)?)?;
+        let (p50, p95) = l_asr_percentiles(&first_run(&row.silence)?, &row.silence)?;
         assert_eq!(
             (row.p50, row.p95),
             (p50, p95),
@@ -251,7 +277,7 @@ fn rb06_min_silence_sweep_names_one_value_default_row_is_within_a_factor_of_ten_
     let Some(default_row) = table.iter().find(|row| row.silence == DEFAULT_SILENCE) else {
         return Err(Box::from("no row for the default value"));
     };
-    let (p50, p95) = l_asr_percentiles(&first_run(DEFAULT_SILENCE)?)?;
+    let (p50, p95) = l_asr_percentiles(&first_run(DEFAULT_SILENCE)?, DEFAULT_SILENCE)?;
     assert!(within_factor_of_ten(default_row.p50, p50));
     assert!(within_factor_of_ten(default_row.p95, p95));
     Ok(())
@@ -288,6 +314,47 @@ fn rb06_min_silence_sweep_names_one_value_cer_of_empty_reference_is_0_not_a_divi
     let empty = cer("。", "あ");
     assert_eq!(empty.denom, 0);
     assert_eq!(empty.micros(), 0);
+}
+
+#[test]
+fn rb06_min_silence_sweep_names_one_value_bad_end_sample_is_left_out_of_the_sweep_l_asr_percentiles()
+-> TestResult {
+    let rows = parse_rows(include_str!("fixtures/rb06_sweep_bad_end.jsonl"))?;
+    assert_eq!(rows.len(), 6);
+    let (p50, _) = l_asr_percentiles(&rows, "0.30")?;
+    assert_eq!(p50, 1200);
+    // The control: counting the sample with a bad end moves the median.
+    let counted: Vec<i64> = rows.iter().filter_map(Row::l_asr_ms).collect();
+    assert_eq!(nearest_rank(&counted, 50)?, 1100);
+    Ok(())
+}
+
+/// `(--min-silence, n, p50, p95)` of the valid samples, recounted with jq.
+const JQ_RECOUNT: [(&str, usize, i64, i64); 4] = [
+    ("0.20", 100, 1010, 1542),
+    ("0.25", 100, 995, 1635),
+    ("0.30", 100, 1104, 1724),
+    ("0.35", 100, 1185, 1779),
+];
+
+#[test]
+fn rb06_min_silence_sweep_names_one_value_sweep_rows_match_the_jq_recount_over_valid_samples()
+-> TestResult {
+    for (silence, count, p50, p95) in JQ_RECOUNT {
+        let rows = first_run(silence)?;
+        let valid = valid_l_asr(&rows, silence)?;
+        assert_eq!(valid.len(), count, "--min-silence {silence}");
+        assert_eq!(
+            l_asr_percentiles(&rows, silence)?,
+            (p50, p95),
+            "--min-silence {silence}"
+        );
+    }
+    // The control: the default's median over every sample is 1161, not 1185.
+    let rows = first_run(DEFAULT_SILENCE)?;
+    let every: Vec<i64> = rows.iter().filter_map(Row::l_asr_ms).collect();
+    assert_eq!(nearest_rank(&every, 50)?, 1161);
+    Ok(())
 }
 
 #[test]
