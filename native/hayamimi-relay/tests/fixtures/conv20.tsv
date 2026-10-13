@@ -1,0 +1,41 @@
+id	src_lang	src	ref
+j01	ja	こんにちは。	Hello.
+j02	ja	音声がリアルタイムで文字に変わるかを試しています。	I'm testing whether speech turns into text in real time.
+j03	ja	聞こえていますか？	Can you hear me?
+j04	ja	すみません、少し音声が途切れました。もう一度お願いできますか。	Sorry, the audio cut out a bit. Could you say that again?
+j05	ja	画面を共有しますね。見えていますか？	I'll share my screen. Can you see it?
+j06	ja	この資料の三ページ目を見てください。	Please look at page three of this document.
+j07	ja	来週の火曜日の午後三時はいかがですか。	How about next Tuesday at 3 p.m.?
+j08	ja	予算は五百万円を想定しています。	We're assuming a budget of five million yen.
+j09	ja	それについては社内で確認してから、改めてご連絡します。	I'll check internally and get back to you on that.
+j10	ja	なるほど、おっしゃる通りですね。	I see, you're absolutely right.
+j11	ja	ちょっと待ってください、今メモを取っています。	Hold on a moment, I'm taking notes.
+j12	ja	納期が二週間遅れる可能性があります。	The delivery might be delayed by two weeks.
+j13	ja	先ほどの件ですが、問題なく進められそうです。	About what we discussed earlier, it looks like we can go ahead without any problems.
+j14	ja	すみません、もう少しゆっくり話していただけますか。	Sorry, could you speak a little more slowly?
+j15	ja	今日はお時間をいただきありがとうございました。	Thank you for your time today.
+j16	ja	議事録は後ほどメールで送ります。	I'll send the minutes by email afterwards.
+j17	ja	その方向で進めましょう。	Let's go in that direction.
+j18	ja	具体的な数字はまだ出ていません。	We don't have concrete numbers yet.
+j19	ja	あ、マイクがミュートになっていました。	Oh, my mic was muted.
+j20	ja	では、また来週よろしくお願いします。	Okay, talk to you again next week.
+e01	en	Hello, can you hear me okay?	こんにちは、聞こえていますか？
+e02	en	Sorry, you cut out for a second. Could you repeat that?	すみません、一瞬途切れました。もう一度言っていただけますか？
+e03	en	Let me share my screen.	画面を共有しますね。
+e04	en	Can everyone see the slide?	皆さん、スライドは見えていますか？
+e05	en	I think we should push the deadline back by a week.	締め切りを一週間後ろにずらした方がいいと思います。
+e06	en	That makes sense to me.	それは納得できます。
+e07	en	What's the budget for this project?	このプロジェクトの予算はいくらですか？
+e08	en	We're looking at around fifty thousand dollars.	だいたい五万ドルくらいを見込んでいます。
+e09	en	I'll follow up with an email after the call.	通話のあとでメールでフォローします。
+e10	en	Could you send me the minutes?	議事録を送っていただけますか？
+e11	en	Let's circle back to that later.	その件はあとでまた話しましょう。
+e12	en	I'm not sure I follow. Could you explain that again?	ちょっとよく分からなかったのですが、もう一度説明していただけますか？
+e13	en	We're on the same page.	認識は一致していますね。
+e14	en	Does Tuesday at 3 p.m. work for you?	火曜日の午後三時はご都合いかがですか？
+e15	en	I'll have to check with my team first.	まずチームに確認しないといけません。
+e16	en	Sorry, I was on mute.	すみません、ミュートになっていました。
+e17	en	Thanks for joining today.	今日はご参加ありがとうございます。
+e18	en	Let's wrap up here.	今日はこのあたりで終わりにしましょう。
+e19	en	Can we get this done by Friday?	金曜日までに終わらせられますか？
+e20	en	Talk to you next week.	また来週お話ししましょう。

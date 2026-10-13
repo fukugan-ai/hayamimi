@@ -1,0 +1,23 @@
+# Literal-translation patterns to avoid in English output, with the
+# natural wording to prefer. The edit step shows them to the model, and the
+# evaluation counts lines that still contain one.
+
+[[pattern]]
+literal = "please take care of me"
+natural = "I look forward to working with you"
+
+[[pattern]]
+literal = "i will send it later"
+natural = "I'll send it over afterwards"
+
+[[pattern]]
+literal = "that is exactly what you are saying"
+natural = "you're absolutely right"
+
+[[pattern]]
+literal = "i am sorry to trouble you"
+natural = "sorry to bother you"
+
+[[pattern]]
+literal = "it is difficult to say"
+natural = "hard to say"

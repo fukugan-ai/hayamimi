@@ -1,0 +1,66 @@
+# Strings shown to a Japanese reader, and Japanese log and command-line text.
+
+source_mark = "原文"
+no_translation_mark = "訳なし"
+withheld_mark = "〔訳を控えました〕"
+
+[annotation]
+plain = "（約 {values}）"
+currency = "（約 {values}、{date} の値）"
+join = "、"
+date = "{mm}/{dd}"
+months = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+
+[unit.jpy]
+label = "円"
+
+[unit.km]
+label = "km"
+
+[unit.m]
+label = "m"
+
+[unit.cm]
+label = "cm"
+
+[unit.kg]
+label = "kg"
+
+[unit.g]
+label = "g"
+
+[unit.c]
+label = "℃"
+space = false
+
+[unit.l]
+label = "L"
+
+[unit.ml]
+label = "mL"
+
+[unit.m2]
+label = "m²"
+
+[messages]
+"fx.fetch.ok" = "為替の値を保存しました"
+"fx.fetch.failed" = "為替の取得に失敗しました。前の file を使います"
+"table.load.failed" = "表の file を読めませんでした。前の内容を使います"
+"translate.line.ok" = "訳を出しました"
+"translate.line.held" = "照合が外れたので訳を出しません"
+"translate.request.failed" = "翻訳器に届きませんでした"
+"annotate.line.added" = "換算を添えました"
+"annotate.line.skipped" = "換算を添えませんでした"
+"schedule.task.installed" = "毎朝の取得を登録しました"
+"schedule.task.removed" = "毎朝の取得を消しました"
+"schedule.task.failed" = "予定の操作に失敗しました"
+
+[cli]
+usage = """使い方:
+  hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
+  hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
+unknown_command = "知らない subcommand です"
+missing_value = "値が足りない option があります"
+unknown_option = "知らない option です"
+need_install_or_remove = "--install か --remove のどちらかが要ります"
+no_default_dir = "既定の保存先を決められません。--out を渡してください"

@@ -1,0 +1,51 @@
+# Marker lists used by the verification step (V).
+# Presence or absence of a marker must agree between the source and the
+# translation. Text matching an `exclude` entry is removed before markers are
+# looked for.
+
+[form]
+# A translation that starts like this is a preface, not a translation.
+prefixes = [
+  "translation:", "translated:", "here is", "here's", "sure,", "sure!",
+  "certainly", "of course", "翻訳:", "翻訳：", "訳:", "訳：", "以下は", "以下が",
+]
+
+[ja.negation]
+markers = ["ない", "なかっ", "なく", "ません", "ずに", "せず"]
+exclude = [
+  "すみません", "申し訳ありません", "ないといけません", "ないといけない", "ないといけ",
+  "なければなりません", "なければならない", "なければなら", "かもしれません",
+  "かもしれない", "しかありません", "しかない", "ほかない", "少ない", "危ない",
+  "つまらない",
+]
+
+[ja.uncertainty]
+markers = [
+  "かもしれ", "可能性", "と思", "そう", "想定", "約", "くらい", "ぐらい",
+  "おそらく", "たぶん", "でしょう", "だろう", "ようです", "みたい",
+]
+exclude = [
+  "そうですね", "そうですか", "そうなんですか", "そうしましょう", "そういう",
+  "そうした", "そうする", "そうなる", "そうだね", "でしょうか", "ましょうか",
+  "約束", "契約", "予約", "節約", "要約", "制約", "条約", "規約", "婚約", "公約",
+  "解約", "集約", "倹約", "誓約", "約款",
+]
+
+[en.negation]
+markers = [
+  "not", "no", "never", "without", "cannot", "nobody", "nothing", "none",
+  "neither", "nor",
+]
+suffixes = ["n't"]
+exclude = []
+
+[en.uncertainty]
+markers = [
+  "may", "might", "probably", "think", "thinks", "thinking", "seem", "seems",
+  "seemed", "look like", "looks like", "looked like", "around", "about",
+  "assume", "assumes", "assumed", "assuming", "approximately", "roughly",
+  "maybe", "perhaps", "likely", "estimate", "estimated", "guess", "suppose",
+  "possibly",
+]
+suffixes = []
+exclude = ["how about", "what about", "could you", "can you", "would you"]

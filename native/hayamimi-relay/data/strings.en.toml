@@ -1,0 +1,71 @@
+# Strings shown to an English reader, and English log and command-line text.
+
+source_mark = "Original"
+no_translation_mark = "Not translated"
+withheld_mark = "[translation withheld]"
+
+[annotation]
+plain = "(about {values})"
+currency = "(about {values}, rate of {date})"
+join = ", "
+date = "{mon} {d}"
+months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+[unit.usd]
+label = "$"
+prefix = true
+space = false
+
+[unit.mile]
+label = "mile"
+
+[unit.ft]
+label = "ft"
+
+[unit.inch]
+label = "inch"
+
+[unit.lb]
+label = "lb"
+
+[unit.oz]
+label = "oz"
+
+[unit.f]
+label = "°F"
+space = false
+
+[unit.us_gallon]
+label = "US gallon"
+
+[unit.us_floz]
+label = "US fl oz"
+
+[unit.sqft]
+label = "sq ft"
+
+[unit.m2]
+label = "m²"
+
+[messages]
+"fx.fetch.ok" = "Exchange rates saved"
+"fx.fetch.failed" = "Exchange rate fetch failed; the previous file stays in use"
+"table.load.failed" = "A table file could not be read; the previous content stays in use"
+"translate.line.ok" = "Translation emitted"
+"translate.line.held" = "Verification failed; translation withheld"
+"translate.request.failed" = "The translator could not be reached"
+"annotate.line.added" = "Conversion added"
+"annotate.line.skipped" = "Conversion skipped"
+"schedule.task.installed" = "Daily fetch registered"
+"schedule.task.removed" = "Daily fetch removed"
+"schedule.task.failed" = "Scheduler operation failed"
+
+[cli]
+usage = """usage:
+  hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
+  hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
+unknown_command = "unknown subcommand"
+missing_value = "an option is missing its value"
+unknown_option = "unknown option"
+need_install_or_remove = "one of --install or --remove is required"
+no_default_dir = "cannot decide the default output location; pass --out"

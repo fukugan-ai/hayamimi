@@ -1,0 +1,18 @@
+# Style table for Japanese output: one register (polite), and literal
+# translation patterns to avoid.
+
+note = "文体は敬体（です・ます）にそろえ、会議の話し言葉として自然な語順とつなぎにする。"
+polite_endings = ["です", "ます", "ました", "でした", "ません", "ください", "でしょう", "ですか", "ますか"]
+plain_endings = ["だ", "である", "た", "ない", "する", "いる", "ある"]
+
+[[pattern]]
+literal = "私にとって理にかなっています"
+natural = "納得できます"
+
+[[pattern]]
+literal = "私たちは同じ認識です"
+natural = "認識は一致していますね"
+
+[[pattern]]
+literal = "私のスクリーンを共有"
+natural = "画面を共有"
