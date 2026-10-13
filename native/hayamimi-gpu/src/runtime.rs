@@ -42,12 +42,21 @@ pub fn preload_beside_executable(name: &str) -> Result<(), GpuError> {
 
 /// `GetVersionString()` of the library `name` (for example `onnxruntime.dll`).
 ///
-/// A library that is already loaded under that name is reused, so the answer
-/// is the version of the copy the process is running.
+/// The copy loaded by [`preload_beside_executable`] answers when there is one.
+/// Otherwise a library that is already loaded under that name is reused, so
+/// the answer is the version of the copy the process is running.
 #[allow(unsafe_code)]
 pub fn onnxruntime_version(name: &str) -> Result<String, GpuError> {
+    if let Some(library) = PRELOADED.get() {
+        return version_of(library);
+    }
     // SAFETY: opening a shared library runs its initialisers, which is the intent of loading ONNX Runtime.
     let library = unsafe { Library::new(name) }.map_err(GpuError::OnnxRuntime)?;
+    version_of(&library)
+}
+
+#[allow(unsafe_code)]
+fn version_of(library: &Library) -> Result<String, GpuError> {
     // SAFETY: `OrtGetApiBase` has the C signature `const OrtApiBase* OrtGetApiBase(void)`.
     let get_base: Symbol<OrtGetApiBase> =
         unsafe { library.get(b"OrtGetApiBase\0") }.map_err(|source| GpuError::Symbol {

@@ -2,9 +2,10 @@
 //! sherpa-onnx C library against a CUDA 13 ONNX Runtime package, put the CUDA
 //! and cuDNN runtime libraries beside it, and record what was built.
 //!
-//! Run it from a shell that has the MSVC tools on `PATH` (an "x64 Native
-//! Tools" prompt, or `Enter-VsDevShell`), together with `cmake`, `ninja`,
-//! `git`, `curl`, `tar` and `dumpbin`.
+//! On Windows, run it from a shell that has the MSVC tools on `PATH` (an "x64
+//! Native Tools" prompt, or `Launch-VsDevShell.ps1`), together with `cmake`,
+//! `ninja`, `git`, `curl`, `tar` and `dumpbin`. On Linux (WSL), it needs `gcc`,
+//! `g++`, `cmake`, `ninja`, `git`, `curl`, `tar` and `readelf`.
 //!
 //! Revert: delete the directory given by `--out-dir` (default
 //! `native/target/sherpa-gpu`); nothing outside it is written.
@@ -22,26 +23,110 @@ const SHERPA_REPOSITORY: &str = "https://github.com/k2-fsa/sherpa-onnx";
 const ORT_RELEASES: &str = "https://github.com/microsoft/onnxruntime/releases/download";
 /// Parallelism of the C++ build; the host caps build parallelism at two.
 const BUILD_JOBS: &str = "2";
-const PROVIDER_LIBRARY: &str = "onnxruntime_providers_cuda.dll";
 
-/// Lower-case name prefixes of the CUDA libraries the ONNX Runtime CUDA provider loads at run time.
-const CUDA_RUNTIME_PREFIXES: [&str; 6] = [
-    "cudart64_",
-    "cublas64_",
-    "cublaslt64_",
-    "cufft64_",
-    "nvrtc",
-    "nvjitlink",
-];
-/// Lower-case name prefix of the cuDNN libraries; all of them are staged.
-const CUDNN_PREFIXES: [&str; 1] = ["cudnn"];
-/// One library of each of these must have been staged, or the provider cannot start.
-const REQUIRED_PREFIXES: [(&str, &str); 4] = [
-    ("cudart64_", "cudart64_"),
-    ("cublas64_", "cublas64_"),
-    ("cublaslt64_", "cublasLt64_"),
-    ("cudnn64_", "cudnn64_"),
-];
+/// What differs between the operating systems the task builds on.
+struct Platform {
+    /// Name of the directory under the output directory, and the `os` of `build.json`.
+    name: &'static str,
+    /// The operating system part of the ONNX Runtime package name.
+    ort_os: &'static str,
+    /// The archive extension of the ONNX Runtime package.
+    ort_extension: &'static str,
+    /// Files of the unpacked ONNX Runtime package that must exist.
+    ort_files: &'static [&'static str],
+    /// The import library to put beside the C API library, where linking needs one.
+    import_library: Option<&'static str>,
+    /// The CUDA provider library of ONNX Runtime.
+    provider: &'static str,
+    /// Where the CUDA toolkit keeps its runtime libraries, best first.
+    cuda_directories: &'static [&'static str],
+    /// Where cuDNN keeps its runtime libraries, best first.
+    cudnn_directories: &'static [&'static str],
+    /// Lower-case name prefixes of the CUDA libraries the provider loads at run time.
+    cuda_prefixes: &'static [&'static str],
+    /// Lower-case name prefixes of the cuDNN libraries; all of them are staged.
+    cudnn_prefixes: &'static [&'static str],
+    /// One library of each of these must have been staged, or the provider cannot start.
+    /// Each pair is the lower-case prefix and the name shown when it is missing.
+    required: &'static [(&'static str, &'static str)],
+    /// Whether a file name is a shared library of this operating system.
+    is_library: fn(&str) -> bool,
+}
+
+fn is_dll(name: &str) -> bool {
+    name.to_ascii_lowercase().ends_with(".dll")
+}
+
+fn is_shared_object(name: &str) -> bool {
+    name.ends_with(".so") || name.contains(".so.")
+}
+
+const WINDOWS: Platform = Platform {
+    name: "windows",
+    ort_os: "win-x64",
+    ort_extension: "zip",
+    ort_files: &[
+        "include/onnxruntime_c_api.h",
+        "lib/onnxruntime.dll",
+        "lib/onnxruntime.lib",
+        "VERSION_NUMBER",
+    ],
+    import_library: Some("onnxruntime.lib"),
+    provider: "onnxruntime_providers_cuda.dll",
+    cuda_directories: &["bin/x64", "bin"],
+    cudnn_directories: &["bin/x64", "bin"],
+    cuda_prefixes: &[
+        "cudart64_",
+        "cublas64_",
+        "cublaslt64_",
+        "cufft64_",
+        "nvrtc",
+        "nvjitlink",
+    ],
+    cudnn_prefixes: &["cudnn"],
+    required: &[
+        ("cudart64_", "cudart64_"),
+        ("cublas64_", "cublas64_"),
+        ("cublaslt64_", "cublasLt64_"),
+        ("cudnn64_", "cudnn64_"),
+    ],
+    is_library: is_dll,
+};
+
+const LINUX: Platform = Platform {
+    name: "linux",
+    ort_os: "linux-x64",
+    ort_extension: "tgz",
+    ort_files: &[
+        "include/onnxruntime_c_api.h",
+        "lib/libonnxruntime.so",
+        "VERSION_NUMBER",
+    ],
+    import_library: None,
+    provider: "libonnxruntime_providers_cuda.so",
+    cuda_directories: &["lib64", "lib"],
+    cudnn_directories: &["lib64", "lib"],
+    cuda_prefixes: &[
+        "libcudart.so",
+        "libcublas.so",
+        "libcublaslt.so",
+        "libcufft.so",
+        "libcurand.so",
+        "libnvrtc",
+        "libnvjitlink",
+    ],
+    cudnn_prefixes: &["libcudnn"],
+    required: &[
+        ("libcudart.so", "libcudart.so"),
+        ("libcublas.so", "libcublas.so"),
+        ("libcublaslt.so", "libcublasLt.so"),
+        ("libcudnn.so", "libcudnn.so"),
+    ],
+    is_library: is_shared_object,
+};
+
+/// The platform this build of the task runs on.
+const PLATFORM: &Platform = if cfg!(windows) { &WINDOWS } else { &LINUX };
 
 /// Where one run keeps everything.
 struct Layout {
@@ -55,16 +140,16 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(out_dir: &Path, sherpa_tag: &str) -> Layout {
-        let platform = out_dir.join("windows");
+    fn new(out_dir: &Path, sherpa_tag: &str, platform: &Platform) -> Layout {
+        let directory = out_dir.join(platform.name);
         Layout {
             downloads: out_dir.join("downloads"),
             ort_staging: out_dir.join("ort.part"),
             ort: out_dir.join("ort"),
             source: out_dir.join(format!("src-{sherpa_tag}")),
-            build: platform.join("build"),
-            install: platform.join("install"),
-            build_json: platform.join("build.json"),
+            build: directory.join("build"),
+            install: directory.join("install"),
+            build_json: directory.join("build.json"),
         }
     }
 
@@ -77,17 +162,16 @@ impl Layout {
 /// An unpacked ONNX Runtime package: `include/` and `lib/` under `root`.
 struct OrtPackage {
     root: PathBuf,
-    zip_sha256: Option<String>,
+    archive_sha256: Option<String>,
 }
 
 impl OrtPackage {
-    fn open(root: PathBuf, zip_sha256: Option<String>) -> Result<OrtPackage, Error> {
-        for relative in [
-            "include/onnxruntime_c_api.h",
-            "lib/onnxruntime.dll",
-            "lib/onnxruntime.lib",
-            "VERSION_NUMBER",
-        ] {
+    fn open(
+        root: PathBuf,
+        archive_sha256: Option<String>,
+        platform: &Platform,
+    ) -> Result<OrtPackage, Error> {
+        for relative in platform.ort_files {
             let path = root.join(relative);
             if !path.is_file() {
                 return Err(Error::Missing {
@@ -96,7 +180,10 @@ impl OrtPackage {
                 });
             }
         }
-        Ok(OrtPackage { root, zip_sha256 })
+        Ok(OrtPackage {
+            root,
+            archive_sha256,
+        })
     }
 
     fn version(&self) -> Result<String, Error> {
@@ -164,15 +251,15 @@ fn ort_environment(include: &str, lib: &str) -> [(&'static str, String); 2] {
     ]
 }
 
-/// Whether a file name is a runtime library whose lower-case name starts with one of `prefixes`.
-fn is_runtime_library(file_name: &str, prefixes: &[&str]) -> bool {
+/// Whether a file name is a runtime library of `platform` whose lower-case name starts with one of `prefixes`.
+fn is_runtime_library(platform: &Platform, file_name: &str, prefixes: &[&str]) -> bool {
     let lower = file_name.to_ascii_lowercase();
-    lower.ends_with(".dll") && prefixes.iter().any(|prefix| lower.starts_with(prefix))
+    (platform.is_library)(file_name) && prefixes.iter().any(|prefix| lower.starts_with(prefix))
 }
 
 /// Fails with the first required prefix that no staged library satisfies.
-fn ensure_staged(staged: &[String]) -> Result<(), Error> {
-    for (lower_prefix, shown) in REQUIRED_PREFIXES {
+fn ensure_staged(platform: &Platform, staged: &[String]) -> Result<(), Error> {
+    for &(lower_prefix, shown) in platform.required {
         let found = staged
             .iter()
             .any(|name| name.to_ascii_lowercase().starts_with(lower_prefix));
@@ -214,8 +301,8 @@ fn download(url: &str, destination: &Path) -> Result<(), Error> {
     fs::rename(&part, destination).map_err(Error::io("rename", destination))
 }
 
-/// Unpacks `zip` so that `<ort>/<stem>` appears whole or not at all.
-fn extract(zip: &Path, stem: &str, layout: &Layout) -> Result<(), Error> {
+/// Unpacks `archive` so that `<ort>/<stem>` appears whole or not at all.
+fn extract(archive: &Path, stem: &str, layout: &Layout) -> Result<(), Error> {
     if layout.ort_staging.exists() {
         fs::remove_dir_all(&layout.ort_staging).map_err(Error::io("clear", &layout.ort_staging))?;
     }
@@ -223,14 +310,14 @@ fn extract(zip: &Path, stem: &str, layout: &Layout) -> Result<(), Error> {
     tools::run(
         Command::new("tar")
             .arg("-xf")
-            .arg(zip)
+            .arg(archive)
             .arg("-C")
             .arg(&layout.ort_staging),
     )?;
     let unpacked = layout.ort_staging.join(stem);
     if !unpacked.is_dir() {
         return Err(Error::Missing {
-            what: "the directory inside the ONNX Runtime package (is `tar` a zip-capable bsdtar?)",
+            what: "the directory inside the ONNX Runtime package (is `tar` able to read the archive?)",
             path: unpacked,
         });
     }
@@ -240,23 +327,33 @@ fn extract(zip: &Path, stem: &str, layout: &Layout) -> Result<(), Error> {
     fs::remove_dir(&layout.ort_staging).map_err(Error::io("remove", &layout.ort_staging))
 }
 
-fn ensure_ort(options: &Options, layout: &Layout) -> Result<OrtPackage, Error> {
+/// The package name without extension, for example `onnxruntime-win-x64-gpu_cuda13-1.31.0`.
+fn ort_stem(platform: &Platform, ort_version: &str) -> String {
+    format!("onnxruntime-{}-gpu_cuda13-{ort_version}", platform.ort_os)
+}
+
+fn ensure_ort(
+    options: &Options,
+    layout: &Layout,
+    platform: &Platform,
+) -> Result<OrtPackage, Error> {
     if let Some(root) = &options.ort_dir {
-        return OrtPackage::open(root.clone(), None);
+        return OrtPackage::open(root.clone(), None, platform);
     }
-    let stem = format!("onnxruntime-win-x64-gpu_cuda13-{}", options.ort_version);
-    let zip = layout.downloads.join(format!("{stem}.zip"));
-    if !zip.is_file() {
+    let stem = ort_stem(platform, &options.ort_version);
+    let file = format!("{stem}.{}", platform.ort_extension);
+    let archive = layout.downloads.join(&file);
+    if !archive.is_file() {
         progress("downloading the ONNX Runtime CUDA 13 package");
-        let url = format!("{ORT_RELEASES}/v{}/{stem}.zip", options.ort_version);
-        download(&url, &zip)?;
+        let url = format!("{ORT_RELEASES}/v{}/{file}", options.ort_version);
+        download(&url, &archive)?;
     }
     let root = layout.ort.join(&stem);
     if !root.join("lib").is_dir() {
         progress("unpacking the ONNX Runtime package");
-        extract(&zip, &stem, layout)?;
+        extract(&archive, &stem, layout)?;
     }
-    OrtPackage::open(root, Some(record::sha256_file(&zip)?))
+    OrtPackage::open(root, Some(record::sha256_file(&archive)?), platform)
 }
 
 fn cmake_build(layout: &Layout, ort: &OrtPackage) -> Result<(), Error> {
@@ -284,19 +381,39 @@ fn cmake_build(layout: &Layout, ort: &OrtPackage) -> Result<(), Error> {
     tools::run(Command::new("cmake").arg("--install").arg(&layout.build))
 }
 
-/// The runtime library directory of a CUDA or cuDNN tree: `bin/x64`, else `bin`.
-fn runtime_directory(root: &Path) -> Result<PathBuf, Error> {
-    [root.join("bin").join("x64"), root.join("bin")]
-        .into_iter()
+/// The first of `candidates` under `root` that is a directory.
+fn runtime_directory(root: &Path, candidates: &[&str]) -> Result<PathBuf, Error> {
+    candidates
+        .iter()
+        .map(|relative| root.join(relative))
         .find(|directory| directory.is_dir())
         .ok_or_else(|| Error::Missing {
             what: "the runtime library directory",
-            path: root.join("bin"),
+            path: root.to_path_buf(),
         })
 }
 
-/// Copies the libraries of `source_dir` whose names start with one of `prefixes` into `destination`.
+/// Puts `from` at `to`: a copy on Windows, a link to the real file elsewhere
+/// (the CUDA libraries are large and several names point at one file).
+#[cfg(unix)]
+fn place(from: &Path, to: &Path) -> Result<(), Error> {
+    let real = fs::canonicalize(from).map_err(Error::io("resolve", from))?;
+    if to.symlink_metadata().is_ok() {
+        fs::remove_file(to).map_err(Error::io("remove", to))?;
+    }
+    std::os::unix::fs::symlink(&real, to).map_err(Error::io("link", to))
+}
+
+#[cfg(not(unix))]
+fn place(from: &Path, to: &Path) -> Result<(), Error> {
+    fs::copy(from, to)
+        .map(drop)
+        .map_err(Error::io("copy", from))
+}
+
+/// Places the libraries of `source_dir` whose names start with one of `prefixes` into `destination`.
 fn stage_from(
+    platform: &Platform,
     source_dir: &Path,
     prefixes: &[&str],
     destination: &Path,
@@ -305,11 +422,10 @@ fn stage_from(
     for entry in fs::read_dir(source_dir).map_err(Error::io("list", source_dir))? {
         let entry = entry.map_err(Error::io("list", source_dir))?;
         let name = entry.file_name().to_string_lossy().into_owned();
-        if !is_runtime_library(&name, prefixes) {
+        if !is_runtime_library(platform, &name, prefixes) {
             continue;
         }
-        let from = entry.path();
-        fs::copy(&from, destination.join(&name)).map_err(Error::io("copy", &from))?;
+        place(&entry.path(), &destination.join(&name))?;
         staged.push(name);
     }
     Ok(staged)
@@ -317,24 +433,32 @@ fn stage_from(
 
 /// Puts the CUDA and cuDNN libraries into the directory the Rust crate links
 /// against; the crate's build script copies that whole directory beside the executable.
-fn stage_runtime(options: &Options, layout: &Layout, ort: &OrtPackage) -> Result<(), Error> {
+fn stage_runtime(
+    options: &Options,
+    layout: &Layout,
+    ort: &OrtPackage,
+    platform: &Platform,
+) -> Result<(), Error> {
     progress("staging the import library and the CUDA and cuDNN runtime libraries");
     let destination = layout.install_lib();
-    // The crate's build script links `onnxruntime.lib` from the same directory as the C API library.
-    let import_library = ort.root.join("lib").join("onnxruntime.lib");
-    fs::copy(&import_library, destination.join("onnxruntime.lib"))
-        .map_err(Error::io("copy", &import_library))?;
+    if let Some(import_library) = platform.import_library {
+        // The crate's build script links the import library from the same directory as the C API library.
+        let from = ort.root.join("lib").join(import_library);
+        fs::copy(&from, destination.join(import_library)).map_err(Error::io("copy", &from))?;
+    }
     let mut staged = stage_from(
-        &runtime_directory(&options.cuda_dir)?,
-        &CUDA_RUNTIME_PREFIXES,
+        platform,
+        &runtime_directory(&options.cuda_dir, platform.cuda_directories)?,
+        platform.cuda_prefixes,
         &destination,
     )?;
     staged.extend(stage_from(
-        &runtime_directory(&options.cudnn_dir)?,
-        &CUDNN_PREFIXES,
+        platform,
+        &runtime_directory(&options.cudnn_dir, platform.cudnn_directories)?,
+        platform.cudnn_prefixes,
         &destination,
     )?);
-    ensure_staged(&staged)
+    ensure_staged(platform, &staged)
 }
 
 fn collect_record(
@@ -342,10 +466,11 @@ fn collect_record(
     layout: &Layout,
     ort: &OrtPackage,
     sherpa_commit: String,
+    platform: &Platform,
 ) -> Result<BuildRecord, Error> {
     progress("recording what was built");
     let lib = layout.install_lib();
-    let provider = lib.join(PROVIDER_LIBRARY);
+    let provider = lib.join(platform.provider);
     let cuda = record::cuda_release(&options.cuda_dir)?;
     let (cudnn_version, cudnn_major) = record::cudnn_version(&options.cudnn_dir)?;
     let (provider_cubin, provider_ptx) = record::provider_arches(&options.cuda_dir, &provider)?;
@@ -359,13 +484,13 @@ fn collect_record(
         })?;
     Ok(BuildRecord {
         schema_version: record::SCHEMA_VERSION,
-        os: "windows",
+        os: platform.name,
         built_at_epoch: record::epoch_now()?,
         sherpa_onnx_tag: options.sherpa_tag.clone(),
         sherpa_onnx_commit: sherpa_commit,
         ort_version: ort.version()?,
         ort_package,
-        ort_zip_sha256: ort.zip_sha256.clone(),
+        ort_zip_sha256: ort.archive_sha256.clone(),
         cuda_version: cuda.version,
         cuda_major: cuda.major,
         nvcc_build: cuda.build,
@@ -377,23 +502,21 @@ fn collect_record(
         provider_cubin,
         provider_ptx,
         provider_dependents: record::provider_dependents(&provider)?,
-        runtime_files: record::runtime_files(&lib)?,
+        runtime_files: record::runtime_files(&lib, platform.is_library)?,
     })
 }
 
 pub fn sherpa_gpu(options: &Options) -> Result<(), Error> {
-    if !cfg!(windows) {
-        return Err(Error::UnsupportedOs);
-    }
-    let layout = Layout::new(&options.out_dir, &options.sherpa_tag);
+    let platform = PLATFORM;
+    let layout = Layout::new(&options.out_dir, &options.sherpa_tag, platform);
     for directory in [&layout.downloads, &layout.build] {
         fs::create_dir_all(directory).map_err(Error::io("create", directory))?;
     }
     let sherpa_commit = ensure_source(options, &layout)?;
-    let ort = ensure_ort(options, &layout)?;
+    let ort = ensure_ort(options, &layout, platform)?;
     cmake_build(&layout, &ort)?;
-    stage_runtime(options, &layout, &ort)?;
-    let record = collect_record(options, &layout, &ort, sherpa_commit)?;
+    stage_runtime(options, &layout, &ort, platform)?;
+    let record = collect_record(options, &layout, &ort, sherpa_commit, platform)?;
     record::write(&layout.build_json, &record)?;
     progress(&format!("wrote {}", layout.build_json.display()));
     progress(&format!(
@@ -450,14 +573,47 @@ mod tests {
     }
 
     #[test]
-    fn runtime_libraries_are_chosen_by_lower_cased_prefix() {
-        let cuda = CUDA_RUNTIME_PREFIXES;
-        assert!(is_runtime_library("cudart64_13.dll", &cuda));
-        assert!(is_runtime_library("cublasLt64_13.dll", &cuda));
-        assert!(is_runtime_library("nvrtc-builtins64_134.dll", &cuda));
-        assert!(!is_runtime_library("cudart64_13.lib", &cuda));
-        assert!(!is_runtime_library("npps64_13.dll", &cuda));
-        assert!(!is_runtime_library("", &cuda));
+    fn the_package_names_follow_the_release_assets() {
+        assert_eq!(
+            ort_stem(&WINDOWS, "1.31.0"),
+            "onnxruntime-win-x64-gpu_cuda13-1.31.0"
+        );
+        assert_eq!(
+            ort_stem(&LINUX, "1.31.0"),
+            "onnxruntime-linux-x64-gpu_cuda13-1.31.0"
+        );
+        assert_eq!((WINDOWS.ort_extension, LINUX.ort_extension), ("zip", "tgz"));
+    }
+
+    #[test]
+    fn windows_runtime_libraries_are_chosen_by_lower_cased_prefix() {
+        let cuda = WINDOWS.cuda_prefixes;
+        assert!(is_runtime_library(&WINDOWS, "cudart64_13.dll", cuda));
+        assert!(is_runtime_library(&WINDOWS, "cublasLt64_13.dll", cuda));
+        assert!(is_runtime_library(
+            &WINDOWS,
+            "nvrtc-builtins64_134.dll",
+            cuda
+        ));
+        assert!(!is_runtime_library(&WINDOWS, "cudart64_13.lib", cuda));
+        assert!(!is_runtime_library(&WINDOWS, "npps64_13.dll", cuda));
+        assert!(!is_runtime_library(&WINDOWS, "", cuda));
+    }
+
+    #[test]
+    fn linux_runtime_libraries_are_chosen_by_prefix_and_shared_object_name() {
+        let cuda = LINUX.cuda_prefixes;
+        assert!(is_runtime_library(&LINUX, "libcudart.so.13", cuda));
+        assert!(is_runtime_library(&LINUX, "libcublasLt.so.13.7.0.27", cuda));
+        assert!(is_runtime_library(&LINUX, "libcurand.so", cuda));
+        assert!(!is_runtime_library(&LINUX, "libcudart_static.a", cuda));
+        assert!(!is_runtime_library(&LINUX, "libcufftw.so.12", cuda));
+        assert!(!is_runtime_library(&LINUX, "libnpps.so.13", cuda));
+        assert!(is_runtime_library(
+            &LINUX,
+            "libcudnn.so.9",
+            LINUX.cudnn_prefixes
+        ));
     }
 
     #[test]
@@ -466,7 +622,7 @@ mod tests {
             .into_iter()
             .map(str::to_owned)
             .collect();
-        let said = ensure_staged(&staged);
+        let said = ensure_staged(&WINDOWS, &staged);
         assert!(
             matches!(said, Err(Error::NotStaged("cudnn64_"))),
             "{said:?}"
@@ -484,12 +640,22 @@ mod tests {
         .into_iter()
         .map(str::to_owned)
         .collect();
-        ensure_staged(&staged)
+        ensure_staged(&WINDOWS, &staged)?;
+        let linux: Vec<String> = [
+            "libcudart.so.13",
+            "libcublas.so.13",
+            "libcublasLt.so.13",
+            "libcudnn.so.9",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        ensure_staged(&LINUX, &linux)
     }
 
     #[test]
     fn nothing_staged_misses_the_cuda_runtime_first() {
-        let said = ensure_staged(&[]);
+        let said = ensure_staged(&WINDOWS, &[]);
         assert!(
             matches!(said, Err(Error::NotStaged("cudart64_"))),
             "{said:?}"
@@ -498,12 +664,26 @@ mod tests {
 
     #[test]
     fn the_layout_keeps_one_platform_directory_for_build_and_install() {
-        let layout = Layout::new(Path::new("out"), "v1");
+        let layout = Layout::new(Path::new("out"), "v1", &WINDOWS);
         assert_eq!(layout.source, PathBuf::from("out/src-v1"));
         assert_eq!(
             layout.install_lib(),
             PathBuf::from("out/windows/install/lib")
         );
         assert_eq!(layout.build_json, PathBuf::from("out/windows/build.json"));
+        let linux = Layout::new(Path::new("out"), "v1", &LINUX);
+        assert_eq!(linux.build_json, PathBuf::from("out/linux/build.json"));
+    }
+
+    #[test]
+    fn the_runtime_directory_is_the_first_candidate_that_exists() -> Result<(), Error> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(
+            runtime_directory(root, &["no-such", "src"])?,
+            root.join("src")
+        );
+        let said = runtime_directory(root, &["no-such"]);
+        assert!(matches!(said, Err(Error::Missing { .. })), "{said:?}");
+        Ok(())
     }
 }

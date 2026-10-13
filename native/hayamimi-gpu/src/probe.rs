@@ -20,14 +20,33 @@ use crate::runtime;
 /// The provider the recognizer is asked to run on.
 const REQUESTED_PROVIDER: &str = "cuda";
 /// File name of the CUDA provider library of ONNX Runtime.
+#[cfg(windows)]
 const CUDA_PROVIDER_MODULE: &str = "onnxruntime_providers_cuda.dll";
+#[cfg(not(windows))]
+const CUDA_PROVIDER_MODULE: &str = "libonnxruntime_providers_cuda.so";
 /// File name of the ONNX Runtime library that sherpa-onnx links.
 #[cfg(windows)]
 const ONNXRUNTIME_MODULE: &str = "onnxruntime.dll";
 #[cfg(not(windows))]
 const ONNXRUNTIME_MODULE: &str = "libonnxruntime.so";
-/// Lower-case name prefixes of the modules worth reporting.
-const REPORTED_PREFIXES: [&str; 4] = ["onnxruntime", "sherpa", "cu", "nv"];
+/// The name the ONNX Runtime library is opened by to ask its version: the file
+/// name on Windows, the SONAME on Linux. A differently named copy of the file
+/// would be loaded as a second library.
+#[cfg(windows)]
+const ONNXRUNTIME_OPEN_NAME: &str = "onnxruntime.dll";
+#[cfg(not(windows))]
+const ONNXRUNTIME_OPEN_NAME: &str = "libonnxruntime.so.1";
+/// Lower-case name prefixes of the modules worth reporting, as Windows and Linux spell them.
+const REPORTED_PREFIXES: [&str; 8] = [
+    "onnxruntime",
+    "sherpa",
+    "cu",
+    "nv",
+    "libonnxruntime",
+    "libsherpa",
+    "libcu",
+    "libnv",
+];
 
 const FLAGS: [&str; 5] = ["--encoder", "--decoder", "--joiner", "--tokens", "--wav"];
 
@@ -94,7 +113,10 @@ pub struct Probe {
 
 /// `cuda` when the CUDA provider library is among the loaded modules.
 pub fn provider_of(modules: &[LoadedModule]) -> &'static str {
-    if modules.iter().any(|row| row.name == CUDA_PROVIDER_MODULE) {
+    if modules
+        .iter()
+        .any(|row| modules::is_named(&row.name, CUDA_PROVIDER_MODULE))
+    {
         "cuda"
     } else {
         "cpu"
@@ -105,7 +127,7 @@ pub fn provider_of(modules: &[LoadedModule]) -> &'static str {
 pub fn count_onnxruntime(modules: &[LoadedModule]) -> Result<u32, GpuError> {
     let count = modules
         .iter()
-        .filter(|row| row.name == ONNXRUNTIME_MODULE)
+        .filter(|row| modules::is_named(&row.name, ONNXRUNTIME_MODULE))
         .count();
     u32::try_from(count).map_err(|_| GpuError::Overflow("the ONNX Runtime copy count"))
 }
@@ -187,6 +209,9 @@ fn open_audio(args: &ProbeArgs) -> Result<Opened, GpuError> {
 /// Opens the audio on the CUDA provider and reads the process module list
 /// while the recognizer is alive.
 pub fn run(args: &ProbeArgs) -> Result<Probe, GpuError> {
+    // Only Windows needs it: the C library there can bind `onnxruntime.dll` to `System32`.
+    // On Linux the C library names `libonnxruntime.so.1`, found beside the executable.
+    #[cfg(windows)]
     runtime::preload_beside_executable(ONNXRUNTIME_MODULE)?;
     let cuda_devices = cuda::device_count()?;
     let opened = open_audio(args)?;
@@ -196,7 +221,7 @@ pub fn run(args: &ProbeArgs) -> Result<Probe, GpuError> {
         requested_provider: REQUESTED_PROVIDER,
         cuda_devices,
         loaded_provider: provider_of(&all_modules),
-        ort_version: runtime::onnxruntime_version(ONNXRUNTIME_MODULE)?,
+        ort_version: runtime::onnxruntime_version(ONNXRUNTIME_OPEN_NAME)?,
         onnxruntime_libraries: count_onnxruntime(&all_modules)?,
         audio_ms: opened.audio_ms,
         decode_ms: opened.decode_ms,
@@ -223,25 +248,22 @@ mod tests {
 
     #[test]
     fn the_cuda_provider_module_makes_the_provider_cuda() {
-        let loaded = [
-            row("onnxruntime.dll"),
-            row("onnxruntime_providers_cuda.dll"),
-        ];
+        let loaded = [row(ONNXRUNTIME_MODULE), row(CUDA_PROVIDER_MODULE)];
         assert_eq!(provider_of(&loaded), "cuda");
     }
 
     #[test]
     fn without_the_cuda_provider_module_the_provider_is_cpu() {
-        assert_eq!(provider_of(&[row("onnxruntime.dll")]), "cpu");
+        assert_eq!(provider_of(&[row(ONNXRUNTIME_MODULE)]), "cpu");
         assert_eq!(provider_of(&[]), "cpu");
     }
 
-    #[cfg(windows)]
     #[test]
     fn only_the_library_itself_counts_as_an_onnxruntime_copy() -> Result<(), GpuError> {
         let loaded = [
-            row("onnxruntime.dll"),
-            row("onnxruntime_providers_cuda.dll"),
+            row(ONNXRUNTIME_MODULE),
+            row(CUDA_PROVIDER_MODULE),
+            row("libonnxruntime_providers_shared.so"),
             row("onnxruntime_providers_shared.dll"),
         ];
         assert_eq!(count_onnxruntime(&loaded)?, 1);

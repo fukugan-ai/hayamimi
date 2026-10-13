@@ -7,12 +7,12 @@
 
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::GpuError;
 
 /// Where a module was loaded from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Origin {
     /// The directory of the running executable.
@@ -24,10 +24,24 @@ pub enum Origin {
 }
 
 /// One loaded module: its lower-case file name and where it came from.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoadedModule {
     pub name: String,
     pub origin: Origin,
+}
+
+/// Whether a module name is `library`, or `library` followed by a version
+/// suffix (`libcublas.so.13` is the mapped file `libcublas.so.13.4.1.1`),
+/// ignoring ASCII case.
+pub fn is_named(name: &str, library: &str) -> bool {
+    let Some(head) = name.get(..library.len()) else {
+        return false;
+    };
+    head.eq_ignore_ascii_case(library)
+        && name[library.len()..]
+            .chars()
+            .next()
+            .is_none_or(|next| next == '.')
 }
 
 /// The file name of a path, whichever separator it uses.
@@ -123,11 +137,22 @@ fn module_paths() -> Result<Vec<String>, GpuError> {
     Ok(paths)
 }
 
+/// The file paths mapped into the process, from the text of `/proc/self/maps`.
+#[cfg(any(not(windows), test))]
+fn paths_in_maps(maps: &str) -> Vec<String> {
+    let mut paths: Vec<String> = maps
+        .lines()
+        .filter_map(|line| line.find('/').map(|at| line[at..].trim_end().to_owned()))
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
 #[cfg(not(windows))]
 fn module_paths() -> Result<Vec<String>, GpuError> {
-    Err(GpuError::Modules(String::from(
-        "the module list is implemented for Windows only",
-    )))
+    let maps = std::fs::read_to_string("/proc/self/maps").map_err(GpuError::Io)?;
+    Ok(paths_in_maps(&maps))
 }
 
 /// Every module loaded into this process, sorted by name.
@@ -147,6 +172,35 @@ pub fn loaded_modules() -> Result<Vec<LoadedModule>, GpuError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_name_matches_a_library_with_or_without_a_version_suffix() {
+        assert!(is_named("libcublas.so.13", "libcublas.so.13"));
+        assert!(is_named("libcublas.so.13.4.1.1", "libcublas.so.13"));
+        assert!(!is_named("libcublaslt.so.13", "libcublas.so.13"));
+        assert!(!is_named("libcublas.so.130", "libcublas.so.13"));
+        assert!(!is_named(
+            "onnxruntime_providers_cuda.dll",
+            "onnxruntime.dll"
+        ));
+        assert!(!is_named("", "libcublas.so.13"));
+        assert!(is_named("CUBLAS64_13.DLL", "cublas64_13.dll"));
+    }
+
+    #[test]
+    fn mapped_files_are_listed_once_and_anonymous_maps_are_skipped() {
+        let maps = "\
+7f00-7f10 r-xp 00000000 08:01 11   /usr/lib/libcublas.so.13.4.1.1
+7f10-7f20 r--p 00010000 08:01 11   /usr/lib/libcublas.so.13.4.1.1
+7f20-7f30 rw-p 00000000 00:00 0
+7ffd-7fff rw-p 00000000 00:00 0    [stack]
+";
+        assert_eq!(
+            paths_in_maps(maps),
+            vec![String::from("/usr/lib/libcublas.so.13.4.1.1")]
+        );
+        assert!(paths_in_maps("").is_empty());
+    }
 
     #[test]
     fn the_file_name_follows_the_last_separator_of_either_style() {

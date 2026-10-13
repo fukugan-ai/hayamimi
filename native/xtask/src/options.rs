@@ -8,8 +8,8 @@ use crate::error::Error;
 
 /// sherpa-onnx release that the Rust crate `sherpa-onnx` 1.13.8 is built against.
 pub const DEFAULT_SHERPA_TAG: &str = "v1.13.8";
-/// ONNX Runtime release that sherpa-onnx v1.13.8 pairs with; the CUDA 13 package of it is used.
-pub const DEFAULT_ORT_VERSION: &str = "1.28.2";
+/// ONNX Runtime release the CUDA 13 package of which is used; the `ort` crate defaults to this API version.
+pub const DEFAULT_ORT_VERSION: &str = "1.31.0";
 
 const FLAGS: [&str; 6] = [
     "--sherpa-tag",
@@ -41,7 +41,7 @@ impl Options {
         };
         let ort_version = match values.remove("--ort-version") {
             Some(version) => version,
-            // DEFAULT: docs/design/rust_port.ja.md 3.12 fixes ONNX Runtime 1.28.2 as the argument default.
+            // DEFAULT: docs/design/rust_port.ja.md 3.12 fixes the ONNX Runtime release named by DEFAULT_ORT_VERSION as the argument default.
             None => DEFAULT_ORT_VERSION.to_owned(),
         };
         let out_dir = match values.remove("--out-dir") {

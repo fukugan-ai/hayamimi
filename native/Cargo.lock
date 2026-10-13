@@ -406,6 +406,7 @@ dependencies = [
  "libloading",
  "serde",
  "serde_json",
+ "sha2",
  "sherpa-onnx",
  "windows-sys 0.61.2",
 ]

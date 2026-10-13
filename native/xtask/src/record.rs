@@ -106,17 +106,18 @@ pub fn epoch_now() -> Result<u64, Error> {
         })
 }
 
-/// Every `*.dll` in `dir` with its size and digest, sorted by name.
-pub fn runtime_files(dir: &Path) -> Result<Vec<RuntimeFile>, Error> {
+/// Every file in `dir` that `is_library` accepts, with its size and digest
+/// (links are followed), sorted by name.
+pub fn runtime_files(dir: &Path, is_library: fn(&str) -> bool) -> Result<Vec<RuntimeFile>, Error> {
     let mut files = Vec::new();
     for entry in fs::read_dir(dir).map_err(Error::io("list", dir))? {
         let entry = entry.map_err(Error::io("list", dir))?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().into_owned();
-        if !name.to_ascii_lowercase().ends_with(".dll") {
+        if !is_library(&name) {
             continue;
         }
-        let bytes = entry.metadata().map_err(Error::io("stat", &path))?.len();
+        let bytes = fs::metadata(&path).map_err(Error::io("stat", &path))?.len();
         files.push(RuntimeFile {
             name,
             bytes,
@@ -243,8 +244,14 @@ pub fn parse_gpu(csv: &str) -> Result<GpuInfo, Error> {
     })
 }
 
+/// Suffix of an executable file name on this operating system.
+#[cfg(windows)]
+const EXE_SUFFIX: &str = ".exe";
+#[cfg(not(windows))]
+const EXE_SUFFIX: &str = "";
+
 pub fn cuda_release(cuda_dir: &Path) -> Result<CudaRelease, Error> {
-    let nvcc = cuda_dir.join("bin").join("nvcc.exe");
+    let nvcc = cuda_dir.join("bin").join(format!("nvcc{EXE_SUFFIX}"));
     parse_cuda_release(&tools::capture(Command::new(nvcc).arg("--version"))?)
 }
 
@@ -262,15 +269,36 @@ pub fn provider_arches(
     cuda_dir: &Path,
     provider: &Path,
 ) -> Result<(ArchCounts, ArchCounts), Error> {
-    let cuobjdump = cuda_dir.join("bin").join("cuobjdump.exe");
+    let cuobjdump = cuda_dir.join("bin").join(format!("cuobjdump{EXE_SUFFIX}"));
     let elf = tools::capture(Command::new(&cuobjdump).arg("--list-elf").arg(provider))?;
     let ptx = tools::capture(Command::new(&cuobjdump).arg("--list-ptx").arg(provider))?;
     Ok((count_by_arch(&elf, "cubin"), count_by_arch(&ptx, "ptx")))
 }
 
+/// The library names under `Dynamic section` of `readelf -d` that are `(NEEDED)`.
+pub fn parse_needed(readelf_output: &str) -> Vec<String> {
+    readelf_output
+        .lines()
+        .filter(|line| line.contains("(NEEDED)"))
+        .filter_map(|line| {
+            let (_, tail) = line.split_once('[')?;
+            tail.split_once(']').map(|(name, _)| name.to_owned())
+        })
+        .collect()
+}
+
+/// The libraries the provider library imports: `dumpbin /dependents` on Windows.
+#[cfg(windows)]
 pub fn provider_dependents(provider: &Path) -> Result<Vec<String>, Error> {
     let report = tools::capture(Command::new("dumpbin").arg("/dependents").arg(provider))?;
     Ok(parse_dependents(&report))
+}
+
+/// The libraries the provider library needs: `readelf -d` on Linux.
+#[cfg(not(windows))]
+pub fn provider_dependents(provider: &Path) -> Result<Vec<String>, Error> {
+    let report = tools::capture(Command::new("readelf").arg("-d").arg(provider))?;
+    Ok(parse_needed(&report))
 }
 
 pub fn gpu_info() -> Result<GpuInfo, Error> {
@@ -290,6 +318,15 @@ mod tests {
         Built on Sun_Aug_03_13:24:32_Pacific_Standard_Time_2026\n\
         Cuda compilation tools, release 13.4, V13.4.59\n\
         Build cuda_13.4.r13.4/compiler.38657139_0\n";
+
+    #[test]
+    fn needed_libraries_are_read_from_readelf_lines() {
+        let output = " 0x0000000000000001 (NEEDED)             Shared library: [libcublasLt.so.13]\n\
+             0x000000000000000e (SONAME)            Library soname: [libprovider.so]\n\
+             0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n";
+        assert_eq!(parse_needed(output), ["libcublasLt.so.13", "libc.so.6"]);
+        assert!(parse_needed("").is_empty());
+    }
 
     #[test]
     fn the_sha256_of_abc_is_the_standard_vector() -> io::Result<()> {

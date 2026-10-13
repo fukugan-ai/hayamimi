@@ -14,8 +14,6 @@ pub enum Error {
     DuplicateFlag(&'static str),
     MissingValue(&'static str),
     MissingFlag(&'static str),
-    /// The task only runs on Windows in this release.
-    UnsupportedOs,
     Io {
         action: &'static str,
         path: PathBuf,
@@ -67,9 +65,6 @@ impl fmt::Display for Error {
             Error::DuplicateFlag(flag) => write!(f, "flag `{flag}` was given twice"),
             Error::MissingValue(flag) => write!(f, "flag `{flag}` needs a value"),
             Error::MissingFlag(flag) => write!(f, "flag `{flag}` is required"),
-            Error::UnsupportedOs => {
-                f.write_str("sherpa-gpu builds on Windows only in this release")
-            }
             Error::Io {
                 action,
                 path,
@@ -85,7 +80,7 @@ impl fmt::Display for Error {
             Error::NotStaged(prefix) => {
                 write!(f, "no runtime library named `{prefix}*` was found to stage")
             }
-            Error::Json(source) => write!(f, "cannot write build.json: {source}"),
+            Error::Json(source) => write!(f, "cannot read or write a JSON file: {source}"),
         }
     }
 }
