@@ -6,17 +6,28 @@
 
 pub mod cer;
 pub mod cli;
+pub mod cli_stages;
 pub mod error;
 pub mod fleurs;
+pub mod gpu_results;
 pub mod ingest;
 pub mod latency;
 pub mod log;
 pub mod manifest;
+pub mod mdtable;
 pub mod mt;
+pub mod nsys;
 pub mod percentile;
 pub mod record;
 pub mod sha;
+pub mod stage_load;
+pub mod stage_models;
+pub mod stage_report;
+pub mod stage_runs;
+pub mod stage_table;
+pub mod stages;
 pub mod stream;
+pub mod translate_call;
 pub mod wav;
 pub mod ws;
 

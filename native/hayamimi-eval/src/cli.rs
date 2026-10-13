@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{fleurs, log, manifest, record, stream};
+use crate::{cli_stages, fleurs, log, manifest, record, stream};
 
 #[derive(Parser)]
 #[command(
@@ -29,6 +29,12 @@ enum Command {
     FetchSet(FetchSetArgs),
     /// Write Japanese/target sentence pairs from FLEURS.
     FleursPairs(FleursArgs),
+    /// Time every stage of the Rust port on one provider and write a run file.
+    Stages(cli_stages::StagesArgs),
+    /// Write the result document of the stage measurement from run files.
+    StagesReport(cli_stages::StagesReportArgs),
+    /// Summarise `nsys stats` CSV files, one pair per utterance, as transfer rows.
+    NsysTransfers(cli_stages::NsysTransfersArgs),
 }
 
 #[derive(Args)]
@@ -174,6 +180,9 @@ fn execute(command: Command) -> Result<(), EvalError> {
             }
         }),
         Command::FetchSet(args) => fetch_set(args),
+        Command::Stages(args) => cli_stages::stages(args),
+        Command::StagesReport(args) => cli_stages::stages_report(args),
+        Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {

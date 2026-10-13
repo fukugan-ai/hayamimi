@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+pub mod stages;
+
 /// What a `check_*` function returns for a wrong input: a message that
 /// names what is wrong.
 pub type Failure = String;

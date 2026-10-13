@@ -17,10 +17,13 @@ path = "src/main.rs"
 base64 = "0.23"
 # ERROR POLICY: clap is confined to the CLI boundary; its errors are printed and turned into an exit code.
 clap = { version = "4", features = ["derive"] }
+hayamimi-gpu = { path = "../hayamimi-gpu" }
 hayamimi-relay = { path = "../hayamimi-relay" }
 hound = "3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The same shared build the GPU crate links; see docs/guide/build_gpu.ja.md.
+sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"] }
 sha1 = "0.11"
 sha2 = "0.11"
 unicode-normalization = "0.1"

@@ -387,6 +387,65 @@ Rust 側を CPU 版に戻すには、`SHERPA_ONNX_LIB_DIR` を設定せずに bu
 build script が CPU 版の archive を取ります（設計 3.12）。
 CUDA 12 版へ戻す手順は、設計の 3.12 に書いてあります。
 
+## 段の計測に使う llama-server（WSL の user unit）
+
+段の計測（`hayamimi-eval stages`）の「訳 T」の行と、負荷の下の計測は、llama-server を使います。
+走っている llama-server が無いときは、試し用の unit を起こします。
+WSL の hook が llama-server の素起動を止めるため、unit 経由で起こします。
+走っているかは `ss -tlnp 'sport = :18091'` で見ます（待ち受けが在れば port から pid が引けます）。
+
+| unit | port | 層 | 置き場 |
+|---|---|---|---|
+| `hayamimi-llama-trial-gpu.service` | 18091 | `-ngl 99`（GPU。負荷の相手と、訳 T の GPU の行） | `~/.config/systemd/user/` |
+| `hayamimi-llama-trial-cpu.service` | 18092 | `-ngl 0`（CPU。訳 T の CPU の行） | 同上 |
+
+model は `/mnt/h3-models/ollama/CAT-Translate-3.3b-Q8_0.gguf`、binary は `~/source/llama.cpp/build-cuda120/bin/llama-server`、model と binary は、訳の試し（`testdata/probe1_*.log`）と同じです。
+CPU の unit は `-c 4096 -np 2`、GPU の unit は `-c 8192 -np 4` です。
+GPU の unit は、負荷の client 2 本と計る依頼 1 本が、別々の slot を使えるように slot を 4 つにしています。
+この llama-server は WSL の CUDA 12.0 の build で、本番の形（Windows の native、CUDA 13 版）とは違います。
+
+```bash
+systemctl --user start hayamimi-llama-trial-gpu.service   # 起こす
+systemctl --user stop hayamimi-llama-trial-gpu.service    # 止める（SIGKILL。10 秒以内に止まる）
+systemctl --user is-active hayamimi-llama-trial-gpu.service
+ss -tlnp 'sport = :18091'                                  # 待ち受けの確認
+```
+
+戻し方（unit を消す）：
+
+```bash
+systemctl --user stop hayamimi-llama-trial-gpu.service hayamimi-llama-trial-cpu.service
+rm ~/.config/systemd/user/hayamimi-llama-trial-gpu.service ~/.config/systemd/user/hayamimi-llama-trial-cpu.service
+systemctl --user daemon-reload
+```
+
+## 段の計測を走らせる（Windows）
+
+`hayamimi-eval stages` は 1 つの process で 1 つの組（provider、負荷の有無、JIT の cache の状態）を測り、run file（`.jsonl`）を書きます。
+組ごとに process を分けるのは、sherpa-onnx が provider を model の生成時に決めるためと、JIT の cache の状態を process の開始時に決めるためです。
+前面の process で走らせ、負荷の下の run は、GPU の llama-server（上の 18091）へ訳の依頼を送り続ける client を 2 本、同じ process の中で起こします。
+
+```powershell
+# JIT の cache が空の run（空の dir を用意し、その dir を CUDA_CACHE_PATH に指す）
+$env:CUDA_CACHE_PATH = "<空の dir>"
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --out <名前>.jsonl --cache empty --run 1 --llama-url http://127.0.0.1:18091
+# 同じ dir で続けた温かい run（--run を 2、3 と増やす）
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --out <名前>.jsonl --cache warm --run 2 --llama-url http://127.0.0.1:18091
+# 負荷の下（CPU の run は --llama-url を 18092 にし、--load-url は GPU の 18091 のまま）
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --out <名前>.jsonl --run 1 --llama-url http://127.0.0.1:18091 --load-url http://127.0.0.1:18091
+```
+
+1 回の転送は、`nsys profile --capture-range=cudaProfilerApi --capture-range-end=repeat:<発話数 × model の数>` の下で `stages --only recognize --profile-ranges --repeat 1`（int8 を CUDA で走らせる対照は `--int8-on-cuda` を足す）を走らせ、認識の 1 呼び出しごとに `nsys stats --format csv` の `cuda_gpu_mem_time_sum`、`cuda_gpu_mem_size_sum` を取り、`hayamimi-eval nsys-transfers --dir <csv の dir> --variant <fp32 か fp16 か int8> --out <名前>.json` で集めます。
+
+run file と転送の JSON から、結果の文書を 1 本にします。
+
+```powershell
+hayamimi-eval stages-report --runs <run file...> --design docs\design\rust_port.ja.md --build-json native\target\sherpa-gpu\windows\build.json --cpu "<cpu の名前>" --transfers <転送の json...> --python testdata\baseline\lat_ja_0.35_1.jsonl testdata\baseline\lat_ja_0.35_2.jsonl --out docs\results\gpu_stages.md
+```
+
+負荷の下の run は、計測の間の CPU と GPU の使用率を 20 秒ごとに 1 行、`native/target/measure/log/load.log` へ追記して確かめました。
+計測の間、ほかの重い仕事は並べません。
+
 ## 未検証
 
 - 認識結果の文字数が 44 で、golden の期待値（45 文字）と 1 文字違います。文字そのものは比べていません。
@@ -394,4 +453,7 @@ CUDA 12 版へ戻す手順は、設計の 3.12 に書いてあります。
 - 1 回目の `decode_ms` が遅い理由（初期化か、PTX の変換か）と、`sm_120a` の機械語が実際に使われているか。
 - 認識を test の process の中で走らせるときの「実行物の隣」の解き方（上記）。
 - 退路（ORT 1.28.2）の build を、この run path 付きの WSL で打つこと。WSL の退路は作っていません（Windows の退路だけ在ります）。
+- JIT の cache が空の run は、Windows で 1 回だけです。空の run と温かい run の 1 回目の `decode_ms`（529 ms と、358 から 381 ms）の差には、PTX の JIT と、file が冷たいことの両方が入っていて、分けていません。
+- 段の計測の WSL 側は、CUDA の無負荷を 2 回だけ測りました。認識の p50 は 175 ms と 144 ms で、RP-23 の 10% に収まらず、結果の文書には入れていません。
+- 段の計測の llama-server は WSL の CUDA 12.0 の build で、本番の形（Windows の native、CUDA 13）ではありません。
 - CUDA 13.4.3 での 1 回目の `decode_ms`。4 回の値は Windows が 658 から 731 ms、WSL が 569 から 621 ms で、13.4.1 の 1 回目の遅れ（2469 ms、952 ms）は出ていません。ただし 13.4.3 の run は build の直後ではなく、GPU が温まった後なので、遅れが消えたとは言えません。
