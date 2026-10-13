@@ -1,0 +1,2 @@
+{"source":"sse","t_us":1,"event":{"type":"ready"}}
+{"source":"sse","t_us":2,"event":{"type":"bogus","text":"x"}}

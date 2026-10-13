@@ -1,0 +1,19 @@
+Name: sacrebleu
+Version: 2.6.0
+Summary: scoring
+---
+Name: jiwer
+Version: 4.0.0
+Summary: word error rate
+---
+Name: simpleder
+Version: 0.0.5
+Summary: diarization error rate
+---
+Name: opencc
+Version: 1.4.2
+Summary: Chinese conversion
+---
+Name: pyarrow
+Version: 25.0.1
+Summary: columnar data

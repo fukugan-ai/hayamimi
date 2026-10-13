@@ -1,0 +1,8 @@
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx\csrc\circular-buffer.cc:Push:110 Overflow! n: 512, size: 479648, n+size: 480160, capacity: 480000. Increase capacity to: 960000. (Original data is copied. No data loss!)
+[ES2011a] DER=31.7%  ref_speakers=4 hyp_speakers=8  ref_turns=83 hyp_segments=78  decode=18.4s
+[IS1008a] DER=18.2%  ref_speakers=4 hyp_speakers=6  ref_turns=107 hyp_segments=56  decode=19.5s
+[ES2004a] DER=28.4%  ref_speakers=4 hyp_speakers=8  ref_turns=131 hyp_segments=81  decode=21.1s
+[IS1009a] DER=32.9%  ref_speakers=4 hyp_speakers=6  ref_turns=145 hyp_segments=64  decode=21.9s
+[TS3003a] DER=16.2%  ref_speakers=4 hyp_speakers=7  ref_turns=62 hyp_segments=92  decode=22.5s
+
+=== mean DER over 5 meeting(s): 25.5% (collar=0.25s) ===
