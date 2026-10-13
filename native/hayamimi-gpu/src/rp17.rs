@@ -249,11 +249,58 @@ pub fn judge_and_record(
     Ok(())
 }
 
+/// Why a probe executable's run path was refused.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RunpathError {
+    /// `readelf -d` shows neither a `RUNPATH` nor an `RPATH` entry.
+    NoRunpath,
+    /// An entry exists, and none of its directories is `$ORIGIN` based.
+    NoOrigin(Vec<String>),
+}
+
+impl fmt::Display for RunpathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RunpathError::NoRunpath => f.write_str("the executable has no RUNPATH or RPATH"),
+            RunpathError::NoOrigin(found) => {
+                write!(f, "the run path {found:?} has no `$ORIGIN` directory")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RunpathError {}
+
+/// Checks the `readelf -d` output of the probe executable: it must carry a run
+/// path with `$ORIGIN`, so that it starts without `LD_LIBRARY_PATH`.
+///
+/// `RPATH` is accepted as well as `RUNPATH`. The libraries that the ONNX
+/// Runtime CUDA provider opens by name (cuDNN, cuBLAS) are searched along the
+/// `RPATH` of the executable, and not along its `RUNPATH`, so the build writes
+/// `RPATH`.
+pub fn check_runpath(readelf_output: &str) -> Result<(), RunpathError> {
+    let entries: Vec<String> = readelf_output
+        .lines()
+        .filter(|line| line.contains("(RUNPATH)") || line.contains("(RPATH)"))
+        .filter_map(|line| {
+            let (_, tail) = line.split_once('[')?;
+            tail.split_once(']').map(|(value, _)| value.to_owned())
+        })
+        .collect();
+    if entries.is_empty() {
+        return Err(RunpathError::NoRunpath);
+    }
+    if entries.iter().any(|value| value.contains("$ORIGIN")) {
+        return Ok(());
+    }
+    Err(RunpathError::NoOrigin(entries))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const BUILT: &str = "1.28.2";
+    const BUILT: &str = "1.31.0";
 
     fn row(name: &str, origin: Origin) -> LoadedModule {
         LoadedModule {
@@ -280,7 +327,7 @@ mod tests {
         [
             "libcublas.so.13.4.1.1",
             "libcublaslt.so.13.4.1.1",
-            "libonnxruntime.so.1.28.2",
+            "libonnxruntime.so.1.31.0",
         ]
         .map(|name| row(name, Origin::ExeDirectory))
         .to_vec()
@@ -351,12 +398,12 @@ mod tests {
     fn ort_version_differing_from_build_json_is_rejected() {
         let modules = windows();
         let observed = Observed {
-            ort_version: "1.28.1",
+            ort_version: "1.28.2",
             ..observe(&modules)
         };
         assert!(matches!(
             check(&observed, BUILT, &WINDOWS),
-            Err(Rp17Error::OrtVersion { opened, .. }) if opened == "1.28.1"
+            Err(Rp17Error::OrtVersion { built, opened }) if built == "1.31.0" && opened == "1.28.2"
         ));
     }
 
@@ -551,6 +598,31 @@ mod tests {
                 times: 0
             })
         );
+    }
+
+    #[test]
+    fn readelf_output_without_runpath_is_rejected() {
+        let output = include_str!("../tests/fixtures/rp17_readelf_no_runpath.txt");
+        assert_eq!(check_runpath(output), Err(RunpathError::NoRunpath));
+    }
+
+    #[test]
+    fn runpath_without_origin_is_rejected() {
+        let output = include_str!("../tests/fixtures/rp17_readelf_runpath_without_origin.txt");
+        assert_eq!(
+            check_runpath(output),
+            Err(RunpathError::NoOrigin(vec![String::from("/opt/ort")]))
+        );
+    }
+
+    #[test]
+    fn runpath_and_rpath_with_origin_are_accepted() {
+        let runpath = " 0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN]\n";
+        let rpath =
+            " 0x000000000000000f (RPATH)              Library rpath: [$ORIGIN:$ORIGIN/..]\n";
+        assert_eq!(check_runpath(runpath), Ok(()));
+        assert_eq!(check_runpath(rpath), Ok(()));
+        assert_eq!(check_runpath(""), Err(RunpathError::NoRunpath));
     }
 
     #[test]

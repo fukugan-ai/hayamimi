@@ -52,7 +52,9 @@ fn model_dir() -> Result<PathBuf, Box<dyn Error>> {
 fn run_probe() -> Result<String, Box<dyn Error>> {
     let model = model_dir()?;
     let wave = Path::new(MANIFEST_DIR).join("../..").join(WAVE);
+    // The child gets no `LD_LIBRARY_PATH`: the executable must find its libraries by itself.
     let output = Command::new(PROBE)
+        .env_remove("LD_LIBRARY_PATH")
         .arg("--encoder")
         .arg(model.join("encoder-epoch-35-avg-1.onnx"))
         .arg("--decoder")
@@ -97,8 +99,9 @@ fn rp17_self_built_cuda_library_opens_one_onnxruntime() -> Result<(), Box<dyn Er
 }
 
 #[test]
-fn dependent_crates_from_metadata_equal_those_from_manifest_search() -> Result<(), Box<dyn Error>> {
-    let from_metadata: BTreeSet<String> = workspace_metadata()?.dependents().into_iter().collect();
+fn counted_crates_from_metadata_equal_those_from_manifest_search() -> Result<(), Box<dyn Error>> {
+    let from_metadata: BTreeSet<String> =
+        workspace_metadata()?.counted_crates().into_iter().collect();
     let native = Path::new(MANIFEST_DIR).join("..");
     let mut from_manifests = BTreeSet::new();
     for entry in std::fs::read_dir(&native)? {
@@ -106,14 +109,58 @@ fn dependent_crates_from_metadata_equal_those_from_manifest_search() -> Result<(
         let Ok(manifest) = std::fs::read_to_string(directory.join("Cargo.toml")) else {
             continue;
         };
+        // The library crate's own manifest names it, so it is in this set too.
         let name = directory.file_name().and_then(|name| name.to_str());
-        if let Some(name) =
-            name.filter(|name| *name != LIBRARY_CRATE && manifest.contains(LIBRARY_CRATE))
-        {
+        if let Some(name) = name.filter(|_| manifest.contains(LIBRARY_CRATE)) {
             from_manifests.insert(name.to_owned());
         }
     }
+    assert!(from_metadata.contains(LIBRARY_CRATE), "{from_metadata:?}");
     assert_eq!(from_metadata, from_manifests);
+    Ok(())
+}
+
+/// Nothing depends on the library crate, and its own tests lack the link arguments.
+#[test]
+fn gpu_crate_itself_is_counted_when_nothing_depends_on_it() -> Result<(), Box<dyn Error>> {
+    let directory = fixture_dir("rp17_self_counted")?;
+    let script = directory.join("build.rs");
+    std::fs::write(
+        &script,
+        "println!(\"cargo::rustc-link-arg-bins=/DELAYLOAD:sherpa-onnx-c-api.dll\");\n\
+         println!(\"cargo::rustc-link-arg-bins=delayimp.lib\");\n",
+    )?;
+    let metadata = serde_json::json!({
+        "packages": [{
+            "name": LIBRARY_CRATE, "id": "gpu", "dependencies": [],
+            "targets": [{"kind": ["custom-build"], "src_path": script}],
+        }],
+        "workspace_members": ["gpu"],
+    });
+    let said = link_args::check_workspace(&Metadata::parse(&metadata.to_string())?);
+    assert_eq!(
+        said,
+        Err(link_args::LinkArgError::Missing {
+            krate: String::from(LIBRARY_CRATE),
+            target: "tests",
+            arg: "/DELAYLOAD:sherpa-onnx-c-api.dll"
+        })
+    );
+    Ok(())
+}
+
+/// The probe executable carries an `$ORIGIN` run path and starts without
+/// `LD_LIBRARY_PATH` (the child of `run_probe` has it removed).
+#[cfg(target_os = "linux")]
+#[test]
+fn wsl_probe_has_origin_runpath_and_runs_without_ld_library_path() -> Result<(), Box<dyn Error>> {
+    let output = Command::new("readelf").arg("-d").arg(PROBE).output()?;
+    rp17::check_runpath(&String::from_utf8(output.stdout)?)?;
+    let value: Value = serde_json::from_str(&run_probe()?)?;
+    assert_eq!(
+        value.get("loaded_provider").and_then(Value::as_str),
+        Some("cuda")
+    );
     Ok(())
 }
 

@@ -159,12 +159,17 @@ cd <repo>/native
 cargo run --release --target-dir $W/target -p xtask -- sherpa-gpu --cuda-dir /usr/local/cuda-13.4 --cudnn-dir /usr/local/cudnn-9.27.0.42-cuda13 --out-dir $W
 export SHERPA_ONNX_LIB_DIR=$W/linux/install/lib
 cargo build --release --target-dir $W/target -p hayamimi-gpu
-LD_LIBRARY_PATH=$W/target/release cargo test --release --target-dir $W/target -p hayamimi-gpu
+cargo test --release --target-dir $W/target -p hayamimi-gpu
 ```
 
-`LD_LIBRARY_PATH` に実行物の directory を置くのは、ORT の CUDA provider（`libonnxruntime_providers_cuda.so`）が `libcublas.so.13` などを名前だけで探し、provider 自身には探す場所の指定が無いためです。
-置かないと `/usr/local/cuda`（13.3）の物が先に当たります。
-RP-17 は CUDA の主版（13）しか見ないので、13.3 でも通りますが、13.4 の物を使った証拠にはなりません。
+`LD_LIBRARY_PATH` は要りません。
+`hayamimi-gpu` の `build.rs` が、実行物に `$ORIGIN`（実行物と同じ directory）の run path を付けるからです（test の実行物には `$ORIGIN/..` も付けます）。
+run path は `RUNPATH` ではなく `RPATH`（`-Wl,--disable-new-dtags`）で書いてあります。ORT の CUDA provider（`libonnxruntime_providers_cuda.so`）は `libcublas.so.13` と `libcudnn.so` を名前だけで探し、provider 自身には探す場所の指定が無いので、実行物の `RUNPATH` は provider が開く library に届かないためです。
+`RUNPATH` だけにして `LD_LIBRARY_PATH` を外して打つと（実測）、実行物は起動しますが、provider の `libcublas.so.13` と `libcudart.so.13` が `/usr/local/cuda-13.3` から読まれ、`libcudnn.so` は見つからず、`cuDNN is unavailable` で abort しました。
+`RPATH` にすると、`/proc/<pid>/maps` で `libcublas.so.13`、`libcublasLt.so.13`、`libcudart.so.13`、`libcurand.so.10`、`libcudnn.so.9`、`libonnxruntime*` がすべて実行物の directory（13.4 から複写した物）から読まれ、13.3 の path は 1 つも出ませんでした。
+実行物の directory に置く CUDA の library は、`sherpa-onnx-sys` が `install/lib` から複写した物です。
+
+`hayamimi-gpu` に依存する crate の実行物にも、同じ run path が要ります。
 
 ## 実測した結果
 
@@ -215,11 +220,13 @@ RTX 5060 Ti（compute capability 12.0）で `sm_120a` の機械語が実際に�
 全 kernel が機械語で当たるとも言えません。
 `sm_120` の PTX から実行時に変換されて動く kernel が在るかどうかも、確かめていません（ASSUMPTION）。
 RP-24 の `sm_120` 系の判定は、`sm_120` か `sm_120a` の機械語が 1 件以上在れば真なので、3 つとも真です。
-Windows と WSL の `build.json` を RP-24 の比較（`windows_and_wsl_builds_match`）に掛けると、5 項目が一致します（2 つの `build.json` を `native/target/sherpa-gpu/{windows,linux}/` に写して打った）。
+RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（現行の build。`linux` は WSL の作業 directory への symlink）を読み、`windows_and_wsl_builds_match` が 5 項目の一致を確かめます。
+同じ OS の 2 回目の build は `native/target/sherpa-gpu-repeat/<os>/` に作り、`two_builds_on_one_os_match` が現行と比べます。
+実走の 2 つは `cargo test --release -p xtask --test rp24 -- --ignored` で打ちます。どちらも通りました（Windows と WSL）。
 
 ### ORT 1.28.2（退路）
 
-ORT 1.28.2 の build は `native/target/sherpa-gpu` に残してあり、消していません。
+ORT 1.28.2 の build は `native/target/sherpa-gpu-ort1282` に残してあり、消していません。`build.json` と `rp17_passed.json` もそこに在ります（別の dir なので、現行の記録とは混ざりません）。
 Windows で同じ音声を 4 回開いた結果は、`loaded_provider` が `cuda`、ORT が `1.28.2`、`onnxruntime_libraries` が 1、`decoded_chars` が 44、`decode_ms` が 660、707、658、630 でした。
 これより前に `decode_ms` が 2490 の実行が 1 回ありました。
 その実行は module の snapshot を認識器の解放後に取っていたため `loaded_provider` が `cpu` と出ましたが、その表示は誤りで、実際にどの provider で動いたかは分かりません。
@@ -303,14 +310,15 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 
 ## 戻し方
 
-作った物は、`--out-dir` の下にだけ在ります（Windows の既定は `native\target\sherpa-gpu`、WSL は作業 directory）。
+作った物は、`--out-dir` の下にだけ在ります（既定は `native\target\sherpa-gpu`、WSL は作業 directory）。
 消すと build 前に戻り、他の物は変わりません。
 
 ```powershell
 Remove-Item -Recurse -Force "<repo>\native\target\sherpa-gpu"
 ```
 
-ORT 1.31.0 の Windows の build は `native\target\sherpa-gpu-ort131` に、1.28.2 の build は `native\target\sherpa-gpu` に在り、どちらも同じ方法で消せます。
+現行（ORT 1.31.0）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.2）の build は `native\target\sherpa-gpu-ort1282` に在り、どれも同じ方法で消せます。
+退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1282\windows\install\lib` にして build します（build.json の ORT の版が 1.28.2 になるので、RP-17 はその版で判定します）。
 WSL に入れた CUDA と cuDNN の戻し方は、「手順（WSL）」の「0. 入れる前の戻し方」にあります。
 
 Rust 側を CPU 版に戻すには、`SHERPA_ONNX_LIB_DIR` を設定せずに build します。
@@ -323,6 +331,5 @@ CUDA 12 版へ戻す手順は、設計の 3.12 に書いてあります。
 - System32 の DLL に結びつく条件。上の遅延読み込みと事前読み込みは、probe の実行で防げたことだけを確かめています。
 - 1 回目の `decode_ms` が遅い理由（初期化か、PTX の変換か）と、`sm_120a` の機械語が実際に使われているか。
 - 認識を test の process の中で走らせるときの「実行物の隣」の解き方（上記）。
-- RP-24 の「同じ OS で 2 回 build して一致する」（`two_builds_on_one_os_match`）は、2 回目の build を作っていないので打っていません。Windows と WSL の比較（`windows_and_wsl_builds_match`）は、2 つの `build.json` を写して打ちました。
-- WSL で `LD_LIBRARY_PATH` を置かずに打った場合に、CUDA 13.3 と 13.4 のどちらの物が読み込まれるか（13.3 が先に当たると想定していますが、読み込み元の path は probe の出力に出ません）。
+- 退路（ORT 1.28.2）の build を、この run path 付きの WSL で打つこと。WSL の退路は作っていません（Windows の退路だけ在ります）。
 - CUDA の redistrib 13.4.2 と 13.4.3 への移行。

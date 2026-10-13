@@ -53,7 +53,7 @@ fn identical_five_fields_pass() {
 
 #[test]
 fn ort_version_difference_is_named() {
-    let other = set(base(), "ort_version", json!("1.30.9"));
+    let other = set(base(), "ort_version", json!("1.28.2"));
     assert!(named(compare_build_json(&base(), &other), "ort_version"));
 }
 

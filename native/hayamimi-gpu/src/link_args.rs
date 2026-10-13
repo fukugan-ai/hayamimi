@@ -146,16 +146,12 @@ impl Metadata {
             .filter(|package| self.workspace_members.contains(&package.id))
     }
 
-    /// The workspace crates that depend on the library crate, by name.
-    pub fn dependents(&self) -> Vec<String> {
+    /// The names of the crates the check counts: the library crate itself and
+    /// the workspace crates that depend on it.
+    pub fn counted_crates(&self) -> Vec<String> {
         let mut names: Vec<String> = self
-            .members()
-            .filter(|package| {
-                package
-                    .dependencies
-                    .iter()
-                    .any(|dependency| dependency.name == LIBRARY_CRATE)
-            })
+            .linking_crates()
+            .into_iter()
             .map(|package| package.name.clone())
             .collect();
         names.sort();
@@ -261,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn no_dependent_crates_is_an_error_not_a_pass() -> Result<(), LinkArgError> {
+    fn no_counted_crates_is_an_error_not_a_pass() -> Result<(), LinkArgError> {
         assert_eq!(check(&[]), Err(LinkArgError::NoCrates));
         let unrelated = Metadata::parse(
             r#"{"packages":[{"name":"other","id":"other 0.1.0","dependencies":[],"targets":[]}],
@@ -286,7 +282,8 @@ mod tests {
     }
 
     #[test]
-    fn dependents_exclude_the_library_crate_and_unrelated_crates() -> Result<(), LinkArgError> {
+    fn counted_crates_are_the_library_crate_and_its_workspace_dependents()
+    -> Result<(), LinkArgError> {
         let metadata = Metadata::parse(
             r#"{"packages":[
                 {"name":"hayamimi-gpu","id":"g","dependencies":[],"targets":[]},
@@ -295,7 +292,7 @@ mod tests {
                 {"name":"outsider","id":"o","dependencies":[{"name":"hayamimi-gpu"}],"targets":[]}],
                 "workspace_members":["g","a","r"]}"#,
         )?;
-        assert_eq!(metadata.dependents(), ["asr"]);
+        assert_eq!(metadata.counted_crates(), ["asr", "hayamimi-gpu"]);
         Ok(())
     }
 }
