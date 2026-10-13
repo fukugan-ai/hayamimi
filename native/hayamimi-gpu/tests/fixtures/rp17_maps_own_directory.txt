@@ -1,0 +1,7 @@
+7f0000000000-7f0000100000 r-xp 00000000 08:01 11   /work/target/release/libonnxruntime.so.1
+7f0000100000-7f0000200000 r-xp 00000000 08:01 12   /work/target/release/libcublas.so.13
+7f0000150000-7f0000250000 r-xp 00000000 08:01 15   /work/target/release/libcublasLt.so.13
+7f0000200000-7f0000300000 r-xp 00000000 08:01 13   /work/target/release/libcudart.so.13
+7f0000300000-7f0000400000 r-xp 00000000 08:01 14   /work/target/release/libcudnn.so.9
+7f0000400000-7f0000500000 r-xp 00000000 08:01 16   /usr/lib/x86_64-linux-gnu/libc.so.6
+7ffd00000000-7ffd00021000 rw-p 00000000 00:00 0    [stack]

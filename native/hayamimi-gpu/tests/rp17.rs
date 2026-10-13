@@ -49,11 +49,13 @@ fn model_dir() -> Result<PathBuf, Box<dyn Error>> {
     Err(format!("no `models/{MODEL}` directory above the crate").into())
 }
 
-fn run_probe() -> Result<String, Box<dyn Error>> {
+/// The probe command for one wave file. The child gets no `LD_LIBRARY_PATH`:
+/// the executable must find its libraries by itself.
+fn probe_command() -> Result<Command, Box<dyn Error>> {
     let model = model_dir()?;
     let wave = Path::new(MANIFEST_DIR).join("../..").join(WAVE);
-    // The child gets no `LD_LIBRARY_PATH`: the executable must find its libraries by itself.
-    let output = Command::new(PROBE)
+    let mut command = Command::new(PROBE);
+    command
         .env_remove("LD_LIBRARY_PATH")
         .arg("--encoder")
         .arg(model.join("encoder-epoch-35-avg-1.onnx"))
@@ -64,8 +66,45 @@ fn run_probe() -> Result<String, Box<dyn Error>> {
         .arg("--tokens")
         .arg(model.join("tokens.txt"))
         .arg("--wav")
-        .arg(wave)
-        .output()?;
+        .arg(wave);
+    Ok(command)
+}
+
+/// Runs the probe and reads its `/proc/<pid>/maps` again and again until it
+/// exits, so that the files mapped while the recognizer was open are in the
+/// text. Returns the probe's output and the collected maps.
+#[cfg(target_os = "linux")]
+fn run_probe_sampling_maps() -> Result<(String, String), Box<dyn Error>> {
+    use std::io::Read;
+    use std::process::Stdio;
+
+    let mut child = probe_command()?
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let maps_path = format!("/proc/{}/maps", child.id());
+    let mut maps = String::new();
+    let status = loop {
+        // A read can fail in the instant the child exits; the exit is seen on the next turn.
+        if let Ok(snapshot) = std::fs::read_to_string(&maps_path) {
+            maps.push_str(&snapshot);
+        }
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+    };
+    let mut output = String::new();
+    if let Some(mut stdout) = child.stdout.take() {
+        stdout.read_to_string(&mut output)?;
+    }
+    if !status.success() {
+        return Err(format!("the probe exited with {status}").into());
+    }
+    Ok((output, maps))
+}
+
+fn run_probe() -> Result<String, Box<dyn Error>> {
+    let output = probe_command()?.output()?;
     if !output.status.success() {
         return Err(format!("the probe exited with {}", output.status).into());
     }
@@ -149,18 +188,21 @@ fn gpu_crate_itself_is_counted_when_nothing_depends_on_it() -> Result<(), Box<dy
     Ok(())
 }
 
-/// The probe executable carries an `$ORIGIN` run path and starts without
-/// `LD_LIBRARY_PATH` (the child of `run_probe` has it removed).
+/// The probe executable carries an `$ORIGIN` RPATH, passes RP-17 without
+/// `LD_LIBRARY_PATH` (the child has it removed), and maps every library from its
+/// own directory and none from the system CUDA 13.3.
 #[cfg(target_os = "linux")]
 #[test]
-fn wsl_probe_has_origin_runpath_and_runs_without_ld_library_path() -> Result<(), Box<dyn Error>> {
+fn wsl_probe_has_origin_rpath_and_loads_every_library_from_its_own_directory()
+-> Result<(), Box<dyn Error>> {
     let output = Command::new("readelf").arg("-d").arg(PROBE).output()?;
-    rp17::check_runpath(&String::from_utf8(output.stdout)?)?;
-    let value: Value = serde_json::from_str(&run_probe()?)?;
-    assert_eq!(
-        value.get("loaded_provider").and_then(Value::as_str),
-        Some("cuda")
-    );
+    rp17::check_rpath(&String::from_utf8(output.stdout)?)?;
+    let (report, maps) = run_probe_sampling_maps()?;
+    rp17::judge_and_record(platform_dir()?, &report, &NAMES)?;
+    let Some(exe_directory) = Path::new(PROBE).parent().and_then(Path::to_str) else {
+        return Err("the probe path has no UTF-8 directory".into());
+    };
+    rp17::check_maps(&maps, exe_directory)?;
     Ok(())
 }
 

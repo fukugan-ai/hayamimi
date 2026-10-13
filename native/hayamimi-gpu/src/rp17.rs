@@ -251,49 +251,126 @@ pub fn judge_and_record(
 
 /// Why a probe executable's run path was refused.
 #[derive(Debug, PartialEq, Eq)]
-pub enum RunpathError {
-    /// `readelf -d` shows neither a `RUNPATH` nor an `RPATH` entry.
-    NoRunpath,
-    /// An entry exists, and none of its directories is `$ORIGIN` based.
+pub enum RpathError {
+    /// `readelf -d` shows neither an `RPATH` nor a `RUNPATH` entry.
+    NoRpath,
+    /// Only a `RUNPATH` entry exists. It reaches the libraries the executable
+    /// links directly, and not the cuBLAS and cuDNN that the ONNX Runtime CUDA
+    /// provider opens later.
+    RunpathOnly,
+    /// An `RPATH` entry exists, and none of its directories is `$ORIGIN` based.
     NoOrigin(Vec<String>),
 }
 
-impl fmt::Display for RunpathError {
+impl fmt::Display for RpathError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RunpathError::NoRunpath => f.write_str("the executable has no RUNPATH or RPATH"),
-            RunpathError::NoOrigin(found) => {
-                write!(f, "the run path {found:?} has no `$ORIGIN` directory")
+            RpathError::NoRpath => f.write_str("the executable has no RPATH"),
+            RpathError::RunpathOnly => f.write_str(
+                "the executable has a RUNPATH and no RPATH; it does not reach libraries opened later",
+            ),
+            RpathError::NoOrigin(found) => {
+                write!(f, "the RPATH {found:?} has no `$ORIGIN` directory")
             }
         }
     }
 }
 
-impl std::error::Error for RunpathError {}
+impl std::error::Error for RpathError {}
 
-/// Checks the `readelf -d` output of the probe executable: it must carry a run
-/// path with `$ORIGIN`, so that it starts without `LD_LIBRARY_PATH`.
-///
-/// `RPATH` is accepted as well as `RUNPATH`. The libraries that the ONNX
-/// Runtime CUDA provider opens by name (cuDNN, cuBLAS) are searched along the
-/// `RPATH` of the executable, and not along its `RUNPATH`, so the build writes
-/// `RPATH`.
-pub fn check_runpath(readelf_output: &str) -> Result<(), RunpathError> {
-    let entries: Vec<String> = readelf_output
+/// The bracketed values of the `readelf -d` lines that carry `tag` (`(RPATH)`).
+fn dynamic_entries(readelf_output: &str, tag: &str) -> Vec<String> {
+    readelf_output
         .lines()
-        .filter(|line| line.contains("(RUNPATH)") || line.contains("(RPATH)"))
+        .filter(|line| line.contains(tag))
         .filter_map(|line| {
             let (_, tail) = line.split_once('[')?;
             tail.split_once(']').map(|(value, _)| value.to_owned())
         })
-        .collect();
-    if entries.is_empty() {
-        return Err(RunpathError::NoRunpath);
+        .collect()
+}
+
+/// Checks the `readelf -d` output of the probe executable: it must carry an
+/// `RPATH` with `$ORIGIN`, so that it starts without `LD_LIBRARY_PATH` and every
+/// library, including those the ONNX Runtime CUDA provider opens by name, is
+/// searched in the executable's directory first. A `RUNPATH` does not do that.
+pub fn check_rpath(readelf_output: &str) -> Result<(), RpathError> {
+    let rpaths = dynamic_entries(readelf_output, "(RPATH)");
+    if rpaths.is_empty() {
+        if dynamic_entries(readelf_output, "(RUNPATH)").is_empty() {
+            return Err(RpathError::NoRpath);
+        }
+        return Err(RpathError::RunpathOnly);
     }
-    if entries.iter().any(|value| value.contains("$ORIGIN")) {
+    if rpaths.iter().any(|value| value.contains("$ORIGIN")) {
         return Ok(());
     }
-    Err(RunpathError::NoOrigin(entries))
+    Err(RpathError::NoOrigin(rpaths))
+}
+
+/// The libraries whose mapped files must all lie in the executable's directory.
+const MAPPED_LIBRARIES: [&str; 4] = [
+    "libcublas.so",
+    "libcudart.so",
+    "libcudnn.so",
+    "libonnxruntime.so",
+];
+
+/// The system CUDA that must not be loaded.
+const SYSTEM_CUDA: &str = "/usr/local/cuda-13.3";
+
+/// Why the files mapped into the probe process were refused.
+#[derive(Debug, PartialEq, Eq)]
+pub enum MapsError {
+    /// No mapped file belongs to this library; an empty reading is not a pass.
+    LibraryNotMapped(&'static str),
+    /// A file under the system CUDA 13.3 is mapped.
+    SystemCuda(String),
+    /// A target library is mapped from outside the executable's directory.
+    OutsideExecutableDirectory(String),
+}
+
+impl fmt::Display for MapsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MapsError::LibraryNotMapped(name) => write!(f, "no mapped file of `{name}`"),
+            MapsError::SystemCuda(path) => write!(f, "`{path}` is under {SYSTEM_CUDA}"),
+            MapsError::OutsideExecutableDirectory(path) => {
+                write!(f, "`{path}` is not in the executable's directory")
+            }
+        }
+    }
+}
+
+impl std::error::Error for MapsError {}
+
+/// Checks the text of `/proc/<pid>/maps` taken while the recognizer was open:
+/// cuBLAS, cudart, cuDNN and ONNX Runtime must each be mapped, all from
+/// `exe_directory`, and nothing may come from the system CUDA 13.3.
+pub fn check_maps(maps: &str, exe_directory: &str) -> Result<(), MapsError> {
+    let paths = crate::modules::paths_in_maps(maps);
+    for library in MAPPED_LIBRARIES {
+        let mapped: Vec<&String> = paths
+            .iter()
+            .filter(|path| is_named(crate::modules::file_name_of(path), library))
+            .collect();
+        if mapped.is_empty() {
+            return Err(MapsError::LibraryNotMapped(library));
+        }
+        if let Some(path) = mapped
+            .into_iter()
+            .find(|path| crate::modules::directory_of(path) != Some(exe_directory))
+        {
+            if let Some(system) = paths.iter().find(|path| path.contains(SYSTEM_CUDA)) {
+                return Err(MapsError::SystemCuda(system.clone()));
+            }
+            return Err(MapsError::OutsideExecutableDirectory(path.clone()));
+        }
+    }
+    match paths.iter().find(|path| path.contains(SYSTEM_CUDA)) {
+        Some(system) => Err(MapsError::SystemCuda(system.clone())),
+        None => Ok(()),
+    }
 }
 
 #[cfg(test)]
@@ -601,28 +678,71 @@ mod tests {
     }
 
     #[test]
-    fn readelf_output_without_runpath_is_rejected() {
-        let output = include_str!("../tests/fixtures/rp17_readelf_no_runpath.txt");
-        assert_eq!(check_runpath(output), Err(RunpathError::NoRunpath));
+    fn runpath_only_is_rejected_because_it_does_not_reach_libraries_opened_later() {
+        let output = include_str!("../tests/fixtures/rp17_readelf_runpath_only.txt");
+        assert_eq!(check_rpath(output), Err(RpathError::RunpathOnly));
     }
 
     #[test]
-    fn runpath_without_origin_is_rejected() {
-        let output = include_str!("../tests/fixtures/rp17_readelf_runpath_without_origin.txt");
+    fn rpath_without_origin_is_rejected() {
+        let output = include_str!("../tests/fixtures/rp17_readelf_rpath_without_origin.txt");
         assert_eq!(
-            check_runpath(output),
-            Err(RunpathError::NoOrigin(vec![String::from("/opt/ort")]))
+            check_rpath(output),
+            Err(RpathError::NoOrigin(vec![String::from("/opt/ort")]))
         );
     }
 
     #[test]
-    fn runpath_and_rpath_with_origin_are_accepted() {
-        let runpath = " 0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN]\n";
+    fn readelf_output_without_rpath_is_rejected() {
+        let output = include_str!("../tests/fixtures/rp17_readelf_no_rpath.txt");
+        assert_eq!(check_rpath(output), Err(RpathError::NoRpath));
+        assert_eq!(check_rpath(""), Err(RpathError::NoRpath));
+    }
+
+    #[test]
+    fn an_rpath_with_origin_is_accepted() {
         let rpath =
             " 0x000000000000000f (RPATH)              Library rpath: [$ORIGIN:$ORIGIN/..]\n";
-        assert_eq!(check_runpath(runpath), Ok(()));
-        assert_eq!(check_runpath(rpath), Ok(()));
-        assert_eq!(check_runpath(""), Err(RunpathError::NoRunpath));
+        assert_eq!(check_rpath(rpath), Ok(()));
+    }
+
+    const EXE_DIR: &str = "/work/target/release";
+
+    #[test]
+    fn maps_with_a_cuda_13_3_path_is_rejected() {
+        let maps = include_str!("../tests/fixtures/rp17_maps_with_cuda_13_3.txt");
+        assert_eq!(
+            check_maps(maps, EXE_DIR),
+            Err(MapsError::SystemCuda(String::from(
+                "/usr/local/cuda-13.3/targets/x86_64-linux/lib/libcublas.so.13.6.0.2"
+            )))
+        );
+    }
+
+    #[test]
+    fn maps_without_any_target_library_is_an_error_not_a_pass() {
+        let maps = include_str!("../tests/fixtures/rp17_maps_no_libraries.txt");
+        assert_eq!(
+            check_maps(maps, EXE_DIR),
+            Err(MapsError::LibraryNotMapped("libcublas.so"))
+        );
+        assert_eq!(
+            check_maps("", EXE_DIR),
+            Err(MapsError::LibraryNotMapped("libcublas.so"))
+        );
+    }
+
+    #[test]
+    fn maps_of_a_run_from_its_own_directory_pass() {
+        let maps = include_str!("../tests/fixtures/rp17_maps_own_directory.txt");
+        assert_eq!(check_maps(maps, EXE_DIR), Ok(()));
+        let elsewhere = maps.replace("/work/target/release/libcudnn", "/opt/cudnn/libcudnn");
+        assert_eq!(
+            check_maps(&elsewhere, EXE_DIR),
+            Err(MapsError::OutsideExecutableDirectory(String::from(
+                "/opt/cudnn/libcudnn.so.9"
+            )))
+        );
     }
 
     #[test]

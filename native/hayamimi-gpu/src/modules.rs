@@ -138,8 +138,7 @@ fn module_paths() -> Result<Vec<String>, GpuError> {
 }
 
 /// The file paths mapped into the process, from the text of `/proc/self/maps`.
-#[cfg(any(not(windows), test))]
-fn paths_in_maps(maps: &str) -> Vec<String> {
+pub fn paths_in_maps(maps: &str) -> Vec<String> {
     let mut paths: Vec<String> = maps
         .lines()
         .filter_map(|line| line.find('/').map(|at| line[at..].trim_end().to_owned()))
