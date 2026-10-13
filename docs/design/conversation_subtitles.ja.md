@@ -142,8 +142,18 @@ Python の `translation` とは別の port に出し、Python 側の形は変え
 {"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
  "status":"ok"|"held",
  "hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
- "text":str,"annotations":[{"start":int,"end":int,"text":str}]}
+ "text":str,"annotations":[{"start":int,"end":int,"text":str}],
+ "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
 ```
+
+- `text` は E の応答そのままで、添え書きを差し込まない。
+  画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
+- `start` と `end` は `text` の中の Unicode の文字（scalar value）の位置で、0 から数える。
+  `start` から `end` の手前までが、換算の元にした値と単位の表現である。
+- `skipped` は、換算の元になる表現を見つけたが添えなかった物を 1 つずつ持つ。
+  `kind` は `currency`、`length`、`mass`、`temperature`、`volume`、`area` のどれかである。
+  添えなかった理由を観測する場所は、この `skipped` だけとする。
+  log の `annotate.line.skipped` は同じ `kind` と `reason` を写す。
 
 訳は `id` で行に結ぶ。
 直前の行に貼る形では、訳が遅れて次の確定文が先に着くと、訳を別の行に貼るためである。
@@ -176,6 +186,14 @@ flowchart LR
 | 不確実性 | 推量と概数の印（`かもしれ`、`可能性`、`と思`、`そう`、`想定`、`約`、`くらい`、`may`、`might`、`probably`、`think`、`seem`、`look like`、`around`、`about` ほか）の有無が一致すること。依頼の `Could you`、`Can you` は数えない |
 | 固有名 | 用語表に載った語が原文に在れば、表の訳語が訳に在ること。和→英では、原文の英字の語が訳にそのまま在ること |
 | 形 | 訳が空でない、原文と同じでない、対象の言語の文字である、前置きと原文に無い引用符で包んでいない |
+
+照合は表の 5 つを、形、数、否定、不確実性、固有名の順に見て、最初に外れた物を `hold_reason` にする。
+形を先に見るのは、空の訳や `</s>` の残る訳には、ほかの照合を掛けても意味が無いからである。
+形の照合では、前後の空白を除いた訳のどこかに `</s>` が在れば外れとする。
+
+llama-server の応答そのものの検査は、V とは別に、T と E の両方の応答に掛ける。
+T の応答に `</s>` が在れば、E を頼まずにその行を `held`、`hold_reason: form` で出す。
+`stop` が効いていない応答であり、そのまま E に渡すと E の指示文に印が入るからである。
 
 印の一覧、定型句、用語表は repo の既定の表から始め、利用者の設定の directory（`%APPDATA%\hayamimi\`）の file で上書きできる。
 file が変わったら再起動せずに読み直し、読めない file は使わずに前の内容を使い、warn を 1 行出す。
@@ -322,8 +340,12 @@ token と link は会議ごとに変わるので、`%APPDATA%\hayamimi\send.toml
 認識の文字列が「a hundred dollars」のように語で来ても、この関数が 100 と読むので、ITN（語を数字へ直す段）は足さない。
 
 **書き方**：原文の値は訳の中にそのまま残し、その直後に換算値を括弧で添える。
-添える位置は、訳の中で原文と同じ値を持つ単位の表現の直後とし、1 か所に決まらないときは添えない。
+添える位置は、訳の中で原文と同じ値を持つ単位の表現の直後とする。
+対応づけは次の規則で決める。
+原文から「値と単位」の組を取り出し、訳の中で、同じ値を持ち、単位が `local_units.toml` の同じ単位の別名（`$`、`dollar`、`ドル` など）に当たる表現を探す。
+当たりが 1 つならその表現の直後に添え、0 か 2 つ以上なら添えずに `skipped` へ `reason: unplaced` で載せる。
 換算値は有効数字 3 桁に丸め、「約」と「about」を付ける。
+1000 以上の値は、通貨も通貨でない値も、3 桁ごとに `,` で区切る（`15,900 円`、`1,610 km`）。
 通貨には為替の日付を添える。
 添え書きの型は locale の文字列表に置き、code に直書きしない。
 
@@ -398,10 +420,10 @@ token と link は会議ごとに変わるので、`%APPDATA%\hayamimi\send.toml
 | 取得先 | ECB のユーロ参照為替の日次の XML（S4）。毎営業日 16:00 CET ごろに出る。JPY と他の通貨の交差値は EUR を介して計算する |
 | 起動の仕組み | Windows のタスク スケジューラ。`hayamimi-relay fx-schedule --install` が task を登録し、毎日 07:30 JST に `fx-fetch` を打つ。「逃した実行は起動後すぐに走らせる」を入れる。`--remove` で消す。task の名前は既定が `hayamimi-fx-fetch` で、`--task-name <名>` で替えられる。test は本番の名前を使わず、`hayamimi-fx-fetch-test-<連番>` を渡す。test は `--out` で書き先を、`--source-url` で取得先を替える。WSL の cron は、朝に WSL の VM が起きている保証が無いので使わない |
 | 網に出す物 | 上の URL への GET 1 本だけ。body も query も付けない |
-| file の path と形式 | `%LOCALAPPDATA%\hayamimi\fx_rates.json`。項目は `source_url`、`rate_date`（ECB が値に付けた日）、`fetched_at`（RFC 3339、+09:00）、`base: "EUR"`、`rates`（通貨 code と値）。同じ directory の一時 file に書いてから rename で入れ替える |
+| file の path と形式 | `%LOCALAPPDATA%\hayamimi\fx_rates.json`。項目は `source_url`、`rate_date`（ECB が値に付けた日。ECB の `time` と同じ `YYYY-MM-DD`）、`fetched_at`（RFC 3339、+09:00）、`base: "EUR"`、`rates`（通貨 code と値）。同じ directory の一時 file に書いてから rename で入れ替える |
 | 何日の値かの示し方 | `rate_date` を「10/12 の値」「rate of Oct 12」と添える。取得した日ではなく、ECB が値を出した日を示す |
-| 取得に失敗したとき | 前の file をそのまま使い、日付もそのまま示す。`fx.fetch.failed` を error で出す |
-| 古すぎる値 | `rate_date` が今日から 7 日より前なら、通貨の換算を添えない（reason `stale_rate`） |
+| 取得に失敗したとき | 前の file をそのまま使い、日付もそのまま示す。`fx.fetch.failed` を error で出す。失敗に数えるのは、接続できない、2xx 以外、200 だが XML として読めない、`Cube` の `time` か USD と JPY の値が無い、の 4 つである。前の file が無いまま失敗したら、file を作らない（空の file も仮の値の file も置かない）。そのとき通貨の換算は `no_rate` になる |
+| 古すぎる値 | 日数は、`now` の JST の日付から `rate_date` を引いた暦の日数とする。7 日までは添え、8 日以上なら通貨の換算を添えない（reason `stale_rate`） |
 | 週末と祝日 | ECB は値を出さないので、朝の取得は前の営業日の値を取る。月曜の朝は金曜の値を示す。7 日の上限は、連休をまたいでも越えない幅として置く |
 | file が無いとき | 通貨の換算を添えない（reason `no_rate`）。長さや重さの換算は為替に依らないので添える |
 
@@ -502,6 +524,7 @@ loopback ─────▶ 認識 --scene（Python）──┤
 ## 6. 受入 ID
 
 時刻と遅れは、中継と重ね窓の JSONL の log から数える。
+p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番目の値とする（nearest-rank。試しの log と同じ求め方）。
 `<relay>` は `native/target/x86_64-pc-windows-gnu/release/hayamimi-relay.exe` を指す。
 `cargo test` は `native/` で打つ。
 
@@ -611,6 +634,318 @@ loopback ─────▶ 認識 --scene（Python）──┤
 
 CS-24、CS-4b、CS-26、CS-27 は held-out の batch を燃やすので、Q1 と Q2 を決める 1 回の `eval --final` でまとめて打つ。
 
+### 7.1 case 行の読み方（順 1〜12）
+
+case は `T-<ID>-nnn` で呼ぶ。
+test 関数の名前は、表の「受入 test の名前」の後ろに `_` と各行の「関数の末尾」を続けた物にする（例：`cs04a_verify_passes_tuning_refs_and_stops_known_drift_j08_is_held_for_number`）。
+実装の test の名前はこの名前と一致させる。
+
+- 置き場は 7 の表のとおり `native/hayamimi-relay/tests/<id>.rs`。
+  cargo の command は `native/` で打ち、`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test <id>` の形にする。
+  `target/release/.cargo-lock` が無い最初の build だけは flock を付けずに打ってよい。
+- test は `Result<(), Box<dyn std::error::Error>>` を返し、`?` で伝える。
+  `unwrap`、`expect`、`unwrap_or*`、assert の中の整数の縮め、実行時の環境変数の読みは書かない。
+  fixture は `include_str!` か test が組む一時 directory で渡す（`testdata/` は `tests/` から `../../../testdata/`）。
+- 陰性の case は、壊した入力を test の中の `check_*` に渡し、`Err` が返ることを `matches!` で確かめる形にする。
+  test の中で panic させない。
+  壊した入力が文字列なら `native/hayamimi-relay/tests/fixtures/` の file に置き、command の文字列に直書きしない。
+- 時刻は引数（`now`）で渡し、実時計を読まない。
+  日付は月と日を 2 桁にそろえる（「10/06」と「10/6」の差を避ける）。
+- oracle の種類：specified＝設計の文、derived＝設計の表と過去の測定から出した値、pseudo＝別に書いた awk の式。
+  期待値の数は行の式のとおりで、確かめた command は 7.14 に置く。
+- 為替の試しの file（`fx_rates.json`）は S4 の値にする。
+  `source_url` は S4 の URL、`rate_date` は `2026-10-12`（ほかの日付の行は行に書く）、`fetched_at` は `2026-10-13T07:30:00+09:00`、`base` は `EUR`、`rates` は `USD` が 1.1181、`JPY` が 177.33。
+  特に書かない行の `now` は `2026-10-13T09:00:00+09:00`。
+- 注釈の確認は、`annotations[i].text` の前後の空白を除いた文字列で比べる。
+  位置は `end` だけを、ASCII だけの訳で比べる（位置の単位は 3.3 の Unicode の文字）。
+- 行に「reason = `X`」とあれば、その行の `translation` の `skipped` に `reason` が `X` の要素が 1 つ以上在ることを確かめる（3.3）。
+  「`annotations` = []」は、`annotations` が空であることだけを指す。
+
+#### 7.2 CS-4a（照合 V が取り違えを止め、調整用の訳を通す）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cs04a`
+入力の出所：`testdata/conv20.tsv`（id、src_lang、src、ref。40 行）と `testdata/probe1_cat-translate-3.3b.log`（CAT 正式版 Q8_0 の出力。id が一致する行の 5 列目）。
+CAT の出力は末尾の `</s>` を除いて V に渡す（`</s>` は CS-8 が測る）。
+held-out には触れない。
+方向は j 行が ja→en、e 行が en→ja。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CS-4a-001 | j01〜j20 の src と ref の 20 組 | ja→en の参照訳 | STOP 0 件 | `held` が 0 件。行数は `awk -F'\t' '$2=="ja"' testdata/conv20.tsv \| wc -l` = 20（specified、6.2） | 陽性 | `ja_en_refs_all_pass` |
+| T-CS-4a-002 | e01〜e20 の src と ref の 20 組 | en→ja の参照訳 | STOP 0 件 | `held` が 0 件。行数は同じ式の `"en"` で 20（specified） | 陽性 | `en_ja_refs_all_pass` |
+| T-CS-4a-003 | j01：src `こんにちは。`、訳 `Hello.`（CAT の出力） | 値が両側に無い | STOP 0 件 | `ok`。値の多重集合は {} と {}（derived、参照訳と同じ文字列） | 陽性 | `no_number_pair_passes` |
+| T-CS-4a-004 | j08：src `予算は五百万円を想定しています。`、訳 `The budget is assumed to be 1,500,000 yen.` | 値の食い違い | `held` | `held`、`hold_reason` = `number`。src の値 五百万 = 5 × 100 × 10000 = 5,000,000 の 1 個、訳は 1,500,000 の 1 個で、多重集合が違う（specified、6.2） | 陰性 | `j08_is_held_for_number` |
+| T-CS-4a-005 | j12：src `納期が二週間遅れる可能性があります。`、訳 `The 10-day delivery deadline may be delayed by two weeks.` | 値が 1 個多い | `held` | `held`、`number`。src {2}、訳 {10, 2}（specified） | 陰性 | `j12_is_held_for_number` |
+| T-CS-4a-006 | e01：src `Hello, can you hear me okay?`、訳 `こんにちは、100%聞こえますか？` | 原文に無い値 | `held` | `held`、`number`。src {}、訳 {100}（specified） | 陰性 | `e01_is_held_for_number` |
+| T-CS-4a-007 | e20：src `Talk to you next week.`、訳 `来週、10時にお会いしましょう。` | 原文に無い値 | `held` | `held`、`number`。src {}、訳 {10}（specified） | 陰性 | `e20_is_held_for_number` |
+| T-CS-4a-008 | e09：src `I'll follow up with an email after the call.`、訳 `電話の後、1通のメールをお送りします。` | 値 1 は比べない（境界の下側） | `hold_reason` が `number` でない | src {}、訳 {1} は 2 以上の値が無いので一致。`hold_reason != number`（`held` かどうかは問わない）（specified、3.4 の数） | 境界 | `e09_value_one_is_not_compared` |
+| T-CS-4a-009 | e16：src `Sorry, I was on mute.`、訳 `すみません、1回ミュートにしていました。` | 値 1 は比べない | `hold_reason` が `number` でない | 008 と同じ式（specified） | 境界 | `e16_value_one_is_not_compared` |
+| T-CS-4a-010 | 落ちた行が j08 と e01 の 2 件のときの test の失敗文 | 失敗の出し方 | id と件数だけ | 文字列に `j08`、`e01`、件数 `2` が在り、`五百万円`、`Talk to you` のような src と訳の文字が 0 件（specified、6.2） | 陽性 | `failure_report_names_ids_and_count_only` |
+
+#### 7.3 CS-8（訳の末尾に `</s>` が残らない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cs08`
+偽の llama-server（test の中の TCP server）が受けた依頼の body を取り、決めた応答を返す。
+入力の原文は j01 の `こんにちは。`。
+T の応答は `Hello.` で固定し、E の応答を行ごとに替える。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CS-8-001 | 1 本目（T）の依頼の body | 依頼に `stop` | 一致 | JSON の `stop` が `["</s>"]` と等しい（specified、S5 と 6.2） | 陽性 | `t_request_carries_stop_eos` |
+| T-CS-8-002 | 2 本目（E）の依頼の body | 依頼に `stop` | 一致 | JSON の `stop` が `["</s>"]` と等しい（specified） | 陽性 | `e_request_carries_stop_eos` |
+| T-CS-8-003 | E の応答 `Hello.</s>` | `</s>` で終わる | `held` | `status` = `held`、`hold_reason` = `form`（specified、6.2） | 陰性 | `eos_ending_reply_is_held_for_form` |
+| T-CS-8-004 | E の応答 `</s>` だけ | 応答がマーカーだけ（境界の最短） | `held` | `held`、`form`（specified。末尾が `</s>`） | 境界 | `bare_eos_reply_is_held_for_form` |
+| T-CS-8-005 | E の応答 `Hello.` | `</s>` が無い | `ok` | `status` = `ok`、`text` = `Hello.`（specified、6.2） | 陽性 | `clean_reply_passes` |
+| T-CS-8-006 | fixture `cs08_request_without_stop.json`：`{"prompt":"Translate the following Japanese text into English.\n\nこんにちは。","n_predict":64}` | `stop` を外した依頼 | `Err` | `check_request_has_eos_stop` が `Err`。001 の本物の依頼では `Ok`（specified） | 陰性 | `request_without_stop_is_rejected_by_the_check` |
+| T-CS-8-007 | 003、004、005 の 3 応答で出た `ok` の `text` の全部 | 性質：字幕に `</s>` が残らない | 0 件 | `ok` の件数 = 1（005 だけ）、その `text` の `</s>` の数 = 0。`check_no_eos("Hello.</s>")` は `Err`（specified、CS-8 の題） | 性質、陰性 | `no_ok_subtitle_contains_the_marker` |
+| T-CS-8-008 | T の応答 `Hello.</s>`（末尾）。E の応答は用意しない | T の応答に印 | E を頼まない | `status` = `held`、`hold_reason` = `form`。偽の server が受けた依頼の数 = 1（T だけ）（specified、3.4） | 陰性 | `t_reply_with_eos_is_held_without_asking_e` |
+| T-CS-8-009 | T の応答 `Hel</s>lo.`（途中） | T の応答に印、位置は末尾でない | E を頼まない | `held`、`form`、依頼の数 = 1（specified、3.4 の「在れば」） | 境界、陰性 | `t_reply_with_eos_in_the_middle_is_held_without_asking_e` |
+| T-CS-8-010 | T の応答 `Hello.`、E の応答 `Hel</s>lo.`（途中） | 訳の途中に印 | `held` | `held`、`form`。依頼の数 = 2（specified、3.4 の形の照合） | 境界、陰性 | `e_reply_with_eos_in_the_middle_is_held_for_form` |
+| T-CS-8-011 | T の応答 `Hello.`、E の応答 `Hello.</s>\n`（印の後ろに改行） | 空白付き（後ろ） | `held` | `held`、`form`。前後の空白を除いても末尾が `</s>`（specified、3.4） | 境界、陰性 | `e_reply_with_eos_and_trailing_newline_is_held_for_form` |
+| T-CS-8-012 | T の応答 `Hello.`、E の応答 `Hello. </s> `（印の前後に空白） | 空白付き（前後） | `held` | `held`、`form`（specified、3.4） | 境界、陰性 | `e_reply_with_spaced_eos_is_held_for_form` |
+| T-CS-8-013 | T の応答 `Hello.`、E の応答 `Hello.` | 両方に印が無い | E を頼む | 依頼の数 = 2（T と E の順）、`status` = `ok`、`text` = `Hello.`（specified、3.4。008 と 009 の依頼 1 本との対照） | 陽性 | `clean_t_reply_lets_e_run` |
+
+#### 7.4 CX-6（取得の部品が会話の文字を送らない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx06`
+取得先は test の中の HTTP server（`127.0.0.1` の空き port）。
+`--source-url http://127.0.0.1:<port>/stats/eurofxref/eurofxref-daily.xml` を渡し、200 と ECB の XML（`<Cube time='2026-10-12'>`、USD 1.1181、JPY 177.33）を返す。
+字幕の流れには、取得を打つ前に `こんにちは。` と `I paid $100.` の 2 行を流しておく。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-6-001 | 取得 1 回 | 受けた request の数 | 1 | 数 = 1（specified、6.2） | 陽性 | `one_request_only` |
+| T-CX-6-002 | 受けた request の 1 行目 | method と target | 一致 | method = `GET`、target = `/stats/eurofxref/eurofxref-daily.xml` で `?` を含まない（specified、S4 の path） | 陽性 | `method_get_and_path_matches` |
+| T-CX-6-003 | 受けた request の bytes | body | 0 byte | 空行（CRLF CRLF）の後が 0 byte、`Content-Length` は無いか 0（specified） | 陽性 | `body_is_empty` |
+| T-CX-6-004 | request の全 bytes に対する 5 つの文字列：`こんにちは。` の UTF-8（`e38193e38293e381abe381a1e381afe38082`）、`%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%82`、`I paid $100.`、`I%20paid%20%24100.`、`I+paid+%24100.` | 字幕の文字 | 0 件 | 5 つの出現数の合計 = 0（specified、6.2。percent 形は `jq -rn '"…"\|@uri'` で出した） | 陽性 | `subtitle_text_never_appears_in_request_bytes` |
+| T-CX-6-005 | 取得の既定の取得先（網に出さずに値だけ読む） | 既定の URL | 一致 | `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` と等しい（specified、S4） | 陽性 | `default_source_url_is_the_ecb_daily_file` |
+| T-CX-6-006 | fixture `cx06_request_with_subtitle_query.txt`：`GET /stats/eurofxref/eurofxref-daily.xml?q=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%82 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n` | 字幕を query に足した取得 | `Err` | `check_bare_get` が `Err`（query が空でない）、`check_no_subtitle_bytes` が `Err`（出現数 1）（specified） | 陰性 | `query_with_subtitle_is_rejected_by_the_check` |
+
+#### 7.5 CX-7（取得に失敗しても前の file を使う）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx07`
+前の file：`rate_date` `2026-10-09`、`fetched_at` `2026-10-12T07:30:00+09:00`、`rates` は USD 1.1000、JPY 176.00（新しい値と別にして、置き換わりを見分ける）。
+`--out` は test の一時 directory。
+`now` は `2026-10-13T07:30:00+09:00`。
+log は test が受ける。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-7-001 | 取得先が 200 と S4 の XML（`2026-10-12`、USD 1.1181、JPY 177.33） | 成功 | file が新しい | file の `rate_date` = `2026-10-12`、`fetched_at` = `2026-10-13T07:30:00+09:00`、`base` = `EUR`、`rates.USD` = 1.1181、`rates.JPY` = 177.33。bytes は前と違う。`fx.fetch.failed` は 0 件（specified、3.11 と 6.2） | 陽性 | `ok_fetch_replaces_the_file` |
+| T-CX-7-002 | 取得先が 500 | 5xx | file が前と同じ | file の sha256 が前と同じ。`fx.fetch.failed` が 1 件で `level` = `error`（specified、6.2） | 陰性 | `server_500_keeps_the_previous_bytes` |
+| T-CX-7-003 | 取得先が 404 | 4xx | file が前と同じ | 002 と同じ（specified、3.11 の「取得に失敗したとき」） | 陰性 | `server_404_keeps_the_previous_bytes` |
+| T-CX-7-004 | 聞いている者の無い port（bind して閉じた port） | 接続できない | file が前と同じ | 002 と同じ（specified） | 陰性 | `connection_refused_keeps_the_previous_bytes` |
+| T-CX-7-005 | 書き込みの偽：一時 file に新しい内容の半分の bytes を書いた所でエラーにする。取得先は 200 | 書き込みの途中の失敗 | file が前と同じ | 取り込み先の file の sha256 が前と同じ（rename が起きない）（specified、6.2） | 陰性 | `write_aborted_midway_keeps_the_previous_bytes` |
+| T-CX-7-006 | fixture `cx07_after_truncated.json`：`{"source_url":"https://www.ecb.europa.eu/stats/eurofxref/eurofxref-da`（前の file の代わりに途中で切れた file） | 直接書き込む作りの結果 | `Err` | `check_file_unchanged(前, この bytes)` が `Err`。前と同じ bytes では `Ok`（specified） | 陰性 | `non_atomic_result_is_rejected_by_the_check` |
+| T-CX-7-007 | 取得先が 200 と XML でない文字列（fixture `cx07_not_xml.txt`：`maintenance`） | 200 だが XML として読めない（1） | file が前と同じ | file の sha256 が前と同じ。`fx.fetch.failed` が 1 件で `level` = `error`（specified、3.11 の失敗の 4 つ） | 陰性 | `ok_status_with_non_xml_body_keeps_the_previous_bytes` |
+| T-CX-7-008 | 取得先が 200 と途中で切れた XML（fixture `cx07_truncated.xml`：S4 の XML の USD の `Cube` の行の直後で切った物） | 200 だが XML として読めない（2） | file が前と同じ | 007 と同じ（specified、3.11） | 陰性 | `truncated_xml_keeps_the_previous_bytes` |
+| T-CX-7-009 | 取得先が 200 と `time` の無い XML（fixture `cx07_no_time.xml`：S4 の XML の `<Cube time='2026-10-12'>` を `<Cube>` にした物） | `time` が無い | file が前と同じ | 007 と同じ（specified、3.11） | 陰性 | `xml_without_time_keeps_the_previous_bytes` |
+| T-CX-7-010 | 取得先が 200 と USD の無い XML（fixture `cx07_no_usd.xml`：S4 の XML から USD の行を除いた物） | USD が無い | file が前と同じ | 007 と同じ（specified、3.11） | 陰性 | `xml_without_usd_keeps_the_previous_bytes` |
+| T-CX-7-011 | 取得先が 200 と JPY の無い XML（fixture `cx07_no_jpy.xml`：S4 の XML から JPY の行を除いた物） | JPY が無い | file が前と同じ | 007 と同じ（specified、3.11） | 陰性 | `xml_without_jpy_keeps_the_previous_bytes` |
+| T-CX-7-012 | 前の file が無い `--out`。取得先が 500 | 前の file が無いまま失敗 | file を作らない | 失敗の後に `--out` の path が存在しない（空の file も仮の値の file も無い）。`fx.fetch.failed` が 1 件（specified、3.11） | 陰性 | `failure_without_a_previous_file_creates_no_file` |
+| T-CX-7-013 | 012 の後、同じ `--out` を読む中継で src `I paid $100.`、E の応答 `私は100ドル払いました。` | 前の file が無いまま失敗した後の通貨 | 添えない | `annotations` = []、reason = `no_rate`（specified、3.11） | 陰性 | `failure_without_a_previous_file_gives_no_rate` |
+
+#### 7.6 CX-8（週末の値の日付）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx08`
+曜日は `date -d` で確かめた。
+2026-10-16 は金曜日、2026-10-19 は月曜日、2026-10-20 は火曜日、2026-10-21 は水曜日。
+XML は S4 と同じ形で、日付と値（USD 1.1181、JPY 177.33）を試しの物にする。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-8-001 | `now` = 2026-10-19T07:30:00+09:00（月曜日）、取得先の XML の日付 = 2026-10-16（金曜日） | 月曜の朝 | 一致 | file の `rate_date` = `2026-10-16`、`fetched_at` は `2026-10-19` で始まる（specified、3.11） | 陽性 | `monday_fetch_stores_the_friday_rate_date` |
+| T-CX-8-002 | 001 の file、`now` 同じ、src `I paid $100.`、E の応答 `私は100ドル払いました。` | 月曜の ja の添え書き | 一致 | 注釈 = `（約 15,900 円、10/16 の値）`。`10/19` を含まない。式：100 × 177.33 / 1.1181 = 15859.94、有効数字 3 桁で 15,900（pseudo、awk）（specified、6.2） | 陽性 | `monday_ja_caption_names_friday` |
+| T-CX-8-003 | 001 の file、src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | 月曜の en の添え書き | 一致 | 注釈 = `(about $31,500, rate of Oct 16)`。`Oct 19` を含まない。式：5,000,000 / 177.33 × 1.1181 = 31525.97、3 桁で 31,500（pseudo） | 陽性 | `monday_en_caption_names_friday` |
+| T-CX-8-004 | `now` = 2026-10-21T07:30:00+09:00（水曜日）、XML の日付 = 2026-10-20（火曜日）、src `I paid $100.` | 平日の朝 | 一致 | 注釈 = `（約 15,900 円、10/20 の値）`。`10/21` を含まない（specified、6.2 の陽性対照） | 陽性 | `weekday_fetch_shows_the_rate_date_not_the_fetch_date` |
+| T-CX-8-005 | `（約 15,900 円、10/19 の値）` と `(about $31,500, rate of Oct 19)`（`rate_date` は 2026-10-16、取得日は 2026-10-19） | 取得日を示す書き方 | `Err` | `check_label_matches_rate_date` が両方 `Err`。002 と 003 の注釈では `Ok`（specified、6.2） | 陰性 | `fetch_date_label_is_rejected_by_the_check` |
+
+#### 7.7 CX-10（毎朝 1 回の取得の予定。本番の task には触れない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx10 -- --ignored`（Windows で打つ）
+task の名前は `hayamimi-fx-fetch-test-<連番>`。
+取得先は test の中の HTTP server（200 と S4 の XML）。
+`--out` は test の一時 directory の `fx_rates.json`。
+打つ前に `fetched_at` = `2026-10-01T07:30:00+09:00` の file を置く。
+`schtasks` と `fx-schedule` を打つ前に、名前を 001 の守りに通す。
+test が途中で落ちても、自分の名前の `--remove` は必ず打つ。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-10-001 | `check_task_name_is_test` に `hayamimi-fx-fetch-test-1`、`hayamimi-fx-fetch` | 本番の名前 | 本番の名前は `Err` | 前者 `Ok`、後者 `Err`（specified、3.11 と 6.2） | 陰性 | `name_guard_refuses_the_production_name` |
+| T-CX-10-002 | `fx-schedule --install --task-name <名> --out <dir>\fx_rates.json --source-url <試しの server>` の後に `schtasks /Query /TN <名>` | 登録 | rc 0 | install の rc = 0、`/Query` の rc = 0（specified、6.2 の陽性対照） | 陽性 | `install_registers_the_test_task` |
+| T-CX-10-003 | `schtasks /Query /TN <名> /XML` | 毎日 07:30 | 一致 | `CalendarTrigger` の `ScheduleByDay` の `DaysInterval` = 1、`StartBoundary` の時刻の部分 = `07:30:00`（specified、6.2） | 陽性 | `xml_has_a_daily_0730_trigger` |
+| T-CX-10-004 | 003 と同じ XML | 逃した実行 | true | `Settings` の `StartWhenAvailable` = `true`（specified、6.2） | 陽性 | `xml_has_start_when_available_true` |
+| T-CX-10-005 | `/Run` の直前の `fetched_at` を控え、`schtasks /Run /TN <名>`、1 秒ごとに file を読む | 実行 | file の `fetched_at` が控えより後 | `/Run` の rc = 0、60 秒以内に `fetched_at`（RFC 3339）が控えより後になる（specified、6.2。60 秒は test の待ちの上限で、受入の値ではない） | 陽性 | `run_refreshes_fetched_at` |
+| T-CX-10-006 | 005 の実行を終えた試しの server と file | 取得先 | 1 件以上 | server が受けた request の数 ≥ 1、file の `source_url` が試しの server の URL（ECB の URL でない）（specified、3.11） | 陽性 | `run_hit_the_test_server_not_the_network` |
+| T-CX-10-007 | `fx-schedule --remove --task-name <名>` の後に `schtasks /Query /TN <名>` | 削除 | rc 1 | remove の rc = 0、`/Query` の rc = 1（specified、6.2） | 陰性 | `remove_deletes_the_test_task` |
+| T-CX-10-008 | `schtasks /Query /TN hayamimi-fx-fetch /XML` の rc、標準出力、標準エラーを 002 の前と 007 の後に取る（読むだけで、書く command は打たない。`/XML` は task の定義だけを出し、最後と次の実行の時刻を含まない） | 本番の task | 同じ | 前後で rc、標準出力、標準エラーが全部同じ。本番の task が無い機械では前後とも rc 1 で同じ（specified、6.2） | 陰性 | `production_task_query_output_is_unchanged` |
+
+#### 7.8 CX-1（`$100` に換算が照合の後で添えられる）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx01`
+偽の llama-server の E の応答を行ごとに決める。
+試しの `fx_rates.json` は 7.1 の S4 の値。
+V に渡った文字列は、V の入口を見張る test の部品が控える。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-1-001 | src `I paid $100.`、E の応答 `私は100ドル払いました。` | ja の読み手の通貨 | 一致 | `status` = `ok`、`annotations` が 1 件、その注釈 = `（約 15,900 円、10/12 の値）`。式：100 × 177.33 / 1.1181 = 15859.94、3 桁で 15,900（pseudo、awk）（specified、6.2） | 陽性 | `ja_dollar_annotation_text` |
+| T-CX-1-002 | 001 の run で V に渡った文字列と呼び出しの順 | 照合の入力 | 一致 | V に渡った文字列 = `私は100ドル払いました。`（E の応答と同じ）。`（`、`(`、`約`、`15,900`、`10/12` を含まない。V の呼び出し 1 回で、換算はその後（specified、3.11 と 6.2） | 陽性 | `verify_receives_the_translation_without_annotation` |
+| T-CX-1-003 | fixture `cx01_verify_input_annotated.txt`：`私は100ドル（約 15,900 円、10/12 の値）払いました。` | 換算を V の前に置いた順 | `Err` | `check_verify_input_is_unannotated` が `Err`（`（` を含む）。002 の文字列では `Ok`（specified） | 陰性 | `annotation_before_verify_is_rejected_by_the_check` |
+| T-CX-1-004 | src `I paid $100.`、訳 003 の fixture の文字列を V へ | 換算を V の前に置くと V が止める | `held` | `held`。src の値 {100}、訳の値 {100, 15900, 10, 12} で多重集合が違う（derived、3.4 の数）。`hold_reason` は問わない | 陰性 | `annotated_text_would_make_verify_hold` |
+| T-CX-1-005 | src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | en の読み手の通貨、位置 | 一致 | 注釈 = `(about $31,500, rate of Oct 12)`、`end` = 30。式：5,000,000 / 177.33 × 1.1181 = 31525.97、3 桁で 31,500。`The budget is five million yen` は 30 文字（`printf '%s' … \| wc -c` = 30）（pseudo）（specified、3.11 の表） | 陽性 | `en_annotation_text_and_end` |
+| T-CX-1-006 | src `I paid $100.`、E の応答 `私は200ドル払いました。` | V が止める | `held` | `held`、`annotations` = []。src {100}、訳 {200}（specified、3.4 の「通った訳にだけ換算を添える」） | 陰性 | `held_line_gets_no_annotation` |
+
+#### 7.9 CX-2（曖昧な物には添えない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx02`
+試しの `fx_rates.json` は 7.1 の S4 の値。
+E の応答は行ごとに決める。
+reason は 3.3 の `skipped` で見る（7.1）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-2-001 | src `It weighs ten pounds.`、E の応答 `重さは10ポンドです。` | `pound` の語だけ | 添えない | `annotations` = []、reason = `ambiguous`（specified、3.11 の曖昧な物、6.2） | 陰性 | `ten_pounds_is_left_unannotated` |
+| T-CX-2-002 | src `It weighs two tons.`、E の応答 `重さは2トンです。` | `ton` | 添えない | `annotations` = []、`ambiguous`（specified） | 陰性 | `two_tons_is_left_unannotated` |
+| T-CX-2-003 | src `I bought 5 gallons.`、E の応答 `5ガロン買いました。` | `gallon` の語だけ | 添えない | `annotations` = []、`ambiguous`（specified） | 陰性 | `five_gallons_is_left_unannotated` |
+| T-CX-2-004 | src `Meet me at 5 in the morning.`、E の応答 `朝5時に会いましょう。` | 前置詞の `in` | 添えない | `annotations` = []、`ambiguous`（specified） | 陰性 | `at_5_in_the_morning_is_left_unannotated` |
+| T-CX-2-005 | src `It weighs 10 lb.`、E の応答 `重さは10 ポンドです。` | `lb` | 添える | 注釈 1 件 = `（約 4.54 kg）`。式：10 × 0.4535924 = 4.535924、3 桁で 4.54（pseudo）（specified、6.2） | 陽性 | `ten_lb_is_annotated` |
+| T-CX-2-006 | src `It is 5 inches long.`、E の応答 `長さは5インチです。` | `inches` | 添える | 注釈 1 件 = `（約 12.7 cm）`。式：5 × 2.54 = 12.70、3 桁で 12.7（pseudo） | 陽性 | `five_inches_is_annotated` |
+| T-CX-2-007 | src `I bought 2 US gallons.`、E の応答 `2 米ガロン買いました。` | `US gallons` | 添える | 注釈 1 件 = `（約 7.57 L）`。式：2 × 3.785412 = 7.570824、3 桁で 7.57（pseudo） | 陽性 | `two_us_gallons_is_annotated` |
+| T-CX-2-008 | 001 の入力に対して `（約 4.54 kg）` を添えた結果（`pound` を `lb` と読む偽）を fixture `cx02_pound_annotated.json` に置く | 曖昧な物に添えた偽 | `Err` | `check_unannotated` が `Err`。001 の本物の結果では `Ok`（specified） | 陰性 | `annotated_pound_is_rejected_by_the_check` |
+| T-CX-2-009 | src `I paid $100.`、E の応答 `私は100払いました。` | 当たり 0（訳に単位の表現が無い） | 添えない | `annotations` = []、`skipped` に `kind` = `currency`、reason = `unplaced` の要素が在る。V は src {100}、訳 {100} で通る（specified、3.11） | 陰性 | `zero_matches_are_skipped_as_unplaced` |
+| T-CX-2-010 | src `I planned $100 and paid $100.`、E の応答 `100ドルのつもりが、100ドル払いました。` | 当たり 2 以上 | 添えない | `annotations` = []、`skipped` に reason = `unplaced` の要素が 1 つ以上。V は src {100, 100}、訳 {100, 100} で通る（specified、3.11） | 陰性 | `two_matches_are_skipped_as_unplaced` |
+| T-CX-2-011 | src `I paid $100.`、E の応答 `私は$100払いました。` | 当たり 1（単位の別名 `$`） | 添える | 注釈 1 件 = `（約 15,900 円、10/12 の値）`、`start` = 2、`end` = 6（私 0、は 1、`$` 2、1 3、0 4、0 5 で、`$100` は 2 以上 6 未満）。`skipped` に `unplaced` が無い（specified、3.3 と 3.11） | 陽性 | `one_match_by_alias_dollar_sign_is_annotated_with_its_span` |
+
+#### 7.10 CX-3（換算が遅れに足す時間）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx03`
+入力は `testdata/conv20.tsv` の 40 組（src と ref を、方向を付けて）を 1 巡 40 回の呼び出しとし、100 巡する。
+試しの `fx_rates.json` は 7.1 の S4 の値、`now` は `2026-10-13T09:00:00+09:00`。
+時間は 1 回の呼び出しごとに `std::time::Instant` で測る。
+p95 は、昇順に並べた標本の 1 始まりの順位 ceil(0.95 × n) 番目とする（n = 4000 で 3800 番目）。
+最初の 1 巡（冷たい呼び出し）の p95 と、残りの p95 を別に出して記録する（合否に入れない）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-3-001 | 40 組 × 100 巡の換算の時間 4000 件 | 実測 | p95 ≤ 5 ms | 3800 番目の値 ≤ 5 ms。順位は `awk 'BEGIN{print int(4000*0.95+0.999)}'` = 3800（specified、6.2） | 陽性 | `p95_of_4000_annotation_calls_is_under_5_ms` |
+| T-CX-3-002 | 1 巡目の 40 行の結果 | 測っている物が本物 | 件数 | 標本の数 = 4000。注釈が付いた行が 1 行で、それは j08（src `予算は五百万円を想定しています。`、ref の `five million yen`）。数を含む行は j04、j06、j07、j08、j12、e14 で、通貨か単位の語を持つのは j08 だけ（derived、`awk -F'\t' 'NR>1 && ($3 ~ /[0-9一二三四五六七八九十百千万億]/ \|\| $4 ~ /[0-9]/){print $1}' testdata/conv20.tsv` の出力から） | 陽性 | `sample_count_and_conversions_are_real` |
+| T-CX-3-003 | 同じ 4000 件の V の時間 | V の p95 も出る | 値が出る | V の p95 が出て 0 より大きい（specified、6.2 の陽性対照） | 陽性 | `verify_p95_is_reported_with_the_same_method` |
+| T-CX-3-004 | 合成した標本：1 ms を 3800 件、50 ms を 200 件 | 3800 番目が境界の内側 | `Ok` | `check_p95_within` が `Ok`（3800 番目 = 1 ms）。線形補間の p95 は 1 + 0.05 × 49 = 3.45 ms で、方法が違っても合否は同じ（pseudo） | 境界 | `p95_boundary_at_rank_3800_passes` |
+| T-CX-3-005 | 合成した標本：1 ms を 3799 件、50 ms を 201 件 | 3800 番目が境界の外側 | `Err` | `check_p95_within` が `Err`（3800 番目 = 50 ms）。線形補間でも 50 ms（pseudo） | 境界、陰性 | `p95_boundary_at_rank_3799_fails` |
+| T-CX-3-006 | 1 回に 50 ms 眠る偽の換算を 40 回（1 巡） | 50 ms の待ち | `Err` | 順位 ceil(0.95 × 40) = 38 番目 ≥ 50 ms で、`check_p95_within` が `Err`（specified、6.2） | 陰性 | `fifty_ms_wait_is_rejected_by_the_check` |
+
+#### 7.11 CX-4（為替の file が無いときは通貨を添えない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx04`
+「file が無い」は、一時 directory に `fx_rates.json` を作らずに run する（作った後に消した run も 1 本）。
+reason は 3.3 の `skipped` で見る（7.1）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-4-001 | file 無し。src `I paid $100.`、E の応答 `私は100ドル払いました。` | 通貨、ja の読み手 | 添えない | `annotations` = []、reason = `no_rate`（specified、6.2） | 陰性 | `missing_file_skips_the_dollar_with_no_rate` |
+| T-CX-4-002 | file 無し。src `I paid $100 for 5 miles.`、E の応答 `5マイルで100ドル払いました。` | 同じ行の mile | 添える | 注釈 1 件 = `（約 8.05 km）`。通貨は 001 と同じ `no_rate`。式：5 × 1.609344 = 8.04672、3 桁で 8.05（pseudo）（specified、6.2） | 陽性 | `missing_file_still_annotates_the_mile_on_the_same_line` |
+| T-CX-4-003 | file 無し。src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | 通貨、en の読み手 | 添えない | `annotations` = []、`no_rate`（specified、3.11 の「file が無いとき」） | 陰性 | `missing_file_skips_the_yen_for_the_english_reader` |
+| T-CX-4-004 | file 有り（7.1 の S4 の値）。002 と同じ src と E の応答 | file が在る run | 両方添える | 注釈 2 件。文字列の集合 = {`（約 15,900 円、10/12 の値）`、`（約 8.05 km）`}（順は問わない）。式：100 × 177.33 / 1.1181 = 15859.94 → 15,900（pseudo）（specified、6.2 の陽性対照） | 陽性 | `present_file_annotates_both_on_the_same_line` |
+
+#### 7.12 CX-5（古い値には日付が付き、7 日より前なら添えない）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx05`
+`now` は `2026-10-20T09:00:00+09:00`。
+試しの file の `rate_date` だけを行ごとに替え、`rates` は S4 の値。
+日数は `date -d` で出した（2026-10-20 から 10-17 が 3 日、10-13 が 7 日、10-12 が 8 日、10-20 が 0 日）。
+7 日ちょうどは添え、8 日以上は添えない（3.11 の「古すぎる値」）。
+reason は 3.3 の `skipped` で見る（7.1）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-5-001 | `rate_date` = 2026-10-17（3 日前）、src `I paid $100.`、E の応答 `私は100ドル払いました。` | 新しい値、ja | 添える | 注釈 = `（約 15,900 円、10/17 の値）`（specified、6.2） | 陽性 | `three_days_old_ja_has_its_date` |
+| T-CX-5-002 | 同じ file、src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | 新しい値、en | 添える | 注釈 = `(about $31,500, rate of Oct 17)`（specified） | 陽性 | `three_days_old_en_has_its_date` |
+| T-CX-5-003 | `rate_date` = 2026-10-13（7 日前）、001 の src | 境界の内側 | 添える | 注釈 = `（約 15,900 円、10/13 の値）`（specified、3.11 の「7 日より前」） | 境界 | `seven_days_old_is_still_annotated` |
+| T-CX-5-004 | `rate_date` = 2026-10-12（8 日前）、001 の src | 境界の外側 | 添えない | `annotations` = []、reason = `stale_rate`（specified、6.2） | 陰性 | `eight_days_old_is_skipped_as_stale_rate` |
+| T-CX-5-005 | 8 日前の file、src `予算は五百万円です。` | 境界の外側、en | 添えない | `annotations` = []、`stale_rate`（specified） | 陰性 | `eight_days_old_en_is_skipped_as_stale_rate` |
+| T-CX-5-006 | `rate_date` = 2026-10-20（0 日前）、001 の src | 日付が今日 | 添える | 注釈 = `（約 15,900 円、10/20 の値）`（specified） | 境界 | `same_day_rate_is_annotated` |
+| T-CX-5-007 | 8 日前の file、src `I paid $100 for 5 miles.`、E の応答 `5マイルで100ドル払いました。` | 古い値でも mile は | 添える | 注釈 1 件 = `（約 8.05 km）`、通貨は `stale_rate`（specified、3.11 の「古すぎる値」は通貨だけ） | 陽性 | `stale_rate_still_annotates_the_mile_on_the_same_line` |
+
+#### 7.13 CX-9（大きさ、重さ、温度、体積、面積の係数と丸め）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx09`
+各行は「値と元の単位」を換算先へ直し、有効数字 3 桁の文字列で比べる。
+0 でない先頭の桁から 3 桁を残し、`37.0` のように末尾の 0 も残す。
+式の「厳密」は、3.11 の表で厳密値と書かれた行。
+`r4` は 4 桁に丸めた値で、壊した丸めを見分けるために並べた。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-9-001 | 5 mile | 長さ（厳密） | 3 桁一致 | `8.05` km。5 × 1.609344 = 8.04672（r4 = 8.047）（pseudo） | 陽性（厳密） | `mile_to_km` |
+| T-CX-9-002 | 3 ft | 長さ（厳密） | 同上 | `0.914` m。3 × 0.3048 = 0.9144 | 陽性（厳密） | `ft_to_m` |
+| T-CX-9-003 | 10 inch | 長さ（厳密） | 同上 | `25.4` cm。10 × 2.54 = 25.4 | 陽性（厳密） | `inch_to_cm` |
+| T-CX-9-004 | 10 yd | 長さ（厳密） | 同上 | `9.14` m。10 × 0.9144 = 9.144 | 陽性（厳密） | `yd_to_m` |
+| T-CX-9-005 | 10 lb | 重さ | 同上 | `4.54` kg。10 × 0.4535924 = 4.535924 | 陽性 | `lb_to_kg` |
+| T-CX-9-006 | 10 oz | 重さ | 同上 | `283` g。10 × 28.34952 = 283.4952（r4 = 283.5） | 陽性 | `oz_to_g` |
+| T-CX-9-007 | 98.6 °F | 温度（厳密） | 同上 | `37.0` ℃。(98.6 − 32) / 1.8 = 37.0 | 陽性（厳密） | `fahrenheit_to_celsius` |
+| T-CX-9-008 | 2 US gallon | 体積 | 同上 | `7.57` L。2 × 3.785412 = 7.570824 | 陽性 | `us_gallon_to_l` |
+| T-CX-9-009 | 10 US fl oz | 体積 | 同上 | `296` mL。10 × 29.57353 = 295.7353（繰り上がり、r4 = 295.7） | 陽性 | `us_fl_oz_to_ml` |
+| T-CX-9-010 | 100 sq ft | 面積（厳密） | 同上 | `9.29` m²。100 × 0.09290304 = 9.290304 | 陽性（厳密） | `sq_ft_to_m2` |
+| T-CX-9-011 | 0.1 acre | 面積 | 同上 | `405` m²。0.1 × 4046.873 = 404.6873（r4 = 404.7） | 陽性 | `acre_to_m2` |
+| T-CX-9-012 | 3 坪 | 面積（記録だけ、9 の H14） | 記録 | `9.92` m² と `107` sq ft。3 × 400/121 = 9.917355、9.917355 / 0.09290304 = 106.7495。合否に入れず、出した値を test の出力に残す（derived） | 記録 | `tsubo_to_m2_and_sq_ft_recorded` |
+| T-CX-9-013 | 6 畳 | 面積（記録だけ、H14） | 記録 | `9.72` m² と `105` sq ft。6 × 1.62 = 9.72、9.72 / 0.09290304 = 104.6252。合否に入れない（derived） | 記録 | `tatami_to_m2_and_sq_ft_recorded` |
+| T-CX-9-014 | 10 km | 逆向き、長さ | 3 桁一致 | `6.21` mile。10 / 1.609344 = 6.2137119（r4 = 6.214） | 陽性 | `km_to_mile` |
+| T-CX-9-015 | 100 m | 逆向き、長さ | 同上 | `328` ft。100 / 0.3048 = 328.0839895（r4 = 328.1） | 陽性 | `m_to_ft` |
+| T-CX-9-016 | 10 cm | 逆向き、長さ | 同上 | `3.94` inch。10 / 2.54 = 3.9370079 | 陽性 | `cm_to_inch` |
+| T-CX-9-017 | 70 kg | 逆向き、重さ | 同上 | `154` lb。70 / 0.4535924 = 154.3235733（r4 = 154.3） | 陽性 | `kg_to_lb` |
+| T-CX-9-018 | 500 g | 逆向き、重さ | 同上 | `17.6` oz。500 / 28.34952 = 17.6369829（r4 = 17.64） | 陽性 | `g_to_oz` |
+| T-CX-9-019 | 20 ℃ | 逆向き、温度 | 同上 | `68.0` °F。20 × 1.8 + 32 = 68.0 | 陽性 | `celsius_to_fahrenheit` |
+| T-CX-9-020 | 2 L | 逆向き、体積 | 同上 | `0.528` US gallon。2 / 3.785412 = 0.5283441（r4 = 0.5283） | 陽性 | `l_to_us_gallon` |
+| T-CX-9-021 | 250 mL | 逆向き、体積 | 同上 | `8.45` US fl oz。250 / 29.57353 = 8.4535056（r4 = 8.454） | 陽性 | `ml_to_us_fl_oz` |
+| T-CX-9-022 | 10 m² | 逆向き、面積 | 同上 | `108` sq ft。10 / 0.09290304 = 107.6391042（繰り上がり、r4 = 107.6） | 陽性 | `m2_to_sq_ft` |
+| T-CX-9-023 | 3.28 ft | 境界：桁が繰り上がって 1 になる | 同上 | `1.00` m。3.28 × 0.3048 = 0.999744 | 境界 | `ft_to_m_carries_into_the_next_digit` |
+| T-CX-9-024 | -40 °F と 0 ℃ | 境界：負の値、0 | 同上 | `-40.0` ℃（(−40 − 32) / 1.8 = −40.0）と `32.0` °F（0 × 1.8 + 32 = 32.0） | 境界 | `temperature_negative_and_zero` |
+| T-CX-9-025 | 表の順向きと逆向きの組（mile と km、ft と m、inch と cm、kg と lb、g と oz、US gallon と L、US fl oz と mL、sq ft と m²）と ℃ と °F | 性質：往復で元に戻る | 相対誤差 ≤ 1e-12（浮動小数点の許容。受入の値でない） | 順向きの係数 × 逆向きの係数 = 1、`F(C(x)) = x`（x = −40、0、20、98.6）が相対誤差 1e-12 以内（pseudo、独立の恒等式） | 性質 | `forward_and_reverse_factors_round_trip` |
+| T-CX-9-026 | 壊した表：mile の係数を 0.1609344 にした表で 5 mile | 係数を 1 桁ずらした表 | `Err` | 換算は `0.805` km（5 × 0.1609344 = 0.804672）で、期待の `8.05` と違い、`check_row_equals` が `Err`（specified、6.2） | 陰性 | `shifted_factor_table_is_rejected_by_the_check` |
+| T-CX-9-027 | 壊した丸め：4 桁に丸める書き方で 5 mile | 4 桁に丸める書き方 | `Err` | 換算は `8.047` km で、期待の `8.05` と違い、`check_row_equals` が `Err`（specified、6.2） | 陰性 | `four_digit_rounding_is_rejected_by_the_check` |
+
+#### 7.14 対象の在り処、確かめた式、残る穴、実装がやること
+
+対象の在り処：`native/` はまだ無い（`ls native` が失敗）ので、test の対象は新しく作る crate で、既存の読み手は無い。
+入力の在り処は `testdata/conv20.tsv`（`awk -F'\t' 'NR>1' testdata/conv20.tsv \| wc -l` = 40、`"ja"` が 20、`"en"` が 20）と `testdata/probe1_cat-translate-3.3b.log`（id が j08、j12、e01、e20、e09、e16、j01 の 7 行を各 1 件引ける）。
+
+数の確かめ（2026-10-13 に打った。出力は各 command の下の行）：
+
+```
+awk 'function r3(x,s,p,e,d){s=sprintf("%.2e",x);split(s,p,"e");e=p[2]+0;d=2-e;if(d<0)d=0;return sprintf("%.*f",d,p[1]*10^e)}
+BEGIN{print r3(5*1.609344),r3(10*0.4535924),r3((98.6-32)/1.8),r3(2*3.785412),r3(3*400/121),r3(3*400/121/0.09290304),r3(6*1.62),r3(10/1.609344),r3(70/0.4535924),r3(20*1.8+32)}'
+8.05 4.54 37.0 7.57 9.92 107 9.72 6.21 154 68.0
+awk 'BEGIN{print int(4000*0.95+0.999), 0.95*3999, 1+0.05*49}'
+3800 3799.05 3.45
+awk 'BEGIN{printf "%.2f %.2f\n", 100*177.33/1.1181, 5000000/177.33*1.1181}'
+15859.94 31525.97
+for d in 10-17 10-13 10-12 10-20; do echo $(( ($(date -d 2026-10-20 +%s)-$(date -d 2026-$d +%s))/86400 )); done
+3 7 8 0
+jq -rn '"こんにちは。"|@uri'
+%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%82
+```
+
+穴の始末（test-designer が挙げた 13 件。設計で決めた物は本文の節を指す）：
+
+1. 決めた：添えなかった理由は `translation` の `skipped` で観測する（3.3）。7.1 に読み方を足し、7.9、7.11、7.12 の行はそのまま読める。
+2. 決めた：`text` は E の応答のままで、`start` と `end` は Unicode の文字の位置、範囲は元の値と単位の表現、差し込みは `end`（3.3）。ja の位置の case は test-designer が足してよい。
+3. 3.11 で決定。
+4. 決めた：形、数、否定、不確実性、固有名の順で、最初に外れた物を `hold_reason` にする（3.4）。j08 は形が通るので `number` で、7.2 の期待値は変わらない。
+5. 3.4 と 3.11 で決定。
+6. 決めた：p95 は nearest-rank の ceil(0.95 × n) 番目（6 の頭）。7.10 はそのまま。
+7. 決めた：暦の日数で、7 日までは添え、8 日以上で `stale_rate`（3.11）。7.12 はそのまま。
+8. 決めた：test の待ちは 60 秒（受入の値ではない）。7.7 の 008 は、実行時刻を含まない `/Query /XML` で比べる形に直した。
+9. 9 の H14 のまま。坪と畳は記録だけ。
+10. `rate_date` は `YYYY-MM-DD` と決めた（3.11）。`StartBoundary` の書式は実装の席が最初の `/Query /XML` で確かめる。
+11. 決めた：1000 以上は通貨でない値も 3 桁ごとに `,`（3.11）。
+12. 為替の file を再起動せずに読み直すことは、受入 ID が無い。受入 ID を足すかどうかは評議に回す（9 の H15）。
+13. 実装の席が決める：入口の見張り、時計の差し込み、書き込みの偽の関数の形。cargo の target は `native/target`（workspace の既定）で、7.1 の `target/` は `native/` から打つ相対 path としてそのまま正しい。
+
+実装がやること：7.2〜7.13 の表の 1 行につき test 関数を 1 本、7.1 の名前の規則で作る。
+fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request_without_stop.json`、`cx06_request_with_subtitle_query.txt`、`cx07_after_truncated.json`、`cx01_verify_input_annotated.txt`、`cx02_pound_annotated.json`、`cx07_not_xml.txt`、`cx07_truncated.xml`、`cx07_no_time.xml`、`cx07_no_usd.xml`、`cx07_no_jpy.xml` の 10 個を、行に書いた内容で作る。
+
 ## 8. 照合と換算で使う既定の表の置き場
 
 表は repo の `native/hayamimi-relay/data/` に既定を置き、利用者の設定の directory（`%APPDATA%\hayamimi\`）の同名の file で上書きする。
@@ -650,6 +985,7 @@ CS-24、CS-4b、CS-26、CS-27 は held-out の batch を燃やすので、Q1 と
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。
 - **H14** 坪の係数 400/121（1 尺 = 10/33 m）は、二次の解説 2 本（https://qiita.com/sen-ltd/items/f67d8e4707ab3b59e233 、https://www.livable.co.jp/l-note/?p=11424 、取得日 2026-10-13）で一致し、どちらも計量法施行法を根拠に挙げる。e-Gov の条文は取得できず、一次の出所は確かめていない（NOT VERIFIED）。S8 の畳の 1.62 m² も用語集の転記である。test-designer が CX-9 を書く前に条文を取り、違えば表を直す。条文が取れないまま CX-9 を書くなら、坪と畳の行を CX-9 の合否から外して記録だけにする。
+- **H15** 為替の file と 8 の表の file を、再起動せずに読み直すことを測る受入 ID が無い。読み直しの規則（3.4、3.11）は決めてあるが、測る ID を足すかは評議の判定を待つ。
 
 この文書の外で、実装の commit と同じ手番で直す物：
 
