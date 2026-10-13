@@ -9,7 +9,7 @@ use hayamimi_eval::gpu_results::{CELL_HEADER, Results, ResultsError, check_place
 use hayamimi_eval::mdtable::render;
 use hayamimi_eval::stage_table::{StageRow, count_measure_rows, parse_stage_table};
 use support::stages::{self, Row};
-use support::{REPO, RESULTS, TestResult, read};
+use support::{FIXTURES, REPO, RESULTS, TestResult, read};
 
 fn placed(name: &str, placement: &str) -> StageRow {
     StageRow {
@@ -35,26 +35,59 @@ fn counter_reads_a_partial_measure_row() {
     assert_eq!(count_measure_rows(&rows), 1);
 }
 
-/// T-RP-20-002: the same counter reads 2 rows in the table as it stands: the recognition and the BERT.
+/// T-RP-20-002: the counter finds 8 rows in the table as it stood before R1.
 #[test]
-fn current_table_has_two_measure_rows() -> TestResult {
-    let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
-    let table = parse_stage_table(&design)?;
+fn pre_r1_fixture_has_eight_measure_rows() -> TestResult {
+    let before = read(&Path::new(FIXTURES).join("rp20_table_before_r1.md"))?;
+    let table = parse_stage_table(&before)?;
     assert_eq!(table.len(), 19);
-    assert_eq!(count_measure_rows(&table), 2);
     let names: Vec<&str> = table
         .iter()
         .filter(|row| row.placement.contains("測る"))
         .map(|row| row.name.as_str())
         .collect();
-    assert_eq!(
-        names,
-        [
-            "認識の encoder（全 model）",
-            "句読点（BERT、`ort` の CUDA）"
-        ]
-    );
+    assert_eq!(count_measure_rows(&table), 8);
+    assert_eq!(names.len(), 8);
+    let expected = [
+        "int16 → float32、16 kHz への resample、mix",
+        "VAD（Silero",
+        "冒頭欠落の疑い判定と分割再試行",
+        "ITN（漢数字 → 算用数字）",
+        "句読点の後処理と疑問符の規則、置換辞書",
+        "話者の速報の割り当て",
+        "清書の clustering",
+        "照合 V と単位の換算",
+    ];
+    for (name, start) in names.iter().zip(expected) {
+        assert!(
+            name.starts_with(start),
+            "{name} does not start with {start}"
+        );
+    }
     Ok(())
+}
+
+/// T-RP-20-008: the table of the design as it stands has no row left to measure.
+/// The same read finds rows on the CPU, so a count of 0 is not a failed read.
+#[test]
+fn current_design_table_has_no_measure_rows() -> TestResult {
+    let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
+    let table = parse_stage_table(&design)?;
+    assert_eq!(table.len(), 19);
+    assert!(table.iter().any(|row| row.placement.contains("CPU")));
+    assert_eq!(count_measure_rows(&table), 0);
+    Ok(())
+}
+
+/// T-RP-20-009: the word in the evidence column does not make a row undecided.
+#[test]
+fn measure_word_in_evidence_column_is_not_counted() {
+    let row = StageRow {
+        name: String::from("a"),
+        placement: String::from("CPU"),
+        evidence: String::from("R5 が CPU の p50 を測る"),
+    };
+    assert_eq!(count_measure_rows(&[row]), 0);
 }
 
 /// T-RP-20-003
@@ -109,7 +142,7 @@ fn the_fixture_cells_use_the_document_header() {
 /// T-RP-20-007 and the acceptance test `rp20_every_stage_placement_is_measured`:
 /// the design table and `docs/results/gpu_stages.md` as they are now.
 #[test]
-#[ignore = "reads the real design and the real results; fails until the design table is decided"]
+#[ignore = "reads the real design and the real results"]
 fn rp20_every_stage_placement_is_measured() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;
@@ -120,7 +153,7 @@ fn rp20_every_stage_placement_is_measured() -> TestResult {
 
 /// T-RP-20-007 under its case-table name.
 #[test]
-#[ignore = "reads the real design and the real results; fails until the design table is decided"]
+#[ignore = "reads the real design and the real results"]
 fn every_stage_placement_is_measured() -> TestResult {
     rp20_every_stage_placement_is_measured()
 }

@@ -291,6 +291,7 @@ fn merged_cache_state_decode_rows_are_rejected() -> TestResult {
 }
 
 /// T-RP-23-015: 14 stages have a GPU path; the other 5 start with 「CPU（GPU 経路なし）」.
+/// Of the 14, 3 are placed on the GPU, 10 on the CPU and 1 inside sherpa-onnx (host).
 #[test]
 fn stages_with_a_gpu_path_are_fourteen() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
@@ -303,6 +304,15 @@ fn stages_with_a_gpu_path_are_fourteen() -> TestResult {
         .map(|row| row.name.as_str())
         .collect();
     assert_eq!(without.len(), 5, "{without:?}");
+    let with_path = || table.iter().filter(|row| row.has_gpu_path());
+    let on = |start: &str| {
+        with_path()
+            .filter(|row| row.placement.starts_with(start))
+            .count()
+    };
+    assert_eq!(on("GPU"), 3);
+    assert_eq!(on("CPU"), 10);
+    assert_eq!(with_path().count() - on("GPU") - on("CPU"), 1);
     Ok(())
 }
 
@@ -327,6 +337,28 @@ fn missing_stage_with_a_gpu_path_is_named() -> TestResult {
     let mut marked = table();
     marked[4].placement = String::from("CPU（GPU 経路なし）");
     check_stage_results(&marked, &results, expected_samples()?)?;
+    Ok(())
+}
+
+/// T-RP-23-017: a stage placed on the CPU that still has a GPU path is asked for its results.
+#[test]
+fn cpu_placed_stage_with_a_gpu_path_still_requires_results() -> TestResult {
+    let cells: Vec<Row> = complete_cells()?
+        .into_iter()
+        .filter(|row| row[STAGE] != "stage 05")
+        .collect();
+    let results = parsed(&document(&cells))?;
+    let mut placed = table();
+    placed[4].placement = String::from("CPU（int8）");
+    let said = check_stage_results(&placed, &results, expected_samples()?);
+    assert_eq!(
+        said,
+        Err(ResultsError::MissingCell {
+            stage: String::from("stage 05"),
+            provider: "cuda",
+            load: Load::Idle,
+        })
+    );
     Ok(())
 }
 

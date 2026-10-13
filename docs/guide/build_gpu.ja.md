@@ -450,6 +450,8 @@ hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models -
 句読点の BERT と、認識の encoder だけの時間は、`ort` で model を直に開いて測ります（`--only punct_bert,encoder_only`）。
 BERT の入力は `punct_ja_parity.json` の `input_ids` で、`--punct-cases` に渡します。
 CUDA で CPU に置かれた node の数は、`hayamimi-eval ort-placed --model <onnx> --provider cuda --out <名前>.json` で数え、`stages-report` の `--placed` に渡します。
+設計の 3.5 の表で GPU とした model は全部数えます。句読点の `punct_bert.onnx` と、言語判定の `tiny-encoder.onnx` と `tiny-decoder.onnx` です。
+RP-6 は node の表からこの 3 つの行を読み、行が無い GPU の model を落とします。
 
 run file と転送の JSON から、結果の文書を 1 本にします。
 

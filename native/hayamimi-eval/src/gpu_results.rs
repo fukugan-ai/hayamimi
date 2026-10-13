@@ -11,7 +11,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::mdtable::{MdTable, first_table, section};
-use crate::stage_runs::FLOOR;
+use crate::stage_runs::{FLOOR, HOST};
 use crate::stage_table::{StageRow, first_measure_row};
 
 pub const ENVIRONMENT: &str = "## 測った機械と build";
@@ -19,6 +19,7 @@ pub const STAGES: &str = "## 段ごとの時間";
 pub const TRANSFERS: &str = "## 転送";
 pub const JIT: &str = "## JIT の cache と decode_ms";
 pub const PROPOSALS: &str = "## 置き場の提案";
+pub const NODES: &str = "## node の置き場（ort）";
 
 /// What the environment section must state.
 pub const ENVIRONMENT_KEYS: [&str; 9] = [
@@ -57,6 +58,7 @@ pub const TRANSFER_HEADER: [&str; 8] = [
 ];
 pub const JIT_HEADER: [&str; 4] = ["cache", "run", "decode_ms 最初の1回", "decode_us p50"];
 pub const PROPOSAL_HEADER: [&str; 3] = ["段", "提案", "根拠"];
+pub const NODE_HEADER: [&str; 4] = ["model", "device", "CUDA の node", "CPU の node"];
 
 /// The two directions a transfer row may name.
 pub const DIRECTIONS: [&str; 2] = ["host→device", "device→host"];
@@ -131,6 +133,15 @@ pub struct Proposal {
     pub evidence: String,
 }
 
+/// The nodes of one model that ONNX Runtime put on the CUDA provider and on the CPU.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeRow {
+    pub model: String,
+    pub device: String,
+    pub cuda_nodes: u64,
+    pub cpu_nodes: u64,
+}
+
 /// A parsed result document. A section the document does not have is `None`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Results {
@@ -139,6 +150,7 @@ pub struct Results {
     pub transfers: Option<Vec<TransferRow>>,
     pub jit: Option<Vec<JitRow>>,
     pub proposals: Option<Vec<Proposal>>,
+    pub nodes: Option<Vec<NodeRow>>,
     /// The p50 (ms) of the estimate of `L` for recognition and translation on the GPU, no load.
     pub l_estimate_p50_ms: Option<u64>,
 }
@@ -153,6 +165,12 @@ pub const L_ESTIMATE_METRIC: &str = "L の見積り";
 pub const SHRINK_PERCENT: u64 = 1;
 /// The start of the evidence column of a row justified by evidence 3.
 const SHRINK_EVIDENCE: &str = "根拠 3";
+/// The start of the evidence column of a row decided by the same-precision comparison (evidence 1).
+const PAIR_EVIDENCE: &str = "根拠 1";
+/// What evidence 1 writes before the one variant it names; the variant follows, between backticks.
+const NAMING_OPEN: &str = "根拠 1（variant `";
+/// The start of the evidence column of a row decided by the transfer floor (evidence 2).
+const FLOOR_EVIDENCE: &str = "根拠 2";
 /// The slices that own the measurement of a stage with no GPU path.
 const OWNER_SLICES: [&str; 3] = ["R2", "R4", "R5"];
 
@@ -200,6 +218,16 @@ pub enum ResultsError {
     Evidence {
         stage: String,
         why: &'static str,
+    },
+    /// A model the stage table places on the GPU has no row in the node table.
+    NoNodeRow(String),
+    /// A model the stage table places on the GPU has no `gpu.session.placed` record.
+    NoPlacedEvent(String),
+    /// A GPU model has more CPU nodes than the node table records.
+    CpuNodesOverRecord {
+        model: String,
+        found: u64,
+        recorded: u64,
     },
 }
 
@@ -271,6 +299,26 @@ impl fmt::Display for ResultsError {
                 write!(f, "stage `{stage}` has no row in the results")
             }
             ResultsError::Evidence { stage, why } => write!(f, "stage `{stage}`: {why}"),
+            ResultsError::NoNodeRow(model) => {
+                write!(
+                    f,
+                    "model `{model}` is on the GPU but has no row in the node table"
+                )
+            }
+            ResultsError::NoPlacedEvent(model) => {
+                write!(
+                    f,
+                    "model `{model}` is on the GPU but no gpu.session.placed record names it"
+                )
+            }
+            ResultsError::CpuNodesOverRecord {
+                model,
+                found,
+                recorded,
+            } => write!(
+                f,
+                "model `{model}`: {found} CPU nodes, more than the {recorded} the node table records"
+            ),
         }
     }
 }
@@ -467,6 +515,27 @@ fn parse_proposals(text: &str) -> Result<Option<Vec<Proposal>>, ResultsError> {
         .map(Some)
 }
 
+fn parse_nodes(text: &str) -> Result<Option<Vec<NodeRow>>, ResultsError> {
+    let Some(table) = table_of(text, NODES)? else {
+        return Ok(None);
+    };
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            let count =
+                |column: &'static str| number(cell(&table, row, column, NODES)?, NODES, column);
+            Ok(NodeRow {
+                model: cell(&table, row, "model", NODES)?.to_owned(),
+                device: cell(&table, row, "device", NODES)?.to_owned(),
+                cuda_nodes: count("CUDA の node")?,
+                cpu_nodes: count("CPU の node")?,
+            })
+        })
+        .collect::<Result<Vec<_>, ResultsError>>()
+        .map(Some)
+}
+
 fn parse_l_estimate(text: &str) -> Result<Option<u64>, ResultsError> {
     let Some(table) = table_of(text, L_ESTIMATE)? else {
         return Ok(None);
@@ -490,6 +559,7 @@ impl Results {
             transfers: parse_transfers(text)?,
             jit: parse_jit(text)?,
             proposals: parse_proposals(text)?,
+            nodes: parse_nodes(text)?,
             l_estimate_p50_ms: parse_l_estimate(text)?,
         })
     }
@@ -513,9 +583,16 @@ impl Results {
     }
 
     /// The fastest p50 and its p95 among the idle rows of one stage and provider that have both.
-    pub fn best_idle(&self, stage: &str, provider: &str) -> Option<(u64, u64)> {
+    /// With `variant` set only the rows of that variant count, so two precisions are never mixed.
+    pub fn best_idle(
+        &self,
+        stage: &str,
+        provider: &str,
+        variant: Option<&str>,
+    ) -> Option<(u64, u64)> {
         self.cells_of(stage, provider, Load::Idle)
             .into_iter()
+            .filter(|c| variant.is_none_or(|v| c.variant == v))
             .filter_map(|c| Some((c.p50_us?, c.p95_us?)))
             .min()
     }
@@ -669,10 +746,16 @@ pub fn check_stage_evidence(table: &[StageRow], results: &Results) -> Result<(),
     for row in table {
         if !row.has_gpu_path() {
             check_no_gpu_path(row, results)?;
-        } else if row.placement.starts_with("CPU") && row.evidence.starts_with(SHRINK_EVIDENCE) {
+        } else if !row.placement.starts_with("CPU") {
+            check_both_timed(row, results)?;
+        } else if row.evidence.starts_with(SHRINK_EVIDENCE) {
             check_shrink_bound(row, results)?;
+        } else if row.evidence.starts_with(PAIR_EVIDENCE) {
+            check_same_variant_pair(row, results)?;
+        } else if row.evidence.starts_with(FLOOR_EVIDENCE) {
+            check_floor_pair(row, results)?;
         } else {
-            check_compared_evidence(row, results)?;
+            check_primary_source(row, results)?;
         }
     }
     Ok(())
@@ -700,7 +783,7 @@ fn has_owner_slice(text: &str) -> bool {
 /// Evidence 4: a stage with no GPU path is timed on the CPU below the GPU round trip, or,
 /// while its CPU row is unmeasured, names the slice that will time it and why no GPU path exists.
 fn check_no_gpu_path(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
-    if let Some((cpu_p50, _)) = results.best_idle(&row.name, "cpu") {
+    if let Some((cpu_p50, _)) = results.best_idle(&row.name, "cpu", None) {
         let floor = results.transfer_floor_us().ok_or_else(|| {
             evidence_error(
                 row,
@@ -737,7 +820,7 @@ fn check_no_gpu_path(row: &StageRow, results: &Results) -> Result<(), ResultsErr
 /// Evidence 3: the most a GPU could save, the CPU time, is below `SHRINK_PERCENT` of the estimate of `L`.
 fn check_shrink_bound(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
     let (cpu_p50, _) = results
-        .best_idle(&row.name, "cpu")
+        .best_idle(&row.name, "cpu", None)
         .ok_or_else(|| evidence_error(row, "evidence 3 needs a measured CPU p50"))?;
     let latency_ms = results.l_estimate_p50_ms.ok_or_else(|| {
         evidence_error(row, "the results have no estimate of L to take a share of")
@@ -752,37 +835,94 @@ fn check_shrink_bound(row: &StageRow, results: &Results) -> Result<(), ResultsEr
     ))
 }
 
-/// Evidence 1 and 2, and the rows placed on the GPU: both providers are timed and compared.
-fn check_compared_evidence(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
-    let gpu = results.best_idle(&row.name, "cuda");
-    let cpu = results.best_idle(&row.name, "cpu");
-    if !row.placement.starts_with("CPU") {
-        if gpu.is_none() || cpu.is_none() {
-            return Err(evidence_error(
-                row,
-                "a stage not on the CPU needs a p50 and a p95 for both providers",
-            ));
-        }
+/// A stage not placed on the CPU has a p50 and a p95 for both providers.
+fn check_both_timed(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    let timed = |provider: &str| results.best_idle(&row.name, provider, None).is_some();
+    if timed("cuda") && timed("cpu") {
         return Ok(());
     }
+    Err(evidence_error(
+        row,
+        "a stage not on the CPU needs a p50 and a p95 for both providers",
+    ))
+}
+
+/// The variants a row of evidence 1 names, each written as ``根拠 1（variant `<name>`）``.
+fn named_variants(evidence: &str) -> Vec<&str> {
+    evidence
+        .split(NAMING_OPEN)
+        .skip(1)
+        .filter_map(|after| after.split_once('`').map(|(name, _)| name))
+        .collect()
+}
+
+/// Evidence 1: the CPU p50 is below the GPU p50 of the one variant the evidence names.
+/// The pairs of the other variants of the stage take no part, whichever side they favour.
+fn check_same_variant_pair(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    let names = named_variants(&row.evidence);
+    let [variant] = names.as_slice() else {
+        return Err(evidence_error(
+            row,
+            "evidence 1 must name exactly one variant",
+        ));
+    };
+    let (Some(gpu), Some(cpu)) = (
+        results.best_idle(&row.name, "cuda", Some(*variant)),
+        results.best_idle(&row.name, "cpu", Some(*variant)),
+    ) else {
+        return Err(evidence_error(
+            row,
+            "the named variant lacks its GPU row or its CPU row",
+        ));
+    };
+    if cpu.0 < gpu.0 {
+        return Ok(());
+    }
+    Err(evidence_error(
+        row,
+        "the CPU p50 of the named variant is not below its GPU p50",
+    ))
+}
+
+/// Evidence 2: the CPU p50 is below the GPU round trip that carries no kernel.
+fn check_floor_pair(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    let (Some(gpu), Some(cpu)) = (
+        results.best_idle(&row.name, "cuda", Some(FLOOR)),
+        results.best_idle(&row.name, "cpu", Some(HOST)),
+    ) else {
+        return Err(evidence_error(
+            row,
+            "evidence 2 needs a transfer-floor row on the GPU and a CPU row",
+        ));
+    };
+    if cpu.0 < gpu.0 {
+        return Ok(());
+    }
+    Err(evidence_error(
+        row,
+        "the CPU p50 is not below the GPU transfer floor of the stage",
+    ))
+}
+
+/// A CPU row that names none of evidence 1 to 3 cites a primary source, in its own cell or in the proposal.
+fn check_primary_source(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
     if row.evidence.trim().is_empty() {
         return Err(evidence_error(
             row,
             "the evidence column of a CPU row is empty",
         ));
     }
-    let has_url = row.evidence.contains("http")
+    let cites = row.evidence.contains("http")
         || results
             .proposal_evidence(&row.name)
             .is_some_and(|text| text.contains("http"));
-    let measured_faster = matches!((gpu, cpu), (Some(g), Some(c)) if c.0 < g.0);
-    if !measured_faster && !has_url {
-        return Err(evidence_error(
-            row,
-            "a CPU row needs a CPU p50 smaller than the GPU p50, or a primary source URL",
-        ));
+    if cites {
+        return Ok(());
     }
-    Ok(())
+    Err(evidence_error(
+        row,
+        "a CPU row names no evidence 1, 2 or 3 and cites no primary source URL",
+    ))
 }
 
 /// RP-20: no row says 測る any more, and every row has a row in the results.
@@ -914,7 +1054,7 @@ mod tests {
 
     #[test]
     fn a_stage_row_on_the_cpu_with_a_faster_cpu_passes() -> Result<(), ResultsError> {
-        let table = [stage("a", "CPU", "measured")];
+        let table = [stage("a", "CPU", "根拠 1（variant `fp32`）")];
         let text = cells_text(&[
             ["a", "cuda", "fp32", "無負荷", "1", "5", "30", "40", ""],
             ["a", "cpu", "fp32", "無負荷", "1", "5", "10", "40", ""],
@@ -924,7 +1064,7 @@ mod tests {
 
     #[test]
     fn equal_p50_does_not_justify_the_cpu() -> Result<(), ResultsError> {
-        let table = [stage("a", "CPU", "measured")];
+        let table = [stage("a", "CPU", "根拠 1（variant `fp32`）")];
         let text = cells_text(&[
             ["a", "cuda", "fp32", "無負荷", "1", "5", "10", "40", ""],
             ["a", "cpu", "fp32", "無負荷", "1", "5", "10", "40", ""],

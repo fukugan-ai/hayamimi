@@ -13,8 +13,9 @@ use serde_json::Value;
 
 use crate::error::EvalError;
 use crate::gpu_results::{
-    CELL_HEADER, ENVIRONMENT, ENVIRONMENT_HEADER, JIT, JIT_HEADER, PROPOSAL_HEADER, PROPOSALS,
-    PROVIDERS, STAGES, TRANSFER_HEADER, TRANSFERS, TransferRow, UNMEASURED,
+    CELL_HEADER, ENVIRONMENT, ENVIRONMENT_HEADER, JIT, JIT_HEADER, NODE_HEADER, NODES,
+    PROPOSAL_HEADER, PROPOSALS, PROVIDERS, STAGES, TRANSFER_HEADER, TRANSFERS, TransferRow,
+    UNMEASURED,
 };
 use crate::mdtable::render;
 use crate::ort_stages::PlacedRow;
@@ -288,34 +289,36 @@ fn pair_text(aggs: &[Aggregate], load: bool, stage: &str, variant: &str) -> Stri
     }
 }
 
-/// The recognition row: same-precision pairs only, and no placement. The deciding is left to the council.
+/// The recognition row. The same-precision (fp32) pair of the whole recognition decides the side,
+/// and the fastest precision of that side is the one to read. The pair of the encoder alone is
+/// shown and decides nothing: the recognizer has one provider setting for the encoder and the search.
 fn recognition_proposal(aggs: &[Aggregate]) -> (String, String) {
-    let mut parts = Vec::new();
-    for (label, stage, variant) in [
-        ("sherpa-onnx の認識全体 fp32", "decode", "fp32"),
-        ("ort で encoder だけ fp32", "encoder_only", ENCODER_ONLY),
-    ] {
-        for load in [false, true] {
-            parts.push(format!(
-                "{label}、{}の p50: {}",
-                load_label(load),
-                pair_text(aggs, load, stage, variant)
-            ));
-        }
-    }
-    let side = |provider: &str, variant: &str| {
-        variant_mean(aggs, provider, false, "decode", variant).map_or_else(
-            || String::from("測れていない"),
-            |b| format!("{} µs", b.p50_us),
-        )
+    let (Some(gpu), Some(cpu), Some(gpu_fastest), Some(cpu_fastest)) = (
+        variant_mean(aggs, "cuda", false, "decode", "fp32"),
+        variant_mean(aggs, "cpu", false, "decode", "fp32"),
+        best(aggs, "cuda", false, &["decode"]),
+        best(aggs, "cpu", false, &["decode"]),
+    ) else {
+        return (
+            String::from("未決"),
+            String::from("sherpa-onnx の認識全体の fp32 の無負荷の対は、片方が測れていない"),
+        );
     };
-    parts.push(format!(
-        "参考（同じ精度の対ではない）: CPU の int8 は {}（int8 は CUDA に無い）、GPU の fp16 は {}（fp32 の GPU は {}）",
-        side("cpu", "int8"),
-        side("cuda", "fp16"),
-        side("cuda", "fp32")
-    ));
-    (String::from("未決（評議）"), parts.join("。"))
+    let (label, fastest) = if cpu.p50_us < gpu.p50_us {
+        ("CPU", cpu_fastest)
+    } else {
+        ("GPU", gpu_fastest)
+    };
+    let evidence = format!(
+        "根拠 1（variant `fp32`）。sherpa-onnx の認識全体の同じ fp32 の対で、無負荷の p50: {}、負荷の下の p50: {}。{label} の中で最も速い精度は {} で、無負荷の p50 は {} µs。参考（置き場の判定に使わない）: ort で encoder だけ fp32 の対で、無負荷の p50: {}、負荷の下の p50: {}",
+        pair_text(aggs, false, "decode", "fp32"),
+        pair_text(aggs, true, "decode", "fp32"),
+        fastest.variant,
+        fastest.p50_us,
+        pair_text(aggs, false, "encoder_only", ENCODER_ONLY),
+        pair_text(aggs, true, "encoder_only", ENCODER_ONLY),
+    );
+    (format!("{label}（{}）", fastest.variant), evidence)
 }
 
 fn note_for(map: &StageMap, variant: &str) -> String {
@@ -505,8 +508,8 @@ fn placed_section(placed: &[PlacedRow]) -> String {
         })
         .collect();
     format!(
-        "\n## node の置き場（ort）\n\n`ort` が session を作るときに ONNX Runtime が出す \"Node(s) placed on\" の行を、provider ごとに足した数。device は session を作った provider。\n\n{}",
-        render(&["model", "device", "CUDA の node", "CPU の node"], &rows)
+        "\n{NODES}\n\n`ort` が session を作るときに ONNX Runtime が出す \"Node(s) placed on\" の行を、provider ごとに足した数。device は session を作った provider。\n\n{}",
+        render(&NODE_HEADER, &rows)
     )
 }
 
@@ -1118,15 +1121,14 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn the_recognition_row_pairs_the_same_precision_and_decides_nothing() -> Result<(), EvalError> {
-        let runs = [
+    fn recognition_runs(gpu_fp32: u64, cpu_fp32: u64) -> [RunFile; 2] {
+        [
             run(
                 "cuda",
                 false,
                 "warm",
                 vec![
-                    sample("decode", "fp32", 0, 170_000_000),
+                    sample("decode", "fp32", 0, gpu_fp32),
                     sample("decode", "fp16", 0, 468_000_000),
                     sample("encoder_only", ENCODER_ONLY, 0, 58_000_000),
                 ],
@@ -1136,24 +1138,58 @@ mod tests {
                 false,
                 "warm",
                 vec![
-                    sample("decode", "fp32", 0, 150_000_000),
+                    sample("decode", "fp32", 0, cpu_fp32),
                     sample("decode", "int8", 0, 125_000_000),
                     sample("encoder_only", ENCODER_ONLY, 0, 99_000_000),
                 ],
             ),
-        ];
+        ]
+    }
+
+    #[test]
+    fn the_recognition_row_follows_the_same_fp32_pair_and_reads_the_fastest_cpu_precision()
+    -> Result<(), EvalError> {
+        let runs = recognition_runs(170_000_000, 150_000_000);
         let (placement, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
-        assert!(placement.starts_with("未決"), "{placement}");
+        assert_eq!(placement, "CPU（int8）");
+        assert!(
+            evidence.starts_with("根拠 1（variant `fp32`）"),
+            "{evidence}"
+        );
         assert!(
             evidence.contains("無負荷の p50: GPU 170000 µs / CPU 150000 µs"),
+            "{evidence}"
+        );
+        assert!(
+            evidence.contains("最も速い精度は int8 で、無負荷の p50 は 125000 µs"),
+            "{evidence}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_encoder_alone_is_shown_and_does_not_move_the_placement() -> Result<(), EvalError> {
+        // The encoder alone is faster on the GPU (58000 against 99000), and the row stays on the CPU.
+        let runs = recognition_runs(170_000_000, 150_000_000);
+        let (placement, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
+        assert!(placement.starts_with("CPU"), "{placement}");
+        assert!(
+            evidence.contains("参考（置き場の判定に使わない）"),
             "{evidence}"
         );
         assert!(
             evidence.contains("無負荷の p50: GPU 58000 µs / CPU 99000 µs"),
             "{evidence}"
         );
-        assert!(evidence.contains("CPU の int8 は 125000 µs"), "{evidence}");
-        assert!(evidence.contains("GPU の fp16 は 468000 µs"), "{evidence}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_faster_gpu_in_the_same_fp32_pair_places_the_row_on_the_gpu() -> Result<(), EvalError> {
+        // The CPU int8 (125000) is faster than the GPU fp32 (150000) and takes no part in the decision.
+        let runs = recognition_runs(150_000_000, 170_000_000);
+        let (placement, _) = recognition_proposal(&warm_aggregates(&runs)?);
+        assert_eq!(placement, "GPU（fp32）");
         Ok(())
     }
 
@@ -1165,12 +1201,9 @@ mod tests {
             "warm",
             vec![sample("decode", "fp32", 0, 170_000_000)],
         )];
-        let (_, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
+        let (placement, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
+        assert!(placement.starts_with("未決"), "{placement}");
         assert!(evidence.contains("片方が測れていない"), "{evidence}");
-        assert!(
-            evidence.contains("CPU の int8 は 測れていない"),
-            "{evidence}"
-        );
         Ok(())
     }
 

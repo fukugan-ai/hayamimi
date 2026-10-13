@@ -237,6 +237,8 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | encoder-epoch-35-avg-1.onnx | cuda | 3537 | 1599 |
 | encoder-epoch-35-avg-1.fp16.onnx | cuda | 3564 | 1611 |
 | punct_bert.onnx | cuda | 453 | 77 |
+| tiny-encoder.onnx | cuda | 159 | 31 |
+| tiny-decoder.onnx | cuda | 636 | 201 |
 
 ## 置き場の提案
 
@@ -247,7 +249,7 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | 音声の ring buffer と preroll（1.0 秒） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 258 µs（transfer-floor） / CPU 16 µs（cpu）。負荷下の p50: GPU 661 µs（transfer-floor） / CPU 20 µs（cpu） |
 | VAD（Silero、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 388495 µs（fp32） / CPU 39519 µs（fp32）。負荷下の p50: GPU 1120604 µs（fp32） / CPU 42044 µs（fp32） |
 | 言語判定（whisper-tiny） | GPU | 無負荷の p50: GPU 75549 µs（fp32） / CPU 123978 µs（int8）。負荷下の p50: GPU 93586 µs（fp32） / CPU 132489 µs（int8） |
-| 認識の encoder（全 model） | 未決（評議） | sherpa-onnx の認識全体 fp32、無負荷の p50: GPU 171414 µs / CPU 151299 µs。sherpa-onnx の認識全体 fp32、負荷の p50: GPU 375176 µs / CPU 175025 µs。ort で encoder だけ fp32、無負荷の p50: GPU 66262 µs / CPU 121091 µs。ort で encoder だけ fp32、負荷の p50: GPU 92936 µs / CPU 117756 µs。参考（同じ精度の対ではない）: CPU の int8 は 128615 µs（int8 は CUDA に無い）、GPU の fp16 は 459578 µs（fp32 の GPU は 171414 µs） |
+| 認識の encoder（全 model） | CPU（int8） | 根拠 1（variant `fp32`）。sherpa-onnx の認識全体の同じ fp32 の対で、無負荷の p50: GPU 171414 µs / CPU 151299 µs、負荷の下の p50: GPU 375176 µs / CPU 175025 µs。CPU の中で最も速い精度は int8 で、無負荷の p50 は 128615 µs。参考（置き場の判定に使わない）: ort で encoder だけ fp32 の対で、無負荷の p50: GPU 66262 µs / CPU 121091 µs、負荷の下の p50: GPU 92936 µs / CPU 117756 µs |
 | fbank と探索（sherpa-onnx の中） | CPU（sherpa-onnx の中。provider に依らず host で走る） | 無負荷の p50: GPU 5572 µs（fp16） / CPU 7475 µs（fp32）。負荷下の p50: GPU 6356 µs（fp32） / CPU 8387 µs（int8） |
 | 冒頭欠落の疑い判定と分割再試行 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 232 µs（transfer-floor） / CPU 1 µs（cpu）。負荷下の p50: GPU 695 µs（transfer-floor） / CPU 1 µs（cpu） |
 | ITN（漢数字 → 算用数字） | 未決 | Rust の ITN がまだ無く、測れない |
