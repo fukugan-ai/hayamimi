@@ -15,13 +15,7 @@
 #   scripts/tidy-branches.sh --remove                remove what the report marks removable
 #   scripts/tidy-branches.sh --remove-worktree PATH  remove one named worktree, after measuring it
 #
-# The root is the repository this script lives in. The trunk is `main`;
-# override it with `TIDY_TRUNK=<branch>`. While the work is stacked on
-# `feat/bidirectional-translation` and `main` has not received it, measure
-# against that branch instead:
-#   TIDY_TRUNK=feat/bidirectional-translation scripts/tidy-branches.sh
-# Dry run only under that trunk: `--remove` would also take `main` for a stale
-# marker (it is behind that branch and no worktree holds it) and delete it.
+# The root is the repository this script lives in. The trunk is `main`.
 #
 # A branch worktree goes only when its branch has no commit of its own and the
 # trunk contains its tip. Undo: `git worktree add <path> <branch>`; the branch
@@ -35,7 +29,7 @@ set -euo pipefail
 # The root is derived from the script's own location, never spelled out, so
 # renaming the directory cannot leave this script pointing at nothing.
 readonly root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly trunk="${TIDY_TRUNK:-main}"
+readonly trunk="main"
 remove="no"
 [ "${1:-}" = "--remove" ] && remove="yes"
 
@@ -85,7 +79,7 @@ remove_detached_worktree() {
     return 1
   fi
   if ! git rev-parse --verify --quiet "refs/heads/$trunk" >/dev/null; then
-    echo "幹 $trunk が無い。TIDY_TRUNK で指定する" >&2
+    echo "幹 $trunk が無い" >&2
     return 1
   fi
   git merge-base --is-ancestor "$tip" "refs/heads/$trunk" || rc=$?
