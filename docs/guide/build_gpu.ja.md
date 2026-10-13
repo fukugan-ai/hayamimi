@@ -25,7 +25,7 @@ build の流れ
 | 物 | Windows | WSL（Ubuntu 26.04） |
 |---|---|---|
 | GPU | NVIDIA GeForce RTX 5060 Ti（compute capability 12.0、driver 610.88） | 同じ GPU（WSL の driver 経由） |
-| CUDA Toolkit | 13.4（nvcc 13.4.59） | 13.4（redistrib 13.4.1、nvcc 13.4.59）。13.3 は残してある |
+| CUDA Toolkit | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4（installer、nvcc 13.4.59）は残してある | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4.1（nvcc 13.4.59）と 13.3 は残してある |
 | cuDNN | 9.27.0 の CUDA 13 用 archive | 9.27.0.42 の cuda13 |
 | ORT | 1.31.0 の `gpu_cuda13`（Microsoft の release の zip） | 1.31.0 の `gpu_cuda13`（Microsoft の release の tgz） |
 | sherpa-onnx | v1.13.8（commit `11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf`） | 同じ |
@@ -98,17 +98,18 @@ apt の package は使いません。
 
 | 入れる物 | 消す path | 外す設定 |
 |---|---|---|
-| CUDA Toolkit 13.4（redistrib 13.4.1 の部品） | `/usr/local/cuda-13.4` | なし |
+| CUDA Toolkit 13.4.3（redistrib の部品） | `/usr/local/cuda-13.4.3` | なし |
+| CUDA Toolkit 13.4.1（更新前。redistrib の部品） | `/usr/local/cuda-13.4` | なし |
 | cuDNN 9.27.0.42（cuda13） | `/usr/local/cudnn-9.27.0.42-cuda13` | なし |
 | 取得した archive と build の作業 directory | `~/.cache/hayamimi-r1-wsl-20261014` | なし |
 
 ```bash
-sudo rm -rf /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
+sudo rm -rf /usr/local/cuda-13.4.3 /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
 rm -rf ~/.cache/hayamimi-r1-wsl-20261014
 ```
 
 消した後に、`readlink -f /usr/local/cuda` が `/usr/local/cuda-13.3` を指し、`/usr/local/cuda-13.3` が残っていれば、入れる前と同じです。
-後から apt の `cuda-toolkit-13-4` を入れたい場合は、`/usr/local/cuda-13.4` が同じ path なので、先に上の 1 行で消します。
+後から apt の `cuda-toolkit-13-4` を入れたい場合は、`/usr/local/cuda-13.4` が同じ path なので、先に消します。
 
 ### 1. 取得して NVIDIA の値と照合する
 
@@ -118,31 +119,30 @@ NVIDIA の redistrib（部品ごとの配布 archive の一覧）の JSON が、
 ```bash
 W=~/.cache/hayamimi-r1-wsl-20261014
 mkdir -p $W/redist && cd $W/redist
-curl -sS -O https://developer.download.nvidia.com/compute/cuda/redist/redistrib_13.4.1.json
+curl -sS -O https://developer.download.nvidia.com/compute/cuda/redist/redistrib_13.4.3.json
 curl -sS -O https://developer.download.nvidia.com/compute/cudnn/redist/redistrib_9.27.0.json
-jq -r 'to_entries[] | select(.key|test("^(cuda_nvcc|cuda_cudart|cuda_cuobjdump|libcublas|libcufft|libcurand|cuda_nvrtc|libnvjitlink|cuda_crt)$")) | .value["linux-x86_64"] | "\(.relative_path) \(.sha256)"' redistrib_13.4.1.json > cuda.list
+jq -r 'to_entries[] | select(.key|test("^(cuda_nvcc|cuda_cudart|cuda_cuobjdump|libcublas|libcufft|libcurand|cuda_nvrtc|libnvjitlink|cuda_crt)$")) | .value["linux-x86_64"] | "\(.relative_path) \(.sha256)"' redistrib_13.4.3.json > cuda.list
 jq -r '.cudnn["linux-x86_64"].cuda13 | "\(.relative_path) \(.sha256)"' redistrib_9.27.0.json > cudnn.list
 while read -r rel sum; do f=$(basename $rel); curl -L --fail -sS -o $f https://developer.download.nvidia.com/compute/cuda/redist/$rel; echo "$sum  $f"; done < cuda.list > cuda.sha256
 while read -r rel sum; do f=$(basename $rel); curl -L --fail -sS -o $f https://developer.download.nvidia.com/compute/cudnn/redist/$rel; echo "$sum  $f"; done < cudnn.list > cudnn.sha256
 sha256sum -c cuda.sha256 cudnn.sha256
 ```
 
-CUDA は 13.4.1 に固定してあります。
-Windows の toolkit の nvcc（13.4.59）と同じ版で、2 つの OS の build を比べるときに副版が揃うからです。
-redistrib には 13.4.2 と 13.4.3 もあり、nvcc は 13.4.92 です。
+CUDA は 13.4 系の最新（13.4.3、redistrib の release_date 2026-10-13）にしてあり、Windows と WSL で同じ版です。
+更新前は Windows が installer の 13.4（nvcc 13.4.59）、WSL が redistrib の 13.4.1（nvcc 13.4.59）でした。
 上げるかどうかは別に決めます。
 
 ### 2. 展開する
 
 ```bash
 cd ~/.cache/hayamimi-r1-wsl-20261014/redist
-sudo mkdir -p /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
-for f in cuda_*.tar.xz libc*.tar.xz libnv*.tar.xz; do sudo tar -xJf $f -C /usr/local/cuda-13.4 --strip-components=1; done
+sudo mkdir -p /usr/local/cuda-13.4.3 /usr/local/cudnn-9.27.0.42-cuda13
+for f in cuda_*.tar.xz libc*.tar.xz libnv*.tar.xz; do sudo tar -xJf $f -C /usr/local/cuda-13.4.3 --strip-components=1; done
 sudo tar -xJf cudnn-linux-x86_64-9.27.0.42_cuda13-archive.tar.xz -C /usr/local/cudnn-9.27.0.42-cuda13 --strip-components=1
-/usr/local/cuda-13.4/bin/nvcc --version
+/usr/local/cuda-13.4.3/bin/nvcc --version
 ```
 
-`nvcc --version` が `release 13.4, V13.4.59` を出せば成功です。
+`nvcc --version` が `release 13.4, V13.4.92` を出せば成功です。
 
 ### 3. build して test を打つ
 
@@ -156,7 +156,7 @@ mkdir -p $W/downloads
 curl -L --fail -sS -o $W/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz
 sha256sum $W/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz
 cd <repo>/native
-cargo run --release --target-dir $W/target -p xtask -- sherpa-gpu --cuda-dir /usr/local/cuda-13.4 --cudnn-dir /usr/local/cudnn-9.27.0.42-cuda13 --out-dir $W
+cargo run --release --target-dir $W/target -p xtask -- sherpa-gpu --cuda-dir /usr/local/cuda-13.4.3 --cudnn-dir /usr/local/cudnn-9.27.0.42-cuda13 --out-dir $W
 export SHERPA_ONNX_LIB_DIR=$W/linux/install/lib
 cargo build --release --target-dir $W/target -p hayamimi-gpu
 cargo test --release --target-dir $W/target -p hayamimi-gpu
@@ -171,20 +171,62 @@ run path は `RUNPATH` ではなく `RPATH`（`-Wl,--disable-new-dtags`）で書
 
 `hayamimi-gpu` に依存する crate の実行物にも、同じ run path が要ります。
 
+## CUDA を 13.4.3 に上げる手順と戻し方
+
+更新前の版は、Windows が installer で入れた 13.4（nvcc 13.4.59。`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4`）、WSL が redistrib の 13.4.1（nvcc 13.4.59。`/usr/local/cuda-13.4`）です。
+更新では、どちらの OS でも元の directory に手を付けず、13.4.3 を別の directory に並べました。
+Windows は installer も winget も使わず、WSL と同じ redistrib の zip を使っています。installer は `v13.4` を上書きして元に戻せなくなり、redistrib は NVIDIA の json が SHA-256 を持つためです。
+
+Windows の 13.4.3 は `%USERPROFILE%\cuda-redist\v13.4.3` に置きます。WSL から打った command です（`<Windows の user directory>` は `/mnt/c/Users/...`）。
+
+```bash
+D=<Windows の user directory>/cuda-redist
+mkdir -p $D/downloads $D/v13.4.3 $D/stage && cd $D/downloads
+curl -sS -O https://developer.download.nvidia.com/compute/cuda/redist/redistrib_13.4.3.json
+jq -r 'to_entries[] | select(.key|test("^(cuda_nvcc|cuda_cudart|cuda_cuobjdump|libcublas|libcufft|libcurand|cuda_nvrtc|libnvjitlink|cuda_crt)$")) | .value["windows-x86_64"] | "\(.relative_path) \(.sha256)"' redistrib_13.4.3.json > cuda.list
+while read -r rel sum; do f=$(basename $rel); curl -L --fail -sS -o $f https://developer.download.nvidia.com/compute/cuda/redist/$rel; echo "$sum  $f"; done < cuda.list > cuda.sha256
+sha256sum -c cuda.sha256
+for z in *.zip; do rm -rf $D/stage/*; unzip -q $z -d $D/stage && cp -a $D/stage/*/. $D/v13.4.3/; done
+$D/v13.4.3/bin/nvcc.exe --version
+```
+
+`nvcc --version` が `V13.4.92` を出せば成功です。
+WSL の 13.4.3 は、上の「手順（WSL）」の 1 と 2 のとおりです（`/usr/local/cuda-13.4.3`）。
+
+上げた後は、`--cuda-dir` を新しい directory にして xtask を打ち直し、`cargo test`、`clippy`、`fmt` を両 OS で打ち直します。
+
+```powershell
+cargo run --release -p xtask -- sherpa-gpu --cuda-dir "%USERPROFILE%\cuda-redist\v13.4.3" --cudnn-dir "<cuDNN 9 の CUDA 13 用 archive を展開した directory>"
+```
+
+更新前の build は、`native/target/sherpa-gpu-cuda1341`（Windows。`linux` は WSL の 13.4.1 の作業 directory への symlink）と `native/target/sherpa-gpu-cuda1341-repeat` に残してあります。
+
+**13.4.1 に戻すとき**：xtask の `--cuda-dir` を元の directory（Windows は installer の `v13.4`、WSL は `/usr/local/cuda-13.4`）に戻して build し直すか、残してある `sherpa-gpu-cuda1341` の `windows\install\lib` を `SHERPA_ONNX_LIB_DIR` にして繋ぎ直します。
+13.4.3 の directory は次のように消します。
+
+```bash
+sudo rm -rf /usr/local/cuda-13.4.3
+rm -rf <Windows の user directory>/cuda-redist
+```
+
 ## 実測した結果
 
 ### ORT 1.31.0（現行）
 
 RTX 5060 Ti で `ja_014.wav`（9600 ms）を、build ごとに 4 回続けて開いた結果です（同じ音声、同じ build、cache の状態は揃えていません）。
+CUDA 13.4.1 の build（更新前）と、13.4.3 の build（現行）の両方を載せます。
 
-| 欄 | Windows | WSL |
-|---|---|---|
-| `loaded_provider` | `cuda`（4 回とも） | `cuda`（4 回とも） |
-| `cuda_devices` | 1 | 1 |
-| `ort_version` | `1.31.0` | `1.31.0` |
-| `onnxruntime_libraries` | 1 | 1 |
-| `decode_ms` | 2469、678、651、660 | 952、529、552、553 |
-| `decoded_chars` | 44 | 44 |
+| 欄 | Windows、13.4.1 | WSL、13.4.1 | Windows、13.4.3 | WSL、13.4.3 |
+|---|---|---|---|---|
+| `loaded_provider` | `cuda` | `cuda` | `cuda` | `cuda` |
+| `cuda_devices` | 1 | 1 | 1 | 1 |
+| `ort_version` | `1.31.0` | `1.31.0` | `1.31.0` | `1.31.0` |
+| `onnxruntime_libraries` | 1 | 1 | 1 | 1 |
+| `decode_ms`（4 回） | 2469、678、651、660 | 952、529、552、553 | 731、658、680、698 | 621、609、588、569 |
+| `decoded_chars` | 44 | 44 | 44 | 44 |
+
+13.4.3 の WSL の cuBLAS は 13.8.0.4 で、実行物の directory の `libcublas.so.13` の SHA-256 が `/usr/local/cuda-13.4.3/lib/libcublas.so.13.8.0.4` と一致します。
+13.4.1 の cuBLAS は 13.7.0.27 です。
 
 どちらも 1 回目だけが遅く、2 回目以降は 1 割から 2 割の幅に収まっています。
 1 回目の遅れが初期化なのか、PTX から機械語への変換なのかは切り分けていません（未検証）。
@@ -332,4 +374,4 @@ CUDA 12 版へ戻す手順は、設計の 3.12 に書いてあります。
 - 1 回目の `decode_ms` が遅い理由（初期化か、PTX の変換か）と、`sm_120a` の機械語が実際に使われているか。
 - 認識を test の process の中で走らせるときの「実行物の隣」の解き方（上記）。
 - 退路（ORT 1.28.2）の build を、この run path 付きの WSL で打つこと。WSL の退路は作っていません（Windows の退路だけ在ります）。
-- CUDA の redistrib 13.4.2 と 13.4.3 への移行。
+- CUDA 13.4.3 での 1 回目の `decode_ms`。4 回の値は Windows が 658 から 731 ms、WSL が 569 から 621 ms で、13.4.1 の 1 回目の遅れ（2469 ms、952 ms）は出ていません。ただし 13.4.3 の run は build の直後ではなく、GPU が温まった後なので、遅れが消えたとは言えません。
