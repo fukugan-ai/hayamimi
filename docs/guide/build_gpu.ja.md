@@ -101,12 +101,28 @@ apt の package は使いません。
 | CUDA Toolkit 13.4.3（redistrib の部品） | `/usr/local/cuda-13.4.3` | なし |
 | CUDA Toolkit 13.4.1（更新前。redistrib の部品） | `/usr/local/cuda-13.4` | なし |
 | cuDNN 9.27.0.42（cuda13） | `/usr/local/cudnn-9.27.0.42-cuda13` | なし |
-| 取得した archive と build の作業 directory | `~/.cache/hayamimi-r1-wsl-20261014` | なし |
+| 取得した archive、cargo の `target`、build の作業 directory（4 本。下の表） | `~/.cache/hayamimi-r1-wsl-20261014*` | なし |
+
+WSL の作業 directory は 4 本あり、`native/target` の下の symlink がそれぞれの `linux` を指します。
+
+| WSL の作業 directory | 中身 | 指す symlink | 消すと |
+|---|---|---|---|
+| `~/.cache/hayamimi-r1-wsl-20261014-cuda1343` | 現行（CUDA 13.4.3）の build | `native/target/sherpa-gpu/linux` | 現行の `sherpa-gpu/linux` が切れる |
+| `~/.cache/hayamimi-r1-wsl-20261014-cuda1343-repeat` | 現行の 2 回目の build | `native/target/sherpa-gpu-repeat/linux` | `two_builds_on_one_os_match` の実走が読めなくなる |
+| `~/.cache/hayamimi-r1-wsl-20261014` | 更新前（13.4.1）の build、取得した archive（`downloads`、`redist`、`redist3`）、**全 build 共通の cargo の `target`** | `native/target/sherpa-gpu-cuda1341/linux` | 退路の 13.4.1 の build が消え、WSL の probe の実行 file（`target/release/hayamimi-gpu-probe`）も消える |
+| `~/.cache/hayamimi-r1-wsl-20261014-repeat` | 更新前の 2 回目の build | `native/target/sherpa-gpu-cuda1341-repeat/linux` | 消してよい（退路の記録だけが消える） |
+
+現行を残して片付けるときは、`-repeat` だけを消します。
+`-cuda1343` と `-cuda1343-repeat` と、`target` を持つ無印の directory を消すと、現行の build と probe が使えなくなります。
+全部を戻すときは、4 本とも消します。
 
 ```bash
 sudo rm -rf /usr/local/cuda-13.4.3 /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
-rm -rf ~/.cache/hayamimi-r1-wsl-20261014
+rm -rf ~/.cache/hayamimi-r1-wsl-20261014 ~/.cache/hayamimi-r1-wsl-20261014-repeat ~/.cache/hayamimi-r1-wsl-20261014-cuda1343 ~/.cache/hayamimi-r1-wsl-20261014-cuda1343-repeat
+rm native/target/sherpa-gpu/linux native/target/sherpa-gpu-repeat/linux native/target/sherpa-gpu-cuda1341/linux native/target/sherpa-gpu-cuda1341-repeat/linux
 ```
+
+最後の行は symlink だけを消します（`rm -r` を付けないので、指す先は消えません）。
 
 消した後に、`readlink -f /usr/local/cuda` が `/usr/local/cuda-13.3` を指し、`/usr/local/cuda-13.3` が残っていれば、入れる前と同じです。
 後から apt の `cuda-toolkit-13-4` を入れたい場合は、`/usr/local/cuda-13.4` が同じ path なので、先に消します。
@@ -194,6 +210,10 @@ $D/v13.4.3/bin/nvcc.exe --version
 WSL の 13.4.3 は、上の「手順（WSL）」の 1 と 2 のとおりです（`/usr/local/cuda-13.4.3`）。
 
 上げた後は、`--cuda-dir` を新しい directory にして xtask を打ち直し、`cargo test`、`clippy`、`fmt` を両 OS で打ち直します。
+
+`sherpa-onnx-sys` の build script は、`SHERPA_ONNX_LIB_DIR` の共有ライブラリを `target/<profile>` へ複写するだけで、古い版の file を消しません。
+同じ `target` を使い回すと、前の版の DLL と `.so` が残ります（Windows の `ort131-build` の release には 13.4.1 の DLL が残っていました。WSL の `target/release` には `libcublas.so.13.7.0.27` が残っています）。
+`libcublas.so.13` などの名前の file は上書きされるので run は新しい版を読みますが、残りは紛らわしいので、版を変えたら `--target-dir` の directory を消して作り直すか、`target/<profile>` の共有ライブラリを消して build し直します。
 
 ```powershell
 cargo run --release -p xtask -- sherpa-gpu --cuda-dir "%USERPROFILE%\cuda-redist\v13.4.3" --cudnn-dir "<cuDNN 9 の CUDA 13 用 archive を展開した directory>"
