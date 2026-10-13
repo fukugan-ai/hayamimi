@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-26）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-27）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -497,13 +497,15 @@ test：`native/hayamimi/tests/rp06.rs`。
 | T-RP-6-008 | fixture：`gpu.session.created` が 0 件 | 空 | `Err` | `Err`。0 件を「全件の置き場が表と同じ」と読まない（implicit） | 境界、陰性 | `no_session_events_is_an_error` |
 | T-RP-6-009 | fixture：node の表（`gpu_stages.md` の形）の `punct_bert.onnx` の行が CUDA の node 453、CPU の node 77。`gpu.session.placed` の `punct_bert.onnx`（3.5 の表で GPU の句読点）の CPU の node が 77 | R1 の値の等号 | `Ok` | `Ok`。式：77 ≤ 77 が真（specified、RP-6 の「R1 の値以下」。77 と 453 は `gpu_stages.md` の node の表の `punct_bert.onnx` の行の値） | 境界、陽性 | `gpu_model_at_the_recorded_cpu_node_count_passes` |
 | T-RP-6-010 | fixture：009 と同じで、`gpu.session.placed` の `punct_bert.onnx` の CPU の node が 78 | R1 の値の外側（1 つ上） | `Err` | `Err` で `punct_bert.onnx` と 78 と 77 を名指し。式：78 ≤ 77 が偽（specified、RP-6） | 境界、陰性 | `gpu_model_one_node_over_the_recorded_count_is_rejected` |
-| T-RP-6-011 | fixture：node の表に行が無い model（`unlisted.onnx`）の `gpu.session.placed` の CPU の node が 5 | 判定の対象外 | `Ok` | `Ok`。記録だけ（specified、RP-6 の「model ごとに記録」） | 境界 | `cpu_nodes_of_unlisted_models_are_recorded_only` |
+| T-RP-6-011 | fixture：3.5 の表に載らない model（`unlisted.onnx`）の `gpu.session.placed` の CPU の node が 5。node の表に行は無い | 判定の対象外 | `Ok` | `Ok`。記録だけ（specified、RP-6 の「表に載らない model は記録だけ」） | 境界 | `cpu_nodes_of_unlisted_models_are_recorded_only` |
 | T-RP-6-012 | 実走：`--wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja --gpu-diagnose` と `nvidia-smi` の 1 秒ごとの読み | 実走 | 実走 | compute apps に `hayamimi` が出て使用量 > 0、`gpu.session.created` の provider が 3.5 の表の置き場と全件で同じ。`gpu.session.placed` の `punct_bert.onnx` の CPU の node が、node の表の同じ model の値（いまは 77）以下（specified、RP-6） | 陽性 | `wav_run_uses_cuda_and_appears_in_compute_apps` |
 | T-RP-6-013 | 実走：`CUDA_VISIBLE_DEVICES` を空にして起こした run | GPU を隠す | 実走 | compute apps に出ず、`gpu.device.unavailable` が 1 件（specified、RP-6 の陰性欄） | 陰性 | `hidden_gpu_run_shows_no_compute_app_and_one_unavailable_event` |
 | T-RP-6-014 | fixture：009 と同じで、`gpu.session.placed` の `punct_bert.onnx` の CPU の node が 0 | R1 の値の下端 | `Ok` | `Ok`。式：0 ≤ 77 が真（specified、RP-6） | 境界、陽性 | `gpu_model_with_zero_cpu_nodes_passes` |
 | T-RP-6-015 | fixture：node の表に認識の encoder（`encoder-epoch-35-avg-1.onnx`、CUDA の node 3537、CPU の node 1599）の行が在り、3.5 の表ではこの段が CPU。`gpu.session.placed` の同じ model の CPU の node が 1600 | 判定の対象は 3.5 の表が決める（node の表に行が在るだけでは判定しない） | `Ok` | `Ok`。判定の対象は 3.5 の表で GPU とした model だけ（specified、RP-6）。1599 と 3537 は node の表の行の値（derived）。node の表の全行を判定する実装は 1600 ≤ 1599 が偽で落ちる | 境界、陰性 | `cpu_placed_model_is_not_judged_by_the_node_table` |
 | T-RP-6-016 | fixture：009 と同じ node の表と 3.5 の表で、`gpu.session.placed` に `punct_bert.onnx` の行が 1 件も無い | 記録の欠け | `Err` | `Err` で `punct_bert.onnx` を名指し。記録が無いことを「CPU の node が 0」と読まない（implicit。008 と同じ型） | 境界、陰性 | `gpu_model_without_a_placed_event_is_rejected` |
 | T-RP-6-017 | fixture：3.5 の表で CPU とした段（認識）の session が provider `cuda` で作られた `gpu.session.created` | 逆向きの例外 | `Err` | `Err` でその model を名指し（specified、RP-6 の「CPU とした段は `cpu`」） | 陰性 | `one_cuda_session_in_a_cpu_stage_names_its_model` |
+| T-RP-6-018 | fixture：3.5 の表で CPU とした段の model（`encoder-epoch-35-avg-1.onnx`）の `gpu.session.placed` の CPU の node が 5。node の表に行は無い | CPU に置いた model で表に行が無い | `Ok` | `Ok`。記録だけ（specified、RP-6 の「3.5 の表で CPU とした model は記録だけ」） | 境界 | `cpu_placed_model_without_a_node_table_row_is_recorded_only` |
+| T-RP-6-019 | fixture：3.5 の表で GPU とした言語判定の model（`tiny-encoder.onnx`）の `gpu.session.placed` の CPU の node が 0。node の表に `tiny-encoder.onnx` の行は無い（句読点の行だけ在る） | GPU に置いた model の行の欠け | `Err` | `Err` で `tiny-encoder.onnx` を名指し。行が無いことを「0 ≤ 値」と読まない（specified、RP-6 の「GPU とした model が node の表に行を持たなければ落ちる」） | 境界、陰性 | `gpu_model_without_a_node_table_row_is_rejected` |
 
 ### 4.17 RP-7（段の間の転送）
 
@@ -545,13 +547,15 @@ GPU の往復の下限は、test が `gpu_stages.md` の「認識の文字列 �
 | T-RP-8-012 | fixture：011 の CPU の p50 を 218 µs にした物 | 根拠 4 の内側 | `Ok` | `Ok`。式：218 < 219（specified、RP-8 の根拠 4） | 境界、陽性 | `no_gpu_path_row_below_the_transfer_floor_passes` |
 | T-RP-8-013 | fixture：根拠 3 の行で、CPU の p50 が 13490 µs、`L` の見積りの p50 が 1349 ms | 根拠 3 の等号 | `Err` | `Err`。式：13490 µs < 1349 ms × 1% = 13490 µs が偽（specified、RP-8 の根拠 3。1% は仮の値） | 境界、陰性 | `shrink_bound_at_one_percent_of_latency_is_rejected` |
 | T-RP-8-014 | fixture：013 の CPU の p50 を 2455 µs にした物 | 根拠 3 の内側 | `Ok` | `Ok`。式：2455 < 13490（specified、RP-8 の根拠 3。3.5 の resample の行の値） | 境界、陽性 | `shrink_bound_below_one_percent_of_latency_passes` |
-| T-RP-8-015 | fixture：認識の段、無負荷。GPU の fp32 の p50 が 171414 µs、CPU の fp32 が 151299 µs、CPU の int8 が 128615 µs（値は `gpu_stages.md` の「置き場の提案」の認識の行）。根拠の列は根拠 1 | 同じ variant の対（fp32）で CPU が速い | `Ok` | `Ok`。式：fp32 の対で 151299 < 171414 が真（specified、RP-8 の根拠 1） | 陽性 | `same_variant_pair_with_faster_cpu_passes` |
-| T-RP-8-016 | fixture：認識の段、無負荷。GPU の fp32 の p50 が 151299 µs、CPU の fp32 が 171414 µs、CPU の int8 が 128615 µs。根拠の列は根拠 1 | CPU の int8 だけが速く、同じ fp32 の対では GPU が速い | `Err` | `Err` でその段を名指し。式：fp32 の対で 171414 < 151299 が偽。int8 の 128615 は対の相手が無く根拠に数えない（specified、RP-8 の陰性欄）。variant を混ぜた最小値で比べる実装は 128615 < 151299 が真で通るので、この case で落ちる | 陰性 | `cpu_int8_faster_but_same_fp32_pair_slower_is_rejected` |
-| T-RP-8-017 | fixture：認識の段、無負荷。GPU に fp32（171414 µs）と `ort-encoder fp32`（66262 µs）の 2 行、CPU に fp32（151299 µs）の 1 行だけ。`ort-encoder fp32` の CPU の行は無い | 別の variant の行を対にしない | `Ok` | `Ok`。対は fp32 だけで 151299 < 171414 が真（specified、RP-8 の「variant を混ぜた最小値で比べない」）。GPU の最小値 66262 と CPU の 151299 を比べる実装は偽で落ちる。variant の名前を部分一致で対にする実装も `ort-encoder fp32` を fp32 の対に混ぜて落ちる | 境界、陽性 | `gpu_row_of_another_variant_is_not_mixed_into_the_pair` |
-| T-RP-8-018 | fixture：認識の段、無負荷。fp32 の対（GPU 171414 µs、CPU 151299 µs）と `ort-encoder fp32` の対（GPU 66262 µs、CPU 121091 µs）の 2 つの対。前者は CPU が速く、後者は GPU が速い。値は `gpu_stages.md` の実物 | 同じ variant の対が複数在る | `Ok` | `Ok`。CPU が速い対が 1 つ以上在れば根拠 1 を満たす（derived。3.5 の認識の行は fp32 の対で置き場を決め、`ort-encoder fp32` の対を「分けられない」として置き場の比較に入れない。ASSUMPTION：設計 RP-8 は「対のうち 1 つ以上」か「全部の対」かを書いていない。実物の `gpu_stages.md` は後者だと落ちる） | 境界、陽性 | `one_faster_cpu_pair_among_same_variant_pairs_passes` |
-| T-RP-8-019 | fixture：認識の段。GPU の行は fp16（459578 µs）だけ、CPU の行は int8（128615 µs）だけ | 同じ variant の対が 0 | `Err` | `Err` でその段を名指し。対が 0 を「CPU が速い」と読まない（specified、RP-8 の根拠 1。対が前提） | 境界、陰性 | `row_without_any_same_variant_pair_is_rejected` |
-| T-RP-8-020 | 実走（R2 の後）：`rg -c -i '\bort\b\|cuda' native/hayamimi-asr/src/itn.rs native/hayamimi-asr/src/punct/rules.rs` | 根拠 4 の行が model を持たない | 実走 | 2 file が在り、当たりが 0 件（rc 1）。file が無いと rc 2 なので、0 件と区別する（specified、設計 8 の R2 の受入欄。この欄は ID を置かないので RP-8 に寄せた。ASSUMPTION：持ち主の ID は system-architect が決める） | 陰性 | `string_rule_modules_import_neither_ort_nor_cuda` |
-| T-RP-8-021 | 実走：020 と同じ式を `native/hayamimi-gpu/src/` に掛ける | 数える式の陽性対照 | 実走 | 当たりが 1 件以上（rc 0）。式が `ort` と `cuda` の語を拾える（specified、設計 8 の R2 の受入欄の陽性対照） | 陽性 | `import_counter_finds_ort_and_cuda_in_the_gpu_crate` |
+| T-RP-8-015 | fixture：認識の段、無負荷。GPU の fp32 の p50 が 171414 µs、CPU の fp32 が 151299 µs、CPU の int8 が 128615 µs（値は `gpu_stages.md` の「置き場の提案」の認識の行）。根拠の列は 根拠 1（variant `fp32`） | 同じ variant の対（fp32）で CPU が速い | `Ok` | `Ok`。式：fp32 の対で 151299 < 171414 が真（specified、RP-8 の根拠 1） | 陽性 | `same_variant_pair_with_faster_cpu_passes` |
+| T-RP-8-016 | fixture：認識の段、無負荷。GPU の fp32 の p50 が 151299 µs、CPU の fp32 が 171414 µs、CPU の int8 が 128615 µs。根拠の列は 根拠 1（variant `fp32`） | CPU の int8 だけが速く、同じ fp32 の対では GPU が速い | `Err` | `Err` でその段を名指し。式：fp32 の対で 171414 < 151299 が偽。int8 の 128615 は対の相手が無く根拠に数えない（specified、RP-8 の陰性欄）。variant を混ぜた最小値で比べる実装は 128615 < 151299 が真で通るので、この case で落ちる | 陰性 | `cpu_int8_faster_but_same_fp32_pair_slower_is_rejected` |
+| T-RP-8-017 | fixture：認識の段、無負荷。GPU に fp32（171414 µs）と `ort-encoder fp32`（66262 µs）の 2 行、CPU に fp32（151299 µs）の 1 行だけ。`ort-encoder fp32` の CPU の行は無い。根拠の列は 根拠 1（variant `fp32`） | 別の variant の行を対にしない | `Ok` | `Ok`。対は fp32 だけで 151299 < 171414 が真（specified、RP-8 の「variant を混ぜた最小値で比べない」）。GPU の最小値 66262 と CPU の 151299 を比べる実装は偽で落ちる。variant の名前を部分一致で対にする実装も `ort-encoder fp32` を fp32 の対に混ぜて落ちる | 境界、陽性 | `gpu_row_of_another_variant_is_not_mixed_into_the_pair` |
+| T-RP-8-018 | fixture：認識の段、無負荷。根拠の列は 根拠 1（variant `fp32`）の 1 つだけ。fp32 の対（GPU 171414 µs、CPU 151299 µs）と `ort-encoder fp32` の対（GPU 66262 µs、CPU 121091 µs）の 2 つの対が在り、前者は CPU が速く、後者は GPU が速い。値は `gpu_stages.md` の実物 | 名指しした variant の対だけで判定する | `Ok` | `Ok`。判定に使うのは名指しした fp32 の対だけで、151299 < 171414 が真。`ort-encoder fp32` の対は GPU が速くても判定に使わない（specified、RP-8 の「同じ段のほかの variant の対は、どちらが速くても判定に使わない」） | 境界、陽性 | `named_variant_pair_alone_decides_the_evidence` |
+| T-RP-8-019 | fixture：認識の段。根拠の列は 根拠 1（variant `fp32`）。GPU の行は fp16（459578 µs）だけ、CPU の行は int8（128615 µs）だけで、fp32 の行が無い | 名指しした variant の対が 0 | `Err` | `Err` でその段を名指し。対が 0 を「CPU が速い」と読まない（specified、RP-8 の「名指しした variant の対が欠けている」） | 境界、陰性 | `row_without_any_same_variant_pair_is_rejected` |
+| T-RP-8-020 | fixture：018 と同じで、fp32 の対は GPU が速く（GPU 151299 µs、CPU 171414 µs）、`ort-encoder fp32` の対は CPU が速い（GPU 121091 µs、CPU 66262 µs） | 名指しの外の対が速くても救わない | `Err` | `Err` でその段を名指し。式：fp32 の対で 171414 < 151299 が偽。別の variant の対で CPU が速いことは判定に使わない（specified、RP-8） | 陰性 | `faster_cpu_pair_of_an_unnamed_variant_does_not_rescue_the_row` |
+| T-RP-8-021 | fixture：認識の段で、根拠の列が 根拠 1 とだけ書き、variant の名指しが無い。fp32 の対は CPU が速い | 名指しが 0 | `Err` | `Err` でその段を名指し。対が成り立っていても、名指しが無ければ通さない（specified、RP-8 の「名指しが無い」） | 境界、陰性 | `evidence_one_without_a_named_variant_is_rejected` |
+| T-RP-8-022 | fixture：認識の段で、根拠の列が 根拠 1（variant `fp32`）と 根拠 1（variant `ort-encoder fp32`）の 2 つを書く。どちらの対も CPU が速い | 名指しが 2 | `Err` | `Err` でその段を名指し。名指しは 1 つだけ（specified、RP-8 の「2 つ以上在る」） | 境界、陰性 | `evidence_one_with_two_named_variants_is_rejected` |
+| T-RP-8-023 | fixture：認識の段で、根拠の列が 根拠 1（variant `fp32`）。GPU の fp32 の行が無く（CPU の fp32 は 151299 µs）、`ort-encoder fp32` の対だけが在り CPU が速い | 名指しした variant の対の片側が欠ける | `Err` | `Err` でその段を名指し。別の variant の対で埋めない（specified、RP-8 の「名指しした variant の対が欠けている」。019 は 2 側とも無い場合） | 境界、陰性 | `named_variant_pair_missing_one_side_is_rejected` |
 
 ### 4.19 RP-9（実行時の Python が 0 本）
 
@@ -913,6 +917,22 @@ locale の決め方は、`ja_JP.UTF-8` を ja、`C.UTF-8` と未知の値を en 
 | T-RP-26-007 | fixture：2 つの locale で同じ出力 | 切り替わらない | `Err` | `Err`（specified、RP-26） | 陰性 | `identical_output_for_both_locales_is_rejected` |
 | T-RP-26-008 | locale の値 `ja_JP.UTF-8`、`C.UTF-8`、`fr_FR.UTF-8` | locale の決め方 | ja、en、en | 決める関数が ja、en、en を返す（specified、3.14 の「既定は英語」） | 境界 | `locale_resolution_defaults_to_english` |
 | T-RP-26-009 | 実走：`<hy> --help` と起動の失敗を `LANG` を en と ja にして起こす | 実走 | 実走 | 001、004、006 の形（specified、RP-26）。`LANG` は test が子の process に渡す値で、test の code は読まない | 陽性 | `messages_follow_the_locale` |
+
+### 4.37 RP-27（GPU の経路が無い文字列の段が ORT と CUDA を呼ばない）
+
+test：`native/hayamimi-asr/tests/rp27.rs`。受入 test の名前は `rp27_string_stages_do_not_import_ort_or_cuda`。
+`count_gpu_imports(files)` は、`rg -c -i '\bort\b\|cuda' <files>` を子の process で打ち、終了 code と当たりの数を返す。
+終了 code は 0（当たりが在る）、1（0 件）、2（file が無いなどの error）で、2 を 0 件と読まない。
+fixture の木は `native/target/` の下に test が作る一時の directory に置く（`/tmp` は使わない）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-27-001 | fixture：`ort` も `cuda` も含まない `itn.rs` と `punct/rules.rs` の木 | 0 件 | rc 1 | rc が 1 で当たりが 0 件（specified、RP-27） | 陽性 | `clean_string_stage_files_have_no_hits` |
+| T-RP-27-002 | fixture：001 の `itn.rs` に `use ort` の 1 行を足した木 | 1 件（0 の隣） | rc 0 | rc が 0 で当たりが 1 件。判定は `Err` で `itn.rs` を名指し（specified、RP-27 の陰性欄） | 境界、陰性 | `ort_import_in_itn_is_named` |
+| T-RP-27-003 | fixture：001 の `punct/rules.rs` に `CUDA` の語（大文字）を含む 1 行を足した木 | 大文字小文字 | rc 0 | 当たりが 1 件。`-i` で大文字を拾い、`Err` で `punct/rules.rs` を名指し（specified、RP-27 の式の `-i`） | 境界、陰性 | `uppercase_cuda_in_punct_rules_is_named` |
+| T-RP-27-004 | fixture：`punct/rules.rs` が無い木 | file の欠け | rc 2 | `Err`。rc 2 を 0 件と読まない（specified、RP-27 の「file が無いときの rc 2 は落ちる」） | 境界、陰性 | `missing_string_stage_file_is_an_error_not_zero_hits` |
+| T-RP-27-005 | 実走：`native/hayamimi-gpu/src/` に同じ式 | 数える式の陽性対照 | rc 0 | 当たりが 1 件以上（specified、RP-27 の陽性対照） | 陽性 | `import_counter_finds_ort_and_cuda_in_the_gpu_crate` |
+| T-RP-27-006 | 実走（R2 の後）：`native/hayamimi-asr/src/itn.rs` と `native/hayamimi-asr/src/punct/rules.rs` | 実物 | rc 1 | 2 file が在り、rc が 1 で当たりが 0 件（specified、RP-27） | 陽性 | `string_stage_modules_import_neither_ort_nor_cuda` |
 
 ## 5. RP-19 の対応表
 
