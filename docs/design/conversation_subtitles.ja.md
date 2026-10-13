@@ -93,7 +93,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 | S3 | Teams の CART 字幕は、主催者が会議の option で「Provide CART Captions」を入れて link を作り、字幕者へ渡す | https://support.microsoft.com/en-US/teams/meetings-events/use-cart-captions-in-a-microsoft-teams-meeting-human-generated-captions |
 | S4 | ECB のユーロ参照為替は、TARGET の休業日を除く毎営業日の 16:00 CET ごろに更新される。JPY、USD、GBP、CAD、AUD を含む。情報のための値で、取引への使用は勧めない。2026-10-12 の値は USD 1.1181、JPY 177.33。日次の file は `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html |
 | S5 | llama-server の `/completion` は `stop`（止める文字列の配列）を受け、止めた文字列を出力から除く。`-np` は slot の数 | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
-| S6 | 字形の file：cinecaption 2.28（`cinecaption2.28.ttf`）と UDEV Gothic v2.2.0（`UDEVGothic35-Regular.ttf` ほか）。配布条件は cinecaption が無料、改造禁止、再配布自由、UDEV Gothic が OFL 1.1 | `C:\Users\user01\hayamimi_fonts\` の 2 つの zip（`unzip -l` で確かめた）。配布条件は `state.json` の `fonts` の転記 |
+| S6 | 字形の file：cinecaption 2.28（`cinecaption2.28.ttf`）と UDEV Gothic v2.2.0（`UDEVGothic35-Regular.ttf` ほか）。配布条件は cinecaption が無料、改造禁止、再配布自由、UDEV Gothic が OFL 1.1 | `%USERPROFILE%\hayamimi_fonts\` の 2 つの zip（`unzip -l` で確かめた）。配布条件は `state.json` の `fonts` の転記 |
 | S7 | 換算の係数：mile 1609.344 m、ft 0.3048 m、in 0.0254 m、yd 0.9144 m、sq ft 0.09290304 m²、英ガロン 4.54609 L、°C = (°F − 32)/1.8 は厳密値。lb 0.4535924 kg、oz 28.34952 g、米ガロン 3.785412 L、米 fl oz 29.57353 mL、英 fl oz 28.41306 mL、acre 4046.873 m²（米測量 ft） | https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors/nist-guide-si-appendix-b9 |
 | S8 | 住宅の畳数の表示は 1 畳 = 1.62 m² 以上（不動産の表示に関する公正競争規約施行規則とされる） | https://smtrc.jp/useful/glossary/detail?n=3751 （用語集。規約の原文は確かめていない） |
 | S9 | 既存の ja→en の採点：FLEURS validation、n=50、seed 0、sacrebleu の corpus chrF で FuguMT 47.57、M2M-100 418M 48.88 | `docs/eval/translate_candidates.md` |
@@ -219,7 +219,7 @@ STOP のときに字幕へ出す物は次のとおりである。
 
 | 組 | file | 行数 | 書く席 | 見てよい席 |
 |---|---|---|---|---|
-| 調整用 | `testdata/conv20.tsv`（既存） | 和 20、英 20 | 既存（agent 作成、人の確認なし） | 全員 |
+| 調整用 | `native/hayamimi-relay/tests/fixtures/conv20.tsv`（`testdata/conv20.tsv` の写し。7.14 の「test の材料の置き場」） | 和 20、英 20 | 既存（agent 作成、人の確認なし） | 全員 |
 | held-out | repo の外の file。path は code に書かず、`eval --final --heldout <path>` の引数で渡す | 和 40、英 40 | test-designer が実装の前に書き、参照訳を付ける（agent 作成。人が確かめたら、その旨を file の頭に書く） | test-designer と検証の席だけ。V、表、E の指示文を直す席の brief には path を書かない |
 
 held-out の文は、会議の言い回しのほか、数、否定、推量、固有名、通貨と単位を含む行を方向ごとに 10 行以上入れる。
@@ -288,7 +288,7 @@ CPU の翻訳器（`scripts/translate_ja_en.py` ほか）を代わりに立て�
 
 ### 3.7 llama-server を置く場所
 
-llama-server は WSL で、既存の CUDA 版の build（`/home/fukugan/source/llama.cpp/build-cuda120`）を使って動かす。
+llama-server は WSL で、既存の CUDA 版の build（`~/source/llama.cpp/build-cuda120`）を使って動かす。
 model は `/mnt/h3-models` に置き、使う前に llama.cpp を fetch して再 build する。
 Windows 側の中継は `http://127.0.0.1:<port>` で届く。
 WSL の VM が止まると訳が止まるので、Windows の端末を閉じた後も VM が残るかを CS-20 で測る。
@@ -983,6 +983,20 @@ jq -rn '"こんにちは。"|@uri'
 11. 決めた：1000 以上は通貨でない値も 3 桁ごとに `,`（3.11）。
 12. 決めた：為替と表の file を再起動せずに読み直すことは CX-11 で測り、slice 1 の順 13 に置く（6.2、7）。case 行は test-designer が CX-11 の下に足す。
 13. 実装の席が決める：入口の見張り、時計の差し込み、書き込みの偽の関数の形。cargo の target は `native/target`（workspace の既定）で、7.1 の `target/` は `native/` から打つ相対 path としてそのまま正しい。
+
+test の材料の置き場：
+
+- 受入 test が読む材料は、git に入る `native/hayamimi-relay/tests/fixtures/` に写し、test はそこだけを `include_str!` で読む。
+  `testdata/` は `.gitignore` に入れたままにし、外さない。
+  `testdata/` には png と wav（画面と声の録り物）も在り、まとめて外すと、確かめていない物まで公開の repo（origin は GitHub）に出るからである。
+- 写す物は 2 本とする。
+  - `conv20.tsv`：`testdata/conv20.tsv` を 1 byte も変えずに写す（見出し 1 行と 40 行）。調整用の 40 行の正本はこの写しとし、3.5 の調整用の組と `eval` の既定もこの path を指す。
+  - `cat_q8_rows.tsv`：`testdata/probe1_cat-translate-3.3b.log` から、test が引く 7 行（j01、j08、j12、e01、e20、e09、e16）の id と出力の列だけを写す。出力は末尾の `</s>` を含めて変えない。見出しには model の名前、量子化、日付だけを書く。log の頭の行は写さない。local の path（利用者の home の directory 名）を含むからである。
+- 公開してよいかを数えた結果（2026-10-13）：メールの `@`、URL、Windows と Linux の home の path、利用者の account の名前、電話番号の形を 1 本の `rg -n -i` の式にして 2 本に掛けた（式は account の名前を含むので、この文書には写さない）。
+  `conv20.tsv` は 0 件で、中身は agent が書いた会議の定型文である。
+  log は 2 件で、陽性対照を兼ねる。3 行目の利用者の home の path と、5 行目の model の置き場の path で、どちらも写さない頭の行に在る。
+  写した 2 本には、commit の前に同じ式を掛けて 0 件であることを確かめる。
+- held-out の batch は、この置き場に写さない（3.5）。
 
 実装がやること：7.2〜7.13 の表の 1 行につき test 関数を 1 本、7.1 の名前の規則で作る。
 fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request_without_stop.json`、`cx06_request_with_subtitle_query.txt`、`cx07_after_truncated.json`、`cx01_verify_input_annotated.txt`、`cx02_pound_annotated.json`、`cx07_not_xml.txt`、`cx07_truncated.xml`、`cx07_no_time.xml`、`cx07_no_usd.xml`、`cx07_no_jpy.xml`、`cx11_rates_b.json`、`cx11_rates_c.json`、`cx11_empty.json`、`cx11_broken.toml` の 14 個を、行に書いた内容で作る。
