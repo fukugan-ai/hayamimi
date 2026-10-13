@@ -1,0 +1,5 @@
+7f0000000000-7f0000100000 r-xp 00000000 08:01 11   /work/target/release/libonnxruntime.so.1
+7f0000100000-7f0000200000 r-xp 00000000 08:01 12   /usr/local/cuda-13.3/targets/x86_64-linux/lib/libcublas.so.13.6.0.2
+7f0000200000-7f0000300000 r-xp 00000000 08:01 13   /usr/local/cuda-13.3/targets/x86_64-linux/lib/libcudart.so.13.3.29
+7f0000300000-7f0000400000 r-xp 00000000 08:01 14   /work/target/release/libcudnn.so.9
+7ffd00000000-7ffd00021000 rw-p 00000000 00:00 0    [stack]
