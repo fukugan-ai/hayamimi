@@ -11,6 +11,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::mdtable::{MdTable, first_table, section};
+use crate::stage_runs::FLOOR;
 use crate::stage_table::{StageRow, first_measure_row};
 
 pub const ENVIRONMENT: &str = "## 測った機械と build";
@@ -138,7 +139,22 @@ pub struct Results {
     pub transfers: Option<Vec<TransferRow>>,
     pub jit: Option<Vec<JitRow>>,
     pub proposals: Option<Vec<Proposal>>,
+    /// The p50 (ms) of the estimate of `L` for recognition and translation on the GPU, no load.
+    pub l_estimate_p50_ms: Option<u64>,
 }
+
+/// The heading of the section that estimates `L`.
+pub const L_ESTIMATE: &str = "## 遅れ L の見積り";
+/// The row of that table the shrink bound of evidence 3 is taken from.
+pub const L_ESTIMATE_ROW: &str = "Rust 認識 cuda / 訳 cuda 無負荷";
+/// The start of the metric of an estimate row.
+pub const L_ESTIMATE_METRIC: &str = "L の見積り";
+/// Evidence 3 holds when the CPU time is below this share (percent) of the estimate of `L`. A provisional value.
+pub const SHRINK_PERCENT: u64 = 1;
+/// The start of the evidence column of a row justified by evidence 3.
+const SHRINK_EVIDENCE: &str = "根拠 3";
+/// The slices that own the measurement of a stage with no GPU path.
+const OWNER_SLICES: [&str; 3] = ["R2", "R4", "R5"];
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ResultsError {
@@ -451,6 +467,20 @@ fn parse_proposals(text: &str) -> Result<Option<Vec<Proposal>>, ResultsError> {
         .map(Some)
 }
 
+fn parse_l_estimate(text: &str) -> Result<Option<u64>, ResultsError> {
+    let Some(table) = table_of(text, L_ESTIMATE)? else {
+        return Ok(None);
+    };
+    for row in &table.rows {
+        let who = cell(&table, row, "実装", L_ESTIMATE)?;
+        let what = cell(&table, row, "指標", L_ESTIMATE)?;
+        if who.starts_with(L_ESTIMATE_ROW) && what.starts_with(L_ESTIMATE_METRIC) {
+            return number(cell(&table, row, "p50", L_ESTIMATE)?, L_ESTIMATE, "p50").map(Some);
+        }
+    }
+    Ok(None)
+}
+
 impl Results {
     /// Reads every section the document has.
     pub fn parse(text: &str) -> Result<Results, ResultsError> {
@@ -460,7 +490,18 @@ impl Results {
             transfers: parse_transfers(text)?,
             jit: parse_jit(text)?,
             proposals: parse_proposals(text)?,
+            l_estimate_p50_ms: parse_l_estimate(text)?,
         })
+    }
+
+    /// The smallest p50 (µs) of a GPU round trip alone: the lower bound of any GPU placement.
+    pub fn transfer_floor_us(&self) -> Option<u64> {
+        self.cells
+            .iter()
+            .flatten()
+            .filter(|c| c.provider == "cuda" && c.load == Load::Idle && c.variant == FLOOR)
+            .filter_map(|c| c.p50_us)
+            .min()
     }
 
     fn cells_of(&self, stage: &str, provider: &str, load: Load) -> Vec<&Cell> {
@@ -613,7 +654,7 @@ pub fn check_stage_results(
     if results.cells.is_none() {
         return Err(ResultsError::NoSection(STAGES));
     }
-    for row in table {
+    for row in table.iter().filter(|row| row.has_gpu_path()) {
         for provider in PROVIDERS {
             for load in Load::ALL {
                 check_combination(results, &row.name, provider, load, expected_samples)?;
@@ -626,34 +667,120 @@ pub fn check_stage_results(
 /// RP-8: a stage left on the CPU has its evidence; a stage on the GPU has both timings.
 pub fn check_stage_evidence(table: &[StageRow], results: &Results) -> Result<(), ResultsError> {
     for row in table {
-        let gpu = results.best_idle(&row.name, "cuda");
-        let cpu = results.best_idle(&row.name, "cpu");
-        if !row.placement.starts_with("CPU") {
-            if gpu.is_none() || cpu.is_none() {
-                return Err(ResultsError::Evidence {
-                    stage: row.name.clone(),
-                    why: "a stage not on the CPU needs a p50 and a p95 for both providers",
-                });
-            }
-            continue;
+        if !row.has_gpu_path() {
+            check_no_gpu_path(row, results)?;
+        } else if row.placement.starts_with("CPU") && row.evidence.starts_with(SHRINK_EVIDENCE) {
+            check_shrink_bound(row, results)?;
+        } else {
+            check_compared_evidence(row, results)?;
         }
-        if row.evidence.trim().is_empty() {
-            return Err(ResultsError::Evidence {
-                stage: row.name.clone(),
-                why: "the evidence column of a CPU row is empty",
-            });
+    }
+    Ok(())
+}
+
+fn evidence_error(row: &StageRow, why: &'static str) -> ResultsError {
+    ResultsError::Evidence {
+        stage: row.name.clone(),
+        why,
+    }
+}
+
+/// Whether `text` names one of the slices that own an unmeasured stage, as a word of its own.
+fn has_owner_slice(text: &str) -> bool {
+    OWNER_SLICES.iter().any(|slice| {
+        text.match_indices(slice).any(|(at, _)| {
+            let before = text[..at].chars().next_back();
+            let after = text[at + slice.len()..].chars().next();
+            !before.is_some_and(|c| c.is_ascii_alphanumeric())
+                && !after.is_some_and(|c| c.is_ascii_digit())
+        })
+    })
+}
+
+/// Evidence 4: a stage with no GPU path is timed on the CPU below the GPU round trip, or,
+/// while its CPU row is unmeasured, names the slice that will time it and why no GPU path exists.
+fn check_no_gpu_path(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    if let Some((cpu_p50, _)) = results.best_idle(&row.name, "cpu") {
+        let floor = results.transfer_floor_us().ok_or_else(|| {
+            evidence_error(
+                row,
+                "no row of the results gives the GPU round trip to compare with",
+            )
+        })?;
+        if cpu_p50 < floor {
+            return Ok(());
         }
-        let has_url = row.evidence.contains("http")
-            || results
-                .proposal_evidence(&row.name)
-                .is_some_and(|text| text.contains("http"));
-        let measured_faster = matches!((gpu, cpu), (Some(g), Some(c)) if c.0 < g.0);
-        if !measured_faster && !has_url {
-            return Err(ResultsError::Evidence {
-                stage: row.name.clone(),
-                why: "a CPU row needs a CPU p50 smaller than the GPU p50, or a primary source URL",
-            });
+        return Err(evidence_error(
+            row,
+            "the CPU p50 is not below the GPU round-trip floor",
+        ));
+    }
+    if !has_owner_slice(&row.evidence) {
+        return Err(evidence_error(
+            row,
+            "an unmeasured stage with no GPU path names no owner slice (R2, R4 or R5)",
+        ));
+    }
+    // The reason names the GPU or CUDA (what is missing) or cites a source (an `http` URL).
+    if !["GPU", "CUDA", "http"]
+        .iter()
+        .any(|word| row.evidence.contains(word))
+    {
+        return Err(evidence_error(
+            row,
+            "an unmeasured stage with no GPU path states no reason why it has none",
+        ));
+    }
+    Ok(())
+}
+
+/// Evidence 3: the most a GPU could save, the CPU time, is below `SHRINK_PERCENT` of the estimate of `L`.
+fn check_shrink_bound(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    let (cpu_p50, _) = results
+        .best_idle(&row.name, "cpu")
+        .ok_or_else(|| evidence_error(row, "evidence 3 needs a measured CPU p50"))?;
+    let latency_ms = results.l_estimate_p50_ms.ok_or_else(|| {
+        evidence_error(row, "the results have no estimate of L to take a share of")
+    })?;
+    // cpu_us < latency_ms * 1000 * percent / 100, kept in integers.
+    if u128::from(cpu_p50) * 100 < u128::from(latency_ms) * 1000 * u128::from(SHRINK_PERCENT) {
+        return Ok(());
+    }
+    Err(evidence_error(
+        row,
+        "the CPU p50 is not below the share of the estimate of L",
+    ))
+}
+
+/// Evidence 1 and 2, and the rows placed on the GPU: both providers are timed and compared.
+fn check_compared_evidence(row: &StageRow, results: &Results) -> Result<(), ResultsError> {
+    let gpu = results.best_idle(&row.name, "cuda");
+    let cpu = results.best_idle(&row.name, "cpu");
+    if !row.placement.starts_with("CPU") {
+        if gpu.is_none() || cpu.is_none() {
+            return Err(evidence_error(
+                row,
+                "a stage not on the CPU needs a p50 and a p95 for both providers",
+            ));
         }
+        return Ok(());
+    }
+    if row.evidence.trim().is_empty() {
+        return Err(evidence_error(
+            row,
+            "the evidence column of a CPU row is empty",
+        ));
+    }
+    let has_url = row.evidence.contains("http")
+        || results
+            .proposal_evidence(&row.name)
+            .is_some_and(|text| text.contains("http"));
+    let measured_faster = matches!((gpu, cpu), (Some(g), Some(c)) if c.0 < g.0);
+    if !measured_faster && !has_url {
+        return Err(evidence_error(
+            row,
+            "a CPU row needs a CPU p50 smaller than the GPU p50, or a primary source URL",
+        ));
     }
     Ok(())
 }

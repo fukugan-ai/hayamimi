@@ -35,6 +35,8 @@ enum Command {
     StagesReport(cli_stages::StagesReportArgs),
     /// Summarise `nsys stats` CSV files, one pair per utterance, as transfer rows.
     NsysTransfers(cli_stages::NsysTransfersArgs),
+    /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
+    OrtPlaced(cli_stages::OrtPlacedArgs),
 }
 
 #[derive(Args)]
@@ -183,6 +185,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::Stages(args) => cli_stages::stages(args),
         Command::StagesReport(args) => cli_stages::stages_report(args),
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
+        Command::OrtPlaced(args) => cli_stages::ort_placed(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {

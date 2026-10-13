@@ -10,6 +10,7 @@ use crate::gpu_results::TransferRow;
 use crate::log;
 use crate::manifest::write_text;
 use crate::nsys::{self, MemoryStats};
+use crate::ort_stages::{self, Device, OrtRuntime, PlacedRow};
 use crate::stage_report::{self, Inputs, PythonSample};
 use crate::stage_runs::{self, Options, Provider};
 use crate::stages::{aggregate, write_run};
@@ -69,6 +70,22 @@ pub struct StagesArgs {
     /// Open a profiler capture range around every decode.
     #[arg(long)]
     pub profile_ranges: bool,
+    /// `punct_ja_parity.json`: the `input_ids` the punctuation BERT is run on (the stage is left out without it).
+    #[arg(long)]
+    pub punct_cases: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct OrtPlacedArgs {
+    /// The ONNX model whose node placement is counted.
+    #[arg(long)]
+    pub model: PathBuf,
+    /// The provider the session is built for.
+    #[arg(long, value_enum)]
+    pub provider: ProviderArg,
+    /// The placement row (JSON) to write.
+    #[arg(long)]
+    pub out: PathBuf,
 }
 
 #[derive(Args)]
@@ -88,6 +105,9 @@ pub struct StagesReportArgs {
     /// Transfer rows written by `nsys-transfers`.
     #[arg(long, num_args = 0..)]
     pub transfers: Vec<PathBuf>,
+    /// Node placement rows written by `ort-placed`.
+    #[arg(long, num_args = 0..)]
+    pub placed: Vec<PathBuf>,
     /// Samples of the Python baseline (the .jsonl `stream` wrote).
     #[arg(long, num_args = 0..)]
     pub python: Vec<PathBuf>,
@@ -154,6 +174,7 @@ pub fn stages(args: StagesArgs) -> Result<(), EvalError> {
         only: args.only,
         int8_on_cuda: args.int8_on_cuda,
         profile_ranges: args.profile_ranges,
+        punct_cases: args.punct_cases,
     };
     let run = stage_runs::run(&options)?;
     write_run(&args.out, &run)?;
@@ -173,6 +194,34 @@ pub fn stages(args: StagesArgs) -> Result<(), EvalError> {
         "worker",
         "stage run written",
         &[("samples", Value::from(run.samples.len()))],
+    );
+    Ok(())
+}
+
+/// Builds one model's session at verbose level and writes where its nodes went.
+pub fn ort_placed(args: OrtPlacedArgs) -> Result<(), EvalError> {
+    // The ONNX Runtime beside the executable must be the first in the process.
+    #[cfg(windows)]
+    hayamimi_gpu::runtime::preload_beside_executable("onnxruntime.dll")
+        .map_err(|e| EvalError::Invalid(e.to_string()))?;
+    let (device, name) = match args.provider {
+        ProviderArg::Cuda => (Device::Cuda, "cuda"),
+        ProviderArg::Cpu => (Device::Cpu, "cpu"),
+    };
+    let runtime = OrtRuntime::open(&ort_stages::library_beside_executable()?)?;
+    let _session = runtime.session(&args.model, device, 1, true)?;
+    let model = args
+        .model
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| EvalError::Invalid(format!("{} has no file name", args.model.display())))?;
+    let row = ort_stages::placed_row(&model, name, &runtime.take_placements()?)?;
+    let mut text = serde_json::to_string_pretty(&row).map_err(|e| EvalError::json(&args.out, e))?;
+    text.push('\n');
+    write_text(&args.out, &text)?;
+    println!(
+        "{model} on {name}: {} nodes on CUDA, {} nodes on CPU",
+        row.cuda_nodes, row.cpu_nodes
     );
     Ok(())
 }
@@ -201,6 +250,10 @@ pub fn stages_report(args: StagesReportArgs) -> Result<(), EvalError> {
     let design = read_text(&args.design)?;
     let build_json = read_text(&args.build_json)?;
     let transfers = read_transfers(&args.transfers)?;
+    let mut placed: Vec<PlacedRow> = Vec::new();
+    for path in &args.placed {
+        placed.push(serde_json::from_str(&read_text(path)?).map_err(|e| EvalError::json(path, e))?);
+    }
     let mut python: Vec<PythonSample> = Vec::new();
     for path in &args.python {
         python.extend(stage_report::read_python_baseline(path)?);
@@ -211,6 +264,7 @@ pub fn stages_report(args: StagesReportArgs) -> Result<(), EvalError> {
         build_json: &build_json,
         cpu: &args.cpu,
         transfers: &transfers,
+        placed: &placed,
         python: &python,
         min_silence_ms: args.min_silence_ms,
     })?;

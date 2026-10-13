@@ -447,6 +447,10 @@ hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models -
 
 1 回の転送は、`nsys profile --capture-range=cudaProfilerApi --capture-range-end=repeat:<発話数 × model の数>` の下で `stages --only recognize --profile-ranges --repeat 1`（int8 を CUDA で走らせる対照は `--int8-on-cuda` を足す）を走らせ、認識の 1 呼び出しごとに `nsys stats --format csv` の `cuda_gpu_mem_time_sum`、`cuda_gpu_mem_size_sum` を取り、`hayamimi-eval nsys-transfers --dir <csv の dir> --variant <fp32 か fp16 か int8> --out <名前>.json` で集めます。
 
+句読点の BERT と、認識の encoder だけの時間は、`ort` で model を直に開いて測ります（`--only punct_bert,encoder_only`）。
+BERT の入力は `punct_ja_parity.json` の `input_ids` で、`--punct-cases` に渡します。
+CUDA で CPU に置かれた node の数は、`hayamimi-eval ort-placed --model <onnx> --provider cuda --out <名前>.json` で数え、`stages-report` の `--placed` に渡します。
+
 run file と転送の JSON から、結果の文書を 1 本にします。
 
 ```powershell

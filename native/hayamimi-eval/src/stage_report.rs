@@ -17,9 +17,10 @@ use crate::gpu_results::{
     PROVIDERS, STAGES, TRANSFER_HEADER, TRANSFERS, TransferRow, UNMEASURED,
 };
 use crate::mdtable::render;
+use crate::ort_stages::PlacedRow;
 use crate::percentile::nearest_rank;
 use crate::sha::sha256_hex;
-use crate::stage_runs::FLOOR;
+use crate::stage_runs::{ENCODER_ONLY, FLOOR};
 use crate::stage_table::{StageRow, parse_stage_table};
 use crate::stages::{Aggregate, RunFile, aggregate};
 
@@ -30,6 +31,7 @@ pub struct Inputs<'a> {
     pub build_json: &'a str,
     pub cpu: &'a str,
     pub transfers: &'a [TransferRow],
+    pub placed: &'a [PlacedRow],
     pub python: &'a [PythonSample],
     pub min_silence_ms: f64,
 }
@@ -134,8 +136,8 @@ const STAGE_MAP: [StageMap; 19] = [
     map("言語判定", &["lid"], "先頭 4 秒を渡す", false),
     map(
         "認識の encoder",
-        &["decode"],
-        "encoder と探索を分けて測る口が無く、両方を含む",
+        &["decode", "encoder_only"],
+        "variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない）",
         false,
     ),
     map(
@@ -153,8 +155,8 @@ const STAGE_MAP: [StageMap; 19] = [
     map("ITN", &[], "Rust の ITN がまだ無く、測れない", false),
     map(
         "句読点（BERT",
-        &[],
-        "Rust の句読点の呼び出し（ort）がまだ無く、測れない",
+        &["punct_bert"],
+        "forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない",
         false,
     ),
     map(
@@ -251,6 +253,69 @@ fn best(aggs: &[Aggregate], provider: &str, load: bool, ids: &[&str]) -> Option<
             p95_us: p95 / runs,
         })
         .min_by_key(|b| b.p50_us)
+}
+
+/// The mean over the runs of one stage's p50 and p95 for one variant, provider and load.
+fn variant_mean(
+    aggs: &[Aggregate],
+    provider: &str,
+    load: bool,
+    stage: &str,
+    variant: &str,
+) -> Option<Best> {
+    let rows: Vec<&Aggregate> = aggs
+        .iter()
+        .filter(|a| {
+            a.provider == provider && a.load == load && a.stage == stage && a.variant == variant
+        })
+        .collect();
+    let runs = u64::try_from(rows.len()).ok().filter(|n| *n > 0)?;
+    Some(Best {
+        variant: variant.to_owned(),
+        p50_us: rows.iter().map(|a| a.p50_us()).sum::<u64>() / runs,
+        p95_us: rows.iter().map(|a| a.p95_us()).sum::<u64>() / runs,
+    })
+}
+
+/// `GPU 170000 µs / CPU 150000 µs` for one stage and variant under one load, or why it is missing.
+fn pair_text(aggs: &[Aggregate], load: bool, stage: &str, variant: &str) -> String {
+    match (
+        variant_mean(aggs, "cuda", load, stage, variant),
+        variant_mean(aggs, "cpu", load, stage, variant),
+    ) {
+        (Some(g), Some(c)) => format!("GPU {} µs / CPU {} µs", g.p50_us, c.p50_us),
+        _ => String::from("片方が測れていない"),
+    }
+}
+
+/// The recognition row: same-precision pairs only, and no placement. The deciding is left to the council.
+fn recognition_proposal(aggs: &[Aggregate]) -> (String, String) {
+    let mut parts = Vec::new();
+    for (label, stage, variant) in [
+        ("sherpa-onnx の認識全体 fp32", "decode", "fp32"),
+        ("ort で encoder だけ fp32", "encoder_only", ENCODER_ONLY),
+    ] {
+        for load in [false, true] {
+            parts.push(format!(
+                "{label}、{}の p50: {}",
+                load_label(load),
+                pair_text(aggs, load, stage, variant)
+            ));
+        }
+    }
+    let side = |provider: &str, variant: &str| {
+        variant_mean(aggs, provider, false, "decode", variant).map_or_else(
+            || String::from("測れていない"),
+            |b| format!("{} µs", b.p50_us),
+        )
+    };
+    parts.push(format!(
+        "参考（同じ精度の対ではない）: CPU の int8 は {}（int8 は CUDA に無い）、GPU の fp16 は {}（fp32 の GPU は {}）",
+        side("cpu", "int8"),
+        side("cuda", "fp16"),
+        side("cuda", "fp32")
+    ));
+    (String::from("未決（評議）"), parts.join("。"))
 }
 
 fn note_for(map: &StageMap, variant: &str) -> String {
@@ -399,12 +464,59 @@ const LLAMA_ENV: &str =
     "WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない";
 
 /// The section that lists what the numbers do not establish.
-const UNVERIFIED: &str = "\n## 未検証\n\n- 訳 T は WSL の llama-server（CUDA 12.0 の build）で測った。設計の 3.12 は CUDA 13.4 だけを指していて食い違う。Windows の native、CUDA 13 の llama-server で測り直すまで、訳 T の行は本番の値ではない。\n";
+const UNVERIFIED: &str = "\n## 未検証\n\n- 訳 T は WSL の llama-server（CUDA 12.0 の build）で測った。設計の 3.12 は CUDA 13.4 だけを指していて食い違う。Windows の native、CUDA 13 の llama-server で測り直すまで、訳 T の行は本番の値ではない。\n- 負荷の列は、WSL の llama-server と Windows の ONNX Runtime が GPU を分けた値で、本番の分け方ではない（NOT VERIFIED）。\n- encoder だけの行の入力は、発話から作った log-mel で、認識器の front end とは値が同じではない。句読点の BERT の行の入力は、punct_ja_parity.json の最初の 23 case で、lat-ja の発話の文字列ではない。どちらも時間は入力の値ではなく長さに従うと見て使ったが、確かめていない。\n";
+
+/// The line about the fp16 slowdown, from the counted placements; empty without both encoders counted.
+fn fp16_placement_line(placed: &[PlacedRow]) -> String {
+    let encoder = |fp16: bool| {
+        placed
+            .iter()
+            .find(|p| p.model.starts_with("encoder") && p.model.contains(".fp16.") == fp16)
+            .filter(|p| p.device == "cuda" && !p.model.contains(".int8."))
+    };
+    let (Some(fp32), Some(fp16)) = (encoder(false), encoder(true)) else {
+        return String::new();
+    };
+    let verdict = if fp32.cpu_nodes.abs_diff(fp16.cpu_nodes) * 10 < fp32.cpu_nodes {
+        "差が 1 割に満たないので、CPU に置かれた node の数では fp16 の遅さを説明できない。原因は未特定である"
+    } else {
+        "CPU に置かれた node の数に差があり、fp16 の遅さの原因の候補である（確かめていない）"
+    };
+    format!(
+        "- CUDA で CPU に置かれた encoder の node は、fp32 が {}、fp16 が {}。{verdict}。\n",
+        fp32.cpu_nodes, fp16.cpu_nodes
+    )
+}
+
+/// Where ONNX Runtime put the nodes of the models it was asked to count; empty when none was counted.
+fn placed_section(placed: &[PlacedRow]) -> String {
+    if placed.is_empty() {
+        return String::new();
+    }
+    let rows: Vec<Vec<String>> = placed
+        .iter()
+        .map(|p| {
+            vec![
+                p.model.clone(),
+                p.device.clone(),
+                p.cuda_nodes.to_string(),
+                p.cpu_nodes.to_string(),
+            ]
+        })
+        .collect();
+    format!(
+        "\n## node の置き場（ort）\n\n`ort` が session を作るときに ONNX Runtime が出す \"Node(s) placed on\" の行を、provider ごとに足した数。device は session を作った provider。\n\n{}",
+        render(&["model", "device", "CUDA の node", "CPU の node"], &rows)
+    )
+}
 
 /// The placement proposed for one stage and the numbers behind it.
 fn proposal(map: &StageMap, aggs: &[Aggregate]) -> (String, String) {
     if map.ids.is_empty() {
         return (String::from("未決"), map.note.to_owned());
+    }
+    if map.ids.contains(&"encoder_only") {
+        return recognition_proposal(aggs);
     }
     let gpu = best(aggs, "cuda", false, map.ids);
     let cpu = best(aggs, "cpu", false, map.ids);
@@ -730,6 +842,7 @@ pub fn render_document(inputs: &Inputs<'_>) -> Result<String, EvalError> {
         "\n{JIT}\n\ncache が空の process と、同じ cache で続けた process の、認識の最初の 1 回（fp32、create の後）と p50。\n\n"
     ));
     text.push_str(&render(&JIT_HEADER, &jit_rows(inputs.runs)?));
+    text.push_str(&placed_section(inputs.placed));
     text.push_str(&format!("\n{PROPOSALS}\n\n"));
     text.push_str(&render(&PROPOSAL_HEADER, &proposal_rows(&table, &aggs)));
     text.push('\n');
@@ -737,6 +850,7 @@ pub fn render_document(inputs: &Inputs<'_>) -> Result<String, EvalError> {
     text.push('\n');
     text.push_str(&delay_section(inputs)?);
     text.push_str(UNVERIFIED);
+    text.push_str(&fp16_placement_line(inputs.placed));
     Ok(text)
 }
 
@@ -1002,6 +1116,104 @@ mod tests {
         };
         assert_eq!(own, vec![9_100_000]);
         Ok(())
+    }
+
+    #[test]
+    fn the_recognition_row_pairs_the_same_precision_and_decides_nothing() -> Result<(), EvalError> {
+        let runs = [
+            run(
+                "cuda",
+                false,
+                "warm",
+                vec![
+                    sample("decode", "fp32", 0, 170_000_000),
+                    sample("decode", "fp16", 0, 468_000_000),
+                    sample("encoder_only", ENCODER_ONLY, 0, 58_000_000),
+                ],
+            ),
+            run(
+                "cpu",
+                false,
+                "warm",
+                vec![
+                    sample("decode", "fp32", 0, 150_000_000),
+                    sample("decode", "int8", 0, 125_000_000),
+                    sample("encoder_only", ENCODER_ONLY, 0, 99_000_000),
+                ],
+            ),
+        ];
+        let (placement, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
+        assert!(placement.starts_with("未決"), "{placement}");
+        assert!(
+            evidence.contains("無負荷の p50: GPU 170000 µs / CPU 150000 µs"),
+            "{evidence}"
+        );
+        assert!(
+            evidence.contains("無負荷の p50: GPU 58000 µs / CPU 99000 µs"),
+            "{evidence}"
+        );
+        assert!(evidence.contains("CPU の int8 は 125000 µs"), "{evidence}");
+        assert!(evidence.contains("GPU の fp16 は 468000 µs"), "{evidence}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_side_that_was_not_measured_is_said_not_filled() -> Result<(), EvalError> {
+        let runs = [run(
+            "cuda",
+            false,
+            "warm",
+            vec![sample("decode", "fp32", 0, 170_000_000)],
+        )];
+        let (_, evidence) = recognition_proposal(&warm_aggregates(&runs)?);
+        assert!(evidence.contains("片方が測れていない"), "{evidence}");
+        assert!(
+            evidence.contains("CPU の int8 は 測れていない"),
+            "{evidence}"
+        );
+        Ok(())
+    }
+
+    fn placed_on(model: &str, cpu_nodes: u64) -> PlacedRow {
+        PlacedRow {
+            model: model.to_owned(),
+            device: String::from("cuda"),
+            cuda_nodes: 3500,
+            cpu_nodes,
+        }
+    }
+
+    #[test]
+    fn the_fp16_line_says_unexplained_when_the_cpu_nodes_barely_differ() {
+        let line = fp16_placement_line(&[
+            placed_on("encoder-epoch-35-avg-1.onnx", 1599),
+            placed_on("encoder-epoch-35-avg-1.fp16.onnx", 1611),
+        ]);
+        assert!(line.contains("fp32 が 1599、fp16 が 1611"), "{line}");
+        assert!(line.contains("説明できない"), "{line}");
+    }
+
+    #[test]
+    fn the_fp16_line_names_a_large_difference_as_a_candidate() {
+        let line = fp16_placement_line(&[
+            placed_on("encoder-epoch-35-avg-1.onnx", 100),
+            placed_on("encoder-epoch-35-avg-1.fp16.onnx", 900),
+        ]);
+        assert!(line.contains("原因の候補"), "{line}");
+    }
+
+    #[test]
+    fn without_both_encoders_there_is_no_fp16_line() {
+        assert_eq!(fp16_placement_line(&[]), "");
+        assert_eq!(
+            fp16_placement_line(&[placed_on("encoder-epoch-35-avg-1.onnx", 1)]),
+            ""
+        );
+    }
+
+    #[test]
+    fn the_node_placement_section_is_left_out_when_nothing_was_counted() {
+        assert_eq!(placed_section(&[]), "");
     }
 
     #[test]

@@ -17,6 +17,7 @@ pub mod manifest;
 pub mod mdtable;
 pub mod mt;
 pub mod nsys;
+pub mod ort_stages;
 pub mod percentile;
 pub mod record;
 pub mod sha;

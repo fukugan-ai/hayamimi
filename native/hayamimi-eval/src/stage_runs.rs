@@ -22,6 +22,7 @@ use sherpa_onnx::{CircularBuffer, LinearResampler};
 use crate::error::EvalError;
 use crate::log;
 use crate::manifest::read_rows;
+use crate::ort_stages::{self, Device, OrtRuntime};
 use crate::stage_load::Load;
 use crate::stage_models::{self as models, LID_SECONDS, Precision, SAMPLE_RATE, VAD_WINDOW};
 use crate::stages::{Meta, RunFile, Sample};
@@ -30,7 +31,7 @@ use crate::translate_call::{ChatClient, translate_body};
 use crate::wav::read_wav;
 
 /// The stage identifiers, in the order a full run measures them.
-pub const STAGES: [&str; 12] = [
+pub const STAGES: [&str; 14] = [
     "resample",
     "ring",
     "vad",
@@ -43,7 +44,14 @@ pub const STAGES: [&str; 12] = [
     "translate",
     "prompt_build",
     "verify_convert",
+    "punct_bert",
+    "encoder_only",
 ];
+
+/// The variant label of the encoder timed alone through `ort`.
+pub const ENCODER_ONLY: &str = "ort-encoder fp32";
+/// Threads of the punctuation BERT session.
+const BERT_THREADS: usize = 4;
 
 /// The variant label of a stage timed on the host.
 pub const HOST: &str = "cpu";
@@ -106,6 +114,8 @@ pub struct Options {
     pub int8_on_cuda: bool,
     /// Open a profiler capture range around every decode.
     pub profile_ranges: bool,
+    /// `punct_ja_parity.json`, whose `input_ids` the punctuation BERT is run on.
+    pub punct_cases: Option<PathBuf>,
 }
 
 struct Clip {
@@ -121,6 +131,39 @@ struct Run<'a> {
     texts: Vec<String>,
     translations: Vec<String>,
     embeddings: Vec<Vec<f32>>,
+    ort: Option<OrtRuntime>,
+}
+
+/// The token ids of the first `count` cases of the punctuation fixture.
+fn punct_ids(path: &std::path::Path, count: usize) -> Result<Vec<Vec<i64>>, EvalError> {
+    let text = std::fs::read_to_string(path).map_err(|e| EvalError::io(path, e))?;
+    let value: Value = serde_json::from_str(&text).map_err(|e| EvalError::json(path, e))?;
+    let cases = value
+        .get("cases")
+        .and_then(Value::as_array)
+        .ok_or_else(|| invalid(format!("{} has no `cases` array", path.display())))?;
+    if cases.len() < count {
+        return Err(invalid(format!(
+            "{} has {} cases, {count} are needed",
+            path.display(),
+            cases.len()
+        )));
+    }
+    cases
+        .iter()
+        .take(count)
+        .map(|case| {
+            case.get("input_ids")
+                .and_then(Value::as_array)
+                .ok_or_else(|| invalid("a case has no `input_ids` array"))?
+                .iter()
+                .map(|id| {
+                    id.as_i64()
+                        .ok_or_else(|| invalid("an input id is not an integer"))
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn invalid(message: impl Into<String>) -> EvalError {
@@ -175,7 +218,29 @@ fn precisions(provider: Provider, stage: &str, int8_on_cuda: bool) -> Vec<Precis
 
 impl Run<'_> {
     fn wants(&self, stage: &str) -> bool {
-        self.options.only.is_empty() || self.options.only.iter().any(|only| only == stage)
+        if self.options.only.is_empty() {
+            // The BERT needs its fixture; a full run without one leaves that stage out.
+            return stage != "punct_bert" || self.options.punct_cases.is_some();
+        }
+        self.options.only.iter().any(|only| only == stage)
+    }
+
+    /// The ONNX Runtime of `ort`, opened on first use.
+    fn ort(&mut self) -> Result<&OrtRuntime, EvalError> {
+        if self.ort.is_none() {
+            let library = ort_stages::library_beside_executable()?;
+            self.ort = Some(OrtRuntime::open(&library)?);
+        }
+        self.ort
+            .as_ref()
+            .ok_or_else(|| invalid("the ONNX Runtime is not open"))
+    }
+
+    fn device(&self) -> Device {
+        match self.options.provider {
+            Provider::Cuda => Device::Cuda,
+            Provider::Cpu => Device::Cpu,
+        }
     }
 
     fn provider(&self) -> &'static str {
@@ -663,6 +728,64 @@ impl Run<'_> {
         outcome
     }
 
+    /// The punctuation BERT's forward alone, on the `input_ids` of the fixture, one case per utterance.
+    fn measure_punct_bert(&mut self) -> Result<(), EvalError> {
+        let cases = self
+            .options
+            .punct_cases
+            .clone()
+            .ok_or_else(|| invalid("--punct-cases is needed for the punct_bert stage"))?;
+        let ids = punct_ids(&cases, self.clips.len())?;
+        let model = models::punct_bert_file(&self.options.models)?;
+        let device = self.device();
+        let mut session = self.ort()?.session(&model, device, BERT_THREADS, false)?;
+        self.assert_provider()?;
+        // One untimed pass: the first run on CUDA builds its plans and warms the kernels.
+        for case in &ids {
+            ort_stages::forward_bert(&mut session, case)?;
+        }
+        let calls: Vec<(u32, usize)> = self.calls().collect();
+        let mut times = Vec::with_capacity(calls.len());
+        for call in calls {
+            times.push((call, ort_stages::forward_bert(&mut session, &ids[call.1])?));
+        }
+        for (call, ns) in times {
+            self.record("punct_bert", Precision::Fp32.name(), call, ns)?;
+        }
+        Ok(())
+    }
+
+    /// The recognizer's encoder model alone (fp32), on a log-mel of each utterance, through `ort`.
+    fn measure_encoder_only(&mut self) -> Result<(), EvalError> {
+        let model = models::encoder_file(&self.options.models, Precision::Fp32)?;
+        let device = self.device();
+        let threads = usize::try_from(models::RECOGNIZER_THREADS)
+            .map_err(|_| invalid("the thread count does not fit usize"))?;
+        let mut session = self.ort()?.session(&model, device, threads, false)?;
+        self.assert_provider()?;
+        let features: Vec<(Vec<f32>, usize)> = self
+            .clips
+            .iter()
+            .map(|clip| ort_stages::log_mel(&clip.samples))
+            .collect();
+        for (values, frames) in &features {
+            ort_stages::forward_encoder(&mut session, values, *frames)?;
+        }
+        let calls: Vec<(u32, usize)> = self.calls().collect();
+        let mut times = Vec::with_capacity(calls.len());
+        for call in calls {
+            let (values, frames) = &features[call.1];
+            times.push((
+                call,
+                ort_stages::forward_encoder(&mut session, values, *frames)?,
+            ));
+        }
+        for (call, ns) in times {
+            self.record("encoder_only", ENCODER_ONLY, call, ns)?;
+        }
+        Ok(())
+    }
+
     fn measure(&mut self, stage: &str) -> Result<(), EvalError> {
         log::info(
             "eval.stage.started",
@@ -683,6 +806,8 @@ impl Run<'_> {
             "translate" => self.measure_translate(),
             "prompt_build" => self.measure_prompt_build(),
             "verify_convert" => self.measure_verify_convert(),
+            "punct_bert" => self.measure_punct_bert(),
+            "encoder_only" => self.measure_encoder_only(),
             other => Err(invalid(format!("unknown stage `{other}`"))),
         };
         let level = if outcome.is_ok() {
@@ -728,6 +853,7 @@ pub fn run(options: &Options) -> Result<RunFile, EvalError> {
         texts: Vec::new(),
         translations: Vec::new(),
         embeddings: Vec::new(),
+        ort: None,
     };
     let load = match &options.load_url {
         Some(url) => {
@@ -832,6 +958,7 @@ mod tests {
             only: only.iter().map(|s| (*s).to_owned()).collect(),
             int8_on_cuda: false,
             profile_ranges: false,
+            punct_cases: None,
         }
     }
 

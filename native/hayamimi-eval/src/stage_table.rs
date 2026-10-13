@@ -48,6 +48,21 @@ pub fn parse_stage_table(design: &str) -> Result<Vec<StageRow>, EvalError> {
         .collect()
 }
 
+/// The start of the placement of a stage that has no GPU implementation to compare with.
+pub const NO_GPU_PATH: &str = "CPU（GPU 経路なし）";
+
+impl StageRow {
+    /// Whether a GPU implementation of the stage exists, so that it is timed on both providers.
+    pub fn has_gpu_path(&self) -> bool {
+        !self.placement.starts_with(NO_GPU_PATH)
+    }
+}
+
+/// How many rows have a GPU path.
+pub fn count_with_gpu_path(table: &[StageRow]) -> usize {
+    table.iter().filter(|row| row.has_gpu_path()).count()
+}
+
 /// How many rows still say `測る` in the placement column.
 pub fn count_measure_rows(table: &[StageRow]) -> usize {
     table

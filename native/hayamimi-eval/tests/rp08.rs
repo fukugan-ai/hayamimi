@@ -5,7 +5,10 @@ mod support;
 
 use std::path::Path;
 
-use hayamimi_eval::gpu_results::{Results, ResultsError, check_stage_evidence};
+use hayamimi_eval::gpu_results::{
+    L_ESTIMATE, L_ESTIMATE_METRIC, L_ESTIMATE_ROW, Results, ResultsError, check_stage_evidence,
+};
+use hayamimi_eval::mdtable::render;
 use hayamimi_eval::stage_table::{StageRow, parse_stage_table};
 use support::stages::{self, Row, STAGE};
 use support::{REPO, RESULTS, TestResult, read};
@@ -118,6 +121,133 @@ fn a_stage_with_another_name_has_no_timings() -> TestResult {
     Ok(())
 }
 
+const NO_GPU_PATH: &str = "CPU（GPU 経路なし）";
+const NO_GPU_EVIDENCE: &str = "根拠 4。文字列の正規表現の処理で、GPU で動く Rust の道具を見つけていない。R2 が 1 行の CPU の p50 を測る";
+
+fn cell_row(stage: &str, provider: &str, variant: &str, p50: &str, p95: &str) -> Row {
+    [stage, provider, variant, "無負荷", "1", "115", p50, p95, ""]
+        .iter()
+        .map(|c| (*c).to_owned())
+        .collect()
+}
+
+/// Results with a GPU round-trip row of another stage at `floor` µs and, when given, the CPU row of stage `a`.
+fn floor_results(floor: &str, cpu: Option<&str>) -> Result<Results, ResultsError> {
+    let mut rows = vec![cell_row("floor", "cuda", "transfer-floor", floor, "300")];
+    if let Some(p50) = cpu {
+        rows.push(cell_row("a", "cpu", "cpu", p50, "300"));
+    }
+    Results::parse(&stages::cells_section(&rows))
+}
+
+/// A cell table and the `L` estimate table with the given p50 (ms).
+fn shrink_results(cpu_p50: &str, latency_ms: &str) -> Result<Results, ResultsError> {
+    let cells = stages::cells_section(&[cell_row("a", "cpu", "cpu", cpu_p50, "9999")]);
+    let estimate = render(
+        &["実装", "指標", "標本数", "p50", "p95"],
+        &[vec![
+            format!("{L_ESTIMATE_ROW} 無負荷"),
+            format!("{L_ESTIMATE_METRIC} = 902 ms + 認識 + 訳 T"),
+            String::from("285"),
+            latency_ms.to_owned(),
+            String::from("1573"),
+        ]],
+    );
+    Results::parse(&format!("{cells}\n{L_ESTIMATE}\n\n{estimate}"))
+}
+
+/// T-RP-8-009
+#[test]
+fn no_gpu_path_row_with_owner_slice_passes_before_measurement() -> TestResult {
+    let results = results_with(("未測定", "未測定"), ("未測定", "未測定"))?;
+    check_stage_evidence(&[table_row(NO_GPU_PATH, NO_GPU_EVIDENCE)], &results)?;
+    Ok(())
+}
+
+/// T-RP-8-010
+#[test]
+fn no_gpu_path_row_without_owner_slice_is_rejected() -> TestResult {
+    let results = results_with(("未測定", "未測定"), ("未測定", "未測定"))?;
+    let without_owner = NO_GPU_EVIDENCE.replace("R2", "");
+    let said = check_stage_evidence(&[table_row(NO_GPU_PATH, &without_owner)], &results);
+    assert!(evidence_error(said));
+    Ok(())
+}
+
+/// The reason of evidence 4 may name CUDA instead of the GPU; a reason that names neither is refused.
+#[test]
+fn no_gpu_path_reason_may_name_cuda_but_must_name_something() -> TestResult {
+    let results = results_with(("未測定", "未測定"), ("未測定", "未測定"))?;
+    let named = table_row(
+        NO_GPU_PATH,
+        "根拠 4。ORT も CUDA も使わない C++ である。R4 が測る",
+    );
+    check_stage_evidence(&[named], &results)?;
+    let unnamed = table_row(NO_GPU_PATH, "根拠 4。文字列の規則で、ITN と同じ。R2 が測る");
+    assert!(evidence_error(check_stage_evidence(&[unnamed], &results)));
+    Ok(())
+}
+
+/// T-RP-8-011: 219 is not below 219.
+#[test]
+fn no_gpu_path_row_at_the_transfer_floor_is_rejected() -> TestResult {
+    let results = floor_results("219", Some("219"))?;
+    let said = check_stage_evidence(&[table_row(NO_GPU_PATH, NO_GPU_EVIDENCE)], &results);
+    assert!(evidence_error(said));
+    Ok(())
+}
+
+/// T-RP-8-012: 218 is below 219.
+#[test]
+fn no_gpu_path_row_below_the_transfer_floor_passes() -> TestResult {
+    let results = floor_results("219", Some("218"))?;
+    check_stage_evidence(&[table_row(NO_GPU_PATH, NO_GPU_EVIDENCE)], &results)?;
+    Ok(())
+}
+
+/// T-RP-8-013: 13490 µs is exactly 1% of 1349 ms.
+#[test]
+fn shrink_bound_at_one_percent_of_latency_is_rejected() -> TestResult {
+    let results = shrink_results("13490", "1349")?;
+    let said = check_stage_evidence(&[table_row("CPU", "根拠 3。上限は L の 1%")], &results);
+    assert!(evidence_error(said));
+    Ok(())
+}
+
+/// T-RP-8-014: 2455 µs is below 13490 µs.
+#[test]
+fn shrink_bound_below_one_percent_of_latency_passes() -> TestResult {
+    let results = shrink_results("2455", "1349")?;
+    check_stage_evidence(&[table_row("CPU", "根拠 3。上限は L の 1%")], &results)?;
+    Ok(())
+}
+
+/// A bound read from the document: a document without the `L` estimate cannot pass evidence 3.
+#[test]
+fn shrink_bound_without_an_estimate_of_latency_is_rejected() -> TestResult {
+    let cells = stages::cells_section(&[cell_row("a", "cpu", "cpu", "1", "2")]);
+    let said = check_stage_evidence(
+        &[table_row("CPU", "根拠 3。上限は L の 1%")],
+        &Results::parse(&cells)?,
+    );
+    assert!(evidence_error(said));
+    Ok(())
+}
+
+/// The owner slice must be a word of its own: `R25` and `XR2` do not own a stage.
+#[test]
+fn an_owner_slice_inside_another_word_does_not_count() -> TestResult {
+    let results = results_with(("未測定", "未測定"), ("未測定", "未測定"))?;
+    for text in [
+        "R25 が測る。GPU の道具が無い",
+        "XR2 が測る。GPU の道具が無い",
+    ] {
+        let said = check_stage_evidence(&[table_row(NO_GPU_PATH, text)], &results);
+        assert!(evidence_error(said), "{text}");
+    }
+    Ok(())
+}
+
 /// T-RP-8-008 and the acceptance test `rp08_every_cpu_stage_has_its_evidence`:
 /// the design table and `docs/results/gpu_stages.md` as they are now.
 #[test]
@@ -126,8 +256,20 @@ fn rp08_every_cpu_stage_has_its_evidence() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;
     let table = parse_stage_table(&design)?;
-    check_stage_evidence(&table, &Results::parse(&results)?)?;
-    Ok(())
+    let results = Results::parse(&results)?;
+    // Every row is judged on its own, so one failing row does not hide the rows after it.
+    let failures: Vec<String> = table
+        .iter()
+        .filter_map(|row| {
+            check_stage_evidence(std::slice::from_ref(row), &results)
+                .err()
+                .map(|error| format!("{}: {error}", row.name))
+        })
+        .collect();
+    if failures.is_empty() {
+        return Ok(());
+    }
+    Err(Box::from(failures.join("\n")))
 }
 
 /// T-RP-8-008 under its case-table name.

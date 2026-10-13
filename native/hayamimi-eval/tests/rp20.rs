@@ -9,7 +9,7 @@ use hayamimi_eval::gpu_results::{CELL_HEADER, Results, ResultsError, check_place
 use hayamimi_eval::mdtable::render;
 use hayamimi_eval::stage_table::{StageRow, count_measure_rows, parse_stage_table};
 use support::stages::{self, Row};
-use support::{FIXTURES, REPO, RESULTS, TestResult, read};
+use support::{REPO, RESULTS, TestResult, read};
 
 fn placed(name: &str, placement: &str) -> StageRow {
     StageRow {
@@ -35,13 +35,25 @@ fn counter_reads_a_partial_measure_row() {
     assert_eq!(count_measure_rows(&rows), 1);
 }
 
-/// T-RP-20-002: the same counter reads 8 rows in the table as it was before R1.
+/// T-RP-20-002: the same counter reads 2 rows in the table as it stands: the recognition and the BERT.
 #[test]
-fn table_before_r1_has_eight_measure_rows() -> TestResult {
-    let before = read(&Path::new(FIXTURES).join("rp20_table_before_r1.md"))?;
-    let table = parse_stage_table(&before)?;
+fn current_table_has_two_measure_rows() -> TestResult {
+    let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
+    let table = parse_stage_table(&design)?;
     assert_eq!(table.len(), 19);
-    assert_eq!(count_measure_rows(&table), 8);
+    assert_eq!(count_measure_rows(&table), 2);
+    let names: Vec<&str> = table
+        .iter()
+        .filter(|row| row.placement.contains("測る"))
+        .map(|row| row.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "認識の encoder（全 model）",
+            "句読点（BERT、`ort` の CUDA）"
+        ]
+    );
     Ok(())
 }
 

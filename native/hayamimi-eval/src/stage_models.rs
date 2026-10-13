@@ -28,7 +28,8 @@ const SEGMENTATION_DIR: &str = "sherpa-onnx-pyannote-segmentation-3-0";
 const VAD_FILE: &str = "silero_vad.onnx";
 const SPEAKER_FILE: &str = "campplus_sv.onnx";
 
-const RECOGNIZER_THREADS: i32 = 4;
+/// Threads of the recognizer; the encoder-only measurement uses the same number.
+pub const RECOGNIZER_THREADS: i32 = 4;
 const LID_THREADS: i32 = 4;
 const VAD_THREADS: i32 = 1;
 const SPEAKER_THREADS: i32 = 2;
@@ -85,6 +86,17 @@ fn missing(what: &str, precision: Precision, provider: &str) -> EvalError {
         "cannot create the {what} ({}, {provider})",
         precision.name()
     ))
+}
+
+/// The encoder file of the Japanese and English transducer.
+pub fn encoder_file(models: &Path, precision: Precision) -> Result<PathBuf, EvalError> {
+    let name = format!("encoder-epoch-35-avg-1{}.onnx", precision.infix());
+    existing(models, &[RECOGNIZER_DIR, &name]).map(PathBuf::from)
+}
+
+/// The punctuation BERT (fp32).
+pub fn punct_bert_file(models: &Path) -> Result<PathBuf, EvalError> {
+    existing(models, &["mojicast-punct-onnx", "punct_bert.onnx"]).map(PathBuf::from)
 }
 
 /// The Japanese and English transducer, decoded the way the Python pipeline decodes it.

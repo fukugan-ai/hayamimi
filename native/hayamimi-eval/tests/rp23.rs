@@ -13,7 +13,7 @@ use hayamimi_eval::gpu_results::{
 };
 use hayamimi_eval::manifest::{Row as ManifestRow, read_rows, write_rows};
 use hayamimi_eval::mdtable::render;
-use hayamimi_eval::stage_table::{StageRow, parse_stage_table};
+use hayamimi_eval::stage_table::{StageRow, count_with_gpu_path, parse_stage_table};
 use support::stages::{self, LOAD, PROVIDER, REPEATS, Row, SAMPLES, STAGE};
 use support::{REPO, RESULTS, TESTDATA, TestResult, read};
 
@@ -287,6 +287,46 @@ fn merged_cache_state_decode_rows_are_rejected() -> TestResult {
         ),
         "{said:?}"
     );
+    Ok(())
+}
+
+/// T-RP-23-015: 14 stages have a GPU path; the other 5 start with 「CPU（GPU 経路なし）」.
+#[test]
+fn stages_with_a_gpu_path_are_fourteen() -> TestResult {
+    let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
+    let table = parse_stage_table(&design)?;
+    assert_eq!(table.len(), 19);
+    assert_eq!(count_with_gpu_path(&table), 14);
+    let without: Vec<&str> = table
+        .iter()
+        .filter(|row| !row.has_gpu_path())
+        .map(|row| row.name.as_str())
+        .collect();
+    assert_eq!(without.len(), 5, "{without:?}");
+    Ok(())
+}
+
+/// T-RP-23-016: the results of 001 without the four cells of one stage that has a GPU path.
+#[test]
+fn missing_stage_with_a_gpu_path_is_named() -> TestResult {
+    let cells: Vec<Row> = complete_cells()?
+        .into_iter()
+        .filter(|row| row[STAGE] != "stage 05")
+        .collect();
+    let results = parsed(&document(&cells))?;
+    let said = check_stage_results(&table(), &results, expected_samples()?);
+    assert_eq!(
+        said,
+        Err(ResultsError::MissingCell {
+            stage: String::from("stage 05"),
+            provider: "cuda",
+            load: Load::Idle,
+        })
+    );
+    // The same stage marked as having no GPU path is not asked for.
+    let mut marked = table();
+    marked[4].placement = String::from("CPU（GPU 経路なし）");
+    check_stage_results(&marked, &results, expected_samples()?)?;
     Ok(())
 }
 

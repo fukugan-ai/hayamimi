@@ -64,24 +64,34 @@
 | 言語判定（whisper-tiny） | cpu | int8 | 負荷 | 1 | 115 | 130517 | 148030 | 先頭 4 秒を渡す |
 | 言語判定（whisper-tiny） | cpu | fp32 | 負荷 | 2 | 115 | 161288 | 188849 | 先頭 4 秒を渡す |
 | 言語判定（whisper-tiny） | cpu | int8 | 負荷 | 2 | 115 | 134462 | 159719 | 先頭 4 秒を渡す |
-| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 1 | 115 | 468022 | 691439 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 1 | 115 | 169531 | 238592 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 2 | 115 | 465592 | 716097 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 2 | 115 | 175123 | 242757 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 3 | 115 | 445120 | 665899 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 3 | 115 | 169589 | 254209 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp16 | 負荷 | 1 | 115 | 888447 | 1337074 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp32 | 負荷 | 1 | 115 | 384211 | 529985 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp16 | 負荷 | 2 | 115 | 830152 | 1346456 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cuda | fp32 | 負荷 | 2 | 115 | 366142 | 577796 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | fp32 | 無負荷 | 1 | 115 | 149733 | 221815 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | int8 | 無負荷 | 1 | 115 | 125202 | 190405 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | fp32 | 無負荷 | 2 | 115 | 152865 | 224179 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | int8 | 無負荷 | 2 | 115 | 132028 | 209596 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | fp32 | 負荷 | 1 | 115 | 167345 | 244386 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | int8 | 負荷 | 1 | 115 | 146669 | 218058 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | fp32 | 負荷 | 2 | 115 | 182705 | 286025 | encoder と探索を分けて測る口が無く、両方を含む |
-| 認識の encoder（全 model） | cpu | int8 | 負荷 | 2 | 115 | 156628 | 238802 | encoder と探索を分けて測る口が無く、両方を含む |
+| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 1 | 115 | 468022 | 691439 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 1 | 115 | 169531 | 238592 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 2 | 115 | 465592 | 716097 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 2 | 115 | 175123 | 242757 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp16 | 無負荷 | 3 | 115 | 445120 | 665899 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp32 | 無負荷 | 3 | 115 | 169589 | 254209 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | ort-encoder fp32 | 無負荷 | 1 | 115 | 69956 | 81699 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | ort-encoder fp32 | 無負荷 | 2 | 115 | 67306 | 81751 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | ort-encoder fp32 | 無負荷 | 3 | 115 | 61524 | 72805 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp16 | 負荷 | 1 | 115 | 888447 | 1337074 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp32 | 負荷 | 1 | 115 | 384211 | 529985 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp16 | 負荷 | 2 | 115 | 830152 | 1346456 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | fp32 | 負荷 | 2 | 115 | 366142 | 577796 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | ort-encoder fp32 | 負荷 | 1 | 115 | 89869 | 151853 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cuda | ort-encoder fp32 | 負荷 | 2 | 115 | 96003 | 167002 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | fp32 | 無負荷 | 1 | 115 | 149733 | 221815 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | int8 | 無負荷 | 1 | 115 | 125202 | 190405 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | fp32 | 無負荷 | 2 | 115 | 152865 | 224179 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | int8 | 無負荷 | 2 | 115 | 132028 | 209596 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | ort-encoder fp32 | 無負荷 | 1 | 115 | 121313 | 189086 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | ort-encoder fp32 | 無負荷 | 2 | 115 | 125860 | 192107 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | ort-encoder fp32 | 無負荷 | 3 | 115 | 116100 | 176989 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | fp32 | 負荷 | 1 | 115 | 167345 | 244386 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | int8 | 負荷 | 1 | 115 | 146669 | 218058 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | fp32 | 負荷 | 2 | 115 | 182705 | 286025 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | int8 | 負荷 | 2 | 115 | 156628 | 238802 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | ort-encoder fp32 | 負荷 | 1 | 115 | 113373 | 181256 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
+| 認識の encoder（全 model） | cpu | ort-encoder fp32 | 負荷 | 2 | 115 | 122139 | 182994 | variant が fp32 などの行は sherpa-onnx の認識全体（encoder と探索）。ort-encoder fp32 の行は encoder の model だけを ort で同じ入力に掛けた物（入力は log-mel で、認識器の front end とは bit まで同じではない） |
 | fbank と探索（sherpa-onnx の中） | cuda | fp16 | 無負荷 | 1 | 115 | 5798 | 12383 | fbank だけ。探索は encoder と分けられず上の行に含む |
 | fbank と探索（sherpa-onnx の中） | cuda | fp32 | 無負荷 | 1 | 115 | 5787 | 11526 | fbank だけ。探索は encoder と分けられず上の行に含む |
 | fbank と探索（sherpa-onnx の中） | cuda | fp16 | 無負荷 | 2 | 115 | 5586 | 12046 | fbank だけ。探索は encoder と分けられず上の行に含む |
@@ -113,10 +123,16 @@
 | ITN（漢数字 → 算用数字） | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
 | ITN（漢数字 → 算用数字） | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
 | ITN（漢数字 → 算用数字） | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
-| 句読点（BERT、`ort` の CUDA） | cuda | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の句読点の呼び出し（ort）がまだ無く、測れない |
-| 句読点（BERT、`ort` の CUDA） | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の句読点の呼び出し（ort）がまだ無く、測れない |
-| 句読点（BERT、`ort` の CUDA） | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の句読点の呼び出し（ort）がまだ無く、測れない |
-| 句読点（BERT、`ort` の CUDA） | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の句読点の呼び出し（ort）がまだ無く、測れない |
+| 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 1 | 115 | 8303 | 10922 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 2 | 115 | 8688 | 11419 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 3 | 115 | 7825 | 11085 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 負荷 | 1 | 115 | 6827 | 9840 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 負荷 | 2 | 115 | 15398 | 37266 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 無負荷 | 1 | 115 | 44378 | 51549 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 無負荷 | 2 | 115 | 43828 | 53345 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 無負荷 | 3 | 115 | 46491 | 57493 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 負荷 | 1 | 115 | 43004 | 51345 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
+| 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 負荷 | 2 | 115 | 40110 | 51270 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
 | 句読点の後処理と疑問符の規則、置換辞書 | cuda | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
 | 句読点の後処理と疑問符の規則、置換辞書 | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
 | 句読点の後処理と疑問符の規則、置換辞書 | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
@@ -212,6 +228,16 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | warm | 2 | 369 | 175123 |
 | warm | 3 | 381 | 169589 |
 
+## node の置き場（ort）
+
+`ort` が session を作るときに ONNX Runtime が出す "Node(s) placed on" の行を、provider ごとに足した数。device は session を作った provider。
+
+| model | device | CUDA の node | CPU の node |
+|---|---|---|---|
+| encoder-epoch-35-avg-1.onnx | cuda | 3537 | 1599 |
+| encoder-epoch-35-avg-1.fp16.onnx | cuda | 3564 | 1611 |
+| punct_bert.onnx | cuda | 453 | 77 |
+
 ## 置き場の提案
 
 | 段 | 提案 | 根拠 |
@@ -221,11 +247,11 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | 音声の ring buffer と preroll（1.0 秒） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 258 µs（transfer-floor） / CPU 16 µs（cpu）。負荷下の p50: GPU 661 µs（transfer-floor） / CPU 20 µs（cpu） |
 | VAD（Silero、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 388495 µs（fp32） / CPU 39519 µs（fp32）。負荷下の p50: GPU 1120604 µs（fp32） / CPU 42044 µs（fp32） |
 | 言語判定（whisper-tiny） | GPU | 無負荷の p50: GPU 75549 µs（fp32） / CPU 123978 µs（int8）。負荷下の p50: GPU 93586 µs（fp32） / CPU 132489 µs（int8） |
-| 認識の encoder（全 model） | CPU | 無負荷の p50: GPU 171414 µs（fp32） / CPU 128615 µs（int8）。負荷下の p50: GPU 375176 µs（fp32） / CPU 151648 µs（int8） |
+| 認識の encoder（全 model） | 未決（評議） | sherpa-onnx の認識全体 fp32、無負荷の p50: GPU 171414 µs / CPU 151299 µs。sherpa-onnx の認識全体 fp32、負荷の p50: GPU 375176 µs / CPU 175025 µs。ort で encoder だけ fp32、無負荷の p50: GPU 66262 µs / CPU 121091 µs。ort で encoder だけ fp32、負荷の p50: GPU 92936 µs / CPU 117756 µs。参考（同じ精度の対ではない）: CPU の int8 は 128615 µs（int8 は CUDA に無い）、GPU の fp16 は 459578 µs（fp32 の GPU は 171414 µs） |
 | fbank と探索（sherpa-onnx の中） | CPU（sherpa-onnx の中。provider に依らず host で走る） | 無負荷の p50: GPU 5572 µs（fp16） / CPU 7475 µs（fp32）。負荷下の p50: GPU 6356 µs（fp32） / CPU 8387 µs（int8） |
 | 冒頭欠落の疑い判定と分割再試行 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 232 µs（transfer-floor） / CPU 1 µs（cpu）。負荷下の p50: GPU 695 µs（transfer-floor） / CPU 1 µs（cpu） |
 | ITN（漢数字 → 算用数字） | 未決 | Rust の ITN がまだ無く、測れない |
-| 句読点（BERT、`ort` の CUDA） | 未決 | Rust の句読点の呼び出し（ort）がまだ無く、測れない |
+| 句読点（BERT、`ort` の CUDA） | GPU | 無負荷の p50: GPU 8272 µs（fp32） / CPU 44899 µs（fp32）。負荷下の p50: GPU 11112 µs（fp32） / CPU 41557 µs（fp32） |
 | 句読点の後処理と疑問符の規則、置換辞書 | 未決 | Rust の後処理がまだ無く、測れない |
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 226840 µs（fp32） / CPU 70909 µs（fp32）。負荷下の p50: GPU 268114 µs（fp32） / CPU 82711 µs（fp32） |
 | 話者の速報の割り当て（cosine と重心の更新） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 244 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 733 µs（transfer-floor） / CPU 3 µs（cpu） |
@@ -274,3 +300,6 @@ Rust の実行系（取り込みから字幕まで）がまだ無いので、`ha
 ## 未検証
 
 - 訳 T は WSL の llama-server（CUDA 12.0 の build）で測った。設計の 3.12 は CUDA 13.4 だけを指していて食い違う。Windows の native、CUDA 13 の llama-server で測り直すまで、訳 T の行は本番の値ではない。
+- 負荷の列は、WSL の llama-server と Windows の ONNX Runtime が GPU を分けた値で、本番の分け方ではない（NOT VERIFIED）。
+- encoder だけの行の入力は、発話から作った log-mel で、認識器の front end とは値が同じではない。句読点の BERT の行の入力は、punct_ja_parity.json の最初の 23 case で、lat-ja の発話の文字列ではない。どちらも時間は入力の値ではなく長さに従うと見て使ったが、確かめていない。
+- CUDA で CPU に置かれた encoder の node は、fp32 が 1599、fp16 が 1611。差が 1 割に満たないので、CPU に置かれた node の数では fp16 の遅さを説明できない。原因は未特定である。

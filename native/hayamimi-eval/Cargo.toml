@@ -20,6 +20,9 @@ clap = { version = "4", features = ["derive"] }
 hayamimi-gpu = { path = "../hayamimi-gpu" }
 hayamimi-relay = { path = "../hayamimi-relay" }
 hound = "3"
+# The ONNX Runtime is the sherpa-onnx build's own copy, loaded by path; ort never downloads one.
+# ERROR POLICY: ort's errors are mapped to EvalError::Invalid at the measurement boundary.
+ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "api-31", "load-dynamic", "cuda"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The same shared build the GPU crate links; see docs/guide/build_gpu.ja.md.
