@@ -185,7 +185,7 @@ const STAGE_MAP: [StageMap; 19] = [
     map(
         "訳 T と E",
         &["translate"],
-        "T の 1 回。E は測っていない",
+        "T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない",
         false,
     ),
     map(
@@ -394,6 +394,13 @@ fn describe(label: &str, b: &Best) -> String {
     format!("{label} {} µs（{}）", b.p50_us, b.variant)
 }
 
+/// The environment the translation stage was measured in.
+const LLAMA_ENV: &str =
+    "WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない";
+
+/// The section that lists what the numbers do not establish.
+const UNVERIFIED: &str = "\n## 未検証\n\n- 訳 T は WSL の llama-server（CUDA 12.0 の build）で測った。設計の 3.12 は CUDA 13.4 だけを指していて食い違う。Windows の native、CUDA 13 の llama-server で測り直すまで、訳 T の行は本番の値ではない。\n";
+
 /// The placement proposed for one stage and the numbers behind it.
 fn proposal(map: &StageMap, aggs: &[Aggregate]) -> (String, String) {
     if map.ids.is_empty() {
@@ -449,6 +456,12 @@ fn proposal(map: &StageMap, aggs: &[Aggregate]) -> (String, String) {
     } else {
         "CPU"
     };
+    if map.ids.contains(&"translate") {
+        return (
+            placement.to_owned(),
+            format!("{numbers}。測った環境: {LLAMA_ENV}"),
+        );
+    }
     (placement.to_owned(), numbers)
 }
 
@@ -723,6 +736,7 @@ pub fn render_document(inputs: &Inputs<'_>) -> Result<String, EvalError> {
     text.push_str(&h25_section(inputs.runs)?);
     text.push('\n');
     text.push_str(&delay_section(inputs)?);
+    text.push_str(UNVERIFIED);
     Ok(text)
 }
 

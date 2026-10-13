@@ -314,3 +314,10 @@ fn every_stage_is_timed_on_gpu_and_cpu() -> TestResult {
     )?;
     Ok(())
 }
+
+/// The acceptance-test name of the design.
+#[test]
+#[ignore = "reads the real design, the real manifest and the real results"]
+fn rp23_every_stage_is_timed_on_gpu_and_cpu() -> TestResult {
+    every_stage_is_timed_on_gpu_and_cpu()
+}

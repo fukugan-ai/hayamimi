@@ -156,15 +156,15 @@
 | 清書の clustering（FastClustering）と全体の対応づけ | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
 | 清書の clustering（FastClustering）と全体の対応づけ | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
 | 清書の clustering（FastClustering）と全体の対応づけ | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
-| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 1 | 115 | 256584 | 409758 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 2 | 115 | 250591 | 400465 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 3 | 115 | 252986 | 422328 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 負荷 | 1 | 115 | 429943 | 739136 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 負荷 | 2 | 115 | 439928 | 749299 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 無負荷 | 1 | 115 | 2828573 | 4849719 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 無負荷 | 2 | 115 | 2887817 | 4697008 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 負荷 | 1 | 115 | 3330031 | 5484474 | T の 1 回。E は測っていない |
-| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 負荷 | 2 | 115 | 3344179 | 5364090 | T の 1 回。E は測っていない |
+| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 1 | 115 | 256584 | 409758 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 2 | 115 | 250591 | 400465 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 3 | 115 | 252986 | 422328 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 負荷 | 1 | 115 | 429943 | 739136 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 負荷 | 2 | 115 | 439928 | 749299 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 無負荷 | 1 | 115 | 2828573 | 4849719 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 無負荷 | 2 | 115 | 2887817 | 4697008 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 負荷 | 1 | 115 | 3330031 | 5484474 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
+| 訳 T と E（llama-server、CUDA） | cpu | CAT-Translate-3.3b-Q8_0 | 負荷 | 2 | 115 | 3344179 | 5364090 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
 | 認識の文字列 → 訳の入力 | cuda | transfer-floor | 無負荷 | 1 | 115 | 232 | 297 | 下限: 転送の往復だけで kernel を含まない。依頼の本文（JSON）を作るまで |
 | 認識の文字列 → 訳の入力 | cuda | transfer-floor | 無負荷 | 2 | 115 | 225 | 281 | 下限: 転送の往復だけで kernel を含まない。依頼の本文（JSON）を作るまで |
 | 認識の文字列 → 訳の入力 | cuda | transfer-floor | 無負荷 | 3 | 115 | 219 | 301 | 下限: 転送の往復だけで kernel を含まない。依頼の本文（JSON）を作るまで |
@@ -231,7 +231,7 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | 話者の速報の割り当て（cosine と重心の更新） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 244 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 733 µs（transfer-floor） / CPU 3 µs（cpu） |
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 118134 µs（fp32） / CPU 26436 µs（int8）。負荷下の p50: GPU 204992 µs（fp32） / CPU 31052 µs（int8） |
 | 清書の clustering（FastClustering）と全体の対応づけ | 未決 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
-| 訳 T と E（llama-server、CUDA） | GPU | 無負荷の p50: GPU 253387 µs（CAT-Translate-3.3b-Q8_0） / CPU 2858195 µs（CAT-Translate-3.3b-Q8_0）。負荷下の p50: GPU 434935 µs（CAT-Translate-3.3b-Q8_0） / CPU 3337105 µs（CAT-Translate-3.3b-Q8_0） |
+| 訳 T と E（llama-server、CUDA） | GPU | 無負荷の p50: GPU 253387 µs（CAT-Translate-3.3b-Q8_0） / CPU 2858195 µs（CAT-Translate-3.3b-Q8_0）。負荷下の p50: GPU 434935 µs（CAT-Translate-3.3b-Q8_0） / CPU 3337105 µs（CAT-Translate-3.3b-Q8_0）。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
 | 認識の文字列 → 訳の入力 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 225 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 519 µs（transfer-floor） / CPU 2 µs（cpu） |
 | 照合 V と単位の換算 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 238 µs（transfer-floor） / CPU 8 µs（cpu）。負荷下の p50: GPU 450 µs（transfer-floor） / CPU 9 µs（cpu） |
 | 字幕の配信（SSE）と描画 | 未決 | Rust の字幕 server がまだ無く、測れない |
@@ -270,3 +270,7 @@ Rust の実行系（取り込みから字幕まで）がまだ無いので、`ha
 | Rust 認識 cpu / 訳 cpu 負荷 | L の見積り = Python の認識以外の遅れの p50 902 ms + 認識 + 訳 T | 190 | 4502 | 6785 |
 | Rust 認識 cpu / 訳 cuda 無負荷 | L の見積り = Python の認識以外の遅れの p50 902 ms + 認識 + 訳 T | 190 | 1310 | 1543 |
 | Rust 認識 cpu / 訳 cuda 負荷 | L の見積り = Python の認識以外の遅れの p50 902 ms + 認識 + 訳 T | 190 | 1511 | 1890 |
+
+## 未検証
+
+- 訳 T は WSL の llama-server（CUDA 12.0 の build）で測った。設計の 3.12 は CUDA 13.4 だけを指していて食い違う。Windows の native、CUDA 13 の llama-server で測り直すまで、訳 T の行は本番の値ではない。

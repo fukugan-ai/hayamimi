@@ -105,3 +105,10 @@ fn rp20_every_stage_placement_is_measured() -> TestResult {
     check_placements_measured(&table, &Results::parse(&results)?)?;
     Ok(())
 }
+
+/// T-RP-20-007 under its case-table name.
+#[test]
+#[ignore = "reads the real design and the real results; fails until the design table is decided"]
+fn every_stage_placement_is_measured() -> TestResult {
+    rp20_every_stage_placement_is_measured()
+}
