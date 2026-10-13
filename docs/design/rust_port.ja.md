@@ -298,7 +298,10 @@ Windows には Windows ML 用の `C:\Windows\System32\onnxruntime.dll`（1.17.1�
 
 1. `sherpa-onnx-c-api.dll` を遅延読込みにする。link の引数は `/DELAYLOAD:sherpa-onnx-c-api.dll` と `delayimp.lib` の 2 本である。
 2. 最初の sherpa-onnx の呼び出しより前に、実行 file と同じ directory の `onnxruntime.dll` を完全な path で読み込む。同じ名前の module が読み込み済みなら、後から来る名前だけの import はその module で解決されるからである。
-3. `hayamimi-gpu` を依存に持つ全 crate の bins と tests に、1 の 2 本の link 引数を同じ形で置く。build script の link 引数はその build script を持つ crate の target にだけ届き、依存する側の crate の実行 file には届かないからである。bins へは `cargo::rustc-link-arg-bins`、test の実行 file へは `cargo::rustc-link-arg-tests` で渡す（bins の指定は test の実行 file に届かない）。
+3. `hayamimi-gpu` 自身と、`hayamimi-gpu` を依存に持つ全 crate の bins と tests に、1 の 2 本の link 引数を同じ形で置く。build script の link 引数はその build script を持つ crate の target にだけ届き、依存する側の crate の実行 file には届かないからである。同じ理由で `hayamimi-gpu` 自身の bins と tests も数える対象に入り、依存する crate が 0 本の workspace でも数える crate は 1 本以上ある。bins へは `cargo::rustc-link-arg-bins`、test の実行 file へは `cargo::rustc-link-arg-tests` で渡す（bins の指定は test の実行 file に届かない）。
+
+Linux では 2 の先読みをしない。`sherpa-onnx-sys` が `libonnxruntime.so*` を別々の file として写すので、先読みした file と sherpa-onnx が読む file が別の module になり、ORT が 2 つ入るからである（R1 の実測）。
+Linux の ORT の版の問い合わせは、SONAME の `libonnxruntime.so.1` で開いた module に対して行う。
 
 RP-17 は、`onnxruntime` の module の読み込み元が実行 file と同じ directory であることを合格の条件に持つ。
 
@@ -429,16 +432,18 @@ xtask は次の版を引数の既定に持ち、build の後に実際の版を `
 | 項目 | 既定 | 根拠 |
 |---|---|---|
 | sherpa-onnx | tag `v1.13.8`（Rust crate の版と同じ。crate の build script が同じ版の C の API を前提にする） | S3 |
-| ONNX Runtime | 1.28.2 の CUDA 13 版。Windows は Microsoft の release の `onnxruntime-win-x64-gpu_cuda13-1.28.2.zip`、WSL は sherpa-onnx の保守者の release の `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip`。展開した directory を `SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` で cmake に渡す | S16 |
-| CUDA | 13.4 の 1 本。Windows も WSL も 13.4 で build する。WSL に入っている 13.3 は消さずに並べ、xtask には `--cuda-dir` で 13.4 の directory を渡す。llama-server も 13.4 の build で、認識と訳の CUDA が揃う。driver は 610.88 | S16、S17、`nvidia-smi`（2026-10-13）、WSL の `apt-cache policy cuda-toolkit-13-4`（候補 13.4.2-1、2026-10-13） |
+| ONNX Runtime | 1.31.0 の CUDA 13 版。両 OS とも Microsoft の release の asset で、Windows は `onnxruntime-win-x64-gpu_cuda13-1.31.0.zip`（309,484,217 bytes、sha256 `d332ccf8…552f5`）、WSL は `onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz`（244,574,938 bytes、sha256 `2867dec9…81135`）。bytes と sha256 は記録で、取得の可否の条件にしない。展開した directory を `SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` で cmake に渡す。1.28.2 の CUDA 13 版は退路で、その build を `native/target/sherpa-gpu-ort1282/` に残す（下の戻し方） | S16、S19 |
+| CUDA | 13.4 の 1 本で、両 OS とも 13.4.3 を現行にする。13.4.3 は両 OS とも NVIDIA の redistrib の zip（tar）を展開して入れ、各部品の sha256 を redistrib の json と照合する。置き場は Windows が `%USERPROFILE%\cuda-redist\v13.4.3`、WSL が 13.4.1 の `/usr/local/cuda-13.4` の横である。Windows でも installer を使わないのは、installer が既存の `v13.4` の directory を上書きし、前の版へ戻せなくなるからである。退路は Windows の 13.4.59（nvcc の版）の `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4` と WSL の 13.4.1 の `/usr/local/cuda-13.4` で、消さずに残す。WSL に入っている 13.3 も消さずに並べる。xtask には `--cuda-dir` で 13.4.3 の directory を渡し、`/usr/local/cuda` の向きと PATH の順に依らない。llama-server も 13.4 の build で、認識と訳の CUDA が揃う。driver は 610.88 | S16、S17、`nvidia-smi`（2026-10-13） |
 | cuDNN | 9.27.0.42 の CUDA 13 版（Windows は展開済み） | S5、評議の席の実測 |
 | GPU の arch | `sm_120`（compute capability 12.0、`nvidia-smi --query-gpu=compute_cap`） | 実測（2026-10-13） |
 | cmake の option | `-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DSHERPA_ONNX_ENABLE_GPU=ON`、TTS を外す option（`no-tts` の archive と同じ組） | S13 |
 
-**ORT を CUDA 13 版にする理由**：sherpa-onnx v1.13.8 の cmake は、何も渡さないと ORT を CUDA 12 版（`gpu_cuda12-1.28.2`）で取り、「Requires cuda 12.x, cudnn 9.x」と書く（`cmake/onnxruntime-win-x64-gpu.cmake` の 22 行目と 23 行目。S16）。
-ただし同じ cmake の `onnxruntime.cmake` は、環境変数 `SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` が在れば、その directory の `onnxruntime.dll` と `onnxruntime.lib` を使い、既定の CUDA 12 版を取らない（156〜178 行目。S16）。
-ORT 1.28.2 には Microsoft の公式の CUDA 13 版の build が在る（S16）。
-したがって xtask はその zip を展開し、この 2 つの環境変数で指して cmake を打つ。
+**ORT を CUDA 13 版の 1.31.0 にする理由**：sherpa-onnx v1.13.8 の cmake は、何も渡さないと ORT を既定の CUDA 12 版（`gpu_cuda12-1.28.2`）で取り、「Requires cuda 12.x, cudnn 9.x」と書く（`cmake/onnxruntime-win-x64-gpu.cmake` の 22 行目と 23 行目。S16）。
+ただし同じ cmake の `onnxruntime.cmake` は、環境変数 `SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` が在れば、その directory の `onnxruntime.dll` と `onnxruntime.lib` を使い、既定の版を取らない（156〜178 行目。S16）。
+ORT 1.31.0 には Microsoft の公式の CUDA 13 版の build が Windows と Linux の両方に在る（S19）。
+`ort` 2.0.0-rc.14 の既定の C API の版は ORT 1.31 で、1.31 より前の ORT では既定を外して古い API の feature を選ぶ別の道になる。
+したがって xtask は 1.31.0 の asset を展開し、この 2 つの環境変数で指して cmake を打つ。
+sherpa-onnx v1.13.8 の C++ は、1.31.0 に対して直さずに build できる（R1 の実測）。
 CUDA は 13.4 の 1 本になり、llama-server の 13.4 の build と揃う。
 この 2 つの値は cmake が読む値で、この repo の Rust の code は読まない。
 
@@ -448,7 +453,8 @@ CUDA は 13.4 の 1 本になり、llama-server の 13.4 の build と揃う。
 
 sherpa-onnx の C++ は CUDA の kernel を持たず、GPU の計算は ORT の CUDA 実行 provider の library が行う。
 したがって `sm_120` が効くのは ORT の側である。
-ORT v1.28.2 の CUDA 13 版の zip の `onnxruntime_providers_cuda.dll` を、CUDA 13.4 の `cuobjdump` で数えた（実測、2026-10-13）。
+退路の ORT v1.28.2 の CUDA 13 版の zip の `onnxruntime_providers_cuda.dll` を、CUDA 13.4 の `cuobjdump` で数えた（実測、2026-10-13）。
+1.31.0 の同じ library の件数は、この文書では数えていない（NOT VERIFIED。xtask が `build.json` に書く値を RP-24 が読む）。
 `--list-elf` の機械語は、`sm_75` が 187、`sm_80` と `sm_86` と `sm_89` が各 235、`sm_90a` が 239、`sm_100a` が 235、`sm_120a` が 203 で、`sm_120` は 0 件である。
 `--list-ptx` は `sm_120` の PTX が 235 件である。
 `sm_120a` の ELF は 203 件で、`sm_120` の PTX の 235 件より少ない。
@@ -456,7 +462,6 @@ ORT v1.28.2 の CUDA 13 版の zip の `onnxruntime_providers_cuda.dll` を、CU
 機械語の当たらない kernel は、driver が初回に PTX から変換し、変換の結果を JIT の cache に置く（S18）。
 その初回の遅れは 10 の H27 で測る。
 xtask は build のたびに同じ数を取り、`build.json` に書く。
-R1 の最初の手番に残るのは、CUDA 13 版の ORT で sherpa-onnx v1.13.8 が build でき、RP-17 が通るかだけである。
 
 **Windows（msvc）と WSL で同じ build を作る**：xtask は同じ版と同じ option で、Windows では MSVC の toolchain（Visual Studio の Build Tools の `x64 Native Tools` の環境）と Windows の CUDA toolkit 13.4、WSL では gcc と WSL の CUDA toolkit 13.4 で cmake を打つ。
 同じ build だと言えるのは、`build.json` の sherpa-onnx の commit、ORT の版、build に使った CUDA の主版（13）、cuDNN の主版（9）、`sm_120` 系の判定が 2 つの OS で一致するときである（RP-24）。
@@ -468,21 +473,29 @@ CUDA の副版は記録し、一致を求めない。
 | 置き場 | 物 | 入れた状態 | 戻し方 |
 |---|---|---|---|
 | Windows | Visual Studio Build Tools 2022 | 17.14.41、入っている | `winget uninstall` で外す |
-| Windows | CUDA toolkit | 13.4、入っている（sherpa-onnx と ORT と llama-server が使う） | `winget uninstall` で外す |
+| Windows | CUDA toolkit 13.4.3 | redistrib の zip を `%USERPROFILE%\cuda-redist\v13.4.3` に展開済み（9 部品の sha256 が redistrib の json と一致）。sherpa-onnx と ORT と llama-server が使う。退路の 13.4.59 は `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4` のまま | `%USERPROFILE%\cuda-redist\v13.4.3` を消す。13.4.59（退路）は installer で入れた物で、外すときだけ `winget uninstall` |
 | Windows | cuDNN（CUDA 13 版） | 9.27.0.42、展開済み | 展開した directory を消し、PATH に足した行を戻す |
-| Windows | ORT 1.28.2 の CUDA 13 版 | `onnxruntime-win-x64-gpu_cuda13-1.28.2.zip` を xtask が `native/target/sherpa-gpu/` の下に展開する | 展開した directory を消す |
+| Windows と WSL | ORT 1.31.0 の CUDA 13 版 | Windows は `onnxruntime-win-x64-gpu_cuda13-1.31.0.zip`、WSL は `onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz` を、xtask が `native/target/sherpa-gpu/` の下に展開する | 展開した directory を消す |
+| Windows | ORT 1.28.2 の CUDA 13 版（退路） | build と install を `native/target/sherpa-gpu-ort1282/` に残す | 退路が要らなくなったら、その directory を消す |
+| Windows と WSL | 退路と再現の build | `native/target/sherpa-gpu/` は 1.31.0 と CUDA 13.4.3 の現行、`sherpa-gpu-repeat/` は同じ版の 2 回目の build（RP-24 の陽性対照）、`sherpa-gpu-cuda1341/` は CUDA 13.4.1 の build（CUDA の退路） | 要らなくなった directory を消す。現行の `sherpa-gpu/` は消さない |
+| WSL | WSL の build の置き場 | build の本体は repo の外の `~/.cache/hayamimi-r1-wsl-20261014` で始まる 4 本（現行の `-cuda1343`、その 2 回目の `-cuda1343-repeat`、接尾辞の無い 1 本、その 2 回目の `-repeat`、合わせて約 20G。接尾辞の無い 1 本が CUDA 13.4.1 の build かは確かめていない）に在り、`native/target/sherpa-gpu/linux` は現行の `~/.cache/hayamimi-r1-wsl-20261014-cuda1343/linux` を指す symlink である | `~/.cache` の現行の directory を消すと `sherpa-gpu/linux` が切れて現行の build が無くなるので、現行は消さない。退路と 2 回目は、要らなくなったら directory ごと消す |
 | Windows | CUDA toolkit 12.9.1 と cuDNN の CUDA 12 版（入っていれば） | 使わない | R1 の最初の手番で、CUDA 13 版の ORT で sherpa-onnx が build でき RP-17 が通ったら、Windows の「アプリ」から 12.9 の部品だけを外し、cuDNN の CUDA 12 版の展開先を消す |
 | Windows | CMake、Ninja | 4.4.4、1.13.2、入っている | `winget uninstall` で外す |
 | Windows | rustup（msvc の toolchain） | 1.29.1、入っている | `winget uninstall` で外す（`%USERPROFILE%\.rustup` と `%USERPROFILE%\.cargo` も消える） |
 | Windows | Git | 2.55、入っている | `winget uninstall` で外す |
-| WSL | CUDA toolkit 13.4 | 無い（13.3.1 だけが入っている）。R1 の席が訊かずに `sudo apt-get install cuda-toolkit-13-4` で入れる（NVIDIA の apt の repo。driver は入らない）。13.3 は消さずに並べ、xtask には `--cuda-dir /usr/local/cuda-13.4` を渡して `/usr/local/cuda` の向きに依らない | `sudo apt-get purge cuda-toolkit-13-4` の後に `sudo apt-get autoremove --purge` を打つ。`update-alternatives --display cuda` が `/usr/local/cuda-13.3` を指すことと、`/usr/local/cuda-13.3/bin/nvcc --version` が入れる前と同じ出力であることを確かめる |
-| WSL | cuDNN 9（CUDA 13 版） | 無い（`/usr/local/cuda-13.3` と `libcudart.so.13` だけが在る） | R1 の席が入れる。入れる前に、入れる手段（NVIDIA の redist の展開）と消し方を `docs/guide/build_gpu.ja.md` に書き、sha256 を redistrib の json と照合する |
+| WSL | CUDA toolkit 13.4.3 | redistrib を 13.4.1 の `/usr/local/cuda-13.4` の横に展開済み（9 部品の sha256 が redistrib の json と一致）。13.4.1（退路）と 13.3 は消さずに並べ、`/usr/local/cuda` は 13.3 を指したまま。xtask には `--cuda-dir` で 13.4.3 の directory を渡す | 展開した 13.4.3 の directory を消す。退路の 13.4.1 が要らなくなったら `/usr/local/cuda-13.4` を消す（外す設定は無い。手順は `docs/guide/build_gpu.ja.md`） |
+| WSL | cuDNN 9（CUDA 13 版） | 9.27.0.42 を NVIDIA の redistrib から `/usr/local/cudnn-9.27.0.42-cuda13` に展開済み（redistrib の json の sha256 と照合） | `/usr/local/cudnn-9.27.0.42-cuda13` を消す（手順は `docs/guide/build_gpu.ja.md`） |
 
 入れた物の版は `build.json` に記録する。
 戻した後に何も残っていないかは、`winget list` と Windows の「アプリ」に上の名前が出ないことで確かめる。
 12.9 の部品を外した後に、13.4 の `nvcc --version` と `nvidia-smi` が外す前と同じ出力であることも同じ手番で見る。
 
-**CUDA 13 版の ORT が動かないときの戻し方**：R1 の最初の手番で、CUDA 13 版の ORT で sherpa-onnx の build か RP-17 が通らなければ、12.9.1 は外さない。
+**ORT 1.31.0 が動かないときの戻し方**：どちらかの OS で ORT 1.31.0 の build か RP-17 が落ちたら、2 つの OS を両方とも退路の ORT 1.28.2 の CUDA 13 版に戻す（Windows は `onnxruntime-win-x64-gpu_cuda13-1.28.2.zip`、WSL は保守者の `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip`）。
+Windows では `SHERPA_ONNX_LIB_DIR` を `native/target/sherpa-gpu-ort1282/` の install の `lib` に替えて繋ぎ直す。WSL では xtask に `--ort-version 1.28.2` と `--out-dir native/target/sherpa-gpu-ort1282` を渡して build する。
+CUDA 13.4.3 の側だけが落ちたときは、CUDA の退路の `native/target/sherpa-gpu-cuda1341/`（13.4.1 の build）に同じ形で繋ぎ直す。
+片方だけを戻すと、RP-24 が ORT の版の不一致で落ちるためである。
+
+**CUDA 13 版の ORT が動かないときの戻し方**：1.28.2 の CUDA 13 版でも sherpa-onnx の build か RP-17 が通らなければ、12.9.1 は外さない。
 2 つの環境変数を渡さずに cmake を打ち直し、sherpa-onnx の既定の CUDA 12 版の ORT と、CUDA 12.9.1 と cuDNN の CUDA 12 版で build する。
 12.9.1 が入っていなければ、NVIDIA の local installer（`cuda_12.9.1_576.57_windows.exe`、https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_576.57_windows.exe 、HTTP 200、3,562,982,664 bytes、2026-10-13 に確かめた）で部品を指定し、driver を除いて入れる。
 どちらの形で build したかは `build.json` に記録し、RP-24 は記録した主版で 2 つの OS を比べる。
@@ -492,6 +505,10 @@ WSL の側で CUDA 13 版の ORT が落ちたときも、Windows の側で落ち
 `hayamimi-relay` も同じ target に移す（会話字幕の設計 3.8 と 6 の `<relay>`）。
 
 **実行時に要る file**：自分で build した `sherpa-onnx-c-api` と `onnxruntime` と ORT の CUDA の provider の library、CUDA の runtime と cuBLAS と cuDNN の DLL（WSL では `.so`）を、実行 file と同じ directory に置く。
+Windows は実行 file の directory を DLL の探索に含めるので、置くだけで読まれる。
+Linux の動的 linker は実行 file の directory を探さないので、実行 file に `$ORIGIN` の RPATH を持たせる（link の引数 `-Wl,-rpath,$ORIGIN` と `-Wl,--disable-new-dtags`）。
+RUNPATH（`--disable-new-dtags` を付けない既定の形）では足りない。RUNPATH は実行 file が直に依る library の探索にしか効かず、ORT の CUDA の provider が後から開く cuBLAS と cuDNN には効かないので、それらが system の CUDA 13.3 から読まれるか、見つからずに abort するからである（R1 の実測）。
+確かめ方は 2 つで、`readelf -d` に `RPATH` の行が在り値が `$ORIGIN` であることと、`LD_LIBRARY_PATH` を置かない run で RP-17 が通り、`/proc/<pid>/maps` の cuBLAS、cudart、cuDNN、ORT がすべて実行 file の directory から読まれることである。
 置く物の一覧と sha256 は `build.json` に書く。
 
 ### 3.13 log
@@ -523,7 +540,7 @@ locale は実行の環境が意味を決める値で、この repo の設定で�
 - **クラウドの認識と翻訳の API**：会話の音声と文字を外へ出す。
 - **CPU の翻訳器の Rust 版（ct2rs で FuguMT と M2M-100）**：訳の質の上限が model にあり（`translate.md`、`translate_m2m.md` の失敗例）、GPU の言語モデルで今以上の chrF を測れる（RP-13）。
 - **sherpa-onnx の配布の CUDA 版の archive をそのまま使う**：`sm_120` 系の判定（3.12）の材料になる機械語と PTX の件数と、ORT と CUDA の版を自分で固定できない。自分で build して `build.json` に記録する（3.12）。
-- **CUDA 12.9.1 と cuDNN の CUDA 12 版を並べて入れ、sherpa-onnx の既定の CUDA 12 版の ORT を使う**：ORT 1.28.2 に CUDA 13 の公式の build が在り、環境変数 2 つで sherpa-onnx に渡せる。CUDA を 13.4 の 1 本にすれば、入れて保つ版が 1 つ減り、llama-server とも揃う。CUDA 13 版が動かないときの戻し先としてだけ残す（3.12）。
+- **CUDA 12.9.1 と cuDNN の CUDA 12 版を並べて入れ、sherpa-onnx の既定の CUDA 12 版の ORT を使う**：ORT 1.31.0 に CUDA 13 の公式の build が在り（退路の 1.28.2 にも在る）、環境変数 2 つで sherpa-onnx に渡せる。CUDA を 13.4 の 1 本にすれば、入れて保つ版が 1 つ減り、llama-server とも揃う。CUDA 13 版が動かないときの戻し先としてだけ残す（3.12）。
 - **ORT を CUDA 13 で source から build し直す**：公式の CUDA 13 版の build が在り、手数を掛ける理由が無い。
 - **llama.cpp を CUDA 12.4 の build にする**：12.4 は `sm_120` を持たず、認識の側の 13.4 と版が割れる（3.12）。
 - **GPU の無い機械で CPU に落として動かす**：3.11。
@@ -543,7 +560,7 @@ locale は実行の環境が意味を決める値で、この repo の設定で�
 /ingest（WebSocket）────────┼─▶ f32、16 kHz（置き場は R1 の計測で決める）─▶ ring buffer、preroll（host）
 wav ───────────────────────┘                                  │ const float*
                                                               ▼
-            自分で build した CUDA 版の sherpa-onnx（provider = cuda、ORT 1.28.2 は CUDA 13 版）
+            自分で build した CUDA 版の sherpa-onnx（provider = cuda、ORT 1.31.0 は CUDA 13 版）
             VAD ─▶ 言語判定 ─▶ 認識器（fbank、encoder、探索）─▶ 文字列
             CAM++ の埋め込み、pyannote の再分離
                                                               │
@@ -585,14 +602,14 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-14 | Rust の chrF が sacrebleu と同じ値を出す | R0 で sacrebleu 2.6.0 が採点した組（`<base>/chrf_fixture.tsv` と値）を `cargo test --release --test rp14` が読む | 差の絶対値が 0.01 以下 | 同じ fixture の文 1 本 | n-gram の上限を 5 にした実装で落ちる |
 | RP-15 | 話者の分離 | `<ev> der --set testdata/eval_diar --collar 0.25` の後に `cargo test --release --test rp15 -- --ignored` | AMI 5 会議の平均 DER が `<base>` の Python の 3 回以上の run の平均以下。Python の回の間の幅（平均 DER の最大 − 最小）を同じ結果の file に書き、Rust との差がこの幅より小さければ揺れの中と読む | `<base>` に Python の `--method refine_diarize` の run が 3 回以上在り、同じ test がその平均と幅を出せる（2 回では幅を決めない）。`diarization.md` の値は入力の音声の sha256 が残っていない記録なので比べない | 清書の再分離を切った run では落ちる |
 | RP-16 | GPU の無い機械では理由を出して止まる | `CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav` を起こす `cargo test --release --test rp16 -- --ignored` | 終了 code が 0 以外、`gpu.device.unavailable` が 1 件、`gpu.session.created` が 0 件、stderr に `nvidia-smi` の名前が在る。`LANG=ja_JP.UTF-8` と `LANG=C.UTF-8` で stderr の文が別の言語 | GPU の在る run では `gpu.device.unavailable` が 0 件で `final` が出る | CPU に落として動き続ける build で落ちる |
-| RP-17 | 自分で build した library が開け、ORT が 1 つである（R1 の門） | Windows と WSL で `<hy> gpu-probe` | `cuda_devices: 1`、sherpa-onnx の CUDA の session が 1 本作れて実際の provider が `cuda`、`ort` が開いた ORT の `GetVersionString` が sherpa-onnx の build の ORT（1.28.2）と同じ、process の中の `onnxruntime` の library が 1 つで、その読み込み元が実行 file と同じ directory（probe の `modules` の origin が `exe_directory`）。CUDA の版は、認識器が開いている間の process の読込 module の名前で見る（`build.json` の申告ではない。名前は大文字と小文字を区別せずに数える）。Windows は `cublas64_13` と `cublasLt64_13` が各 1、`cudart64_12` と `cublas64_12` と `cublasLt64_12` が 0。`cufft64_12` は在ってよい（CUDA 13.4 の toolkit 自身が `cufft64_12.dll` を持つので、`*_12` を一律 0 にはしない）。WSL は `libcudart.so.12` が 0、`libcublas.so.13` が 1（WSL の build は未作成で NOT VERIFIED）。ORT の CUDA の provider の library の中の文字列では CUDA の版を判別しない（`cudart64_12.dll` と `cudart64_13.dll` の文字列を両方持つ）。Windows では、`hayamimi-gpu` を依存に持つ全 crate の bins と tests に 3.4 の 2 本の link 引数が在る（`cargo metadata` で依存する crate を数え、各 crate の build script を読む）。通ったときは、その build の `build.json` の sha256 と probe の出力を `native/target/sherpa-gpu/<os>/rp17_passed.json` に書く（RP-24 が読む） | 2 つの OS で同じ出力の形 | 配布の CPU 版の sherpa-onnx に繋いだ build では provider が `cpu` で落ちる。`onnxruntime` の読み込み元が `system` の run で落ちる |
+| RP-17 | 自分で build した library が開け、ORT が 1 つである（R1 の門） | Windows と WSL で `hayamimi-gpu-probe`（`hayamimi-gpu` crate の bin。`native/target/<triple>/release/` に在る）を走らせ、`cargo test --release --test rp17` が子の process の出力を読む（`rp17.rs` の test は `#[ignore]` を持たないので `--ignored` を付けない。付けると 0 本しか走らない）。Linux 限定の test（T-RP-17-031）は WSL から打つ。`hayamimi` crate は R2 で作るので、`<hy> gpu-probe` はそれまで無い | `cuda_devices: 1`、sherpa-onnx の CUDA の session が 1 本作れて実際の provider が `cuda`、`ort` が開いた ORT の `GetVersionString` が `build.json` の ORT の版（1.31.0。退路へ戻したときは 1.28.2）と同じ、process の中の `onnxruntime` の library が 1 つで、その読み込み元が実行 file と同じ directory（probe の `modules` の origin が `exe_directory`）。CUDA の版は、認識器が開いている間の process の読込 module の名前で見る（`build.json` の申告ではない。名前は大文字と小文字を区別せずに数える）。Windows は `cublas64_13` と `cublasLt64_13` が各 1、`cudart64_12` と `cublas64_12` と `cublasLt64_12` が 0。`cufft64_12` は在ってよい（CUDA 13.4 の toolkit 自身が `cufft64_12.dll` を持つので、`*_12` を一律 0 にはしない）。WSL は `libcudart.so.12` が 0、`libcublas.so.13` が 1。ORT の CUDA の provider の library の中の文字列では CUDA の版を判別しない（`cudart64_12.dll` と `cudart64_13.dll` の文字列を両方持つ）。Windows では、`hayamimi-gpu` を依存に持つ全 crate の bins と tests に 3.4 の 2 本の link 引数が在る（`cargo metadata` で依存する crate を数え、各 crate の build script を読む）。通ったときは、その build の `build.json` の sha256 と probe の出力を `native/target/sherpa-gpu/<os>/rp17_passed.json` に書く（RP-24 が読む） | 2 つの OS で同じ出力の形 | 配布の CPU 版の sherpa-onnx に繋いだ build では provider が `cpu` で落ちる。`onnxruntime` の読み込み元が `system` の run で落ちる |
 | RP-18 | 句読点の同一性 | `cargo test --release --test rp18` が `mobile/hayamimi_core/test/fixtures/punct_ja_parity.json` を読む | 全 case で `input_ids` が一致。GPU で `expected` の文字列が全件一致 | fixture の 1 件目 | NFKC を外した token 化で落ちる |
 | RP-19 | Python の test の case を Rust へ写したこと | `cargo test --release -- --list` の出力と、test-designer が `rust_port_tests.ja.md` に書く対応表を `cargo test --release --test rp19` が突き合わせる | 対応表の全 386 行が、Rust の test の名前か `写さない：<理由>` のどちらかを持つ。名前を持つ 334 行は list に在り、全部通る。`写さない` を許すのは 3 種だけで、3.2 が消す script の test、この設計で無くなる部品（Python の中の翻訳 worker と翻訳器の pool、文ごとの訳の分割。訳は `hayamimi-relay` が 1 行ずつ頼む、3.6）、外が更新する model の sha256 を動作の gate にする case（sha256 は `models/manifest.json` の記録に留める、3.10）である。`docs/spec/ja_pipeline_spec.json` の `config` を `<hy> config dump` で作り直した値と差 0 | 対応表の 1 行目 | 名前を 1 つ変えた list で落ちる |
 | RP-20 | 3.5 の表の全段の置き場が R1 の実測で決まったこと | `cargo test --release --test rp20` が 3.5 の表の「いまの置き場」の列に「測る」が残っていないことと、各行が `gpu_stages.md` の行に対応することを確かめる | 「測る」が 0 件、表の行と結果の行の対応が全件 | R1 の前の表では「測る」が 1 件以上在ることを同じ式が数える | 結果の file の行を 1 つ消すと落ちる |
 | RP-21 | model の取得に Python が要らない | 空の directory で `<hy> models fetch --minimal --dir <tmp>` | 今の `--minimal` と同じ 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）が GPU 用の版で揃い、`models/manifest.json` に sha256 が在る | 既に在る directory で打つと取り直さない | 取得先を壊すと前の file を残して error |
 | RP-22 | GPU の memory の上限 | RP-3 の run の間、`nvidia-smi --query-gpu=memory.used --format=csv` を 1 秒ごとに読む | 最大が 14,000 MiB 以下（仮の値。16,311 MiB から、他の process の 1,161 MiB と、余白の約 1,150 MiB を除いた値） | 起動前の値が読める | 上限を、その run で測った最大より 1 MiB 低い値に置いた test の設定では落ちる（比べる式が働くことの確かめ） |
 | RP-23 | 段ごとの GPU と CPU の計測（R1） | `<ev> stages --provider cuda --wav lat-ja.wav --out stages_cuda.jsonl` と `--provider cpu` を同じ build で 1 回ずつ（1 stream）打ち、同じ 2 本を llama-server に訳の依頼を流し続けた負荷の下でも打ち、`cargo test --release --test rp23 -- --ignored` が `docs/results/gpu_stages.md` を書いて読む | 3.5 の表の全段について、無負荷と負荷の下の、GPU と CPU の p50 と p95（標本は lat-ja の 23 発話を 5 回流した区切りの数か、文字列の段は同じ数の行）、1 発話あたりの転送の時間と bytes、測った機械と `build.json` の要点が在る。JIT の cache が空の run と温かい run の `decode_ms` が別の行で在る（10 の H27） | 同じ build で同じ入力を 2 回流した p50 の差が 10% 以内 | provider を指定しない run の行は、CPU の行と同じ値になり、GPU の行として受け付けない |
-| RP-24 | build の再現（Windows と WSL） | 2 つの OS で `cargo run -p xtask -- sherpa-gpu` を打ち、`cargo test --release --test rp24 -- --ignored` が 2 つの `build.json` を比べる | sherpa-onnx の commit、ORT の版、CUDA の主版、cuDNN の主版、`sm_120` 系の判定（3.12）が一致。各 OS で、`sm_120` か `sm_120a` の機械語が 1 件以上、または `sm_120` の PTX があり「PTX の JIT で RP-17 が通った記録」が在る。この記録は、その build の `build.json` の sha256 を持つ `rp17_passed.json`（RP-17）である | 同じ OS で 2 回 build した `build.json` の上の項目が一致 | ORT の版を変えた build では差を名指しして落ちる |
+| RP-24 | build の再現（Windows と WSL） | 2 つの OS で `cargo run -p xtask -- sherpa-gpu` を打ち、`cargo test --release --test rp24 -- --ignored` が 2 つの `build.json` を比べる。2 つの OS を比べる `windows_and_wsl_builds_match` は WSL から打つ（WSL の build の directory は symlink で、Windows からは WSL が作った symlink を読めない。os error 1920） | sherpa-onnx の commit、ORT の版、CUDA の主版、cuDNN の主版、`sm_120` 系の判定（3.12）が一致。各 OS で、`sm_120` か `sm_120a` の機械語が 1 件以上、または `sm_120` の PTX があり「PTX の JIT で RP-17 が通った記録」が在る。この記録は、その build の `build.json` の sha256 を持つ `rp17_passed.json`（RP-17）である | 同じ OS で 2 回 build した `build.json` の上の項目が一致 | ORT の版を変えた build では差を名指しして落ちる |
 | RP-25 | 訳の揺れ | RP-3 の Rust の run を `cargo test --release --test rp25 -- --ignored` が読む | 発話ごとに、確定の訳が出た後に表示の訳が変わった回数が 0。先の訳から確定の訳への置き換えは 1 回まで。速報の訳で、確定した字形で描いた接頭辞が後で消えた回数が 0。Zoom と Teams と SRT へ出た訳は 1 つの `id` につき 1 件で、確定の訳と同じ | 先の訳と確定の訳が違う発話の数を同じ test が数える | 確定の訳の前に先の訳を送る偽の中継で落ちる |
 | RP-26 | 言語の切り替え | `cargo test --release --test rp26` が、`<hy> --help` と、起動の失敗の stderr を、locale を en と ja にして読む | en と ja で文が別の言語で、どちらも `strings.<locale>.toml` の key だけから組まれている。`strings.en.toml` と `strings.ja.toml` の key の集合が同じ | en の出力が英語 | 文言を code に直書きした build で、表に無い文が出て落ちる |
 
@@ -689,7 +706,7 @@ R1 の `stages` は、sherpa-onnx の crate の型を直に呼ぶ小さな計測
 ## 10. 残る穴
 
 - **H1** Parakeet v3（en と欧州 24 言語）と parakeet-ja（second opinion）の fp32 か fp16 の ONNX は、sherpa-onnx の release に見つからない（NOT VERIFIED）。R1 の席が Hugging Face を探し、無ければ int8 を CUDA で動かして CPU に落ちる node の数を `gpu.session.placed` で数え、R1 の表に載せる。そのとき 1.4 の既定を満たせない段として評議へ戻す。
-- **H3** `ort` 2.0.0-rc.14 の `load-dynamic` が、ORT 1.28.2 を開けるか（NOT VERIFIED）。別の席の調べでは `ort` の配布の binary は CUDA 13.2 以上と cuDNN 9.23 以上を対象にしている（S15）。`load-dynamic` は配布の binary を使わないが、C の API の版の下限が合うかは R1 の RP-17 で確かめる。合わなければ、句読点の model を sherpa-onnx の側で動かす手段を評議へ出す。
+- **H3** `ort` 2.0.0-rc.14 の `load-dynamic` が、自分で build に入れた ORT 1.31.0 を開けるか（NOT VERIFIED。1.31 は `ort` の既定の C API の版で、退路の 1.28.2 では既定を外して古い API の feature を選ぶ）。別の席の調べでは `ort` の配布の binary は CUDA 13.2 以上と cuDNN 9.23 以上を対象にしている（S15）。`load-dynamic` は配布の binary を使わないが、C の API の版の下限が合うかは R1 の RP-17 で確かめる。合わなければ、句読点の model を sherpa-onnx の側で動かす手段を評議へ出す。
 - **H5** CUDA の stream を ORT と llama.cpp で共有する手段は無く、同じ GPU を 2 つの process が時間で分け合う。負荷の下の時間は R1 の RP-23 と、RP-3 で測る。
 - **H6** llama-server が stream の応答の接続を閉じられたときに生成を止めるか（NOT VERIFIED）。止めないなら、速報の訳の打ち切りは `n_predict` を小さくして待つ形にし、slot を 1 本増やす。R8d の席が確かめる。
 - **H7** 発話の終わり `t_end` は manifest に書いた sample の位置で決める。実放送の音声は参照の境界と本当の発話の終わりがずれることがあり、`L` に数十 ms の誤差が入る（ASSUMPTION）。Python と Rust に同じ誤差が入るので、比較には効かない。
@@ -703,9 +720,8 @@ R1 の `stages` は、sherpa-onnx の crate の型を直に呼ぶ小さな計測
 - **H16** 英語版 `rust_port.md` は R10 の成果物である。それまでこの文書の日本語だけが在る。
 - **H17** CAT-Translate-3.3b の GGUF は配布が無く、会話字幕の試しでは自分で変換した（会話字幕の設計 2.3）。変換は Python の道具（llama.cpp の `convert_hf_to_gguf.py`）を使う。訳の model を決める会話字幕の設計 9 の Q1 が CAT を選んだときに、変換を Python 以外で行う手段が無ければ、その 1 回の変換を規約の例外とするかを評議へ出す。
 - **H18** 別の席の調べの「GPU の方が遅い」「GPU の道具が無い」は推測を含む転記で、この文書は根拠に使っていない。根拠は R1 の実測で置き替える。
-- **H19** WSL の側で使う保守者の `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip` が、Microsoft の版とどこが違うかは確かめていない（NOT VERIFIED）。RP-24 で 2 つの OS の版の名前をそろえて記録する。
+- **H19** 退路へ戻したときに WSL で使う保守者の `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip` が、Microsoft の版とどこが違うかは確かめていない（NOT VERIFIED）。1.31.0 は両 OS とも Microsoft の asset なので、この差は退路を使うときだけ効く。RP-24 で 2 つの OS の版の名前をそろえて記録する。
 - **H20** hooks の `guard_commands.rs` の llama.cpp の鮮度の検査は、`llama-` で始まる名前を含む command を、WSL の build の木の鮮度で判定する。Windows の llama-server を WSL の shell から起こすと、関係の無い木で refuse される。Windows の llama-server は PowerShell から起こすと決めた（3.6）が、検査の対象を名前でなく path で分ける直しが要るかは、R8b の手番で hook-engineer の席へ出す。
-- **H21** WSL に cuDNN が無い（`/usr/local/cuda-13.3` と `libcudart.so.13` だけが在る）。RP-24 は 2 つの OS で CUDA の主版 13 と cuDNN の主版 9 の一致を求めるので、WSL に cuDNN 9 の CUDA 13 版が要る。入れる手段と戻し方を R1 の席が `docs/guide/build_gpu.ja.md` に書いてから入れる（3.12）。
 - **H24** `ferrous-opencc` の t2s が、Python の OpenCC 1.4.2 の t2s と同じ文字列を出すかは確かめていない（NOT VERIFIED）。R3 で、R0 の yue の参照文と認識文の全件を両方に通し、差の行の数を数える。差が在れば、yue の CER の差がその行で説明できるかを RP-1 の結果に書く。
 - **H22** `state.json` の `constraints` に「Rust への移植は速度が足りないと測れたときだけ」が残っていて、この文書の目標と食い違う。state.json を書くセラが直す。
 - **H23** 速報の訳が `final` と同じ原文になったときの `L_tr` の負の値は、速報を早く出す形の正しい効果だが、その発話の数が多いと `L` が小さく見える。RP-3 の出力でその数を見て、多ければ R1b で読み方を決める。
@@ -713,10 +729,11 @@ R1 の `stages` は、sherpa-onnx の crate の型を直に呼ぶ小さな計測
 - **H26** `end_sample` の今の規則（20 ms の frame の音量）は、声の後ろに音楽が続く発話（lat-ja の 18 と 19）で声の終わりを決められず、その標本は終端不正に入る。全発話に当てる別の規則（Silero VAD の区切り、手で付けたラベル）で直すかは決めていない（NOT VERIFIED）。発話 18 と 19 は Python の訳が 1 回も取れないので、`L` の比較集合には入らない。直すなら 3.1 の規則のとおり全発話を置き直し、R0 の席が Python を測り直す。
 - **H27** 機械語の当たらない kernel を driver が PTX から変換する初回の遅れは測っていない（NOT VERIFIED）。R1 の RP-23 で、JIT の cache が空の run（子の process に `CUDA_CACHE_PATH` で空の directory を渡す。S18）と、同じ cache で続けて流した温かい run の `decode_ms` を別の行に記録する。差の読み方は R1b で決める。
 - **H28** Windows で `onnxruntime.dll` の import が System32 の 1.17.1 に結びつく条件は特定していない（NOT VERIFIED）。3.4 の遅延読込みと先読みは probe の 4 回で防げたことだけを確かめている。test の実行 file は cargo が `target/<triple>/<profile>/deps/` に置き、`sherpa-onnx-sys` が DLL を写す `target/<triple>/<profile>/` と directory が違うので、test の process で「実行 file の隣」を先読みしたときに `onnxruntime.dll` が在るかも確かめていない（NOT VERIFIED）。R1 の席が `rustc-link-arg-tests` を足す手番で、test の process の `modules` の origin を数える。
+- **H29** WSL の build の本体を repo の外の `~/.cache` に置き、`native/target/sherpa-gpu/linux` から symlink で指している（3.12 の環境の表）。`~/.cache` は掃除の対象になりうる場所で、消えると現行の build が切れ、Windows からは symlink を辿れない。置き場を repo の中（`native/target/` の下の実 directory）へ動かすかは決めていない。設計の判断なので評議の席へ出す。
 
 ## 11. 出所
 
-取得日はすべて 2026-10-13。
+取得日は S19 が 2026-10-14、ほかはすべて 2026-10-13。
 crate の版は crates.io の API（`https://crates.io/api/v1/crates/<名前>`）で引いた。
 S12 と S15 は別の席の調べの転記で、この席は原典を開いていない。
 
@@ -740,3 +757,4 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S16 | sherpa-onnx v1.13.8 の cmake：`onnxruntime-win-x64-gpu.cmake` の 22 行目が「Requires cuda 12.x, cudnn 9.x」、23 行目が Microsoft の `onnxruntime-win-x64-gpu_cuda12-1.28.2.zip` を指す。`onnxruntime-linux-x86_64-gpu.cmake` の 22 行目が「Requires CUDA 12, cudnn 9」、23 行目が保守者の `onnxruntime-linux-x64-gpu_cuda12-1.28.2-patched.zip` を指す。`onnxruntime.cmake` の 156〜178 行目は、`SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` が在ればその `onnxruntime.dll` と `onnxruntime.lib` を使う。ORT v1.28.2 の Windows の GPU の asset は `onnxruntime-win-x64-gpu_cuda12-1.28.2.zip` と `onnxruntime-win-x64-gpu_cuda13-1.28.2.zip` の 2 つ。保守者の `csukuangfj/onnxruntime-libs` の v1.28.2 に `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip` が在る | https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime-win-x64-gpu.cmake 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime-linux-x86_64-gpu.cmake 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime.cmake 、https://api.github.com/repos/microsoft/onnxruntime/releases/tags/v1.28.2 、https://api.github.com/repos/csukuangfj/onnxruntime-libs/releases/tags/v1.28.2 |
 | S17 | llama.cpp の release b11583（2026-10-13T09:34Z）の Windows の CUDA の build は `llama-b11583-bin-win-cuda-12.4-x64.zip`、`llama-b11583-bin-win-cuda-13.4-x64.zip`、`cudart-llama-bin-win-cuda-12.4-x64.zip`、`cudart-llama-bin-win-cuda-13.4-x64.zip` ほか。`sm_120` を持つ最初の CUDA が 12.8 であることは NVIDIA の CUDA 12.8 の release notes による（この席は原典を開いていない。転記） | https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=5 |
 | S18 | CUDA の JIT の cache：`CUDA_CACHE_PATH` が cache の directory を決め（既定は Linux が `~/.nv/ComputeCache`、Windows が `%APPDATA%\NVIDIA\ComputeCache`）、`CUDA_CACHE_DISABLE=1` で cache を使わない。埋め込みの機械語が当たらない kernel は PTX から変換される | https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html |
+| S19 | ORT v1.31.0（2026-10-09 公開）の CUDA 13 版の asset：`onnxruntime-win-x64-gpu_cuda13-1.31.0.zip`（309,484,217 bytes、sha256 `d332ccf8…552f5`）、`onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz`（244,574,938 bytes、sha256 `2867dec9…81135`） | https://api.github.com/repos/microsoft/onnxruntime/releases/tags/v1.31.0 |
