@@ -1,0 +1,37 @@
+[package]
+name = "hayamimi-gpu"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Opens the self-built CUDA flavour of sherpa-onnx and ONNX Runtime and reports where inference runs."
+
+[lib]
+name = "hayamimi_gpu"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hayamimi-gpu-probe"
+path = "src/bin/probe.rs"
+
+[dependencies]
+libloading = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+] }
+
+[lints.rust]
+unsafe_code = "deny"
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+undocumented_unsafe_blocks = "deny"
