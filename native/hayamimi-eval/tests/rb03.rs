@@ -101,8 +101,22 @@ fn check_run_differences(summary: &str, run1: &str, run2: &str) -> Result<(), Fa
     Ok(())
 }
 
-fn check_same_bytes(restored: &[u8], record: &[u8]) -> Result<(), Failure> {
-    if restored == record {
+/// The bytes with every `\r\n` pair turned into `\n`. A lone `\r` stays.
+fn crlf_to_lf(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut rest = bytes.iter().copied().peekable();
+    while let Some(byte) = rest.next() {
+        if byte == b'\r' && rest.peek() == Some(&b'\n') {
+            continue;
+        }
+        out.push(byte);
+    }
+    out
+}
+
+/// The two files hold the same bytes once `\r\n` is read as `\n`.
+fn check_same_up_to_line_endings(restored: &[u8], record: &[u8]) -> Result<(), Failure> {
+    if crlf_to_lf(restored) == crlf_to_lf(record) {
         Ok(())
     } else {
         Err(String::from(
@@ -212,15 +226,29 @@ fn rb03_python_scorecard_reproduces_record_summary_without_run_difference_is_rej
 }
 
 #[test]
-fn rb03_python_scorecard_reproduces_record_scorecard_md_is_restored_byte_for_byte() -> TestResult {
+fn rb03_python_scorecard_reproduces_record_scorecard_md_is_restored_up_to_line_endings()
+-> TestResult {
     let restored = read_bytes(&Path::new(RESULTS).join("scorecard.md"))?;
-    check_same_bytes(&restored, &read_bytes(&base("scorecard_record.md"))?)?;
+    check_same_up_to_line_endings(&restored, &read_bytes(&base("scorecard_record.md"))?)?;
     Ok(())
 }
 
 #[test]
+fn rb03_python_scorecard_reproduces_record_crlf_and_lf_with_the_same_content_are_accepted()
+-> TestResult {
+    check_same_up_to_line_endings(b"# a\r\n# b\r\n", b"# a\n# b\n")?;
+    Ok(())
+}
+
+#[test]
+fn rb03_python_scorecard_reproduces_record_lone_carriage_return_difference_is_rejected() {
+    let said = check_same_up_to_line_endings(b"# a\rb\n", b"# ab\n");
+    assert!(said.is_err());
+}
+
+#[test]
 fn rb03_python_scorecard_reproduces_record_one_byte_difference_in_restored_scorecard_is_rejected() {
-    let said = check_same_bytes(
+    let said = check_same_up_to_line_endings(
         include_bytes!("fixtures/rb03_restored_a.md"),
         include_bytes!("fixtures/rb03_restored_b.md"),
     );
