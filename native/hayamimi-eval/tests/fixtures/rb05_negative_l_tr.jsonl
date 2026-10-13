@@ -1,0 +1,2 @@
+{"repeat":1,"utt":1,"t_start_us":0,"t_end_us":0,"t_partial_us":null,"t_final_us":1000000,"t_tr_us":1500000,"finals":1,"text":"x","translation":"y","final_latency_ms":null,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":2,"t_start_us":0,"t_end_us":1000000,"t_partial_us":null,"t_final_us":2000000,"t_tr_us":1900000,"finals":1,"text":"x","translation":"y","final_latency_ms":null,"cer_dist":0,"cer_denom":1}

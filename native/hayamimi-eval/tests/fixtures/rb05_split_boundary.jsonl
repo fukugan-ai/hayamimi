@@ -1,0 +1,3 @@
+{"repeat":1,"utt":1,"t_start_us":0,"t_end_us":0,"t_partial_us":null,"t_final_us":1000000,"t_tr_us":null,"finals":1,"text":"x","translation":null,"final_latency_ms":650.0,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":2,"t_start_us":0,"t_end_us":0,"t_partial_us":null,"t_final_us":1000000,"t_tr_us":null,"finals":1,"text":"x","translation":null,"final_latency_ms":650.001,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":3,"t_start_us":0,"t_end_us":0,"t_partial_us":null,"t_final_us":null,"t_tr_us":null,"finals":0,"text":"","translation":null,"final_latency_ms":null,"cer_dist":0,"cer_denom":1}

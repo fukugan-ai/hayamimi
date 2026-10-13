@@ -1,0 +1,36 @@
+[package]
+name = "hayamimi-eval"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Development-only measurement and scoring tool for hayamimi. It is not part of the runtime path."
+
+[lib]
+name = "hayamimi_eval"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hayamimi-eval"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.23"
+# ERROR POLICY: clap is confined to the CLI boundary; its errors are printed and turned into an exit code.
+clap = { version = "4", features = ["derive"] }
+hayamimi-relay = { path = "../hayamimi-relay" }
+hound = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.11"
+sha2 = "0.11"
+unicode-normalization = "0.1"
+# ERROR POLICY: ureq is confined to the HTTP probes and the FLEURS text download; its errors map to EvalError::Http.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

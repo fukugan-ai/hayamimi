@@ -1,0 +1,16 @@
+  ja_014.wav  finals=['x']  refine=x
+  ja_024.wav  finals=['x']  refine=x
+  ja_033.wav  finals=['x']  refine=x
+  ja_036.wav  finals=['x']  refine=x
+  ja_044.wav  finals=['x']  refine=x
+  ja_079.wav  finals=['x']  refine=x
+  ja_085.wav  finals=['x']  refine=x
+  ja_090.wav  finals=['x']  refine=x
+DIFF ja_085.wav
+  committed: a
+  now      : b
+DIFF ja_090.wav
+  committed: a
+  now      : b
+
+2 of 8 clips differ

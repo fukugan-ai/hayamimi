@@ -1,5 +1,5 @@
 [workspace]
-members = ["hayamimi-relay", "hayamimi-gpu", "xtask"]
+members = ["hayamimi-relay", "hayamimi-eval", "hayamimi-gpu", "xtask"]
 resolver = "3"
 
 [profile.release]
