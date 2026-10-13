@@ -1,0 +1,6 @@
+{
+  "model": "tiny-encoder.onnx",
+  "device": "cuda",
+  "cuda_nodes": 159,
+  "cpu_nodes": 31
+}

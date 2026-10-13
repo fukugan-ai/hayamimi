@@ -1,0 +1,231 @@
+{"kind":"meta","provider":"cpu","load":true,"cache":"warm","run":2,"repeat":5,"utterances":23,"os":"windows"}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":0,"repeat":0,"ns":25369900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":1,"repeat":0,"ns":31298400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":2,"repeat":0,"ns":32528500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":3,"repeat":0,"ns":30672000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":4,"repeat":0,"ns":29889600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":5,"repeat":0,"ns":33772200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":6,"repeat":0,"ns":33156200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":7,"repeat":0,"ns":36906700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":8,"repeat":0,"ns":35209500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":9,"repeat":0,"ns":40987900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":10,"repeat":0,"ns":41419000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":11,"repeat":0,"ns":33825100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":12,"repeat":0,"ns":39542700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":13,"repeat":0,"ns":43017200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":14,"repeat":0,"ns":45124100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":15,"repeat":0,"ns":45548800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":16,"repeat":0,"ns":48198000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":17,"repeat":0,"ns":45451900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":18,"repeat":0,"ns":50027200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":19,"repeat":0,"ns":47296500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":20,"repeat":0,"ns":48371400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":21,"repeat":0,"ns":45923400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":22,"repeat":0,"ns":42115200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":0,"repeat":1,"ns":23677400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":1,"repeat":1,"ns":33174900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":2,"repeat":1,"ns":34008900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":3,"repeat":1,"ns":40109300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":4,"repeat":1,"ns":37607000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":5,"repeat":1,"ns":46412400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":6,"repeat":1,"ns":35377000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":7,"repeat":1,"ns":39709300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":8,"repeat":1,"ns":38003000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":9,"repeat":1,"ns":43250200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":10,"repeat":1,"ns":38802900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":11,"repeat":1,"ns":34592500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":12,"repeat":1,"ns":37810200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":13,"repeat":1,"ns":39876700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":14,"repeat":1,"ns":32031800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":15,"repeat":1,"ns":39134400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":16,"repeat":1,"ns":50612500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":17,"repeat":1,"ns":47389100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":18,"repeat":1,"ns":49074200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":19,"repeat":1,"ns":55811300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":20,"repeat":1,"ns":45699500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":21,"repeat":1,"ns":45141300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":22,"repeat":1,"ns":44202900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":0,"repeat":2,"ns":23132900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":1,"repeat":2,"ns":31632800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":2,"repeat":2,"ns":34462500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":3,"repeat":2,"ns":31288400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":4,"repeat":2,"ns":32222100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":5,"repeat":2,"ns":34473000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":6,"repeat":2,"ns":36363100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":7,"repeat":2,"ns":38505800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":8,"repeat":2,"ns":42375100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":9,"repeat":2,"ns":35153900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":10,"repeat":2,"ns":31595600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":11,"repeat":2,"ns":38140400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":12,"repeat":2,"ns":35276000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":13,"repeat":2,"ns":34736900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":14,"repeat":2,"ns":37638300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":15,"repeat":2,"ns":35812100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":16,"repeat":2,"ns":38914500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":17,"repeat":2,"ns":44963700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":18,"repeat":2,"ns":50848000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":19,"repeat":2,"ns":51817800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":20,"repeat":2,"ns":51269100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":21,"repeat":2,"ns":48324400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":22,"repeat":2,"ns":46531100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":0,"repeat":3,"ns":24318300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":1,"repeat":3,"ns":31941000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":2,"repeat":3,"ns":33114700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":3,"repeat":3,"ns":32873900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":4,"repeat":3,"ns":37761700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":5,"repeat":3,"ns":35537500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":6,"repeat":3,"ns":39954000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":7,"repeat":3,"ns":45805300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":8,"repeat":3,"ns":42173700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":9,"repeat":3,"ns":37117900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":10,"repeat":3,"ns":41894600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":11,"repeat":3,"ns":46446900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":12,"repeat":3,"ns":43378000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":13,"repeat":3,"ns":40183700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":14,"repeat":3,"ns":42744200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":15,"repeat":3,"ns":41256800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":16,"repeat":3,"ns":38419600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":17,"repeat":3,"ns":43013900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":18,"repeat":3,"ns":38592400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":19,"repeat":3,"ns":49424200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":20,"repeat":3,"ns":57615200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":21,"repeat":3,"ns":53149000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":22,"repeat":3,"ns":62176000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":0,"repeat":4,"ns":28434900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":1,"repeat":4,"ns":36792900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":2,"repeat":4,"ns":37804900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":3,"repeat":4,"ns":39767300}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":4,"repeat":4,"ns":36510100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":5,"repeat":4,"ns":35667200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":6,"repeat":4,"ns":45988000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":7,"repeat":4,"ns":42657000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":8,"repeat":4,"ns":44665200}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":9,"repeat":4,"ns":50248000}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":10,"repeat":4,"ns":44877800}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":11,"repeat":4,"ns":42448600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":12,"repeat":4,"ns":44466400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":13,"repeat":4,"ns":40290100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":14,"repeat":4,"ns":38496100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":15,"repeat":4,"ns":43131700}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":16,"repeat":4,"ns":40453400}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":17,"repeat":4,"ns":43138900}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":18,"repeat":4,"ns":47088500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":19,"repeat":4,"ns":48822600}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":20,"repeat":4,"ns":50346100}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":21,"repeat":4,"ns":50280500}
+{"kind":"sample","stage":"punct_bert","variant":"fp32","utt":22,"repeat":4,"ns":49848300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":0,"ns":126003100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":0,"ns":115244000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":0,"ns":118991400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":0,"ns":86167100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":0,"ns":129000500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":0,"ns":146393500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":0,"ns":220065700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":0,"ns":174338300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":0,"ns":61338700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":0,"ns":73198400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":0,"ns":157834600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":0,"ns":114042600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":0,"ns":167959200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":0,"ns":157465600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":0,"ns":55285800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":0,"ns":105415800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":0,"ns":126905100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":0,"ns":163396900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":0,"ns":80862100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":0,"ns":84422400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":0,"ns":122138600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":0,"ns":81368600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":0,"ns":89903700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":1,"ns":150203400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":1,"ns":144110500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":1,"ns":119971500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":1,"ns":98178500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":1,"ns":141990700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":1,"ns":148467500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":1,"ns":182993300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":1,"ns":168033500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":1,"ns":69068900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":1,"ns":65577000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":1,"ns":140926600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":1,"ns":100739900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":1,"ns":148674700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":1,"ns":156652100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":1,"ns":56380300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":1,"ns":117421000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":1,"ns":140688000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":1,"ns":172193100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":1,"ns":87503400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":1,"ns":88760700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":1,"ns":127905900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":1,"ns":79551200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":1,"ns":82748900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":2,"ns":132657500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":2,"ns":124890500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":2,"ns":122694900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":2,"ns":86302200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":2,"ns":124218000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":2,"ns":129733700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":2,"ns":183135600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":2,"ns":155868800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":2,"ns":69814600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":2,"ns":73808900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":2,"ns":167853100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":2,"ns":109832900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":2,"ns":173310600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":2,"ns":186193500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":2,"ns":66323500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":2,"ns":116155700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":2,"ns":128784100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":2,"ns":158435200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":2,"ns":80676000}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":2,"ns":82007500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":2,"ns":98671700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":2,"ns":62962100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":2,"ns":81883500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":3,"ns":143001100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":3,"ns":98584300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":3,"ns":101235100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":3,"ns":80454600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":3,"ns":140614900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":3,"ns":157491300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":3,"ns":199516800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":3,"ns":182516400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":3,"ns":72586100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":3,"ns":89750400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":3,"ns":167283600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":3,"ns":113882900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":3,"ns":167003800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":3,"ns":149731900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":3,"ns":54662100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":3,"ns":101573900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":3,"ns":122418300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":3,"ns":176830500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":3,"ns":81247800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":3,"ns":80472700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":3,"ns":134963500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":3,"ns":85190700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":3,"ns":95149300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":4,"ns":166851100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":4,"ns":123503700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":4,"ns":98796300}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":4,"ns":87025500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":4,"ns":131897800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":4,"ns":145818600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":4,"ns":200747600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":4,"ns":163378700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":4,"ns":60151600}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":4,"ns":76586500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":4,"ns":140902200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":4,"ns":98621100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":4,"ns":168047700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":4,"ns":174340900}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":4,"ns":64019700}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":4,"ns":116917400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":4,"ns":131814200}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":4,"ns":173747800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":4,"ns":87852100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":4,"ns":85733400}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":4,"ns":153231800}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":4,"ns":71570500}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":4,"ns":91852600}

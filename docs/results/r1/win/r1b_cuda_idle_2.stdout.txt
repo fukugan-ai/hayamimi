@@ -1,0 +1,2 @@
+encoder_only	ort-encoder fp32	cuda	n=115	p50_us=67306	p95_us=81751
+punct_bert	fp32	cuda	n=115	p50_us=8688	p95_us=11419

@@ -1,0 +1,6 @@
+{
+  "model": "encoder-epoch-35-avg-1.fp16.onnx",
+  "device": "cuda",
+  "cuda_nodes": 3564,
+  "cpu_nodes": 1611
+}

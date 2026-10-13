@@ -1,0 +1,13 @@
+decode	fp16	cuda	n=23	p50_us=455651	p95_us=727007
+decode	fp32	cuda	n=23	p50_us=175621	p95_us=240787
+decode_first	fp16	cuda	n=1	p50_us=2195162	p95_us=2195162
+decode_first	fp32	cuda	n=1	p50_us=389199	p95_us=389199
+fbank	fp16	cuda	n=23	p50_us=4771	p95_us=11126
+fbank	fp32	cuda	n=23	p50_us=5526	p95_us=12640
+lid	fp32	cuda	n=23	p50_us=72792	p95_us=93404
+lid_long	fp32	cuda	n=17	p50_us=75316	p95_us=96326
+recognize_total	fp16	cuda	n=23	p50_us=460303	p95_us=738365
+recognize_total	fp32	cuda	n=23	p50_us=180497	p95_us=251009
+recognizer_create	fp16	cuda	n=1	p50_us=5436722	p95_us=5436722
+recognizer_create	fp32	cuda	n=1	p50_us=4717965	p95_us=4717965
+vad	fp32	cuda	n=23	p50_us=391774	p95_us=580707

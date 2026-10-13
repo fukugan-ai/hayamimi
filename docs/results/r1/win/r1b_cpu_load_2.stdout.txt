@@ -1,0 +1,2 @@
+encoder_only	ort-encoder fp32	cpu	n=115	p50_us=122139	p95_us=182994
+punct_bert	fp32	cpu	n=115	p50_us=40110	p95_us=51270
