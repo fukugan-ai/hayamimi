@@ -582,10 +582,11 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CX-8 | 週末の値の日付 | `cargo test --release --test cx08` | 月曜の朝に金曜の `rate_date` の XML を受けると、添え書きが金曜の日付を示す | 平日の XML | 取得日を示す書き方で落ちる |
 | CX-9 | 大きさ、重さ、温度、体積、面積の係数と丸め | `cargo test --release --test cx09` | 3.11 の係数の表の全行（逆向きの行を含む）について、表の係数で出した値の有効数字 3 桁が test の期待値と一致する（5 mile → 8.05 km、10 lb → 4.54 kg、98.6°F → 37.0℃、2 US gallon → 7.57 L、3 坪 → 9.92 m² と 107 sq ft、6 畳 → 9.72 m²、10 km → 6.21 mile、70 kg → 154 lb、20℃ → 68.0°F ほか、行ごとに 1 件以上） | 厳密値の行（mile、ft、in、sq ft） | 係数を 1 桁ずらした表、4 桁に丸める書き方で落ちる |
 | CX-10 | 毎朝 1 回の取得の予定（本番の task には触れない） | `cargo test --release --test cx10 -- --ignored` が、`<relay> fx-schedule --install --task-name hayamimi-fx-fetch-test-<連番> --out <test の directory>\fx_rates.json` を打ち、`schtasks /Query /TN <その名> /XML` を読み、`schtasks /Run /TN <その名>` を打ち、最後に `--remove --task-name <その名>` を打つ。試しの HTTP server を取得先に渡す | XML に毎日 07:30 の trigger と `StartWhenAvailable` が true。`/Run` の後に test の directory の `fetched_at` が打つ前より新しい。`--remove` の後の `/Query` は rc 1。本番の `hayamimi-fx-fetch` の `/Query` の出力が test の前後で同じ | 登録直後の `/Query` が rc 0 | `--remove` の後の `/Query`。翌朝の発火は完了条件に入れない |
+| CX-11 | 為替と表の file を、止めずに書き替えると、次の行から新しい値が使われる | `cargo test --release --test cx11` | 読み手を開いたまま `fx_rates.json` を新しい `rate_date` と `rates` で書き替えると、次の行の換算が新しい値と日付になる。壊れた内容に書き替えると、前の内容を使い続け、warn を 1 行出す。`data/*.toml` の表 1 本にも同じ 2 つが成り立つ | 書き替えの前の行が前の値と日付で換算される | 起動したときにだけ読む build では、書き替えの後も前の値が出て落ちる |
 
 ## 7. test の名前
 
-実装の最初の slice は、表の順 1〜12（照合、`</s>`、為替の取得、換算）とする。
+実装の最初の slice は、表の順 1〜13（照合、`</s>`、為替の取得、換算、file の読み直し）とする。
 各 ID の下の case 行（`T-<ID>-nnn`）は test-designer が、この節の下に書く。
 
 | 順 | ID | 受入 test の名前 | 置き場 | 陰性の case |
@@ -602,39 +603,40 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 10 | CX-4 | `cx04_missing_rate_file_skips_currency_only` | `native/hayamimi-relay/tests/cx04.rs` | file を消した run |
 | 11 | CX-5 | `cx05_old_rates_show_their_date_and_expire_after_seven_days` | `native/hayamimi-relay/tests/cx05.rs` | 8 日前の値 |
 | 12 | CX-9 | `cx09_unit_factors_and_three_digit_rounding` | `native/hayamimi-relay/tests/cx09.rs` | 1 桁ずれた係数 |
-| 13 | CS-30 | `cs30_spent_heldout_batch_is_refused` | `native/hayamimi-relay/tests/cs30.rs` | 拒みを外した build |
-| 14 | CS-25 | `cs25_stages_run_in_order_t_e_v_once` | `native/hayamimi-relay/tests/cs25.rs` | T の訳に V を掛ける作り |
-| 15 | CS-5 | `cs05_held_line_shows_marked_source_and_sends_nothing` | `native/hayamimi-relay/tests/cs05.rs` | 数を変える翻訳器 |
-| 16 | CS-3 | `cs03_fleurs_ja_en_beats_fugumt` | `native/hayamimi-relay/tests/cs03.rs` | 原文を返した hyps |
-| 17 | CS-26 | `cs26_edit_reduces_english_calques` | `native/hayamimi-relay/tests/cs26.rs` | E を素通しにした build |
-| 18 | CS-27 | `cs27_japanese_edit_follows_the_ja_style_table` | `native/hayamimi-relay/tests/cs27.rs` | 常体を混ぜた E の応答 |
-| 19 | CS-1 | `cs01_loopback_english_reaches_overlay_in_japanese` | `native/hayamimi-relay/tests/cs01.rs` | 原文を素通しする翻訳器 |
-| 20 | CS-2 | `cs02_mic_japanese_is_translated_to_english` | `native/hayamimi-relay/tests/cs02.rs` | 原文を素通しする翻訳器 |
-| 21 | CS-6 | `cs06_three_stages_stay_within_budget_under_two_sources` | `native/hayamimi-relay/tests/cs06.rs` | 600 ms 遅れる翻訳器 |
-| 22 | CS-7 | `cs07_speech_end_to_overlay_p95_under_load` | `native/hayamimi-relay/tests/cs07.rs` | 2 秒遅れる認識 |
-| 23 | CS-9 | `cs09_loopback_language_follows_the_scene` | `native/hayamimi-relay/tests/cs09.rs` | 言語判定を外した build |
-| 24 | CS-29 | `cs29_third_language_shows_source_only` | `native/hayamimi-relay/tests/cs29.rs` | 言語を `en` に固定した run |
-| 25 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | 中継の停止 |
-| 26 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | 余白 0 の build |
-| 27 | CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
-| 28 | CS-13 | `cs13_obs_page_shows_only_my_lane` | `native/hayamimi-relay/tests/cs13.rs` | `loopback-1` の行 |
-| 29 | CS-14 | `cs14_video_yields_srt_files_by_line_language` | `native/hayamimi-relay/tests/cs14.rs` | 日本語の mp4 の `.en.srt` |
-| 30 | CS-15 | `cs15_existing_srt_stops_before_extraction` | `native/hayamimi-relay/tests/cs15.rs` | file を消した run |
-| 31 | CS-16 | `cs16_virtual_camera_frame_carries_the_subtitle_band` | `native/hayamimi-relay/tests/cs16.rs` | 字幕の無い frame |
-| 32 | CS-19 | `cs19_translator_outage_keeps_subtitles_flowing` | `native/hayamimi-relay/tests/cs19.rs` | 戻さない run |
-| 33 | CS-20 | `cs20_wsl_server_survives_closed_terminals` | `native/hayamimi-relay/tests/cs20.rs` | `wsl --shutdown` の後 |
-| 34 | CS-21 | `cs21_every_line_gets_exactly_one_translation` | `native/hayamimi-relay/tests/cs21.rs` | 列を 1 にした設定 |
-| 35 | CS-22 | `cs22_late_translation_attaches_to_its_own_line` | `native/hayamimi-relay/tests/cs22.rs` | 直前の行に貼る作り |
-| 36 | CS-28 | `cs28_send_config_is_private_and_never_logged` | `native/hayamimi-relay/tests/cs28.rs` | Users に読みを足した ACL |
-| 37 | CS-17 | `cs17_zoom_caption_api_accepts_a_line` | `native/hayamimi-relay/tests/cs17.rs` | 期限切れの token |
-| 38 | CS-18 | `cs18_teams_cart_accepts_a_line` | `native/hayamimi-relay/tests/cs18.rs` | 壊した link |
-| 39 | CS-23 | `cs23_real_microphone_reaches_the_relay` | `native/hayamimi-relay/tests/cs23.rs` | 入力の装置が 0 個 |
-| 40 | CS-24 | `cs24_verify_never_stops_a_reference_translation` | `native/hayamimi-relay/tests/cs24.rs` | CS-4a の 4 行 |
-| 41 | CS-4b | `cs04b_heldout_stop_count_within_two_of_forty` | `native/hayamimi-relay/tests/cs04b.rs` | 数を変える偽の E |
+| 13 | CX-11 | `cx11_rewritten_rate_file_is_used_from_the_next_line` | `native/hayamimi-relay/tests/cx11.rs` | 起動したときにだけ読む build |
+| 14 | CS-30 | `cs30_spent_heldout_batch_is_refused` | `native/hayamimi-relay/tests/cs30.rs` | 拒みを外した build |
+| 15 | CS-25 | `cs25_stages_run_in_order_t_e_v_once` | `native/hayamimi-relay/tests/cs25.rs` | T の訳に V を掛ける作り |
+| 16 | CS-5 | `cs05_held_line_shows_marked_source_and_sends_nothing` | `native/hayamimi-relay/tests/cs05.rs` | 数を変える翻訳器 |
+| 17 | CS-3 | `cs03_fleurs_ja_en_beats_fugumt` | `native/hayamimi-relay/tests/cs03.rs` | 原文を返した hyps |
+| 18 | CS-26 | `cs26_edit_reduces_english_calques` | `native/hayamimi-relay/tests/cs26.rs` | E を素通しにした build |
+| 19 | CS-27 | `cs27_japanese_edit_follows_the_ja_style_table` | `native/hayamimi-relay/tests/cs27.rs` | 常体を混ぜた E の応答 |
+| 20 | CS-1 | `cs01_loopback_english_reaches_overlay_in_japanese` | `native/hayamimi-relay/tests/cs01.rs` | 原文を素通しする翻訳器 |
+| 21 | CS-2 | `cs02_mic_japanese_is_translated_to_english` | `native/hayamimi-relay/tests/cs02.rs` | 原文を素通しする翻訳器 |
+| 22 | CS-6 | `cs06_three_stages_stay_within_budget_under_two_sources` | `native/hayamimi-relay/tests/cs06.rs` | 600 ms 遅れる翻訳器 |
+| 23 | CS-7 | `cs07_speech_end_to_overlay_p95_under_load` | `native/hayamimi-relay/tests/cs07.rs` | 2 秒遅れる認識 |
+| 24 | CS-9 | `cs09_loopback_language_follows_the_scene` | `native/hayamimi-relay/tests/cs09.rs` | 言語判定を外した build |
+| 25 | CS-29 | `cs29_third_language_shows_source_only` | `native/hayamimi-relay/tests/cs29.rs` | 言語を `en` に固定した run |
+| 26 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | 中継の停止 |
+| 27 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | 余白 0 の build |
+| 28 | CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
+| 29 | CS-13 | `cs13_obs_page_shows_only_my_lane` | `native/hayamimi-relay/tests/cs13.rs` | `loopback-1` の行 |
+| 30 | CS-14 | `cs14_video_yields_srt_files_by_line_language` | `native/hayamimi-relay/tests/cs14.rs` | 日本語の mp4 の `.en.srt` |
+| 31 | CS-15 | `cs15_existing_srt_stops_before_extraction` | `native/hayamimi-relay/tests/cs15.rs` | file を消した run |
+| 32 | CS-16 | `cs16_virtual_camera_frame_carries_the_subtitle_band` | `native/hayamimi-relay/tests/cs16.rs` | 字幕の無い frame |
+| 33 | CS-19 | `cs19_translator_outage_keeps_subtitles_flowing` | `native/hayamimi-relay/tests/cs19.rs` | 戻さない run |
+| 34 | CS-20 | `cs20_wsl_server_survives_closed_terminals` | `native/hayamimi-relay/tests/cs20.rs` | `wsl --shutdown` の後 |
+| 35 | CS-21 | `cs21_every_line_gets_exactly_one_translation` | `native/hayamimi-relay/tests/cs21.rs` | 列を 1 にした設定 |
+| 36 | CS-22 | `cs22_late_translation_attaches_to_its_own_line` | `native/hayamimi-relay/tests/cs22.rs` | 直前の行に貼る作り |
+| 37 | CS-28 | `cs28_send_config_is_private_and_never_logged` | `native/hayamimi-relay/tests/cs28.rs` | Users に読みを足した ACL |
+| 38 | CS-17 | `cs17_zoom_caption_api_accepts_a_line` | `native/hayamimi-relay/tests/cs17.rs` | 期限切れの token |
+| 39 | CS-18 | `cs18_teams_cart_accepts_a_line` | `native/hayamimi-relay/tests/cs18.rs` | 壊した link |
+| 40 | CS-23 | `cs23_real_microphone_reaches_the_relay` | `native/hayamimi-relay/tests/cs23.rs` | 入力の装置が 0 個 |
+| 41 | CS-24 | `cs24_verify_never_stops_a_reference_translation` | `native/hayamimi-relay/tests/cs24.rs` | CS-4a の 4 行 |
+| 42 | CS-4b | `cs04b_heldout_stop_count_within_two_of_forty` | `native/hayamimi-relay/tests/cs04b.rs` | 数を変える偽の E |
 
 CS-24、CS-4b、CS-26、CS-27 は held-out の batch を燃やすので、Q1 と Q2 を決める 1 回の `eval --final` でまとめて打つ。
 
-### 7.1 case 行の読み方（順 1〜12）
+### 7.1 case 行の読み方（順 1〜13）
 
 case は `T-<ID>-nnn` で呼ぶ。
 test 関数の名前は、表の「受入 test の名前」の後ろに `_` と各行の「関数の末尾」を続けた物にする（例：`cs04a_verify_passes_tuning_refs_and_stops_known_drift_j08_is_held_for_number`）。
@@ -906,6 +908,45 @@ command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release
 | T-CX-9-026 | 壊した表：mile の係数を 0.1609344 にした表で 5 mile | 係数を 1 桁ずらした表 | `Err` | 換算は `0.805` km（5 × 0.1609344 = 0.804672）で、期待の `8.05` と違い、`check_row_equals` が `Err`（specified、6.2） | 陰性 | `shifted_factor_table_is_rejected_by_the_check` |
 | T-CX-9-027 | 壊した丸め：4 桁に丸める書き方で 5 mile | 4 桁に丸める書き方 | `Err` | 換算は `8.047` km で、期待の `8.05` と違い、`check_row_equals` が `Err`（specified、6.2） | 陰性 | `four_digit_rounding_is_rejected_by_the_check` |
 
+#### 7.13.1 CX-11（為替と表の file を止めずに書き替えると、次の行から新しい値が使われる）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cx11`
+読み手は 1 回だけ開き、test の途中で開き直さない。
+書き替えと次の行の間に待ちを入れない（「次の行から」を測る）。
+`now` は `2026-10-15T09:00:00+09:00`。
+file の中身：A は 7.1 の S4 の値（`rate_date` `2026-10-12`、USD 1.1181、JPY 177.33）。
+B は `rate_date` `2026-10-13`、`fetched_at` `2026-10-13T07:30:00+09:00`、USD 1.2000、JPY 180.00（fixture `cx11_rates_b.json`）。
+C は `rate_date` `2026-10-14`、`fetched_at` `2026-10-14T07:30:00+09:00`、USD 1.1000、JPY 154.00（fixture `cx11_rates_c.json`）。
+`now` との日数は A が 3 日、B が 2 日、C が 1 日で、どれも 7 日以内（`date -d` で 3 2 1）。
+「書き替える」は、特に書かない限り一時 file に書いて rename で入れ替える（取得の部品と同じ書き方）。
+warn の数は、書き替えの後の最初の行を換算し終えた時点で、log に在る `level` = `warn` の行を数える（event の名前は比べない）。
+`local_units.toml` の行は、利用者の設定の directory（test の一時 directory）に置く同名の file で上書きする形で書き替える。
+上書きの中身は、repo の既定 `data/local_units.toml` を `include_str!` で読み、`1.609344` を `1.6` に置換した物にする。
+置換の件数が 1 以上であることを fixture を作る所で確かめ、0 なら test を `Err` で止める。
+数の確かめ：
+
+```
+awk 'function r3(x,s,p,e,d){s=sprintf("%.2e",x);split(s,p,"e");e=p[2]+0;d=2-e;if(d<0)d=0;return sprintf("%.*f",d,p[1]*10^e)}
+BEGIN{print r3(100*177.33/1.1181),r3(100*180/1.2),r3(5000000/180*1.2),r3(100*154/1.1),r3(5*1.6),r3(5*1.609344)}'
+15900 15000 33300 14000 8.00 8.05
+```
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CX-11-001 | 読み手を A で開き、src `I paid $100.`、E の応答 `私は100ドル払いました。` | 書き替えの前 | 前の値と日付 | 注釈 = `（約 15,900 円、10/12 の値）`。式：100 × 177.33 / 1.1181 = 15859.94、3 桁で 15,900（pseudo、awk）（specified、6.2 の陽性対照） | 陽性 | `before_rewrite_uses_the_old_rate` |
+| T-CX-11-002 | 001 の読み手を開いたまま、file を B に書き替え（rename）、同じ src と E の応答の次の行 | 為替の書き替え、ja | 新しい値と日付 | 注釈 = `（約 15,000 円、10/13 の値）`。式：100 × 180.00 / 1.2000 = 15000、3 桁で 15,000（pseudo）（specified、6.2） | 陽性 | `rewritten_rate_file_is_used_from_the_next_line` |
+| T-CX-11-003 | A で開いた読み手を B に書き替え、src `予算は五百万円です。`、E の応答 `The budget is five million yen.` の次の行 | 為替の書き替え、en | 新しい値と日付 | 注釈 = `(about $33,300, rate of Oct 13)`。式：5,000,000 / 180.00 × 1.2000 = 33333.33、3 桁で 33,300（pseudo） | 陽性 | `rewritten_rate_file_is_used_by_the_english_reader` |
+| T-CX-11-004 | A で開いた読み手を、B の bytes で file を同じ場所に直接上書き（rename を使わない）し、002 の次の行 | 書き替えの仕方：その場で上書き | 新しい値と日付 | 注釈 = `（約 15,000 円、10/13 の値）`（002 と同じ式）（specified、6.2） | 陽性 | `in_place_overwrite_is_used_from_the_next_line` |
+| T-CX-11-005 | A で開いた読み手を B に書き替えて 1 行、続けて C に書き替えて 1 行 | 続けて 2 回 | 最後の書き替え | 1 行目の注釈 = `（約 15,000 円、10/13 の値）`、2 行目 = `（約 14,000 円、10/14 の値）`。式：100 × 154.00 / 1.1000 = 14000、3 桁で 14,000（pseudo） | 境界 | `second_rewrite_replaces_the_first` |
+| T-CX-11-006 | A で開いた読み手を、途中で切れた file（`cx07_after_truncated.json` の bytes）に書き替え、002 の src の次の行 | 壊れた内容（途中で切れた JSON） | 前の内容 | 注釈 = `（約 15,900 円、10/12 の値）`（A のまま）。`level` = `warn` の行が 1 行（specified、6.2） | 陰性 | `truncated_rate_file_keeps_the_previous_values_and_warns_once` |
+| T-CX-11-007 | A で開いた読み手を、0 byte の file（fixture `cx11_empty.json`）に書き替え、002 の src の次の行 | 壊れた内容（空） | 前の内容 | 注釈 = `（約 15,900 円、10/12 の値）`、`warn` の行が 1 行（specified、6.2） | 陰性、境界 | `empty_rate_file_keeps_the_previous_values_and_warns_once` |
+| T-CX-11-008 | 006 の後に file を B に書き直し、002 の src の次の行 | 壊れた後の回復 | 新しい値と日付 | 注釈 = `（約 15,000 円、10/13 の値）`（002 と同じ式）（specified、3.11 の「読み直し」） | 陽性 | `valid_rewrite_after_a_broken_one_is_used` |
+| T-CX-11-009 | 002 の手順を、開いたときにだけ file を読む偽の読み手（test の中の `StartupOnlyReader`）で打った結果 | 起動したときにだけ読む build | `Err` | 偽の読み手の 2 行目の注釈は `（約 15,900 円、10/12 の値）` で、期待の `（約 15,000 円、10/13 の値）` と違い、`check_annotation_equals` が `Err`。001 の本物の読み手では `Ok`（specified、6.2） | 陰性 | `startup_only_reader_misses_the_rate_rewrite` |
+| T-CX-11-010 | 既定の表だけで読み手を開き、src `I walked 5 miles.`、E の応答 `5マイル歩きました。` | 書き替えの前（表） | 既定の係数 | 注釈 = `（約 8.05 km）`。式：5 × 1.609344 = 8.04672、3 桁で 8.05（pseudo）（specified、6.2 の陽性対照） | 陽性 | `before_rewrite_uses_the_default_table` |
+| T-CX-11-011 | 010 の読み手を開いたまま、上書きの `local_units.toml`（`1.609344` を `1.6` にした物）を置き、同じ src と E の応答の次の行 | 表の書き替え | 新しい係数 | 注釈 = `（約 8.00 km）`。式：5 × 1.6 = 8.0、3 桁で 8.00（pseudo）（specified、6.2） | 陽性 | `rewritten_unit_table_is_used_from_the_next_line` |
+| T-CX-11-012 | 010 の読み手を開いたまま、壊れた表（fixture `cx11_broken.toml`：`[[[`）を置き、同じ src と E の応答の次の行 | 壊れた内容（表） | 前の内容 | 注釈 = `（約 8.05 km）`（既定のまま）。`level` = `warn` の行が 1 行（specified、6.2） | 陰性 | `broken_unit_table_keeps_the_previous_values_and_warns_once` |
+| T-CX-11-013 | 011 の手順を、開いたときにだけ表を読む偽の読み手で打った結果 | 起動したときにだけ読む build（表） | `Err` | 偽の読み手の注釈は `（約 8.05 km）` で、期待の `（約 8.00 km）` と違い、`check_annotation_equals` が `Err`（specified、6.2） | 陰性 | `startup_only_reader_misses_the_table_rewrite` |
+
 #### 7.14 対象の在り処、確かめた式、残る穴、実装がやること
 
 対象の在り処：`native/` はまだ無い（`ls native` が失敗）ので、test の対象は新しく作る crate で、既存の読み手は無い。
@@ -940,11 +981,12 @@ jq -rn '"こんにちは。"|@uri'
 9. 9 の H14 のまま。坪と畳は記録だけ。
 10. `rate_date` は `YYYY-MM-DD` と決めた（3.11）。`StartBoundary` の書式は実装の席が最初の `/Query /XML` で確かめる。
 11. 決めた：1000 以上は通貨でない値も 3 桁ごとに `,`（3.11）。
-12. 為替の file を再起動せずに読み直すことは、受入 ID が無い。受入 ID を足すかどうかは評議に回す（9 の H15）。
+12. 決めた：為替と表の file を再起動せずに読み直すことは CX-11 で測り、slice 1 の順 13 に置く（6.2、7）。case 行は test-designer が CX-11 の下に足す。
 13. 実装の席が決める：入口の見張り、時計の差し込み、書き込みの偽の関数の形。cargo の target は `native/target`（workspace の既定）で、7.1 の `target/` は `native/` から打つ相対 path としてそのまま正しい。
 
 実装がやること：7.2〜7.13 の表の 1 行につき test 関数を 1 本、7.1 の名前の規則で作る。
-fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request_without_stop.json`、`cx06_request_with_subtitle_query.txt`、`cx07_after_truncated.json`、`cx01_verify_input_annotated.txt`、`cx02_pound_annotated.json`、`cx07_not_xml.txt`、`cx07_truncated.xml`、`cx07_no_time.xml`、`cx07_no_usd.xml`、`cx07_no_jpy.xml` の 10 個を、行に書いた内容で作る。
+fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request_without_stop.json`、`cx06_request_with_subtitle_query.txt`、`cx07_after_truncated.json`、`cx01_verify_input_annotated.txt`、`cx02_pound_annotated.json`、`cx07_not_xml.txt`、`cx07_truncated.xml`、`cx07_no_time.xml`、`cx07_no_usd.xml`、`cx07_no_jpy.xml`、`cx11_rates_b.json`、`cx11_rates_c.json`、`cx11_empty.json`、`cx11_broken.toml` の 14 個を、行に書いた内容で作る。
+`cx11` は `cx07_after_truncated.json` も使う。
 
 ## 8. 照合と換算で使う既定の表の置き場
 
@@ -985,7 +1027,7 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。
 - **H14** 坪の係数 400/121（1 尺 = 10/33 m）は、二次の解説 2 本（https://qiita.com/sen-ltd/items/f67d8e4707ab3b59e233 、https://www.livable.co.jp/l-note/?p=11424 、取得日 2026-10-13）で一致し、どちらも計量法施行法を根拠に挙げる。e-Gov の条文は取得できず、一次の出所は確かめていない（NOT VERIFIED）。S8 の畳の 1.62 m² も用語集の転記である。test-designer が CX-9 を書く前に条文を取り、違えば表を直す。条文が取れないまま CX-9 を書くなら、坪と畳の行を CX-9 の合否から外して記録だけにする。
-- **H15** 為替の file と 8 の表の file を、再起動せずに読み直すことを測る受入 ID が無い。読み直しの規則（3.4、3.11）は決めてあるが、測る ID を足すかは評議の判定を待つ。
+- **H15** 閉じた。為替の file と 8 の表の file の読み直しは CX-11（6.2、7 の順 13）で測る。読み手を作る CX-4 と CX-5 と同じ slice に置くのは、起動したときにだけ読む形が先に固まると、取得が正しくても 7 日たつと通貨の換算が黙って消えるからである。
 
 この文書の外で、実装の commit と同じ手番で直す物：
 
@@ -993,5 +1035,5 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - `docs/guide/embedding.md` と `embedding.ja.md` の event の表に、3.3 の 5 項目を足す。
 - `THIRD_PARTY_NOTICES.md` に、9 の手順で選んだ model の許諾、字形 2 つの配布条件、ECB の参照為替の出典（S4）を足す。
 - `scripts/eval_translate.py` に `--dump-pairs` と `--score-hyps` を足す（3.5）。
-- `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-10」に替える。
+- `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-11」に替える。
 - hooks の repo に、held-out の directory の名前に当たる Read、Grep、Glob、Bash を止める PreToolUse の gate を作る（3.5）。作るのは hook-engineer の席である。
