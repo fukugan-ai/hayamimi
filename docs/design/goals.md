@@ -8,11 +8,14 @@
 | 対象言語 | 多言語 — 日英中心+主要言語で十分。**注意: Parakeet TDT v3 の25言語は欧州言語のみで日中韓は非対応と実測で判明（2026-08-23）**。日本語は Parakeet tdt_ctc-0.6b-ja（ReazonSpeech学習）を言語ルーティングで併用する構成を検証中 |
 | 精度 | 劣化ほぼゼロ（Whisper large-v3-turbo 同等以上を基準） |
 | 手段 | アーキテクチャ乗り換え含め自由 |
-| **実行環境** | **軽量・CPU優先**。CPUで高速に動くならそれを最優先。GPUはオプション扱い。ただし会話字幕（日英の双方向翻訳）の訳だけは、GPU を必須とする。認識はCPUのまま。採らない手段は、CPU の翻訳器を GPU の代わりに立てる経路である（訳の質が下がり、会話字幕を作り直す理由そのものが消える。`conversation_subtitles.ja.md` の 3.6） |
+| **実行環境** | **Rust と GPU（CUDA）**。速度が第一、品質が第二で、主指標は発話の終わりから訳の字幕が出るまでの遅れ（p50 と p95）。認識も訳も GPU に載せ、CPU に残す段は実測か一次資料の根拠を持つ（`rust_port.ja.md`）。実行時の経路に Python を残さない。採らない手段は、CPU の翻訳器を GPU の代わりに立てる経路である（`conversation_subtitles.ja.md` の 3.6） |
 
 ## ターゲット環境
 
-Ryzen 5 5600 (6C12T) / RAM 32GB / Windows 11（GPU: RTX 3080 Ti は認識ではオプション加速用、会話字幕の訳では必須）
+Ryzen 5 5600 (6C12T) / RAM 32GB / Windows 11 と WSL（GPU: RTX 5060 Ti、16,311 MiB、compute capability 12.0。2026-10-13 に `nvidia-smi` で確かめた。認識と訳の両方で必須）
+
+下の数値目標と候補アプローチは、CPU で動かしていた版の記録である。
+いまの目標と受入は `rust_port.ja.md` の 6 に在る。
 
 ## 数値目標（CPU基準・案)
 
@@ -24,7 +27,7 @@ Ryzen 5 5600 (6C12T) / RAM 32GB / Windows 11（GPU: RTX 3080 Ti は認識では�
 | 精度 | large-v3-turbo 比 WER/CER **+0.5%以内** | 「劣化ほぼゼロ」の運用定義 |
 | メモリ | モデル+ランタイムで **< 2GB** | 軽量前提。INT8量子化で達成可能な水準 |
 
-## 候補アプローチ（CPU優先で改訂、優先順）
+## 候補アプローチ（CPU で動かしていた版の記録、優先順）
 
 1. **Parakeet TDT 0.6B v3 (25言語) + sherpa-onnx / onnxruntime INT8**
    - CPUでRTF 0.033の実績。WER 6.32%で精度も十分。日本語含む25言語。最有力
@@ -51,4 +54,4 @@ Ryzen 5 5600 (6C12T) / RAM 32GB / Windows 11（GPU: RTX 3080 Ti は認識では�
 
 1. **実マイクでのエンドツーエンド検証**（唯一の未検証項目。ユーザー操作が必要: `realtime_transcribe.py` をマイクで実行）
 2. 将来の再検討条件付き: 高精度な日本語ストリーミングモデルが出たら増分デコードpartialを再評価（#15で棄却）、
-   ja向け言語モデルのshallow fusion（rz用LMが公開されたら）、GPU任意加速（CPU優先方針を変える場合のみ）
+   ja向け言語モデルのshallow fusion（rz用LMが公開されたら）。GPU への移行は `rust_port.ja.md` で決めた

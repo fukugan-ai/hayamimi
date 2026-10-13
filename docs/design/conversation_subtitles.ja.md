@@ -16,13 +16,14 @@
 - **SRT の書き出し**（`hayamimi-relay srt`）：動画ファイルから、同じ 3 段と換算を通した SRT を書く。
 - **為替の取得**（`hayamimi-relay fx-fetch`）：1 日 1 回、朝に公開の参照値を取り、file に保存する。
 
-作らない物は次の 5 つである。
+作らない物は次の 3 つである。
 
 - YouTube Live の字幕取り込みへの送信。配信では OBS の字幕頁を映像に焼き込む経路で足りる。
-- 認識の作り直し。認識は今の Python の process（`scripts/realtime_transcribe.py`）を使い、event に項目を足すだけにする。
 - CPU の翻訳器を GPU の翻訳器の代わりに立てる経路。理由は 3.6 に書く。
 - 換算の上書き。原文の値は残し、換算値は必ず括弧の中に添える。
-- Rust の chrF。訳の採点は既存の sacrebleu の harness（`scripts/eval_translate.py`）だけで行う。
+
+認識は `rust_port.ja.md` の Rust の `hayamimi`（GPU）が行い、event に 3.3 の 5 項目を足す。
+訳の採点は `hayamimi-eval chrf` が行い、sacrebleu と同じ値を出すことを `rust_port.ja.md` の RP-14 で測る。
 
 翻訳のモデルと、自然に直す段のモデルは、9 の決め方で held-out の実測から決める。
 
@@ -49,6 +50,10 @@
 | `demo/remotion/src/timeline.ts` | 録った event を再生 | 互換 |
 | `mobile/lib/remote/remote_page.dart` | `translation` を最後の確定文（`_finals.last`）に貼る | 変えない。Python の port を読み、その `translation` の形は変わらない。訳の遅れで別の行に貼る弱さは残るが、会話字幕の経路（中継）は通らない |
 | 訳の中継（新しい consumer） | `final`、`refine` の 5 項目 | 足した項目が要る |
+
+この表の producer（`scripts/` の Python）は、`rust_port.ja.md` で Rust の `hayamimi` に置き換わる。
+`hayamimi` は event の型ごとの key と値の型を Python と同じに保ち（`rust_port.ja.md` の RP-12）、その上で 3.3 の 5 項目を足す。
+表の「Python の `translation`」は、置き換えの後は `hayamimi` の `--translate` が出す `translation` を指す。
 
 ### 2.2 いまの翻訳の経路
 
@@ -136,7 +141,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 清書の訳で重ね窓の行を置き換えないので、清書と確定文を結ぶ項目は要らない。
 
 中継が出す `translation` は、次の形にする。
-Python の `translation` とは別の port に出し、Python 側の形は変えない。
+`hayamimi` の `translation` とは別の port に出し、`hayamimi` 側の形は変えない。
 
 ```
 {"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
@@ -173,11 +178,15 @@ flowchart LR
   H --> O
 ```
 
-照合は E の訳と原文の 1 組にだけ 1 回掛け、通った訳にだけ換算を添える。
+照合は T の訳と原文の組に 1 回、E の訳と原文の組に 1 回、多くて 1 行に 2 回掛け、通った訳にだけ換算を添える。
+T の訳が通れば先に字幕に出し、E の訳が通れば同じ `id` の行を置き換える（速度を先に取るため。`rust_port.ja.md` 3.6）。
+E の訳が外れたら T の訳を残す。
+**確定の訳**は、E の訳が通ればその訳、外れて T の訳が通っていれば T の訳とし、E の応答を受けて照合した後に 1 回だけ決まる。
+相手へ送る物（3.10）と SRT（3.13）は確定の訳だけを使い、先に出した T の訳は自分の重ね窓にだけ出す。
 
 - **T（訳す）**：原文の意味を対象の言語へ移す。llama-server に 1 回頼む。`stop` に `</s>` を渡す（S5）。
 - **E（自然に直す）**：T の訳と原文を渡し、対象の言語として自然な語順、つなぎ、話し言葉の調子に直させる。事実、数、固有名、否定、不確実性は変えないと指示する。和訳では 3.5 の和文の型の表（敬体にそろえる、直訳の型を避ける）も渡す。llama-server に 1 回頼む。
-- **V（照合する）**：原文と E の訳を 1 回だけ比べる。T の訳は比べない。言語モデルを使わず、規則と表で決める Rust の関数にする。比べるのは次の 5 つで、1 つでも外れたら STOP とする。
+- **V（照合する）**：原文と T の訳を 1 回、原文と E の訳を 1 回比べる。同じ訳に 2 回は掛けない。言語モデルを使わず、規則と表で決める Rust の関数にする。比べるのは次の 5 つで、1 つでも外れたら STOP とする。
 
 | 照合 | 規則 |
 |---|---|
@@ -198,9 +207,8 @@ T の応答に `</s>` が在れば、E を頼まずにその行を `held`、`hol
 印の一覧、定型句、用語表は repo の既定の表から始め、利用者の設定の directory（`%APPDATA%\hayamimi\`）の file で上書きできる。
 file が変わったら再起動せずに読み直し、読めない file は使わずに前の内容を使い、warn を 1 行出す。
 
-STOP の行を訳し直さない理由は 2 つある。
-T は正本（原文）から直接訳した物だが、照合を通っていないので、照合の 1 回を増やさずには出せない。
-温度 0 で同じ原文を渡すと同じ訳が返り、訳し直しても同じ所で外れる。
+T の訳と E の訳の両方が外れた行を、訳し直さない。
+温度 0 で同じ原文を渡すと同じ訳が返り、訳し直しても同じ所で外れるからである。
 
 STOP のときに字幕へ出す物は次のとおりである。
 
@@ -248,16 +256,14 @@ held-out は 1 batch ごとに 1 回だけ合否に使う。
 | 形の欠け | `</s>`、前置き、包みの引用符、対象の言語でない行 | 合否：0 |
 | 直訳の型 | 直訳の型の表に当たった行。T の訳と E の訳の両方で数える | 合否：E の数が T の数以下（CS-26） |
 | 和文の型 | 和訳の 1 行の中で敬体と常体が混ざる行、和文の型の表に当たった行 | 合否：E の訳で 0（CS-27） |
-| chrF（参照訳との文字 n-gram の F 値） | sacrebleu の corpus chrF を `scripts/eval_translate.py` で数える | 記録だけ。参照訳が agent 作成のため合否に使わない |
-| FLEURS の ja→en chrF | S9 と同じ harness、同じ n=50、seed 0 | 合否：FuguMT の 47.57 を超える（CS-3） |
+| chrF（参照訳との文字 n-gram の F 値） | corpus chrF を `hayamimi-eval chrf` で数える（sacrebleu と同じ値を出すことは `rust_port.ja.md` の RP-14） | 記録だけ。参照訳が agent 作成のため合否に使わない |
+| FLEURS の ja→en chrF | S9 と同じ組（n=50、seed 0）を `hayamimi-eval fleurs-pairs` で取り直し、`hayamimi-eval chrf` で採点する | 合否：FuguMT の 47.57 を超える（CS-3） |
 
-FLEURS の採点では、`scripts/eval_translate.py` に 2 つの option を足す。
-`--dump-pairs <tsv>` は、採点に使う原文と参照訳を書き出す。
-`--score-hyps <tsv>` は、中継が書いた訳を読み、同じ sacrebleu の式で採点する。
-訳は Rust の中継が 3 段を通して作り、採点だけを既存の Python の harness が行う。
-V が STOP した行は、hyp を空の文字列として採点に入れる。
+FLEURS の採点は、`hayamimi-eval fleurs-pairs` が原文と参照訳を書き出し、中継が 3 段を通して訳し、`hayamimi-eval chrf` が採点する。
+採点するのは確定の訳（3.4）である。
+V が T の訳と E の訳の両方を STOP した行は、hyp を空の文字列として採点に入れる。
 除くと止めた行の分だけ点が上がり、止めるほど得をする形になるからである。
-harness に llama-server の backend を足す形は採らない。
+採点の道具に llama-server の backend を足す形は採らない。
 T だけを採点することになり、3 段を通した訳を測れないからである。
 
 **作り込む**：E の指示文、用語表、直訳の型の表、和文の型の表、否定と不確実性の定型句の表を直す。
@@ -281,28 +287,33 @@ model と llama.cpp は外が更新する物なので、版と sha256 は結果�
 上限を超えた、接続できない、5xx を返した場合は、その行を `hold_reason: unavailable` で出し、次の行は改めて頼む。
 説明文や前置きを返した場合は、V の「形」で STOP になる。
 
-CPU の翻訳器（`scripts/translate_ja_en.py` ほか）を代わりに立てる経路は作らない。
+CPU の翻訳器（FuguMT、M2M-100）を代わりに立てる経路は作らない。
 その訳の質が、この作り直しの理由そのものだからである。
 したがって会話字幕の訳には GPU が要る。
-認識は今のまま CPU で動く。
+認識も GPU で動く（`rust_port.ja.md` 3.5）。
 
 ### 3.7 llama-server を置く場所
 
-llama-server は WSL で、既存の CUDA 版の build（`~/source/llama.cpp/build-cuda120`）を使って動かす。
-model は `/mnt/h3-models` に置き、使う前に llama.cpp を fetch して再 build する。
-Windows 側の中継は `http://127.0.0.1:<port>` で届く。
-WSL の VM が止まると訳が止まるので、Windows の端末を閉じた後も VM が残るかを CS-20 で測る。
-slot は 2 とし（`-np 2`）、中継は音源ごとに先入れ先出しの列を持つ。
-1 行は T と E の 2 回の依頼を順に打つので、2 つの音源が同時に話しても slot は 2 で足りる。
+llama-server は Windows の native で、llama.cpp の release の Windows の CUDA 13 版を使って動かす。
+WSL に置くと、Windows の端末を閉じたときに VM が止まり訳も止まる恐れが残るからである。
+model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置く。
+正本は WSL の `/mnt/h3-models` に在り、そこは ext4 の image で Windows から直には読めないので、使う model を Windows の上の置き場へ写し、写した file の sha256 を `%LOCALAPPDATA%\hayamimi\models\llm\manifest.json` に記録する（記録で、起動の条件にしない）。
+llama.cpp の版は使う前に最新の release を確かめて入れ替える。
+中継は `http://127.0.0.1:<port>` で届く。
+slot は 4 とし（`-np 4`。mic の確定、loopback の確定、速報、E）、中継は音源ごとに先入れ先出しの列を持つ（`rust_port.ja.md` 3.6）。
+
+hooks の `guard_commands.rs` は、command に `llama-` で始まる実行 file の名前が在ると、WSL の build（`~/source/llama.cpp/build-cuda120`）が source より古いときに refuse する。
+Windows の `llama-server.exe` を WSL の shell から起こしても同じ検査に当たり、検査が見る build は Windows の物ではない。
+Windows の llama-server は Windows の shell（PowerShell）から起こすか、検査の対象を名前でなく path で分ける直しを hook-engineer の席へ出す（`rust_port.ja.md` 10 の H20）。
 
 ### 3.8 部品ごとの言語
 
 | 部品 | 言語 | 理由 |
 |---|---|---|
-| 認識（マイク、loopback、動画） | Python（既存の `scripts/realtime_transcribe.py`） | 既に在る。event に項目を足すだけにし、部品は増やさない |
-| 訳の採点 | Python（既存の `scripts/eval_translate.py` に option を 2 つ足す） | 既存の harness と同じ式で比べる |
+| 認識（マイク、loopback、動画） | Rust（`hayamimi`、GPU。`rust_port.ja.md`） | 実行時の経路に Python を残さない |
+| 訳の採点 | Rust（`hayamimi-eval chrf`） | sacrebleu と同じ値を RP-14 で確かめる |
 | 訳の中継、3 段、照合、換算 | Rust（`hayamimi-relay`） | 新しく作る部品は Rust にする |
-| SRT の書き出し | Rust（`hayamimi-relay srt`）。音声の取り出しと認識は既存の Python を子 process で呼ぶ | 3 段と換算を live と同じ関数で通す |
+| SRT の書き出し | Rust（`hayamimi-relay srt`）。音声の取り出しと認識は `hayamimi` を子 process で呼ぶ | 3 段と換算を live と同じ関数で通す |
 | 為替の取得と、その予定の登録 | Rust（`hayamimi-relay fx-fetch`、`fx-schedule`） | 新しく作る部品は Rust にする |
 | 重ね窓 | Rust、Dioxus desktop（`hayamimi-overlay`） | 画面は Dioxus |
 | OBS の字幕頁 | Rust、Dioxus web。重ね窓と同じ画面部品を web 向けに組み、中継が配る | 画面は Dioxus。部品を 1 つにする |
@@ -310,12 +321,12 @@ slot は 2 とし（`-np 2`）、中継は音源ごとに先入れ先出しの�
 | 翻訳 | llama.cpp（`llama-server`、CUDA） | 既存の build を使う |
 
 Rust は repo の `native/` に 1 つの workspace として置く。
-Windows 向けの build は WSL から `x86_64-pc-windows-gnu` で行う。
+Windows 向けの build は Windows の上で `x86_64-pc-windows-msvc` で行う（`rust_port.ja.md` 3.12）。
 
-### 3.9 Rust へ移す条件
+### 3.9 認識の置き場
 
-認識を Rust へ移すのは、CS-7 が落ち、かつその測定で認識の分（`final` の `latency_ms` の p95）が 1000 ms を超えたときだけである。
-訳の分が遅いときは、認識を移しても縮まないので、model と slot の設定で直す。
+認識は `rust_port.ja.md` のとおり Rust と GPU で動かす。
+遅れの目標と測り方は `rust_port.ja.md` の 3.1 と RP-3、RP-4 に在り、この文書の CS-7 はその上に重ね窓までの時間を足して測る。
 
 ### 3.10 相手へ届ける経路
 
@@ -326,6 +337,9 @@ Windows 向けの build は WSL から `x86_64-pc-windows-gnu` で行う。
 | Teams の CART 字幕へ和→英を送る | 主催者が CART の link を作って渡す（S3） | link が在るときだけ |
 
 Zoom と Teams の字幕は参加者全員に 1 本だけ届くので、送るのは和→英だけにする。
+送るのは確定の訳（3.4）だけで、1 つの `id` につき 1 回送る。
+先に出した T の訳と速報の訳は送らない（送った字幕は相手の画面で置き換えられないため）。
+OBS の字幕頁は自分の画面と同じく置き換えを描けるので、T の訳を先に描き、確定の訳で置き換える。
 token と link は会議ごとに変わるので、`%APPDATA%\hayamimi\send.toml` に書き、再起動せずに読み直す。
 この file の権限は、今の利用者と SYSTEM と Administrators だけが読める形にする。
 中継は読み直しのたびに ACL を見て、ほかの主体が読めるなら送信を止め、`send.config.too_open` を error で出す（CS-28）。
@@ -471,6 +485,7 @@ DPI は monitor ごとに追う（per-monitor DPI aware）。
 上書きの option は作らない。
 
 無ければ、音声を取り出して認識（`--scene media` と同じ言語の規則）を通し、清書の行ごとに 3 段と換算を通す。
+SRT に書くのは確定の訳（3.4）だけで、先に出す T の訳と速報の訳は書かない。
 書き出す file は、行の言語で決める。
 
 | 行の言語 | `<動画名>.ja.srt` | `<動画名>.en.srt` |
@@ -488,10 +503,9 @@ cue の時刻は清書の `t0_s` と `t1_s` から作り、文字コードは BO
 
 - **クラウドの翻訳 API と音声認識 API**：会話の音声と文字を外へ出すため。為替の取得も、会話の文字を含まない GET だけにする。
 - **filmboard の Figma の台帳と板を持ち込む**：別の app の物であり、hayamimi の画面は 3.12 の条件で決める。
-- **Python の部品を増やす**：新しい部品はすべて Rust で作る。既存の認識と採点の harness は 3.8 の表のとおり使い続ける。
+- **Python の部品を残す**：実行時の経路も採点も Rust にする（3.8、`rust_port.ja.md`）。
 - **言語モデルに単位を換算させる、または照合させる**：試しで言語モデルが数を取り違えた（2.3）。数を扱う段は規則と表で決める。
-- **T の訳にも照合を掛けて、E が外れたら T を出す**：照合が 2 回になり、どちらの訳を出したかで字幕の扱いが 2 通りになる。照合は E の訳に 1 回だけ掛ける。
-- **Rust で chrF を書く**：sacrebleu と一致させる検査が 1 つ増える。採点は既存の harness で足りる。
+- **E の訳だけを待ってから出す**：T と E を直列に待つと、訳の遅れが 2 倍になる。速度を先に取り、T の訳を照合してから先に出す（3.4）。
 - **調整用の 40 行で合否を出す**：表を直す席が同じ行で合格を作れてしまう。合否は held-out で出す。
 - **重ね窓が 2 つの port を直接読む**：行と訳を結ぶ所が 2 か所に分かれる。中継 1 本で結ぶ。
 - **マイクとスピーカー出力を 1 本に混ぜて言語判定で分ける**：話者を言語判定で推すことになり、音源で分けるより確かでない。
@@ -506,26 +520,26 @@ cue の時刻は清書の `t0_s` と `t1_s` から作り、文字コードは BO
 ## 5. 構造
 
 ```
-マイク ───────▶ 認識 ja 固定（Python）──┐
-                                         │ final / refine（id, source, t0_s, t1_s, end_wall_ms）
-loopback ─────▶ 認識 --scene（Python）──┤
-                                         ▼
+マイク ───────▶ 認識 ja 固定（hayamimi、GPU）──┐
+                                                │ final / refine（id, source, t0_s, t1_s, end_wall_ms）
+loopback ─────▶ 認識 --scene（hayamimi、GPU）──┤
+                                                ▼
                               訳の中継（Rust、Windows）
-                   T ─▶ E ─▶ V ─▶ 換算 ◀── fx_rates.json ◀── fx-fetch（タスク スケジューラ、毎朝 07:30、GET 1 本）
-                    │                  │
-          llama-server（WSL、CUDA）     ├─▶ SSE ─▶ 重ね窓（上の段：相手、下の段：自分）
-                                       ├─▶ SSE ─▶ OBS の字幕頁（自分の段だけ）─▶ OBS 仮想カメラ
-                                       └─▶ Zoom 字幕 API / Teams CART（token か link が在るとき）
-動画ファイル ─▶ hayamimi-relay srt ─▶ 認識（Python、子 process）─▶ T ─▶ E ─▶ V ─▶ 換算 ─▶ <名>.<言語>.srt
+           T ─▶ V ─▶ 先の訳 ─▶ E ─▶ V ─▶ 確定の訳 ─▶ 換算 ◀── fx_rates.json ◀── fx-fetch（毎朝 07:30、GET 1 本）
+           │                                        │
+  llama-server（Windows、CUDA）                      ├─▶ SSE ─▶ 重ね窓（先の訳を描き、確定の訳で置き換える）
+                                                    ├─▶ SSE ─▶ OBS の字幕頁（自分の段だけ）─▶ OBS 仮想カメラ
+                                                    └─▶ Zoom 字幕 API / Teams CART（確定の訳だけ。token か link が在るとき）
+動画ファイル ─▶ hayamimi-relay srt ─▶ 認識（hayamimi、子 process）─▶ T ─▶ V ─▶ E ─▶ V ─▶ 確定の訳 ─▶ 換算 ─▶ <名>.<言語>.srt
 ```
 
-認識だけが Python で、訳と照合と換算と画面と送信は Rust の 1 か所を通る。
+認識は GPU の `hayamimi` が行い、訳と照合と換算と画面と送信は Rust の中継の 1 か所を通る。
 
 ## 6. 受入 ID
 
 時刻と遅れは、中継と重ね窓の JSONL の log から数える。
 p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番目の値とする（nearest-rank。試しの log と同じ求め方）。
-`<relay>` は `native/target/x86_64-pc-windows-gnu/release/hayamimi-relay.exe` を指す。
+`<relay>` は `native\target\x86_64-pc-windows-msvc\release\hayamimi-relay.exe` を指す。
 `cargo test` は `native/` で打つ。
 
 ### 6.1 翻訳の検証ベクトルとの対応
@@ -543,7 +557,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 |---|---|---|---|---|---|
 | CS-1 | 英語の発話が和訳されて重ね窓に出る | Zira の英語の wav を loopback で鳴らし `cargo test --release --test cs01 -- --ignored` | `translate.line.ok` の `source: loopback` が 1 件以上、その `id` の `overlay.line.rendered` が在り、訳は仮名か漢字を含み原文と違う | 同じ test が `ok` を数える | 原文を素通しする偽の翻訳器では `held`（形）になり落ちる |
 | CS-2 | 日本語の発話が英訳される | Haruka の wav を `--wav` でマイクの process へ流し `cargo test --release --test cs02 -- --ignored` | `source: mic` の `translate.line.ok` が 1 件以上、訳に仮名と漢字が無い | 同上 | 素通しの偽の翻訳器で落ちる |
-| CS-3 | ja→en の訳の質を既存と同じ harness で比べる | `python scripts/eval_translate.py --dump-pairs pairs.tsv --targets en --n 50`、`<relay> eval --pairs pairs.tsv --out hyps.tsv`、`python scripts/eval_translate.py --score-hyps hyps.tsv --targets en --n 50` | 3 段を通した訳の corpus chrF が 47.57 を超える | `--backend fugumt` を同じ式で採ると 47.57 が出る | 原文をそのまま返した hyps では 47.57 を割る |
+| CS-3 | ja→en の訳の質を既存と同じ組と採点で比べる | `<ev> fleurs-pairs --targets en --n 50 --seed 0 --out pairs.tsv`、`<relay> eval --pairs pairs.tsv --out hyps.tsv`、`<ev> chrf --pairs pairs.tsv --hyps hyps.tsv`（`<ev>` は `rust_port.ja.md` 6 の `hayamimi-eval`） | 確定の訳の corpus chrF が 47.57 を超える | `rust_port.ja.md` の R0 で録った FuguMT の hyps を同じ式で採ると 47.57 と 0.01 以内 | 原文をそのまま返した hyps では 47.57 を割る |
 | CS-4a | 照合 V が取り違えを止め、調整用の訳を通す（中継も llama-server も要らない） | `cargo test --release --test cs04a` | 調整用 40 組（原文と参照訳）が全部通り、CAT 正式版の j08、j12、e01、e20 の 4 行が全部 `number` で STOP。落ちたら行の id と件数だけを出す | 調整用 40 組 | 4 行の取り違え |
 | CS-4b | held-out での model の出力の STOP の数 | `<relay> eval --final --heldout <path>` の後に `cargo test --release --test cs04b -- --ignored` が結果の file を読む | STOP が方向ごとに 40 行中 2 行以下。落ちたら行の id と件数だけを出す | 結果の file に `heldout_sha256` と行数 80 が在る | 数を変える偽の E では 2 行を超えて落ちる |
 | CS-5 | STOP のときの出し方 | `cargo test --release --test cs05` | `held` の行は重ね窓に原文と印、相手への送信は 0 件、SRT は印つきの原文 | V を通る行は `ok` で送られる | 数を変える偽の翻訳器 |
@@ -561,7 +575,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CS-17 | Zoom の字幕 API へ届く（token が在るときだけ） | `send.toml` に token を入れ、1 行を送る `cargo test --release --test cs17 -- --ignored` | HTTP 200 で、会議の字幕に出る | 有効な token | 期限の切れた token で `translate.send.failed` |
 | CS-18 | Teams の CART へ届く（link が在るときだけ） | `send.toml` に link を入れ、1 行を送る `cargo test --release --test cs18 -- --ignored` | HTTP 200 で、会議の字幕に出る | 有効な link | 壊した link で失敗の event |
 | CS-19 | 翻訳器が落ちても字幕が止まらない | 中継を動かしたまま llama-server を止め、5 秒後に戻す `cargo test --release --test cs19 -- --ignored` | 止めた間の行は `unavailable` で原文と印。中継は落ちない。戻して最初の行が `ok` | 動いている時の行 | 戻さない run では `ok` が出ない |
-| CS-20 | WSL の llama-server に、端末を閉じた後も届く | Windows の端末をすべて閉じて 10 分後に `curl http://127.0.0.1:<port>/health` | `{"status":"ok"}` | 端末を開いた直後の同じ command | `wsl --shutdown` の後は届かない |
+| CS-20 | Windows の llama-server に、端末を閉じ WSL を止めた後も届く | Windows の端末をすべて閉じ、`wsl --shutdown` を打ち、10 分後に PowerShell で `Invoke-RestMethod http://127.0.0.1:<port>/health` | `status` が `ok` | 起こした直後の同じ command | llama-server の process を止めた後は届かない |
 | CS-21 | 2 音源の同時の依頼で行が落ちない | 2 音源を 10 分流し `cargo test --release --test cs21 -- --ignored` | 受けた `final` と `refine` の `id` のすべてに `translation` が 1 つずつある | 1 音源の run | 列を 1 にした設定で落ちる |
 | CS-22 | 訳が遅れても別の行に付かない | 偽の翻訳器で 1 行目だけ 1200 ms 遅らせ `cargo test --release --test cs22` | 1 行目の訳が 1 行目の `id` に付く | 遅れの無い run | 直前の行に貼る作り |
 | CS-23 | 実マイクの経路（入力の装置が在るときだけ） | `Get-PnpDevice -Class AudioEndpoint` で入力が 1 個以上を確かめ、マイクで日本語を話して CS-2 の test を打つ | CS-2 と同じ | 入力の装置の数 | 0 個のときは test を打たず「前提なし」と出す |
@@ -624,7 +638,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 31 | CS-15 | `cs15_existing_srt_stops_before_extraction` | `native/hayamimi-relay/tests/cs15.rs` | file を消した run |
 | 32 | CS-16 | `cs16_virtual_camera_frame_carries_the_subtitle_band` | `native/hayamimi-relay/tests/cs16.rs` | 字幕の無い frame |
 | 33 | CS-19 | `cs19_translator_outage_keeps_subtitles_flowing` | `native/hayamimi-relay/tests/cs19.rs` | 戻さない run |
-| 34 | CS-20 | `cs20_wsl_server_survives_closed_terminals` | `native/hayamimi-relay/tests/cs20.rs` | `wsl --shutdown` の後 |
+| 34 | CS-20 | `cs20_windows_translator_survives_wsl_shutdown` | `native/hayamimi-relay/tests/cs20.rs` | llama-server の process を止めた後 |
 | 35 | CS-21 | `cs21_every_line_gets_exactly_one_translation` | `native/hayamimi-relay/tests/cs21.rs` | 列を 1 にした設定 |
 | 36 | CS-22 | `cs22_late_translation_attaches_to_its_own_line` | `native/hayamimi-relay/tests/cs22.rs` | 直前の行に貼る作り |
 | 37 | CS-28 | `cs28_send_config_is_private_and_never_logged` | `native/hayamimi-relay/tests/cs28.rs` | Users に読みを足した ACL |
@@ -1045,7 +1059,8 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H7** 照合の規則は語の印で決めるので、印の無い言い回しの意味の変化（2.3 の CAT の e11）は捕まえない。
 - **H8** cinecaption に無い字の数は数えていない（NOT VERIFIED）。CS-12 で数える。
 - **H9** 窓の影を切る tao の設定の名前と、WebView2 で `@font-face` に localhost の file を読ませる方法は確かめていない（NOT VERIFIED）。試し 2 の crate で、実装の席が CS-11 と CS-12 の前に確かめる。
-- **H10** WSL の VM が端末を閉じた後も残るかは測っていない（NOT VERIFIED）。CS-20 で測り、残らないなら llama-server を Windows 側で動かす案を評議へ出す。
+- **H10** 閉じた。llama-server は Windows の native に置く（3.7）ので、WSL の VM が止まっても訳は止まらない。CS-20 で確かめる。
+- **H16** slice 1 の case 行 T-CX-1-002（7.8）は、V の呼び出しを 1 回と書いている。3.4 の V が多くて 2 回の形は、`rust_port.ja.md` の slice R8c で中継に入れ、同じ手番で test-designer が T-CX-1-002 を「T の訳と E の訳に 1 回ずつ、換算はその後」に書き替える。それまで、実装と T-CX-1-002 は V が 1 回の形のまま一致している。
 - **H11** 頁そのものの透明は、OBS を使わずに CS-13 の前提（headless shell の画素の alpha）で測る。利用者の OBS には新しい測定を掛けない。OBS の browser source が透明に描くか、Windows に ffmpeg が在り `OBS Virtual Camera` を dshow で読めるかは試していない（NOT VERIFIED）。OBS の中での実測は CS-16 の手番に、portable の別の OBS で、利用者の OBS が仮想カメラを使っていないときだけ行う。
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。
@@ -1056,6 +1071,6 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 
 - `docs/guide/embedding.md` と `embedding.ja.md` の event の表に、3.3 の 5 項目を足す。
 - `THIRD_PARTY_NOTICES.md` に、9 の手順で選んだ model の許諾、字形 2 つの配布条件を足す（ECB の参照為替の出典は書き済み）。
-- `scripts/eval_translate.py` に `--dump-pairs` と `--score-hyps` を足す（3.5）。
+- `hayamimi-eval` に `fleurs-pairs` と `chrf` を作る（3.5、`rust_port.ja.md`）。
 - `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-11」に替える。
 - hooks の repo に、held-out の directory の名前に当たる Read、Grep、Glob、Bash を止める PreToolUse の gate を作る（3.5）。作るのは hook-engineer の席である。
