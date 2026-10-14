@@ -1,5 +1,50 @@
 # hayamimi (早耳)
 
+## このリポジトリについて
+
+**オリジナル**は [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi) で、GPUもクラウドAPIも使わず、CPUだけで動くリアルタイム多言語音声認識です（実行系はPython）。
+このリポジトリ（[fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)）は、そのオリジナルの **fork**（元の履歴を引き継いで、別に手を入れる複製）です。
+オリジナルへのpushとpull requestは行いません。
+この節の下にあるバッジは、オリジナルのCIとリリースを指します。
+この fork の結果ではありません。
+このあとの本文は、オリジナルのPython版の説明です。
+「GPUを使わない」など、Rust版には当てはまらない記述が残っています。
+
+### いま実施していること
+
+Pythonの実行系をRust（`native/` のCargo workspace）へ置き換え、推論にGPU（CUDA）を使います。
+Pythonを実行の経路から外し、消すところまでを完了とします。
+速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
+速度の指標は **L**：発話の終わりから、その発話の訳の字幕が出るまでの遅れです。
+Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
+品質は、速度の目標を満たした上で、Python版と同じか良くします。
+
+### 2026-10-15 時点の状態
+
+端から端の確認（E2E）は未通過です。
+Pythonの削除（R11）は入口の条件の待ちで、Pythonはまだ残っています。
+認識、言語の振り分け、話者、音声の取り込み、字幕のserverと画面、訳の中継のsliceは、実装した者とは別の検証を通ってmerge済みです。
+実機のマイクとループバックでの確認は、まだ行っていません。
+認識の置き場は、測り直しでCPU（int8）がGPUより速く、CPUのままです。
+測り直しの時は機械の負荷が高く、値は未検証で、向きだけを採っています。
+
+E2E-1の値は次のとおりです（E2Eの1回分で、反復は設計の「5回、3対」に対して「2回、2対」）。
+
+| 版 | n | Lのp50 | Lのp95 | 訳が取れた件数 |
+|---|---|---|---|---|
+| Rust | 67 | 1420 ms | 1950 ms | 67/80 |
+| Python | 76 | 1481 ms | 2018 ms | 76/80 |
+
+Rust版の訳が取れた割合 67/80（0.8375）は、基準の20/23に届きません。
+E2E-2（en→jaを `/ingest` に送ったrunで、実際のループバックではない）は、n 25、p50 1069 ms、p95 3139 msで、p95が2000 msを超えました。
+最新の状態は、`docs/design/status.ja.md` の表が持ちます。
+
+### 関連する文書
+
+- 設計：[docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
+- sliceごとの状態：[docs/design/status.ja.md](docs/design/status.ja.md)
+- buildと実行の手順：[docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
+
 [![tests](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml/badge.svg)](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![release](https://img.shields.io/github/v/release/oboroge0/hayamimi)](https://github.com/oboroge0/hayamimi/releases)
 
 **CPUだけで動くリアルタイム多言語音声認識。** GPUもクラウドAPIも使わず、メモリ2GB未満で、

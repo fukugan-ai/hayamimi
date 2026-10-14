@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-39）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-44）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1511,6 +1511,31 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 test：`native/hayamimi-relay/tests/rp39.rs`。受入 test の名前は `rp39_number_scales_read_in_zh_ko_es`。`#[ignore]` を持たない（`numbers.rs` の読みと偽の llama-server の応答だけを使う）。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-39 の行と 3.6 の R8l から）。T-RP-37-012 の元の 3 文（zh `预算是5百万日元。`、ko `예산은 5백만 엔이에요.`、es `El presupuesto es de 5 millones de yenes.`）をこの ID の陽性の行に入れる。
 
+### 4.50 RP-40（字幕の頁と中継の SSE に LAN から届く）
+
+test：`native/hayamimi/tests/rp40.rs`。受入 test の名前は `rp40_pages_and_relay_events_reach_from_the_lan`。`#[ignore]` を持つ（本物の `hayamimi` と `hayamimi-relay` を起こす）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-40 の行と 8 の R5b から）。
+
+### 4.51 RP-41（`stream` の `listen` が `/events` を SSE で読む）
+
+test：`native/hayamimi-eval/tests/rp41.rs`。受入 test の名前は `rp41_stream_listen_reads_events_over_sse`。偽の SSE の server の行は `#[ignore]` を持たず、本物の `/events` の行だけが持つ。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-41 の行と 8 の R8m から）。
+
+### 4.52 RP-42（両方止めた行の理由が log で読める）
+
+test：`native/hayamimi-relay/tests/rp42.rs`。受入 test の名前は `rp42_held_line_logs_both_reasons_without_the_text`。`#[ignore]` を持たない（偽の llama-server だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-42 の行と 8 の R8o から）。
+
+### 4.53 RP-43（否定の表の「なさそう」「なさげ」「なさすぎ」）
+
+test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80 は `e2e1` の run で確かめる。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-43 の行から）。
+
+### 4.54 RP-44（R8o の後の新しい held-out の組）
+
+test：`native/hayamimi-eval/tests/rp44.rs`。受入 test の名前は `rp44_new_heldout_set_is_fresh_and_has_nasasou`。`#[ignore]` を持ち、repo の外の組の ids を読む。組を作るのは test-designer の席で、V を直す席に path を渡さない。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-44 の行から）。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
@@ -1552,7 +1577,7 @@ total 386
   `cargo test -- --list` が出す module の path は含めない。名前は表の全行で一意である（`git ls-files 'tests/*.py' \| xargs grep -h '^def test_\|^    def test_' \| sed -E 's/^ *def (test_[A-Za-z0-9_]+).*/\1/' \| sort \| uniq -d` の出力が 0 行。2026-10-13）。
 - 置き場は `native/` の下の file で、その file の `#[cfg(test)] mod tests` に test を置く。`tests/` の下の file は、その crate の integration test である。file の名前は設計 3.3 の crate に合わせてこの席が置いた物で、module の割り方は実装の席が変えてよい（変えたら表の置き場の列も同じ手番で直す）。
 - Rust の名前が `-` の行は、Rust へ写さない case である。置き場の列に理由が在る。
-  - `写さない：<理由>`：3.2 が消すと決めた script の test、設計で無くなる部品（翻訳 worker、翻訳器の pool、文ごとの訳の分割）、外が更新する model の sha256 を gate にする case。写す先が無い。
+  - `写さない：<理由>`：3.2 が消すと決めた script の test、設計で無くなる部品（翻訳 worker、翻訳器の pool、文ごとの訳の分割）、外が更新する model の sha256 を gate にする case、Python の実行時の package の import に固有の挙動（Rust には実行時の import が無い）の 4 種。写す先が無い。
 - 行の数は 386 で、Rust の名前を持つ行は 334、`写さない` が 52 である。RP-19 の期待値は、名前を持つ 334 行が list に在ることと、`写さない` の 52 行が理由を持つことである。`-` の行は T-RP-19-006 と T-RP-19-007 が理由の有無を確かめる。
 
 ### 5.3 対応表
@@ -1597,7 +1622,7 @@ total 386
 | `test_audio_capture.py` | `test_wait_for_speaker_drains_packet_enqueued_as_done_becomes_true` | `wait_for_speaker_drains_packet_enqueued_as_done_becomes_true` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | `mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate` | `mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate` | `hayamimi/src/capture.rs` |
-| `test_audio_capture.py` | `test_mix_does_not_retry_failed_soundcard_import_on_capture_thread` | `-` | 写さない：Python の `soundcard` package の import の再試行に固有で、Rust には import が無い |
+| `test_audio_capture.py` | `test_mix_does_not_retry_failed_soundcard_import_on_capture_thread` | `-` | 写さない：Python の実行時の package の import に固有（`soundcard` の import の再試行）。取り込みの装置が開けない時に止めずに落とす Rust の側の振る舞いは、RP-29 の R5 の行（`capture.fallback.none`）が持つ |
 | `test_audio_capture.py` | `test_mix_speaker_failure_falls_back_once_to_mic_only` | `mix_speaker_failure_falls_back_once_to_mic_only` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_mix_microphone_failure_is_fatal_and_stops_speaker` | `mix_microphone_failure_is_fatal_and_stops_speaker` | `hayamimi/src/capture.rs` |
 | `test_diar_eval.py` | `test_parse_rttm_basic` | `parse_rttm_basic` | `hayamimi-eval/src/der.rs` |
@@ -1664,7 +1689,7 @@ total 386
 | `test_embed_runtime.py` | `test_final_event_switched_true_when_language_changes` | `final_event_switched_true_when_language_changes` | `hayamimi/src/stream.rs` |
 | `test_embed_runtime.py` | `test_final_event_switched_false_when_language_repeats` | `final_event_switched_false_when_language_repeats` | `hayamimi/src/stream.rs` |
 | `test_embed_runtime.py` | `test_session_stats_reset_clears_last_final_lang` | `session_stats_reset_clears_last_final_lang` | `hayamimi/src/stream.rs` |
-| `test_embed_runtime.py` | `test_translation_worker_publishes_on_hub_with_no_http_server` | `-` | 写さない：Python の in-process の翻訳 worker はこの設計で無くなり、訳は `hayamimi-relay` が出す（設計 3.6、RP-19）。relay の側へ写すかを設計が決める |
+| `test_embed_runtime.py` | `test_translation_worker_publishes_on_hub_with_no_http_server` | `-` | 写さない：Python の in-process の翻訳 worker はこの設計で無くなり、訳は `hayamimi-relay` が出す（設計 3.6、RP-19）。relay の側へは写さない。中継が訳を自分の `/events` に出すことは会話字幕の CS-21 と CS-22 が持つ |
 | `test_embed_runtime.py` | `test_translation_worker_is_a_silent_no_op_with_an_empty_pool` | `-` | 写さない：同上 |
 | `test_embed_runtime.py` | `test_set_forced_lang_none_reverts_to_auto` | `set_forced_lang_none_reverts_to_auto` | `hayamimi-asr/src/route.rs` |
 | `test_embed_runtime.py` | `test_set_forced_lang_accepts_a_routable_code` | `set_forced_lang_accepts_a_routable_code` | `hayamimi-asr/src/route.rs` |

@@ -1,5 +1,49 @@
 # hayamimi (早耳)
 
+## About this repository
+
+The **original**, [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi), is real-time multilingual speech recognition that runs on the CPU alone, with no GPU and no cloud API (its runtime is Python).
+This repository ([fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)) is a **fork** of it: a copy that keeps the original history and is developed separately.
+Nothing from this fork is pushed or sent as a pull request to the original.
+The badges below this section point to the original's CI and releases, not to results of this fork.
+The text after this section describes the original Python version.
+Statements such as "no GPU" remain in it and do not apply to the Rust version.
+
+### What is being done here
+
+The Python runtime is being replaced with Rust (the Cargo workspace in `native/`), and inference uses the GPU (CUDA).
+The work is complete when Python is out of the runtime path and removed.
+Speed comes first; quality (recognition error rate and naturalness of translation) comes second.
+The speed measure is **L**: the delay from the end of an utterance to the appearance of its translated subtitle.
+L is measured at p50 (the median) and p95 (the delay within which 95% of utterances fall).
+Once the speed target is met, quality must match or beat the Python version.
+
+### State as of 2026-10-15
+
+The end-to-end check (E2E) has not passed.
+Removing Python (R11) is waiting for its entry conditions, so Python is still in the tree.
+The slices for recognition, language routing, speakers, audio capture, the subtitle server and screens, and the translation relay have passed verification by someone other than the implementer, and are merged.
+The microphone and loopback have not been checked on a real machine.
+In the latest re-measurement the CPU (int8) was faster than the GPU for recognition, so recognition stays on the CPU.
+The machine load was high during that re-measurement, so the values are unverified and only the direction is used.
+
+The E2E-1 values (one E2E run; the design asks for 5 repeats and 3 pairs, this run has 2 repeats and 2 pairs):
+
+| Version | n | L p50 | L p95 | Translations obtained |
+|---|---|---|---|---|
+| Rust | 67 | 1420 ms | 1950 ms | 67/80 |
+| Python | 76 | 1481 ms | 2018 ms | 76/80 |
+
+The Rust share of translations obtained, 67/80 (0.8375), is below the 20/23 threshold.
+E2E-2 (en→ja sent to `/ingest`, not the real loopback) gave n 25, p50 1069 ms and p95 3139 ms, so p95 is over 2000 ms.
+The table in `docs/design/status.md` holds the latest state.
+
+### Related documents
+
+- Design (Japanese only): [docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
+- State of each slice: [docs/design/status.md](docs/design/status.md)
+- Build and run guide (Japanese only): [docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
+
 [![tests](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml/badge.svg)](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![release](https://img.shields.io/github/v/release/oboroge0/hayamimi)](https://github.com/oboroge0/hayamimi/releases)
 
 **Real-time, multilingual speech-to-text on CPU only.** Live subtitles, a
