@@ -1,0 +1,36 @@
+# Words the pages show to an English reader.
+# The values of `final`, `lang` and `speaker` are the wire's and are not here.
+
+[ui.dashboard]
+listening = "Listening"
+waiting = "Waiting for audio"
+feed = "Final feed"
+refined = "Refined"
+chip_finals = "Finals"
+chip_latency = "Mean latency"
+chip_langs = "Languages"
+empty_feed = "No final lines yet"
+
+[ui.common]
+empty_refined = "No refined text yet"
+jump_latest = "Jump to latest"
+dropped = "{n} older lines are no longer shown"
+connecting = "Connecting…"
+reconnecting = "Reconnecting…"
+connected = "Connected"
+
+[ui.tr]
+first = "Early"
+held = "Translation withheld"
+unavailable = "No translation"
+
+[ui.tr.reason]
+number = "Numbers differ"
+negation = "Negation differs"
+uncertainty = "Hedging differs"
+proper_noun = "Proper noun differs"
+form = "Malformed output"
+unavailable = "Translator unreachable"
+
+[ui.fallback]
+badge = "Running on fallback"
