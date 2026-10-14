@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-39）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-41）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1510,6 +1510,16 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 
 test：`native/hayamimi-relay/tests/rp39.rs`。受入 test の名前は `rp39_number_scales_read_in_zh_ko_es`。`#[ignore]` を持たない（`numbers.rs` の読みと偽の llama-server の応答だけを使う）。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-39 の行と 3.6 の R8l から）。T-RP-37-012 の元の 3 文（zh `预算是5百万日元。`、ko `예산은 5백만 엔이에요.`、es `El presupuesto es de 5 millones de yenes.`）をこの ID の陽性の行に入れる。
+
+### 4.50 RP-40（字幕の頁と中継の SSE に LAN から届く）
+
+test：`native/hayamimi/tests/rp40.rs`。受入 test の名前は `rp40_pages_and_relay_events_reach_from_the_lan`。`#[ignore]` を持つ（本物の `hayamimi` と `hayamimi-relay` を起こす）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-40 の行と 8 の R5b から）。
+
+### 4.51 RP-41（`stream` の `listen` が `/events` を SSE で読む）
+
+test：`native/hayamimi-eval/tests/rp41.rs`。受入 test の名前は `rp41_stream_listen_reads_events_over_sse`。偽の SSE の server の行は `#[ignore]` を持たず、本物の `/events` の行だけが持つ。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-41 の行と 8 の R8m から）。
 
 ## 5. RP-19 の対応表
 

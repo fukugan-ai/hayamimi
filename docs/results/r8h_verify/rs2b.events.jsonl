@@ -1,0 +1,764 @@
+{"event":{"sr":16000,"type":"ready"},"t_us":80829}
+{"event":{"text":"警察のちゃんと","type":"partial"},"t_us":2977576}
+{"event":{"text":"警察署のチャンドラシェル","type":"partial"},"t_us":3456018}
+{"event":{"text":"警察のチャンドラシェ海岸","type":"partial"},"t_us":4015951}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":4506380}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば","type":"partial"},"t_us":5021332}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":5571525}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を確認","type":"partial"},"t_us":6079634}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":6612630}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ送官によれば被告人は顔を隠して法廷に出頭する","type":"partial"},"t_us":7098152}
+{"event":{"text":"警察のチャンドラシェカール・ソダンキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":7681601}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":8173750}
+{"event":{"audio_s":6.742,"decode_ms":776.874018,"end_wall_ms":1792012631565,"id":"mic-1","lang":"ja","latency_ms":776.9160750000001,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":1.958,"t1_s":7.7,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":8952538}
+{"event":{"id":"mic-1","speaker":"S1?","type":"speaker"},"t_us":9030940}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-1","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the defendant snuck into court while concealing his face.","type":"translation"},"t_us":9507891}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-1","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49","stage":"e","status":"ok","text":"According to Police Commissioner Chandrasekhar Soranki, the defendant entered the courtroom while concealing his face.","type":"translation"},"t_us":9877457}
+{"event":{"text":"する地域もあれば","type":"partial"},"t_us":14897006}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ddf16c8c2c294494c05aaa0b3789c0528d847df53cc0f10ba0002ab40ba06105","stage":"t","status":"ok","text":"There are areas where this is done.","type":"translation"},"t_us":15246597}
+{"event":{"text":"この間で沫する地域もあれば沫","type":"partial"},"t_us":15431981}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0d21886a98d4579876343001f7e4e1f1069edddcbd8d7873bd0a8f2a6fe8118f","stage":"t","status":"ok","text":"There are areas that are slushy, and there are also areas that are slushy.","type":"translation"},"t_us":15731702}
+{"event":{"text":"沸騰する地域もあれば沸騰するまで","type":"partial"},"t_us":15947000}
+{"event":{"text":"沙する地域もあれば沸騰するまでにな","type":"partial"},"t_us":16490115}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a2130d912a4e893c9e2a188c731980568706c073020d0242828bcdd6e6e69f88","stage":"t","status":"ok","text":"There are areas that become sandy, and others that boil before they do.","type":"translation"},"t_us":16702337}
+{"event":{"audio_s":3.446,"decode_ms":128.097642,"end_wall_ms":1792012640163,"id":"mic-2","lang":"ja","latency_ms":128.12359,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":13.926,"t1_s":16.372,"text":"沸騰する地域もあれば沸騰するまでに何分。","tier":"rz","type":"final"},"t_us":16901709}
+{"event":{"id":"mic-2","speaker":"S2?","type":"speaker"},"t_us":16947222}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68972f77abf17f7011c960d9dfbe44519d08add6bf055a19c75123964b7edeb1","stage":"t","status":"ok","text":"Some areas boil instantly, while others take several minutes.","type":"translation"},"t_us":17100851}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68972f77abf17f7011c960d9dfbe44519d08add6bf055a19c75123964b7edeb1","stage":"e","status":"ok","text":"Some areas boil instantly, while others take several minutes.","type":"translation"},"t_us":17300495}
+{"event":{"text":"地域もあります","type":"partial"},"t_us":18211504}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"faa2f0daeae78335538aaf6698e5c758d89c5c9171ef654f9c8018733f10680c","stage":"t","status":"ok","text":"There are also regions.","type":"translation"},"t_us":18403121}
+{"event":{"audio_s":1.536,"decode_ms":90.061707,"end_wall_ms":1792012641703,"id":"mic-3","lang":"ja","latency_ms":90.072166,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":16.87,"t1_s":17.908,"text":"地域もあります。","tier":"rz","type":"final"},"t_us":18405243}
+{"event":{"id":"mic-3","speaker":"S2","type":"speaker"},"t_us":18451653}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0b9f619f58a2141153ab1ebf7c2448d4d9786885a87046c004efacbad6e96ca6","stage":"t","status":"ok","text":"There are also regions.","type":"translation"},"t_us":18497517}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0b9f619f58a2141153ab1ebf7c2448d4d9786885a87046c004efacbad6e96ca6","stage":"e","status":"ok","text":"There are also regions.","type":"translation"},"t_us":18611419}
+{"event":{"text":"現在羽根を織り","type":"partial"},"t_us":24125315}
+{"event":{"text":"現在羽根を折り返すこと","type":"partial"},"t_us":24607393}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb6671e00f8739aacd309c3eeeeb8232b1444be2a2ffe92457ea0a0c07d40a8b","stage":"t","status":"ok","text":"Currently, folding the shroud.","type":"translation"},"t_us":24768306}
+{"event":{"text":"現在羽根を折り返すことができない","type":"partial"},"t_us":25121480}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"038c16fc6d0df0b0ba2e6cfb0191e8de7e9723645f4587651da49cd5f884f1e6","stage":"t","status":"ok","text":"Currently, the feather cannot be folded back.","type":"translation"},"t_us":25282079}
+{"event":{"text":"現在羽根を折り返すことができない昆虫は","type":"partial"},"t_us":25646412}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b962e1a1d722535f73f63aa8ca8990c31e4b00d6e619703be873545e5193b70d","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are","type":"translation"},"t_us":25809643}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとい","type":"partial"},"t_us":26188416}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"516cf00baa1a178489003c8f0b2a0dfc70db9fd1e53c2daff1661d3736a00c29","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are dragonflies.","type":"translation"},"t_us":26401271}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲルを飼育さん","type":"partial"},"t_us":26701027}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27221474}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27771434}
+{"event":{"audio_s":5.398,"decode_ms":185.075233,"end_wall_ms":1792012651303,"id":"mic-4","lang":"ja","latency_ms":185.095421,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":23.11,"t1_s":27.508,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":28098848}
+{"event":{"id":"mic-4","speaker":"S2","type":"speaker"},"t_us":28174570}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"t","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":28388267}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"e","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":28716941}
+{"event":{"text":"エアロスミスは","type":"partial"},"t_us":32417503}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-5","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"f49adf4d3c5c6b3b59f39c93da79bfd215b346d6317302e2d21e7eebf918529c","stage":"t","status":"ok","text":"Airlossmis is","type":"translation"},"t_us":32678682}
+{"event":{"text":"エアロスミスはツアーでいい","type":"partial"},"t_us":32934173}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-5","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d1bb3238b90c9aa7bf4d8b2641a0c7880319ee3b67310c12266a62b635eb56ba","stage":"t","status":"ok","text":"Air Ross Smith is good on the tour.","type":"translation"},"t_us":33110552}
+{"event":{"text":"エアロスミスはツアーで予定していた","type":"partial"},"t_us":33434628}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-5","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"73ff904a5e1ba7a1c0d24321823fdfeebfe976cf9e06c05e0dd85fbef6d0f0d5","stage":"t","status":"ok","text":"Air Rossmis was scheduled for the tour.","type":"translation"},"t_us":33580522}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサート","type":"partial"},"t_us":33972932}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-5","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e6ac47a960a9377f655e94fb4dd3f0161247c9697df39747c1299218cd0e7ce4","stage":"t","status":"ok","text":"Air Rossmis was the concert scheduled for the tour.","type":"translation"},"t_us":34145445}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止した","type":"partial"},"t_us":34507630}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":35010634}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":35538660}
+{"event":{"audio_s":4.662,"decode_ms":173.694231,"end_wall_ms":1792012658930,"id":"mic-5","lang":"ja","latency_ms":173.732348,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":31.43,"t1_s":35.092,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":35714138}
+{"event":{"id":"mic-5","speaker":"S2","type":"speaker"},"t_us":35758971}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-5","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"35150f98c2c6d1e1bb43bb3feeb05f2e4ec418385eaf03a1fdc899caf8561303","stage":"e","status":"ok","text":"Air Rossmis has canceled the concert that was scheduled for the tour.","type":"translation"},"t_us":36256590}
+{"event":{"text":"アピアは三本","type":"partial"},"t_us":41049416}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"64a3f9fa34f4f31cf10a522d309232b07cee4f362836eb0a390f5bd76f0b793d","stage":"t","status":"ok","text":"Appia is three.","type":"translation"},"t_us":41355864}
+{"event":{"text":"アピアはサモアの首都","type":"partial"},"t_us":41567666}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"75359d331e1a0364a78e7af7325b4ac0ddba677bbf1cf0edaa3967e4afef79ef","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":41690751}
+{"event":{"text":"アピヤはサモアの首都です","type":"partial"},"t_us":42074901}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"794f9ab46677040c7af5d81b1dc088aa7c8d8820eacc1c125e044b70c3ad2fae","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":42211978}
+{"event":{"text":"アピヤはサモアの首都です","type":"partial"},"t_us":42615096}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":43135119}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"92e5453c4a30eb04261f43e5e19068dea729aea1987a3b9012d29bfa391f0977","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":43256891}
+{"event":{"text":"アピヤはサモアの首都です","type":"partial"},"t_us":43656197}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"794f9ab46677040c7af5d81b1dc088aa7c8d8820eacc1c125e044b70c3ad2fae","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":43807651}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":44220040}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"92e5453c4a30eb04261f43e5e19068dea729aea1987a3b9012d29bfa391f0977","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":44347429}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":44702420}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":45243630}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":45759459}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":46261591}
+{"event":{"audio_s":6.934,"decode_ms":179.47016299999996,"end_wall_ms":1792012669803,"id":"mic-6","lang":"ja","latency_ms":179.58602100000002,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":40.07,"t1_s":46.004,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":46593048}
+{"event":{"id":"mic-6","speaker":"S2","type":"speaker"},"t_us":46684496}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68c5876eb8cb368296e8078a3871e2929a92a60ee6eca5200ad67a729333e707","stage":"t","status":"ok","text":"This town is located on Upor Island and has a population of just under 40,000.","type":"translation"},"t_us":46940550}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-6","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68c5876eb8cb368296e8078a3871e2929a92a60ee6eca5200ad67a729333e707","stage":"e","status":"ok","text":"This town is located on Upor Island and has a population of just under 40,000.","type":"translation"},"t_us":47268412}
+{"event":{"text":"僅か二週間","type":"partial"},"t_us":52182919}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"7eccd49ff8acfecdf699332dc3bbd4dee452712bab8d552125e68815ce57bed6","stage":"t","status":"ok","text":"Just two weeks","type":"translation"},"t_us":52388868}
+{"event":{"text":"僅か二週間でアメリカ","type":"partial"},"t_us":52709057}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"386e5da3e2c2aae081929eb06b811719abdfa26732efe99db10175068441e4d2","stage":"t","status":"ok","text":"America in just two weeks","type":"translation"},"t_us":52840453}
+{"event":{"text":"僅か二週間でアメリカ軍とG 七","type":"partial"},"t_us":53224563}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"24f783df1257fe87744d966236a7727914c7eb815243e53908b29ace7dc0b4d3","stage":"t","status":"ok","text":"U.S. military and G‑7 in just two weeks","type":"translation"},"t_us":53430370}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":53763864}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c51176f560f2ae37e25f54647da32e9db0e6ef0e970f74af1a6241b5e01a9bb0","stage":"t","status":"ok","text":"The United States Army and Free France in just two weeks.","type":"translation"},"t_us":53964435}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍はミリ","type":"partial"},"t_us":54269689}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランス","type":"partial"},"t_us":54787752}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放した","type":"partial"},"t_us":55314526}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c5065cd236ffbaa5456368bd2d0653255e081c890a10c5590fd79247bdbd1117","stage":"t","status":"ok","text":"Within just two weeks, the U.S. and Free French forces liberated southwest France.","type":"translation"},"t_us":55588621}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ戦略","type":"partial"},"t_us":55821192}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"40f6951ae11e3455bdc07a0f5cd5a03d0de64f77783f9862bd174a3edc9bf8fb","stage":"t","status":"ok","text":"In just two weeks, the U.S. and Free French forces liberated southwest France and advanced the German strategy.","type":"translation"},"t_us":56189442}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":56369872}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b3adc77d1afe248d72396b309d50a4092aa488ea8c8a36697b5041dd4ab4839c","stage":"t","status":"ok","text":"In just two weeks, the U.S. and Free French forces liberated southwest France and fled toward Germany.","type":"translation"},"t_us":56700064}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":56880635}
+{"event":{"audio_s":6.614,"decode_ms":158.832,"end_wall_ms":1792012680603,"id":"mic-7","lang":"ja","latency_ms":158.87242600000002,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":51.206,"t1_s":56.82,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":57373248}
+{"event":{"id":"mic-7","speaker":"S1","type":"speaker"},"t_us":57477852}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a6045c843acf144886e025fce511b0155c112ebedabea4bfab5a18414d4681b0","stage":"t","status":"ok","text":"Within just two weeks, the U.S. and Free French forces had liberated southwest France and were heading toward Germany.","type":"translation"},"t_us":57735542}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-7","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a6045c843acf144886e025fce511b0155c112ebedabea4bfab5a18414d4681b0","stage":"e","status":"ok","text":"Within just two weeks, the U.S. and Free French forces had liberated southwestern France and were heading toward Germany.","type":"translation"},"t_us":58105051}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":63767687}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":64288622}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d2568e4ef9a6aa55919421ab8d1e7cc5832a92b971f66429312f295809ec3d17","stage":"t","status":"ok","text":"August 1940","type":"translation"},"t_us":64405167}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":64791964}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8ce1a095fb97815933665a727b480bddce1e25d1c39aa9a5ea4291d702569143","stage":"t","status":"ok","text":"August 15, 1940","type":"translation"},"t_us":64935668}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":65335169}
+{"event":{"text":"千九百四十年八月十五日連合国","type":"partial"},"t_us":65848252}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a9b07b88445b0724656e788f415e6cfb5a624a1ac9558104399ff2bb313bc023","stage":"t","status":"ok","text":"August 15, 1940, Allied Powers","type":"translation"},"t_us":66115194}
+{"event":{"text":"千九百四十年八月十五日連合国は南アフリー","type":"partial"},"t_us":66384013}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bf587b3442f28549d5dfb5cbe8736a42fa056fa65120ef869713142ef29704df","stage":"t","status":"ok","text":"August 15, 1940, the Allied powers","type":"translation"},"t_us":66627712}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに就任","type":"partial"},"t_us":66908718}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻し","type":"partial"},"t_us":67388425}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻し非","type":"partial"},"t_us":67943796}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"88cd60bb1e19de4eb99357d1b0271353b61ac8a781ac5fa5a33a9a7195e5b67b","stage":"t","status":"ok","text":"August 15, 1940, the Allied forces invaded southern France and non-","type":"translation"},"t_us":68197773}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻","type":"partial"},"t_us":68475377}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻は戦争","type":"partial"},"t_us":68987371}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラッグスーパール","type":"partial"},"t_us":69509921}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦","type":"partial"},"t_us":70053937}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれます","type":"partial"},"t_us":70577014}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":71064454}
+{"event":{"text":"四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":71554752}
+{"event":{"audio_s":9.27,"decode_ms":237.602493,"end_wall_ms":1792012694946,"id":"mic-8","lang":"ja","latency_ms":237.63126,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":62.79,"t1_s":71.06,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":71794690}
+{"event":{"id":"mic-8","speaker":"S2","type":"speaker"},"t_us":71871426}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6da87377a01b785c622487c79df69d52968c1c0bafd3acc55246b174a48ee59f","stage":"t","status":"ok","text":"On August 15, 1940, the Allies invaded southern France, and this operation was called the Dragoon Offensive.","type":"translation"},"t_us":72223352}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-8","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6da87377a01b785c622487c79df69d52968c1c0bafd3acc55246b174a48ee59f","stage":"t","status":"ok","text":"On August 15, 1940, the Allies invaded southern France, and this operation was called the Dragoon Offensive.","type":"translation"},"t_us":73732748}
+{"event":{"text":"先週経済","type":"partial"},"t_us":77358117}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-9","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d62cf788f3c26281a4b9174ff17728bd4a32947493131e17bc3a3f834e8c474e","stage":"t","status":"ok","text":"Economy last week","type":"translation"},"t_us":77592257}
+{"event":{"text":"先週経済産業省","type":"partial"},"t_us":77887650}
+{"event":{"text":"先週経済産業省は","type":"partial"},"t_us":78405910}
+{"event":{"text":"先週経済産業省はアップルが新","type":"partial"},"t_us":78935851}
+{"event":{"text":"先週経済産業省はアップルが深刻では","type":"partial"},"t_us":79452023}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":79987088}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":80522386}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加","type":"partial"},"t_us":81006572}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項追加で三十四％","type":"partial"},"t_us":81521096}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で三十四件報告","type":"partial"},"t_us":82080238}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で三十四件報告したと述べま","type":"partial"},"t_us":82606765}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事頚を追加で三十四件報告したと発表しま","type":"partial"},"t_us":83103754}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で三十四件報告したと発表しました","type":"partial"},"t_us":83637205}
+{"event":{"audio_s":7.798,"decode_ms":230.44302999999996,"end_wall_ms":1792012707029,"id":"mic-9","lang":"ja","latency_ms":230.473248,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":76.39,"t1_s":83.188,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":83869644}
+{"event":{"id":"mic-9","speaker":"S1","type":"speaker"},"t_us":83958118}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-9","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3656ce5ed1e1effcfffe2049792186d7b96cec331600396e6a1f5fec0d1e9f86","stage":"e","status":"ok","text":"Last week, the Ministry of Economy, Trade and Industry announced that it had reported an additional 34 cases of overheated matters that Apple did not consider serious.","type":"translation"},"t_us":84989623}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":89116905}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-10","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"589a37a5d02f002c96ce886aed508ca990e412e5805997dd3e12d1c652dadfb5","stage":"t","status":"ok","text":"Ms. Ohashi is still…","type":"translation"},"t_us":89395099}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":89628196}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":90168058}
+{"event":{"text":"大橋さんはやっぱり大変でしたか","type":"partial"},"t_us":90664863}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-10","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8169c9766564ada8f871c8d4514b7542e09b3284ab42ea35763bd84e4ceffdbc","stage":"t","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":90838386}
+{"event":{"audio_s":3.51,"decode_ms":110.99989,"end_wall_ms":1792012714443,"id":"mic-10","lang":"ja","latency_ms":111.037656,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":88.134,"t1_s":90.644,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":91168758}
+{"event":{"id":"mic-10","speaker":"S3?","type":"speaker"},"t_us":91225283}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-10","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"t","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":91356613}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-10","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"e","status":"ok","text":"Japanese:\nWas Mr. Ohashi really having a hard time?\n\nRewritten English:","type":"translation"},"t_us":91664956}
+{"event":{"text":"この上流かな","type":"partial"},"t_us":98495377}
+{"event":{"text":"そこの上流から","type":"partial"},"t_us":99017239}
+{"event":{"text":"そこの上流から","type":"partial"},"t_us":99545652}
+{"event":{"text":"そこの上流から丸太を","type":"partial"},"t_us":100043145}
+{"event":{"text":"そこの上流から丸太を","type":"partial"},"t_us":100578449}
+{"event":{"text":"そこの上流から丸太を組んでいく","type":"partial"},"t_us":101087661}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-11","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0bb641a80bbb2d1cfb796b55bd3566fbe2938b76b953761fd6eec365eaef9069","stage":"t","status":"ok","text":"We’ll start shoring up the logs from the upstream side.","type":"translation"},"t_us":101299042}
+{"event":{"text":"そこの上流から丸太を組んでいかだに","type":"partial"},"t_us":101618986}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":102143679}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":102656146}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":103164305}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":103740420}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてどんどん流した","type":"partial"},"t_us":104241223}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-11","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"eb7dbe6eac1789f21c67d350d678f5d1b70d48b9e9c596c0d6be3ce61dd20cd8","stage":"t","status":"ok","text":"We built rafts from logs and let them drift downstream.","type":"translation"},"t_us":104491273}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":104752960}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":105268835}
+{"event":{"audio_s":8.246,"decode_ms":200.415365,"end_wall_ms":1792012728660,"id":"mic-11","lang":"ja","latency_ms":200.44415199999997,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":97.51,"t1_s":104.756,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":105471442}
+{"event":{"id":"mic-11","speaker":"S4?","type":"speaker"},"t_us":105551340}
+{"event":{"annotations":[],"hold_reason":"number","id":"mic-11","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"46606bc0dbb96d439a7605bd78d0f5fa484597f7eaa115ca46c6f60ec11a7254","stage":"e","status":"held","text":"","type":"translation"},"t_us":106278785}
+{"event":{"text":"圧倒しています","type":"partial"},"t_us":106842472}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-12","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"36bfb37d42b09546396468d87d52a56fccaf5585e513bb31f983d9ddeac642a6","stage":"t","status":"ok","text":"It is overwhelming.","type":"translation"},"t_us":107001289}
+{"event":{"text":"躍動しています","type":"partial"},"t_us":107356022}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-12","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1c964fdadd1e6985bd14c2a0c5cb0d2bc7de79a8cae294ae1ae886e457fa4953","stage":"t","status":"ok","text":"It is dynamic.","type":"translation"},"t_us":107440463}
+{"event":{"text":"躍動しています","type":"partial"},"t_us":107884338}
+{"event":{"text":"圧倒していますさあ百M のターンを迎え","type":"partial"},"t_us":108394289}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":108935924}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":109445836}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":109985193}
+{"event":{"text":"本多選手の得意のドルフィング","type":"partial"},"t_us":110517870}
+{"event":{"text":"本多選手は得意のドルフィンキックで","type":"partial"},"t_us":111012052}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":111551567}
+{"event":{"text":"本多選手は得意のドルフィンキックで","type":"partial"},"t_us":112076549}
+{"event":{"audio_s":6.806,"decode_ms":205.652404,"end_wall_ms":1792012735469,"id":"mic-12","lang":"ja","latency_ms":205.678141,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":105.862,"t1_s":111.668,"text":"本多選手はこの得意のドルフィンキックで。","tier":"rz","type":"final"},"t_us":112284997}
+{"event":{"id":"mic-12","speaker":"S5?","type":"speaker"},"t_us":112355727}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-12","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"959f949ae7cf49e30e76511ab5b006ce44b238bda1c51ba46f7ef05654b0916a","stage":"e","status":"ok","text":"Player Honda delivered this signature dolphin kick.","type":"translation"},"t_us":112628761}
+{"event":{"text":"アップ","type":"partial"},"t_us":114419891}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-13","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2475f193cea5c27afbf902e2c56f536305c7ed60d58dceb44f8cd0ce3b2b7d03","stage":"t","status":"ok","text":"Up","type":"translation"},"t_us":114605638}
+{"event":{"text":"あぶった","type":"partial"},"t_us":114906617}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-13","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"12bd6fd9a6305915db96761ab1d8c968ca06467bf7efe08b115581655b6529af","stage":"t","status":"ok","text":"Abred","type":"translation"},"t_us":114998821}
+{"event":{"text":"あぶった","type":"partial"},"t_us":115431764}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":115960870}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-13","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a556415113ad819e3de755882274928797de374cdd7e6054724bde976b989d90","stage":"t","status":"ok","text":"But Mr. Suruga.","type":"translation"},"t_us":116128511}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":116495980}
+{"event":{"text":"でも駿河さん九十","type":"partial"},"t_us":117004655}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":117501452}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":118044993}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":118581174}
+{"event":{"text":"でも駿河さん九十一歳力強い","type":"partial"},"t_us":119081492}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに","type":"partial"},"t_us":119653165}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":120165086}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":120667685}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":121168848}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":121666891}
+{"event":{"audio_s":9.142,"decode_ms":266.611484,"end_wall_ms":1792012745353,"id":"mic-13","lang":"ja","latency_ms":266.634322,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":113.414,"t1_s":121.556,"text":"でも駕さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":122229951}
+{"event":{"id":"mic-13","speaker":"S6?","type":"speaker"},"t_us":122313894}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-13","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2769b6332d8c9b9bade2512dc419ca7aa88476c606e06b1dbe1cdf3e964f8930","stage":"e","status":"ok","text":"But Mr. Ga is 91 years old. His running will become more powerful.","type":"translation"},"t_us":122784889}
+{"event":{"text":"話で随分","type":"partial"},"t_us":123886931}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8c8854872eade2a69e50462bb495cba79d6035099eb0d73fda001f6c7e22b2a0","stage":"t","status":"ok","text":"Quite a bit of talk.","type":"translation"},"t_us":124098343}
+{"event":{"text":"話で随分ありました","type":"partial"},"t_us":124428532}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cbf678c7555e952992c01af90997ef38fb22186b3fe8a9322ae56183dca7bb94","stage":"t","status":"ok","text":"There was quite a bit of talk.","type":"translation"},"t_us":124562747}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":124949679}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a0bf8b22967f68539a7287c1e79ab10aa973fd2af36aa47c66a9c9866cbf6027","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":125113314}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":125467486}
+{"event":{"audio_s":3.478,"decode_ms":88.057347,"end_wall_ms":1792012749193,"id":"mic-14","lang":"ja","latency_ms":88.08182500000001,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":122.918,"t1_s":125.396,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":125891145}
+{"event":{"id":"mic-14","speaker":"S7?","type":"speaker"},"t_us":125934040}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-14","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":126010434}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-14","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"e","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":126166173}
+{"event":{"text":"住民による","type":"partial"},"t_us":127123486}
+{"event":{"text":"住民によると","type":"partial"},"t_us":127632962}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-15","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8260e590e2330e3cb3342f3b4e93a41bef9400251a591d1e5e2d64c34514f7d7","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":127762860}
+{"event":{"audio_s":2.24,"decode_ms":73.859859,"end_wall_ms":1792012751433,"id":"mic-15","lang":"ja","latency_ms":73.872218,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":126.15,"t1_s":127.636,"text":"住民によると。","tier":"rz","type":"final"},"t_us":128118440}
+{"event":{"id":"mic-15","speaker":"S8?","type":"speaker"},"t_us":128171299}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-15","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":128277622}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-15","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"e","status":"ok","text":"According to the residents.","type":"translation"},"t_us":128432039}
+{"event":{"text":"過去にも二","type":"partial"},"t_us":129225861}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a4efa2af9a1b20e84ff082288a0db89ae908fe2ecb6e2c90e9046c4ab5b2ae40","stage":"t","status":"ok","text":"Also in the past, two","type":"translation"},"t_us":129408705}
+{"event":{"text":"過去にも似たよ","type":"partial"},"t_us":129760343}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"696325489f960fdf07a30a6784227e613fbda5edb08a3ad6b792a8a1f7e8f991","stage":"t","status":"ok","text":"It’s similar to the past.","type":"translation"},"t_us":129894822}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":130294980}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"57576a1c9ea4f558a92453d2f1c494777b0394ca2083558ff37010c08e0bef20","stage":"t","status":"ok","text":"Similar visits in the past.","type":"translation"},"t_us":130432973}
+{"event":{"text":"過去にも似たような訪問があったと","type":"partial"},"t_us":130800437}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b9df77d80ce5628a1cd57246e3bfb80dca9f081c70d3539cb84e2db420729ec4","stage":"t","status":"ok","text":"There have been similar visits in the past.","type":"translation"},"t_us":130944139}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":131325482}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"78eb00bedd3cfcb44b8fffb9b29ee546fab08090fdfab1b1b3a654b5726aaac0","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":131524237}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":131833678}
+{"event":{"audio_s":3.968,"decode_ms":105.838357,"end_wall_ms":1792012755391,"id":"mic-16","lang":"ja","latency_ms":105.854535,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":128.262,"t1_s":131.604,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":132107321}
+{"event":{"id":"mic-16","speaker":"S8","type":"speaker"},"t_us":132171422}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":132296362}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-16","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"e","status":"ok","text":"Japanese:\nThere was also a similar visit in the past.\n\nDRAFT English:\nIt is said that there were similar visits in the past.\n\nREWRITTEN English:","type":"translation"},"t_us":132834597}
+{"event":{"text":"しっかり打ち切れる","type":"partial"},"t_us":134165056}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-17","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5e8a17bc2d3ef128bd68760c4c6fd75826d003206d481848a6c7b0f193c87bd6","stage":"t","status":"ok","text":"Can be firmly terminated.","type":"translation"},"t_us":134337796}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":134674027}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-17","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a7a3b0aa7b5d329d26cd70c1a38baea40c9d6687fe2820d3cf6790e31ad02f42","stage":"t","status":"ok","text":"It’s all about whether you can finish it steadfastly.","type":"translation"},"t_us":134873221}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":135200849}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":135748338}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":136256625}
+{"event":{"audio_s":3.766,"decode_ms":112.913938,"end_wall_ms":1792012759751,"id":"mic-17","lang":"ja","latency_ms":112.939926,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":133.19,"t1_s":135.956,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":136476344}
+{"event":{"id":"mic-17","speaker":"S7","type":"speaker"},"t_us":136541465}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-17","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba753d39dfce6a99bf757c5f662cbbe929e45fdf8127c2a33cd8ac6ee9ca8b0d","stage":"t","status":"ok","text":"It’s all about whether you can finish it steadfastly.","type":"translation"},"t_us":136687910}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-17","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba753d39dfce6a99bf757c5f662cbbe929e45fdf8127c2a33cd8ac6ee9ca8b0d","stage":"e","status":"ok","text":"It’s all about whether you can finish it firmly.","type":"translation"},"t_us":136885854}
+{"event":{"text":"けさの東","type":"partial"},"t_us":140271711}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-18","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0d814a4385ec37d86330465a683c47f97ed58edb2da876df4ea852e458989028","stage":"t","status":"ok","text":"East this morning","type":"translation"},"t_us":140435879}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":140742991}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-18","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d1b9f95de76395f7df622974ec8d36afc482d4a377a729a95e5e09b9035ab474","stage":"t","status":"ok","text":"Tokyo this morning","type":"translation"},"t_us":140855435}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":141291043}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-18","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ff3db35d43e7b9bfa509fd559a0c2f1084506c3d6caef2930e0cd65f6d850dcf","stage":"t","status":"ok","text":"Tokyo-style breakfast this morning","type":"translation"},"t_us":141450284}
+{"event":{"text":"けさの東京風はなさそう","type":"partial"},"t_us":141806098}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":142350127}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":142857568}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":143391369}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":143908582}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":144433392}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか","type":"partial"},"t_us":144942901}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":145469506}
+{"event":{"audio_s":6.806,"decode_ms":167.97064100000003,"end_wall_ms":1792012768873,"id":"mic-18","lang":"ja","latency_ms":167.995399,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":139.27,"t1_s":145.07600000000002,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":145652001}
+{"event":{"id":"mic-18","speaker":"S9?","type":"speaker"},"t_us":145722784}
+{"event":{"annotations":[],"hold_reason":"negation","id":"mic-18","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a9f41e4234889dcd3fed18e63fc3d0d29826026810c05ceebdc2766121c94fd4","stage":"e","status":"held","text":"","type":"translation"},"t_us":146298887}
+{"event":{"text":"そしてもう一粒","type":"partial"},"t_us":151515744}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"356f90cd7e7d197bcaa4036d098d2549a3ce52615eef616fe22eab7e0b4df901","stage":"t","status":"ok","text":"And another grain.","type":"translation"},"t_us":151718610}
+{"event":{"text":"そしてもう一つ","type":"partial"},"t_us":152027113}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"236bfb202490386b725b2345a013591406b9b5eca82a6d7fcd5d695a40a94169","stage":"t","status":"ok","text":"And one more thing.","type":"translation"},"t_us":152156310}
+{"event":{"text":"そしてもう一つ大きなものが","type":"partial"},"t_us":152544568}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cdc3ad63fcbb63369e46bc38eaa6a920de1251ee67a0ebc9b246fa59e801c404","stage":"t","status":"ok","text":"And another major one is…","type":"translation"},"t_us":152663830}
+{"event":{"text":"そしてもう一つ大きな線がありま","type":"partial"},"t_us":153067453}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"4539dbf7207dde5d8f80bf90360099cd32c6cf3efd43e725dfded474c01e35e0","stage":"t","status":"ok","text":"And there is another major line.","type":"translation"},"t_us":153170657}
+{"event":{"text":"そしてもう一つ大きな勢力がありま","type":"partial"},"t_us":153626785}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"99f098eceef708e97d27deccd880d1f6b523ff7439415e0ca064a8524b4676c2","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":153740522}
+{"event":{"text":"そしてもう一つ大きな勢力があります","type":"partial"},"t_us":154119625}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d6e0183e9bc2c5323b714df18e5cda5b0f9e6d69acfe05c33da20ec5b8da0368","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":154228218}
+{"event":{"text":"そしてもう一つ大きな勢力があります","type":"partial"},"t_us":154650684}
+{"event":{"audio_s":4.79,"decode_ms":130.112762,"end_wall_ms":1792012778109,"id":"mic-19","lang":"ja","latency_ms":130.131111,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":150.534,"t1_s":154.32399999999998,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":154849708}
+{"event":{"id":"mic-19","speaker":"S10?","type":"speaker"},"t_us":154898673}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb5502d63092bef9118b85024bcb405ff84256eaacd4a92e983d398cc7f4a2ad","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":154955811}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-19","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb5502d63092bef9118b85024bcb405ff84256eaacd4a92e983d398cc7f4a2ad","stage":"e","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":155118180}
+{"event":{"text":"勝利は下町","type":"partial"},"t_us":159146674}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-20","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6a9c41ab2d246cbf48153c89a5ab8b7b486650615850c74488479362b075328b","stage":"t","status":"ok","text":"Victory is in the slums.","type":"translation"},"t_us":159438306}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":159667181}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-20","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ed2552d1e90def43adec83a254c470b1dcc2ac48ddffff9902f5f3b2482e8d36","stage":"t","status":"ok","text":"Although we won,","type":"translation"},"t_us":159747085}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":160232503}
+{"event":{"audio_s":2.774,"decode_ms":94.076984,"end_wall_ms":1792012783758,"id":"mic-20","lang":"ja","latency_ms":94.097093,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":158.182,"t1_s":159.956,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":160462741}
+{"event":{"id":"mic-20","speaker":"S11?","type":"speaker"},"t_us":160502910}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-20","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"03b2471a96ad2a40ce33e7f2990cc71f2aeb0c37d6f167d3ad02570febd16b91","stage":"e","status":"ok","text":"Even though we won?","type":"translation"},"t_us":160678203}
+{"event":{"text":"十万人","type":"partial"},"t_us":161209637}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-21","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"179e0a6e75e1c6ae7e0521eb6e71b5d2f0e3efcec27cff598e87ab0924d3127d","stage":"t","status":"ok","text":"100,000 people","type":"translation"},"t_us":161400998}
+{"event":{"text":"十万人以上の","type":"partial"},"t_us":161715356}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-21","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"f7ae5c1a8e54fb0b9b219f8bfbf8987210ac3fc7d6457c5198346cef42fb9f80","stage":"t","status":"ok","text":"Over one hundred thousand people","type":"translation"},"t_us":161824211}
+{"event":{"text":"十万人以上の戦死者","type":"partial"},"t_us":162245529}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-21","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e4bfce46cf604f51fc573ff60187f1dfe867b254fc19ad1bd8fbd2db89f0335b","stage":"t","status":"ok","text":"Over 100,000 war casualties","type":"translation"},"t_us":162411368}
+{"event":{"text":"人以上の戦死者を出した","type":"partial"},"t_us":162748132}
+{"event":{"text":"十万人以上の戦死者を出していた","type":"partial"},"t_us":163279170}
+{"event":{"audio_s":3.264,"decode_ms":81.723,"end_wall_ms":1792012787018,"id":"mic-21","lang":"ja","latency_ms":81.735049,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":160.23,"t1_s":163.22,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":163711424}
+{"event":{"id":"mic-21","speaker":"S11","type":"speaker"},"t_us":163762785}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-21","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3d73c9b5d858900dd8784e215d2caec232923ee3235c1b5d2a0bd944bebe594f","stage":"t","status":"ok","text":"It had 100,000 or more war casualties.","type":"translation"},"t_us":163922780}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-21","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3d73c9b5d858900dd8784e215d2caec232923ee3235c1b5d2a0bd944bebe594f","stage":"t","status":"ok","text":"It had 100,000 or more war casualties.","type":"translation"},"t_us":164749650}
+{"event":{"text":"左寄り先頭","type":"partial"},"t_us":166679673}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-22","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"91d362833cd5411c017a8f3561e0d92b975fe4c0ce461a823fe52436c5f84776","stage":"t","status":"ok","text":"Left‑aligned leading","type":"translation"},"t_us":166858585}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":167209693}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-22","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba2f656db4d53e139533ba6aa05a321d07c424e192d670e316d7b19fe2ff1b0d","stage":"t","status":"ok","text":"Left‑leaning center‑left","type":"translation"},"t_us":167385778}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":167742503}
+{"event":{"audio_s":2.87,"decode_ms":84.161171,"end_wall_ms":1792012791373,"id":"mic-22","lang":"ja","latency_ms":84.18378999999999,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":165.702,"t1_s":167.572,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":168068027}
+{"event":{"id":"mic-22","speaker":"S12?","type":"speaker"},"t_us":168101799}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-22","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3fcb4c0194d8c9529f5042f247bb18ce0c6abb90a84e1dcb0c9a1b13031a376c","stage":"t","status":"ok","text":"Left‑leaning center‑left.","type":"translation"},"t_us":168191526}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-22","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3fcb4c0194d8c9529f5042f247bb18ce0c6abb90a84e1dcb0c9a1b13031a376c","stage":"t","status":"ok","text":"Left‑leaning center‑left.","type":"translation"},"t_us":168712591}
+{"event":{"text":"言ったろう","type":"partial"},"t_us":172733431}
+{"event":{"text":"言ったろ比喩","type":"partial"},"t_us":173330011}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"186509c11addbd8aef5e97365373015587a55ab6596ecb7a69b356157560b808","stage":"t","status":"ok","text":"I told you, it’s a synecdoche.","type":"translation"},"t_us":173561663}
+{"event":{"text":"言ったろヒーローよりも","type":"partial"},"t_us":173762330}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"69f07cc2e1949dbad7522f2c490556987c50928c48d1b97286d3e620ba4e02cd","stage":"t","status":"ok","text":"I told you, better than a hero.","type":"translation"},"t_us":173896514}
+{"event":{"text":"言ったろヒーローよりもてめぇを幸せ","type":"partial"},"t_us":174284584}
+{"event":{"text":"言ったろヒーローよりもテメェを信じる","type":"partial"},"t_us":174832997}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2cce52dddb4f78599c21a9feafb89297182f01c0ef251ecf8469eb62be17451a","stage":"t","status":"ok","text":"I told you, I believe in you more than a hero.","type":"translation"},"t_us":175029715}
+{"event":{"text":"言ったろヒーローよりもてめぇを信じる","type":"partial"},"t_us":175346698}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"40c6919d5ee46aa96c7614e54e96392a281d98bbc77e0d2d672ee87bc1400242","stage":"t","status":"ok","text":"I told you, I believe in you more than a hero.","type":"translation"},"t_us":175540576}
+{"event":{"audio_s":4.342,"decode_ms":131.169003,"end_wall_ms":1792012798891,"id":"mic-23","lang":"ja","latency_ms":131.186412,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":171.75,"t1_s":175.092,"text":"言ったろ。ヒーローよりもてめぇを信じる。","tier":"rz","type":"final"},"t_us":175632696}
+{"event":{"id":"mic-23","speaker":"S13?","type":"speaker"},"t_us":175683231}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b01a9949bba7e34bbcc24284d41801501377edb895549f5dd34c128b9681078d","stage":"t","status":"ok","text":"I told you. I believe in you more than I do in a hero.","type":"translation"},"t_us":175870723}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-23","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b01a9949bba7e34bbcc24284d41801501377edb895549f5dd34c128b9681078d","stage":"e","status":"ok","text":"I told you. I believe in you more than I do in a hero.","type":"translation"},"t_us":176127768}
+{"event":{"text":"高校生二百","type":"partial"},"t_us":178231327}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-24","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1a1ee518d2971b99eedc9f97d380d5465c33c1e91460381a1b0533451ca821a0","stage":"t","status":"ok","text":"200 high school 1st years","type":"translation"},"t_us":178503190}
+{"event":{"text":"高校生二百人に聞きた","type":"partial"},"t_us":178767927}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-24","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c1b1708f7ddff918f97407ecf68572784700364b67f9cb764ecad99b1968e96f","stage":"t","status":"ok","text":"I asked 200 high school students.","type":"translation"},"t_us":178947924}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":179262620}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-24","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c8957c1a2215a61145ab54f377dc349588076a9e7ec0ce474c016407fc361010","stage":"t","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":179423504}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":179804426}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":180336135}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":180838082}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":181390160}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":181869894}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":182435311}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":182940533}
+{"event":{"audio_s":6.422,"decode_ms":231.345779,"end_wall_ms":1792012806473,"id":"mic-24","lang":"ja","latency_ms":231.368817,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":177.254,"t1_s":182.676,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":183315029}
+{"event":{"id":"mic-24","speaker":"S8","type":"speaker"},"t_us":183373025}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-24","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"fb8f9e46e83343c09e6d08af42489d61aca302b7ece608e751b192c7ce1e6589","stage":"t","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":183522212}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-24","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"fb8f9e46e83343c09e6d08af42489d61aca302b7ece608e751b192c7ce1e6589","stage":"e","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":183718075}
+{"event":{"text":"さらにスピンオフ","type":"partial"},"t_us":185155570}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-25","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c9ab10ae7a52826933e04d8d0ca58fbb3f6e14641f3d1265dff1d62dc938ac18","stage":"t","status":"ok","text":"Furthermore, spin‑off","type":"translation"},"t_us":185326127}
+{"event":{"text":"さらにスピンオフドラマ夏","type":"partial"},"t_us":185654602}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-25","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b168dd2af3385a5ac880a822586a7cfc1cdb65546412acc966a1347c0342f5b8","stage":"t","status":"ok","text":"Moreover, the spin‑off drama “Summer.”","type":"translation"},"t_us":185833246}
+{"event":{"text":"さらにスピンオフドラマ波風","type":"partial"},"t_us":186213613}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-25","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"dafa772ebd756a531cf8714892a3a9790fe016b17175a1a87eb42ea7481f9c24","stage":"t","status":"ok","text":"Furthermore, the spin‑off drama “Hakazuki.”","type":"translation"},"t_us":186420062}
+{"event":{"text":"さらにスピンオフドラマ波風立ってくれは徹底的","type":"partial"},"t_us":186710024}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":187228840}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-25","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"be4aac6d584e7f7ff40a9cf430264fa4429930fee6b3efd178c13b9f6ff67701","stage":"t","status":"ok","text":"In addition, the spin‑off drama “Waves of Trouble, Stand Up” will be exclusively streamed on TELASA.","type":"translation"},"t_us":187621655}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":187763953}
+{"event":{"text":"さらにスピンオフドラマ波風を立ってくれはTELASA で独占","type":"partial"},"t_us":188276144}
+{"event":{"audio_s":4.694,"decode_ms":148.09501,"end_wall_ms":1792012811668,"id":"mic-25","lang":"ja","latency_ms":148.13612700000002,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":184.166,"t1_s":187.86,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":188426777}
+{"event":{"id":"mic-25","speaker":"S14?","type":"speaker"},"t_us":188487537}
+{"event":{"annotations":[],"hold_reason":"number","id":"mic-25","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"baef0eab0a5a15c9e27aa41f9e8786b8908f04443807c8da3dad5e7bdbbded68","stage":"e","status":"held","text":"","type":"translation"},"t_us":189280967}
+{"event":{"text":"模擬裁判に参加","type":"partial"},"t_us":190515534}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-26","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c946ae747dcbb64e1fe07c5c1ecba79354748f90a39b08179640e79d81d27265","stage":"t","status":"ok","text":"Participate in a mock trial.","type":"translation"},"t_us":190689095}
+{"event":{"text":"模擬裁判に参加した","type":"partial"},"t_us":191059468}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-26","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5c0ff3dd5e0326b0fdd0fd8a23e1557239e6c3fa12d997aad2a849df8786b46f","stage":"t","status":"ok","text":"Participated in a mock trial.","type":"translation"},"t_us":191176988}
+{"event":{"text":"模擬裁判に参加した大学","type":"partial"},"t_us":191574424}
+{"event":{"text":"模擬裁判に参加した大学一年生","type":"partial"},"t_us":192074794}
+{"event":{"text":"模擬裁判に参加した大学一年生の炎","type":"partial"},"t_us":192615246}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":193117507}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":193640174}
+{"event":{"audio_s":4.822,"decode_ms":117.347482,"end_wall_ms":1792012817151,"id":"mic-26","lang":"ja","latency_ms":117.377869,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":189.542,"t1_s":193.364,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":193880127}
+{"event":{"id":"mic-26","speaker":"S15?","type":"speaker"},"t_us":193935689}
+{"event":{"annotations":[],"hold_reason":"uncertainty","id":"mic-26","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ac7dcc075a21c3e4214c13bb2b5441ac4dbf4af775455b3585353a9c71fa48b6","stage":"e","status":"held","text":"","type":"translation"},"t_us":194524210}
+{"event":{"text":"警察のちゃんと","type":"partial"},"t_us":198317238}
+{"event":{"text":"警察署のチャンドラシェか","type":"partial"},"t_us":198781206}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"dc95c728d1baf10529df7220fb6e0670382fd783193d71dd51f0016111550e15","stage":"t","status":"ok","text":"Chandrashe of the police station?","type":"translation"},"t_us":198899322}
+{"event":{"text":"警察のチャンドラシェかるソ連KE","type":"partial"},"t_us":199320004}
+{"event":{"text":"警察のチャンドラシェカールソナヌキ総監に","type":"partial"},"t_us":199818552}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"4d3932230c6e3d2895d8fe4ad58c4551afbac823311047d1df735a948773bac7","stage":"t","status":"ok","text":"To Police Commissioner Chandrashekhar Sonanuki.","type":"translation"},"t_us":199988012}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば評判","type":"partial"},"t_us":200357921}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"69ba9703444d329d017e74b3a2eb092ab584f38e59895cad0657b7a034569384","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the reputation.","type":"translation"},"t_us":200588705}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":200887255}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cac95a5581c0f138c9fc0c14732b5a603e16175463a6f7e857debcd06cbe6818","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the defendant is…","type":"translation"},"t_us":201137387}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠れ","type":"partial"},"t_us":201388973}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"60649dfc847adb327990f6cc08e653b7ad63fe2a59418dc81f427fc9df4d5282","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the defendant shrouded his face.","type":"translation"},"t_us":201687888}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":201920820}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"40a47ed924d9d3108298e646305805f2dedd3c9ce8719f6c361f46e1e59b38a3","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the defendant shrouded his face and entered the courtroom.","type":"translation"},"t_us":202306739}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ送官によれば被告人は顔を隠して法廷に出頭する","type":"partial"},"t_us":202468489}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":202992180}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":203493338}
+{"event":{"audio_s":6.838,"decode_ms":156.514385,"end_wall_ms":1792012826915,"id":"mic-27","lang":"ja","latency_ms":156.538642,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":197.286,"t1_s":203.124,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":203681647}
+{"event":{"id":"mic-27","speaker":"S1","type":"speaker"},"t_us":203759244}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49","stage":"t","status":"ok","text":"According to Police Commissioner Chandrashekhar Soranki, the defendant snuck into court while hiding his face.","type":"translation"},"t_us":204023631}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-27","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49","stage":"e","status":"ok","text":"According to Police Commissioner Chandrasekhar Soranki, the defendant entered the courtroom while hiding his face.","type":"translation"},"t_us":204388272}
+{"event":{"text":"一分間で沸騰","type":"partial"},"t_us":209379575}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2654ef8ae7d14b03d20530f32dc0ac33bd4edf0c841589feed902ddc4b9f8e9b","stage":"t","status":"ok","text":"Boil in one minute","type":"translation"},"t_us":209576087}
+{"event":{"text":"一分間で沸騰する地域","type":"partial"},"t_us":209878258}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2c1b080e40a0db7abb3075105391d5fe920b81b6a1b205e1e506cd320bfee6f5","stage":"t","status":"ok","text":"Region that boils in a minute","type":"translation"},"t_us":209985591}
+{"event":{"text":"一分間で沸騰する地域もあれば","type":"partial"},"t_us":210424120}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"026168d9e7f057863b8b1e24991590fc2c8f5c34c7c18bfa88652ea9f26bcbed","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others...","type":"translation"},"t_us":210608463}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰","type":"partial"},"t_us":210934525}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでいい","type":"partial"},"t_us":211441100}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"9a0dd2674e721d4493b1cd58ccce9c12a0477ce4cd5c1855a5fe52ee9f348c4c","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take longer.","type":"translation"},"t_us":211616979}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでに何分もある","type":"partial"},"t_us":211991091}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"017f6793a5f1224d1be45f8aaec64301048dfeb2d4d19ee3dc03261dc6442789","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes.","type":"translation"},"t_us":212184016}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでに何分もかかる地域もある","type":"partial"},"t_us":212511205}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"74993a2ea8440c936d0cf0c9e34b7bb9ff33092cc052d390f84222adcebd4e16","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes.","type":"translation"},"t_us":212705942}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":213013708}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cc530e648275446626afed3559937dd75c42f3cad045d9e14d505cc7020e51e0","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes.","type":"translation"},"t_us":213199565}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":213561554}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ecc18e63e2ed2e3693e430504f20fbac96203be01bb84df1335df26f6de51155","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes.","type":"translation"},"t_us":213754156}
+{"event":{"text":"一分間で沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":214067554}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cc530e648275446626afed3559937dd75c42f3cad045d9e14d505cc7020e51e0","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes.","type":"translation"},"t_us":214279502}
+{"event":{"audio_s":6.358,"decode_ms":161.531871,"end_wall_ms":1792012837535,"id":"mic-28","lang":"ja","latency_ms":161.555399,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":208.39,"t1_s":213.748,"text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあり。","tier":"rz","type":"final"},"t_us":214306919}
+{"event":{"id":"mic-28","speaker":"S2","type":"speaker"},"t_us":214390790}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"11344a39ec4c4a1e085d414763dac08b3bb4d1a4c3e2506a2990ff6895f8545e","stage":"t","status":"ok","text":"Some areas boil in just a minute, while others take several minutes to reach boiling point.","type":"translation"},"t_us":214563785}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-28","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"11344a39ec4c4a1e085d414763dac08b3bb4d1a4c3e2506a2990ff6895f8545e","stage":"e","status":"ok","text":"Some areas boil in just a minute, while others take several minutes to reach boiling point.","type":"translation"},"t_us":214836037}
+{"event":{"text":"現在羽を追い","type":"partial"},"t_us":219413485}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"52ae0a1d348dc1791e55307809af57daf4719d38d5cc47c2772d1f8069df60eb","stage":"t","status":"ok","text":"Currently chasing the feather.","type":"translation"},"t_us":219659135}
+{"event":{"text":"現在羽根を折り返すこと","type":"partial"},"t_us":219937631}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb6671e00f8739aacd309c3eeeeb8232b1444be2a2ffe92457ea0a0c07d40a8b","stage":"t","status":"ok","text":"Currently, folding the shroud.","type":"translation"},"t_us":220073468}
+{"event":{"text":"現在羽根を折り返すことができない","type":"partial"},"t_us":220462415}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"038c16fc6d0df0b0ba2e6cfb0191e8de7e9723645f4587651da49cd5f884f1e6","stage":"t","status":"ok","text":"Currently, the feather cannot be folded back.","type":"translation"},"t_us":220612852}
+{"event":{"text":"現在羽根を折り返すことができない昆虫は","type":"partial"},"t_us":221014409}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b962e1a1d722535f73f63aa8ca8990c31e4b00d6e619703be873545e5193b70d","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are","type":"translation"},"t_us":221174177}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボと同じ","type":"partial"},"t_us":221512166}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"421bdde7d3ed8c972cebe09c691e182a2669e1c150771e994052e4c72e1d8677","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are the same as dragonflies.","type":"translation"},"t_us":221739464}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲルを産む","type":"partial"},"t_us":222016550}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":222558543}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":223040572}
+{"event":{"audio_s":5.494,"decode_ms":162.38305100000002,"end_wall_ms":1792012846735,"id":"mic-29","lang":"ja","latency_ms":162.42335699999998,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":218.438,"t1_s":222.932,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":223507869}
+{"event":{"id":"mic-29","speaker":"S2","type":"speaker"},"t_us":223571551}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"t","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":223768620}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-29","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"e","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":224060537}
+{"event":{"text":"エアロスミスは","type":"partial"},"t_us":227729887}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-30","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"f49adf4d3c5c6b3b59f39c93da79bfd215b346d6317302e2d21e7eebf918529c","stage":"t","status":"ok","text":"Airlossmis is","type":"translation"},"t_us":227958285}
+{"event":{"text":"エアロスミスはツアーでいい","type":"partial"},"t_us":228271135}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-30","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d1bb3238b90c9aa7bf4d8b2641a0c7880319ee3b67310c12266a62b635eb56ba","stage":"t","status":"ok","text":"Air Rossumi is good on the tour.","type":"translation"},"t_us":228404361}
+{"event":{"text":"エアロスミスはツアーで予定しています","type":"partial"},"t_us":228779264}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-30","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b502a18b9fb2bcc89c14b7861e02be1fa5b3dea4dcd54d823e34d0c21ff0d3f3","stage":"t","status":"ok","text":"Air Rossmis will be scheduled for the tour.","type":"translation"},"t_us":228981536}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサート","type":"partial"},"t_us":229303937}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-30","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e6ac47a960a9377f655e94fb4dd3f0161247c9697df39747c1299218cd0e7ce4","stage":"t","status":"ok","text":"Air Rossmis was the concert scheduled for the tour.","type":"translation"},"t_us":229460346}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止した","type":"partial"},"t_us":229821307}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":230345689}
+{"event":{"text":"エアロスミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":230871812}
+{"event":{"audio_s":4.63,"decode_ms":119.917207,"end_wall_ms":1792012854262,"id":"mic-30","lang":"ja","latency_ms":119.936195,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":226.758,"t1_s":230.388,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":230992359}
+{"event":{"id":"mic-30","speaker":"S2","type":"speaker"},"t_us":231043647}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-30","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"35150f98c2c6d1e1bb43bb3feeb05f2e4ec418385eaf03a1fdc899caf8561303","stage":"e","status":"ok","text":"Air Rossmis has canceled the concert that was scheduled for the tour.","type":"translation"},"t_us":231528525}
+{"event":{"text":"アピアは三本","type":"partial"},"t_us":236381830}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"64a3f9fa34f4f31cf10a522d309232b07cee4f362836eb0a390f5bd76f0b793d","stage":"t","status":"ok","text":"Appia is three.","type":"translation"},"t_us":236655807}
+{"event":{"text":"アピアはサモアの首都","type":"partial"},"t_us":236919456}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"75359d331e1a0364a78e7af7325b4ac0ddba677bbf1cf0edaa3967e4afef79ef","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":237047061}
+{"event":{"text":"アピヤはサモアの首都です","type":"partial"},"t_us":237411270}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"794f9ab46677040c7af5d81b1dc088aa7c8d8820eacc1c125e044b70c3ad2fae","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":237532886}
+{"event":{"text":"アピヤはサモアの首都です","type":"partial"},"t_us":237943391}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":238483298}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"92e5453c4a30eb04261f43e5e19068dea729aea1987a3b9012d29bfa391f0977","stage":"t","status":"ok","text":"Apia is the capital of Samoa.","type":"translation"},"t_us":238620615}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":238982073}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":239502287}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":240044569}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":240582382}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":241087806}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":241602942}
+{"event":{"audio_s":6.934,"decode_ms":153.57459000000003,"end_wall_ms":1792012865135,"id":"mic-31","lang":"ja","latency_ms":153.619417,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":235.398,"t1_s":241.332,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":241899102}
+{"event":{"id":"mic-31","speaker":"S2","type":"speaker"},"t_us":241974081}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68c5876eb8cb368296e8078a3871e2929a92a60ee6eca5200ad67a729333e707","stage":"t","status":"ok","text":"This town is located on Upor Island and has a population of just under 40,000.","type":"translation"},"t_us":242184952}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-31","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68c5876eb8cb368296e8078a3871e2929a92a60ee6eca5200ad67a729333e707","stage":"e","status":"ok","text":"This town is located on Upor Island and has a population of just under 40,000.","type":"translation"},"t_us":242538689}
+{"event":{"text":"僅か二週間","type":"partial"},"t_us":247514391}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"7eccd49ff8acfecdf699332dc3bbd4dee452712bab8d552125e68815ce57bed6","stage":"t","status":"ok","text":"Just two weeks","type":"translation"},"t_us":247913031}
+{"event":{"text":"僅か二週間でアメリカ","type":"partial"},"t_us":248043721}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"386e5da3e2c2aae081929eb06b811719abdfa26732efe99db10175068441e4d2","stage":"t","status":"ok","text":"America in just two weeks","type":"translation"},"t_us":248147208}
+{"event":{"text":"僅か二週間でアメリカ軍と","type":"partial"},"t_us":248551328}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d6fdd51bf1ce8f4f8610ba0a9c57b62fe2d504b3468091097b93c19236683865","stage":"t","status":"ok","text":"The U.S. 1st Marine Division and the Japanese army in just two weeks.","type":"translation"},"t_us":248822046}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":249071415}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c51176f560f2ae37e25f54647da32e9db0e6ef0e970f74af1a6241b5e01a9bb0","stage":"t","status":"ok","text":"The United States Army and Free France in just two weeks.","type":"translation"},"t_us":249236799}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍はミリ","type":"partial"},"t_us":249593901}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランス","type":"partial"},"t_us":250102132}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放した","type":"partial"},"t_us":250657983}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ","type":"partial"},"t_us":251166563}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":251678813}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":252203692}
+{"event":{"audio_s":6.614,"decode_ms":173.99500300000005,"end_wall_ms":1792012875935,"id":"mic-32","lang":"ja","latency_ms":174.01609100000002,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":246.534,"t1_s":252.148,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":252719229}
+{"event":{"id":"mic-32","speaker":"S1","type":"speaker"},"t_us":252789998}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a6045c843acf144886e025fce511b0155c112ebedabea4bfab5a18414d4681b0","stage":"t","status":"ok","text":"Within just two weeks, the U.S. and Free French forces had liberated southwest France and were heading toward Germany.","type":"translation"},"t_us":253081076}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-32","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a6045c843acf144886e025fce511b0155c112ebedabea4bfab5a18414d4681b0","stage":"e","status":"ok","text":"Within just two weeks, the U.S. and Free French forces had liberated southwestern France and were heading toward Germany.","type":"translation"},"t_us":253442425}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":259093665}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":259617322}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d2568e4ef9a6aa55919421ab8d1e7cc5832a92b971f66429312f295809ec3d17","stage":"t","status":"ok","text":"August 1940","type":"translation"},"t_us":259719010}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":260117929}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8ce1a095fb97815933665a727b480bddce1e25d1c39aa9a5ea4291d702569143","stage":"t","status":"ok","text":"August 15, 1940","type":"translation"},"t_us":260270385}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":260659633}
+{"event":{"text":"千九百四十年八月十五日連合国","type":"partial"},"t_us":261203104}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a9b07b88445b0724656e788f415e6cfb5a624a1ac9558104399ff2bb313bc023","stage":"t","status":"ok","text":"August 15, 1940, Allied Powers","type":"translation"},"t_us":261429319}
+{"event":{"text":"千九百四十年八月十五日連合国は南アフリー","type":"partial"},"t_us":261706862}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bf587b3442f28549d5dfb5cbe8736a42fa056fa65120ef869713142ef29704df","stage":"t","status":"ok","text":"August 15, 1940, the Allied powers","type":"translation"},"t_us":261896947}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに就任","type":"partial"},"t_us":262233573}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻した","type":"partial"},"t_us":262758434}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻し終戦","type":"partial"},"t_us":263268947}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻","type":"partial"},"t_us":263799707}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻は戦争","type":"partial"},"t_us":264319375}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラッグスーパール","type":"partial"},"t_us":264875478}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦","type":"partial"},"t_us":265355711}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":265863810}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":266418230}
+{"event":{"text":"二十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":266886895}
+{"event":{"audio_s":9.27,"decode_ms":241.832033,"end_wall_ms":1792012890278,"id":"mic-33","lang":"ja","latency_ms":241.864441,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":258.118,"t1_s":266.388,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":267130638}
+{"event":{"id":"mic-33","speaker":"S2","type":"speaker"},"t_us":267217148}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6da87377a01b785c622487c79df69d52968c1c0bafd3acc55246b174a48ee59f","stage":"t","status":"ok","text":"On August 15, 1940, the Allies invaded southern France, and this operation was called Operation Dragoon.","type":"translation"},"t_us":267533457}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-33","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6da87377a01b785c622487c79df69d52968c1c0bafd3acc55246b174a48ee59f","stage":"t","status":"ok","text":"On August 15, 1940, the Allies invaded southern France, and this operation was called Operation Dragoon.","type":"translation"},"t_us":268514871}
+{"event":{"text":"先週経済","type":"partial"},"t_us":272686666}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-34","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d62cf788f3c26281a4b9174ff17728bd4a32947493131e17bc3a3f834e8c474e","stage":"t","status":"ok","text":"Economy last week","type":"translation"},"t_us":272962724}
+{"event":{"text":"先週経済産業省","type":"partial"},"t_us":273207255}
+{"event":{"text":"先週経済産業省は","type":"partial"},"t_us":273722452}
+{"event":{"text":"先週経済産業省はアップルが新","type":"partial"},"t_us":274254064}
+{"event":{"text":"先週経済産業省はアップルが深刻では","type":"partial"},"t_us":274797479}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":275282363}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":275825449}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加","type":"partial"},"t_us":276341351}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事効果で三十四％","type":"partial"},"t_us":276875825}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告","type":"partial"},"t_us":277417330}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと述べ","type":"partial"},"t_us":277921992}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事頚を追加で三十四件報告したと発表しま","type":"partial"},"t_us":278463500}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表しました","type":"partial"},"t_us":278980311}
+{"event":{"audio_s":7.798,"decode_ms":205.896504,"end_wall_ms":1792012902372,"id":"mic-34","lang":"ja","latency_ms":205.959308,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":271.718,"t1_s":278.516,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":279188924}
+{"event":{"id":"mic-34","speaker":"S1","type":"speaker"},"t_us":279270715}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-34","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3656ce5ed1e1effcfffe2049792186d7b96cec331600396e6a1f5fec0d1e9f86","stage":"e","status":"ok","text":"Last week, the Ministry of Economy, Trade and Industry announced that it had reported an additional 34 cases of overheated matters that Apple did not consider serious.","type":"translation"},"t_us":280339098}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":284488897}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-35","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"589a37a5d02f002c96ce886aed508ca990e412e5805997dd3e12d1c652dadfb5","stage":"t","status":"ok","text":"Ms. Ohashi is still…","type":"translation"},"t_us":284833130}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":285005096}
+{"event":{"text":"大橋さんはやっぱり大変で","type":"partial"},"t_us":285520367}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-35","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e3bb59d0ffb708a625db12782edb8127634741daec7befbda248bd7c141b5df1","stage":"t","status":"ok","text":"Mr. Ohashi is still very difficult.","type":"translation"},"t_us":285677265}
+{"event":{"text":"大橋さんはやっぱり大変でしたか","type":"partial"},"t_us":286052871}
+{"event":{"audio_s":3.446,"decode_ms":109.482291,"end_wall_ms":1792012909735,"id":"mic-35","lang":"ja","latency_ms":109.534307,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":283.494,"t1_s":285.94000000000005,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":286457172}
+{"event":{"id":"mic-35","speaker":"S3","type":"speaker"},"t_us":286499655}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-35","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"t","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":286616059}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-35","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"e","status":"ok","text":"Japanese:\nWas Mr. Ohashi really having a hard time?\n\nRewritten English:","type":"translation"},"t_us":286999513}
+{"event":{"text":"そこの上流","type":"partial"},"t_us":293491259}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-36","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e2f4a0870ef5e0f545a8dbcb1365d1c92759d45eb3c73403b6138265f9aee1f5","stage":"t","status":"ok","text":"Upstream there.","type":"translation"},"t_us":293669206}
+{"event":{"text":"そこの上流から","type":"partial"},"t_us":294014841}
+{"event":{"text":"そこの上流から","type":"partial"},"t_us":294571904}
+{"event":{"text":"そこの上流から丸太を","type":"partial"},"t_us":295040022}
+{"event":{"text":"そこの上流から丸太を","type":"partial"},"t_us":295599005}
+{"event":{"text":"そこの上流から丸太を組んで","type":"partial"},"t_us":296096233}
+{"event":{"text":"そこの上流から丸太を組んでいかざる","type":"partial"},"t_us":296656128}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-36","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"aaa2e39970bc4d8cb636672a012135b120819093747beae7f2490d184b1aff41","stage":"t","status":"ok","text":"We must structure the logs from the upstream area.","type":"translation"},"t_us":296839391}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":297156045}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてる","type":"partial"},"t_us":297662671}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-36","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d81cefba611e374b6888fc2f4979b56f053f5d7b225c5c61ef6c7bc981a2deaa","stage":"t","status":"ok","text":"They’re shoring up logs from upstream to build an raft.","type":"translation"},"t_us":297872672}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":298221687}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":298725744}
+{"event":{"text":"そこの上流から丸太を組んでいかだにして","type":"partial"},"t_us":299261843}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":299827175}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":300284580}
+{"event":{"audio_s":8.534,"decode_ms":230.17842799999997,"end_wall_ms":1792012923841,"id":"mic-36","lang":"ja","latency_ms":230.220684,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":292.518,"t1_s":300.05199999999996,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":300681407}
+{"event":{"id":"mic-36","speaker":"S4","type":"speaker"},"t_us":300772976}
+{"event":{"annotations":[],"hold_reason":"number","id":"mic-36","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"46606bc0dbb96d439a7605bd78d0f5fa484597f7eaa115ca46c6f60ec11a7254","stage":"e","status":"held","text":"","type":"translation"},"t_us":301459219}
+{"event":{"text":"転倒していますさあ","type":"partial"},"t_us":302527619}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8625892067ca9463c216e92140cbf4497df161459cbd9ee5b90b9aae98ff23fb","stage":"t","status":"ok","text":"I’m falling—come on.","type":"translation"},"t_us":302752171}
+{"event":{"text":"さあ百M","type":"partial"},"t_us":303046553}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1698ec83d6e3e6e0c36ab84d2cd80c05e17154a00f53fa5f026fc49422a6e189","stage":"t","status":"ok","text":"Now 100M","type":"translation"},"t_us":303179051}
+{"event":{"text":"さあ百M のターン","type":"partial"},"t_us":303563569}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"28ee02e2204fcc580660ad045a6eb7eaa2d48324c49c7da484534795e89012f9","stage":"t","status":"ok","text":"Alright, it’s the 100‑M turn.","type":"translation"},"t_us":303755349}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":304090791}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b857e76b2eaac058dfaf17c8389af5d8cc4e71941895857d2255c2046992ceef","stage":"t","status":"ok","text":"Approaching the 100‑million‑turn mark.","type":"translation"},"t_us":304288266}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":304602253}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":305125725}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":305651463}
+{"event":{"text":"本多選手はこの得意のドルフィン","type":"partial"},"t_us":306172748}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":306719515}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b857e76b2eaac058dfaf17c8389af5d8cc4e71941895857d2255c2046992ceef","stage":"t","status":"ok","text":"Approaching the 100‑million‑turn mark.","type":"translation"},"t_us":306897259}
+{"event":{"text":"本多選手はこの得意のドルフィンキックで","type":"partial"},"t_us":307190454}
+{"event":{"audio_s":6.39,"decode_ms":137.251408,"end_wall_ms":1792012930721,"id":"mic-37","lang":"ja","latency_ms":137.290955,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":301.542,"t1_s":306.93199999999996,"text":"本多選手はこの得意のドルフィンキックで。","tier":"rz","type":"final"},"t_us":307468081}
+{"event":{"id":"mic-37","speaker":"S5","type":"speaker"},"t_us":307529937}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"959f949ae7cf49e30e76511ab5b006ce44b238bda1c51ba46f7ef05654b0916a","stage":"e","status":"ok","text":"Player Honda delivered this signature dolphin kick.","type":"translation"},"t_us":307798055}
+{"event":{"text":"あぶった","type":"partial"},"t_us":309977722}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"12bd6fd9a6305915db96761ab1d8c968ca06467bf7efe08b115581655b6529af","stage":"t","status":"ok","text":"Abred","type":"translation"},"t_us":310174955}
+{"event":{"text":"あぶった","type":"partial"},"t_us":310503617}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":311003216}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a556415113ad819e3de755882274928797de374cdd7e6054724bde976b989d90","stage":"t","status":"ok","text":"But Mr. Suruga.","type":"translation"},"t_us":311180606}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":311561154}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":312077477}
+{"event":{"text":"でも駿河さん九十一","type":"partial"},"t_us":312590351}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313111924}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313614331}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":314170220}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":314701998}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":315192907}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":315728299}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":316251072}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":316757550}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":317267793}
+{"event":{"audio_s":8.886,"decode_ms":197.276571,"end_wall_ms":1792012940685,"id":"mic-38","lang":"ja","latency_ms":197.308818,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":308.998,"t1_s":316.884,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":317492649}
+{"event":{"id":"mic-38","speaker":"S6","type":"speaker"},"t_us":317562181}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1eefe859ef92f83dc20184ba88e286e97313c49fc4dca2c7bbdab1062134a2a0","stage":"e","status":"ok","text":"But Mr. Suru is 91 years old. His running will become more powerful.","type":"translation"},"t_us":318056599}
+{"event":{"text":"話でずいぶん","type":"partial"},"t_us":319218817}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"132e01f91888756d1fbea7e6bf410354a5370203d70ef0304850d6b7bef50954","stage":"t","status":"ok","text":"A lot of talk.","type":"translation"},"t_us":319367239}
+{"event":{"text":"話で随分ありました","type":"partial"},"t_us":319758904}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cbf678c7555e952992c01af90997ef38fb22186b3fe8a9322ae56183dca7bb94","stage":"t","status":"ok","text":"There was quite a bit of talk.","type":"translation"},"t_us":319880625}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":320260763}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a0bf8b22967f68539a7287c1e79ab10aa973fd2af36aa47c66a9c9866cbf6027","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":320381356}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":320784596}
+{"event":{"audio_s":3.414,"decode_ms":116.14625,"end_wall_ms":1792012944445,"id":"mic-39","lang":"ja","latency_ms":116.160749,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":318.246,"t1_s":320.65999999999997,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":321171532}
+{"event":{"id":"mic-39","speaker":"S7","type":"speaker"},"t_us":321211040}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":321290828}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"e","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":321428340}
+{"event":{"text":"住民によると","type":"partial"},"t_us":322472627}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8260e590e2330e3cb3342f3b4e93a41bef9400251a591d1e5e2d64c34514f7d7","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":322667782}
+{"event":{"text":"住民によると","type":"partial"},"t_us":322973862}
+{"event":{"audio_s":2.304,"decode_ms":87.35107099999999,"end_wall_ms":1792012946765,"id":"mic-40","lang":"ja","latency_ms":87.36887,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":321.478,"t1_s":322.964,"text":"住民によると。","tier":"rz","type":"final"},"t_us":323467280}
+{"event":{"id":"mic-40","speaker":"S8","type":"speaker"},"t_us":323503498}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":323605755}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"e","status":"ok","text":"According to the residents.","type":"translation"},"t_us":323758122}
+{"event":{"text":"過去にも二","type":"partial"},"t_us":324561998}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a4efa2af9a1b20e84ff082288a0db89ae908fe2ecb6e2c90e9046c4ab5b2ae40","stage":"t","status":"ok","text":"Also in the past, two","type":"translation"},"t_us":324746997}
+{"event":{"text":"過去にも似たよ","type":"partial"},"t_us":325087124}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"696325489f960fdf07a30a6784227e613fbda5edb08a3ad6b792a8a1f7e8f991","stage":"t","status":"ok","text":"It’s similar to the past.","type":"translation"},"t_us":325218838}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":325610655}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"57576a1c9ea4f558a92453d2f1c494777b0394ca2083558ff37010c08e0bef20","stage":"t","status":"ok","text":"Similar visits in the past.","type":"translation"},"t_us":325727079}
+{"event":{"text":"過去にも似たような訪問があったと","type":"partial"},"t_us":326130740}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b9df77d80ce5628a1cd57246e3bfb80dca9f081c70d3539cb84e2db420729ec4","stage":"t","status":"ok","text":"There have been similar visits in the past.","type":"translation"},"t_us":326280563}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":326675731}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"78eb00bedd3cfcb44b8fffb9b29ee546fab08090fdfab1b1b3a654b5726aaac0","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":326874724}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":327183742}
+{"event":{"audio_s":4.0,"decode_ms":114.032039,"end_wall_ms":1792012950763,"id":"mic-41","lang":"ja","latency_ms":114.063416,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":323.59,"t1_s":326.964,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":327487262}
+{"event":{"id":"mic-41","speaker":"S8","type":"speaker"},"t_us":327530107}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":327650175}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"e","status":"ok","text":"Japanese:\nThere was also a similar visit in the past.\n\nDRAFT English:\nIt is said that there were similar visits in the past.\n\nREWRITTEN English:","type":"translation"},"t_us":328189932}
+{"event":{"text":"しっかり打ち切れる","type":"partial"},"t_us":329517587}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-42","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5e8a17bc2d3ef128bd68760c4c6fd75826d003206d481848a6c7b0f193c87bd6","stage":"t","status":"ok","text":"Can be firmly terminated.","type":"translation"},"t_us":329692924}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":330043205}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-42","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a7a3b0aa7b5d329d26cd70c1a38baea40c9d6687fe2820d3cf6790e31ad02f42","stage":"t","status":"ok","text":"It’s all about whether you can finish it steadfastly.","type":"translation"},"t_us":330247876}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":330567879}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":331078611}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":331624324}
+{"event":{"audio_s":3.83,"decode_ms":110.378428,"end_wall_ms":1792012955163,"id":"mic-42","lang":"ja","latency_ms":110.393577,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":328.55,"t1_s":331.38,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":331883913}
+{"event":{"id":"mic-42","speaker":"S7","type":"speaker"},"t_us":331949424}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-42","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba753d39dfce6a99bf757c5f662cbbe929e45fdf8127c2a33cd8ac6ee9ca8b0d","stage":"t","status":"ok","text":"It’s all about whether you can finish it steadfastly.","type":"translation"},"t_us":332083317}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-42","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba753d39dfce6a99bf757c5f662cbbe929e45fdf8127c2a33cd8ac6ee9ca8b0d","stage":"e","status":"ok","text":"It’s all about whether you can finish it firmly.","type":"translation"},"t_us":332276766}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":335611168}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-43","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d1b9f95de76395f7df622974ec8d36afc482d4a377a729a95e5e09b9035ab474","stage":"t","status":"ok","text":"Tokyo this morning","type":"translation"},"t_us":335808398}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":336127683}
+{"event":{"text":"けさの東京風はね","type":"partial"},"t_us":336639786}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-43","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a8d1b42359f936a48c5e33a78d190c9cc7e0c5258be8af02c3eba229ead5cdc2","stage":"t","status":"ok","text":"The Tokyo wind this morning…","type":"translation"},"t_us":336820784}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":337178009}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":337707217}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":338205272}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":338746563}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか","type":"partial"},"t_us":339231624}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":339794985}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":340303646}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":340846096}
+{"event":{"audio_s":6.774,"decode_ms":172.679392,"end_wall_ms":1792012964237,"id":"mic-43","lang":"ja","latency_ms":172.7083,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":334.63,"t1_s":340.404,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":341020422}
+{"event":{"id":"mic-43","speaker":"S9","type":"speaker"},"t_us":341095956}
+{"event":{"annotations":[],"hold_reason":"negation","id":"mic-43","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a9f41e4234889dcd3fed18e63fc3d0d29826026810c05ceebdc2766121c94fd4","stage":"e","status":"held","text":"","type":"translation"},"t_us":341679845}
+{"event":{"text":"そしてもう","type":"partial"},"t_us":346855633}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1a21e16ee6721363a6f3f995f5b127e63e8737ad3d45437870d3bc8818e287c2","stage":"t","status":"ok","text":"And then again","type":"translation"},"t_us":347297101}
+{"event":{"text":"そしてもう一つ","type":"partial"},"t_us":347358019}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"236bfb202490386b725b2345a013591406b9b5eca82a6d7fcd5d695a40a94169","stage":"t","status":"ok","text":"And one more thing.","type":"translation"},"t_us":347460935}
+{"event":{"text":"そしてもう一つ大きな魅力","type":"partial"},"t_us":347866111}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"2a8308e93e49892bb41c4dbdcabfc27499c067acad549bbee840d58a567b6464","stage":"t","status":"ok","text":"And another major attraction.","type":"translation"},"t_us":347963506}
+{"event":{"text":"そしてもう一つ大きな線がありま","type":"partial"},"t_us":348413273}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"4539dbf7207dde5d8f80bf90360099cd32c6cf3efd43e725dfded474c01e35e0","stage":"t","status":"ok","text":"And there is another major line.","type":"translation"},"t_us":348551154}
+{"event":{"text":"そしてもう一つ大きな勢力がありま","type":"partial"},"t_us":348921263}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"99f098eceef708e97d27deccd880d1f6b523ff7439415e0ca064a8524b4676c2","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":349037292}
+{"event":{"text":"そしてもう一つ大きな勢力があります","type":"partial"},"t_us":349436824}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"d6e0183e9bc2c5323b714df18e5cda5b0f9e6d69acfe05c33da20ec5b8da0368","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":349550637}
+{"event":{"text":"そしてもう一つ大きな勢力があります","type":"partial"},"t_us":350021234}
+{"event":{"audio_s":4.758,"decode_ms":168.883914,"end_wall_ms":1792012973421,"id":"mic-44","lang":"ja","latency_ms":168.907823,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":345.862,"t1_s":349.62,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":350202055}
+{"event":{"id":"mic-44","speaker":"S10","type":"speaker"},"t_us":350254435}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb5502d63092bef9118b85024bcb405ff84256eaacd4a92e983d398cc7f4a2ad","stage":"t","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":350306727}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-44","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb5502d63092bef9118b85024bcb405ff84256eaacd4a92e983d398cc7f4a2ad","stage":"e","status":"ok","text":"And there is another major force.","type":"translation"},"t_us":350484421}
+{"event":{"text":"勝利は従い","type":"partial"},"t_us":354520783}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-45","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"9ff23a1c3b22d74854b941822bd244e9e0ee2c1d1cb8e53ae91ad171e8bae24c","stage":"t","status":"ok","text":"Victory follows.","type":"translation"},"t_us":354706819}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":355028095}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-45","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ed2552d1e90def43adec83a254c470b1dcc2ac48ddffff9902f5f3b2482e8d36","stage":"t","status":"ok","text":"Although we won,","type":"translation"},"t_us":355140377}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":355525491}
+{"event":{"audio_s":2.71,"decode_ms":88.255393,"end_wall_ms":1792012979010,"id":"mic-45","lang":"ja","latency_ms":88.26801099999999,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":353.51,"t1_s":355.21999999999997,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":355709182}
+{"event":{"id":"mic-45","speaker":"S11","type":"speaker"},"t_us":355748209}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-45","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"03b2471a96ad2a40ce33e7f2990cc71f2aeb0c37d6f167d3ad02570febd16b91","stage":"e","status":"ok","text":"Even though we won?","type":"translation"},"t_us":355965370}
+{"event":{"text":"十万人","type":"partial"},"t_us":356530461}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"179e0a6e75e1c6ae7e0521eb6e71b5d2f0e3efcec27cff598e87ab0924d3127d","stage":"t","status":"ok","text":"100,000 people","type":"translation"},"t_us":356750536}
+{"event":{"text":"十万人以上の","type":"partial"},"t_us":357050347}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"f7ae5c1a8e54fb0b9b219f8bfbf8987210ac3fc7d6457c5198346cef42fb9f80","stage":"t","status":"ok","text":"More than 100,000 people","type":"translation"},"t_us":357231193}
+{"event":{"text":"十万人以上の戦死者","type":"partial"},"t_us":357592177}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e4bfce46cf604f51fc573ff60187f1dfe867b254fc19ad1bd8fbd2db89f0335b","stage":"t","status":"ok","text":"Over 100,000 war casualties","type":"translation"},"t_us":357809936}
+{"event":{"text":"十万人以上の戦死者を出した","type":"partial"},"t_us":358089535}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"17e6ad020dd38f04f9cb890a1abee2901736dda60e7c86a7c4ec8f456fa016b9","stage":"t","status":"ok","text":"It slaughtered more than 100,000 soldiers.","type":"translation"},"t_us":358331855}
+{"event":{"text":"十万人以上の戦死者を出していた","type":"partial"},"t_us":358632249}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"e13f95efebc9541a921113c8f893ba1ce534321317a9269ecbf3acaac9e2862b","stage":"t","status":"ok","text":"It had 100,000 or more war casualties.","type":"translation"},"t_us":358848576}
+{"event":{"audio_s":3.36,"decode_ms":91.940662,"end_wall_ms":1792012982370,"id":"mic-46","lang":"ja","latency_ms":91.954271,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":355.558,"t1_s":358.58,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":359072856}
+{"event":{"id":"mic-46","speaker":"S11","type":"speaker"},"t_us":359119663}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3d73c9b5d858900dd8784e215d2caec232923ee3235c1b5d2a0bd944bebe594f","stage":"t","status":"ok","text":"It had 100,000 or more war casualties.","type":"translation"},"t_us":359310613}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-46","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3d73c9b5d858900dd8784e215d2caec232923ee3235c1b5d2a0bd944bebe594f","stage":"t","status":"ok","text":"It had 100,000 or more war casualties.","type":"translation"},"t_us":360109306}
+{"event":{"text":"左寄りセンター","type":"partial"},"t_us":362012924}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-47","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"64c94d495024d423b8b16381d24556b37497930532bac0b82948ff34932c971e","stage":"t","status":"ok","text":"Left‑leaning center","type":"translation"},"t_us":362206344}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":362537317}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-47","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ba2f656db4d53e139533ba6aa05a321d07c424e192d670e316d7b19fe2ff1b0d","stage":"t","status":"ok","text":"Left‑leaning center‑left","type":"translation"},"t_us":362658011}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":363054142}
+{"event":{"audio_s":2.902,"decode_ms":162.47137899999998,"end_wall_ms":1792012986726,"id":"mic-47","lang":"ja","latency_ms":162.488198,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":361.03,"t1_s":362.932,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":363498879}
+{"event":{"id":"mic-47","speaker":"S12","type":"speaker"},"t_us":363549588}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-47","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3fcb4c0194d8c9529f5042f247bb18ce0c6abb90a84e1dcb0c9a1b13031a376c","stage":"t","status":"ok","text":"Left‑leaning center‑left.","type":"translation"},"t_us":363618779}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-47","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"3fcb4c0194d8c9529f5042f247bb18ce0c6abb90a84e1dcb0c9a1b13031a376c","stage":"e","status":"ok","text":"Left‑leaning center‑left.","type":"translation"},"t_us":363777196}
+{"event":{"text":"言ったろう","type":"partial"},"t_us":368059394}
+{"event":{"text":"言ったろ比喩","type":"partial"},"t_us":368591612}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-48","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"186509c11addbd8aef5e97365373015587a55ab6596ecb7a69b356157560b808","stage":"t","status":"ok","text":"I told you, it’s a synecdoche.","type":"translation"},"t_us":368795159}
+{"event":{"text":"言ったろヒーローよりも","type":"partial"},"t_us":369095439}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-48","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"69f07cc2e1949dbad7522f2c490556987c50928c48d1b97286d3e620ba4e02cd","stage":"t","status":"ok","text":"I told you, better than a hero.","type":"translation"},"t_us":369246265}
+{"event":{"text":"言ったろヒーローよりもてめぇを幸せ","type":"partial"},"t_us":369633116}
+{"event":{"text":"言ったろヒーローよりもてめぇを信じる","type":"partial"},"t_us":370143969}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-48","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"40c6919d5ee46aa96c7614e54e96392a281d98bbc77e0d2d672ee87bc1400242","stage":"t","status":"ok","text":"I told you, I believe in you more than a hero.","type":"translation"},"t_us":370318018}
+{"event":{"text":"言ったろヒーローよりもてめぇを信じる","type":"partial"},"t_us":370677393}
+{"event":{"audio_s":4.31,"decode_ms":117.968836,"end_wall_ms":1792012994183,"id":"mic-48","lang":"ja","latency_ms":117.988404,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":367.078,"t1_s":370.388,"text":"言ったろ。ヒーローよりもてめェを信じる。","tier":"rz","type":"final"},"t_us":370911164}
+{"event":{"id":"mic-48","speaker":"S13","type":"speaker"},"t_us":370968155}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-48","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c2bda6a1e3d5bd54bd16a82a6b6330b2bb94874ada39c20af00f16f12bd1e3eb","stage":"t","status":"ok","text":"I told you. I believe in you more than a hero.","type":"translation"},"t_us":371098714}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-48","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c2bda6a1e3d5bd54bd16a82a6b6330b2bb94874ada39c20af00f16f12bd1e3eb","stage":"e","status":"ok","text":"I told you. I believe in you more than a hero.","type":"translation"},"t_us":371305291}
+{"event":{"text":"こ","type":"partial"},"t_us":372825690}
+{"event":{"text":"高校生に","type":"partial"},"t_us":373357293}
+{"event":{"text":"高校生二百人","type":"partial"},"t_us":373856111}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-49","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"08a78c64cb4f75e5d6ca52f2c8b9532fba264a1c5039711d7daa59c994a362e6","stage":"t","status":"ok","text":"200 high school 1st-year students","type":"translation"},"t_us":374033228}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":374408635}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-49","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c8957c1a2215a61145ab54f377dc349588076a9e7ec0ce474c016407fc361010","stage":"t","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":374592133}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":374935478}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":375409233}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":375965743}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":376489765}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":377010115}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":377516392}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":378077871}
+{"event":{"audio_s":7.126,"decode_ms":233.886884,"end_wall_ms":1792013001765,"id":"mic-49","lang":"ja","latency_ms":233.984276,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":371.846,"t1_s":377.972,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":378609335}
+{"event":{"id":"mic-49","speaker":"S8","type":"speaker"},"t_us":378687321}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-49","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"fb8f9e46e83343c09e6d08af42489d61aca302b7ece608e751b192c7ce1e6589","stage":"t","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":378846832}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-49","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"fb8f9e46e83343c09e6d08af42489d61aca302b7ece608e751b192c7ce1e6589","stage":"e","status":"ok","text":"We asked 200 high school students.","type":"translation"},"t_us":379056741}
+{"event":{"text":"さらにスピンオフ","type":"partial"},"t_us":380518160}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c9ab10ae7a52826933e04d8d0ca58fbb3f6e14641f3d1265dff1d62dc938ac18","stage":"t","status":"ok","text":"Furthermore, spin‑off","type":"translation"},"t_us":380680747}
+{"event":{"text":"さらにスピンオフドラマ夏","type":"partial"},"t_us":381041591}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b168dd2af3385a5ac880a822586a7cfc1cdb65546412acc966a1347c0342f5b8","stage":"t","status":"ok","text":"Moreover, the spin‑off drama “Summer.”","type":"translation"},"t_us":381217852}
+{"event":{"text":"さらにスピンオフドラマ波風","type":"partial"},"t_us":381538990}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"dafa772ebd756a531cf8714892a3a9790fe016b17175a1a87eb42ea7481f9c24","stage":"t","status":"ok","text":"Furthermore, the spin‑off drama “Hakazuki.”","type":"translation"},"t_us":381740607}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれは天ぷら","type":"partial"},"t_us":382079569}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信中","type":"partial"},"t_us":382615658}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"7ef40df9bf75c71457fd2871c20fc58766ac97f11aee63055decc9a77dd0982a","stage":"t","status":"ok","text":"In addition, the spin‑off drama “Waves of Trouble, Stand Up” is exclusively streaming on TELASA.","type":"translation"},"t_us":382980772}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":383122232}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"be4aac6d584e7f7ff40a9cf430264fa4429930fee6b3efd178c13b9f6ff67701","stage":"t","status":"ok","text":"In addition, the spin‑off drama “Waves of Trouble, Stand Up” will be exclusively streamed on TELASA.","type":"translation"},"t_us":383466978}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":383635449}
+{"event":{"audio_s":4.662,"decode_ms":140.315493,"end_wall_ms":1792013007027,"id":"mic-50","lang":"ja","latency_ms":140.34727999999998,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":379.526,"t1_s":383.188,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":383797624}
+{"event":{"id":"mic-50","speaker":"S14","type":"speaker"},"t_us":383843627}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"baef0eab0a5a15c9e27aa41f9e8786b8908f04443807c8da3dad5e7bdbbded68","stage":"t","status":"ok","text":"In addition, the spin‑off drama “Waves of Trouble, Stand Up” will be exclusively streamed on TELASA.","type":"translation"},"t_us":384160166}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-50","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"baef0eab0a5a15c9e27aa41f9e8786b8908f04443807c8da3dad5e7bdbbded68","stage":"e","status":"ok","text":"Furthermore, the spin-off drama “Waves of Trouble, Stand Up” will be exclusively streamed on TELASA.","type":"translation"},"t_us":384588240}
+{"event":{"text":"模擬裁判に参加","type":"partial"},"t_us":385848968}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-51","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"c946ae747dcbb64e1fe07c5c1ecba79354748f90a39b08179640e79d81d27265","stage":"t","status":"ok","text":"Participated in a mock trial.","type":"translation"},"t_us":386012742}
+{"event":{"text":"模擬裁判に参加した","type":"partial"},"t_us":386362249}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-51","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5c0ff3dd5e0326b0fdd0fd8a23e1557239e6c3fa12d997aad2a849df8786b46f","stage":"t","status":"ok","text":"Participated in a mock trial.","type":"translation"},"t_us":386472698}
+{"event":{"text":"模擬裁判に参加した大学","type":"partial"},"t_us":386883628}
+{"event":{"text":"模擬裁判に参加した大学一年生","type":"partial"},"t_us":387415544}
+{"event":{"text":"模擬裁判に参加した大学一年生の炎","type":"partial"},"t_us":387941715}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":388465800}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":388996325}
+{"event":{"audio_s":4.886,"decode_ms":123.92930900000002,"end_wall_ms":1792013012543,"id":"mic-51","lang":"ja","latency_ms":123.974065,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":384.87,"t1_s":388.756,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":389277682}
+{"event":{"id":"mic-51","speaker":"S15","type":"speaker"},"t_us":389340085}
+{"event":{"annotations":[],"hold_reason":"uncertainty","id":"mic-51","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ac7dcc075a21c3e4214c13bb2b5441ac4dbf4af775455b3585353a9c71fa48b6","stage":"e","status":"held","text":"","type":"translation"},"t_us":389881229}

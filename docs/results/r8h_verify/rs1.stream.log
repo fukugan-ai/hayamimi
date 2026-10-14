@@ -1,0 +1,83 @@
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:41:36+09:00","level":"info","event":"eval.relay.connected","component":"transport","message":"relay stream opened","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0"}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:41:36+09:00","level":"info","event":"eval.stream.started","component":"worker","message":"playing the recording","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","chunks":19548,"repeat":2,"utterances":23}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:41:36+09:00","level":"info","event":"eval.ingest.connected","component":"transport","message":"connection upgraded","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","path":"/ingest"}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:41:36+09:00","level":"info","event":"eval.ingest.ready","component":"transport","message":"server is ready","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0"}
+{
+  "samples": 46,
+  "with_final": 40,
+  "with_translation": 34,
+  "untranslated": 12,
+  "finals_total": 51,
+  "late_final_suspects": null,
+  "l": {
+    "n": 34,
+    "p50_ms": 1397,
+    "p95_ms": 1987
+  },
+  "l_asr": {
+    "n": 40,
+    "p50_ms": 995,
+    "p95_ms": 1551
+  },
+  "l_tr": {
+    "n": 34,
+    "p50_ms": 286,
+    "p95_ms": 1103
+  },
+  "l_tr_negative": 0,
+  "final_latency_mean_ms": 162.12041102500004,
+  "per_utt_median_l_ms": [
+    1025,
+    1087,
+    1510,
+    1392,
+    1425,
+    1034,
+    1942,
+    1710,
+    1043,
+    null,
+    null,
+    1318,
+    1420,
+    969,
+    1455,
+    null,
+    1389,
+    null,
+    null,
+    1089,
+    1311,
+    1430,
+    null
+  ],
+  "per_utt_median_l_asr_ms": [
+    695,
+    1003,
+    1250,
+    884,
+    1138,
+    715,
+    1551,
+    614,
+    904,
+    null,
+    818,
+    943,
+    861,
+    801,
+    1267,
+    1168,
+    1280,
+    null,
+    null,
+    905,
+    1116,
+    1031,
+    878
+  ],
+  "cer_dist": 154,
+  "cer_denom": 1180,
+  "cer_micros": 130508
+}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:48:15+09:00","level":"info","event":"eval.stream.finished","component":"worker","message":"stream finished","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","closed_by_server":true,"events":767,"events_unparsed":0,"samples":46,"with_final":40,"with_translation":34}

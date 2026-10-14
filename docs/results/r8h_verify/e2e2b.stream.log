@@ -1,0 +1,4 @@
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T06:25:02+09:00","level":"info","event":"eval.relay.connected","component":"transport","message":"relay stream opened","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0"}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T06:25:02+09:00","level":"info","event":"eval.stream.started","component":"worker","message":"playing the recording","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","chunks":10300,"repeat":2,"utterances":15}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T06:25:02+09:00","level":"error","event":"eval.command.failed","component":"worker","message":"the command failed","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0"}
+error: WebSocket handshake failed: the server answered 404
