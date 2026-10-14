@@ -65,6 +65,18 @@ pub struct IoArgs {
     pub ws_port: Option<u16>,
     /// Drafts of the utterance in progress; `--no-partial` turns them off.
     pub partial: bool,
+    /// `--source`: the `source` the utterances carry, instead of the one the input implies.
+    pub source: Option<&'static str>,
+    /// `--source` was given a value that is not a source; the input's own is used.
+    pub source_refused: bool,
+}
+
+/// The sources an utterance can name.
+const SOURCES: [&str; 3] = ["mic", "loopback", "file"];
+
+/// The source named by the text of `--source`.
+pub fn parse_source(text: &str) -> Option<&'static str> {
+    SOURCES.into_iter().find(|source| *source == text)
 }
 
 impl Default for IoArgs {
@@ -76,6 +88,8 @@ impl Default for IoArgs {
             ws_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             ws_port: None,
             partial: true,
+            source: None,
+            source_refused: false,
         }
     }
 }
@@ -110,6 +124,11 @@ impl IoArgs {
                 );
             }
             "--no-partial" => self.partial = false,
+            "--source" => {
+                // A value that is not a source does not stop the run; `source_refused` makes it say so.
+                self.source = parse_source(value_of(rest)?);
+                self.source_refused = self.source.is_none();
+            }
             _ => return Err(ArgError::UnknownOption),
         }
         Ok(())
@@ -119,6 +138,14 @@ impl IoArgs {
     pub fn kind(&self) -> Input {
         // DEFAULT: a command line without --input reads the file named by --wav, as the usage text says.
         self.input.unwrap_or(Input::Wav)
+    }
+
+    /// The `source` of the utterances: the one `--source` names, else the input's own.
+    pub fn source_name(&self) -> &'static str {
+        match self.source {
+            Some(named) => named,
+            None => self.kind().source(),
+        }
     }
 
     /// The port `/ingest` listens on, or `None` when it does not listen.
@@ -169,6 +196,45 @@ mod tests {
             assert_eq!(Input::parse(name), Some(kind));
         }
         assert_eq!(Input::parse("line"), None);
+    }
+
+    #[test]
+    fn source_flag_names_one_of_the_three_sources() -> Result<(), ArgError> {
+        for name in ["mic", "loopback", "file"] {
+            let io = read(&["--source", name])?;
+            assert_eq!(io.source_name(), name);
+            assert!(!io.source_refused);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn source_flag_overrides_the_source_the_input_implies() -> Result<(), ArgError> {
+        let io = read(&["--input", "ws", "--source", "loopback"])?;
+        assert_eq!(io.kind().source(), "mic");
+        assert_eq!(io.source_name(), "loopback");
+        Ok(())
+    }
+
+    #[test]
+    fn source_flag_with_another_value_falls_back_to_the_input_source_and_is_marked()
+    -> Result<(), ArgError> {
+        let io = read(&["--input", "speaker", "--source", "line"])?;
+        assert_eq!(io.source_name(), "loopback");
+        assert!(io.source_refused);
+        Ok(())
+    }
+
+    #[test]
+    fn source_flag_without_a_value_is_an_error() {
+        assert!(matches!(read(&["--source"]), Err(ArgError::MissingValue)));
+    }
+
+    #[test]
+    fn no_source_flag_uses_the_source_of_each_input() {
+        let io = IoArgs::default();
+        assert_eq!(io.source_name(), "file");
+        assert!(!io.source_refused);
     }
 
     #[test]
