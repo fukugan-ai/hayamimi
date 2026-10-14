@@ -583,8 +583,8 @@ GPU の段は起動時に置き場を決めるので、実行中には戻さな�
 | 場面 | 検出 | 落ち先 | log の event（`reason`） | 持ち主の slice |
 |---|---|---|---|---|
 | CUDA の device が無い、段の CUDA の session が作れない | 3.11 の 2 段 | その段を CPU の実行 provider で動かす（3.11） | `gpu.device.unavailable`、`gpu.fallback.cpu`（`no_device`、`driver_unreadable`、`session_failed`、`provider_mismatch`） | R2（句読点）、R3（言語判定）、R8b（訳） |
-| GPU の memory が上限（RP-22 の 14,000 MiB）に届く | 1 秒ごとに `nvidia-smi` と同じ値を `hayamimi-gpu` で読む | 最後に使ってから一番長い認識器を GPU から外す（LRU）。外しても上限を超えるときは、GPU に置いた段を CPU へ落とす（訳は R8b の形） | `gpu.fallback.cpu`（`memory_budget`） | R3 |
-| model の file が無いか読めない | session を作る時 | 同じ段の小さい model（`--minimal` の組）へ落とす。それも無ければその段を外して縮めて動かす（句読点は規則の後処理だけ、言語判定は `--lang` の言語に固定、話者は印なし、認識器はその言語の確定を出さず、ほかの言語を続ける） | `model.fallback.smaller` か `model.fallback.disabled`（`missing`、`unreadable`） | R2（ja の経路）、R3（振り分けの認識器と言語判定）、R4（話者） |
+| GPU の memory が上限（RP-22 の 14,000 MiB）に届く | 1 秒ごとに `nvidia-smi` と同じ値を `hayamimi-gpu` で読む | GPU に置いた段を、句読点、言語判定、訳（R8b の形）の順に CPU へ落とす。認識器は CPU に置くので GPU から外す物ではなく、CPU に常駐させる数を `--max-resident`（既定 3）で縛る（LRU。8 の「07:00 の計画」の R3 の着手の 3） | `gpu.fallback.cpu`（`memory_budget`） | R3 |
+| model の file が無いか読めない | session を作る時 | 同じ段の小さい model（`--minimal` の組）へ落とす。それも無ければその段を外して縮めて動かす（句読点は規則の後処理だけ、言語判定は `--lang` の言語に固定、話者は印なし）。認識器は、頼んだ tier の既定の代わり（Parakeet v2 なら v3）、次に ReazonSpeech、SenseVoice、Parakeet v3、Paraformer、Omnilingual の順で読める物へ落とす（`scripts/asr_engine.py` の `_get_with_fallback` と同じ順）。parakeet-ja が無ければ second opinion を切る | `model.fallback.smaller`、`model.fallback.substitute`（認識器。`requested` と `used` を持つ）か `model.fallback.disabled`（`missing`、`unreadable`） | R2（ja の経路）、R3（振り分けの認識器と言語判定）、R4（話者） |
 | 推論の library（sherpa-onnx と ORT）が開けない | 最初の sherpa-onnx の呼び出しの前（3.4 の先読み） | 認識の段を外し、server と画面と `/ingest` だけで動かす | `asr.fallback.disabled`（`library_unavailable`） | R2 |
 | llama-server に届かない | 依頼の時と、5 秒ごとの `/health` | 訳を保留し、原文の字幕を出し続ける（会話字幕の設計 3.6 の `hold_reason: unavailable`） | `translate.fallback.held`（`unreachable`） | R8b |
 | 外の送り先（Zoom、Teams）に届かない | 送る時 | 送れなかった確定の訳を SRT と自分の重ね窓に残し、届いたら次の行から送り直す | `sink.fallback.local`（`unreachable`） | R8c |
@@ -670,7 +670,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-19 | Python の test の case を Rust へ写したこと | `cargo test --release -- --list` の出力と、test-designer が `rust_port_tests.ja.md` に書く対応表を `cargo test --release --test rp19` が突き合わせる | 対応表の全 386 行が、Rust の test の名前か `写さない：<理由>` のどちらかを持つ。名前を持つ 334 行は list に在り、全部通る。`写さない` を許すのは 3 種だけで、3.2 が消す script の test、この設計で無くなる部品（Python の中の翻訳 worker と翻訳器の pool、文ごとの訳の分割。訳は `hayamimi-relay` が 1 行ずつ頼む、3.6）、外が更新する model の sha256 を動作の gate にする case（sha256 は `models/manifest.json` の記録に留める、3.10）である。`docs/spec/ja_pipeline_spec.json` の `config` を `<hy> config dump` で作り直した値と差 0 | 対応表の 1 行目 | 名前を 1 つ変えた list で落ちる |
 | RP-20 | 3.5 の表の全段の置き場が決まったこと | `cargo test --release --test rp20` が 3.5 の表の「いまの置き場」の列に「測る」が残っていないことと、各行が `gpu_stages.md` の行に対応することを確かめる（test は `#[ignore]` を持たない。docs だけを読む） | 「測る」が 0 件、表の行と結果の行の対応が全件 | R1 の前の表（`native/hayamimi-eval/tests/fixtures/rp20_table_before_r1.md`、「いまの置き場」の列に「測る」が 8 件）を陽性対照の入力にし、同じ式が 8 件と数える | 結果の file の行を 1 つ消すと落ちる |
 | RP-21 | model の取得に Python が要らない | 空の directory で `<hy> models fetch --minimal --dir <tmp>` | 今の `--minimal` と同じ 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）が 3.5 の置き場に合った版（3.10）で揃い、`models/manifest.json` に sha256 が在る | 既に在る directory で打つと取り直さない | 取得先の 1 つを壊すと、もう 1 つの取得先（sherpa-onnx の release と Hugging Face）から取る。両方を壊すと前の file を残し、`models.fallback.previous` を 1 件出して終了 code 0 |
-| RP-22 | GPU の memory の上限 | RP-3 の run の間、`nvidia-smi --query-gpu=memory.used --format=csv` を 1 秒ごとに読む | 最大が 14,000 MiB 以下（`gpu_stages.md` に memory の実測が無いまま据え置いた値で、R3 と R8e が測り、超えたら評議へ戻す。16,311 MiB から、他の process の 1,161 MiB と、余白の約 1,150 MiB を除いた値） | 起動前の値が読める | 上限を、その run で測った最大より 1 MiB 低い値に置いた test の設定では、`hayamimi` が止まらず `gpu.fallback.cpu`（`memory_budget`）を 1 件以上出し、test の比べる式は上限を超えた読みを名指しして落ちる（比べる式が働くことの確かめ） |
+| RP-22 | GPU の memory の上限 | RP-3 の run の間、`nvidia-smi --query-gpu=memory.used --format=csv` を 1 秒ごとに読む（R3b は `/ingest` が入る前なので、llama-server を起こした機械で `<hy> --wav testdata/lat-multi.wav` を実時間で流す間に読む。8 の「07:00 の計画」の R3 の着手の 2） | 最大が 14,000 MiB 以下（`gpu_stages.md` に memory の実測が無いまま据え置いた値で、R3 と R8e が測り、超えたら評議へ戻す。16,311 MiB から、他の process の 1,161 MiB と、余白の約 1,150 MiB を除いた値） | 起動前の値が読める | 上限を、その run で測った最大より 1 MiB 低い値に置いた test の設定では、`hayamimi` が止まらず `gpu.fallback.cpu`（`memory_budget`）を 1 件以上出し、test の比べる式は上限を超えた読みを名指しして落ちる（比べる式が働くことの確かめ） |
 | RP-23 | 段ごとの GPU と CPU の計測（R1） | `<ev> stages --provider cuda --wav lat-ja.wav --out stages_cuda.jsonl` と `--provider cpu` を同じ build で 1 回ずつ（1 stream）打ち、同じ 2 本を llama-server に訳の依頼を流し続けた負荷の下でも打ち、`cargo test --release --test rp23 -- --ignored` が `docs/results/gpu_stages.md` を書いて読む | 3.5 の表で GPU の経路が在る段（「いまの置き場」が「CPU（GPU 経路なし）」で始まらない 14 段）について、無負荷と負荷の下の、GPU と CPU の p50 と p95（標本は lat-ja の 23 発話を 5 回流した区切りの数か、文字列の段は同じ数の行）、1 発話あたりの転送の時間と bytes、測った機械と `build.json` の要点が在る。JIT の cache が空の run と温かい run の `decode_ms` が別の行で在る（10 の H27） | 同じ build で同じ入力を 2 回流した p50 の差が 10% 以内 | provider を指定しない run の行は、CPU の行と同じ値になり、GPU の行として受け付けない |
 | RP-24 | build の再現（Windows と WSL） | 2 つの OS で `cargo run -p xtask -- sherpa-gpu` を打ち、`cargo test --release --test rp24 -- --ignored` が 2 つの `build.json` を比べる。2 つの OS を比べる `windows_and_wsl_builds_match` は WSL から打つ（WSL の build の directory は symlink で、Windows からは WSL が作った symlink を読めない。os error 1920） | sherpa-onnx の commit、ORT の版、CUDA の主版、cuDNN の主版、`sm_120` 系の判定（3.12）が一致。各 OS で、`sm_120` か `sm_120a` の機械語が 1 件以上、または `sm_120` の PTX があり「PTX の JIT で RP-17 が通った記録」が在る。この記録は、その build の `build.json` の sha256 を持つ `rp17_passed.json`（RP-17）である | 同じ OS で 2 回 build した `build.json` の上の項目が一致 | ORT の版を変えた build では差を名指しして落ちる |
 | RP-25 | 訳の揺れ | RP-3 の Rust の run を `cargo test --release --test rp25 -- --ignored` が読む | 発話ごとに、確定の訳が出た後に表示の訳が変わった回数が 0。先の訳から確定の訳への置き換えは 1 回まで。速報の訳で、確定した字形で描いた接頭辞が後で消えた回数が 0。Zoom と Teams と SRT へ出た訳は 1 つの `id` につき 1 件で、確定の訳と同じ | 先の訳と確定の訳が違う発話の数を同じ test が数える | 確定の訳の前に先の訳を送る偽の中継で落ちる |
@@ -706,7 +706,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-19 | `rp19_python_cases_are_ported` | `native/hayamimi-eval/tests/rp19.rs` | 名前を変えた list |
 | RP-20 | `rp20_every_stage_placement_is_measured` | `native/hayamimi-eval/tests/rp20.rs` | 結果の行を消した file |
 | RP-21 | `rp21_models_fetch_without_python` | `native/hayamimi/tests/rp21.rs` | 壊した取得先（もう 1 つの取得先か前の file へ落ちる） |
-| RP-22 | `rp22_vram_stays_under_budget` | `native/hayamimi-eval/tests/rp22.rs` | 上限なしの LRU |
+| RP-22 | `rp22_vram_stays_under_budget` | `native/hayamimi-eval/tests/rp22.rs` | 上限を run の最大より 1 MiB 低く置いた設定 |
 | RP-23 | `rp23_every_stage_is_timed_on_gpu_and_cpu` | `native/hayamimi-eval/tests/rp23.rs` | provider を指定しない run |
 | RP-24 | `rp24_windows_and_wsl_builds_match` | `native/xtask/tests/rp24.rs` | ORT の版を変えた build |
 | RP-25 | `rp25_translation_flicker_is_bounded` | `native/hayamimi-eval/tests/rp25.rs` | 先の訳を外へ送る偽の中継 |
@@ -731,12 +731,12 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R1 | 計測の slice。最初の手番は 3.12 の「CUDA 13 版の ORT で sherpa-onnx が build でき RP-17 が通るか」で、通らなければ 3.12 の戻し方に従う。3.12 の環境を確かめ（WSL に cuDNN が無ければ入れる）、xtask で CUDA 版の sherpa-onnx を Windows（msvc）と WSL で build し、`hayamimi-gpu` で開き、`hayamimi-eval stages` で 3.5 の GPU の経路が在る段を GPU と CPU の 1 stream ずつ、無負荷と llama-server の負荷の下で測る。結果で 3.5 の表の置き場を決める。句読点の BERT は、`ort` と `punct_ja_parity.json` の `input_ids` で forward だけを CUDA と CPU に掛ける。認識は、encoder の model だけを `ort` で同じ fp32 の同じ入力に CUDA と CPU で掛ける 1 回と、fp16 の `gpu.session.placed` の CPU の node の数の 1 回を取る。3.5 の表で GPU とした model（言語判定の whisper-tiny の encoder と decoder を含む）の CUDA と CPU の node の数を、`gpu_stages.md` の node の表に全部載せる（RP-6 が読む） | RP-24、RP-17、RP-23、RP-7、RP-8、RP-20 | crate と結果の file を消す。環境は 3.12 の表の戻し方 |
 | R1b | 評議。R0 と R1 の実測で、目標の数（RP-3 の 2000 ms、RP-7 の 20%、RP-22 の 14,000 MiB、RP-3 と RP-4 の対の比較の下限、根拠 3 の 1%）と、`--min-silence` の値を置き直す（6 の前置き、10 の H8 と H9）。WSL の build の置き場は 3.12 の環境の表のとおり | 評議の判定を この文書の 6 に写す | 文書の commit を revert |
 | R2 | ja の経路（VAD、preroll、ReazonSpeech、分割再試行、ITN、句読点、置換辞書）、`--wav`、最小の server（`/events`）。3.11 と 3.15 の fallback の形（起動時の 2 段の確かめ、段ごとの CPU への落とし、`<domain>.fallback.<落ち先>` の event、`/events` の `fallback`、stderr の文）を作り、R2 の段に当てる（句読点の BERT の CPU への落とし、ja の経路の model の file が無いとき、推論の library が開けないとき、`/events` の port が使えないとき、設定の file が壊れたとき）。ITN と句読点の後処理の 1 行の CPU の p50 を `hayamimi-eval stages` で測り、`gpu_stages.md` の 2 段の CPU の行に置く。句読点の後処理は BERT を呼ぶ module と分け、`hayamimi-asr::punct::rules` に置く。作る crate は `native/hayamimi`（bin）と `native/hayamimi-asr`（lib）で、`native/Cargo.toml` の `members` に足す。どちらも `hayamimi-gpu` に依存するので、3.4 の link 引数 2 本を bins と tests に渡す build script を両方に置く。Windows の build は `SHERPA_ONNX_LIB_DIR` を `native/target/sherpa-gpu/windows/install/lib` に向ける。T-RP-6-012 と 013 は `native/hayamimi/tests/rp06.rs` に置く。R2 では `/ingest` が無いので `L` と `L_asr` は測れない。`asr.utterance.timed` の `l_dec_ms` を `--wav` の lat-ja で記録し、Python の `L_dec` の p50 311 ms と p95 446 ms（`gpu_stages.md` の「Python（記録）」の `L_dec` の行、:297）と並べる。合否には使わない。`L_asr` は R5 以降、`L` は R8e で測る | RP-2、RP-18、RP-6、RP-16、RP-26、RP-29 の R2 の 4 行（model の file、推論の library、port、設定の file）。RP-8 の根拠 4 の式（ITN と句読点の後処理の CPU の p50 が GPU の往復の下限より小さい）、RP-27（`itn.rs` と `punct/rules.rs` が在り、`rg` の rc が 1） | crate を消す |
-| R3 | 言語の振り分け（whisper-tiny と SenseVoice の二重確認、粘り、5 つの tier、Omnilingual、LRU、清書、second opinion、ko の分かち書き）。言語判定の CPU への落とし、GPU の memory の上限での LRU と CPU への落とし、振り分けの認識器と言語判定の model が無いときの落とし（3.15） | RP-1、RP-22、RP-16 の言語判定の行、RP-29 の R3 の行 | 同上 |
+| R3 | 言語の振り分け（whisper-tiny と SenseVoice の二重確認、粘り、5 つの tier、Omnilingual、LRU、清書、second opinion、ko の分かち書き）。言語判定の CPU への落とし、GPU の memory の上限での LRU と CPU への落とし、振り分けの認識器と言語判定の model が無いときの落とし（3.15）。R3a（振り分け）と R3b（認識器、常駐、`hayamimi-eval scorecard`、`lat-multi`）の 2 席に分ける（「07:00 の計画」） | RP-1、RP-22、RP-16 の言語判定の行、RP-29 の R3 の行 | 同上 |
 | R4 | 話者（CAM++、pyannote、FastClustering、全体の対応づけ、仮の印）。FastClustering と全体の対応づけの CPU の p50 を `hayamimi-eval stages` で測り、`gpu_stages.md` の「清書の clustering」の CPU の行に置く。話者の model が無いときは印なしで動かす（3.15） | RP-15、RP-29 の R4 の行。RP-8 の根拠 4 の式（清書の clustering の CPU の p50 が GPU の往復の下限より小さい） | 同上 |
-| R5 | 取り込み（wasapi、cpal、mix、`/ingest`）と server の全 route。取り込みから認識器へ渡すまでと、確定文の event を `/events` へ書き出すまでの CPU の p50 を `hayamimi-eval stages` で測り、`gpu_stages.md` の 2 段の CPU の行に置く。取り込みの装置が無いときと、全 route の port が使えないときの落とし（3.15） | RP-10、RP-11、RP-12、RP-29 の R5 の行。RP-8 の根拠 4 の式（取り込みと配信の CPU の p50 が GPU の往復の下限より小さい） | 同上 |
+| R5 | 取り込み（wasapi、cpal、mix、`/ingest`）と server の全 route。速報（伸びていく音声を約 0.5 秒ごとに解き直し、`partial` の event を出す。2.2）。`<ev> stream --sink loopback`（wav を既定の出力の装置へ鳴らし、送った sample の時刻を記録する）。取り込みから認識器へ渡すまでと、確定文の event を `/events` へ書き出すまでの CPU の p50 を `hayamimi-eval stages` で測り、`gpu_stages.md` の 2 段の CPU の行に置く。取り込みの装置が無いときと、全 route の port が使えないときの落とし（3.15） | RP-10、RP-11、RP-12、RP-29 の R5 の行。RP-8 の根拠 4 の式（取り込みと配信の CPU の p50 が GPU の往復の下限より小さい） | 同上 |
 | R6 | Dioxus の 3 頁（designer の板が先） | RP-12 の頁の行と、overlay の同一性の test | crate を消す |
 | R7 | 認識の遅れの詰め。R1 で遅いと分かった段を直す。3.5 の CPU の時間は 1 stream で測った値で、mic と loopback の 2 音源同時の CPU は未測定なので、2 音源を同時に流した CPU の段の p50 と p95 を測る。認識は 2 音源同時で GPU（fp32）と CPU（同じ fp32 と int8）を測り直し、CPU の側が GPU より遅くなれば 3.5 の置き場を評議へ戻す。認識全体の cuda の時間のうち encoder 以外の約 99 ms の内訳を調べる（10 の H31） | RP-4、RP-7 | 設定と commit を revert |
-| R8a | 中継が Rust の `hayamimi` の `/events` を購読する（3.3 の 5 項目と `src_sha256`） | 会話字幕の CS-21、CS-22 | 中継の購読先を戻す |
+| R8a | 中継が Rust の `hayamimi` の `/events` を購読する（3.3 の 5 項目と `src_sha256`）。5 項目を `hayamimi` の確定文の event に足す。`<ev> stream` が中継の SSE の訳も読む | 会話字幕の CS-21、CS-22 | 中継の購読先を戻す |
 | R8b | llama-server を Windows の native に置く（`%LOCALAPPDATA%\hayamimi\models\llm\`、slot 4）。起こす側が 3.11 の確かめを打ち、GPU が無ければ `-ngl 0` か CPU の build で起こし、`gpu.fallback.cpu`（`stage` が `translate`）を出す。llama-server に届かないときは訳を保留して原文を出し続ける（3.15） | 会話字幕の CS-20、RP-16 の訳の行、RP-29 の R8b の行。Windows の CUDA 13.4 の llama-server で T を測り直し、`gpu_stages.md` の T の行を置き換える（RP-23 の T の行の形） | WSL の llama-server に戻す |
 | R8c | T の訳を先に出し、E の訳で置き換え、確定の訳だけを外へ出す。外の送り先に届かないときは SRT と重ね窓に残す（3.15）。会話字幕の T-CX-1-002 を test-designer が書き替える | RP-25、会話字幕の CS-5、CS-25、RP-29 の R8c の行 | 中継の commit を revert |
 | R8d | 速報の訳（re-translation、最長共通接頭辞、打ち切り、`cache_prompt`） | RP-5、RP-25 | 設定で速報の訳を切る |
@@ -758,6 +758,89 @@ DER は 3 回以上流す。2 回では回の間の幅を決められないか�
 
 R1 を認識の実装より先に置くのは、速度が第一で、どの段を GPU に置くかを実測で決めてから作るためである。
 R1 の `stages` は、sherpa-onnx の crate の型を直に呼ぶ小さな計測の道具で、R2 以降の経路の code に依らない。
+
+### 07:00 の計画
+
+R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
+範囲は削らない。
+実装の席は波ごとに最大 5 席で、席ごとに repo の中の `.claude/worktrees/` に worktree を分ける。
+波の後に、書いていない席が受入を打ち直してから merge する。
+
+**依存**（どの slice がどの成果物を要るか）：
+
+| slice | 要る物 | 根拠（今の木） |
+|---|---|---|
+| R3a、R3b | R2 の ja の経路と確定文の event | `native/hayamimi/src/run.rs:64` の `final_event` は `lang` が `"ja"`、`tier` が `"rz"` の固定 |
+| R4 | R2 の確定文の event（R3 に依らない。話者は発話ごとに印を足す） | 同じ `final_event` の `speaker` が空 |
+| R5 | R2 の server と CLI | `native/hayamimi/src/server.rs:105` の route は `/events` だけ。`native/hayamimi/src/args.rs:16` の入力は `--wav` だけ |
+| R5（速報） | 速報の event を出す者が今は居ない | `run.rs:64` は `final` だけを出す。Python は `scripts/realtime_transcribe.py:895` の `hub.partial` |
+| R6 | designer の板と、R0 の wire の録り（3.8）。頁の route は R5 | 3.8 の「designer に渡す物」 |
+| R7 | R5 の 2 音源の取り込みと、R3 の言語ごとの認識器 | 8 の R7 の行 |
+| R8a | 中継に `/events` を購読する口が無い。確定文に 3.3 の 5 項目が無い | `native/hayamimi-relay/src/cli.rs:21` の `Command` は `FxFetch` と `FxSchedule` だけ。`run.rs:64` に `id`、`source`、`t0_s`、`t1_s`、`end_wall_ms` が無い |
+| R8b | 無し（環境と起こす側） | 3.11 の訳の行 |
+| R8c | R8a | 8 の R8c の行 |
+| R8d | R8a と R5 の速報の event | 8 の R8d の行 |
+| R8e | R5 の `/ingest`、R8a〜R8d、R8b | RP-3 の command（6）が `/ingest` と中継の訳を読む |
+| R8f | R8b の llama-server。中継の `eval` は R8f が足す | RP-13 の command（6） |
+| R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
+| R11 | RP-1（R3）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
+| 端から端 | R3（`--lang`）、R5（取り込み）、R8a〜R8c、R6 の頁 | この小節の E2E-1 と E2E-2 |
+
+R3 は 2 席に分ける。R3a は振り分け（`hayamimi-asr::route` と `::lid`、RP-19 の `route.rs` 70 行と `lid.rs` 9 行）、R3b は認識器と常駐（`::decode` と `::resident`、`decode.rs` 24 行、`hayamimi-eval scorecard`、RP-22）である。
+R3a は R3b の `decode` を、言語の tier を受けて文字列を返す 1 つの関数として呼び、R3b が出来るまでは test の中の偽の関数で通す。
+
+**波**：
+
+| 波 | 時間（JST） | slice | 見積り |
+|---|---|---|---|
+| W0 | 13:30〜14:00 | 設計の席：`gpu_stages.md` の引用の打ち直し（済み）、この計画、R3 の着手の 4 件。designer の席を出す | 0.5 時間 |
+| W1 | 14:00〜20:00 | R3a、R3b、R4、R5、R8a | 各 4〜6 時間 |
+| V1 | 20:00〜21:00 | 検証と merge（順は R8a、R4、R3b、R3a、R5。`args.rs` を足す席が後ろ） | 1 時間 |
+| W2 | 21:00〜01:00 | R6、R7、R8b、R8c、R8d | 各 3〜4 時間 |
+| V2 | 01:00〜01:45 | 検証と merge | 0.75 時間 |
+| W3 | 01:45〜04:15 | R8e、R8f、R10 | 各 2.5 時間 |
+| V3 | 04:15〜04:45 | 検証と merge | 0.5 時間 |
+| W4 | 04:45〜05:45 | R11 | 1 時間 |
+| E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95 | 1 時間 |
+
+cargo の並列は 2 に固定されている。
+5 席が同時に `cargo build --release` を打つと 10 job になり、この機械の 16 core に収まるが、1 席の build は単独の時より遅くなる。
+見積りは各席の時間に 2 割を足してある。
+Windows の実機の test（RP-10、RP-16 の訳の行、R8b、端から端）は Windows の cargo を使い、同じ時に 2 席までにする。
+
+**R3 の着手の 4 件**（止めずに進めるために決める。仮の値は持ち主と置き直す条件を添える）：
+
+1. **scorecard**：R3b が `hayamimi-eval scorecard --engine hayamimi` を作る。`hayamimi-eval` が `hayamimi-asr` の振り分けを process の中で起こし、`<hy>` の既定と同じ設定（二重確認あり、en は Parakeet v3、second opinion なし、`--max-resident` 3）で、manifest ごとに session の状態を初めに戻して clip を 1 本ずつ解く。Python の `scripts/eval_engine.py` が `RoutedASR(threads=6, preload=False)` を process の中で起こし、manifest ごとに `reset_session()` を打つのと同じ形である。clip ごとに `<hy>` を起こさないのは、model の読み込みが clip ごとに入り、言語の粘りの状態も切れて Python と同じ物を測らなくなるからである。
+2. **RP-22 の実走**：R3b は RP-3 の run（`/ingest`、R5）を待たない。R3b の run は、`<ev> fetch-set --concat` で `testdata/manifests/eval_real.json` の ja と en、`eval_real_zhko.json` の zh と ko、`eval_real_yue.json` の yue をつないだ `testdata/lat-multi.wav` を、llama-server を起こした機械で `<hy> --wav testdata/lat-multi.wav`（実時間の速さ）に流し、その間の読みで T-RP-22-007〜009 を打つ。仮の形で、持ち主は R8e、置き直す条件は R8e が RP-3 の run の間に同じ読みを取り直すことである。
+3. **LRU の対象**：LRU は CPU に常駐させる認識器の数を縛る（`--max-resident`、既定 3、ReazonSpeech は数に入れず常に残す。Python の `scripts/asr_engine.py:788` と `:1166`）。認識器は 3.5 で CPU に置くので、GPU の memory からは外す物が無い。GPU の memory の上限（14,000 MiB、仮の値、持ち主 R3b と R8e）は GPU 全体の `memory.used` の最大で、llama-server を含む。上限に届いたら、GPU に置いた段を `L` の損の小さい順に CPU へ落とす。順は句読点（`gpu_stages.md` の「置き場の提案」の句読点の行、:264 で GPU 8 ms 対 CPU 45 ms）、言語判定（同じ表の言語判定の行、:259 で 76 ms 対 124 ms）、訳（R8b の形）である。5 言語の振り分けで使う認識器は ReazonSpeech の外に 3 つ（Parakeet v3、Paraformer、SenseVoice）なので、既定の 3 では追い出しが起きない。追い出しの確かめは `--max-resident 2` の run で行う。
+4. **振り分けの仕様**：振り分けは Python の意図を移し、code の形は写さない。合否を決めるのは、RP-19 の対応表の `route.rs`、`lid.rs`、`decode.rs` の行の case と、RP-1 と、`config dump` の値（RP-19 の spec の行）である。この 3 つが決めない振る舞いは `scripts/asr_engine.py` の挙動に合わせ、合わせられないときは評議へ出す。既定で読まない model が無いときは、3.15 の model の行の順で落とす。Parakeet v2（`--en-tier v2`）は Parakeet v3 へ、parakeet-ja（`--refine-ja-second-opinion`）は second opinion を切る（`model.fallback.disabled`）。RP-1 は既定の設定（en は v3、second opinion なし）で測るので、2 つの model の有無は en と ko の閾値に効かない。RP-1 の run に `model.fallback.*` の event が 1 件でも在れば、既定の経路を測っていないので RP-1 は閾値を緩めずに落ちる。
+
+**designer の席に頼む物**（W0 で出し、W1 の間に板を返させる。R6 は板が在ってから W2 で作る）：
+
+- 3 頁（dashboard、OBS の overlay、transcript）の Figma の板。台帳の path と板の URL を返させる。
+- 描く要素は 3.8 の「designer に渡す物」の全部（速報の帯、確定の行と言語の印と話者の印と行ごとの遅れ、訳、清書の列、`?show=final` と `?show=partial`、速報の訳の確定の部分と薄い部分、先の訳を確定の訳で置き換える形）と、3.15 の fallback の印。
+- 今の頁は `scripts/subtitle_server.py` の `OVERLAY_HTML`（:14）、`TRANSCRIPT_HTML`（:57）、`DASHBOARD_HTML`（:83）と、mobile の `overlay_html.dart` を読ませる。overlay は `overlay_html.dart` と同じに描く条件（`tests/test_overlay_parity.py`）を外さない。
+- 返す物は、板の URL、token（色、字、間隔）の表、頁ごとの要素と event の型の対応表。
+
+**端から端の受入**（E2E の波で、書いていない席が Windows の実機で打つ）：
+
+| process | 音源 | 認識 | 訳 | 字幕の port | `/ingest` の port |
+|---|---|---|---|---|---|
+| A | マイク | ja（`--lang ja`） | en | 8833 | 8766 |
+| B | スピーカーの loopback | en（`--lang en`） | ja | 8834 | 8767 |
+
+| ID | command | 期待値 | 陽性対照 | 陰性対照 |
+|---|---|---|---|---|
+| E2E-1 | llama-server、中継、process A を起こし、`<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl`、`cargo test --release --test e2e1 -- --ignored` | 有効な標本（3.1）のうち訳の取れた割合が 20 / 23 以上。`L`、`L_asr`、`L_tr` の p50 と p95 を出す。`L` は RP-3 の期待値（Python の p50 と p95 以下）で判定する | 同じ test が `<base>` の Python の run から同じ列を出せる | llama-server を止めた run では訳が 0 件で test が落ち、`hayamimi` と中継は止まらず `translate.fallback.held` を出す |
+| E2E-2 | llama-server、中継、process B を起こし、`<ev> stream --wav testdata/lat-en.wav --repeat 5 --sink loopback --out e2e2.jsonl`（既定の出力の装置へ鳴らし、送った sample の時刻を記録する口は R5 が足す）、`cargo test --release --test e2e2 -- --ignored` | `lang` が `en` の `final` と `lang` が `ja` の訳が出て、有効な標本のうち訳の取れた割合が 20 / 23 以上。`L` の p50 と p95 を出し、p95 が 2000 ms 以下（RP-3 の en→ja の値） | 同じ音声を `/ingest`（8767）へ送った run でも同じ列が出る | 出力の装置を止めた run では止まらず `capture.fallback.none` が 1 件 |
+
+マイクの実機（RDP の録音の転送を通る音声）は、process A を起こして `capture.fallback.none` が 0 件で、マイクの装置の名前が log に出ることまでを機械で確かめる。
+人が話した ja で en の字幕が出ることは、話す者が居る時にしか打てない（NOT VERIFIED）。
+
+| ID | 受入 test の名前 | 置き場 |
+|---|---|---|
+| E2E-1 | `e2e1_mic_process_ja_to_en_beats_python` | `native/hayamimi-eval/tests/e2e1.rs` |
+| E2E-2 | `e2e2_loopback_process_en_to_ja_within_budget` | `native/hayamimi-eval/tests/e2e2.rs` |
 
 ## 9. 決めたこと
 

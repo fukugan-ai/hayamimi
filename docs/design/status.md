@@ -7,11 +7,12 @@ One row per slice gives its state, merge commit, where the verification comes fr
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
 Commit hashes were checked with `git log --oneline`; main was at `f0aeaf4` when they were checked.
 
-The three states:
+The four states:
 
 - **Done**: merged, and a seat that did not write it has verified it.
 - **In progress**: being built on a branch or in a worktree.
-- **Not started**: not begun.
+- **Planned**: not begun, but placed in a wave of the 07:00 plan ("07:00 の計画" in section 8 of `rust_port.ja.md`). W1 runs 14:00–20:00 JST on 2026-10-14, W2 21:00–01:00, W3 01:45–04:15 and W4 04:45–05:45 on 2026-10-15.
+- **Not started**: not begun and not placed in a wave.
 
 | Slice | State | Merge commit | Source of verification | Acceptance passed | Holes left |
 |---|---|---|---|---|---|
@@ -20,14 +21,15 @@ The three states:
 | R1 (measurement slice) | Done | `1b93167` | Body of `1b93167` (output of RC-1 to RC-4) | RP-17, RP-24 (verified in `83af5a5`); RP-7, RP-8, RP-20, RP-23 (passed with `--ignored` on Windows) | H29 (load split, re-measuring translation T), H30 (fp16), H31 (R7) |
 | R1b (council and provisional values) | Done | D `68867d8`, T `92f2641`, tests `d921b21`, results `47341b4` | `68867d8`, which copies the council's verdict (kept outside git) into D | The 20/23 pair threshold and the 1% in evidence 3 are backed by measurements; `--min-silence` is set to 0.30 | H8 (2000 ms, 20% and 14,000 MiB kept as they are) |
 | R2 (ja path, `--wav`, `/events`, CPU fallback) | Done | `f0aeaf4` | Independent verification passed on the second round (the verifier's reply, kept outside git); fixes in `a8840a7`; RP-6 acceptance re-set in `1d33a5b` and `255c6a0` | WSL run in the body of `a8840a7`: rp06 3, rp16 17, rp26 12, rp29 22, rp02 10, rp18 8, rp27 7 passed. T-RP-6-012 passed after RP-6 was re-set | H8c (RP-6 thresholds), H33 (match count of punctuation on the CPU fallback); T-RP-21-001, 005, 006, 007 belong to R10 |
-| R3 (language routing) | Not started | none | none | RP-1, RP-22, the language-ID row of RP-16 and the R3 rows of RP-29 not run | H13, H24, H25 |
-| R4 (speakers) | Not started | none | none | RP-15 and the R4 rows of RP-29 not run | none |
-| R5 (capture and every server route) | Not started | none | none | RP-10, RP-11, RP-12 and the R5 rows of RP-29 not run | H34 |
-| R6 (three Dioxus pages) | Not started | none | none | Page rows of RP-12 not run | The designer's boards come first |
-| R7 (tightening recognition delay) | Not started | none | none | RP-4, RP-7 not run | H9 (0.25), H10, H31 |
-| R8a–R8f (relay on the Rust `hayamimi`, translation speed) | Not started | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-20 to CS-22, CS-25 not run | H6, H17, H32, H8b |
-| R10 (fetching, documents, English versions) | Not started | none | none | RP-14, the spec row of RP-19, RP-21 not run | H16 |
-| R11 (removing Python) | Not started | none | none | RP-9, RP-19 not run | The three conditions in 3.2 |
+| R3 (language routing; R3a routing, R3b recognizers, residency and `scorecard`) | Planned (W1) | none | none | RP-1, RP-22, the language-ID row of RP-16 and the R3 rows of RP-29 not run | H13, H24, H25 |
+| R4 (speakers) | Planned (W1) | none | none | RP-15 and the R4 rows of RP-29 not run | none |
+| R5 (capture, partials and every server route) | Planned (W1) | none | none | RP-10, RP-11, RP-12 and the R5 rows of RP-29 not run | H34 |
+| R6 (three Dioxus pages) | Planned (W2; the designer's boards during W1) | none | none | Page rows of RP-12 not run | The designer's boards come first |
+| R7 (tightening recognition delay) | Planned (W2) | none | none | RP-4, RP-7 not run | H9 (0.25), H10, H31 |
+| R8a–R8f (relay on the Rust `hayamimi`, translation speed) | Planned (R8a in W1; R8b, R8c, R8d in W2; R8e, R8f in W3) | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-20 to CS-22, CS-25 not run | H6, H17, H32, H8b |
+| R10 (fetching, documents, English versions) | Planned (W3) | none | none | RP-14, the spec row of RP-19, RP-21 not run | H16 |
+| R11 (removing Python) | Planned (W4) | none | none | RP-9, RP-19 not run | The three conditions in 3.2 |
+| End-to-end acceptance (E2E-1 mic ja→en, E2E-2 loopback en→ja) | Planned (after W4, 05:45–06:45) | none | none | E2E-1, E2E-2 not run | A Japanese utterance spoken into the real microphone cannot be checked by machine |
 
 No slice is in progress at the moment.
 
