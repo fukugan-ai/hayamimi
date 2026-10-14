@@ -20,11 +20,7 @@ use serde_json::{Value, json};
 use crate::api::{self, BadRequest, PairsOut};
 use crate::control::Controls;
 use crate::server::{self, Hub};
-
-/// The pages. The Dioxus pages replace them; the routes stay.
-const OVERLAY: &str = include_str!("../data/pages/overlay.html");
-const DASHBOARD: &str = include_str!("../data/pages/dashboard.html");
-const TRANSCRIPT: &str = include_str!("../data/pages/transcript.html");
+use crate::ui;
 
 /// How long `POST /reset` waits for the loop before it answers 202.
 const RESET_WAIT: Duration = Duration::from_secs(5);
@@ -45,10 +41,11 @@ impl FromRef<AppState> for Hub {
 /// The routes of the server.
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/", get(overlay))
+        .route("/", get(ui::index))
         .route("/events", get(server::events))
-        .route("/dashboard", get(dashboard))
-        .route("/transcript", get(transcript))
+        .route("/dashboard", get(ui::index))
+        .route("/transcript", get(ui::index))
+        .route("/ui/{*path}", get(ui::file))
         .route(
             "/replacements",
             get(get_replacements).post(post_replacements),
@@ -58,22 +55,6 @@ pub fn router(state: AppState) -> Router {
         .route("/reset", post(reset))
         .layer(DefaultBodyLimit::max(api::MAX_BODY))
         .with_state(state)
-}
-
-fn page(html: &'static str) -> Response {
-    ([(CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response()
-}
-
-async fn overlay() -> Response {
-    page(OVERLAY)
-}
-
-async fn dashboard() -> Response {
-    page(DASHBOARD)
-}
-
-async fn transcript() -> Response {
-    page(TRANSCRIPT)
 }
 
 /// A JSON reply with the headers the existing server sent.
@@ -237,13 +218,6 @@ mod tests {
         assert_eq!(object.map(|o| o.len()), Some(7));
         assert_eq!(config["lang"], "ja");
         assert_eq!(config["translate"], json!([]));
-    }
-
-    #[test]
-    fn the_pages_are_compiled_in_and_read_the_event_stream() {
-        for html in [OVERLAY, DASHBOARD, TRANSCRIPT] {
-            assert!(html.contains("EventSource(\"/events\")"));
-        }
     }
 
     #[test]
