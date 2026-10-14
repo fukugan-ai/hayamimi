@@ -270,7 +270,7 @@ text は fs-sub である。
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│ ● 早耳 hayamimi                     [確定 7] [平均応答 370 ms] [言語 en ko zh] │ header 56
+│ ● 早耳 hayamimi                     [確定 7] [平均応答 370 ms] [言語 en ko zh] │ header 約 61
 ├─────────────────────────────────────────────────────────────────────┤
 │ 代替で動作中  [translate → cpu (unreachable)] [punct → cpu (no_device)] │ fallback の帯（あるときだけ）
 ├─────────────────────────────────────────────────────────────────────┤
@@ -291,7 +291,7 @@ text は fs-sub である。
 | 領域 | 寸法と見た目 |
 |---|---|
 | 根 | 高さ 100vh の縦の flex。地は ink、字は paper、`overflow: hidden`。背景の模様は無し |
-| header | padding 12 × 24、下に罫線、`align-items: baseline`、gap 16。左から接続の点（10 px の円）、logotype（「早」は paper、「耳」は shu）、romaji（`hayamimi`、fs-label、字間 .3em、paper-dim）、空き、chip 3 つ |
+| header | 高さは約 61 px（padding 12 × 2、28 px の logotype の行 33.6、下の罫線 1 に、baseline 揃えの字の余白が加わる。1440×900 の実測 60.8）。BD-12 の許容は 61 ± 2 px で、実装の padding は変えない。padding 12 × 24、下に罫線、`align-items: baseline`、gap 16。左から接続の点（10 px の円）、logotype（「早」は paper、「耳」は shu）、romaji（`hayamimi`、fs-label、字間 .3em、paper-dim）、空き、chip 3 つ |
 | chip | fs-label、mono、1 px の `--line` の枠、r-2、padding 4 × 10、字は paper-dim。値は paper、weight 600。「確定」は確定の行の数、「平均応答」は `latency_ms` の平均の整数、「言語」は見た言語を `lang` の順に空白で並べる（値が無いときは `–`） |
 | 接続の点 | 切れている間は c-xx。つながっている間は shu で pulse |
 | 速報の帯 | 地は ink-2、下に罫線、padding 20 × 24 × 16、`min-height` 88。左上に小見出し「いま聞き取り中」（fs-label、字間 .35em、paper-dim）、原文は serif の fs-strip、小見出しの 16 下。原文の後ろに caret（幅 .5em、高さ 1.05em、shu）。訳の行は原文の 4 下 |
@@ -330,6 +330,25 @@ transcript と同じ部品（RefineParagraph）である。
 | 確定が 0 行 | 列の中央寄りに「まだ確定した行はありません」（fs-sub、paper-dim） |
 | 清書が 0 行 | 「まだ清書はありません」 |
 | 接続前と切断中 | 接続の点が c-xx、footer の接続の語が「接続中…」「再接続中…」。つながると「接続済み」 |
+
+### 6.4.1 表示する行数の上限
+
+確定のフィード、清書の列、transcript の段落は、どれも直近の 500 行（段落）だけを DOM に持つ。
+500 を超えたら、古い行から DOM と model の両方で捨てる。
+捨てた行は transcript へ寄せない。transcript は清書だけを持ち、確定の行とは結べないからである。
+
+| 項目 | 決め |
+|---|---|
+| 上限 | 500 |
+| 溢れた行 | 古い順に捨てる。1 行につき 1 行（追加と同時に先頭を捨てる） |
+| 捨てた数の表示 | 列の先頭に「古い N 行は表示から外しました」（fs-label、paper-dim）を 1 行だけ出し、N を更新する。N が 0 の間は出さない |
+| header の数 | 「確定」「平均応答」「言語」は捨てた行も含めた累計で出す（DOM の行数から数えない） |
+| 追従していないとき | 先頭を捨てても、読んでいる位置を動かさない（捨てた行の高さだけ scroll を戻す） |
+
+500 の根拠は、1 行を描く時間の実測が 1000 行まで 16 ms（1 frame）、2000 行で 23 ms、4000 行で 45 ms、8000 行で 93 ms、16000 行で 169 ms と行数に比例して伸び、50 ms の long task が 1000 行付近から出ることである。
+速さを第一にするので、1 frame に収まる 1000 行の半分に置く。
+行を描く時間が行数に比例するのは、model が行の増えるたびに全行を描き直すためと見える（NOT VERIFIED）。
+描き直しを行ごとの差分にして上限を上げるかは、実装の席が測り、板へ戻す。
 
 ### 6.5 footer
 
@@ -447,6 +466,7 @@ key は `ui.<頁>.<名前>` の形にする。
 | `ui.dashboard.empty_feed` | まだ確定した行はありません | No final lines yet |
 | `ui.common.empty_refined` | まだ清書はありません | No refined text yet |
 | `ui.common.jump_latest` | 最新へ | Jump to latest |
+| `ui.common.dropped` | 古い {n} 行は表示から外しました | {n} older lines are no longer shown |
 | `ui.common.connecting` | 接続中… | Connecting… |
 | `ui.common.reconnecting` | 再接続中… | Reconnecting… |
 | `ui.common.connected` | 接続済み | Connected |
@@ -471,5 +491,5 @@ key は `ui.<頁>.<名前>` の形にする。
 | W1 | 速報の訳は `of` が `"partial"` の `translation` で見分ける（設計 3.6 の 3）。速報の訳の `id` は、後で確定文が取る `id` である。中継が同じ入力の直前の確定文の次の番号として決めるので、入力の最初の発話では速報の訳が出ない。画面は `of` が `"partial"` の訳を、同じ `id` の確定文の行とは別の行として描く | 持ち主は R6。速報の訳を描く 1 関数を adapter に置く |
 | W3 | `fallback` の `stage` と `to` の値の一覧が、設計 3.15 に「段の名前」としか無い。11 の stage の表は値が決まった分だけ足す | R2 から R8c の席が値を決めるとき、表を足す |
 | W6 | font を同梱しないので、入っていない端末では代替の字体で出る。同梱は licence の表示を足す変更になる（3 つとも SIL OFL と記憶しているが NOT VERIFIED） | R10 が `THIRD_PARTY_NOTICES.md` を書くときに決める |
-| W7 | feed の行数の上限は決めていない。WASM の描画が何行から遅れるかは測っていない（NOT VERIFIED） | R6 が長い run で測り、必要なら上限を足す |
+| W7 | 上限は 500 行で決めた（6.4.1）。描き直しを行ごとの差分にしたとき、上限をどこまで上げられるかは測っていない（NOT VERIFIED） | R6 が上限を 500 より上げたいときは、同じ測りで 1 行あたり 16 ms 以下を示して板へ戻す |
 | W8 | 平均応答は平均のままで、p50 と p95 を出さない。主指標は p50 と p95（設計 3.1）で、画面の chip は今の頁と同じ値を出す | 出すかは設計の側が決める |
