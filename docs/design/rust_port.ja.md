@@ -383,8 +383,8 @@ chat template は llama-server が GGUF の metadata から当てる。
 template の token の数は 2 つの形で同じなので、1 行の訳の遅れは変わらない。
 `/v1/chat/completions` が `cache_prompt` と `stop` を受けることは README の `/completion` の節の記述からの読みで、確かめていない（NOT VERIFIED。T-CS-8-001 と 002 の body の検査と、R8d の速報の訳の `cache_prompt` の測りで確かめる）。
 持ち主は R8c の直しで、R8e が `L` を測る前に入れる。
-受入は同じ llama-server で、probe1 の 41 行の原文を中継の T に流した訳の文字列が、同じ server に `curl` で `/v1/chat/completions` を同じ body で打った訳と全行で同じであることとする（陽性対照は `curl` の側が probe1 の log の出力と同じであること。llama.cpp の版が probe の時と違うと、そこが割れることがあるので、割れた行は数を記録し、合否は中継と `curl` の一致で決める）。
-陰性対照は、今の形（`/completion` に平文の `prompt`）で同じ 41 行を流し、`curl` と違う行が 1 行以上出ることである（0 行なら、この受入は 2 つの形を見分けていないので、行を足して打ち直す）。
+受入は同じ llama-server で、probe1 の 40 行の原文を中継の T に流した訳の文字列が、同じ server に `curl` で `/v1/chat/completions` を同じ body で打った訳と全行で同じであることとする（陽性対照は `curl` の側が probe1 の log の出力と同じであること。llama.cpp の版が probe の時と違うと、そこが割れることがあるので、割れた行は数を記録し、合否は中継と `curl` の一致で決める）。
+陰性対照は、今の形（`/completion` に平文の `prompt`）で同じ 40 行を流し、`curl` と違う行が 1 行以上出ることである（0 行なら、この受入は 2 つの形を見分けていないので、行を足して打ち直す）。
 
 `--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、同じ言語モデルの T で訳す。
 品質は FLEURS の chrF で、今の値（en 47.57、zh 20.19、ko 25.20、es 42.09）以上を RP-13 で測る。
