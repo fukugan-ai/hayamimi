@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{chrf, cli_stages, fleurs, log, manifest, record, stream};
+use crate::{chrf, cli_der, cli_stages, fleurs, log, manifest, record, stream};
 
 #[derive(Parser)]
 #[command(
@@ -39,6 +39,8 @@ enum Command {
     NsysTransfers(cli_stages::NsysTransfersArgs),
     /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
     OrtPlaced(cli_stages::OrtPlacedArgs),
+    /// Score the speaker labels of the Rust route against an RTTM reference set.
+    Der(cli_der::DerArgs),
 }
 
 #[derive(Args)]
@@ -231,6 +233,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
                 println!("{lang}\t{:.4}\t{}", corpus.score, corpus.pairs);
             }
         }),
+        Command::Der(args) => cli_der::der(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {

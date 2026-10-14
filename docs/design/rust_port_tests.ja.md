@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-29）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-30）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1077,6 +1077,26 @@ test：`native/hayamimi/tests/rp29.rs`。受入 test の名前は `rp29_missing_
 | T-RP-29-026 | fixture：023 と同じ外した run で、`model.fallback.disabled` が 0 件 | 外したのに言わない build（言語判定） | `Err` | `Err` で `lid` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_identifier_fallback_is_rejected` |
 | T-RP-29-027 | 実走（`native/hayamimi/tests/rp29/real.rs` の `speaker_scene`）：話者の model（`campplus_sv.onnx`）を外した directory と、全部在る directory で 1 回ずつ | R4 の場面：話者を外す | 実走 | 外した run は終了 code 0、`final` が 1 件以上、`model.fallback.disabled`（`stage` = `speaker`、`reason` = `missing`）が 1 件、`/events` の `fallback`（`to` = `disabled`）が 1 件、印の付いた `final` と `speaker` の event が 0 件。在る run は同じ場面の fallback の event が 0 件で、`speaker` の event が 1 件以上（specified、RP-29、3.15 の「話者は印なし」） | 陰性、陽性 | `speaker_scene` |
 | T-RP-29-028 | fixture：027 の外した run で `model.fallback.disabled` が 0 件の log | 外したのに言わない build（話者） | `Err` | `Err` で `speaker` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_speaker_fallback_is_rejected` |
+
+### 4.40 RP-30（`fallback` の `stage` と `reason` の値の一覧が code と同じ）
+
+test：`native/hayamimi/tests/rp30.rs`。受入 test の名前は `rp30_fallback_stage_and_reason_lists_match_the_code`。`#[ignore]` を持たない。
+`check_fallback_lists(design, code)` は、`docs/design/rust_port.ja.md` の 3.15 の「`fallback` の event の `stage` の値は」の段落の 2 つの一覧と、`native/hayamimi/src/notice.rs` の `STAGES` と `REASONS` を集合として比べ、どちらかにだけ在る値を名指しして `Err` を返す。
+fixture の docs は、実物の段落を file に写して 1 語だけ直した物を `native/hayamimi/tests/rp30/` に置く（反例を command や test の本文の文字列で運ばない）。
+実物の読みは、`docs/design/rust_port.ja.md` と `native/hayamimi/src/notice.rs` をそのまま渡す。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-30-001 | 実物の `rust_port.ja.md` と実物の `notice.rs` | 一致 | `Ok` | `Ok`（specified、RP-30 の「集合として code と一致する」） | 陽性 | `design_lists_equal_the_code_constants` |
+| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 10 個 | 13 と 10（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_10_reasons` |
+| T-RP-30-003 | 実物の段落。括弧の中の `memory_budget`、`unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 3 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 10 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 10 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
+| T-RP-30-004 | fixture：`stage` の一覧から `lid` を消した docs | 一覧から 1 つ消す（stage） | `Err` | `Err` で `lid` を名指し（code にだけ在る。specified、RP-30 の陰性欄） | 陰性 | `a_stage_removed_from_the_design_is_named` |
+| T-RP-30-005 | fixture：`reason` の一覧から `bad_value` を消した docs | 一覧から 1 つ消す（reason） | `Err` | `Err` で `bad_value` を名指し（specified、RP-30） | 陰性 | `a_reason_removed_from_the_design_is_named` |
+| T-RP-30-006 | fixture：`stage` の一覧に code に無い `diarize` を足した docs | code に無い値を足す（stage） | `Err` | `Err` で `diarize` を名指し（docs にだけ在る。specified、RP-30） | 陰性 | `a_stage_added_to_the_design_only_is_named` |
+| T-RP-30-007 | fixture：`reason` の一覧に code に無い `timeout` を足した docs | code に無い値を足す（reason） | `Err` | `Err` で `timeout` を名指し（specified、RP-30） | 陰性 | `a_reason_added_to_the_design_only_is_named` |
+| T-RP-30-008 | fixture：実物の docs と、`STAGES` に docs に無い `extra_stage` を足した `notice.rs` の写し | code にだけ在る値（逆向き） | `Err` | `Err` で `extra_stage` を名指し（specified、RP-30 の「どちらかにだけ在る値」） | 陰性 | `a_stage_added_to_the_code_only_is_named` |
+| T-RP-30-009 | fixture：2 つの一覧を並べ替えた docs（`stage` を逆順、`reason` を逆順） | 順 | `Ok` | `Ok`（specified、RP-30 の「順を問わず」） | 境界 | `list_order_does_not_matter` |
+| T-RP-30-010 | fixture：「`fallback` の event の `stage` の値は」の段落を消した docs | 段落が無い（空と空の一致を通さない） | `Err` | `Err` で段落が無いことを名指し（implicit。値が 0 個と 0 個を一致として通すと 001 の `Ok` が何も測らない） | 陰性、境界 | `a_design_without_the_paragraph_is_rejected` |
 
 ## 5. RP-19 の対応表
 

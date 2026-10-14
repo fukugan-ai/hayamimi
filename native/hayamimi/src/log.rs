@@ -3,6 +3,8 @@
 //! an event carries names, counts and times.
 
 use std::io::Write;
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use hayamimi_asr::{Final, Reason, SessionReport};
 use hayamimi_relay::logging::{Level, LogEvent};
@@ -21,6 +23,9 @@ pub const SESSION_PLACED: &str = "gpu.session.placed";
 pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
+pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
+pub const FINAL_PUBLISHED: &str = "asr.final.published";
+pub const EMBEDDING_STARTED: &str = "speaker.embedding.started";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
 pub const DEVICE_OPENED: &str = "capture.device.opened";
@@ -200,6 +205,49 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
     )
 }
 
+/// Microseconds on the process's monotonic clock, from the first call.
+pub fn mono_us() -> u64 {
+    static START: OnceLock<Instant> = OnceLock::new();
+    // A process that has run for 584,000 years would wrap; none does.
+    START.get_or_init(Instant::now).elapsed().as_micros() as u64
+}
+
+/// `asr.final.published` (debug): the `final` of utterance `id` has been sent, at `mono_us`.
+pub fn final_published_line(strings: &Strings, id: u64, mono_us: u64) -> String {
+    event_line(
+        strings,
+        Level::Debug,
+        FINAL_PUBLISHED,
+        "asr",
+        None,
+        &[("id", Value::from(id)), ("mono_us", Value::from(mono_us))],
+    )
+}
+
+/// `speaker.embedding.started` (debug): the embedding of utterance `id` begins, at `mono_us`.
+pub fn embedding_started_line(strings: &Strings, id: u64, mono_us: u64) -> String {
+    event_line(
+        strings,
+        Level::Debug,
+        EMBEDDING_STARTED,
+        "asr",
+        None,
+        &[("id", Value::from(id)), ("mono_us", Value::from(mono_us))],
+    )
+}
+
+/// `asr.speaker.failed`: the speaker mark failed for one utterance and the text went on without it.
+pub fn speaker_failed_line(strings: &Strings, done: &Final) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        SPEAKER_FAILED,
+        "asr",
+        None,
+        &[("id", Value::from(done.id))],
+    )
+}
+
 /// `asr.punct.failed`: punctuation failed for one utterance and the text went on without it.
 pub fn punct_failed_line(strings: &Strings, done: &Final) -> String {
     event_line(
@@ -284,6 +332,7 @@ mod tests {
                 l_dec_ms: 130.0,
             },
             punct_error: None,
+            speaker_audio: Vec::new(),
         }
     }
 
@@ -379,6 +428,9 @@ mod tests {
                 DEVICE_UNAVAILABLE,
                 UTTERANCE_TIMED,
                 PUNCT_FAILED,
+                SPEAKER_FAILED,
+                FINAL_PUBLISHED,
+                EMBEDDING_STARTED,
                 ENGINE_FAILED,
                 notice::GPU_FALLBACK,
                 notice::MODEL_DISABLED,

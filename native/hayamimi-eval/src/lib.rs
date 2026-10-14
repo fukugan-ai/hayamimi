@@ -7,7 +7,10 @@
 pub mod cer;
 pub mod chrf;
 pub mod cli;
+pub mod cli_der;
 pub mod cli_stages;
+pub mod der;
+pub mod der_run;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;
