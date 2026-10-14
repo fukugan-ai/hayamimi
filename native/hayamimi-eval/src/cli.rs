@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_der, cli_stages, fleurs, log, manifest, record, stream};
+use crate::{chrf, cli_der, cli_stages, fleurs, log, manifest, record, stream};
 
 #[derive(Parser)]
 #[command(
@@ -29,6 +29,8 @@ enum Command {
     FetchSet(FetchSetArgs),
     /// Write Japanese/target sentence pairs from FLEURS.
     FleursPairs(FleursArgs),
+    /// Score translations against their references with chrF.
+    Chrf(ChrfArgs),
     /// Time every stage of the Rust port on one provider and write a run file.
     Stages(cli_stages::StagesArgs),
     /// Write the result document of the stage measurement from run files.
@@ -37,6 +39,10 @@ enum Command {
     NsysTransfers(cli_stages::NsysTransfersArgs),
     /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
     OrtPlaced(cli_stages::OrtPlacedArgs),
+    /// Run as another audio source for `stages --peers`: decode until standard input closes.
+    StagesPeer(cli_stages::PeerArgs),
+    /// Write the R7 document (two sources, placement, search) from run files.
+    R7Report(cli_stages::R7ReportArgs),
     /// Score the speaker labels of the Rust route against an RTTM reference set.
     Der(cli_der::DerArgs),
 }
@@ -155,6 +161,16 @@ struct FleursArgs {
     degrade: bool,
 }
 
+#[derive(Args)]
+struct ChrfArgs {
+    /// The directory of `<lang>.ref.txt`, as `fleurs-pairs` wrote it.
+    #[arg(long)]
+    pairs: PathBuf,
+    /// The directory of `<lang>.hyp.txt`, one translation per reference line.
+    #[arg(long)]
+    hyps: PathBuf,
+}
+
 /// `manifests/<stem>.json` beside the wav.
 fn default_manifest(wav: &Path) -> Result<PathBuf, EvalError> {
     let Some(stem) = wav.file_stem() else {
@@ -216,6 +232,13 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::StagesReport(args) => cli_stages::stages_report(args),
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
+        Command::Chrf(args) => chrf::score_directories(&args.pairs, &args.hyps).map(|scores| {
+            for (lang, corpus) in scores {
+                println!("{lang}\t{:.4}\t{}", corpus.score, corpus.pairs);
+            }
+        }),
+        Command::StagesPeer(args) => cli_stages::stages_peer(args),
+        Command::R7Report(args) => cli_stages::r7_report(args),
         Command::Der(args) => cli_der::der(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {

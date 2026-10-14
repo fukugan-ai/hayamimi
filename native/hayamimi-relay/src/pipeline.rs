@@ -17,7 +17,7 @@
 //! dropped when a newer one makes it useless.
 
 use std::fmt::Write as _;
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Deref};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -31,11 +31,12 @@ use crate::lang::Lang;
 use crate::llm::{Completion, Llm, LlmError, Wanted};
 use crate::logging::{Level, LogEvent, LogSink};
 use crate::style::{Calques, JaStyle};
+use crate::target::Target;
 use crate::verify::{HoldReason, Verdict, Verifier, contains_eos};
 use crate::watched::Watched;
 
 /// Tokens a translation or an edit may use at most.
-const MAX_TOKENS: u32 = 256;
+pub const MAX_TOKENS: u32 = 256;
 
 /// Which event of the recognizer a line came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -84,7 +85,9 @@ pub struct Translation {
     pub of: LineKind,
     pub source: String,
     pub src_lang: Lang,
-    pub lang: Lang,
+    /// The ISO 639-1 code of the language the text is in: the other side of
+    /// the live pair, or a language of `--translate`.
+    pub lang: &'static str,
     /// The SHA-256 of the source text, as lowercase hex. A reader that holds
     /// the text of a `final` finds the translation of that exact text by it.
     pub src_sha256: String,
@@ -111,6 +114,38 @@ pub struct LineRequest<'a> {
     pub src_lang: Lang,
     pub text: &'a str,
     pub now_epoch: i64,
+}
+
+/// The language a line is translated into.
+#[derive(Clone, Copy)]
+enum Dest<'a> {
+    /// The other side of the live pair, with unit notes.
+    Pair,
+    /// A language of `--translate` outside the live pair, without notes.
+    Other(&'a Target),
+}
+
+/// A line and where it is translated to. It reads as the line itself.
+struct Ctx<'a> {
+    request: &'a LineRequest<'a>,
+    dest: Dest<'a>,
+}
+
+impl<'a> Deref for Ctx<'a> {
+    type Target = LineRequest<'a>;
+
+    fn deref(&self) -> &LineRequest<'a> {
+        self.request
+    }
+}
+
+impl Ctx<'_> {
+    fn lang_code(&self) -> &'static str {
+        match self.dest {
+            Dest::Pair => self.request.src_lang.other().code(),
+            Dest::Other(target) => target.code,
+        }
+    }
 }
 
 /// A stage of the pipeline.
@@ -174,11 +209,55 @@ fn language_name(lang: Lang) -> &'static str {
 
 /// The prompt for T, in the form the model card recommends.
 pub fn translate_prompt(src_lang: Lang, text: &str) -> String {
-    format!(
-        "Translate the following {} text into {}.\n\n{text}",
+    translate_prompt_between(
         language_name(src_lang),
-        language_name(src_lang.other())
+        language_name(src_lang.other()),
+        text,
     )
+}
+
+/// The prompt for T into `target`, which may be any language of the table.
+pub fn translate_prompt_to(src_lang: Lang, target: &Target, text: &str) -> String {
+    translate_prompt_between(language_name(src_lang), target.name, text)
+}
+
+fn translate_prompt_between(from: &str, to: &str, text: &str) -> String {
+    format!("Translate the following {from} text into {to}.\n\n{text}")
+}
+
+/// The first part of the prompt for E: what to do, in which languages.
+fn edit_instruction(from: &str, to: &str) -> String {
+    format!(
+        "Below is a {from} sentence from a live conversation and a draft {to} translation.\n\
+         Rewrite the draft so that it reads as natural spoken {to}: natural word order, \
+         connectives and tone. Do not change facts, numbers, proper names, negation or \
+         uncertainty. Output only the rewritten translation.\n"
+    )
+}
+
+/// The last part of the prompt for E: the source, the draft, and where the
+/// answer goes.
+fn edit_material(from: &str, to: &str, text: &str, draft: &str) -> String {
+    format!("\n{from}:\n{text}\n\nDraft {to}:\n{draft}\n\nRewritten {to}:\n")
+}
+
+/// The prompt for E into `target`. The style notes exist for Japanese and
+/// English output only; into another language the instruction stands alone.
+pub fn edit_prompt_to(
+    src_lang: Lang,
+    target: &Target,
+    text: &str,
+    draft: &str,
+    calques: &Calques,
+    ja_style: &JaStyle,
+) -> String {
+    if target.lang() == Some(src_lang.other()) {
+        return edit_prompt(src_lang, text, draft, calques, ja_style);
+    }
+    let from = language_name(src_lang);
+    let mut prompt = edit_instruction(from, target.name);
+    prompt.push_str(&edit_material(from, target.name, text, draft));
+    prompt
 }
 
 /// The prompt for E. It carries the source and the draft, and for Japanese
@@ -191,12 +270,7 @@ pub fn edit_prompt(
     ja_style: &JaStyle,
 ) -> String {
     let (from, to) = (language_name(src_lang), language_name(src_lang.other()));
-    let mut prompt = format!(
-        "Below is a {from} sentence from a live conversation and a draft {to} translation.\n\
-         Rewrite the draft so that it reads as natural spoken {to}: natural word order, \
-         connectives and tone. Do not change facts, numbers, proper names, negation or \
-         uncertainty. Output only the rewritten translation.\n"
-    );
+    let mut prompt = edit_instruction(from, to);
     match src_lang.other() {
         Lang::Ja => {
             prompt.push_str(&format!("Style: {}\n", ja_style.note));
@@ -216,9 +290,7 @@ pub fn edit_prompt(
             }
         }
     }
-    prompt.push_str(&format!(
-        "\n{from}:\n{text}\n\nDraft {to}:\n{draft}\n\nRewritten {to}:\n"
-    ));
+    prompt.push_str(&edit_material(from, to, text, draft));
     prompt
 }
 
@@ -249,9 +321,15 @@ pub struct Pipeline<L: Llm> {
 /// T's answer, and whether V let it through.
 struct Draft {
     text: String,
-    passed: bool,
+    verdict: Verdict,
     /// Milliseconds spent so far in T, E and V, in that order.
     ms: [u128; 3],
+}
+
+impl Draft {
+    fn passed(&self) -> bool {
+        self.verdict == Verdict::Ok
+    }
 }
 
 impl<L: Llm> Pipeline<L> {
@@ -313,6 +391,37 @@ impl<L: Llm> Pipeline<L> {
         early: &mut dyn FnMut(Translation),
         sink: &mut dyn LogSink,
     ) -> Translation {
+        let ctx = Ctx {
+            request,
+            dest: Dest::Pair,
+        };
+        self.run_to(&ctx, observer, early, sink)
+    }
+
+    /// Runs one line into `target`, a language of `--translate` outside the
+    /// live pair, like [`Pipeline::run_staged`]. The translation carries the
+    /// language's code in `lang` and no unit notes.
+    pub fn run_into(
+        &mut self,
+        request: &LineRequest<'_>,
+        target: &Target,
+        early: &mut dyn FnMut(Translation),
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        let ctx = Ctx {
+            request,
+            dest: Dest::Other(target),
+        };
+        self.run_to(&ctx, &mut NoObserver, early, sink)
+    }
+
+    fn run_to(
+        &mut self,
+        request: &Ctx<'_>,
+        observer: &mut dyn Observer,
+        early: &mut dyn FnMut(Translation),
+        sink: &mut dyn LogSink,
+    ) -> Translation {
         self.calques.refresh(sink);
         self.ja_style.refresh(sink);
         let started = Instant::now();
@@ -320,10 +429,30 @@ impl<L: Llm> Pipeline<L> {
             ControlFlow::Continue(draft) => draft,
             ControlFlow::Break(done) => return done,
         };
-        if draft.passed && request.of == LineKind::Final {
+        if matches!(request.dest, Dest::Other(_)) {
+            return self.settle_draft(request, draft, observer, sink);
+        }
+        if draft.passed() && request.of == LineKind::Final {
             early(self.draft_event(request, &draft.text));
         }
         self.edit(request, draft, observer, started, sink)
+    }
+
+    /// A language outside the live pair has no E: the model that writes it
+    /// takes its language codes as a structure and cannot be handed an edit
+    /// instruction. T's translation is the settled one when it passed V, and
+    /// the line is withheld when it did not.
+    fn settle_draft(
+        &mut self,
+        request: &Ctx<'_>,
+        draft: Draft,
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        match draft.verdict {
+            Verdict::Ok => self.settle(request, draft.text, Pass::T, draft.ms, observer, sink),
+            Verdict::Held(reason) => self.held(request, reason, draft.ms, Pass::T, sink),
+        }
     }
 
     /// Translates the text of an utterance in progress with T and checks it
@@ -368,7 +497,11 @@ impl<L: Llm> Pipeline<L> {
         match verdict {
             Verdict::Ok => {
                 sink.emit(partial_log("translate.partial.ok", request, started));
-                PartialOutcome::Shown(self.draft_event(request, text))
+                let ctx = Ctx {
+                    request,
+                    dest: Dest::Pair,
+                };
+                PartialOutcome::Shown(self.draft_event(&ctx, text))
             }
             Verdict::Held(reason) => {
                 sink.emit(
@@ -383,14 +516,23 @@ impl<L: Llm> Pipeline<L> {
     /// T and the first V. `Break` carries a line that is settled without E.
     fn draft(
         &mut self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         observer: &mut dyn Observer,
         started: Instant,
         sink: &mut dyn LogSink,
     ) -> ControlFlow<Translation, Draft> {
         observer.stage(Stage::Translate);
         let prompt = translate_prompt(request.src_lang, request.text);
-        let answer = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
+        let completion = match request.dest {
+            Dest::Pair => Completion::new(&prompt, MAX_TOKENS),
+            Dest::Other(target) => Completion::coded(
+                request.text,
+                request.src_lang.code(),
+                target.code,
+                MAX_TOKENS,
+            ),
+        };
+        let answer = match self.llm.complete(&completion) {
             Ok(text) => text,
             Err(error) => {
                 let line = self.unavailable(request, &error.to_string(), started, Pass::T, sink);
@@ -407,20 +549,38 @@ impl<L: Llm> Pipeline<L> {
         let verify_started = Instant::now();
         observer.stage(Stage::VerifyDraft);
         observer.draft_verify_input(&text);
-        let verdict = self
-            .verifier
-            .verify(request.text, &text, request.src_lang, sink);
+        let verdict = self.verify(request, &text, sink);
         ControlFlow::Continue(Draft {
             text,
-            passed: verdict == Verdict::Ok,
+            verdict,
             ms: [t_ms, 0, verify_started.elapsed().as_millis()],
         })
+    }
+
+    /// V on `text`, the translation of `request` into its destination.
+    fn verify(&mut self, request: &Ctx<'_>, text: &str, sink: &mut dyn LogSink) -> Verdict {
+        match request.dest {
+            Dest::Pair => self
+                .verifier
+                .verify(request.text, text, request.src_lang, sink),
+            Dest::Other(target) => {
+                self.verifier
+                    .verify_into(request.text, text, request.src_lang, target, sink)
+            }
+        }
+    }
+
+    /// The prompt for E with T's translation `draft`. Only a line of the
+    /// live pair reaches E.
+    fn edit_prompt_for(&self, request: &Ctx<'_>, draft: &str) -> String {
+        let (calques, ja_style) = (self.calques.current(), self.ja_style.current());
+        edit_prompt(request.src_lang, request.text, draft, calques, ja_style)
     }
 
     /// E, the second V, and the settled translation.
     fn edit(
         &mut self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         draft: Draft,
         observer: &mut dyn Observer,
         started: Instant,
@@ -428,13 +588,7 @@ impl<L: Llm> Pipeline<L> {
     ) -> Translation {
         let edit_started = Instant::now();
         observer.stage(Stage::Edit);
-        let prompt = edit_prompt(
-            request.src_lang,
-            request.text,
-            &draft.text,
-            self.calques.current(),
-            self.ja_style.current(),
-        );
+        let prompt = self.edit_prompt_for(request, &draft.text);
         let edited = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
             Ok(text) => text,
             Err(error) => {
@@ -453,16 +607,14 @@ impl<L: Llm> Pipeline<L> {
         let verify_started = Instant::now();
         observer.stage(Stage::Verify);
         observer.verify_input(&text);
-        let verdict = self
-            .verifier
-            .verify(request.text, &text, request.src_lang, sink);
+        let verdict = self.verify(request, &text, sink);
         let v_ms = draft.ms[2] + verify_started.elapsed().as_millis();
         let ms = [draft.ms[0], e_ms, v_ms];
         match verdict {
             Verdict::Ok => self.settle(request, text, Pass::E, ms, observer, sink),
             // An answer that still carries the end marker means `stop` did not
             // take effect; the line is withheld, not rescued by the draft.
-            Verdict::Held(reason) if draft.passed && !contains_eos(&text) => {
+            Verdict::Held(reason) if draft.passed() && !contains_eos(&text) => {
                 self.keep_draft(request, draft.text, reason, ms, observer, sink)
             }
             Verdict::Held(reason) => self.held(request, reason, ms, Pass::E, sink),
@@ -473,14 +625,14 @@ impl<L: Llm> Pipeline<L> {
     /// is unavailable.
     fn edit_failed(
         &mut self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         draft: Draft,
         detail: &str,
         observer: &mut dyn Observer,
         started: Instant,
         sink: &mut dyn LogSink,
     ) -> Translation {
-        if !draft.passed {
+        if !draft.passed() {
             return self.unavailable(request, detail, started, Pass::E, sink);
         }
         self.log_request_failed(request, detail, started, sink);
@@ -492,7 +644,7 @@ impl<L: Llm> Pipeline<L> {
     /// that stays.
     fn keep_draft(
         &mut self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         text: String,
         reason: HoldReason,
         ms: [u128; 3],
@@ -511,7 +663,7 @@ impl<L: Llm> Pipeline<L> {
     /// Annotates a translation that passed V and settles it.
     fn settle(
         &mut self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         text: String,
         pass: Pass,
         ms: [u128; 3],
@@ -519,22 +671,26 @@ impl<L: Llm> Pipeline<L> {
         sink: &mut dyn LogSink,
     ) -> Translation {
         observer.stage(Stage::Annotate);
-        let annotated = self.annotator.annotate(
-            &AnnotateRequest {
-                id: request.id,
-                src: request.text,
-                translation: &text,
-                src_lang: request.src_lang,
-                now_epoch: request.now_epoch,
-            },
-            sink,
-        );
+        let annotated = match request.dest {
+            Dest::Pair => self.annotator.annotate(
+                &AnnotateRequest {
+                    id: request.id,
+                    src: request.text,
+                    translation: &text,
+                    src_lang: request.src_lang,
+                    now_epoch: request.now_epoch,
+                },
+                sink,
+            ),
+            // The unit notes are written for Japanese and English readers.
+            Dest::Other(_) => Annotated::default(),
+        };
         self.finish_ok(request, text, annotated, ms, pass, sink)
     }
 
     fn base(
         &self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         status: Status,
         reason: Option<HoldReason>,
         pass: Pass,
@@ -546,7 +702,7 @@ impl<L: Llm> Pipeline<L> {
             of: request.of,
             source: request.source.to_owned(),
             src_lang: request.src_lang,
-            lang: request.src_lang.other(),
+            lang: request.lang_code(),
             src_sha256: sha256_hex(request.text),
             status,
             hold_reason: reason,
@@ -559,7 +715,7 @@ impl<L: Llm> Pipeline<L> {
     }
 
     /// The draft event: T's translation, before E, without a note.
-    fn draft_event(&self, request: &LineRequest<'_>, text: &str) -> Translation {
+    fn draft_event(&self, request: &Ctx<'_>, text: &str) -> Translation {
         let mut line = self.base(request, Status::Ok, None, Pass::T, false);
         line.text = text.to_owned();
         line
@@ -567,7 +723,7 @@ impl<L: Llm> Pipeline<L> {
 
     fn finish_ok(
         &self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         text: String,
         annotated: Annotated,
         ms: [u128; 3],
@@ -591,7 +747,7 @@ impl<L: Llm> Pipeline<L> {
 
     fn held(
         &self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         reason: HoldReason,
         ms: [u128; 3],
         pass: Pass,
@@ -608,7 +764,7 @@ impl<L: Llm> Pipeline<L> {
 
     fn log_request_failed(
         &self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         detail: &str,
         started: Instant,
         sink: &mut dyn LogSink,
@@ -626,7 +782,7 @@ impl<L: Llm> Pipeline<L> {
 
     fn unavailable(
         &self,
-        request: &LineRequest<'_>,
+        request: &Ctx<'_>,
         detail: &str,
         started: Instant,
         pass: Pass,
@@ -643,8 +799,12 @@ impl<L: Llm> Pipeline<L> {
     }
 }
 
-fn timing(event: LogEvent, request: &LineRequest<'_>, ms: [u128; 3]) -> LogEvent {
+fn timing(event: LogEvent, request: &Ctx<'_>, ms: [u128; 3]) -> LogEvent {
     let clip = |value: u128| u64::try_from(value).ok();
+    let event = match request.dest {
+        Dest::Pair => event,
+        Dest::Other(target) => event.with("target", target.code),
+    };
     event
         .with("id", request.id)
         .with("source", request.source)

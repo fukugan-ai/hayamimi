@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use super::keys;
+use super::plan::SLOTS;
 
 /// The port the server listens on when `--port` is not given. The relay and
 /// the measuring tools reach it on the same address.
@@ -18,6 +19,8 @@ pub struct Options {
     /// A file name in the install's `models/llm`, or a path.
     pub model: String,
     pub port: u16,
+    /// Parallel requests the server takes.
+    pub slots: u32,
     /// The install root; the user's local data directory when not given.
     pub dir: Option<PathBuf>,
     pub wait_seconds: u64,
@@ -76,6 +79,7 @@ fn parse_start(args: &[String]) -> Result<Options, OptionError> {
     let mut options = Options {
         model: String::new(),
         port: DEFAULT_PORT,
+        slots: SLOTS,
         dir: None,
         wait_seconds: DEFAULT_WAIT_SECONDS,
     };
@@ -84,6 +88,7 @@ fn parse_start(args: &[String]) -> Result<Options, OptionError> {
         match option.as_str() {
             "--model" => model = Some(value_of(&mut rest)?.clone()),
             "--port" => options.port = number_of(&mut rest)?,
+            "--slots" => options.slots = number_of(&mut rest)?,
             "--wait" => options.wait_seconds = number_of(&mut rest)?,
             "--dir" => options.dir = Some(PathBuf::from(value_of(&mut rest)?)),
             _ => return Err(OptionError::UnknownOption),
@@ -122,6 +127,7 @@ mod tests {
         let options = start("start --model a.gguf")?;
         assert_eq!(options.model, "a.gguf");
         assert_eq!(options.port, DEFAULT_PORT);
+        assert_eq!(options.slots, SLOTS);
         assert_eq!(options.wait_seconds, DEFAULT_WAIT_SECONDS);
         assert_eq!(options.dir, None);
         Ok(())
@@ -129,8 +135,9 @@ mod tests {
 
     #[test]
     fn every_option_is_read() -> Result<(), OptionError> {
-        let options = start("start --model a.gguf --port 9000 --wait 5 --dir root")?;
+        let options = start("start --model a.gguf --port 9000 --slots 1 --wait 5 --dir root")?;
         assert_eq!(options.port, 9000);
+        assert_eq!(options.slots, 1);
         assert_eq!(options.wait_seconds, 5);
         assert_eq!(options.dir, Some(PathBuf::from("root")));
         Ok(())
@@ -150,6 +157,7 @@ mod tests {
             "start --model a --port -1",
             "start --model a --port x",
             "start --model a --wait 0",
+            "start --model a --slots 0",
         ] {
             assert_eq!(start(line), Err(OptionError::BadNumber), "{line}");
         }
