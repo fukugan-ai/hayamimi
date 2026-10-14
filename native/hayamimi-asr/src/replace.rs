@@ -1,0 +1,124 @@
+//! The user's replacement dictionary: literal find-and-replace pairs applied
+//! to the finished text, after ITN and punctuation, so that the user has the
+//! last word over everything the earlier stages produced.
+
+use std::path::Path;
+
+use crate::error::AsrError;
+
+/// The separators that split a line into the wrong and the right form, tried
+/// in this order.
+const SEPARATORS: [char; 3] = ['=', '\t', '→'];
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Replacements {
+    pairs: Vec<(String, String)>,
+}
+
+impl Replacements {
+    /// Reads `wrong=right` lines. Blank lines and lines starting with `#` are
+    /// skipped, and so are lines without a separator and pairs whose wrong
+    /// form is empty (an empty pattern would match between every character).
+    pub fn parse(text: &str) -> Replacements {
+        let mut pairs = Vec::new();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let Some(separator) = SEPARATORS.iter().find(|sep| line.contains(**sep)) else {
+                continue;
+            };
+            if let Some((wrong, right)) = line.split_once(*separator) {
+                let wrong = wrong.trim();
+                if !wrong.is_empty() {
+                    pairs.push((wrong.to_owned(), right.trim().to_owned()));
+                }
+            }
+        }
+        Replacements { pairs }
+    }
+
+    pub fn load(path: &Path) -> Result<Replacements, AsrError> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|error| AsrError::Io(format!("{}: {error}", path.display())))?;
+        Ok(Replacements::parse(&text))
+    }
+
+    pub fn len(&self) -> usize {
+        self.pairs.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pairs.is_empty()
+    }
+
+    /// Applies every pair, in file order, to `text`.
+    pub fn apply(&self, text: &str) -> String {
+        let mut out = text.to_owned();
+        for (wrong, right) in &self.pairs {
+            out = out.replace(wrong.as_str(), right);
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pair_is_applied() {
+        let replacements = Replacements::parse("ぐるぐる=グルグル\n");
+        assert_eq!(replacements.apply("ぐるぐる回る"), "グルグル回る");
+    }
+
+    #[test]
+    fn tab_and_arrow_separate_too() {
+        let replacements = Replacements::parse("あ\tい\nう→え\n");
+        assert_eq!(replacements.apply("あう"), "いえ");
+    }
+
+    #[test]
+    fn comments_blank_lines_and_lines_without_a_separator_are_skipped() {
+        let replacements = Replacements::parse("# note\n\n   \nnoseparator\n");
+        assert!(replacements.is_empty());
+    }
+
+    #[test]
+    fn an_empty_wrong_form_is_skipped() {
+        let replacements = Replacements::parse("=x\n");
+        assert_eq!(replacements.len(), 0);
+        assert_eq!(replacements.apply("abc"), "abc");
+    }
+
+    #[test]
+    fn an_empty_right_form_deletes() {
+        let replacements = Replacements::parse("えー=\n");
+        assert_eq!(replacements.apply("えーこんにちは"), "こんにちは");
+    }
+
+    #[test]
+    fn the_first_separator_in_the_order_wins() {
+        let replacements = Replacements::parse("a=b→c\n");
+        assert_eq!(replacements.apply("a"), "b→c");
+    }
+
+    #[test]
+    fn pairs_apply_in_file_order() {
+        let replacements = Replacements::parse("a=b\nb=c\n");
+        assert_eq!(replacements.apply("a"), "c");
+    }
+
+    #[test]
+    fn whitespace_around_the_forms_is_trimmed() {
+        let replacements = Replacements::parse("  a  =  b  \n");
+        assert_eq!(replacements.apply("a"), "b");
+    }
+
+    #[test]
+    fn a_missing_file_is_an_io_error() {
+        let said = Replacements::load(Path::new("no-such-dictionary.txt"));
+        assert!(matches!(said, Err(AsrError::Io(_))), "{said:?}");
+    }
+}

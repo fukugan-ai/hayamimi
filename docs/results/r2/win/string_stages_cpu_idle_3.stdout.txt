@@ -1,0 +1,2 @@
+itn	cpu	cpu	n=115	p50_us=9	p95_us=12
+punct_rules	cpu	cpu	n=115	p50_us=2	p95_us=3

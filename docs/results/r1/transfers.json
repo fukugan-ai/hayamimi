@@ -1,0 +1,8 @@
+[
+  {"direction": "host→device", "variant": "fp32", "count_p50": 450, "count_p95": 645, "bytes_p50": 4367000, "bytes_p95": 5795000, "time_us_p50": 1524, "time_us_p95": 1812},
+  {"direction": "device→host", "variant": "fp32", "count_p50": 298, "count_p95": 428, "bytes_p50": 4894000, "bytes_p95": 8304000, "time_us_p50": 935, "time_us_p95": 1670},
+  {"direction": "host→device", "variant": "fp16", "count_p50": 450, "count_p95": 645, "bytes_p50": 3216000, "bytes_p95": 4652000, "time_us_p50": 849, "time_us_p95": 1075},
+  {"direction": "device→host", "variant": "fp16", "count_p50": 298, "count_p95": 428, "bytes_p50": 4894000, "bytes_p95": 8324000, "time_us_p50": 805, "time_us_p95": 1203},
+  {"direction": "host→device", "variant": "int8", "count_p50": 1592, "count_p95": 2047, "bytes_p50": 59141000, "bytes_p95": 84014000, "time_us_p50": 19976, "time_us_p95": 27319},
+  {"direction": "device→host", "variant": "int8", "count_p50": 856, "count_p95": 1116, "bytes_p50": 50404000, "bytes_p95": 72476000, "time_us_p50": 16515, "time_us_p95": 23707}
+]

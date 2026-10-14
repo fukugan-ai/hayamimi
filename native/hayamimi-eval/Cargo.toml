@@ -17,6 +17,7 @@ path = "src/main.rs"
 base64 = "0.23"
 # ERROR POLICY: clap is confined to the CLI boundary; its errors are printed and turned into an exit code.
 clap = { version = "4", features = ["derive"] }
+hayamimi-asr = { path = "../hayamimi-asr" }
 hayamimi-gpu = { path = "../hayamimi-gpu" }
 hayamimi-relay = { path = "../hayamimi-relay" }
 hound = "3"

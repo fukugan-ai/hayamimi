@@ -1,0 +1,256 @@
+//! The command line. Every refusal names a key of the locale's `[cli]` table.
+
+use std::path::PathBuf;
+
+use crate::strings::keys;
+
+/// The port the subtitle events are served on when `--serve` has no value.
+pub const DEFAULT_PORT: u16 = 8833;
+const DEFAULT_MODELS: &str = "models";
+const DEFAULT_MIN_SILENCE: f32 = 0.30;
+const DEFAULT_MAX_SPEECH: f32 = 12.0;
+
+/// A parsed command line that asks for a run.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Args {
+    pub wav: PathBuf,
+    /// Pace the file at the speed of the audio.
+    pub realtime: bool,
+    pub models: PathBuf,
+    pub min_silence: f32,
+    pub max_speech: f32,
+    pub replace: Option<PathBuf>,
+    pub serve: Option<u16>,
+    pub diagnose: bool,
+}
+
+/// What the command line asks for.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Parsed {
+    Help,
+    Run(Args),
+}
+
+/// Why a command line was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArgError {
+    UnknownOption,
+    MissingValue,
+    BadNumber,
+    ModeUnsupported,
+    LangUnsupported,
+    NeedWav,
+}
+
+impl ArgError {
+    /// The key into the locale's `[cli]` table.
+    pub fn key(self) -> &'static str {
+        match self {
+            ArgError::UnknownOption => keys::UNKNOWN_OPTION,
+            ArgError::MissingValue => keys::MISSING_VALUE,
+            ArgError::BadNumber => keys::BAD_NUMBER,
+            ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
+            ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
+            ArgError::NeedWav => keys::NEED_WAV,
+        }
+    }
+}
+
+fn positive_seconds(text: &str) -> Result<f32, ArgError> {
+    match text.parse::<f32>() {
+        Ok(value) if value.is_finite() && value > 0.0 => Ok(value),
+        _ => Err(ArgError::BadNumber),
+    }
+}
+
+/// The arguments not yet read.
+type Rest<'a> = std::iter::Peekable<std::slice::Iter<'a, String>>;
+
+/// The value that follows an option.
+fn value_of<'a>(rest: &mut Rest<'a>) -> Result<&'a String, ArgError> {
+    rest.next().ok_or(ArgError::MissingValue)
+}
+
+/// `--serve` takes an optional port: a following number is the port.
+fn port_of(rest: &mut Rest<'_>) -> Result<u16, ArgError> {
+    match rest.next_if(|next| next.parse::<u16>().is_ok()) {
+        Some(text) => text.parse::<u16>().map_err(|_| ArgError::BadNumber),
+        None => Ok(DEFAULT_PORT),
+    }
+}
+
+/// An option that only one value is accepted for.
+fn expect_value(rest: &mut Rest<'_>, only: &str, otherwise: ArgError) -> Result<(), ArgError> {
+    if value_of(rest)? == only {
+        Ok(())
+    } else {
+        Err(otherwise)
+    }
+}
+
+impl Args {
+    fn starting() -> Args {
+        Args {
+            wav: PathBuf::new(),
+            realtime: true,
+            models: PathBuf::from(DEFAULT_MODELS),
+            min_silence: DEFAULT_MIN_SILENCE,
+            max_speech: DEFAULT_MAX_SPEECH,
+            replace: None,
+            serve: None,
+            diagnose: false,
+        }
+    }
+
+    /// Reads one option and the value it takes.
+    fn apply(&mut self, option: &str, rest: &mut Rest<'_>) -> Result<(), ArgError> {
+        match option {
+            "--wav" => self.wav = PathBuf::from(value_of(rest)?),
+            "--no-realtime" => self.realtime = false,
+            "--mode" => expect_value(rest, "single", ArgError::ModeUnsupported)?,
+            "--lang" => expect_value(rest, "ja", ArgError::LangUnsupported)?,
+            "--models" => self.models = PathBuf::from(value_of(rest)?),
+            "--min-silence" => self.min_silence = positive_seconds(value_of(rest)?)?,
+            "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
+            "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
+            "--serve" => self.serve = Some(port_of(rest)?),
+            "--gpu-diagnose" => self.diagnose = true,
+            _ => return Err(ArgError::UnknownOption),
+        }
+        Ok(())
+    }
+}
+
+/// Parses the arguments after the program name.
+pub fn parse(args: &[String]) -> Result<Parsed, ArgError> {
+    let mut parsed = Args::starting();
+    let mut seen_wav = false;
+    let mut rest = args.iter().peekable();
+    while let Some(arg) = rest.next() {
+        if matches!(arg.as_str(), "--help" | "-h") {
+            return Ok(Parsed::Help);
+        }
+        seen_wav |= arg == "--wav";
+        parsed.apply(arg, &mut rest)?;
+    }
+    if seen_wav {
+        Ok(Parsed::Run(parsed))
+    } else {
+        Err(ArgError::NeedWav)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn run(list: &[&str]) -> Result<Args, ArgError> {
+        match parse(&args(list))? {
+            Parsed::Run(parsed) => Ok(parsed),
+            Parsed::Help => Err(ArgError::UnknownOption),
+        }
+    }
+
+    #[test]
+    fn the_acceptance_command_line_parses() -> Result<(), ArgError> {
+        let parsed = run(&[
+            "--wav",
+            "a.wav",
+            "--no-realtime",
+            "--mode",
+            "single",
+            "--lang",
+            "ja",
+            "--gpu-diagnose",
+        ])?;
+        assert_eq!(parsed.wav, PathBuf::from("a.wav"));
+        assert!(!parsed.realtime);
+        assert!(parsed.diagnose);
+        assert_eq!(parsed.min_silence, 0.30);
+        assert_eq!(parsed.max_speech, 12.0);
+        assert_eq!(parsed.models, PathBuf::from("models"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_run_is_paced_unless_told_otherwise() -> Result<(), ArgError> {
+        assert!(run(&["--wav", "a.wav"])?.realtime);
+        Ok(())
+    }
+
+    #[test]
+    fn help_wins_wherever_it_stands() {
+        assert_eq!(parse(&args(&["--help"])), Ok(Parsed::Help));
+        assert_eq!(parse(&args(&["--wav", "a.wav", "-h"])), Ok(Parsed::Help));
+    }
+
+    #[test]
+    fn no_input_is_refused() {
+        assert_eq!(parse(&args(&[])), Err(ArgError::NeedWav));
+    }
+
+    #[test]
+    fn an_unknown_option_is_refused() {
+        assert_eq!(parse(&args(&["--wat"])), Err(ArgError::UnknownOption));
+    }
+
+    #[test]
+    fn an_option_without_its_value_is_refused() {
+        assert_eq!(parse(&args(&["--wav"])), Err(ArgError::MissingValue));
+        assert_eq!(parse(&args(&["--models"])), Err(ArgError::MissingValue));
+    }
+
+    #[test]
+    fn only_the_single_mode_and_japanese_exist() {
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--mode", "balanced"])),
+            Err(ArgError::ModeUnsupported)
+        );
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--lang", "en"])),
+            Err(ArgError::LangUnsupported)
+        );
+    }
+
+    #[test]
+    fn seconds_must_be_positive_numbers() {
+        for bad in ["0", "-1", "x", "nan", "inf"] {
+            assert_eq!(
+                parse(&args(&["--wav", "a", "--min-silence", bad])),
+                Err(ArgError::BadNumber),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            run(&["--wav", "a", "--max-speech", "5"]).map(|a| a.max_speech),
+            Ok(5.0)
+        );
+    }
+
+    #[test]
+    fn serve_takes_an_optional_port() -> Result<(), ArgError> {
+        assert_eq!(run(&["--wav", "a", "--serve"])?.serve, Some(8833));
+        assert_eq!(run(&["--wav", "a", "--serve", "9000"])?.serve, Some(9000));
+        assert_eq!(run(&["--serve", "--wav", "a"])?.serve, Some(8833));
+        assert_eq!(run(&["--wav", "a"])?.serve, None);
+        Ok(())
+    }
+
+    #[test]
+    fn every_refusal_names_a_key_the_table_holds() {
+        for error in [
+            ArgError::UnknownOption,
+            ArgError::MissingValue,
+            ArgError::BadNumber,
+            ArgError::ModeUnsupported,
+            ArgError::LangUnsupported,
+            ArgError::NeedWav,
+        ] {
+            assert!(keys::ALL.contains(&error.key()), "{error:?}");
+        }
+    }
+}
