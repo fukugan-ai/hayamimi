@@ -6,7 +6,7 @@ use hayamimi_relay::logging::Level;
 use serde_json::Value;
 
 use super::keys;
-use super::plan::{Plan, SLOTS};
+use super::plan::Plan;
 use super::start::{AttemptError, Started};
 use crate::log::event_line;
 use crate::notice::Notice;
@@ -27,7 +27,13 @@ fn plan_fields(plan: Plan) -> [(&'static str, Value); 2] {
 }
 
 /// `translate.server.started`: a server answers, and where it runs.
-pub fn started_line(strings: &Strings, started: &Started, port: u16, tag: Option<&str>) -> String {
+pub fn started_line(
+    strings: &Strings,
+    started: &Started,
+    port: u16,
+    slots: u32,
+    tag: Option<&str>,
+) -> String {
     let [build, layers] = plan_fields(started.plan);
     event_line(
         strings,
@@ -38,7 +44,7 @@ pub fn started_line(strings: &Strings, started: &Started, port: u16, tag: Option
         &[
             build,
             layers,
-            ("slots", Value::from(SLOTS)),
+            ("slots", Value::from(slots)),
             ("port", Value::from(port)),
             ("pid", Value::from(started.running.pid)),
             ("tag", Value::from(tag)),
@@ -123,7 +129,7 @@ mod tests {
 
     #[test]
     fn the_started_event_says_where_the_server_runs_and_which_release() -> Result<(), String> {
-        let line = started_line(&strings()?, &started_on_cpu(), 8099, Some("b1"));
+        let line = started_line(&strings()?, &started_on_cpu(), 8099, 4, Some("b1"));
         let event = parsed(&line).map_err(|error| error.to_string())?;
         assert_eq!(event["event"], keys::EVENT_STARTED);
         assert_eq!(event["level"], "info");
@@ -138,7 +144,7 @@ mod tests {
 
     #[test]
     fn an_unknown_release_is_null_and_not_a_made_up_value() -> Result<(), String> {
-        let line = started_line(&strings()?, &started_on_cpu(), 8099, None);
+        let line = started_line(&strings()?, &started_on_cpu(), 8099, 4, None);
         let event = parsed(&line).map_err(|error| error.to_string())?;
         assert!(event["tag"].is_null());
         Ok(())
@@ -178,7 +184,7 @@ mod tests {
     #[test]
     fn no_event_carries_a_path_or_a_model_name() -> Result<(), String> {
         let lines = [
-            started_line(&strings()?, &started_on_cpu(), 8099, Some("b1")),
+            started_line(&strings()?, &started_on_cpu(), 8099, 4, Some("b1")),
             failed_line(&strings()?, CPU, AttemptError::MissingBuild),
             unavailable_line(&strings()?, "model_missing"),
         ];

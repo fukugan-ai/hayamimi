@@ -302,9 +302,15 @@ pub struct Pipeline<L: Llm> {
 /// T's answer, and whether V let it through.
 struct Draft {
     text: String,
-    passed: bool,
+    verdict: Verdict,
     /// Milliseconds spent so far in T, E and V, in that order.
     ms: [u128; 3],
+}
+
+impl Draft {
+    fn passed(&self) -> bool {
+        self.verdict == Verdict::Ok
+    }
 }
 
 impl<L: Llm> Pipeline<L> {
@@ -404,10 +410,30 @@ impl<L: Llm> Pipeline<L> {
             ControlFlow::Continue(draft) => draft,
             ControlFlow::Break(done) => return done,
         };
-        if draft.passed && request.of == LineKind::Final {
+        if matches!(request.dest, Dest::Other(_)) {
+            return self.settle_draft(request, draft, observer, sink);
+        }
+        if draft.passed() && request.of == LineKind::Final {
             early(self.draft_event(request, &draft.text));
         }
         self.edit(request, draft, observer, started, sink)
+    }
+
+    /// A language outside the live pair has no E: the model that writes it
+    /// takes its language codes as a structure and cannot be handed an edit
+    /// instruction. T's translation is the settled one when it passed V, and
+    /// the line is withheld when it did not.
+    fn settle_draft(
+        &mut self,
+        request: &Ctx<'_>,
+        draft: Draft,
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        match draft.verdict {
+            Verdict::Ok => self.settle(request, draft.text, Pass::T, draft.ms, observer, sink),
+            Verdict::Held(reason) => self.held(request, reason, draft.ms, Pass::T, sink),
+        }
     }
 
     /// T and the first V. `Break` carries a line that is settled without E.
@@ -419,11 +445,17 @@ impl<L: Llm> Pipeline<L> {
         sink: &mut dyn LogSink,
     ) -> ControlFlow<Translation, Draft> {
         observer.stage(Stage::Translate);
-        let prompt = match request.dest {
-            Dest::Pair => translate_prompt(request.src_lang, request.text),
-            Dest::Other(target) => translate_prompt_to(request.src_lang, target, request.text),
+        let prompt = translate_prompt(request.src_lang, request.text);
+        let completion = match request.dest {
+            Dest::Pair => Completion::new(&prompt, MAX_TOKENS),
+            Dest::Other(target) => Completion::coded(
+                request.text,
+                request.src_lang.code(),
+                target.code,
+                MAX_TOKENS,
+            ),
         };
-        let answer = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
+        let answer = match self.llm.complete(&completion) {
             Ok(text) => text,
             Err(error) => {
                 let line = self.unavailable(request, &error.to_string(), started, Pass::T, sink);
@@ -443,7 +475,7 @@ impl<L: Llm> Pipeline<L> {
         let verdict = self.verify(request, &text, sink);
         ControlFlow::Continue(Draft {
             text,
-            passed: verdict == Verdict::Ok,
+            verdict,
             ms: [t_ms, 0, verify_started.elapsed().as_millis()],
         })
     }
@@ -461,20 +493,11 @@ impl<L: Llm> Pipeline<L> {
         }
     }
 
-    /// The prompt for E with T's translation `draft`.
+    /// The prompt for E with T's translation `draft`. Only a line of the
+    /// live pair reaches E.
     fn edit_prompt_for(&self, request: &Ctx<'_>, draft: &str) -> String {
         let (calques, ja_style) = (self.calques.current(), self.ja_style.current());
-        match request.dest {
-            Dest::Pair => edit_prompt(request.src_lang, request.text, draft, calques, ja_style),
-            Dest::Other(target) => edit_prompt_to(
-                request.src_lang,
-                target,
-                request.text,
-                draft,
-                calques,
-                ja_style,
-            ),
-        }
+        edit_prompt(request.src_lang, request.text, draft, calques, ja_style)
     }
 
     /// E, the second V, and the settled translation.
@@ -514,7 +537,7 @@ impl<L: Llm> Pipeline<L> {
             Verdict::Ok => self.settle(request, text, Pass::E, ms, observer, sink),
             // An answer that still carries the end marker means `stop` did not
             // take effect; the line is withheld, not rescued by the draft.
-            Verdict::Held(reason) if draft.passed && !contains_eos(&text) => {
+            Verdict::Held(reason) if draft.passed() && !contains_eos(&text) => {
                 self.keep_draft(request, draft.text, reason, ms, observer, sink)
             }
             Verdict::Held(reason) => self.held(request, reason, ms, Pass::E, sink),
@@ -532,7 +555,7 @@ impl<L: Llm> Pipeline<L> {
         started: Instant,
         sink: &mut dyn LogSink,
     ) -> Translation {
-        if !draft.passed {
+        if !draft.passed() {
             return self.unavailable(request, detail, started, Pass::E, sink);
         }
         self.log_request_failed(request, detail, started, sink);

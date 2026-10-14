@@ -24,17 +24,20 @@ struct Row {
     edit: &'static str,
 }
 
-/// The user message of a chat request.
-fn user_message(raw: &[u8]) -> Option<String> {
+/// The user message of a chat request: its text, and whether it carries the
+/// language codes as template variables (the form of the model that writes
+/// the languages outside the live pair).
+fn user_message(raw: &[u8]) -> Option<(String, bool)> {
     let body: Value = serde_json::from_slice(request_body(raw)).ok()?;
-    body["messages"][0]["content"].as_str().map(str::to_owned)
+    let text = body["messages"][0]["content"].as_str()?.to_owned();
+    Some((text, body.get("chat_template_kwargs").is_some()))
 }
 
 /// What the scripted server says to `message`: the translation when it is a
-/// T prompt, the edit when it is an E prompt.
-fn scripted_answer(rows: &[Row], message: &str) -> Option<&'static str> {
+/// T prompt or a coded request, the edit when it is an E prompt.
+fn scripted_answer(rows: &[Row], message: &str, coded: bool) -> Option<&'static str> {
     let row = rows.iter().find(|row| message.contains(row.source))?;
-    if message.starts_with("Translate the following") {
+    if coded || message.starts_with("Translate the following") {
         Some(row.translation)
     } else {
         Some(row.edit)
@@ -43,7 +46,8 @@ fn scripted_answer(rows: &[Row], message: &str) -> Option<&'static str> {
 
 fn scripted_server(rows: Vec<Row>) -> std::io::Result<FakeServer> {
     FakeServer::start(move |_, raw| {
-        match user_message(raw).and_then(|message| scripted_answer(&rows, &message)) {
+        match user_message(raw).and_then(|(message, coded)| scripted_answer(&rows, &message, coded))
+        {
             Some(text) => Reply::json(&chat_reply(text)),
             None => Reply::status(400),
         }
@@ -67,6 +71,7 @@ fn run_eval(
     let llm = HttpLlm::with_timeout(&server.base_url(), Duration::from_secs(5));
     eval::run(
         &llm,
+        &llm,
         &EvalOptions {
             pairs: pairs.path(),
             out: out.path(),
@@ -83,42 +88,42 @@ fn each_sentence_settles_on_the_edit_then_the_draft_then_an_empty_line() -> Test
     let server = scripted_server(vec![
         Row {
             source: "猫が寝ています。",
-            translation: "El gato duerme.",
-            edit: "El gato está durmiendo.",
+            translation: "The cat sleeps.",
+            edit: "The cat is sleeping.",
         },
         Row {
             source: "予算は五百万円です。",
-            translation: "El presupuesto es de 7 millones de yenes.",
-            edit: "El presupuesto es de 7 millones de yenes.",
+            translation: "The budget is 7 million yen.",
+            edit: "The budget is 7 million yen.",
         },
         Row {
             source: "犬が走ります。",
-            translation: "El perro corre.",
+            translation: "The dog runs.",
             edit: "  ",
         },
     ])?;
     let pairs = pairs_dir(&[
         (
-            "es.ja.txt",
+            "en.ja.txt",
             "猫が寝ています。\n予算は五百万円です。\n犬が走ります。\n",
         ),
         // The reference and the earlier hypotheses of the same directory are
         // not sources.
-        ("es.ref.txt", "ignored\n"),
-        ("es.hyp.txt", "ignored\n"),
-        ("es.ids.txt", "1\n2\n3\n"),
+        ("en.ref.txt", "ignored\n"),
+        ("en.hyp.txt", "ignored\n"),
+        ("en.ids.txt", "1\n2\n3\n"),
     ])?;
     let out = TempDir::new("r8f-out")?;
     let mut sink = MemorySink::default();
     let report = run_eval(&server, &pairs, &out, &mut sink)?;
     assert_eq!(
-        fs::read_to_string(out.join("es.hyp.txt"))?,
-        "El gato está durmiendo.\n\nEl perro corre.\n"
+        fs::read_to_string(out.join("en.hyp.txt"))?,
+        "The cat is sleeping.\n\nThe dog runs.\n"
     );
     assert_eq!(
         report.written,
         [Written {
-            code: "es",
+            code: "en",
             lines: 3,
             held: 1
         }]
@@ -129,23 +134,59 @@ fn each_sentence_settles_on_the_edit_then_the_draft_then_an_empty_line() -> Test
     Ok(())
 }
 
+/// A language outside the live pair is written by T alone: one request per
+/// sentence, no edit, and a translation that failed V is an empty line.
+#[test]
+fn a_language_outside_the_pair_settles_on_t_alone_or_an_empty_line() -> TestResult {
+    let server = scripted_server(vec![
+        Row {
+            source: "猫が寝ています。",
+            translation: "El gato duerme.",
+            edit: "unused",
+        },
+        Row {
+            source: "予算は五百万円です。",
+            translation: "El presupuesto es de 7 millones de yenes.",
+            edit: "unused",
+        },
+    ])?;
+    let pairs = pairs_dir(&[("es.ja.txt", "猫が寝ています。\n予算は五百万円です。\n")])?;
+    let out = TempDir::new("r8f-out")?;
+    let mut sink = MemorySink::default();
+    let report = run_eval(&server, &pairs, &out, &mut sink)?;
+    assert_eq!(
+        fs::read_to_string(out.join("es.hyp.txt"))?,
+        "El gato duerme.\n\n"
+    );
+    assert_eq!(
+        report.written,
+        [Written {
+            code: "es",
+            lines: 2,
+            held: 1
+        }]
+    );
+    assert_eq!(server.requests().len(), 2);
+    Ok(())
+}
+
 /// The request is the chat form of the design: one user message that names
 /// the language, `stop`, a greedy temperature, and the prompt cache.
 #[test]
 fn a_request_names_the_language_in_one_user_message() -> TestResult {
     let server = scripted_server(vec![Row {
         source: "猫が寝ています。",
-        translation: "猫在睡觉。",
-        edit: "猫在睡觉。",
+        translation: "The cat sleeps.",
+        edit: "The cat is sleeping.",
     }])?;
-    let pairs = pairs_dir(&[("zh.ja.txt", "猫が寝ています。\n")])?;
+    let pairs = pairs_dir(&[("en.ja.txt", "猫が寝ています。\n")])?;
     let out = TempDir::new("r8f-out")?;
     run_eval(&server, &pairs, &out, &mut MemorySink::default())?;
     let requests = server.requests();
     let first: Value = serde_json::from_slice(request_body(&requests[0]))?;
     assert_eq!(
         first["messages"][0]["content"],
-        "Translate the following Japanese text into Chinese.\n\n猫が寝ています。"
+        "Translate the following Japanese text into English.\n\n猫が寝ています。"
     );
     assert_eq!(first["messages"].as_array().map(Vec::len), Some(1));
     assert_eq!(first["stop"], serde_json::json!(["</s>"]));
@@ -155,7 +196,37 @@ fn a_request_names_the_language_in_one_user_message() -> TestResult {
     let Some(edit) = second["messages"][0]["content"].as_str() else {
         panic!("the second request has no user message: {second}");
     };
-    assert!(edit.contains("Rewritten Chinese:"), "{edit}");
+    assert!(edit.contains("Rewritten English:"), "{edit}");
+    Ok(())
+}
+
+/// A language outside the pair is asked the way the chat template of its model
+/// reads: one user message with the bare text, and the source and target codes
+/// as template variables.
+#[test]
+fn a_request_outside_the_pair_carries_the_language_codes() -> TestResult {
+    let server = scripted_server(vec![Row {
+        source: "猫が寝ています。",
+        translation: "猫在睡觉。",
+        edit: "unused",
+    }])?;
+    let pairs = pairs_dir(&[("zh.ja.txt", "猫が寝ています。\n")])?;
+    let out = TempDir::new("r8f-out")?;
+    run_eval(&server, &pairs, &out, &mut MemorySink::default())?;
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
+    let body: Value = serde_json::from_slice(request_body(&requests[0]))?;
+    assert_eq!(
+        body["messages"],
+        serde_json::json!([{"role": "user", "content": "猫が寝ています。"}])
+    );
+    assert_eq!(
+        body["chat_template_kwargs"],
+        serde_json::json!({"source_lang_code": "ja", "target_lang_code": "zh"})
+    );
+    assert_eq!(body["stop"], serde_json::json!(["</s>"]));
+    assert_eq!(body["temperature"], 0.0);
+    assert_eq!(body["cache_prompt"], true);
     Ok(())
 }
 
@@ -213,8 +284,8 @@ fn an_unlisted_language_is_left_out_with_an_event_and_the_others_go_on() -> Test
         skipped[0].error_code.as_deref(),
         Some("HAYAMIMI_TRANSLATE_FALLBACK")
     );
-    // T and E for the two languages that were written; none for the other.
-    assert_eq!(server.requests().len(), 4);
+    // T and E for English, T alone for Chinese; none for the other.
+    assert_eq!(server.requests().len(), 3);
     Ok(())
 }
 
@@ -267,8 +338,8 @@ fn pairs_of_listed_languages_only_emit_no_skipped_event() -> TestResult {
     for (code, ..) in &rows {
         assert!(out.join(&format!("{code}.hyp.txt")).exists(), "{code}");
     }
-    // T and E for each of the four languages.
-    assert_eq!(server.requests().len(), 8);
+    // T and E for English, T alone for the three others.
+    assert_eq!(server.requests().len(), 5);
     Ok(())
 }
 
@@ -280,6 +351,7 @@ fn an_unreachable_translator_stops_the_run_without_writing() -> TestResult {
     let out = TempDir::new("r8f-out")?;
     let llm = HttpLlm::with_timeout(&closed_port_url()?, Duration::from_secs(2));
     let said = eval::run(
+        &llm,
         &llm,
         &EvalOptions {
             pairs: pairs.path(),

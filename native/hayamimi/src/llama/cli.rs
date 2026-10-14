@@ -76,7 +76,13 @@ fn tell_started(
             eprintln!("{}", strings.cli_text(&key));
         }
     }
-    log::print(&report::started_line(strings, started, options.port, tag));
+    log::print(&report::started_line(
+        strings,
+        started,
+        options.port,
+        options.slots,
+        tag,
+    ));
     say(strings, &[keys::STARTED]);
     eprintln!("{}", start::base_url(options.port));
 }
@@ -114,6 +120,7 @@ fn start_server(options: &Options, strings: &Strings) -> u8 {
         layout,
         model,
         port: options.port,
+        slots: options.slots,
         wait: Duration::from_secs(options.wait_seconds),
     };
     match start::first_that_runs(&mut launcher, &attempts(gpu)) {

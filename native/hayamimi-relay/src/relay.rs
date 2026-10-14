@@ -108,6 +108,32 @@ fn split_codes(codes: &[String]) -> (Vec<Target>, Vec<String>) {
 pub type MakePipeline<L> =
     Arc<dyn Fn(&mut dyn LogSink) -> Result<Pipeline<L>, String> + Send + Sync>;
 
+/// How the lanes build their pipelines: the live pair against one translator
+/// and every other language against another.
+pub struct Makers<L: Llm> {
+    pub pair: MakePipeline<L>,
+    pub other: MakePipeline<L>,
+}
+
+/// One translator for every language.
+impl<L: Llm> From<MakePipeline<L>> for Makers<L> {
+    fn from(make: MakePipeline<L>) -> Makers<L> {
+        Makers {
+            pair: Arc::clone(&make),
+            other: make,
+        }
+    }
+}
+
+impl<L: Llm> Makers<L> {
+    fn for_route(&self, route: Route) -> MakePipeline<L> {
+        match route {
+            Route::Pair => Arc::clone(&self.pair),
+            Route::Other(_) => Arc::clone(&self.other),
+        }
+    }
+}
+
 /// The time of day, counted from the start of the run so that it cannot step
 /// backwards or fail while lines are being translated.
 #[derive(Clone, Copy)]
@@ -218,7 +244,7 @@ struct Router<L: Llm + 'static> {
     slots: [Option<Sender<Job>>; LANE_SLOTS],
     lanes: Lanes,
     translate: Option<Vec<Target>>,
-    make: MakePipeline<L>,
+    makers: Makers<L>,
     hub: Hub,
     delivery: Delivery,
     clock: RunClock,
@@ -226,10 +252,10 @@ struct Router<L: Llm + 'static> {
 }
 
 impl<L: Llm + 'static> Router<L> {
-    fn open_lane(&self) -> Sender<Job> {
+    fn open_lane(&self, route: Route) -> Sender<Job> {
         let (jobs, receiver) = mpsc::channel();
         let parts = LaneParts {
-            make: Arc::clone(&self.make),
+            make: self.makers.for_route(route),
             hub: self.hub.clone(),
             delivery: self.delivery.clone(),
             clock: self.clock,
@@ -268,7 +294,7 @@ impl<L: Llm + 'static> Router<L> {
             };
         let lane = match self.slots[slot].take() {
             Some(lane) => lane,
-            None => self.open_lane(),
+            None => self.open_lane(job.route),
         };
         if let Err(refused) = lane.send(job) {
             // The lane's pipeline could not be opened and its thread ended; the
@@ -387,7 +413,7 @@ fn say_skipped(code: &str, hub: &Hub, sink: &mut SharedSink) {
 pub fn start<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
+    make: impl Into<Makers<L>>,
     sink: SharedSink,
 ) -> io::Result<SocketAddr> {
     let strings = Strings::embedded(Lang::En).map_err(io::Error::other)?;
@@ -403,7 +429,7 @@ pub fn start<L: Llm + 'static>(
 pub fn start_with<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
+    make: impl Into<Makers<L>>,
     sink: SharedSink,
     outputs: Outputs,
 ) -> io::Result<SocketAddr> {
@@ -417,7 +443,7 @@ pub fn start_with<L: Llm + 'static>(
 pub fn start_handle<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
+    makers: impl Into<Makers<L>>,
     mut sink: SharedSink,
     outputs: Outputs,
 ) -> io::Result<Relay> {
@@ -437,7 +463,7 @@ pub fn start_handle<L: Llm + 'static>(
         slots: Default::default(),
         lanes: config.lanes,
         translate,
-        make,
+        makers: makers.into(),
         hub,
         delivery,
         clock: RunClock::new(config.started_epoch),

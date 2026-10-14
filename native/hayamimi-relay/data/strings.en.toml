@@ -83,8 +83,8 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
-  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
 unknown_command = "unknown subcommand"

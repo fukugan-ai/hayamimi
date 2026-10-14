@@ -39,6 +39,10 @@ pub struct Completion<'a> {
     /// The text of the one user message. The server applies the model's chat
     /// template to it.
     pub prompt: &'a str,
+    /// The source and target language codes of a model whose chat template
+    /// takes them as template variables (TranslateGemma). `prompt` is then
+    /// the bare text to translate.
+    pub codes: Option<(&'a str, &'a str)>,
     pub n_predict: u32,
     pub temperature: f32,
     /// Always the end-of-sequence marker, so it never reaches a subtitle.
@@ -54,12 +58,24 @@ struct ChatBody<'a> {
     stop: [&'static str; 1],
     /// Reuses the computed part of a prompt that begins as the last one did.
     cache_prompt: bool,
+    /// The variables the model's chat template reads besides the messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chat_template_kwargs: Option<TemplateCodes<'a>>,
 }
 
 #[derive(Serialize)]
 struct ChatMessage<'a> {
     role: &'static str,
     content: &'a str,
+}
+
+/// The language codes the chat template of TranslateGemma reads. The server
+/// takes them only from here; written inside the message they are dropped
+/// and the template falls back to en-GB on both sides.
+#[derive(Serialize)]
+struct TemplateCodes<'a> {
+    source_lang_code: &'a str,
+    target_lang_code: &'a str,
 }
 
 impl<'a> From<&Completion<'a>> for ChatBody<'a> {
@@ -73,6 +89,10 @@ impl<'a> From<&Completion<'a>> for ChatBody<'a> {
             temperature: request.temperature,
             stop: request.stop,
             cache_prompt: true,
+            chat_template_kwargs: request.codes.map(|(source, target)| TemplateCodes {
+                source_lang_code: source,
+                target_lang_code: target,
+            }),
         }
     }
 }
@@ -82,9 +102,19 @@ impl<'a> Completion<'a> {
     pub fn new(prompt: &'a str, n_predict: u32) -> Completion<'a> {
         Completion {
             prompt,
+            codes: None,
             n_predict,
             temperature: 0.0,
             stop: [EOS_MARKER],
+        }
+    }
+
+    /// Like [`Completion::new`] for a model whose chat template reads the
+    /// language codes `from` and `to` as template variables.
+    pub fn coded(text: &'a str, from: &'a str, to: &'a str, n_predict: u32) -> Completion<'a> {
+        Completion {
+            codes: Some((from, to)),
+            ..Completion::new(text, n_predict)
         }
     }
 }
@@ -214,6 +244,29 @@ mod tests {
         assert_eq!(body["max_tokens"], 64);
         assert_eq!(body["temperature"], 0.0);
         assert_eq!(body["cache_prompt"], true);
+        Ok(())
+    }
+
+    #[test]
+    fn a_coded_request_carries_the_codes_as_template_variables() -> Result<(), serde_json::Error> {
+        let request = Completion::coded("こんにちは。", "ja", "ko", 64);
+        let body = serde_json::to_value(ChatBody::from(&request))?;
+        assert_eq!(
+            body["messages"],
+            serde_json::json!([{"role": "user", "content": "こんにちは。"}])
+        );
+        assert_eq!(
+            body["chat_template_kwargs"],
+            serde_json::json!({"source_lang_code": "ja", "target_lang_code": "ko"})
+        );
+        assert_eq!(body["stop"], serde_json::json!(["</s>"]));
+        Ok(())
+    }
+
+    #[test]
+    fn a_plain_request_has_no_template_variables() -> Result<(), serde_json::Error> {
+        let body = serde_json::to_value(ChatBody::from(&Completion::new("hello", 64)))?;
+        assert!(body.get("chat_template_kwargs").is_none());
         Ok(())
     }
 

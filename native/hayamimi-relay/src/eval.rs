@@ -162,16 +162,24 @@ fn write_by_rename(path: &Path, text: &str) -> Result<(), EvalError> {
 
 /// T, E and V around a translator.
 struct Translator<'a, L: Llm> {
+    /// Writes the live pair (T, then E).
     llm: &'a L,
+    /// Writes every other language (T only, language codes as a structure).
+    other: &'a L,
     verifier: Verifier,
     calques: Calques,
     ja_style: JaStyle,
 }
 
 impl<'a, L: Llm> Translator<'a, L> {
-    fn open(llm: &'a L, sink: &mut dyn LogSink) -> Result<Translator<'a, L>, EvalError> {
+    fn open(
+        llm: &'a L,
+        other: &'a L,
+        sink: &mut dyn LogSink,
+    ) -> Result<Translator<'a, L>, EvalError> {
         Ok(Translator {
             llm,
+            other,
             verifier: Verifier::open(None, sink).map_err(EvalError::Table)?,
             calques: Calques::embedded().map_err(EvalError::Table)?,
             ja_style: JaStyle::embedded().map_err(EvalError::Table)?,
@@ -195,6 +203,44 @@ impl<'a, L: Llm> Translator<'a, L> {
     /// The settled translation of one Japanese sentence (line `line` of its
     /// file, counted from 1), or `None` when it is withheld.
     fn settle(
+        &mut self,
+        target: &Target,
+        line: usize,
+        src: &str,
+        sink: &mut dyn LogSink,
+    ) -> Result<Option<String>, LlmError> {
+        if target.lang() == Some(Lang::Ja.other()) {
+            self.settle_pair(target, line, src, sink)
+        } else {
+            self.settle_other(target, line, src, sink)
+        }
+    }
+
+    /// A language outside the live pair: T alone, as the live relay does.
+    fn settle_other(
+        &mut self,
+        target: &Target,
+        line: usize,
+        src: &str,
+        sink: &mut dyn LogSink,
+    ) -> Result<Option<String>, LlmError> {
+        let request = Completion::coded(src, Lang::Ja.code(), target.code, MAX_TOKENS);
+        let answer = self.other.complete(&request)?;
+        if contains_eos(&answer) {
+            sink.emit(held_event(target, line, ["form", "-"]));
+            return Ok(None);
+        }
+        let text = answer.trim();
+        let verdict = self.verdict(src, text, target, sink);
+        if verdict == Verdict::Ok {
+            return Ok(Some(one_line(text)));
+        }
+        sink.emit(held_event(target, line, [reason_of(verdict), "-"]));
+        Ok(None)
+    }
+
+    /// The live pair: T, then E, as the live relay does.
+    fn settle_pair(
         &mut self,
         target: &Target,
         line: usize,
@@ -288,8 +334,12 @@ fn written_event(written: &Written) -> LogEvent {
 
 /// Translates every `<code>.ja.txt` of `options.pairs` and writes the
 /// `<code>.hyp.txt` files into `options.out`.
+///
+/// `llm` writes the live pair's language (English); `other` writes every
+/// other language of the table.
 pub fn run<L: Llm>(
     llm: &L,
+    other: &L,
     options: &EvalOptions<'_>,
     sink: &mut dyn LogSink,
 ) -> Result<Report, EvalError> {
@@ -298,7 +348,7 @@ pub fn run<L: Llm>(
         return Err(EvalError::NoPairs(options.pairs.to_path_buf()));
     }
     fs::create_dir_all(options.out).map_err(|source| io_error(options.out, source))?;
-    let mut translator = Translator::open(llm, sink)?;
+    let mut translator = Translator::open(llm, other, sink)?;
     let mut report = Report::default();
     for file in &files {
         let Some(target) = Target::from_code(&file.code) else {

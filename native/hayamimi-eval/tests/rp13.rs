@@ -22,7 +22,7 @@ use hayamimi_eval::chrf::{Corpus, corpus_chrf, score_directories, sentence_chrf}
 use hayamimi_relay::eval::{self, EvalOptions};
 use hayamimi_relay::llm::HttpLlm;
 use hayamimi_relay::logging::NullSink;
-use support::{Failure, TestResult, base, micros, read};
+use support::{Failure, RESULTS, TestResult, base, micros, read, testdata};
 
 /// The recorded corpus chrF per language, in units of 10^-6.
 const CHRF_RECORD: [(&str, i64); 4] = [
@@ -35,9 +35,15 @@ const CHRF_RECORD: [(&str, i64); 4] = [
 /// One hundredth of a point, in units of 10^-6 points.
 const HUNDREDTH: i64 = 10_000;
 
-/// Where the translator listens: the address the relay's `live` asks.
+/// Where the translator of the live pair listens: the address the relay's
+/// `live` asks.
 const LLAMA_SERVER: &str = "http://127.0.0.1:8080";
+/// Where the translator of the other languages listens, when
+/// `testdata/rp13_other_server.txt` does not name another address.
+const LLAMA_OTHER_SERVER: &str = "http://127.0.0.1:8081";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+/// The result file of the run, under `docs/results/`.
+const RESULT_FILE: &str = "rp13_translation.md";
 
 /// Strictly above the record in every language. Names the first language
 /// that is not, and any language of the record that was not measured.
@@ -242,12 +248,99 @@ fn the_scorer_gives_the_recorded_sacrebleu_scores() -> TestResult {
     Ok(())
 }
 
-/// The translations of the language model, scored.
+/// The address of the second translator: the one line of
+/// `testdata/rp13_other_server.txt` when the file is there, the design's
+/// address when it is not.
+fn other_server() -> Result<String, Failure> {
+    let file = testdata()?.join("rp13_other_server.txt");
+    if file.is_file() {
+        Ok(read(&file)?.trim().to_owned())
+    } else {
+        Ok(String::from(LLAMA_OTHER_SERVER))
+    }
+}
+
+/// The translations of the language models, scored.
 fn translate_and_score(pairs: &Path, out: &Path) -> Result<Vec<(String, Corpus)>, Failure> {
     let llm = HttpLlm::with_timeout(LLAMA_SERVER, REQUEST_TIMEOUT);
-    eval::run(&llm, &EvalOptions { pairs, out }, &mut NullSink)
+    let other = HttpLlm::with_timeout(&other_server()?, REQUEST_TIMEOUT);
+    eval::run(&llm, &other, &EvalOptions { pairs, out }, &mut NullSink)
         .map_err(|error| error.to_string())?;
     score_directories(pairs, out).map_err(|error| error.to_string())
+}
+
+/// One language of the result file: the corpus chrF with every held line
+/// counted as empty, the corpus chrF of the lines that were not held, and how
+/// many were held.
+struct Row {
+    lang: String,
+    all: Corpus,
+    kept: Option<Corpus>,
+    held: usize,
+}
+
+/// The score of `lang` over the lines whose hypothesis is not empty; `None`
+/// when every line was held.
+fn row_of(lang: &str, all: Corpus, pairs: &Path, out: &Path) -> Result<Row, Failure> {
+    let references = read(&pairs.join(format!("{lang}.ref.txt")))?;
+    let hypotheses = read(&out.join(format!("{lang}.hyp.txt")))?;
+    let (kept_references, kept_hypotheses): (Vec<&str>, Vec<&str>) = references
+        .lines()
+        .zip(hypotheses.lines())
+        .filter(|(_, hypothesis)| !hypothesis.is_empty())
+        .unzip();
+    let held = hypotheses.lines().count() - kept_hypotheses.len();
+    let kept = if kept_hypotheses.is_empty() {
+        None
+    } else {
+        Some(corpus_chrf(&kept_references, &kept_hypotheses).map_err(|error| error.to_string())?)
+    };
+    Ok(Row {
+        lang: lang.to_owned(),
+        all,
+        kept,
+        held,
+    })
+}
+
+/// A table cell for a score; a language with no record, or with every line
+/// held, has no number.
+fn cell(score: Option<f64>) -> String {
+    match score {
+        Some(value) => format!("{value:.4}"),
+        // DEFAULT: a language outside the record, or one whose every line was held, has no score, and the table cell is a dash.
+        None => String::from("-"),
+    }
+}
+
+/// The result file: per language the record, the score over all lines (held
+/// ones empty), the score over the lines that were not held, and the number
+/// held.
+fn result_text(rows: &[Row]) -> String {
+    let mut text = String::from(
+        "# RP-13 translation chrF\n\n\
+         Written by `translation_chrf_beats_current_models` in \
+         `native/hayamimi-eval/tests/rp13.rs`.\n\
+         `all lines` counts a line that V held as empty; `lines kept` scores only the \
+         lines that were not held.\n\n\
+         | lang | record | all lines | lines kept | lines | held |\n|---|---|---|---|---|---|\n",
+    );
+    for row in rows {
+        let record = CHRF_RECORD
+            .iter()
+            .find(|(lang, _)| *lang == row.lang)
+            .map(|(_, floor)| *floor as f64 / 1_000_000.0);
+        text.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {} |\n",
+            row.lang,
+            cell(record),
+            cell(Some(row.all.score)),
+            cell(row.kept.map(|corpus| corpus.score)),
+            row.all.pairs,
+            row.held,
+        ));
+    }
+    text
 }
 
 /// T-RP-13-009: needs a llama-server at `LLAMA_SERVER` with the translation
@@ -260,14 +353,21 @@ fn translation_chrf_beats_current_models() -> TestResult {
     if out.exists() {
         fs::remove_dir_all(&out)?;
     }
-    let scores = translate_and_score(&pairs_dir()?, &out)?;
+    let pairs = pairs_dir()?;
+    let scores = translate_and_score(&pairs, &out)?;
     let measured: Vec<(&str, i64)> = scores
         .iter()
         .map(|(lang, corpus)| (lang.as_str(), micro(corpus.score)))
         .collect();
-    for (lang, corpus) in &scores {
-        println!("{lang}\t{:.4}\t{}", corpus.score, corpus.pairs);
-    }
+    let rows = scores
+        .iter()
+        .map(|(lang, corpus)| row_of(lang, *corpus, &pairs, &out))
+        .collect::<Result<Vec<Row>, Failure>>()?;
+    let text = result_text(&rows);
+    print!("{text}");
+    // The file is written before the comparison, so a run that falls short
+    // still leaves its numbers.
+    fs::write(Path::new(RESULTS).join(RESULT_FILE), &text)?;
     check_chrf(&CHRF_RECORD, &measured)?;
     Ok(())
 }

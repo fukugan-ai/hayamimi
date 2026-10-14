@@ -392,8 +392,13 @@ CAT-Translate-3.3b は zh、ko、es を訳せない（R8f の実走：V が止�
 したがって ja と en の外の言語は、別の言語モデルを 2 本目の llama-server（port 8081、`-np 1`、起こし方は R8b の形）に置いて訳す。
 2 本目は `--translate` に ja と en の外の言語が在る時だけ起こすので、ja と en の経路の速さは変わらない。
 model は会話字幕の設計 9 の手順（held-out の順位づけ）で決め、手元の候補の TranslateGemma-4B-it Q8_0（`testdata/probe1_translategemma-4b.log`）から測る。
-対応する言語は確かめていない（NOT VERIFIED。R8f が model card で確かめる）。
-TranslateGemma の chat template は原文と訳の先の言語の code を構造で受けるので、`/v1/chat/completions` で probe と同じ入力になるかを、3.6 の「訳の依頼の形」と同じ形の受入（probe の行と `curl` の一致）で確かめる。
+TranslateGemma は 55 言語を訳し（技術報告 arXiv 2601.09012、自動評価は WMT24++ の 55 言語対）、人手の評価に英語から中国語（簡体）と韓国語、自動評価に英語からスペイン語を含む。
+`--translate` の表の 15 言語は、model の chat template の言語名の表にすべて在る（GGUF の metadata を `grep -a -c -F` で数えた）。
+55 言語の一覧（技術報告の付録 C）は読んでいないので、zh、ko、es 以外の 10 言語（fr、de、it、pt、nl、pl、tr、id、vi、ru、uk）が学習に入っていることは NOT VERIFIED である。
+2 本目は T だけで訳し、E を掛けない。TranslateGemma の template は指示文の message を受けないからである（平文の message は原文として包まれ、en-GB から en-GB への翻訳の依頼になる）。V は T の訳に 1 回掛け、通らない行は止める。
+TranslateGemma の chat template は原文と訳の先の言語の code を template の変数 `source_lang_code` と `target_lang_code` で受ける。llama-server は変数を request の `chat_template_kwargs` からだけ読み、message の中に書いた code は捨てて両側を en-GB にする。中継は message に原文だけを置き、`chat_template_kwargs` に 2 つの code を置く。
+受入は 3.6 の「訳の依頼の形」と同じ形で、`native/hayamimi-relay/tests/chat_probe_gemma.rs` に在る。`curl` の答えが probe1 の log の 40 行と同じ（陽性対照）、中継の答えと `curl` の答えが同じ、code を置かない形が `curl` と違う行を持つ（陰性対照）である。
+2 本目の address は `live` と `eval` の `--llm-other`（既定は `http://127.0.0.1:8081`）で渡し、起こす側は `hayamimi llama start --model <file> --port 8081 --slots 1` を打つ。
 どの候補も RP-13 の記録を超えなければ、その言語は評議へ出す（CPU の翻訳器は 1.3 のとおり移さない）。
 持ち主は R8f である。
 `--translate` は訳の先の言語の組を置き換える。`--translate zh` では ja の確定文に zh の訳だけを出し、en の訳は出さない。en も出すときは `--translate en,zh` と書く。`--translate` を付けないときは、会話字幕の設計 3.1 の音源ごとの規則（mic の ja は en へ、loopback の en は ja へ）で訳す。

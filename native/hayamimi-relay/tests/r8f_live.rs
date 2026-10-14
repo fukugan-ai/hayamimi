@@ -33,11 +33,20 @@ fn user_message(raw: &[u8]) -> Option<String> {
     body["messages"][0]["content"].as_str().map(str::to_owned)
 }
 
+/// The target language code a request hands to the chat template, when it
+/// does (the form of the model that writes the languages outside the pair).
+fn target_code(raw: &[u8]) -> Option<String> {
+    let body: Value = serde_json::from_slice(request_body(raw)).ok()?;
+    body["chat_template_kwargs"]["target_lang_code"]
+        .as_str()
+        .map(str::to_owned)
+}
+
 fn scripted_server() -> std::io::Result<FakeServer> {
-    FakeServer::start(|_, raw| match user_message(raw) {
-        Some(message) if message.contains("Chinese") => Reply::json(&chat_reply(CHINESE)),
-        Some(_) => Reply::json(&chat_reply(ENGLISH)),
-        None => Reply::status(400),
+    FakeServer::start(|_, raw| match (user_message(raw), target_code(raw)) {
+        (Some(_), Some(code)) if code == "zh" => Reply::json(&chat_reply(CHINESE)),
+        (Some(_), _) => Reply::json(&chat_reply(ENGLISH)),
+        (None, _) => Reply::status(400),
     })
 }
 
@@ -58,6 +67,8 @@ fn live_settings(
     let mut args: Vec<String> = ["live", "--events", &recognizer.url(), "--llm"]
         .map(str::to_owned)
         .to_vec();
+    args.push(server.base_url());
+    args.push(String::from("--llm-other"));
     args.push(server.base_url());
     args.extend(["--serve", "0"].map(str::to_owned));
     args.extend(extra.iter().map(|word| (*word).to_owned()));
@@ -132,9 +143,12 @@ fn a_translate_option_outside_the_live_pair_publishes_a_translation_in_that_lang
     assert_eq!(translations_in(&got, "en"), 0, "{got:?}");
     let requests = server.requests();
     let first = requests.first().and_then(|raw| user_message(raw));
-    let wanted = format!("Translate the following Japanese text into Chinese.\n\n{SOURCE}");
-    assert_eq!(first.as_deref(), Some(wanted.as_str()));
-    assert_eq!(requests.len(), 2, "one T and one E");
+    assert_eq!(first.as_deref(), Some(SOURCE));
+    assert_eq!(
+        requests.first().and_then(|raw| target_code(raw)).as_deref(),
+        Some("zh")
+    );
+    assert_eq!(requests.len(), 1, "one T and no E");
     running.relay.stop();
     Ok(())
 }
@@ -204,14 +218,14 @@ fn an_unlisted_translate_language_is_skipped_with_a_kept_fallback_event_and_zh_g
     assert_eq!(fallbacks(&after), [&wanted]);
 
     // Nothing was asked for `xx`: every request names Chinese.
-    let asked: Vec<String> = server
+    let asked: Vec<Option<String>> = server
         .requests()
         .iter()
-        .filter_map(|raw| user_message(raw))
+        .map(|raw| target_code(raw))
         .collect();
-    assert_eq!(asked.len(), 2);
+    assert_eq!(asked.len(), 1);
     assert!(
-        asked.iter().all(|message| message.contains("Chinese")),
+        asked.iter().all(|code| code.as_deref() == Some("zh")),
         "{asked:?}"
     );
     running.relay.stop();

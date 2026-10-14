@@ -17,7 +17,7 @@ use crate::lang::Lang;
 use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
 use crate::pipeline::{Pipeline, PipelineConfig};
-use crate::relay::{self, Lanes, MakePipeline, Relay, RelayConfig};
+use crate::relay::{self, Lanes, MakePipeline, Makers, Relay, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::strings::Strings;
 
@@ -31,6 +31,10 @@ pub const DEFAULT_EVENTS: [&str; 2] = [
 /// The translator `live` calls when `--llm` is not given: llama-server on its
 /// default port.
 pub const DEFAULT_LLM: &str = "http://127.0.0.1:8080";
+
+/// The translator for the languages outside the live pair when `--llm-other`
+/// is not given: the second llama-server, on the port after the first.
+pub const DEFAULT_LLM_OTHER: &str = "http://127.0.0.1:8081";
 
 /// The port `live` serves on when `--serve` is not given: the one after the
 /// two recognizers' subtitle ports. A taken port moves to the next free one.
@@ -48,6 +52,8 @@ pub enum ScheduleAction {
 pub struct Live {
     pub events: Vec<String>,
     pub llm: String,
+    /// The translator of the languages outside the live pair.
+    pub llm_other: String,
     pub serve: u16,
     /// Where to write the settled translations as SRT cues.
     pub srt: Option<PathBuf>,
@@ -75,6 +81,7 @@ pub enum Command {
         pairs: PathBuf,
         out: PathBuf,
         llm: String,
+        llm_other: String,
     },
 }
 
@@ -121,6 +128,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
     let mut options = Live {
         events: Vec::new(),
         llm: DEFAULT_LLM.to_owned(),
+        llm_other: DEFAULT_LLM_OTHER.to_owned(),
         serve: DEFAULT_SERVE,
         srt: None,
         translate: None,
@@ -130,7 +138,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         let option = arg.as_str();
         if !matches!(
             option,
-            "--events" | "--llm" | "--serve" | "--srt" | "--translate"
+            "--events" | "--llm" | "--llm-other" | "--serve" | "--srt" | "--translate"
         ) {
             return Err(CliError::UnknownOption);
         }
@@ -138,6 +146,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         match option {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
+            "--llm-other" => options.llm_other.clone_from(value),
             "--srt" => options.srt = Some(PathBuf::from(value)),
             "--translate" => {
                 let codes = translate_codes(value);
@@ -163,6 +172,7 @@ fn parse_run(args: &[String]) -> Result<Command, CliError> {
 fn parse_eval(args: &[String]) -> Result<Command, CliError> {
     let (mut pairs, mut out) = (None, None);
     let mut llm = DEFAULT_LLM.to_owned();
+    let mut llm_other = DEFAULT_LLM_OTHER.to_owned();
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let slot = match arg.as_str() {
@@ -172,12 +182,21 @@ fn parse_eval(args: &[String]) -> Result<Command, CliError> {
                 llm.clone_from(rest.next().ok_or(CliError::MissingValue)?);
                 continue;
             }
+            "--llm-other" => {
+                llm_other.clone_from(rest.next().ok_or(CliError::MissingValue)?);
+                continue;
+            }
             _ => return Err(CliError::UnknownOption),
         };
         *slot = Some(PathBuf::from(rest.next().ok_or(CliError::MissingValue)?));
     }
     match (pairs, out) {
-        (Some(pairs), Some(out)) => Ok(Command::Eval { pairs, out, llm }),
+        (Some(pairs), Some(out)) => Ok(Command::Eval {
+            pairs,
+            out,
+            llm,
+            llm_other,
+        }),
         _ => Err(CliError::NeedPairsAndOut),
     }
 }
@@ -321,6 +340,7 @@ fn default_tables_dir() -> Option<PathBuf> {
 }
 
 /// Builds the pipeline of one lane against the llama-server at `llm_url`.
+/// The live pair and the other languages each get their own server.
 fn pipeline_factory(llm_url: String) -> MakePipeline<HttpLlm> {
     Arc::new(move |sink: &mut dyn LogSink| {
         let config = PipelineConfig {
@@ -403,7 +423,10 @@ pub fn start_live(
     relay::start_handle(
         listener,
         config,
-        pipeline_factory(live.llm.clone()),
+        Makers {
+            pair: pipeline_factory(live.llm.clone()),
+            other: pipeline_factory(live.llm_other.clone()),
+        },
         log,
         outputs,
     )
@@ -435,11 +458,13 @@ fn run_eval(
     pairs: &Path,
     out: &Path,
     llm_url: &str,
+    other_url: &str,
     sink: &mut dyn LogSink,
     strings: &Strings,
 ) -> u8 {
     let llm = HttpLlm::with_timeout(llm_url, EVAL_REQUEST_TIMEOUT);
-    match eval::run(&llm, &eval::EvalOptions { pairs, out }, sink) {
+    let other = HttpLlm::with_timeout(other_url, EVAL_REQUEST_TIMEOUT);
+    match eval::run(&llm, &other, &eval::EvalOptions { pairs, out }, sink) {
         Ok(report) => {
             for code in &report.skipped {
                 eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
@@ -485,7 +510,12 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
         } => run_schedule(
             action, task_name, out, source_url, now_epoch, &mut sink, &strings,
         ),
-        Command::Eval { pairs, out, llm } => run_eval(&pairs, &out, &llm, &mut sink, &strings),
+        Command::Eval {
+            pairs,
+            out,
+            llm,
+            llm_other,
+        } => run_eval(&pairs, &out, &llm, &llm_other, &mut sink, &strings),
     }
 }
 
@@ -576,6 +606,7 @@ mod tests {
                     String::from("http://b/events")
                 ],
                 llm: String::from("http://x:1"),
+                llm_other: String::from(DEFAULT_LLM_OTHER),
                 serve: 9100,
                 srt: None,
                 translate: None,
@@ -641,6 +672,7 @@ mod tests {
         let expected = Command::Run(Live {
             events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
             llm: String::from("http://127.0.0.1:8080"),
+            llm_other: String::from("http://127.0.0.1:8081"),
             serve: 8835,
             srt: None,
             translate: None,
@@ -809,7 +841,34 @@ mod tests {
                 pairs: PathBuf::from("pairs"),
                 out: PathBuf::from("hyps"),
                 llm: String::from("http://x:1"),
+                llm_other: String::from(DEFAULT_LLM_OTHER),
             })
+        );
+    }
+
+    #[test]
+    fn the_second_translator_is_named_with_llm_other() {
+        let parsed = parse_args(&args(&["live", "--llm-other", "http://y:2"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run(Live { ref llm_other, .. })) if llm_other == "http://y:2"
+        ));
+        let parsed = parse_args(&args(&[
+            "eval",
+            "--pairs",
+            "p",
+            "--out",
+            "o",
+            "--llm-other",
+            "u",
+        ]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Eval { ref llm_other, .. }) if llm_other == "u"
+        ));
+        assert_eq!(
+            parse_args(&args(&["live", "--llm-other"])),
+            Err(CliError::MissingValue)
         );
     }
 
