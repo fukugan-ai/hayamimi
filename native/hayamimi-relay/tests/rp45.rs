@@ -168,15 +168,35 @@ fn rp45_an_answer_empty_behind_its_labels_is_withheld_for_form() -> TestResult {
     Ok(())
 }
 
-/// T-RP-45-006: a label inside a line cannot be cut off safely, so the
-/// answer is withheld for `form` instead of going out with the template.
+/// Correct translations that contain a word of a label and a colon.
+const NOT_LABELS: [&str; 10] = [
+    "The draft: nobody read it.",
+    "Final draft: ready.",
+    "The Draft Board: it called him up.",
+    "He said the rewritten: version is better.",
+    "Draft law: passed.",
+    "Draft plan: submit by Friday.",
+    "Japanese: language class",
+    "English: 英語の授業",
+    "Draft 3: the plan",
+    "彼は言った。理由は次の通り: 雨だった。",
+];
+
+/// T-RP-45-006: a translation that only looks like a label is E's translation
+/// as it stands, and it is not emptied.
 #[test]
-fn rp45_a_label_left_inside_a_line_is_withheld_for_form() -> TestResult {
-    let answer = format!("{EN_EDITED} Rewritten Japanese: {EN_EDITED}");
-    let (line, sink) = settle(Lang::En, EN_SRC, EN_DRAFT, &answer)?;
-    assert_eq!((line.status, line.stage), (Status::Ok, Pass::T));
-    assert_eq!(line.text, EN_DRAFT);
-    assert_eq!(edit_held_count(&sink, "form"), 1);
+fn rp45_text_that_only_looks_like_a_label_is_not_cut() -> TestResult {
+    for text in NOT_LABELS {
+        assert_eq!(translation_of(text, "English"), text, "{text}");
+        assert_eq!(translation_of(text, "Japanese"), text, "{text}");
+    }
+    // The first text negates, which V holds against this source for its own reason.
+    for text in &NOT_LABELS[1..4] {
+        let (line, sink) = settle(Lang::Ja, JA_SRC, JA_DRAFT, text)?;
+        assert_eq!((line.status, line.stage), (Status::Ok, Pass::E), "{text}");
+        assert_eq!(line.text, *text);
+        assert_eq!(edit_held_count(&sink, "form"), 0, "{text}");
+    }
     Ok(())
 }
 
@@ -194,16 +214,21 @@ fn rp45_latin_letters_and_a_line_break_in_a_correct_translation_still_pass() -> 
     Ok(())
 }
 
-/// T-RP-45-008: a sentence with a colon is not read as a label.
+/// T-RP-45-008: a source label alone is text; with a draft or rewritten label
+/// the text before the last label goes, the source label with it.
 #[test]
-fn rp45_a_colon_in_a_sentence_is_not_a_label() {
-    for text in [
-        "彼は言った。理由は次の通り: 雨だった。",
-        "The draft was late: nobody came.",
-        "Draft 3: the plan",
-    ] {
-        assert_eq!(translation_of(text, "English"), text);
-    }
+fn rp45_a_lone_source_label_is_text() {
+    assert_eq!(
+        translation_of("English: 英語の授業", "Japanese"),
+        "English: 英語の授業"
+    );
+    assert_eq!(
+        translation_of(
+            "English:\nHi\n\nRewritten Japanese:\n英語の授業",
+            "Japanese"
+        ),
+        "英語の授業"
+    );
 }
 
 const RECORD: &str = concat!(
@@ -246,7 +271,7 @@ fn rp45_recorded_edit_answers_lose_their_labels() -> TestResult {
     let before = texts.iter().filter(|text| carries_a_label(text)).count();
     let stripped: Vec<&str> = texts
         .iter()
-        .map(|text| translation_of(text, "English"))
+        .map(|text| translation_of(text, "Japanese"))
         .collect();
     let after = stripped.iter().filter(|text| carries_a_label(text)).count();
     let empty = stripped
@@ -266,5 +291,6 @@ fn rp45_recorded_edit_answers_lose_their_labels() -> TestResult {
     assert_eq!(texts.len(), 35);
     assert_eq!(before, 20);
     assert_eq!(after, 0);
+    assert_eq!(empty, 0);
     Ok(())
 }

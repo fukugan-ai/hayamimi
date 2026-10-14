@@ -261,7 +261,7 @@ impl<'a, L: Llm> Translator<'a, L> {
         let draft_verdict = self.verdict(line, src, draft, target, sink);
         let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
         let second = self.ask(&prompt)?;
-        let edited = translation_of(&second, language_name(Lang::Ja));
+        let edited = translation_of(&second, language_name(Lang::Ja.other()));
         let edited_verdict = self.verdict(line, src, edited, target, sink);
         let settled = settled_text(
             draft,

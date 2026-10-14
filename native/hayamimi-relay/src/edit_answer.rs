@@ -7,143 +7,131 @@
 //! English sentence somewhere, so the form check of V passes it, and the
 //! template would reach the subtitle.
 //!
-//! [`translation_of`] returns the text behind the last label of the answer.
-//! The language word of a label is read loosely because the model misspells
-//! it (`Japaese`, `Drafted Japanese`).
+//! [`translation_of`] returns the text behind the last draft or rewritten
+//! label of the answer. A label is the keyword and the name of the language of
+//! the translation, then a colon, and it stands at the start of a line. The
+//! name is read within two edits of the name the prompt used, because the model
+//! misspells it (`Japaese`). A word that is not that name (`Draft law:`), a
+//! keyword inside a line (`The draft: ...`) and a lone source label
+//! (`English: ...`) are text, not labels. The source label needs no reading of
+//! its own: when the answer has a draft or rewritten label, everything before
+//! the last one is dropped, the source label included.
 //!
-//! An answer that is empty behind its labels, or that still has a draft or
-//! rewritten label inside a line, yields the empty text, which V holds for
-//! `form`. V itself is not made stricter: a correct translation may carry
-//! Latin letters or line breaks.
-//!
-//! A line of a translation that itself starts with a word such as `Draft:` is
-//! read as a label; the text before it is dropped.
+//! An answer that is empty behind its labels yields the empty text, which V
+//! holds for `form`. V itself is not made stricter: a correct translation may
+//! carry Latin letters or line breaks. A label inside a line is left in the
+//! text, and V decides on it as on any other text.
 
 use crate::verify::contains_eos;
 
 /// Longest head of a label, in characters, from its first letter to its colon.
 const MAX_LABEL_CHARS: usize = 40;
 
-/// Longest head of a label, in words: the keyword and the language name.
-const MAX_LABEL_WORDS: usize = 2;
-
 /// Longest keyword of the draft label (`Drafted`), in bytes. The keyword
 /// starts with `draf` because the model cuts it short (`Draf`).
 const MAX_DRAFT_WORD: usize = 7;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Label {
-    /// `<source language>:` in front of the source sentence.
-    Source,
-    /// `Draft <language>:` in front of T's translation.
-    Draft,
-    /// `Rewritten <language>:` in front of the answer.
-    Rewritten,
-}
+/// How far the language word may be from the language name, in edits.
+const MAX_EDITS: usize = 2;
+
+/// Longest word, in bytes, that is compared with a language name.
+const MAX_NAME_BYTES: usize = 24;
 
 /// The translation E's `answer` carries, without the labels of the prompt.
-/// `source_name` is the name of the source language as the prompt spells it.
+/// `target_name` is the name of the language of the translation as the prompt
+/// spells it.
 ///
 /// An answer with the end marker is returned as it stands, so that V withholds
 /// it as it always did.
-pub fn translation_of<'a>(answer: &'a str, source_name: &str) -> &'a str {
+pub fn translation_of<'a>(answer: &'a str, target_name: &str) -> &'a str {
     let text = answer.trim();
     if contains_eos(text) {
         return text;
     }
-    let rest = match last_label_end(text, source_name) {
+    match last_label_end(text, target_name) {
         Some(end) => text[end..].trim(),
         None => text,
-    };
-    if has_inline_label(rest) { "" } else { rest }
+    }
 }
 
-/// The byte offset behind the last label that starts a line of `text`. The
-/// source label counts only at the very start of the text.
-fn last_label_end(text: &str, source_name: &str) -> Option<usize> {
+/// The byte offset behind the last label that starts a line of `text`.
+fn last_label_end(text: &str, target_name: &str) -> Option<usize> {
     std::iter::once(0)
         .chain(text.match_indices('\n').map(|(at, _)| at + 1))
         .filter_map(|start| {
             let body = text[start..].trim_start_matches([' ', '\t']);
-            let offset = text.len() - body.len();
-            let (label, len) = label_at(body, source_name)?;
-            (label != Label::Source || offset == 0).then_some(offset + len)
+            let len = label_len(body, target_name)?;
+            Some(text.len() - body.len() + len)
         })
         .next_back()
-}
-
-/// Whether a draft or rewritten label starts at any word of `text`.
-fn has_inline_label(text: &str) -> bool {
-    std::iter::once(0)
-        .chain(
-            text.char_indices()
-                .filter(|(_, c)| c.is_whitespace())
-                .map(|(at, c)| at + c.len_utf8()),
-        )
-        .any(|start| {
-            matches!(
-                label_at(&text[start..], ""),
-                Some((Label::Draft | Label::Rewritten, _))
-            )
-        })
 }
 
 fn is_colon(c: char) -> bool {
     matches!(c, ':' | '：')
 }
 
-/// The label that starts `text` and the byte length of it through its colon.
-fn label_at(text: &str, source_name: &str) -> Option<(Label, usize)> {
-    let (at, colon) = text
+/// The byte length through the colon of the label that starts `body`.
+fn label_len(body: &str, target_name: &str) -> Option<usize> {
+    let (at, colon) = body
         .char_indices()
         .take(MAX_LABEL_CHARS)
         .find(|(_, c)| is_colon(*c))?;
-    let label = label_of(&text[..at], source_name)?;
-    Some((label, at + colon.len_utf8()))
-}
-
-/// The label whose words, from the first letter to the colon, are `head`.
-fn label_of(head: &str, source_name: &str) -> Option<Label> {
+    let head = &body[..at];
     if head.contains(['\n', '\r']) {
         return None;
     }
     let mut words = head.split_whitespace();
-    let first = words.next()?;
-    let words_after = words.clone().count();
-    let only_letters = std::iter::once(first)
-        .chain(words)
-        .all(|word| word.chars().all(char::is_alphabetic));
-    if !only_letters || words_after + 1 > MAX_LABEL_WORDS {
-        return None;
-    }
-    if words_after == 0 && first.eq_ignore_ascii_case(source_name) {
-        return Some(Label::Source);
-    }
-    if starts_with_ignore_case(first, "draf") && first.len() <= MAX_DRAFT_WORD {
-        return Some(Label::Draft);
-    }
-    if first.eq_ignore_ascii_case("rewritten") {
-        return Some(Label::Rewritten);
-    }
-    None
+    let (keyword, language) = (words.next()?, words.next()?);
+    let reads_as_label =
+        words.next().is_none() && is_keyword(keyword) && names_language(language, target_name);
+    reads_as_label.then_some(at + colon.len_utf8())
 }
 
-fn starts_with_ignore_case(word: &str, prefix: &str) -> bool {
-    word.as_bytes()
-        .get(..prefix.len())
-        .is_some_and(|head| head.eq_ignore_ascii_case(prefix.as_bytes()))
+fn is_keyword(word: &str) -> bool {
+    let draft = word.len() <= MAX_DRAFT_WORD
+        && word
+            .as_bytes()
+            .get(..4)
+            .is_some_and(|head| head.eq_ignore_ascii_case(b"draf"))
+        && word.chars().all(char::is_alphabetic);
+    draft || word.eq_ignore_ascii_case("rewritten")
+}
+
+/// Whether `word` is `name` or a misspelling of it, ignoring case.
+fn names_language(word: &str, name: &str) -> bool {
+    let (a, b) = (word.as_bytes(), name.as_bytes());
+    if a.len() > MAX_NAME_BYTES || b.len() > MAX_NAME_BYTES || a.len().abs_diff(b.len()) > MAX_EDITS
+    {
+        return false;
+    }
+    let mut previous = [0_usize; MAX_NAME_BYTES + 1];
+    for (j, slot) in previous.iter_mut().enumerate().take(b.len() + 1) {
+        *slot = j;
+    }
+    let mut current = previous;
+    for (i, x) in a.iter().enumerate() {
+        current[0] = i + 1;
+        for (j, y) in b.iter().enumerate() {
+            let cost = usize::from(!x.eq_ignore_ascii_case(y));
+            current[j + 1] = (previous[j] + cost)
+                .min(previous[j + 1] + 1)
+                .min(current[j] + 1);
+        }
+        previous = current;
+    }
+    previous[b.len()] <= MAX_EDITS
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const SRC: &str = "English";
+    const TO: &str = "Japanese";
     const JA: &str = "彼は中に入って手紙を調べた。";
 
     #[test]
     fn a_plain_translation_is_returned_trimmed() {
-        assert_eq!(translation_of(&format!("  {JA}\n"), SRC), JA);
+        assert_eq!(translation_of(&format!("  {JA}\n"), TO), JA);
     }
 
     #[test]
@@ -151,108 +139,91 @@ mod tests {
         let answer = format!(
             "English:\nHe went in.\n\nDraft Japanese:\n下書き\n\nRewritten Japanese:\n{JA}"
         );
-        assert_eq!(translation_of(&answer, SRC), JA);
+        assert_eq!(translation_of(&answer, TO), JA);
     }
 
     #[test]
     fn a_label_with_trailing_spaces_and_a_misspelled_language_is_read() {
         let answer =
             format!("He went in.  \n\nDrafted Japaese:  \n下書き  \n\nRewritten Japaese:  \n{JA}");
-        assert_eq!(translation_of(&answer, SRC), JA);
+        assert_eq!(translation_of(&answer, TO), JA);
     }
 
     #[test]
     fn a_label_on_the_same_line_as_the_text_is_read() {
-        assert_eq!(
-            translation_of(&format!("Rewritten Japanese: {JA}"), SRC),
-            JA
-        );
+        assert_eq!(translation_of(&format!("Rewritten Japanese: {JA}"), TO), JA);
     }
 
     #[test]
     fn a_full_width_colon_ends_a_label() {
-        assert_eq!(
-            translation_of(&format!("Rewritten Japanese：{JA}"), SRC),
-            JA
-        );
-    }
-
-    #[test]
-    fn only_the_source_label_in_front_leaves_the_source_for_v() {
-        assert_eq!(translation_of("English:\nHe went in.", SRC), "He went in.");
-    }
-
-    #[test]
-    fn the_source_label_is_read_only_at_the_start() {
-        let line = "彼は言った。\nEnglish: yes";
-        assert_eq!(translation_of(line, SRC), line);
-    }
-
-    #[test]
-    fn the_source_label_is_the_name_of_the_source_language() {
-        let ja = "Japanese:\n彼は入った。\n\nDraft English:\nHe went in.\n\nRewritten English:\nHe entered.";
-        assert_eq!(translation_of(ja, "Japanese"), "He entered.");
-        assert_eq!(
-            translation_of("Japanese:\nHe entered.", SRC),
-            "Japanese:\nHe entered."
-        );
-    }
-
-    #[test]
-    fn a_label_with_nothing_behind_it_yields_the_empty_text() {
-        assert_eq!(
-            translation_of("Draft Japanese:\n下書き\n\nRewritten Japanese:\n", SRC),
-            ""
-        );
-        assert_eq!(translation_of("Rewritten Japanese:", SRC), "");
-        assert_eq!(translation_of("", SRC), "");
-    }
-
-    #[test]
-    fn a_label_inside_a_line_yields_the_empty_text() {
-        assert_eq!(
-            translation_of(&format!("{JA} Rewritten Japanese: {JA}"), SRC),
-            ""
-        );
-        assert_eq!(
-            translation_of(
-                &format!("{JA}\nDraft Japanese: x\n{JA} Draft Japanese: y"),
-                SRC
-            ),
-            ""
-        );
-    }
-
-    #[test]
-    fn the_end_marker_keeps_the_answer_as_it_stands() {
-        let answer = format!("Rewritten Japanese:\n{JA}</s>");
-        assert_eq!(translation_of(&answer, SRC), answer);
-    }
-
-    #[test]
-    fn a_colon_in_a_sentence_is_not_a_label() {
-        for text in [
-            "彼は言った。理由は次の通り: 雨だった。",
-            "The draft was late: nobody came.",
-            "Draft 3: the plan",
-            "Rewriting history: a note",
-            "彼が書いた草稿: 長い",
-        ] {
-            assert_eq!(translation_of(text, SRC), text, "{text}");
-        }
-    }
-
-    #[test]
-    fn a_label_head_over_two_words_is_not_a_label() {
-        let text = "Draft of the plan: yes";
-        assert_eq!(translation_of(text, SRC), text);
+        assert_eq!(translation_of(&format!("Rewritten Japanese：{JA}"), TO), JA);
     }
 
     #[test]
     fn a_label_in_lower_case_is_read() {
         assert_eq!(
-            translation_of(&format!("rewritten japanese:\n{JA}"), SRC),
+            translation_of(&format!("rewritten japanese:\n{JA}"), TO),
             JA
         );
+    }
+
+    #[test]
+    fn into_english_the_language_is_english() {
+        let answer = "Japanese:\n彼は入った。\n\nDraft English:\nHe went in.\n\nRewritten English:\nHe entered.";
+        assert_eq!(translation_of(answer, "English"), "He entered.");
+    }
+
+    #[test]
+    fn a_label_with_nothing_behind_it_yields_the_empty_text() {
+        assert_eq!(
+            translation_of("Draft Japanese:\n下書き\n\nRewritten Japanese:\n", TO),
+            ""
+        );
+        assert_eq!(translation_of("Rewritten Japanese:", TO), "");
+        assert_eq!(translation_of("", TO), "");
+    }
+
+    #[test]
+    fn the_end_marker_keeps_the_answer_as_it_stands() {
+        let answer = format!("Rewritten Japanese:\n{JA}</s>");
+        assert_eq!(translation_of(&answer, TO), answer);
+    }
+
+    #[test]
+    fn text_that_only_looks_like_a_label_is_returned_as_it_is() {
+        for text in [
+            "The draft: nobody read it.",
+            "Final draft: ready.",
+            "The Draft Board: it called him up.",
+            "He said the rewritten: version is better.",
+            "Draft law: passed.",
+            "Draft plan: submit by Friday.",
+            "Japanese: language class",
+            "English: 英語の授業",
+            "English:\nHe went in.",
+            "彼は言った。理由は次の通り: 雨だった。",
+            "Draft 3: the plan",
+            "Rewriting history: a note",
+            "Draft: the plan",
+        ] {
+            assert_eq!(translation_of(text, TO), text, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_label_inside_a_line_is_not_a_label() {
+        let text = format!("{JA} Rewritten Japanese: {JA}");
+        assert_eq!(translation_of(&text, TO), text);
+    }
+
+    #[test]
+    fn the_language_word_is_read_within_two_edits() {
+        assert!(names_language("Japanese", "Japanese"));
+        assert!(names_language("japaese", "Japanese"));
+        assert!(names_language("Japnse", "Japanese"));
+        assert!(!names_language("law", "Japanese"));
+        assert!(!names_language("plan", "Japanese"));
+        assert!(!names_language("", "Japanese"));
+        assert!(!names_language("Japaneseeee", "Japanese"));
     }
 }
