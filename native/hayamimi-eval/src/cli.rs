@@ -57,6 +57,9 @@ struct StreamArgs {
     host: String,
     #[arg(long, default_value_t = 8766)]
     port: u16,
+    /// The port of the relay's `/events`, to read its translations too.
+    #[arg(long)]
+    relay_port: Option<u16>,
     /// Silence after each copy, in milliseconds.
     #[arg(long, default_value_t = 1500)]
     gap_ms: u32,
@@ -157,6 +160,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
             stream::run(&stream::Options {
                 host: args.host,
                 port: args.port,
+                relay_port: args.relay_port,
                 wav: args.wav,
                 manifest,
                 repeat: args.repeat,

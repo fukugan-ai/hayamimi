@@ -27,6 +27,16 @@ impl Lang {
         }
     }
 
+    /// The language whose ISO 639-1 code is exactly `code`; `None` for any
+    /// other code, which the relay does not translate.
+    pub fn from_code(code: &str) -> Option<Lang> {
+        match code {
+            "ja" => Some(Lang::Ja),
+            "en" => Some(Lang::En),
+            _ => None,
+        }
+    }
+
     /// The language a locale tag such as `ja_JP.UTF-8` or `en-US` names;
     /// anything that is not Japanese reads as English.
     pub fn from_locale_tag(tag: &str) -> Lang {
@@ -55,6 +65,15 @@ mod tests {
     fn code_is_lowercase_iso() {
         assert_eq!(Lang::Ja.code(), "ja");
         assert_eq!(Lang::En.code(), "en");
+    }
+
+    #[test]
+    fn a_code_names_a_language_only_when_it_is_exact() {
+        assert_eq!(Lang::from_code("ja"), Some(Lang::Ja));
+        assert_eq!(Lang::from_code("en"), Some(Lang::En));
+        assert_eq!(Lang::from_code("zh"), None);
+        assert_eq!(Lang::from_code("JA"), None);
+        assert_eq!(Lang::from_code(""), None);
     }
 
     #[test]

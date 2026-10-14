@@ -26,7 +26,7 @@ The four states:
 | R5 (capture, partials and every server route) | Planned (W1) | none | none | RP-10, RP-11, RP-12 and the R5 rows of RP-29 not run | H34 |
 | R6 (three Dioxus pages) | Planned (W2; the designer's boards during W1) | none | none | Page rows of RP-12 not run | The designer's boards come first |
 | R7 (tightening recognition delay) | Planned (W2) | none | none | RP-4, RP-7 not run | H9 (0.25), H10, H31 |
-| R8a–R8f (relay on the Rust `hayamimi`, translation speed) | Planned (R8a in W1; R8b, R8c, R8d in W2; R8e, R8f in W3) | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-20 to CS-22, CS-25 not run | H6, H17, H32, H8b |
+| R8a–R8f (relay on the Rust `hayamimi`, translation speed) | R8a: implemented, awaiting verification (CS-21 and CS-22 pass against fake recognizers and a fake translator; the real-audio run is not done). R8b, R8c, R8d: planned in W2; R8e, R8f: planned in W3 | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-20 to CS-22, CS-25 not run | H6, H17, H32, H8b |
 | R10 (fetching, documents, English versions) | Planned (W3) | none | none | RP-14, the spec row of RP-19, RP-21 not run | H16 |
 | R11 (removing Python) | Planned (W4) | none | none | RP-9, RP-19 not run | The three conditions in 3.2 |
 | End-to-end acceptance (E2E-1 mic ja→en, E2E-2 loopback en→ja) | Planned (after W4, 05:45–06:45) | none | none | E2E-1, E2E-2 not run | A Japanese utterance spoken into the real microphone cannot be checked by machine |

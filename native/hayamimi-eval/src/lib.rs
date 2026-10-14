@@ -24,6 +24,7 @@ pub mod nsys;
 pub mod ort_stages;
 pub mod percentile;
 pub mod record;
+pub mod relay_events;
 pub mod sha;
 pub mod stage_load;
 pub mod stage_models;
