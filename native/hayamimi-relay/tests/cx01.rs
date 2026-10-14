@@ -103,6 +103,7 @@ fn check_v_calls_are_one_per_translation_and_before_annotation(
 /// Runs the line with the given answer of T and records what V was given.
 fn run_pair(
     draft: &str,
+    edited: &str,
 ) -> Result<(Recorder, hayamimi_relay::pipeline::Translation), Box<dyn std::error::Error>> {
     let (_dir, path) = dir_with_rates(&rates_a())?;
     let mut harness = Harness::open(Some(path), None)?;
@@ -111,7 +112,7 @@ fn run_pair(
         "I paid $100.",
         Lang::En,
         draft,
-        EDITED_JA,
+        edited,
         epoch(DEFAULT_NOW)?,
         &mut recorder,
     );
@@ -123,7 +124,7 @@ fn run_pair(
 fn cx01_dollar_amount_is_annotated_after_verification_verify_receives_each_translation_once_without_annotation()
 -> TestResult {
     for (draft, label) in [(DRAFT_PASSING, "run A"), (DRAFT_WRONG_NUMBER, "run B")] {
-        let (recorder, line) = run_pair(draft)?;
+        let (recorder, line) = run_pair(draft, EDITED_JA)?;
         let given: Vec<&str> = recorder
             .draft_inputs
             .iter()
@@ -262,12 +263,8 @@ fn cx01_dollar_amount_is_annotated_after_verification_en_annotation_text_and_end
 /// T-CX-1-006
 #[test]
 fn cx01_dollar_amount_is_annotated_after_verification_held_line_gets_no_annotation() -> TestResult {
-    let line = run_line(
-        "I paid $100.",
-        Lang::En,
-        "私は200ドル払いました。",
-        &mut Recorder::default(),
-    )?;
+    // Neither T's answer nor E's carries the amount of the source.
+    let (_recorder, line) = run_pair(DRAFT_WRONG_NUMBER, "私は200ドル払いました。")?;
     assert_eq!(line.status, Status::Held, "T-CX-1-006: status");
     assert!(line.annotations.is_empty(), "T-CX-1-006: annotations");
     Ok(())
