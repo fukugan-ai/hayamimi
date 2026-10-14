@@ -24,6 +24,7 @@ use hayamimi_relay::hub;
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::llm::{Completion, Llm, LlmError};
 use hayamimi_relay::logging::{LogEvent, LogSink, SharedSink};
+use hayamimi_relay::partial::PartialTranslation;
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig, sha256_hex};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
 use hayamimi_relay::strings::Strings;
@@ -530,6 +531,18 @@ pub fn run_relay_with<L: Llm + 'static>(
     make: MakePipeline<L>,
     outputs: Outputs,
 ) -> Result<Running, io::Error> {
+    run_relay_partials(events, lanes, make, outputs, PartialTranslation::Off)
+}
+
+/// Starts a relay like [`run_relay_with`], translating the text in progress
+/// or not as `partials` says.
+pub fn run_relay_partials<L: Llm + 'static>(
+    events: Vec<String>,
+    lanes: Lanes,
+    make: MakePipeline<L>,
+    outputs: Outputs,
+    partials: PartialTranslation,
+) -> Result<Running, io::Error> {
     let logs = Logs::default();
     let config = RelayConfig {
         events,
@@ -541,7 +554,7 @@ pub fn run_relay_with<L: Llm + 'static>(
         started_epoch: 1_790_000_000,
     };
     let sink = SharedSink::new(logs.clone());
-    let address = relay::start_with(hub::bind(0)?, config, make, sink, outputs)?;
+    let address = relay::start_partials(hub::bind(0)?, config, make, sink, outputs, partials)?;
     Ok(Running {
         translations: collect_from(address)?,
         logs,

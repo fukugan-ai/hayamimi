@@ -11,6 +11,10 @@
 //! A `final` line is published twice at most: its draft as soon as T's
 //! translation passed V, and its settled translation at the end. Only the
 //! settled one is handed to the outputs (`deliver`).
+//!
+//! When the translation of the text in progress is on, a worker of its own
+//! translates what a recognizer's `partial` events say (`partial`). Those
+//! translations are published to the screens and never handed to the outputs.
 
 use std::io;
 use std::net::{SocketAddr, TcpListener};
@@ -22,10 +26,11 @@ use crate::deliver::{Delivery, Outputs, Words};
 use crate::follow::{Backoff, follow};
 use crate::hub::{self, Hub};
 use crate::lang::Lang;
-use crate::line::{Line, SOURCES, Source, parse_line};
+use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
-use crate::pipeline::{NoObserver, Pipeline, Translation};
+use crate::partial::{Mailbox, PartialTranslation, Route};
+use crate::pipeline::{NoObserver, PartialOutcome, Pipeline, Translation};
 use crate::strings::Strings;
 
 /// How lines are shared out to translators.
@@ -95,11 +100,13 @@ fn line_event(level: Level, name: &str, component: &'static str, line: &Line) ->
 
 /// Publishes one translation under the `id` of its line, and says so when it
 /// cannot be written.
-fn publish(hub: &Hub, translation: &Translation, line: &Line, sink: &mut dyn LogSink) {
+fn publish(hub: &Hub, translation: &Translation, sink: &mut dyn LogSink) {
     match serde_json::to_string(translation) {
         Ok(json) => hub.publish(&json),
         Err(_) => sink.emit(
-            line_event(Level::Error, "translate.publish.failed", "service", line)
+            LogEvent::new(Level::Error, "translate.publish.failed", "service")
+                .with("id", translation.id.as_str())
+                .with("source", translation.source.as_str())
                 .with_error("PUBLISH"),
         ),
     }
@@ -127,13 +134,56 @@ fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedS
     let mut drafts = sink.clone();
     for job in jobs {
         let request = job.line.request(job.src_lang, parts.clock.now_epoch());
-        let mut show_draft =
-            |draft: Translation| publish(&parts.hub, &draft, &job.line, &mut drafts);
+        let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
         let translation =
             pipeline.run_staged(&request, &mut NoObserver, &mut show_draft, &mut sink);
-        publish(&parts.hub, &translation, &job.line, &mut sink);
+        publish(&parts.hub, &translation, &mut sink);
         parts.delivery.submit(&job.line, &translation);
     }
+}
+
+/// Translates the text in progress, the oldest left first, until the process
+/// ends. A translation is published only if its text is still the newest of
+/// its source when it comes.
+fn run_partials<L: Llm>(
+    mailbox: &Mailbox,
+    hub: &Hub,
+    make: &MakePipeline<L>,
+    clock: RunClock,
+    mut sink: SharedSink,
+) {
+    let mut pipeline = match make(&mut sink) {
+        Ok(pipeline) => pipeline,
+        Err(_) => {
+            sink.emit(
+                LogEvent::new(Level::Error, "translate.lane.failed", "worker").with_error("OPEN"),
+            );
+            return;
+        }
+    };
+    loop {
+        let (job, wanted) = mailbox.take();
+        let request = job.request(clock.now_epoch());
+        let outcome = pipeline.translate_partial(&request, &wanted, &mut sink);
+        if let PartialOutcome::Shown(translation) = outcome
+            && wanted.still()
+        {
+            publish(hub, &translation, &mut sink);
+        }
+    }
+}
+
+fn spawn_partials<L: Llm + 'static>(
+    mailbox: Arc<Mailbox>,
+    hub: Hub,
+    make: MakePipeline<L>,
+    clock: RunClock,
+    sink: SharedSink,
+) -> io::Result<()> {
+    std::thread::Builder::new()
+        .name(String::from("relay-partial"))
+        .spawn(move || run_partials(&mailbox, &hub, &make, clock, sink))?;
+    Ok(())
 }
 
 struct Router<L: Llm + 'static> {
@@ -199,15 +249,24 @@ impl<L: Llm + 'static> Router<L> {
     }
 }
 
-/// Hands a line of the stream to the router; reports an event that is a line
-/// but cannot be used.
-fn forward(data: &str, endpoint: usize, lines: &Sender<Line>, sink: &mut dyn LogSink) {
-    match parse_line(data) {
-        // The router ends only with the process, so a refused line has no one left to tell.
-        Ok(Some(line)) => {
+/// Hands a line of the stream to the router and the text in progress to the
+/// route of the stream; reports an event that is a line but cannot be used.
+fn forward(
+    data: &str,
+    endpoint: usize,
+    lines: &Sender<Line>,
+    route: &mut Route,
+    sink: &mut dyn LogSink,
+) {
+    match hear(data) {
+        Ok(Heard::Line(line)) => {
+            route.note_line(&line);
+            // The router ends only with the process, so a refused line has no one left to tell.
             let _ = lines.send(line);
         }
-        Ok(None) => {}
+        Ok(Heard::Partial(text)) => route.partial(&text, sink),
+        Ok(Heard::Reset) => route.forget(),
+        Ok(Heard::Other) => {}
         Err(reason) => sink.emit(
             LogEvent::new(Level::Warn, "events.line.skipped", "service")
                 .with("endpoint", endpoint)
@@ -220,14 +279,16 @@ fn spawn_follower(
     endpoint: usize,
     url: String,
     lines: Sender<Line>,
+    mut route: Route,
     backoff: Backoff,
     mut sink: SharedSink,
 ) -> io::Result<()> {
     std::thread::Builder::new()
         .name(format!("relay-follow-{endpoint}"))
         .spawn(move || {
-            let mut on_event =
-                |data: &str, sink: &mut dyn LogSink| forward(data, endpoint, &lines, sink);
+            let mut on_event = |data: &str, sink: &mut dyn LogSink| {
+                forward(data, endpoint, &lines, &mut route, sink)
+            };
             match follow((endpoint, &url), backoff, &mut sink, &mut on_event) {}
         })?;
     Ok(())
@@ -249,10 +310,8 @@ pub fn start<L: Llm + 'static>(
     start_with(listener, config, make, sink, outputs)
 }
 
-/// Starts the relay: serves the translations on `listener` and follows every
-/// stream of `config.events`, all from threads of their own. The settled
-/// translations also go to `outputs`. Returns the address the translations
-/// are served on.
+/// Starts the relay like [`start_partials`], without translating the text of
+/// an utterance in progress.
 pub fn start_with<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
@@ -260,9 +319,57 @@ pub fn start_with<L: Llm + 'static>(
     sink: SharedSink,
     outputs: Outputs,
 ) -> io::Result<SocketAddr> {
+    start_partials(
+        listener,
+        config,
+        make,
+        sink,
+        outputs,
+        PartialTranslation::Off,
+    )
+}
+
+/// The mailbox the followers leave the text in progress in, and the worker
+/// that translates it, when the translation of that text is on.
+fn open_partials<L: Llm + 'static>(
+    partials: PartialTranslation,
+    hub: &Hub,
+    make: &MakePipeline<L>,
+    clock: RunClock,
+    sink: &SharedSink,
+) -> io::Result<Option<Arc<Mailbox>>> {
+    if partials == PartialTranslation::Off {
+        return Ok(None);
+    }
+    let mailbox = Arc::new(Mailbox::new());
+    spawn_partials(
+        Arc::clone(&mailbox),
+        hub.clone(),
+        Arc::clone(make),
+        clock,
+        sink.clone(),
+    )?;
+    Ok(Some(mailbox))
+}
+
+/// Starts the relay: serves the translations on `listener` and follows every
+/// stream of `config.events`, all from threads of their own. The settled
+/// translations also go to `outputs`; the translations of the text in
+/// progress, when `partials` is on, go to the screens only. Returns the
+/// address the translations are served on.
+pub fn start_partials<L: Llm + 'static>(
+    listener: TcpListener,
+    config: RelayConfig,
+    make: MakePipeline<L>,
+    sink: SharedSink,
+    outputs: Outputs,
+    partials: PartialTranslation,
+) -> io::Result<SocketAddr> {
     let hub = Hub::new();
     let address = hub::serve(listener, hub.clone())?;
     let delivery = Delivery::start(outputs, hub.clone(), sink.clone())?;
+    let clock = RunClock::new(config.started_epoch);
+    let mailbox = open_partials(partials, &hub, &make, clock, &sink)?;
     let (lines, incoming) = mpsc::channel();
     let router = Router {
         slots: [None, None, None],
@@ -270,14 +377,22 @@ pub fn start_with<L: Llm + 'static>(
         make,
         hub,
         delivery,
-        clock: RunClock::new(config.started_epoch),
+        clock,
         sink: sink.clone(),
     };
     std::thread::Builder::new()
         .name(String::from("relay-router"))
         .spawn(move || router.run(incoming))?;
     for (endpoint, url) in config.events.into_iter().enumerate() {
-        spawn_follower(endpoint, url, lines.clone(), config.backoff, sink.clone())?;
+        let route = Route::new(mailbox.clone());
+        spawn_follower(
+            endpoint,
+            url,
+            lines.clone(),
+            route,
+            config.backoff,
+            sink.clone(),
+        )?;
     }
     Ok(address)
 }

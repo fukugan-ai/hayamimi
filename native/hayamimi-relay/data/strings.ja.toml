@@ -72,10 +72,15 @@ label = "m²"
 "sink.fallback.cleared" = "送り先に届くようになりました"
 "srt.cue.skipped" = "この行は SRT に書きません"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
+"translate.partial.ok" = "話している途中の文を訳しました"
+"translate.partial.held" = "照合が外れたので、話している途中の文の訳は出しません"
+"translate.partial.aborted" = "新しい文が来たので、前の文の訳をやめました"
+"translate.partial.failed" = "話している途中の文を訳す翻訳器に届きませんでした"
+"translate.partial.skipped" = "話している途中の文は訳しません"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--no-partial-translation]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"

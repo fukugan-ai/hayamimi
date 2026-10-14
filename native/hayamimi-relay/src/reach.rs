@@ -72,7 +72,7 @@ pub fn is_unreachable(error: &LlmError) -> bool {
     match error {
         LlmError::Transport(_) => true,
         LlmError::Status(code) => *code >= 500,
-        LlmError::Body(_) => false,
+        LlmError::Body(_) | LlmError::Aborted => false,
     }
 }
 
