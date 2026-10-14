@@ -109,6 +109,7 @@
 | RP-15 | FR-4、NFR-3 |
 | RP-16、RP-29 | NFR-5、NFR-8 |
 | RP-28 | NFR-5 |
+| RP-30 | NFR-5（設計の fallback の stage と reason の値が code と同じ） |
 | RP-17、RP-24 | NFR-7 |
 | RP-18 | FR-3 |
 | RP-21 | FR-12 |
