@@ -28,7 +28,7 @@ use fixtures::{
 };
 use scenes::{
     CAPTURE_NONE, CAPTURE_SINGLE, CONFIG, LIBRARY, LID_DISABLED, MODEL_SMALLER, MODEL_SUBSTITUTE,
-    SECOND_OPINION_DISABLED, SINK, TRANSLATE,
+    SECOND_OPINION_DISABLED, SINK, SPEAKER, TRANSLATE,
 };
 use support::TestResult;
 
@@ -264,6 +264,16 @@ fn silent_identifier_fallback_is_rejected() {
     assert!(names(
         check_resource_fallback(&LID_DISABLED, &served, true),
         "lid"
+    ));
+}
+
+/// T-RP-29-028
+#[test]
+fn silent_speaker_fallback_is_rejected() {
+    let served = served_of(0, String::new(), vec![final_wire(), scene_wire(&SPEAKER)]);
+    assert!(names(
+        check_resource_fallback(&SPEAKER, &served, true),
+        "speaker"
     ));
 }
 

@@ -494,6 +494,11 @@ impl Engine {
         }))
     }
 
+    /// Whether utterances get a speaker mark: the stage is on and its model opened.
+    pub fn has_speaker_stage(&self) -> bool {
+        self.speakers.is_some()
+    }
+
     /// The speaker mark of a finished utterance, to be sent after its `final`;
     /// `None` when the stage is out. Takes `done.speaker_audio` as it is.
     pub fn mark_speaker(&mut self, done: &Final) -> Option<Mark> {

@@ -7,6 +7,8 @@
 "asr.utterance.timed" = "Utterance finished"
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.speaker.failed" = "The speaker mark failed; the text went on without it"
+"asr.final.published" = "The final subtitle was sent to the event stream"
+"speaker.embedding.started" = "The speaker embedding of an utterance started"
 "asr.engine.failed" = "The recognition route failed"
 "gpu.fallback.cpu" = "A stage moved from the GPU to the CPU and goes on"
 "model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"

@@ -7,6 +7,8 @@
 "asr.utterance.timed" = "発話を確定しました"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
 "asr.speaker.failed" = "話者の印をつけられなかったので、印なしの文で続けました"
+"asr.final.published" = "確定文を字幕の event へ出し終えました"
+"speaker.embedding.started" = "発話の話者の埋め込みを始めました"
 "asr.engine.failed" = "認識の経路が失敗しました"
 "gpu.fallback.cpu" = "段を GPU から CPU へ落として続けます"
 "model.fallback.disabled" = "model が使えないので、その段を外して続けます"

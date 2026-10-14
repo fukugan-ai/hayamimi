@@ -68,6 +68,15 @@ fn marked_finals(served: &Served) -> (usize, usize) {
     (marked, finals.len())
 }
 
+/// How many `speaker` events were on the wire.
+fn speaker_events(served: &Served) -> usize {
+    served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("speaker"))
+        .count()
+}
+
 /// The speaker model is taken away: the stage is left out, subtitles come
 /// without a mark, and with the model present every utterance has one.
 pub fn speaker_scene() -> Result<(), Failure> {
@@ -75,15 +84,16 @@ pub fn speaker_scene() -> Result<(), Failure> {
     let bare = run_with(&without, &[])?;
     check_resource_fallback(&SPEAKER, &bare, true)?;
     let (marked, total) = marked_finals(&bare);
-    if marked != 0 {
+    let sent = speaker_events(&bare);
+    if total == 0 || marked != 0 || sent != 0 {
         return Err(format!(
-            "speaker: {marked} of {total} finals have a mark without the model"
+            "speaker: without the model, {marked} of {total} finals have a mark and {sent} speaker events were sent"
         ));
     }
     let whole = run_with(&models_dir()?, &[])?;
     check_resource_present(&SPEAKER, &whole)?;
     let (marked, total) = marked_finals(&whole);
-    if total == 0 || marked != total {
+    if total == 0 || marked != total || speaker_events(&whole) == 0 {
         return Err(format!(
             "speaker: {marked} of {total} finals have a mark with the model"
         ));

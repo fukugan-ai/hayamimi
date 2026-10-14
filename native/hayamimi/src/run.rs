@@ -106,6 +106,7 @@ fn announce(strings: &Strings, hub: &Hub, engine: &mut Engine, finals: &[Final])
             log::print(&log::punct_failed_line(strings, done));
         }
         hub.publish(&final_event(done, SOURCE));
+        log::print(&log::final_published_line(strings, done.id, log::mono_us()));
     }
     for done in finals {
         announce_speaker(strings, hub, engine, done);
@@ -114,6 +115,14 @@ fn announce(strings: &Strings, hub: &Hub, engine: &mut Engine, finals: &[Final])
 
 /// Sends the speaker of one utterance as its own event, once; says so in the log when the mark failed.
 fn announce_speaker(strings: &Strings, hub: &Hub, engine: &mut Engine, done: &Final) {
+    if !engine.has_speaker_stage() {
+        return;
+    }
+    log::print(&log::embedding_started_line(
+        strings,
+        done.id,
+        log::mono_us(),
+    ));
     let Some(mark) = engine.mark_speaker(done) else {
         return;
     };
