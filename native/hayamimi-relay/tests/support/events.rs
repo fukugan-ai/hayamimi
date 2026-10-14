@@ -478,7 +478,7 @@ impl LogSink for OpenedFlag {
 
 /// Follows the relay's own stream from a thread of its own. Returns once the
 /// stream is open, so that nothing published afterwards is missed.
-fn collect_from(address: SocketAddr) -> Result<Collected, io::Error> {
+pub fn collect_from(address: SocketAddr) -> Result<Collected, io::Error> {
     let collected = Collected::default();
     let (items, opened) = (collected.clone(), Arc::new(AtomicBool::new(false)));
     let flag = Arc::clone(&opened);
@@ -569,6 +569,7 @@ pub fn run_relay_logging<L: Llm + 'static>(
             max: Duration::from_millis(100),
         },
         started_epoch: 1_790_000_000,
+        translate: None,
     };
     let sink = SharedSink::new(logs.clone());
     let address = relay::start_partials(hub::bind(0)?, config, make, sink, outputs, partials)?;

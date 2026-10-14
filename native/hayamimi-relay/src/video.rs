@@ -332,7 +332,7 @@ mod tests {
             of: LineKind::Final,
             source: String::from("file"),
             src_lang: Lang::En,
-            lang: Lang::Ja,
+            lang: "ja",
             src_sha256: String::new(),
             status,
             hold_reason: (status == Status::Held).then_some(HoldReason::Number),

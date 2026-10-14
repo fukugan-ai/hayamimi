@@ -21,6 +21,9 @@
 //! `/ingest` through `ws_client` and reads the samples with `pcm`).
 //! The crate also holds the daily exchange-rate fetch and its scheduler
 //! registration. Table and rate files are re-read when they change.
+//!
+//! `eval` translates the Japanese side of sentence pairs into the languages of
+//! `--translate` (`target`) and writes them for a scorer.
 
 pub mod access;
 pub mod annotate;
@@ -28,6 +31,7 @@ pub mod calendar;
 pub mod captions;
 pub mod cli;
 pub mod deliver;
+pub mod eval;
 pub mod follow;
 pub mod fx;
 pub mod hub;
@@ -48,6 +52,7 @@ pub mod srt;
 pub mod srt_command;
 pub mod strings;
 pub mod style;
+pub mod target;
 pub mod units;
 pub mod verify;
 pub mod video;

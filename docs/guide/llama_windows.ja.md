@@ -43,6 +43,7 @@ hayamimi llama start --model CAT-Translate-3.3b-Q8_0.gguf
 |---|---|---|
 | `--model` | `models\llm` の file 名、または path。必須 | なし |
 | `--port` | server の port | 8080 |
+| `--slots` | 同時に受ける依頼の数（`-np`） | 4 |
 | `--wait` | 答えるまで待つ秒数 | 180 |
 | `--dir` | install の root | `%LOCALAPPDATA%\hayamimi` |
 

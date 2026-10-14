@@ -49,3 +49,58 @@ markers = [
 ]
 suffixes = []
 exclude = ["how about", "what about", "could you", "can you", "would you"]
+
+# Languages a Japanese line is translated into by `--translate`. The same
+# rules as for `ja` and `en`: a marker of the source must come back as a
+# marker of the translation. Chinese and Korean are matched as substrings
+# (no spaces between words); Spanish is matched as whole words, lower-cased.
+
+[zh.negation]
+markers = ["不", "没", "沒", "无", "無", "未", "别", "別", "勿", "莫"]
+exclude = [
+  "不错", "不錯", "不得不", "不过", "不過", "不管", "不如", "不同", "不断", "不斷",
+  "不久", "不少", "不好意思", "对不起", "對不起", "不客气", "不客氣", "差不多",
+  "说不定", "說不定", "非常", "无聊", "無聊", "无论", "無論", "无数", "無數",
+  "未来", "未來", "别人", "別人", "别的", "別的",
+]
+
+[zh.uncertainty]
+markers = [
+  "可能", "也许", "也許", "或许", "或許", "大概", "大约", "大約", "约", "約", "左右",
+  "估计", "估計", "似乎", "好像", "看起来", "看起來", "看上去", "差不多", "说不定",
+  "說不定", "我想", "我觉得", "我覺得", "我认为", "我認為", "我猜",
+]
+exclude = [
+  "我想要", "预约", "預約", "约定", "約定", "约会", "約會", "约束", "約束", "契约", "契約",
+  "合约", "合約", "制约", "制約", "节约", "節約", "条约", "條約", "婚约", "婚約",
+  "解约", "解約", "公约", "公約", "要约", "要約",
+]
+
+[ko.negation]
+markers = [
+  "않", "안 ", "못 ", "못하", "못해", "못했", "못할", "없", "아니", "아닙", "아닌", "아냐",
+]
+exclude = ["아니면", "않을까", "않나요"]
+
+[ko.uncertainty]
+markers = [
+  "것 같", "아마", "어쩌면", "수도 있", "대략", "쯤", "정도", "가량", "내외", "추정",
+  "생각합", "생각해",
+]
+exclude = []
+
+[es.negation]
+markers = [
+  "no", "nunca", "jamás", "jamas", "ni", "nadie", "nada", "ninguno", "ninguna",
+  "ningún", "ningun", "sin", "tampoco",
+]
+exclude = ["¿no?", "sin embargo", "no obstante", "sin duda", "de nada", "no hay de qué"]
+
+[es.uncertainty]
+markers = [
+  "quizá", "quizás", "tal vez", "probablemente", "posiblemente", "puede que",
+  "podría", "podrían", "a lo mejor", "creo", "parece", "pienso", "supongo",
+  "aproximadamente", "alrededor", "cerca de", "casi", "más o menos", "calculo",
+  "estimo",
+]
+exclude = ["¿podría", "¿podrías", "¿podrían"]

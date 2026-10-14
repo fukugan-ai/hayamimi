@@ -1,14 +1,17 @@
-//! The command line: `live` (also `run`), `srt`, `fx-fetch` and `fx-schedule`.
+//! The command line: `live` (also `run`), `eval`, `srt`, `fx-fetch` and
+//! `fx-schedule`.
 
 use std::fs::File;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::calendar;
 use crate::captions::{HttpCaptions, Kind};
 use crate::deliver::{Destination, Outputs, Words};
+use crate::eval;
 use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
@@ -17,7 +20,7 @@ use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
 use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
-use crate::relay::{self, Lanes, MakePipeline, RelayConfig};
+use crate::relay::{self, Lanes, MakePipeline, Makers, Relay, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::send_config::SendFile;
 use crate::srt_command::{self, SrtPlan};
@@ -34,6 +37,10 @@ pub const DEFAULT_EVENTS: [&str; 2] = [
 /// default port.
 pub const DEFAULT_LLM: &str = "http://127.0.0.1:8080";
 
+/// The translator for the languages outside the live pair when `--llm-other`
+/// is not given: the second llama-server, on the port after the first.
+pub const DEFAULT_LLM_OTHER: &str = "http://127.0.0.1:8081";
+
 /// The port `live` serves on when `--serve` is not given: the one after the
 /// two recognizers' subtitle ports. A taken port moves to the next free one.
 pub const DEFAULT_SERVE: u16 = 8835;
@@ -45,22 +52,30 @@ pub enum ScheduleAction {
     Remove,
 }
 
+/// What `live` was asked to do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Live {
+    pub events: Vec<String>,
+    pub llm: String,
+    /// The translator of the languages outside the live pair.
+    pub llm_other: String,
+    pub serve: u16,
+    /// Where to write the settled translations as SRT cues.
+    pub srt: Option<PathBuf>,
+    /// The file that names the Zoom token and the Teams link; without it
+    /// nothing is sent outside.
+    pub send: Option<PathBuf>,
+    /// The `--translate` codes, when the option is given.
+    pub translate: Option<Vec<String>>,
+    /// Whether the text of an utterance in progress is translated too.
+    pub partial_translation: PartialTranslation,
+}
+
 /// A parsed command line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     /// Follow the recognizers' events and serve the translations.
-    Run {
-        events: Vec<String>,
-        llm: String,
-        serve: u16,
-        /// Where to write the settled translations as SRT cues.
-        srt: Option<PathBuf>,
-        /// The file that names the Zoom token and the Teams link; without it
-        /// nothing is sent outside.
-        send: Option<PathBuf>,
-        /// Whether the text of an utterance in progress is translated too.
-        partial_translation: PartialTranslation,
-    },
+    Run(Live),
     /// Make the subtitle files of a video.
     Srt(SrtPlan),
     FxFetch {
@@ -73,6 +88,13 @@ pub enum Command {
         out: Option<PathBuf>,
         source_url: Option<String>,
     },
+    /// Translate sentence pairs for a scorer.
+    Eval {
+        pairs: PathBuf,
+        out: PathBuf,
+        llm: String,
+        llm_other: String,
+    },
 }
 
 /// Why a command line was refused. Each variant names a key of the
@@ -84,6 +106,7 @@ pub enum CliError {
     UnknownOption,
     NeedInstallOrRemove,
     BadPort,
+    NeedPairsAndOut,
     NeedVideo,
 }
 
@@ -96,37 +119,36 @@ impl CliError {
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
+            CliError::NeedPairsAndOut => "need_pairs_and_out",
             CliError::NeedVideo => "need_video",
         }
     }
 }
 
+/// The codes of a `--translate` value: comma separated, blanks around a code
+/// dropped, empty codes dropped.
+fn translate_codes(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|code| !code.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// What `live` was given. `llm` and `serve` start at the design's defaults;
 /// `events` stays empty until named and then falls to [`DEFAULT_EVENTS`].
-struct RunOptions {
-    events: Vec<String>,
-    llm: String,
-    serve: u16,
-    srt: Option<PathBuf>,
-    send: Option<PathBuf>,
-    partial_translation: PartialTranslation,
-}
-
-impl Default for RunOptions {
-    fn default() -> Self {
-        Self {
-            events: Vec::new(),
-            llm: DEFAULT_LLM.to_owned(),
-            serve: DEFAULT_SERVE,
-            srt: None,
-            send: None,
-            partial_translation: PartialTranslation::On,
-        }
-    }
-}
-
-fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
-    let mut options = RunOptions::default();
+fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
+    let mut options = Live {
+        events: Vec::new(),
+        llm: DEFAULT_LLM.to_owned(),
+        llm_other: DEFAULT_LLM_OTHER.to_owned(),
+        serve: DEFAULT_SERVE,
+        srt: None,
+        send: None,
+        translate: None,
+        partial_translation: PartialTranslation::On,
+    };
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
@@ -136,7 +158,7 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
         }
         if !matches!(
             option,
-            "--events" | "--llm" | "--serve" | "--srt" | "--send"
+            "--events" | "--llm" | "--llm-other" | "--serve" | "--srt" | "--send" | "--translate"
         ) {
             return Err(CliError::UnknownOption);
         }
@@ -144,8 +166,16 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
         match option {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
+            "--llm-other" => options.llm_other.clone_from(value),
             "--srt" => options.srt = Some(PathBuf::from(value)),
             "--send" => options.send = Some(PathBuf::from(value)),
+            "--translate" => {
+                let codes = translate_codes(value);
+                if codes.is_empty() {
+                    return Err(CliError::MissingValue);
+                }
+                options.translate.get_or_insert_with(Vec::new).extend(codes);
+            }
             _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
@@ -153,20 +183,43 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
 }
 
 fn parse_run(args: &[String]) -> Result<Command, CliError> {
-    let options = parse_run_options(args)?;
-    let events = if options.events.is_empty() {
-        DEFAULT_EVENTS.map(str::to_owned).to_vec()
-    } else {
-        options.events
-    };
-    Ok(Command::Run {
-        events,
-        llm: options.llm,
-        serve: options.serve,
-        srt: options.srt,
-        send: options.send,
-        partial_translation: options.partial_translation,
-    })
+    let mut live = parse_run_options(args)?;
+    if live.events.is_empty() {
+        live.events = DEFAULT_EVENTS.map(str::to_owned).to_vec();
+    }
+    Ok(Command::Run(live))
+}
+
+fn parse_eval(args: &[String]) -> Result<Command, CliError> {
+    let (mut pairs, mut out) = (None, None);
+    let mut llm = DEFAULT_LLM.to_owned();
+    let mut llm_other = DEFAULT_LLM_OTHER.to_owned();
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let slot = match arg.as_str() {
+            "--pairs" => &mut pairs,
+            "--out" => &mut out,
+            "--llm" => {
+                llm.clone_from(rest.next().ok_or(CliError::MissingValue)?);
+                continue;
+            }
+            "--llm-other" => {
+                llm_other.clone_from(rest.next().ok_or(CliError::MissingValue)?);
+                continue;
+            }
+            _ => return Err(CliError::UnknownOption),
+        };
+        *slot = Some(PathBuf::from(rest.next().ok_or(CliError::MissingValue)?));
+    }
+    match (pairs, out) {
+        (Some(pairs), Some(out)) => Ok(Command::Eval {
+            pairs,
+            out,
+            llm,
+            llm_other,
+        }),
+        _ => Err(CliError::NeedPairsAndOut),
+    }
 }
 
 /// `srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>]
@@ -233,6 +286,7 @@ pub fn parse_args(args: &[String]) -> Result<Command, CliError> {
     match name.as_str() {
         // `live` is the name in the design; `run` stays as an alias.
         "live" | "run" => parse_run(rest),
+        "eval" => parse_eval(rest),
         "srt" => parse_srt(rest),
         "fx-fetch" => {
             let options = parse_options(rest, false)?;
@@ -333,6 +387,7 @@ pub(crate) fn default_tables_dir() -> Option<PathBuf> {
 }
 
 /// Builds the pipeline of one lane against the llama-server at `llm_url`.
+/// The live pair and the other languages each get their own server.
 fn pipeline_factory(llm_url: String) -> MakePipeline<HttpLlm> {
     Arc::new(move |sink: &mut dyn LogSink| {
         let config = PipelineConfig {
@@ -386,6 +441,24 @@ fn open_srt(
     }
 }
 
+/// Why `live` could not start; each names a key of the locale's `cli` table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LiveError {
+    /// No port could be opened.
+    CannotServe,
+    /// The file of caption addresses could not be set up.
+    SendNotOpened,
+}
+
+impl LiveError {
+    pub fn key(self) -> &'static str {
+        match self {
+            LiveError::CannotServe => "cannot_serve",
+            LiveError::SendNotOpened => "send_not_opened",
+        }
+    }
+}
+
 /// The Zoom and Teams destinations. Both read `path` for their addresses
 /// every time a caption goes out, so the file may not be there yet.
 fn send_destinations(
@@ -404,61 +477,94 @@ fn send_destinations(
         .collect()
 }
 
-/// What `live` runs with, apart from the clock and the locale.
-struct RunPlan {
-    events: Vec<String>,
-    llm: String,
-    serve: u16,
-    srt: Option<PathBuf>,
-    send: Option<PathBuf>,
-    partial_translation: PartialTranslation,
-}
-
-fn run_relay(plan: RunPlan, now: i64, strings: &Strings) -> u8 {
-    let RunPlan {
-        events,
-        llm,
-        serve,
-        srt,
-        send,
-        partial_translation,
-    } = plan;
-    let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
-    let Ok(listener) = hub::bind(serve) else {
-        print_error(strings, "cannot_serve");
-        return 1;
-    };
-    let Ok(destinations) = send_destinations(send, &sink) else {
-        print_error(strings, "send_not_opened");
-        return 1;
-    };
+/// Starts the relay `live` asks for and returns its handle. The relay works
+/// in threads of its own; the caller keeps the handle, and stops the relay
+/// with it or lets it end with the process.
+pub fn start_live(
+    live: &Live,
+    now: i64,
+    strings: &Strings,
+    sink: &SharedSink,
+) -> Result<Relay, LiveError> {
+    let mut log = sink.clone();
+    let listener = hub::bind(live.serve).map_err(|_| LiveError::CannotServe)?;
+    let destinations =
+        send_destinations(live.send.clone(), sink).map_err(|_| LiveError::SendNotOpened)?;
     let config = RelayConfig {
-        events,
+        events: live.events.clone(),
         lanes: Lanes::PerSource,
         backoff: Backoff::STANDARD,
         started_epoch: now,
+        translate: live.translate.clone(),
     };
     let outputs = Outputs {
         destinations,
-        srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
+        srt: live
+            .srt
+            .as_deref()
+            .and_then(|path| open_srt(path, &mut log, strings)),
         words: Words::from_strings(strings),
     };
-    let started = relay::start_partials(
+    relay::start_handle(
         listener,
         config,
-        pipeline_factory(llm),
-        sink.clone(),
+        Makers {
+            pair: pipeline_factory(live.llm.clone()),
+            other: pipeline_factory(live.llm_other.clone()),
+        },
+        log,
         outputs,
-        partial_translation,
-    );
-    let Ok(address) = started else {
-        print_error(strings, "cannot_serve");
-        return 1;
+        live.partial_translation,
+    )
+    .map_err(|_| LiveError::CannotServe)
+}
+
+fn run_relay(live: &Live, now: i64, strings: &Strings) -> u8 {
+    let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
+    let started = match start_live(live, now, strings, &sink) {
+        Ok(started) => started,
+        Err(error) => {
+            print_error(strings, error.key());
+            return 1;
+        }
     };
-    announce_serving(serve, address, &mut sink, strings);
+    for code in started.skipped() {
+        eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
+    }
+    announce_serving(live.serve, started.address(), &mut sink, strings);
     // The relay works in threads of its own and ends with the process.
     loop {
         std::thread::park();
+    }
+}
+
+/// The time one request of `eval` may take: a measurement waits for a slow
+/// answer where a live subtitle does not.
+const EVAL_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Translates the pairs in `pairs` into `out`. A language that cannot be
+/// translated is said to be left out; any other failure stops the run.
+fn run_eval(
+    pairs: &Path,
+    out: &Path,
+    llm_url: &str,
+    other_url: &str,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) -> u8 {
+    let llm = HttpLlm::with_timeout(llm_url, EVAL_REQUEST_TIMEOUT);
+    let other = HttpLlm::with_timeout(other_url, EVAL_REQUEST_TIMEOUT);
+    match eval::run(&llm, &other, &eval::EvalOptions { pairs, out }, sink) {
+        Ok(report) => {
+            for code in &report.skipped {
+                eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
+            }
+            0
+        }
+        Err(error) => {
+            eprintln!("{}: {error}", strings.cli_text("eval_failed"));
+            1
+        }
     }
 }
 
@@ -482,24 +588,7 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
     };
     let mut sink = StdoutSink::new(strings.clone());
     match command {
-        Command::Run {
-            events,
-            llm,
-            serve,
-            srt,
-            send,
-            partial_translation,
-        } => {
-            let plan = RunPlan {
-                events,
-                llm,
-                serve,
-                srt,
-                send,
-                partial_translation,
-            };
-            run_relay(plan, now_epoch, &strings)
-        }
+        Command::Run(live) => run_relay(&live, now_epoch, &strings),
         Command::Srt(plan) => srt_command::run(plan, now_epoch, &strings),
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
@@ -512,6 +601,12 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
         } => run_schedule(
             action, task_name, out, source_url, now_epoch, &mut sink, &strings,
         ),
+        Command::Eval {
+            pairs,
+            out,
+            llm,
+            llm_other,
+        } => run_eval(&pairs, &out, &llm, &llm_other, &mut sink, &strings),
     }
 }
 
@@ -596,27 +691,29 @@ mod tests {
         ]));
         assert_eq!(
             parsed,
-            Ok(Command::Run {
+            Ok(Command::Run(Live {
                 events: vec![
                     String::from("http://a/events"),
                     String::from("http://b/events")
                 ],
                 llm: String::from("http://x:1"),
+                llm_other: String::from(DEFAULT_LLM_OTHER),
                 serve: 9100,
                 srt: None,
                 send: None,
+                translate: None,
                 partial_translation: PartialTranslation::On,
-            })
+            }))
         );
     }
 
     #[test]
     fn the_translation_of_the_text_in_progress_is_on_unless_it_is_turned_off() {
         let on = |list: &[&str]| match parse_args(&args(list)) {
-            Ok(Command::Run {
+            Ok(Command::Run(Live {
                 partial_translation,
                 ..
-            }) => Some(partial_translation),
+            })) => Some(partial_translation),
             _ => None,
         };
         assert_eq!(on(&["live"]), Some(PartialTranslation::On));
@@ -650,7 +747,7 @@ mod tests {
         ]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run { srt: Some(ref path), .. }) if path == Path::new("live.srt")
+            Ok(Command::Run(Live { srt: Some(ref path), .. })) if path == Path::new("live.srt")
         ));
         assert_eq!(
             parse_args(&args(&["run", "--llm", "u", "--serve", "0", "--srt"])),
@@ -683,29 +780,31 @@ mod tests {
             line.extend(rest);
             parse_args(&args(&line))
         };
-        assert!(matches!(with("live"), Ok(Command::Run { .. })));
+        assert!(matches!(with("live"), Ok(Command::Run(_))));
         assert_eq!(with("live"), with("run"));
     }
 
     #[test]
     fn run_without_streams_follows_the_two_recognizer_ports() {
         let parsed = parse_args(&args(&["run", "--serve", "0", "--llm", "http://x:1"]));
-        let Ok(Command::Run { events, .. }) = parsed else {
+        let Ok(Command::Run(live)) = parsed else {
             panic!("run was refused: {parsed:?}");
         };
-        assert_eq!(events, DEFAULT_EVENTS);
+        assert_eq!(live.events, DEFAULT_EVENTS);
     }
 
     #[test]
     fn live_without_options_uses_the_designed_defaults() {
-        let expected = Command::Run {
+        let expected = Command::Run(Live {
             events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
             llm: String::from("http://127.0.0.1:8080"),
+            llm_other: String::from("http://127.0.0.1:8081"),
             serve: 8835,
             srt: None,
             send: None,
+            translate: None,
             partial_translation: PartialTranslation::On,
-        };
+        });
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
 
@@ -714,7 +813,7 @@ mod tests {
         let parsed = parse_args(&args(&["live", "--send", "send.toml"]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run { send: Some(ref path), .. }) if path == Path::new("send.toml")
+            Ok(Command::Run(Live { send: Some(ref path), .. })) if path == Path::new("send.toml")
         ));
         assert_eq!(
             parse_args(&args(&["live", "--send"])),
@@ -780,16 +879,49 @@ mod tests {
         let parsed = parse_args(&args(&["live", "--serve", "9100"]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run { ref llm, serve: 9100, .. }) if llm == DEFAULT_LLM
+            Ok(Command::Run(Live { ref llm, serve: 9100, .. })) if llm == DEFAULT_LLM
         ));
         let parsed = parse_args(&args(&["live", "--llm", "http://x:1"]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run {
+            Ok(Command::Run(Live {
                 serve: DEFAULT_SERVE,
                 ..
-            })
+            }))
         ));
+    }
+
+    fn translate_of(list: &[&str]) -> Result<Option<Vec<String>>, CliError> {
+        match parse_args(&args(list))? {
+            Command::Run(live) => Ok(live.translate),
+            _ => Err(CliError::UnknownCommand),
+        }
+    }
+
+    #[test]
+    fn translate_takes_comma_separated_codes_and_may_repeat() {
+        let codes = |list: &[&str]| list.iter().map(|c| (*c).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            translate_of(&["live", "--translate", "en,zh"]),
+            Ok(Some(codes(&["en", "zh"])))
+        );
+        assert_eq!(
+            translate_of(&["live", "--translate", " zh , ko ,", "--translate", "es"]),
+            Ok(Some(codes(&["zh", "ko", "es"])))
+        );
+        assert_eq!(translate_of(&["live"]), Ok(None));
+    }
+
+    #[test]
+    fn translate_without_a_code_is_refused() {
+        assert_eq!(
+            translate_of(&["live", "--translate"]),
+            Err(CliError::MissingValue)
+        );
+        assert_eq!(
+            translate_of(&["live", "--translate", " , "]),
+            Err(CliError::MissingValue)
+        );
     }
 
     #[test]
@@ -856,6 +988,9 @@ mod tests {
                 "sink.fallback.cleared",
                 "srt.cue.skipped",
                 "srt.output.failed",
+                "translate.fallback.skipped",
+                "translate.eval.written",
+                "translate.eval.held",
                 "srt.output.exists",
                 "srt.extract.started",
                 "srt.extract.failed",
@@ -873,6 +1008,113 @@ mod tests {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }
         }
+    }
+
+    #[test]
+    fn every_command_line_text_of_eval_exists_in_both_locales() {
+        for lang in [Lang::Ja, Lang::En] {
+            let Ok(strings) = Strings::embedded(lang) else {
+                panic!("embedded table missing");
+            };
+            for key in [
+                CliError::NeedPairsAndOut.key(),
+                "eval_target_skipped",
+                "eval_failed",
+            ] {
+                assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
+            }
+            assert!(
+                strings
+                    .cli_text("usage")
+                    .contains("hayamimi-relay eval --pairs")
+            );
+        }
+    }
+
+    #[test]
+    fn eval_takes_the_pairs_the_output_and_the_translator() {
+        let parsed = parse_args(&args(&[
+            "eval",
+            "--pairs",
+            "pairs",
+            "--out",
+            "hyps",
+            "--llm",
+            "http://x:1",
+        ]));
+        assert_eq!(
+            parsed,
+            Ok(Command::Eval {
+                pairs: PathBuf::from("pairs"),
+                out: PathBuf::from("hyps"),
+                llm: String::from("http://x:1"),
+                llm_other: String::from(DEFAULT_LLM_OTHER),
+            })
+        );
+    }
+
+    #[test]
+    fn the_second_translator_is_named_with_llm_other() {
+        let parsed = parse_args(&args(&["live", "--llm-other", "http://y:2"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run(Live { ref llm_other, .. })) if llm_other == "http://y:2"
+        ));
+        let parsed = parse_args(&args(&[
+            "eval",
+            "--pairs",
+            "p",
+            "--out",
+            "o",
+            "--llm-other",
+            "u",
+        ]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Eval { ref llm_other, .. }) if llm_other == "u"
+        ));
+        assert_eq!(
+            parse_args(&args(&["live", "--llm-other"])),
+            Err(CliError::MissingValue)
+        );
+    }
+
+    #[test]
+    fn eval_asks_the_default_translator_when_none_is_named() {
+        let parsed = parse_args(&args(&["eval", "--out", "hyps", "--pairs", "pairs"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Eval { ref llm, .. }) if llm == DEFAULT_LLM
+        ));
+    }
+
+    #[test]
+    fn eval_needs_both_directories() {
+        assert_eq!(
+            parse_args(&args(&["eval", "--pairs", "pairs"])),
+            Err(CliError::NeedPairsAndOut)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--out", "hyps"])),
+            Err(CliError::NeedPairsAndOut)
+        );
+        assert_eq!(parse_args(&args(&["eval"])), Err(CliError::NeedPairsAndOut));
+    }
+
+    #[test]
+    fn eval_refuses_an_unknown_option_and_a_missing_value() {
+        assert_eq!(
+            parse_args(&args(&["eval", "--serve", "1"])),
+            Err(CliError::UnknownOption)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--pairs"])),
+            Err(CliError::MissingValue)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--llm"])),
+            Err(CliError::MissingValue)
+        );
     }
 
     #[test]

@@ -77,6 +77,9 @@ label = "m²"
 "sink.fallback.cleared" = "The destinations are reachable again"
 "srt.cue.skipped" = "A line has no cue in the subtitle file"
 "srt.output.failed" = "The subtitle file could not be written; it is left out"
+"translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
+"translate.eval.held" = "No translation of this sentence was kept"
+"translate.eval.written" ="The translations of one language were written"
 "srt.output.exists" = "A subtitle file for the video is there already; nothing is done"
 "srt.extract.started" = "Taking the audio out of the video"
 "srt.extract.failed" = "The audio could not be taken out of the video"
@@ -93,7 +96,8 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
@@ -109,6 +113,9 @@ port_moved = "the requested port was taken; translations are served at"
 sink_local = "a destination of captions cannot be reached; translations stay in the subtitle file and on the screens, and each next line tries again"
 sink_cleared = "the destinations of captions are reachable again"
 srt_not_opened = "the subtitle file could not be opened; the run goes on without it"
+need_pairs_and_out = "eval needs --pairs and --out"
+eval_target_skipped = "this language is not translated and is left out:"
+eval_failed = "the translations could not be written"
 send_not_opened = "the file of caption addresses could not be set up; nothing was started"
 need_video = "srt needs the video file as its first argument"
 srt_written = "the subtitle files are written; cues:"
