@@ -9,6 +9,7 @@ pub mod cli;
 pub mod cli_stages;
 pub mod error;
 pub mod fleurs;
+pub mod gpu_memory;
 pub mod gpu_nodes;
 pub mod gpu_results;
 pub mod gpu_sessions;

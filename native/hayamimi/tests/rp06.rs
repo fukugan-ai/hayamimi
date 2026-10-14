@@ -1,19 +1,21 @@
 //! RP-6, the two cases that run the binary (T-RP-6-012 and T-RP-6-013): the
 //! inference ran on the GPU where the stage table says so, and with the GPU
-//! hidden nothing ran and nothing held GPU memory. The cases that read
+//! hidden the memory in use on the GPU did not rise. The cases that read
 //! fixtures and the results document are in `hayamimi-eval`'s `rp06.rs`.
 
 mod support;
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Child, Command};
+use std::process::{Child, Command, ExitStatus};
+use std::sync::Mutex;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use hayamimi_eval::gpu_memory::{check_memory_flat, check_memory_rise};
 use hayamimi_eval::gpu_nodes::{Placed, check_gpu_model_nodes, stage_of_model};
 use hayamimi_eval::gpu_results::Results;
-use hayamimi_eval::gpu_sessions::{Created, RunError, check_compute_apps, check_session_providers};
+use hayamimi_eval::gpu_sessions::{Created, check_session_providers};
 use hayamimi_eval::stage_table::{StageRow, parse_stage_table};
 use serde_json::Value;
 use support::{
@@ -21,17 +23,19 @@ use support::{
     spawn,
 };
 
-const QUERY: [&str; 2] = [
-    "--query-compute-apps=process_name,used_memory",
-    "--format=csv",
-];
-/// The process the compute-apps table must name.
-const PROCESS: &str = "hayamimi";
+/// One integer in MiB per call: the memory in use on the whole GPU.
+const QUERY: [&str; 2] = ["--query-gpu=memory.used", "--format=csv,noheader,nounits"];
+/// Reads taken before the start, to take the baseline from.
+const BEFORE_READS: usize = 3;
+/// Seconds after the end during which the memory is read for its return.
+const AFTER_SECONDS: usize = 10;
 
-/// A run of the binary and the compute-apps tables read while it ran.
+/// A run of the binary and the memory reads taken before, during and after it.
 struct Sampled {
     output: Output,
-    samples: Vec<String>,
+    before: Vec<String>,
+    during: Vec<String>,
+    after: Vec<String>,
 }
 
 fn collect(mut pipe: impl Read + Send + 'static) -> JoinHandle<String> {
@@ -43,7 +47,8 @@ fn collect(mut pipe: impl Read + Send + 'static) -> JoinHandle<String> {
     })
 }
 
-fn compute_apps() -> Result<String, Failure> {
+/// One read of the memory in use on the GPU, as `nvidia-smi` printed it.
+fn memory_used() -> Result<String, Failure> {
     let output = Command::new("nvidia-smi")
         .args(QUERY)
         .output()
@@ -51,21 +56,48 @@ fn compute_apps() -> Result<String, Failure> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// Runs the binary and reads the compute-apps table once a second until it ends.
-/// The table is read at least once, right after the start.
+/// `count` reads, one second apart.
+fn read_every_second(count: usize) -> Result<Vec<String>, Failure> {
+    let mut reads = Vec::with_capacity(count);
+    for _ in 0..count {
+        reads.push(memory_used()?);
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    Ok(reads)
+}
+
+/// Reads without a pause until the child ends (a call takes about 0.1 s). The
+/// memory is read at least once. Once a second misses the peak: the GPU holds
+/// its most for about half a second of a four-second run.
+fn read_until_exit(child: &mut Child) -> Result<(Vec<String>, ExitStatus), Failure> {
+    let mut during = Vec::new();
+    loop {
+        during.push(memory_used()?);
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            return Ok((during, status));
+        }
+    }
+}
+
+/// The memory of the whole GPU is the measure, so two sampled runs must not
+/// overlap: the tests of this file run on several threads.
+static ONE_RUN_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+/// Reads the memory three times, runs the binary reading it as fast as the tool
+/// answers, then reads it once a second for ten more seconds.
 fn run_sampled(args: &[&str], extra: &[(&str, &str)]) -> Result<Sampled, Failure> {
+    // A thread that panicked while holding the lock left nothing to repair.
+    let _alone = match ONE_RUN_AT_A_TIME.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let before = read_every_second(BEFORE_READS)?;
     let mut child: Child = spawn(args, None, extra)?;
     let stdout = child.stdout.take().ok_or("no stdout pipe")?;
     let stderr = child.stderr.take().ok_or("no stderr pipe")?;
     let (out, err) = (collect(stdout), collect(stderr));
-    let mut samples = Vec::new();
-    let status = loop {
-        samples.push(compute_apps()?);
-        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-            break status;
-        }
-        std::thread::sleep(Duration::from_secs(1));
-    };
+    let (during, status) = read_until_exit(&mut child)?;
+    let after = read_every_second(AFTER_SECONDS)?;
     let join = |handle: JoinHandle<String>| {
         handle
             .join()
@@ -77,7 +109,9 @@ fn run_sampled(args: &[&str], extra: &[(&str, &str)]) -> Result<Sampled, Failure
             stdout: join(out)?,
             stderr: join(err)?,
         },
-        samples,
+        before,
+        during,
+        after,
     })
 }
 
@@ -134,7 +168,7 @@ fn rows_in_use(table: &[StageRow], created: &[Created]) -> Vec<StageRow> {
     rows
 }
 
-/// A run with the GPU visible: the process held GPU memory at some second, every
+/// A run with the GPU visible: the memory in use rose and returned, every
 /// session got the provider of its stage, and the CPU nodes of the GPU models
 /// are within the recorded count.
 fn check_gpu_inference(run: &Sampled) -> Result<(), Failure> {
@@ -144,17 +178,10 @@ fn check_gpu_inference(run: &Sampled) -> Result<(), Failure> {
             run.output.code, run.output.stderr
         ));
     }
-    let mut last = Err(RunError::NoProcess(String::from(PROCESS)));
-    for sample in &run.samples {
-        last = check_compute_apps(sample, PROCESS);
-        if last.is_ok() {
-            break;
-        }
-    }
-    last.map_err(|error| {
+    check_memory_rise(&run.before, &run.during, &run.after).map_err(|error| {
         format!(
-            "{error}; {} compute-apps tables were read",
-            run.samples.len()
+            "{error}; reads before {:?}, during {:?}, after {:?}",
+            run.before, run.during, run.after
         )
     })?;
     let all = events(&run.output.stdout)?;
@@ -169,16 +196,15 @@ fn check_gpu_inference(run: &Sampled) -> Result<(), Failure> {
         .map_err(|error| error.to_string())
 }
 
-/// A run with the GPU hidden: no table names the process, and one
+/// A run with the GPU hidden: the memory in use stayed at the baseline, and one
 /// `gpu.device.unavailable` event came out.
 fn check_hidden_gpu(run: &Sampled) -> Result<(), Failure> {
-    for sample in &run.samples {
-        if check_compute_apps(sample, PROCESS).is_ok() {
-            return Err(String::from(
-                "the process held GPU memory with the GPU hidden",
-            ));
-        }
-    }
+    check_memory_flat(&run.before, &run.during).map_err(|error| {
+        format!(
+            "{error}; reads before {:?}, during {:?}",
+            run.before, run.during
+        )
+    })?;
     let all = events(&run.output.stdout)?;
     let unavailable = named(&all, "gpu.device.unavailable").len();
     if unavailable != 1 {

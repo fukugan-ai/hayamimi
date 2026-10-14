@@ -111,12 +111,36 @@ hayamimi-eval stages-report \
 `docs/results/r1/transfers.json` は、`gpu_stages.md` の「転送」の表の 6 行を、そのまま JSON に戻した物です。
 上の command は、R1 の 10 本と R1b の 10 本の run file から、R2 の行を足す前の `gpu_stages.md` を 1 文字も違わずに作り直せることを確かめてあります。
 
+## worktree で test を打つ
+
+worktree には、GPU 版の sherpa-onnx の build（`native/target/sherpa-gpu`）がありません。
+`SHERPA_ONNX_LIB_DIR` が空のままだと、sherpa-onnx の crate が CPU 版を取りに行き、`libonnxruntime.so.1` が見つからず 15 本の test が `dlopen failed` で落ちます。
+
+cargo は作業 directory から上へ向かって `.cargo/config.toml` を全部読みます。
+worktree は本体の checkout の `.claude/worktrees/` の下にあるので、本体の直下に次の 1 file を置くと、本体も全部の worktree も同じ build に繋がります。
+この file は git の管理に入れず（`.git/info/exclude` に `/.cargo/` を書く）、機械ごとに置きます。
+
+```toml
+[env]
+SHERPA_ONNX_LIB_DIR = { value = "native/target/sherpa-gpu/linux/install/lib", relative = true }
+```
+
+`relative = true` の起点は、この file を置いた directory（本体の直下）です。
+環境変数が先に設定されていれば、そちらが勝ちます。
+Windows の cargo も同じ file を読むので、Windows では `SHERPA_ONNX_LIB_DIR` に `native\target\sherpa-gpu\windows\install\lib` を毎回設定します。
+
+置いたあとは、worktree の `native` で追加の指定なしに打てます。
+
+```bash
+cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
+```
+
 ## test
 
 | 何を | 打ち方 |
 |---|---|
-| 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release` |
-| 実走の test | `cargo test --release -p hayamimi --test rp16 --test rp26 --test rp29 -- --ignored` |
+| 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release`（上の file があれば指定は要らない） |
+| 実走の test | `cargo test --release -p hayamimi --test rp06 --test rp16 --test rp26 --test rp29 -- --ignored` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |
 
 GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にします。
@@ -131,7 +155,7 @@ Windows は言語を system の設定から取り、`LANG` では変わりませ
 
 ## 未検証
 
-- `nvidia-smi --query-compute-apps` は、WSL では process 名が `[Not Found]`、Windows の WDDM では使用量が `[N/A]` になります。`rp06` の「`hayamimi` が GPU の memory を持つ」検査（T-RP-6-012）は、どちらの OS でも通りません。
-  代わりの根拠として、Windows の RTX 5060 Ti で `--wav` の run の間に `memory.used` を 0.3 秒ごとに読み、1198 MiB から最大 1957 MiB へ増え、終了後に 1198 MiB へ戻ることを確かめました。
+- `rp06` は GPU 全体の `memory.used` で受けます。起動前 3 回の中央値を基準に、実行中の最大が 256 MiB 以上増え、終了後 10 秒以内に基準の ±64 MiB へ戻れば通ります。256 と 64 は仮の値です。
+  `--query-compute-apps` は、WSL では process 名が `[Not Found]`、Windows の WDDM では使用量が `[N/A]` になるので使いません。
 - 推論の library を外した run（`missing_library_in_a_real_run_keeps_the_server`）は Windows の実行物でだけ打てます。
 - 負荷の下の ITN と句読点の後処理の時間は測っていません。`gpu_stages.md` の「負荷」の行は未測定です。

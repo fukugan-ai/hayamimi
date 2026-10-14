@@ -292,6 +292,15 @@ mod tests {
             fallback.is_some() && started.is_some() && fallback < started,
             "{body}"
         );
+        assert_eq!(body.matches("\"type\":\"fallback\"").count(), 1, "{body}");
+        assert_eq!(
+            body.matches("\"type\":\"session_start\"").count(),
+            1,
+            "{body}"
+        );
+        hub.publish(&serde_json::json!({"type": "final", "text": "あと"}));
+        let rest = read_until(&mut stream, "あと")?;
+        assert!(rest.contains("\"type\":\"final\""), "{rest}");
         Ok(())
     }
 

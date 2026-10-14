@@ -7,53 +7,77 @@ mod support;
 
 use std::path::Path;
 
+use hayamimi_eval::gpu_memory::{MemoryError, check_memory_rise};
 use hayamimi_eval::gpu_nodes::{
     Placed, check_gpu_model_nodes, check_gpu_models_have_rows, gpu_models,
 };
 use hayamimi_eval::gpu_results::{NodeRow, Results, ResultsError};
-use hayamimi_eval::gpu_sessions::{Created, RunError, check_compute_apps, check_session_providers};
+use hayamimi_eval::gpu_sessions::{Created, RunError, check_session_providers};
 use hayamimi_eval::stage_table::{StageRow, parse_stage_table};
 use support::{REPO, RESULTS, TestResult, read};
 
-const HEADER: &str = "process_name, used_memory [MiB]\n";
+fn reads(figures: &[&str]) -> Vec<String> {
+    figures.iter().map(|figure| (*figure).to_owned()).collect()
+}
 
-fn apps(rows: &str) -> String {
-    format!("{HEADER}{rows}")
+fn before() -> Vec<String> {
+    reads(&["1198", "1198", "1199"])
 }
 
 /// T-RP-6-001
 #[test]
-fn hayamimi_with_positive_memory_passes() {
-    let said = check_compute_apps(&apps("hayamimi, 2048 MiB\n"), "hayamimi");
-    assert_eq!(said, Ok(2048));
+fn memory_that_rises_during_the_run_and_returns_passes() {
+    let said = check_memory_rise(&before(), &reads(&["1300", "1957"]), &reads(&["1198"]));
+    assert_eq!(said, Ok(759));
 }
 
 /// T-RP-6-002
 #[test]
-fn one_mib_of_used_memory_passes() {
-    let said = check_compute_apps(&apps("hayamimi, 1 MiB\n"), "hayamimi");
-    assert_eq!(said, Ok(1));
+fn rise_of_exactly_256_mib_passes() {
+    let said = check_memory_rise(&before(), &reads(&["1454"]), &reads(&["1198"]));
+    assert_eq!(said, Ok(256));
 }
 
 /// T-RP-6-003
 #[test]
-fn zero_mib_of_used_memory_is_rejected() {
-    let said = check_compute_apps(&apps("hayamimi, 0 MiB\n"), "hayamimi");
-    assert_eq!(said, Err(RunError::NoMemory(String::from("hayamimi"))));
+fn rise_of_255_mib_is_rejected() {
+    let said = check_memory_rise(&before(), &reads(&["1453"]), &reads(&["1198"]));
+    assert_eq!(
+        said,
+        Err(MemoryError::RiseTooSmall {
+            rise: 255,
+            need: 256
+        })
+    );
 }
 
 /// T-RP-6-004
 #[test]
-fn missing_hayamimi_process_is_rejected() {
-    let said = check_compute_apps(&apps("python, 500 MiB\n"), "hayamimi");
-    assert_eq!(said, Err(RunError::NoProcess(String::from("hayamimi"))));
+fn memory_that_does_not_return_after_exit_is_rejected() {
+    let after = reads(&["1263", "1300", "1263"]);
+    let said = check_memory_rise(&before(), &reads(&["1957"]), &after);
+    assert_eq!(
+        said,
+        Err(MemoryError::NotReturned {
+            base: 1198,
+            after: vec![1263, 1300, 1263]
+        })
+    );
 }
 
-/// T-RP-6-005: the same function reads the usage of the translation server.
+/// T-RP-6-005
 #[test]
-fn llama_server_process_is_read_by_the_same_function() {
-    let rows = apps("/usr/bin/llama-server, 6144 MiB\nhayamimi, 2048 MiB\n");
-    assert_eq!(check_compute_apps(&rows, "llama-server"), Ok(6144));
+fn missing_or_non_numeric_memory_reads_are_rejected() {
+    let two = reads(&["1198", "1198"]);
+    assert_eq!(
+        check_memory_rise(&two, &reads(&["1957"]), &reads(&["1198"])),
+        Err(MemoryError::WrongBeforeCount(2))
+    );
+    let not_available = reads(&["1198", "[N/A]", "1198"]);
+    assert_eq!(
+        check_memory_rise(&not_available, &reads(&["1957"]), &reads(&["1198"])),
+        Err(MemoryError::BadRead(String::from("[N/A]")))
+    );
 }
 
 fn stage(name: &str, placement: &str) -> StageRow {

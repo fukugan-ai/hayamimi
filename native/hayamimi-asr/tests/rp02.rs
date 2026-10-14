@@ -4,7 +4,7 @@
 
 mod support;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use hayamimi_asr::audio::read_wav;
@@ -161,7 +161,14 @@ fn gpu_run() -> Result<&'static [Run], Failure> {
     .map_err(Clone::clone)
 }
 
-/// Writes what the route said, per clip, beside the golden record.
+/// Where a run writes what the route said. The file under `tests/golden/ja/`
+/// is a record that is committed; a run never overwrites it, because the GPU's
+/// recognition differs a little from run to run.
+fn golden_gpu_output() -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR")).join("golden_gpu.json")
+}
+
+/// Writes what the route said, per clip, under the build's temporary directory.
 fn write_golden_gpu(runs: &[Run]) -> Result<(), Failure> {
     let clips: Vec<Value> = runs
         .iter()
@@ -179,7 +186,7 @@ fn write_golden_gpu(runs: &[Run]) -> Result<(), Failure> {
         "clips": clips,
     });
     let text = serde_json::to_string_pretty(&document).map_err(|error| error.to_string())?;
-    let path = Path::new(GOLDEN).join("golden_gpu.json");
+    let path = golden_gpu_output();
     std::fs::write(&path, format!("{text}\n"))
         .map_err(|error| format!("cannot write {}: {error}", path.display()))
 }
@@ -269,14 +276,19 @@ fn golden_wavs_have_the_recorded_sha256() -> TestResult {
 #[ignore = "runs the models on the GPU"]
 fn golden_gpu_json_is_written_with_eight_clips() -> TestResult {
     gpu_run()?;
-    let written = read_json(&Path::new(GOLDEN).join("golden_gpu.json"))?;
-    let clips = written
-        .get("clips")
-        .and_then(Value::as_array)
-        .ok_or("golden_gpu.json has no `clips`")?;
-    assert_eq!(clips.len(), CLIPS);
-    for clip in clips {
-        assert!(clip.get("finals").is_some_and(Value::is_array), "{clip}");
+    for path in [
+        golden_gpu_output(),
+        Path::new(GOLDEN).join("golden_gpu.json"),
+    ] {
+        let written = read_json(&path)?;
+        let clips = written
+            .get("clips")
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("{} has no `clips`", path.display()))?;
+        assert_eq!(clips.len(), CLIPS, "{}", path.display());
+        for clip in clips {
+            assert!(clip.get("finals").is_some_and(Value::is_array), "{clip}");
+        }
     }
     Ok(())
 }
