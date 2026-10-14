@@ -1,0 +1,40 @@
+# The second llama-server of hayamimi-relay: TranslateGemma-4B-it Q8_0 on
+# 127.0.0.1:18081, which translates the languages outside the live pair
+# (zh, ko, es and the rest of `--translate`). `hayamimi-relay live` and `eval`
+# reach it through `--llm-other`, whose default is http://127.0.0.1:18081.
+#
+# Port 18081 is outside the 8000 range on purpose: 8081 is held by another
+# process on this machine. To use another port, change `--port` here and pass
+# the same address to `--llm-other`.
+#
+# Install: mkdir -p ~/.config/systemd/user
+#          cp native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
+#          systemctl --user daemon-reload
+# Start  : systemctl --user start hayamimi-llama-other.service
+# Check  : curl -s http://127.0.0.1:18081/health      (loading: 503, ready: {"status":"ok"})
+# Stop   : systemctl --user stop hayamimi-llama-other.service
+# Remove : systemctl --user stop hayamimi-llama-other.service
+#          rm ~/.config/systemd/user/hayamimi-llama-other.service
+#          systemctl --user daemon-reload
+#
+# One slot is enough: the relay asks one line at a time per language and the
+# translation is T only, with no E step. When this server is not running the
+# relay does not stop: the line of such a language is held (an empty line) and
+# the run says so (event `translate.fallback.held`).
+[Unit]
+Description=llama-server for hayamimi-relay, languages outside ja and en (TranslateGemma-4B-it, 127.0.0.1:18081)
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+Slice=engines.slice
+ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m /mnt/h3-models/ollama/translategemma-4b-it-Q8_0.gguf --host 127.0.0.1 --port 18081 -np 1 -c 8192 -ngl 99
+Restart=no
+MemoryMax=8G
+MemorySwapMax=0
+# SIGKILL, as the sibling llama-server units: this build ignores SIGTERM while
+# it prints "cleaning up before exit...".
+KillSignal=SIGKILL
+SuccessExitStatus=SIGKILL
+TimeoutStopSec=10

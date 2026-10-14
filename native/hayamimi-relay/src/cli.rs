@@ -38,8 +38,8 @@ pub const DEFAULT_EVENTS: [&str; 2] = [
 pub const DEFAULT_LLM: &str = "http://127.0.0.1:8080";
 
 /// The translator for the languages outside the live pair when `--llm-other`
-/// is not given: the second llama-server, on the port after the first.
-pub const DEFAULT_LLM_OTHER: &str = "http://127.0.0.1:8081";
+/// is not given: the second llama-server (`hayamimi-llama-other.service`).
+pub const DEFAULT_LLM_OTHER: &str = "http://127.0.0.1:18081";
 
 /// The port `live` serves on when `--serve` is not given: the one after the
 /// two recognizers' subtitle ports. A taken port moves to the next free one.
@@ -798,7 +798,7 @@ mod tests {
         let expected = Command::Run(Live {
             events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
             llm: String::from("http://127.0.0.1:8080"),
-            llm_other: String::from("http://127.0.0.1:8081"),
+            llm_other: String::from(DEFAULT_LLM_OTHER),
             serve: 8835,
             srt: None,
             send: None,

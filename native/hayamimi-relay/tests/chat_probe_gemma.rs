@@ -8,7 +8,7 @@
 //! to English (en-GB) on both sides, and some answers differ from `curl`.
 //!
 //! The tests that ask a server need a llama-server with TranslateGemma on the
-//! design's second port (8081), or at the URL in
+//! design's second port (18081), or at the URL in
 //! `testdata/rp13_other_server.txt`, and the probe files, so they run with
 //! `--ignored`. One slot is enough. The test of the request body needs neither.
 
@@ -25,7 +25,7 @@ use serde_json::{Value, json};
 use support::TestResult;
 
 /// The design's address of the second translator (`rust_port.ja.md` 3.6).
-const DEFAULT_SERVER: &str = "http://127.0.0.1:8081";
+const DEFAULT_SERVER: &str = "http://127.0.0.1:18081";
 const MAX_TOKENS: u32 = 256;
 
 /// The server to ask: the URL in `testdata/rp13_other_server.txt` when that
