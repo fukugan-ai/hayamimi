@@ -55,7 +55,7 @@ type Outcome = (Translation, Vec<Vec<u8>>);
 fn run(replies: &[&str]) -> Result<Outcome, Box<dyn std::error::Error>> {
     let script: Vec<String> = replies
         .iter()
-        .map(|content| serde_json::json!({ "content": content }).to_string())
+        .map(|content| support::chat_reply(content))
         .collect();
     let server = FakeServer::start(move |index, _| match script.get(index) {
         Some(body) => Reply::json(body),
