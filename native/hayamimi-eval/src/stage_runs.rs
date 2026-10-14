@@ -7,11 +7,15 @@
 //! copy its input to the device and its output back, which no kernel can undercut.
 
 use std::hint::black_box;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use hayamimi_asr::cluster::fast_clustering;
+use hayamimi_asr::diarize::DEFAULT_THRESHOLD;
 use hayamimi_asr::itn::{self, Overrides};
 use hayamimi_asr::punct::{rules, tokenizer};
+use hayamimi_asr::speaker::{Centroids, Source};
 use hayamimi_gpu::transfer::Transfer;
 use hayamimi_gpu::{modules, probe};
 use hayamimi_relay::annotate::{AnnotateRequest, Annotator, AnnotatorConfig};
@@ -19,7 +23,7 @@ use hayamimi_relay::lang::Lang;
 use hayamimi_relay::logging::{Level, NullSink};
 use hayamimi_relay::verify::Verifier;
 use serde_json::Value;
-use sherpa_onnx::{CircularBuffer, LinearResampler};
+use sherpa_onnx::{CircularBuffer, LinearResampler, SpeakerEmbeddingExtractor};
 
 use crate::error::EvalError;
 use crate::log;
@@ -33,7 +37,7 @@ use crate::translate_call::{ChatClient, translate_body};
 use crate::wav::read_wav;
 
 /// The stage identifiers, in the order a full run measures them.
-pub const STAGES: [&str; 16] = [
+pub const STAGES: [&str; 17] = [
     "resample",
     "ring",
     "vad",
@@ -43,6 +47,7 @@ pub const STAGES: [&str; 16] = [
     "speaker_embed",
     "speaker_assign",
     "rediarize",
+    "cluster",
     "translate",
     "prompt_build",
     "verify_convert",
@@ -74,6 +79,9 @@ const PREROLL: usize = SAMPLE_RATE as usize;
 const VAD_TAIL: usize = SAMPLE_RATE as usize / 2;
 /// Speakers the assignment stage compares against.
 const CENTROIDS: usize = 8;
+/// Utterances in the refine group the clustering stage works on: more than a
+/// 25 s group holds in the AMI meetings (about 2 to 4 on average).
+const GROUP_SEGMENTS: usize = 12;
 /// The size of what a stage that exchanges text copies, in bytes.
 const TEXT_BYTES: usize = 1024;
 /// The translation request ends after this long.
@@ -218,6 +226,52 @@ fn precisions(provider: Provider, stage: &str, int8_on_cuda: bool) -> Vec<Precis
         (Provider::Cuda, _) => vec![Precision::Fp32],
         (Provider::Cpu, _) => vec![Precision::Int8, Precision::Fp32],
     }
+}
+
+/// The speaker embedding of 16 kHz `samples`.
+fn embed_one(
+    extractor: &SpeakerEmbeddingExtractor,
+    samples: &[f32],
+) -> Result<Vec<f32>, EvalError> {
+    let stream = extractor
+        .create_stream()
+        .ok_or_else(|| invalid("cannot create the embedding stream"))?;
+    stream.accept_waveform(SAMPLE_RATE, samples);
+    stream.input_finished();
+    if !extractor.is_ready(&stream) {
+        return Err(invalid("the embedding stream is not ready"));
+    }
+    extractor
+        .compute(&stream)
+        .ok_or_else(|| invalid("the extractor gave no embedding"))
+}
+
+/// `count` embeddings from number `start` on, wrapping round, as rows of one flat array.
+fn group_rows(embeddings: &[Vec<f32>], start: usize, count: usize) -> Vec<f32> {
+    (0..count)
+        .flat_map(|offset| {
+            embeddings[(start + offset) % embeddings.len()]
+                .iter()
+                .copied()
+        })
+        .collect()
+}
+
+/// The mean of the rows given each cluster number, one vector per cluster.
+fn cluster_means(rows: &[f32], dims: usize, labels: &[usize]) -> Vec<Vec<f32>> {
+    let clusters = labels.iter().max().map_or(0, |top| top + 1);
+    let mut sums = vec![vec![0.0_f32; dims]; clusters];
+    let mut counts = vec![0_u32; clusters];
+    for (row, label) in rows.chunks_exact(dims).zip(labels) {
+        counts[*label] += 1;
+        for (sum, value) in sums[*label].iter_mut().zip(row) {
+            *sum += value;
+        }
+    }
+    for (sum, count) in sums.iter_mut().zip(&counts) {
+        sum.iter_mut().for_each(|value| *value /= *count as f32);
+    }
+    sums
 }
 
 impl Run<'_> {
@@ -566,19 +620,7 @@ impl Run<'_> {
         let provider = self.provider();
         let extractor = models::speaker_extractor(&self.options.models, provider)?;
         self.assert_provider()?;
-        let embed = |samples: &[f32]| -> Result<Vec<f32>, EvalError> {
-            let stream = extractor
-                .create_stream()
-                .ok_or_else(|| invalid("cannot create the embedding stream"))?;
-            stream.accept_waveform(SAMPLE_RATE, samples);
-            stream.input_finished();
-            if !extractor.is_ready(&stream) {
-                return Err(invalid("the embedding stream is not ready"));
-            }
-            extractor
-                .compute(&stream)
-                .ok_or_else(|| invalid("the extractor gave no embedding"))
-        };
+        let embed = |samples: &[f32]| embed_one(&extractor, samples);
         embed(&self.clips[0].samples)?;
         let calls: Vec<(u32, usize)> = self.calls().collect();
         let mut times = Vec::with_capacity(calls.len());
@@ -654,6 +696,56 @@ impl Run<'_> {
             }
         }
         Ok(())
+    }
+
+    /// The embeddings of every clip, untimed, when no stage of this run made them.
+    fn ensure_embeddings(&mut self) -> Result<(), EvalError> {
+        if self.embeddings.len() == self.clips.len() {
+            return Ok(());
+        }
+        let provider = self.provider();
+        let extractor = models::speaker_extractor(&self.options.models, provider)?;
+        self.assert_provider()?;
+        self.embeddings = self
+            .clips
+            .iter()
+            .map(|clip| embed_one(&extractor, &clip.samples))
+            .collect::<Result<_, _>>()?;
+        Ok(())
+    }
+
+    /// What the diarizer's clustering does for one refine group, and the
+    /// mapping of the clusters onto the speakers heard so far: FastClustering
+    /// over [`GROUP_SEGMENTS`] embeddings, the mean of each cluster, and the
+    /// joint assignment of the means to the session's speakers.
+    fn measure_cluster(&mut self) -> Result<(), EvalError> {
+        self.ensure_embeddings()?;
+        let embeddings = std::mem::take(&mut self.embeddings);
+        let dims = embeddings
+            .first()
+            .and_then(|vector| NonZeroUsize::new(vector.len()))
+            .ok_or_else(|| invalid("no embedding to cluster"))?;
+        let mut session = Centroids::default();
+        for vector in embeddings.iter().take(CENTROIDS) {
+            session.label(vector, Source::Fast);
+        }
+        let threshold = f64::from(DEFAULT_THRESHOLD);
+        let remap = Some(session.remap_threshold());
+        let outcome = self.host_stage(
+            "cluster",
+            // Device bound: the group's embeddings; host bound: one cluster number each.
+            |_| (dims.get() * 4 * GROUP_SEGMENTS, 8 * GROUP_SEGMENTS),
+            |utt, _| {
+                let rows = group_rows(&embeddings, utt, GROUP_SEGMENTS);
+                let labels = fast_clustering(&rows, dims, threshold, None);
+                let means = cluster_means(&rows, dims.get(), &labels);
+                let views: Vec<&[f32]> = means.iter().map(Vec::as_slice).collect();
+                black_box(session.match_embeddings_joint(&views, false, remap, Source::Remap));
+                Ok(())
+            },
+        );
+        self.embeddings = embeddings;
+        outcome
     }
 
     fn measure_translate(&mut self) -> Result<(), EvalError> {
@@ -847,6 +939,7 @@ impl Run<'_> {
             "speaker_embed" => self.measure_speaker_embed(),
             "speaker_assign" => self.measure_speaker_assign(),
             "rediarize" => self.measure_rediarize(),
+            "cluster" => self.measure_cluster(),
             "translate" => self.measure_translate(),
             "prompt_build" => self.measure_prompt_build(),
             "verify_convert" => self.measure_verify_convert(),
@@ -979,6 +1072,28 @@ mod tests {
         let pcm = [-32768_i16, -1, 0, 1, 32767];
         let floats: Vec<f32> = pcm.iter().map(|s| f32::from(*s) / 32768.0).collect();
         assert_eq!(to_pcm(&floats), pcm);
+    }
+
+    #[test]
+    fn a_group_takes_embeddings_from_its_start_and_wraps_round() {
+        let embeddings = vec![vec![1.0_f32, 0.0], vec![0.0, 1.0], vec![2.0, 2.0]];
+        assert_eq!(
+            group_rows(&embeddings, 1, 4),
+            [0.0, 1.0, 2.0, 2.0, 1.0, 0.0, 0.0, 1.0]
+        );
+        assert!(group_rows(&embeddings, 0, 0).is_empty());
+    }
+
+    #[test]
+    fn the_mean_of_a_cluster_is_the_mean_of_its_rows() {
+        let rows = [1.0_f32, 0.0, 3.0, 0.0, 0.0, 5.0];
+        let means = cluster_means(&rows, 2, &[0, 0, 1]);
+        assert_eq!(means, [vec![2.0, 0.0], vec![0.0, 5.0]]);
+    }
+
+    #[test]
+    fn no_rows_have_no_cluster_means() {
+        assert!(cluster_means(&[], 2, &[]).is_empty());
     }
 
     #[test]

@@ -119,8 +119,9 @@ impl Session<'_> {
         Ok(())
     }
 
-    /// Logs and publishes what the utterances made.
-    fn announce(&self, state: &mut State, finals: &[Final]) {
+    /// Logs and publishes what the utterances made. Every `final` goes out
+    /// before the first speaker mark is computed, so a mark never delays a subtitle.
+    fn announce(&mut self, state: &mut State, finals: &[Final]) {
         for done in finals {
             state.stats.add_final(done);
             log::print(&log::utterance_timed_line(self.strings, done));
@@ -128,7 +129,41 @@ impl Session<'_> {
                 log::print(&log::punct_failed_line(self.strings, done));
             }
             self.hub.publish(&wire::final_event(done, self.source));
+            log::print(&log::final_published_line(
+                self.strings,
+                done.id,
+                log::mono_us(),
+            ));
         }
+        for done in finals {
+            self.announce_speaker(done);
+        }
+    }
+
+    /// Sends the speaker of one utterance as its own event, once; says so in
+    /// the log when the mark failed.
+    fn announce_speaker(&mut self, done: &Final) {
+        let Some(engine) = self
+            .engine
+            .as_mut()
+            .filter(|engine| engine.has_speaker_stage())
+        else {
+            return;
+        };
+        log::print(&log::embedding_started_line(
+            self.strings,
+            done.id,
+            log::mono_us(),
+        ));
+        let Some(mark) = engine.mark_speaker(done) else {
+            return;
+        };
+        if mark.error.is_some() {
+            log::print(&log::speaker_failed_line(self.strings, done));
+            return;
+        }
+        self.hub
+            .publish(&wire::speaker_event(done, self.source, &mark.label));
     }
 
     /// Ends the speech in progress and publishes what it made.
@@ -245,6 +280,7 @@ mod tests {
                 l_dec_ms: latency,
             },
             punct_error: None,
+            speaker_audio: Vec::new(),
         }
     }
 
