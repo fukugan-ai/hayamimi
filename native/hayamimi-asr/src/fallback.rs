@@ -7,10 +7,14 @@
 /// A stage that can fall back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
+    /// The spoken-language identifier.
+    Lid,
     /// The punctuation model.
     Punct,
     /// The speech recognizer.
     Recognizer,
+    /// The second reading of Japanese by the Parakeet CTC model.
+    SecondOpinion,
     /// The voice detector.
     Vad,
 }
@@ -19,8 +23,10 @@ impl Stage {
     /// The stage name used in events.
     pub fn name(self) -> &'static str {
         match self {
+            Stage::Lid => "lid",
             Stage::Punct => "punct",
             Stage::Recognizer => "recognizer",
+            Stage::SecondOpinion => "second_opinion",
             Stage::Vad => "vad",
         }
     }
@@ -35,6 +41,8 @@ pub enum Reason {
     DriverUnreadable,
     /// The CUDA session of the stage could not be built.
     SessionFailed,
+    /// The session was built on CUDA but the provider that ran was not CUDA.
+    ProviderMismatch,
     /// A model file is not there.
     Missing,
     /// A model file is there and cannot be read as a model.
@@ -48,6 +56,7 @@ impl Reason {
             Reason::NoDevice => "no_device",
             Reason::DriverUnreadable => "driver_unreadable",
             Reason::SessionFailed => "session_failed",
+            Reason::ProviderMismatch => "provider_mismatch",
             Reason::Missing => "missing",
             Reason::Unreadable => "unreadable",
         }
@@ -97,6 +106,9 @@ mod tests {
     #[test]
     fn the_names_are_the_words_of_the_events() {
         assert_eq!(Stage::Punct.name(), "punct");
+        assert_eq!(Stage::Lid.name(), "lid");
+        assert_eq!(Stage::SecondOpinion.name(), "second_opinion");
+        assert_eq!(Reason::ProviderMismatch.name(), "provider_mismatch");
         assert_eq!(Reason::DriverUnreadable.name(), "driver_unreadable");
         assert_eq!(Reason::SessionFailed.name(), "session_failed");
         assert_eq!(To::Disabled.name(), "disabled");
