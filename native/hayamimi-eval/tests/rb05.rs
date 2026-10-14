@@ -21,8 +21,8 @@ use hayamimi_eval::latency::{Event, parse_event, positional_translations};
 use hayamimi_eval::{percentile, stream};
 use serde_json::Value;
 use support::{
-    BASE, FIXTURES, Failure, RESULTS, Row, TESTDATA, TestResult, load_rows, nearest_rank,
-    parse_rows, read, read_json, run_files, run_files_in, section, table_rows,
+    FIXTURES, Failure, RESULTS, Row, TestResult, base, load_rows, nearest_rank, parse_rows, read,
+    read_json, run_files, run_files_in, section, table_rows, testdata,
 };
 
 const SILENCE: &str = "0.35";
@@ -117,7 +117,7 @@ fn valid_rows(rows: &[Row], min_silence_ms: i64) -> Result<Vec<&Row>, Failure> {
 
 /// The utterances of the recording, counted in its manifest.
 fn utterance_count() -> Result<usize, Failure> {
-    let path = Path::new(TESTDATA).join("manifests").join("lat-ja.json");
+    let path = testdata()?.join("manifests").join("lat-ja.json");
     let manifest = read_json(&path)?;
     match manifest.as_array() {
         Some(items) if !items.is_empty() => Ok(items.len()),
@@ -160,7 +160,7 @@ fn summary_section() -> Result<String, Failure> {
 }
 
 fn runs() -> Result<Vec<(u32, Vec<Row>)>, Failure> {
-    let loaded = run_files(SILENCE)
+    let loaded = run_files(SILENCE)?
         .into_iter()
         .map(|(n, path)| Ok((n, load_rows(&path)?)))
         .collect::<Result<Vec<_>, Failure>>()?;
@@ -170,12 +170,12 @@ fn runs() -> Result<Vec<(u32, Vec<Row>)>, Failure> {
     Ok(loaded)
 }
 
-fn run_file(n: u32, suffix: &str) -> PathBuf {
-    Path::new(BASE).join(format!("lat_ja_{SILENCE}_{n}.{suffix}"))
+fn run_file(n: u32, suffix: &str) -> Result<PathBuf, Failure> {
+    Ok(base()?.join(format!("lat_ja_{SILENCE}_{n}.{suffix}")))
 }
 
-fn server_log(n: u32) -> PathBuf {
-    Path::new(BASE).join(format!("server_{SILENCE}_{n}.out.log"))
+fn server_log(n: u32) -> Result<PathBuf, Failure> {
+    Ok(base()?.join(format!("server_{SILENCE}_{n}.out.log")))
 }
 
 fn check_run_count(files: &[(u32, PathBuf)]) -> Result<(), Failure> {
@@ -267,11 +267,11 @@ fn check_final_latency_agreement(ws: &[i64], log: &[i64]) -> Result<(), Failure>
 }
 
 fn final_latency_agreement_of_run(n: u32) -> Result<(), Failure> {
-    let ws: Vec<i64> = ws_finals(&read(&run_file(n, "events.jsonl"))?)?
+    let ws: Vec<i64> = ws_finals(&read(&run_file(n, "events.jsonl")?)?)?
         .iter()
         .map(|(_, latency)| ms_to_micros(*latency))
         .collect();
-    let log: Vec<i64> = log_latencies(&read(&server_log(n))?)?
+    let log: Vec<i64> = log_latencies(&read(&server_log(n)?)?)?
         .into_iter()
         .map(ms_to_micros)
         .collect();
@@ -481,8 +481,9 @@ fn events_of(text: &str) -> Result<Vec<Event>, Failure> {
 }
 
 #[test]
-fn rb05_python_latency_has_p50_p95_per_run_at_least_two_runs_exist() {
-    assert!(check_run_count(&run_files(SILENCE)).is_ok());
+fn rb05_python_latency_has_p50_p95_per_run_at_least_two_runs_exist() -> TestResult {
+    check_run_count(&run_files(SILENCE)?)?;
+    Ok(())
 }
 
 #[test]
@@ -526,7 +527,7 @@ fn rb05_python_latency_has_p50_p95_per_run_translated_plus_untranslated_valid_sa
 fn rb05_python_latency_has_p50_p95_per_run_valid_samples_satisfy_asr_minus_dec_at_least_min_silence()
 -> TestResult {
     for (n, rows) in runs()? {
-        let capture = read(&run_file(n, "events.jsonl"))?;
+        let capture = read(&run_file(n, "events.jsonl")?)?;
         check_valid_against_capture(&rows, &capture).map_err(|e| format!("run {n}: {e}"))?;
     }
     Ok(())

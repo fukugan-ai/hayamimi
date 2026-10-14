@@ -7,7 +7,9 @@
 
 mod support;
 
+use hayamimi_app::llama::plan::Build;
 use serde_json::Value;
+use support::llama::{Launch, Session, health};
 use support::{
     Failure, HIDE_GPU, Output, Served, TestResult, clip, events, models_dir, named, serve,
 };
@@ -85,6 +87,11 @@ fn check_subtitles(wire: &[Value]) -> Result<(), Failure> {
 
 /// One `gpu.device.unavailable` event, with its error code and the reason `no_device`.
 fn check_unavailable_once(all: &[Value]) -> Result<(), Failure> {
+    check_unavailable_for(all, "no_device")
+}
+
+/// One `gpu.device.unavailable` event, with its error code and the reason `reason`.
+fn check_unavailable_for(all: &[Value], reason: &str) -> Result<(), Failure> {
     let found = named(all, UNAVAILABLE);
     if found.len() != 1 {
         return Err(format!("{} `{UNAVAILABLE}` events, want 1", found.len()));
@@ -92,8 +99,8 @@ fn check_unavailable_once(all: &[Value]) -> Result<(), Failure> {
     if text_of(found[0], "error_code") != Some(ERROR_CODE) {
         return Err(format!("error_code of `{UNAVAILABLE}` is not {ERROR_CODE}"));
     }
-    if text_of(found[0], "reason") != Some("no_device") {
-        return Err(format!("reason of `{UNAVAILABLE}` is not no_device"));
+    if text_of(found[0], "reason") != Some(reason) {
+        return Err(format!("reason of `{UNAVAILABLE}` is not {reason}"));
     }
     Ok(())
 }
@@ -513,5 +520,351 @@ fn rp16_no_gpu_falls_back_to_cpu_and_says_so() -> TestResult {
     #[cfg(unix)]
     check_stderr_languages(&ja.served.output.stderr, &c.served.output.stderr)?;
     check_gpu_run(&real_run("C.UTF-8", &[])?)?;
+    Ok(())
+}
+
+// ---- the translation server (`hayamimi llama start`) ----
+
+const STARTED: &str = "translate.server.started";
+const FAILED: &str = "translate.server.failed";
+const FALLBACK_CODE: &str = "HAYAMIMI_GPU_FALLBACK";
+const TRANSLATE: &str = "translate";
+const SESSION_FAILED: &str = "session_failed";
+
+/// What a start printed and the arguments the server it started was given.
+struct TranslateRun {
+    output: Output,
+    server_args: Option<String>,
+}
+
+impl TranslateRun {
+    fn of(launch: &Launch) -> TranslateRun {
+        TranslateRun {
+            output: launch.output.clone(),
+            server_args: launch.server_args.clone(),
+        }
+    }
+}
+
+fn started_event(all: &[Value]) -> Result<&Value, Failure> {
+    match named(all, STARTED).as_slice() {
+        [one] => Ok(one),
+        found => Err(format!("{} `{STARTED}` events, want 1", found.len())),
+    }
+}
+
+fn layers_of(event: &Value) -> Result<u64, Failure> {
+    event
+        .get("gpu_layers")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("`{STARTED}` has no gpu_layers"))
+}
+
+/// The number after `-ngl` in the arguments the server was given.
+fn ngl_of(run: &TranslateRun) -> Result<u64, Failure> {
+    let args = run
+        .server_args
+        .as_deref()
+        .ok_or("the server printed no arguments into its log")?;
+    let mut words = args.split_whitespace();
+    words
+        .find(|word| *word == "-ngl")
+        .ok_or("the server got no -ngl")?;
+    words
+        .next()
+        .and_then(|word| word.parse().ok())
+        .ok_or_else(|| String::from("-ngl has no number"))
+}
+
+fn check_no_device_event(all: &[Value]) -> Result<(), Failure> {
+    let found = named(all, UNAVAILABLE).len();
+    if found == 0 {
+        Ok(())
+    } else {
+        Err(format!("{found} `{UNAVAILABLE}` events, want 0"))
+    }
+}
+
+/// One `gpu.fallback.cpu` event for the translate stage, with its reason and error code.
+fn check_translate_moved(all: &[Value], reason: &str) -> Result<(), Failure> {
+    let moved = log_events_of(all, FALLBACK, TRANSLATE);
+    exactly_once(moved.len(), &format!("`{FALLBACK}` events"), TRANSLATE)?;
+    if text_of(moved[0], "reason") != Some(reason) {
+        return Err(format!("reason of `{FALLBACK}` is not {reason}"));
+    }
+    if text_of(moved[0], "error_code") != Some(FALLBACK_CODE) {
+        return Err(format!("error_code of `{FALLBACK}` is not {FALLBACK_CODE}"));
+    }
+    Ok(())
+}
+
+/// The server was told to keep every layer on the CPU, in the event and in its arguments.
+fn check_layers_on_cpu(run: &TranslateRun, all: &[Value]) -> Result<(), Failure> {
+    let layers = layers_of(started_event(all)?)?;
+    if layers != 0 {
+        return Err(format!("gpu_layers of `{STARTED}` is {layers}, want 0"));
+    }
+    let flag = ngl_of(run)?;
+    if flag != 0 {
+        return Err(format!("the server got -ngl {flag}, want 0"));
+    }
+    Ok(())
+}
+
+/// A start without a usable GPU: exit 0, the device event for `no_device`
+/// (none for `session_failed`), one fallback event for the translate stage,
+/// no layer on the GPU, and the check command named.
+fn check_translate_on_cpu(run: &TranslateRun, reason: &str) -> Result<(), Failure> {
+    check_exit_zero(&run.output)?;
+    let all = events(&run.output.stdout)?;
+    if reason == SESSION_FAILED {
+        check_no_device_event(&all)?;
+    } else {
+        check_unavailable_for(&all, reason)?;
+    }
+    check_translate_moved(&all, reason)?;
+    check_layers_on_cpu(run, &all)?;
+    check_names_nvidia_smi(&run.output)
+}
+
+/// A start with a GPU: exit 0, not a word of fallback, the CUDA build with layers on the GPU.
+fn check_gpu_translate_run(run: &TranslateRun) -> Result<(), Failure> {
+    check_exit_zero(&run.output)?;
+    let all = events(&run.output.stdout)?;
+    for name in [UNAVAILABLE, FALLBACK] {
+        let found = named(&all, name).len();
+        if found != 0 {
+            return Err(format!("{found} `{name}` events on a GPU machine"));
+        }
+    }
+    let started = started_event(&all)?;
+    if text_of(started, "build") != Some("cuda") {
+        return Err(format!("build of `{STARTED}` is not cuda"));
+    }
+    if layers_of(started)? == 0 || ngl_of(run)? == 0 {
+        return Err(String::from("gpu_layers is 0 on a GPU machine"));
+    }
+    Ok(())
+}
+
+/// One `translate.server.failed` event for the way `build` failed with `reason`.
+fn check_failed_once(all: &[Value], build: &str, reason: &str) -> Result<(), Failure> {
+    let found = named(all, FAILED)
+        .into_iter()
+        .filter(|event| text_of(event, "build") == Some(build))
+        .filter(|event| text_of(event, "reason") == Some(reason))
+        .count();
+    exactly_once(found, &format!("`{FAILED}` events ({reason})"), build)
+}
+
+// ---- fixtures of the translation server ----
+
+const ARGS_ON_CPU: &str =
+    "fake-llama-server -m a.gguf --host 127.0.0.1 --port 1 -np 4 -c 8192 -ngl 0";
+const ARGS_ON_GPU: &str =
+    "fake-llama-server -m a.gguf --host 127.0.0.1 --port 1 -np 4 -c 8192 -ngl 99";
+
+fn translate_fallback_line(reason: &str) -> String {
+    log_line(
+        FALLBACK,
+        &format!(
+            ",\"stage\":\"translate\",\"reason\":\"{reason}\",\"error_code\":\"{FALLBACK_CODE}\""
+        ),
+    )
+}
+
+fn started_line(build: &str, layers: u32) -> String {
+    log_line(
+        STARTED,
+        &format!(",\"build\":\"{build}\",\"gpu_layers\":{layers}"),
+    )
+}
+
+fn failed_line(build: &str, reason: &str) -> String {
+    log_line(
+        FAILED,
+        &format!(",\"build\":\"{build}\",\"reason\":\"{reason}\""),
+    )
+}
+
+fn translate_run(code: i32, stdout: &str, stderr: &str, args: Option<&str>) -> TranslateRun {
+    TranslateRun {
+        output: Output {
+            code: Some(code),
+            stdout: stdout.to_owned(),
+            stderr: stderr.to_owned(),
+        },
+        server_args: args.map(str::to_owned),
+    }
+}
+
+/// The log of T-RP-16-018: the device event, the fallback, a server with no layer on the GPU.
+fn cpu_stdout() -> String {
+    unavailable_line() + &translate_fallback_line("no_device") + &started_line("cuda", 0)
+}
+
+fn cpu_run() -> TranslateRun {
+    translate_run(
+        0,
+        &cpu_stdout(),
+        "check with: nvidia-smi\n",
+        Some(ARGS_ON_CPU),
+    )
+}
+
+fn gpu_run(stdout: &str, args: &str) -> TranslateRun {
+    translate_run(0, stdout, "", Some(args))
+}
+
+// ---- cases of the translation server ----
+
+/// T-RP-16-038
+#[test]
+fn no_gpu_translate_run_with_all_required_signals_passes() -> TestResult {
+    check_translate_on_cpu(&cpu_run(), "no_device")?;
+    Ok(())
+}
+
+/// T-RP-16-039
+#[test]
+fn translate_run_without_the_device_event_is_rejected() {
+    let stdout = translate_fallback_line("no_device") + &started_line("cuda", 0);
+    let run = translate_run(0, &stdout, "nvidia-smi\n", Some(ARGS_ON_CPU));
+    assert!(names(
+        check_translate_on_cpu(&run, "no_device"),
+        UNAVAILABLE
+    ));
+}
+
+/// T-RP-16-040
+#[test]
+fn translate_run_without_the_fallback_event_is_rejected() {
+    let stdout = unavailable_line() + &started_line("cuda", 0);
+    let run = translate_run(0, &stdout, "nvidia-smi\n", Some(ARGS_ON_CPU));
+    assert!(names(check_translate_on_cpu(&run, "no_device"), TRANSLATE));
+}
+
+/// T-RP-16-041
+#[test]
+fn duplicate_translate_fallback_event_is_rejected() {
+    let stdout = cpu_stdout() + &translate_fallback_line("no_device");
+    let run = translate_run(0, &stdout, "nvidia-smi\n", Some(ARGS_ON_CPU));
+    assert!(names(check_translate_on_cpu(&run, "no_device"), TRANSLATE));
+}
+
+/// T-RP-16-042
+#[test]
+fn gpu_layers_after_missing_gpu_are_rejected() {
+    let stdout =
+        unavailable_line() + &translate_fallback_line("no_device") + &started_line("cuda", 99);
+    let run = translate_run(0, &stdout, "nvidia-smi\n", Some(ARGS_ON_CPU));
+    assert!(names(
+        check_translate_on_cpu(&run, "no_device"),
+        "gpu_layers"
+    ));
+}
+
+/// T-RP-16-043
+#[test]
+fn server_arguments_with_gpu_layers_after_missing_gpu_are_rejected() {
+    let run = translate_run(0, &cpu_stdout(), "nvidia-smi\n", Some(ARGS_ON_GPU));
+    assert!(names(check_translate_on_cpu(&run, "no_device"), "-ngl"));
+}
+
+/// T-RP-16-044
+#[test]
+fn failed_translate_start_is_rejected_as_a_cpu_fallback() {
+    let run = translate_run(1, &cpu_stdout(), "nvidia-smi\n", Some(ARGS_ON_CPU));
+    assert!(names(check_translate_on_cpu(&run, "no_device"), "want 0"));
+}
+
+/// T-RP-16-045
+#[test]
+fn translate_stderr_without_nvidia_smi_is_rejected() {
+    let run = translate_run(0, &cpu_stdout(), "no device\n", Some(ARGS_ON_CPU));
+    assert!(names(
+        check_translate_on_cpu(&run, "no_device"),
+        "nvidia-smi"
+    ));
+}
+
+/// T-RP-16-046
+#[test]
+fn gpu_present_translate_run_has_no_fallback_events() -> TestResult {
+    check_gpu_translate_run(&gpu_run(&started_line("cuda", 99), ARGS_ON_GPU))?;
+    Ok(())
+}
+
+/// T-RP-16-047
+#[test]
+fn gpu_present_translate_run_that_falls_back_is_rejected() {
+    let stdout = translate_fallback_line(SESSION_FAILED) + &started_line("cpu", 0);
+    let run = gpu_run(&stdout, ARGS_ON_CPU);
+    assert!(names(check_gpu_translate_run(&run), FALLBACK));
+}
+
+/// T-RP-16-048
+#[test]
+fn session_failed_run_needs_the_fallback_but_no_device_event() -> TestResult {
+    let stdout = failed_line("cuda", "exited")
+        + &translate_fallback_line(SESSION_FAILED)
+        + &started_line("cpu", 0);
+    let run = translate_run(0, &stdout, "check with: nvidia-smi\n", Some(ARGS_ON_CPU));
+    check_translate_on_cpu(&run, SESSION_FAILED)?;
+    // The same run read as a missing device is wrong: no device event was logged.
+    assert!(names(
+        check_translate_on_cpu(&run, "no_device"),
+        UNAVAILABLE
+    ));
+    Ok(())
+}
+
+// ---- real runs of the translation server (the stand-in server) ----
+
+fn hidden_translate(name: &str, locale: &str, builds: &[Build]) -> Result<Session, Failure> {
+    Session::start(name, builds, "ok.gguf", Some(locale), &[HIDE_GPU])
+}
+
+/// T-RP-16-049
+#[test]
+fn hidden_gpu_translate_server_starts_on_cpu_with_a_reason() -> TestResult {
+    let session = hidden_translate("hidden", "C.UTF-8", &[Build::Cuda, Build::Cpu])?;
+    check_translate_on_cpu(&TranslateRun::of(&session.launch), "no_device")?;
+    assert_eq!(health(session.launch.port)?, "ok");
+    Ok(())
+}
+
+/// T-RP-16-050
+#[test]
+fn missing_cuda_build_falls_through_to_the_cpu_build() -> TestResult {
+    let session = hidden_translate("nocuda", "C.UTF-8", &[Build::Cpu])?;
+    let run = TranslateRun::of(&session.launch);
+    check_translate_on_cpu(&run, "no_device")?;
+    check_failed_once(&events(&run.output.stdout)?, "cuda", "missing_build")?;
+    assert_eq!(health(session.launch.port)?, "ok");
+    Ok(())
+}
+
+/// T-RP-16-051
+#[test]
+#[ignore = "needs a machine with a CUDA device"]
+fn visible_gpu_translate_server_does_not_fall_back() -> TestResult {
+    let session = Session::start("visible", &[Build::Cuda, Build::Cpu], "ok.gguf", None, &[])?;
+    check_gpu_translate_run(&TranslateRun::of(&session.launch))?;
+    Ok(())
+}
+
+/// The acceptance test of the translate row of RP-16: with the GPU hidden the
+/// translation server starts on the CPU and says so, in both languages.
+#[test]
+fn rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so() -> TestResult {
+    let builds = [Build::Cuda, Build::Cpu];
+    let ja = hidden_translate("accept-ja", "ja_JP.UTF-8", &builds)?;
+    let c = hidden_translate("accept-c", "C.UTF-8", &builds)?;
+    check_translate_on_cpu(&TranslateRun::of(&ja.launch), "no_device")?;
+    check_translate_on_cpu(&TranslateRun::of(&c.launch), "no_device")?;
+    // Windows takes the language from the system, which `LANG` does not change.
+    #[cfg(unix)]
+    check_stderr_languages(&ja.launch.output.stderr, &c.launch.output.stderr)?;
     Ok(())
 }
