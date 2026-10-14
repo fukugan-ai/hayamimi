@@ -1,11 +1,12 @@
-//! RP-1: the Rust run of the scorecard. Every clip of every set is decoded by
-//! the recognizer tier of its language, then the digit pass of the text
-//! pipeline is applied and the clip is scored.
+//! RP-1: the Rust run of the scorecard. Every clip of every set goes through
+//! the language route of the program (identifier, router, recognizer tiers),
+//! then the digit pass of the text pipeline is applied for the language the
+//! route chose, and the clip is scored against the reference.
 //!
-//! No language detector runs here: the route that detects languages is a
-//! separate slice. Until it joins, the tier is chosen from the manifest's
-//! true language, the card says so (`lid: oracle`), and the count of right
-//! detections stays empty, so a run of this kind cannot pass the LID check.
+//! Each set starts a fresh session and its clips follow one another in it,
+//! as in the Python scorecard: only the first clip of a set opens a session.
+//! The language the route chose is kept per clip, which is what the count of
+//! right detections is made from.
 
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -13,12 +14,14 @@ use std::time::Instant;
 
 use hayamimi_asr::audio::read_wav;
 use hayamimi_asr::itn::{self, Overrides};
-use hayamimi_asr::{Recognizers, ResidentEvent, Tier};
+use hayamimi_asr::lid::{self, Lid};
+use hayamimi_asr::route::{Policy, Request, Router};
+use hayamimi_asr::{Gpu, Recognizers, ResidentEvent};
 
 use crate::error::EvalError;
 use crate::manifest::read_rows;
 use crate::score::Scorer;
-use crate::scorecard::{ClipRow, Lid, Scorecard, summarize};
+use crate::scorecard::{ClipRow, Lid as LidMode, Scorecard, summarize};
 
 /// Threads of each recognizer, as the Python scorecard uses.
 const THREADS: i32 = 6;
@@ -35,17 +38,6 @@ struct Clip {
     lang: String,
     reference: String,
     path: PathBuf,
-}
-
-/// The tier that answers for `lang` on the default route.
-pub fn tier_of(lang: &str) -> Result<Tier, EvalError> {
-    match lang {
-        "ja" => Ok(Tier::Rz),
-        "en" => Ok(Tier::V3),
-        "zh" => Ok(Tier::Pz),
-        "ko" | "yue" => Ok(Tier::Sv),
-        other => Err(EvalError::Invalid(format!("no tier answers for `{other}`"))),
-    }
 }
 
 fn text_of<'a>(row: &'a crate::manifest::Row, key: &str, set: &Path) -> Result<&'a str, EvalError> {
@@ -91,15 +83,32 @@ fn rtf_micros(work_us: u128, dur_ms: u64) -> Result<u64, EvalError> {
 }
 
 struct Run {
-    recognizers: Recognizers,
+    router: Router<Recognizers, Lid>,
     scorer: Scorer,
     clips: Vec<ClipRow>,
     fallbacks: Vec<String>,
 }
 
+/// The router of the default mode over the recognizers and the identifier.
+fn open_router(options: &Options) -> Result<Router<Recognizers, Lid>, EvalError> {
+    let opened = lid::open(&options.models, Gpu::Try)
+        .map_err(|error| EvalError::Invalid(format!("the identifier: {error}")))?;
+    let Some(identifier) = opened.lid else {
+        return Err(EvalError::Invalid(String::from(
+            "the identifier is not installed, so no language can be detected",
+        )));
+    };
+    let recognizers = Recognizers::new(&options.models, THREADS, options.max_resident);
+    Ok(Router::new(
+        recognizers,
+        Some(identifier),
+        Policy::balanced(),
+    ))
+}
+
 impl Run {
     fn note_events(&mut self) {
-        for event in self.recognizers.take_events() {
+        for event in self.router.decoder_mut().take_events() {
             let Some(name) = fallback_event(&event) else {
                 continue;
             };
@@ -113,13 +122,14 @@ impl Run {
         let samples = read_wav(&clip.path)
             .map_err(|error| EvalError::Invalid(format!("{}: {error}", clip.path.display())))?;
         let dur_ms = samples.len() as u64 / 16;
+        let request = Request::live(&samples);
         let started = Instant::now();
-        let decoded = self
-            .recognizers
-            .decode(tier_of(&clip.lang)?, &clip.lang, &samples)
+        let read = self
+            .router
+            .transcribe(&request)
             .map_err(|error| EvalError::Invalid(format!("{}: {error}", clip.path.display())))?;
         let work_us = started.elapsed().as_micros();
-        let text = itn::convert(&decoded.text, &clip.lang, &Overrides::default());
+        let text = itn::convert(&read.text, &read.lang, &Overrides::default());
         let err_micros = self
             .scorer
             .score(&clip.lang, &clip.reference, &text)
@@ -128,8 +138,8 @@ impl Run {
             name: clip.name.clone(),
             text,
             lang: clip.lang.clone(),
-            detected: None,
-            tier: decoded.tier.name().to_owned(),
+            detected: Some(read.lang),
+            tier: read.tier.name().to_owned(),
             err_micros,
             dur_ms,
             rtf_micros: rtf_micros(work_us, dur_ms)?,
@@ -148,19 +158,22 @@ pub struct Outcome {
 /// Runs every set.
 pub fn run(options: &Options) -> Result<Outcome, EvalError> {
     let mut run = Run {
-        recognizers: Recognizers::new(&options.models, THREADS, options.max_resident),
+        router: open_router(options)?,
         scorer: Scorer::new()?,
         clips: Vec::new(),
         fallbacks: Vec::new(),
     };
     for set in &options.sets {
+        // One session per manifest, as the Python scorecard does: the clips of
+        // a set follow one another, so the first one alone opens a session.
+        run.router.reset_session();
         for clip in load_set(set)? {
             run.score_clip(&clip)?;
         }
     }
     let card = Scorecard {
         engine: String::from("hayamimi"),
-        lid: Lid::Oracle,
+        lid: LidMode::Detected,
         rows: summarize(&run.clips)?,
         fallbacks: run.fallbacks,
     };
@@ -173,22 +186,7 @@ pub fn run(options: &Options) -> Result<Outcome, EvalError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hayamimi_asr::Reason;
-
-    #[test]
-    fn each_language_of_the_scorecard_has_its_tier() -> Result<(), EvalError> {
-        let tiers: Vec<Tier> = ["ja", "en", "zh", "ko", "yue"]
-            .into_iter()
-            .map(tier_of)
-            .collect::<Result<_, _>>()?;
-        assert_eq!(tiers, [Tier::Rz, Tier::V3, Tier::Pz, Tier::Sv, Tier::Sv]);
-        Ok(())
-    }
-
-    #[test]
-    fn a_language_with_no_tier_is_refused() {
-        assert!(tier_of("fr").is_err());
-    }
+    use hayamimi_asr::{Reason, Tier};
 
     #[test]
     fn a_substitution_and_a_chunked_cut_are_fallbacks_and_a_load_is_not() {

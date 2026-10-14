@@ -1,11 +1,11 @@
 {
   "before_mib": [
-    1046,
-    1046,
-    1046
+    1901,
+    1901,
+    2481
   ],
   "budget_mib": 14000,
   "memory_fallbacks": 0,
-  "peak_mib": 3378,
-  "readings": 3783
+  "peak_mib": 4837,
+  "readings": 1796
 }

@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use hayamimi_eval::vram::{BUDGET_MIB, check_vram, parse_readings};
 use serde_json::Value;
-use support::{Failure, Served, TestResult, events, find_up, models_dir, named, serve};
+use support::{Failure, Served, TestResult, events, find_above, models_dir, named, serve};
 
 /// One reading per call: the memory in use on the whole GPU, with its header.
 const QUERY: [&str; 2] = ["--query-gpu=memory.used", "--format=csv"];
@@ -75,7 +75,7 @@ fn measured_run(extra: &[&str]) -> Result<Measured, Failure> {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    let wav = find_up("testdata/lat-multi.wav")?;
+    let wav = find_above("testdata/lat-multi.wav")?;
     let models = models_dir()?;
     let (wav, models) = (path_text(&wav)?, path_text(&models)?);
     let before = read_before()?;
@@ -250,7 +250,7 @@ fn most_resident(all: &[Value]) -> usize {
 
 /// Plays `lat-multi.wav` as fast as the models go with `--max-resident <cap>`.
 fn run_with_cap(cap: &str) -> Result<Vec<Value>, Failure> {
-    let wav = find_up("testdata/lat-multi.wav")?;
+    let wav = find_above("testdata/lat-multi.wav")?;
     let models = models_dir()?;
     let (wav, models) = (path_text(&wav)?, path_text(&models)?);
     let output = support::run(
@@ -272,7 +272,7 @@ fn run_with_cap(cap: &str) -> Result<Vec<Value>, Failure> {
 
 /// T-RP-22-010
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
     let all = run_with_cap("2")?;
     assert!(
@@ -286,7 +286,7 @@ fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
 
 /// T-RP-22-011
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn default_cap_drops_nothing_for_five_languages() -> TestResult {
     let all = run_with_cap("3")?;
     // Without this the zero below would hold for a run that never used the recognizers.

@@ -321,6 +321,11 @@ impl Recognizers {
             self.unavailable.insert(tier, Reason::Missing);
             return Ok(Some(Reason::Missing));
         }
+        // The recognizer used least recently goes first, so that the cap holds
+        // while the new one is being built.
+        if let Some(victim) = self.residents.make_room_for(tier) {
+            self.events.push(ResidentEvent::Evicted { tier: victim });
+        }
         let started = Instant::now();
         match Recognizer::open_tier(&self.models, tier, self.threads) {
             Ok(recognizer) => {
@@ -328,9 +333,7 @@ impl Recognizers {
                     tier,
                     ms: millis(started),
                 });
-                if let Some(victim) = self.residents.insert(tier, recognizer) {
-                    self.events.push(ResidentEvent::Evicted { tier: victim });
-                }
+                self.residents.insert(tier, recognizer);
                 Ok(None)
             }
             Err(error) => {

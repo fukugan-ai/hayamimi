@@ -87,6 +87,18 @@ impl<T> Residents<T> {
         !incoming.is_always_resident() && self.counted() >= cap.get()
     }
 
+    /// Drops the tier used least recently when `incoming` would pass the cap,
+    /// so that a recognizer is released before the new one is built and the
+    /// cap holds in memory, not only after the load.
+    pub fn make_room_for(&mut self, incoming: Tier) -> Option<Tier> {
+        if self.contains(incoming) || !self.is_full_for(incoming) {
+            return None;
+        }
+        let victim = self.least_recently_used()?;
+        self.entries.retain(|entry| entry.tier != victim);
+        Some(victim)
+    }
+
     /// Adds a freshly loaded tier as the most recently used one and returns
     /// the tier it displaced, if any. A tier that is already resident is replaced.
     pub fn insert(&mut self, tier: Tier, value: T) -> Option<Tier> {
@@ -125,6 +137,19 @@ mod tests {
         assert_eq!(set.insert(Tier::Sv, 2), None);
         assert_eq!(set.insert(Tier::V3, 3), None);
         assert_eq!(set.counted(), 3);
+    }
+
+    #[test]
+    fn room_is_made_before_a_load_only_when_the_cap_would_be_passed() {
+        let mut set = Residents::new(cap(2));
+        set.insert(Tier::Pz, 1);
+        assert_eq!(set.make_room_for(Tier::Sv), None);
+        set.insert(Tier::Sv, 2);
+        // A tier already resident, and the Japanese tier, need no room.
+        assert_eq!(set.make_room_for(Tier::Sv), None);
+        assert_eq!(set.make_room_for(Tier::Rz), None);
+        assert_eq!(set.make_room_for(Tier::V3), Some(Tier::Pz));
+        assert_eq!(set.tiers(), [Tier::Sv]);
     }
 
     #[test]
