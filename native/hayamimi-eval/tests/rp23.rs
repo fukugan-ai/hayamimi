@@ -15,7 +15,7 @@ use hayamimi_eval::manifest::{Row as ManifestRow, read_rows, write_rows};
 use hayamimi_eval::mdtable::render;
 use hayamimi_eval::stage_table::{StageRow, count_with_gpu_path, parse_stage_table};
 use support::stages::{self, LOAD, PROVIDER, REPEATS, Row, SAMPLES, STAGE};
-use support::{REPO, RESULTS, TESTDATA, TestResult, read};
+use support::{REPO, RESULTS, TestResult, read, testdata};
 
 /// Where the generated manifest of the tests is written.
 const SCRATCH: &str = env!("CARGO_TARGET_TMPDIR");
@@ -377,7 +377,7 @@ fn generated_manifest_has_the_requested_rows() -> TestResult {
 fn every_stage_is_timed_on_gpu_and_cpu() -> TestResult {
     let design = read(&Path::new(REPO).join("docs/design/rust_port.ja.md"))?;
     let results = read(&Path::new(RESULTS).join("gpu_stages.md"))?;
-    let manifest = Path::new(TESTDATA).join("manifests/lat-ja.json");
+    let manifest = testdata()?.join("manifests/lat-ja.json");
     let expected = read_rows(&manifest)?.len() * REPEATS;
     check_stage_results(
         &parse_stage_table(&design)?,

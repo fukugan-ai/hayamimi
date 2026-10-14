@@ -1,0 +1,10 @@
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-14T14:26:19+09:00","level":"warn","event":"gpu.device.unavailable","component":"gpu","message":"使える CUDA の device が無いので、GPU に置いた段を CPU で動かします","error_code":"HAYAMIMI_GPU_DEVICE_UNAVAILABLE","request_id":null,"build_revision":"hayamimi-0.1.0","reason":"no_device"}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-14T14:26:22+09:00","level":"warn","event":"gpu.fallback.cpu","component":"gpu","message":"段を GPU から CPU へ落として続けます","error_code":"HAYAMIMI_GPU_FALLBACK","request_id":null,"build_revision":"hayamimi-0.1.0","reason":"no_device","stage":"translate"}
+落ちた段: 翻訳 server
+理由: CUDA の device が見つかりません。
+落ち先: CPU で同じ model を動かします。
+GPU と driver は次の command で確かめられます: nvidia-smi
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-14T14:26:22+09:00","level":"info","event":"translate.server.started","component":"translate","message":"翻訳 server が応答しています","error_code":null,"request_id":null,"build_revision":"hayamimi-0.1.0","build":"cuda","gpu_layers":0,"pid":10400,"port":8099,"slots":4,"tag":"b11609"}
+翻訳 server は次の address で応答しています:
+http://127.0.0.1:8099
+exit=0

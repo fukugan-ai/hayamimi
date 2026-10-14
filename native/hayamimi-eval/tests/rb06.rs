@@ -112,7 +112,7 @@ fn summary_section() -> Result<String, Failure> {
 
 /// The rows of the first run of one `--min-silence` value.
 fn first_run(silence: &str) -> Result<Vec<Row>, Failure> {
-    match run_files(silence).first() {
+    match run_files(silence)?.first() {
         Some((_, path)) => load_rows(path),
         None => Err(format!("no run for --min-silence {silence}")),
     }
@@ -160,10 +160,11 @@ fn cer_in_ten_thousandths(rows: &[Row]) -> Result<i64, Failure> {
 }
 
 #[test]
-fn rb06_min_silence_sweep_names_one_value_four_min_silence_values_have_runs() {
+fn rb06_min_silence_sweep_names_one_value_four_min_silence_values_have_runs() -> TestResult {
     for silence in SILENCES {
-        assert!(!run_files(silence).is_empty(), "--min-silence {silence}");
+        assert!(!run_files(silence)?.is_empty(), "--min-silence {silence}");
     }
+    Ok(())
 }
 
 #[test]
