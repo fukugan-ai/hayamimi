@@ -59,9 +59,18 @@ label = "m²"
 "schedule.task.installed" = "Daily fetch registered"
 "schedule.task.removed" = "Daily fetch removed"
 "schedule.task.failed" = "Scheduler operation failed"
+"events.subscribe.opened" = "Following the recognizer's events"
+"events.subscribe.lost" = "The recognizer's events stopped; connecting again"
+"events.line.skipped" = "An event that looks like a line could not be used"
+"translate.line.skipped" = "The line is not translated; its original is shown"
+"translate.lane.failed" = "A translation lane could not take the line"
+"translate.publish.failed" = "A translation could not be written out"
+"relay.serve.started" = "Serving translations"
+"server.fallback.port" = "The requested port was taken; another one is used"
 
 [cli]
 usage = """usage:
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]...
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
 unknown_command = "unknown subcommand"
@@ -69,3 +78,7 @@ missing_value = "an option is missing its value"
 unknown_option = "unknown option"
 need_install_or_remove = "one of --install or --remove is required"
 no_default_dir = "cannot decide the default output location; pass --out"
+bad_port = "--serve needs a port number from 0 to 65535"
+cannot_serve = "cannot serve translations: no port could be opened"
+serving_at = "translations are served at"
+port_moved = "the requested port was taken; translations are served at"

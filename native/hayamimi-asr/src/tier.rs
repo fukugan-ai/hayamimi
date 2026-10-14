@@ -1,59 +1,13 @@
-//! The recognizer tiers: which model directory each one reads, which of its
-//! files say that it is installed, and the order a missing tier gives way in.
-//!
-//! The names are the ones the wire format carries in a final event's `tier`.
+//! Where each recognizer tier of the catalogue (`route::Tier`) lives on disk,
+//! which of its files say that it is installed, and which tier keeps its
+//! place in memory whatever the cap.
 
 use std::path::{Path, PathBuf};
 
 use crate::error::AsrError;
-
-/// One recognizer of the routed engine. All of them run on the CPU (int8).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Tier {
-    /// ReazonSpeech zipformer transducer: Japanese. Always resident.
-    Rz,
-    /// Paraformer: Mandarin.
-    Pz,
-    /// SenseVoice: Korean and Cantonese, and the confirmation probe.
-    Sv,
-    /// Parakeet TDT v3: English and the other European languages.
-    V3,
-    /// Parakeet TDT v2: English only, opt-in.
-    V2,
-    /// Omnilingual CTC: the generalist.
-    Omni,
-    /// Parakeet TDT-CTC ja: the second opinion for Japanese.
-    Pja,
-}
-
-/// The tiers a missing tier gives way to, after its own default, in this order.
-const GENERIC_CHAIN: [Tier; 5] = [Tier::Rz, Tier::Sv, Tier::V3, Tier::Pz, Tier::Omni];
+use crate::route::{Tier, fallback_chain};
 
 impl Tier {
-    /// Every tier.
-    pub const ALL: [Tier; 7] = [
-        Tier::Rz,
-        Tier::Pz,
-        Tier::Sv,
-        Tier::V3,
-        Tier::V2,
-        Tier::Omni,
-        Tier::Pja,
-    ];
-
-    /// The name used in events.
-    pub fn name(self) -> &'static str {
-        match self {
-            Tier::Rz => "rz",
-            Tier::Pz => "pz",
-            Tier::Sv => "sv",
-            Tier::V3 => "v3",
-            Tier::V2 => "v2",
-            Tier::Omni => "omni",
-            Tier::Pja => "pja",
-        }
-    }
-
     /// The tier a name stands for.
     pub fn from_name(name: &str) -> Option<Tier> {
         Tier::ALL.into_iter().find(|tier| tier.name() == name)
@@ -86,21 +40,9 @@ impl Tier {
         self == Tier::Rz
     }
 
-    /// The tiers to try for a request of this tier, in order, each once. An
-    /// opt-in tier gives way to the default it is an alternative to first
-    /// (v2 to v3, never to the unpunctuated upper-case output of rz).
+    /// The tiers to try for a request of this tier, in order, each once.
     pub fn chain(self) -> Vec<Tier> {
-        let own_default: &[Tier] = match self {
-            Tier::V2 => &[Tier::V3],
-            _ => &[],
-        };
-        let mut chain = vec![self];
-        for tier in own_default.iter().chain(GENERIC_CHAIN.iter()) {
-            if !chain.contains(tier) {
-                chain.push(*tier);
-            }
-        }
-        chain
+        fallback_chain(self)
     }
 
     /// The directory of the tier under `models`.
@@ -179,16 +121,6 @@ mod tests {
             names(&Tier::V2.chain()),
             ["v2", "v3", "rz", "sv", "pz", "omni"]
         );
-    }
-
-    #[test]
-    fn a_chain_never_repeats_a_tier() {
-        for tier in Tier::ALL {
-            let chain = tier.chain();
-            for (index, one) in chain.iter().enumerate() {
-                assert!(!chain[index + 1..].contains(one), "{tier:?}");
-            }
-        }
     }
 
     #[test]

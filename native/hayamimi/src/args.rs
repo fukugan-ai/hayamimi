@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use hayamimi_asr::DEFAULT_MAX_RESIDENT;
+use hayamimi_asr::route::{Policy, is_routable};
 
 use crate::strings::keys;
 
@@ -16,9 +17,26 @@ const DEFAULT_MAX_SPEECH: f32 = 12.0;
 /// CPU. It counts every process of the GPU, the translator's included.
 pub const DEFAULT_GPU_BUDGET_MIB: u64 = 14_000;
 
+/// How the language of each utterance is chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// Identify the language, and switch when two identifiers agree (the default).
+    Balanced,
+    /// Identify the language, and switch at the first detection.
+    Fast,
+    /// Read everything in one language.
+    Single,
+}
+
+/// The language a `single` run reads when `--lang` does not name one.
+const DEFAULT_SINGLE_LANG: &str = "ja";
+
 /// A parsed command line that asks for a run.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Args {
+    pub mode: Mode,
+    /// A language to read everything in; it makes the run `single` whatever `--mode` says.
+    pub lang: Option<String>,
     pub wav: PathBuf,
     /// Pace the file at the speed of the audio.
     pub realtime: bool,
@@ -111,18 +129,40 @@ fn port_of(rest: &mut Rest<'_>) -> Result<u16, ArgError> {
     }
 }
 
-/// An option that only one value is accepted for.
-fn expect_value(rest: &mut Rest<'_>, only: &str, otherwise: ArgError) -> Result<(), ArgError> {
-    if value_of(rest)? == only {
-        Ok(())
+/// `--mode`: one of the three ways of choosing a language.
+fn mode_of(text: &str) -> Result<Mode, ArgError> {
+    match text {
+        "balanced" => Ok(Mode::Balanced),
+        "fast" => Ok(Mode::Fast),
+        "single" => Ok(Mode::Single),
+        _ => Err(ArgError::ModeUnsupported),
+    }
+}
+
+/// `--lang`: a language that has a recognizer of its own.
+fn lang_of(text: &str) -> Result<String, ArgError> {
+    if is_routable(text) {
+        Ok(text.to_owned())
     } else {
-        Err(otherwise)
+        Err(ArgError::LangUnsupported)
     }
 }
 
 impl Args {
+    /// The policy of the language route this command line asks for.
+    pub fn policy(&self) -> Policy {
+        match (&self.lang, self.mode) {
+            (Some(lang), _) => Policy::single(lang),
+            (None, Mode::Single) => Policy::single(DEFAULT_SINGLE_LANG),
+            (None, Mode::Balanced) => Policy::balanced(),
+            (None, Mode::Fast) => Policy::fast(),
+        }
+    }
+
     fn starting() -> Args {
         Args {
+            mode: Mode::Balanced,
+            lang: None,
             wav: PathBuf::new(),
             realtime: true,
             models: PathBuf::from(DEFAULT_MODELS),
@@ -141,8 +181,8 @@ impl Args {
         match option {
             "--wav" => self.wav = PathBuf::from(value_of(rest)?),
             "--no-realtime" => self.realtime = false,
-            "--mode" => expect_value(rest, "single", ArgError::ModeUnsupported)?,
-            "--lang" => expect_value(rest, "ja", ArgError::LangUnsupported)?,
+            "--mode" => self.mode = mode_of(value_of(rest)?)?,
+            "--lang" => self.lang = Some(lang_of(value_of(rest)?)?),
             "--models" => self.models = PathBuf::from(value_of(rest)?),
             "--min-silence" => self.min_silence = positive_seconds(value_of(rest)?)?,
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
@@ -276,13 +316,33 @@ mod tests {
     }
 
     #[test]
-    fn only_the_single_mode_and_japanese_exist() {
+    fn a_run_identifies_languages_unless_told_to_read_one() -> Result<(), ArgError> {
+        let policy = |list: &[&str]| run(list).map(|parsed| parsed.policy());
+        assert_eq!(policy(&["--wav", "a"])?, Policy::balanced());
+        assert_eq!(policy(&["--wav", "a", "--mode", "fast"])?, Policy::fast());
         assert_eq!(
-            parse(&args(&["--wav", "a", "--mode", "balanced"])),
+            policy(&["--wav", "a", "--mode", "single"])?,
+            Policy::single("ja")
+        );
+        assert_eq!(
+            policy(&["--wav", "a", "--lang", "ko"])?,
+            Policy::single("ko")
+        );
+        assert_eq!(
+            policy(&["--wav", "a", "--mode", "single", "--lang", "ja"])?,
+            Policy::single("ja")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_mode_or_language_that_does_not_exist_is_refused() {
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--mode", "slow"])),
             Err(ArgError::ModeUnsupported)
         );
         assert_eq!(
-            parse(&args(&["--wav", "a", "--lang", "en"])),
+            parse(&args(&["--wav", "a", "--lang", "xx"])),
             Err(ArgError::LangUnsupported)
         );
     }

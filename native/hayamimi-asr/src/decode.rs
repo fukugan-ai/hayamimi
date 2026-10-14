@@ -28,7 +28,8 @@ use crate::fallback::{Reason, reason_of};
 use crate::recognizer::{LangTag, Recognizer};
 use crate::resident::Residents;
 use crate::retry::{MIN_BUFFER_SECONDS, Pieces, Splitter};
-use crate::tier::{Tier, is_installed};
+use crate::route::Tier;
+use crate::tier::is_installed;
 
 /// Alphanumeric characters per second of speech below which a decode in a
 /// language written without spaces is suspected of having dropped its
@@ -369,6 +370,24 @@ impl Recognizers {
     /// Decodes the whole buffer with `tier`, or with the tier that answers for it.
     pub fn decode_whole(&mut self, tier: Tier, samples: &[f32]) -> Result<Decoded, AsrError> {
         let used = self.acquire(tier)?;
+        self.decode_loaded(used, samples)
+    }
+
+    /// Decodes the whole buffer with `tier` itself and no other: `None` when
+    /// that tier is not usable here, so that the caller can choose what gives way.
+    pub fn decode_exact(
+        &mut self,
+        tier: Tier,
+        samples: &[f32],
+    ) -> Result<Option<Decoded>, AsrError> {
+        if self.load(tier)?.is_some() {
+            return Ok(None);
+        }
+        self.decode_loaded(tier, samples).map(Some)
+    }
+
+    /// The whole-buffer decode with a tier that is resident.
+    fn decode_loaded(&mut self, used: Tier, samples: &[f32]) -> Result<Decoded, AsrError> {
         let started = Instant::now();
         let Some(recognizer) = self.residents.get(used) else {
             return Err(AsrError::NoRecognizer);
@@ -476,6 +495,11 @@ impl Recognizers {
             tier: whole.tier,
             decode_ms: millis(started),
         })
+    }
+
+    /// Drops every recognizer from memory.
+    pub fn release_all(&mut self) {
+        self.residents.clear();
     }
 
     /// The tiers in memory, in tier order.

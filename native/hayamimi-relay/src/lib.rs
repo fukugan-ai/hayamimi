@@ -6,18 +6,25 @@
 //! hedging or proper names do not match the source is withheld, and a
 //! converted value is added only when it can be placed with certainty.
 //!
-//! The crate also holds the daily exchange-rate fetch and its scheduler
-//! registration. Table and rate files are re-read when they change.
+//! The relay follows the `/events` streams of the recognizers (`follow`),
+//! translates each line in a lane of its own source (`relay`) and serves the
+//! translations (`hub`). The crate also holds the daily exchange-rate fetch and
+//! its scheduler registration. Table and rate files are re-read when they
+//! change.
 
 pub mod annotate;
 pub mod calendar;
 pub mod cli;
+pub mod follow;
 pub mod fx;
+pub mod hub;
 pub mod lang;
+pub mod line;
 pub mod llm;
 pub mod logging;
 pub mod numbers;
 pub mod pipeline;
+pub mod relay;
 pub mod schedule;
 pub mod strings;
 pub mod style;

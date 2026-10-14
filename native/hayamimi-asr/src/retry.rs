@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
+use hayamimi_gpu::session_lock::lock_for_session;
 use sherpa_onnx::VoiceActivityDetector;
 
 use crate::audio::{SAMPLE_RATE, windows};
@@ -78,8 +79,11 @@ impl Splitter {
                 max_speech: need as f32,
             };
             let config = silero_config(&self.models, settings)?;
-            let detector = VoiceActivityDetector::create(&config, need as f32)
-                .ok_or(AsrError::Create("the cutting VAD"))?;
+            let detector = {
+                let _building = lock_for_session();
+                VoiceActivityDetector::create(&config, need as f32)
+            }
+            .ok_or(AsrError::Create("the cutting VAD"))?;
             self.detector = Some((detector, need));
         }
         let Some((detector, _)) = &self.detector else {

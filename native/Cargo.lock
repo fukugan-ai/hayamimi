@@ -725,6 +725,7 @@ dependencies = [
  "roxmltree",
  "serde",
  "serde_json",
+ "sha2",
  "sys-locale",
  "toml",
  "ureq 3.4.2",

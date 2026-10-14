@@ -6,7 +6,7 @@
 
 use std::num::NonZeroUsize;
 
-use crate::tier::Tier;
+use crate::route::Tier;
 
 struct Entry<T> {
     tier: Tier,
@@ -55,6 +55,11 @@ impl<T> Residents<T> {
         let mut tiers: Vec<Tier> = self.entries.iter().map(|entry| entry.tier).collect();
         tiers.sort();
         tiers
+    }
+
+    /// Drops every resident tier.
+    pub fn clear(&mut self) {
+        self.entries.clear();
     }
 
     /// How many resident tiers count against the cap.

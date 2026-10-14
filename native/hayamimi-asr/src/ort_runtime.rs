@@ -9,6 +9,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
+use hayamimi_gpu::session_lock::lock_for_session;
 use ort::environment::Environment;
 use ort::ep;
 use ort::logging::LogLevel;
@@ -166,6 +167,7 @@ impl OrtRuntime {
         threads: usize,
         verbose: bool,
     ) -> Result<Session, AsrError> {
+        let _building = lock_for_session();
         let mut builder = Session::builder(&self.environment).map_err(ort_error)?;
         if device == Device::Cuda {
             builder = builder

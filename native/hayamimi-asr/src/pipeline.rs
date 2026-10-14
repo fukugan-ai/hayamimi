@@ -8,22 +8,23 @@
 
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, windows};
 use crate::decode::{Recognizers, ResidentEvent};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
+use crate::lid::{self, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
 use crate::recognizer::{THREADS, model_files};
 use crate::replace::Replacements;
-use crate::tier::Tier;
+use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier};
 use crate::vad::{Segment, Vad, VadSettings};
 
-/// The language of the route.
-const LANGUAGE: &str = "ja";
+/// The language the punctuation model restores marks for.
+const PUNCTUATED_LANGUAGE: &str = "ja";
 /// The file name the VAD session is reported under.
 const VAD_MODEL: &str = "silero_vad.onnx";
 /// How many recognizers besides the Japanese one stay in memory unless the
@@ -61,12 +62,17 @@ pub struct Settings {
     pub gpu: Gpu,
     /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
     pub max_resident: Option<NonZeroUsize>,
+    /// How languages are chosen. A policy that forces a language opens no
+    /// language identifier.
+    pub policy: Policy,
 }
 
 impl Settings {
+    /// Settings for Japanese only; a caller that wants languages detected sets `policy`.
     pub fn new(models: PathBuf) -> Settings {
         Settings {
             models,
+            policy: Policy::single("ja"),
             gpu: Gpu::Try,
             max_resident: DEFAULT_MAX_RESIDENT,
             vad: VadSettings::default(),
@@ -93,7 +99,8 @@ pub struct SessionReport {
 pub struct Timings {
     /// The detector's work on the windows since the previous utterance.
     pub vad_ms: f64,
-    /// Language identification; the route is Japanese only, so there is none.
+    /// Language identification, SenseVoice's confirmation probe included; 0
+    /// when the language is forced.
     pub lid_ms: f64,
     /// The recognizer, including the split retry.
     pub decode_ms: f64,
@@ -108,8 +115,20 @@ pub struct Timings {
 pub struct Final {
     pub id: u64,
     pub text: String,
+    /// The language the utterance was read in.
+    pub lang: String,
+    /// The name of the recognizer that was asked for the language.
+    pub tier: &'static str,
     /// Seconds of audio decoded, the pre-roll included.
     pub audio_seconds: f64,
+    /// Where the utterance starts, in seconds from the start of the audio fed
+    /// to the engine; the pre-roll is not counted.
+    pub t0_s: f64,
+    /// Where the utterance ends, in the same seconds.
+    pub t1_s: f64,
+    /// When the detector decided the utterance had ended, in milliseconds
+    /// since the Unix epoch.
+    pub end_wall_ms: u64,
     pub timings: Timings,
     /// Set when punctuation failed and the text went on without it.
     pub punct_error: Option<String>,
@@ -117,7 +136,7 @@ pub struct Final {
 
 /// The detector and the recognizers, which only work together.
 struct Route {
-    recognizers: Recognizers,
+    router: Router<Recognizers, Lid>,
     vad: Vad,
     history: History,
     vad_ms: f64,
@@ -148,6 +167,22 @@ pub struct Engine {
 
 fn millis(since: Instant) -> f64 {
     since.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Milliseconds since the Unix epoch.
+fn epoch_ms() -> Result<u64, AsrError> {
+    let since = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| AsrError::Clock)?;
+    u64::try_from(since.as_millis()).map_err(|_| AsrError::Overflow("the epoch milliseconds"))
+}
+
+/// Where a segment starts and ends, in seconds from the start of the audio fed
+/// to the engine.
+fn span_seconds(segment: &Segment) -> (f64, f64) {
+    let rate = f64::from(SAMPLE_RATE);
+    let start = segment.start as f64 / rate;
+    (start, start + segment.samples.len() as f64 / rate)
 }
 
 fn cpu_report(model: String) -> SessionReport {
@@ -197,6 +232,23 @@ fn open_or_disable<T>(
     }
 }
 
+/// Opens the language identifier unless the policy forces a language, in
+/// which case there is nothing to identify. A stage that fell back or was
+/// left out is added to `fallbacks`, and its sessions to `reports`.
+fn open_identifier(
+    settings: &Settings,
+    reports: &mut Vec<SessionReport>,
+    fallbacks: &mut Vec<Fallback>,
+) -> Result<Option<Lid>, AsrError> {
+    if settings.policy.forced_lang.is_some() {
+        return Ok(None);
+    }
+    let opened = lid::open(&settings.models, settings.gpu)?;
+    reports.extend(opened.sessions);
+    fallbacks.extend(opened.fallback);
+    Ok(opened.lid)
+}
+
 /// Opens the detector and the recognizer, which are of use only together: if
 /// either is out, there is no route. The sessions that were built are added to `reports`.
 fn open_route(
@@ -219,8 +271,10 @@ fn open_route(
     };
     reports.push(cpu_report(String::from(VAD_MODEL)));
     reports.extend(recognizer_models(settings).into_iter().map(cpu_report));
+    let identifier = open_identifier(settings, reports, fallbacks)?;
+    let router = Router::new(recognizers, identifier, settings.policy.clone());
     Ok(Some(Route {
-        recognizers,
+        router,
         vad,
         history: History::new(),
         vad_ms: 0.0,
@@ -230,7 +284,7 @@ fn open_route(
 /// The device the punctuation model is tried on first. A start that found no
 /// GPU goes straight to the CPU and says so.
 fn first_device(gpu: Gpu, fallbacks: &mut Vec<Fallback>) -> Device {
-    match gpu {
+    match gpu.confirmed() {
         Gpu::Try => Device::Cuda,
         Gpu::Absent(reason) => {
             fallbacks.push(Fallback {
@@ -353,7 +407,17 @@ impl Engine {
         self.route
             .as_mut()
             .into_iter()
-            .flat_map(|route| route.recognizers.take_events())
+            .flat_map(|route| route.router.decoder_mut().take_events())
+            .collect()
+    }
+
+    /// The steps the language route took off the design since the last call
+    /// (a tier that gave way to another, a stage left out).
+    pub fn take_route_notices(&mut self) -> Vec<RouteNotice> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| route.router.take_notices())
             .collect()
     }
 
@@ -362,7 +426,7 @@ impl Engine {
         self.route
             .as_ref()
             .into_iter()
-            .flat_map(|route| route.recognizers.resident())
+            .flat_map(|route| route.router.decoder().resident())
             .collect()
     }
 
@@ -445,9 +509,14 @@ impl Engine {
     }
 
     fn finish_segments(&mut self, segments: Vec<Segment>) -> Result<Vec<Final>, AsrError> {
+        if segments.is_empty() {
+            return Ok(Vec::new());
+        }
+        // The detector handed these segments over just now.
+        let ended_wall_ms = epoch_ms()?;
         let mut finals = Vec::new();
         for segment in segments {
-            if let Some(done) = self.process(&segment)? {
+            if let Some(done) = self.process(&segment, ended_wall_ms)? {
                 finals.push(done);
             }
         }
@@ -456,7 +525,11 @@ impl Engine {
 
     /// Decodes the whole text of one segment: recognition, retry, ITN,
     /// punctuation, dictionary. A segment with no speech makes no final.
-    fn process(&mut self, segment: &Segment) -> Result<Option<Final>, AsrError> {
+    fn process(
+        &mut self,
+        segment: &Segment,
+        ended_wall_ms: u64,
+    ) -> Result<Option<Final>, AsrError> {
         let started = Instant::now();
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
@@ -466,8 +539,8 @@ impl Engine {
         if decoded.text.trim().is_empty() {
             return Ok(None);
         }
-        let (text, itn_ms) = self.normalize(decoded.text);
-        let ((text, punct_error), punct_ms) = timed(|| self.punctuate(text));
+        let (text, itn_ms) = self.normalize(decoded.text, &decoded.lang);
+        let ((text, punct_error), punct_ms) = timed(|| self.punctuate(text, &decoded.lang));
         let text = self.replacements.apply(&text);
         if text.trim().is_empty() {
             return Ok(None);
@@ -478,13 +551,19 @@ impl Engine {
         }
         let id = self.next_id;
         self.next_id += 1;
+        let (t0_s, t1_s) = span_seconds(segment);
         Ok(Some(Final {
             id,
             text,
+            lang: decoded.lang,
+            tier: decoded.tier,
             audio_seconds: decoded.seconds,
+            t0_s,
+            t1_s,
+            end_wall_ms: ended_wall_ms,
             timings: Timings {
                 vad_ms,
-                lid_ms: 0.0,
+                lid_ms: decoded.lid_ms,
                 decode_ms: decoded.decode_ms,
                 punct_ms,
                 itn_ms,
@@ -495,20 +574,24 @@ impl Engine {
     }
 
     /// Inverse text normalisation, when the stage is on, and the time it took.
-    fn normalize(&self, text: String) -> (String, f64) {
+    fn normalize(&self, text: String, lang: &str) -> (String, f64) {
         if !self.stages.itn {
             return (text, 0.0);
         }
-        timed(|| itn::convert(&text, LANGUAGE, &self.itn_overrides))
+        timed(|| itn::convert(&text, lang, &self.itn_overrides))
     }
 
-    /// Punctuation, when there is a model. A failure must not lose the
+    /// Punctuation, when there is a model and the text is Japanese, the one
+    /// language the model restores marks for. A failure must not lose the
     /// transcription: the text goes on without marks and the failure is
     /// handed to the caller.
-    fn punctuate(&mut self, text: String) -> (String, Option<String>) {
+    fn punctuate(&mut self, text: String, lang: &str) -> (String, Option<String>) {
         let Some(punctuator) = self.punctuator.as_mut() else {
             return (text, None);
         };
+        if lang != PUNCTUATED_LANGUAGE {
+            return (text, None);
+        }
         match punctuator.restore(&text) {
             Ok(punctuated) => (punctuated, None),
             Err(error) => (text, Some(error.to_string())),
@@ -519,21 +602,43 @@ impl Engine {
 /// What the recognizer made of one segment.
 struct Decoded {
     text: String,
+    lang: String,
+    tier: &'static str,
     /// Seconds of audio decoded, the pre-roll included.
     seconds: f64,
+    lid_ms: f64,
     decode_ms: f64,
 }
 
-/// Decodes a segment with its pre-roll, and again piece by piece when the
-/// text looks cut short.
+/// The error of the route as the error of the engine.
+fn asr_error_of(error: RouteError) -> AsrError {
+    match error {
+        RouteError::Decode(inner) | RouteError::Lid(inner) => inner,
+        RouteError::NoModels => AsrError::NoRecognizer,
+        RouteError::Closed | RouteError::Invalid(_) => AsrError::Route(error.to_string()),
+    }
+}
+
+/// Reads a segment with its pre-roll: the route names the language, picks the
+/// recognizer and retries piece by piece when the text looks cut short.
 fn decode_segment(route: &mut Route, segment: &Segment) -> Result<Decoded, AsrError> {
     let samples = route.history.with_preroll(segment.start, &segment.samples);
     let seconds = samples.len() as f64 / f64::from(SAMPLE_RATE);
-    let (decoded, decode_ms) = timed(|| route.recognizers.decode(Tier::Rz, LANGUAGE, &samples));
+    let request = Request {
+        samples: &samples,
+        known_lang: None,
+        speech_s: Some(segment.samples.len() as f64 / f64::from(SAMPLE_RATE)),
+        live: true,
+        second_opinion: None,
+    };
+    let transcript = route.router.transcribe(&request).map_err(asr_error_of)?;
     Ok(Decoded {
-        text: decoded?.text,
+        text: transcript.text,
+        lang: transcript.lang,
+        tier: transcript.tier.name(),
         seconds,
-        decode_ms,
+        lid_ms: transcript.lid_ms + transcript.probe_ms,
+        decode_ms: transcript.decode_ms,
     })
 }
 
@@ -629,6 +734,31 @@ mod tests {
     fn with_no_stage_on_the_gpu_there_is_nothing_to_give_back() -> Result<(), AsrError> {
         let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
         assert_eq!(engine.demote_for_memory()?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_segment_spans_from_its_start_sample_to_its_last() {
+        let segment = Segment {
+            start: 8_000,
+            samples: vec![0.0; 16_000],
+        };
+        assert_eq!(span_seconds(&segment), (0.5, 1.5));
+    }
+
+    #[test]
+    fn an_empty_segment_at_the_start_spans_nothing() {
+        let segment = Segment {
+            start: 0,
+            samples: Vec::new(),
+        };
+        assert_eq!(span_seconds(&segment), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_clock_reads_a_time_after_2026() -> Result<(), AsrError> {
+        // 2026-01-01T00:00:00Z
+        assert!(epoch_ms()? > 1_767_225_600_000);
         Ok(())
     }
 

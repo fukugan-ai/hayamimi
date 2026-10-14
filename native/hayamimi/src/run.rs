@@ -15,6 +15,8 @@ use hayamimi_gpu::memory::MemoryMeter;
 use serde_json::{Value, json};
 
 use crate::args::{self, Args, Parsed};
+#[cfg(test)]
+use crate::args::Mode;
 use crate::gpu_check;
 use crate::log;
 use crate::memory_guard::{Look, MemoryGuard};
@@ -62,16 +64,26 @@ fn report_failure(strings: &Strings, error: &RunError) {
     eprintln!("  {detail}");
 }
 
-/// The wire form of a finished utterance.
-fn final_event(done: &Final) -> Value {
+/// The source of the audio of every utterance of this run: its one input is a
+/// wav file.
+const SOURCE: &str = "file";
+
+/// The wire form of a finished utterance. `id`, `source`, `t0_s`, `t1_s` and
+/// `end_wall_ms` let the relay join a translation to this line and measure it.
+pub fn final_event(done: &Final, source: &str) -> Value {
     let t = &done.timings;
     json!({
         "type": "final",
+        "id": format!("{source}-{}", done.id),
+        "source": source,
+        "t0_s": done.t0_s,
+        "t1_s": done.t1_s,
+        "end_wall_ms": done.end_wall_ms,
         "text": done.text,
-        "lang": "ja",
+        "lang": done.lang,
         "speaker": "",
         "latency_ms": t.l_dec_ms,
-        "tier": "rz",
+        "tier": done.tier,
         "audio_s": done.audio_seconds,
         "lid_ms": t.lid_ms,
         "decode_ms": t.decode_ms + t.itn_ms + t.punct_ms,
@@ -86,7 +98,7 @@ fn announce(strings: &Strings, hub: &Hub, finals: &[Final]) {
         if done.punct_error.is_some() {
             log::print(&log::punct_failed_line(strings, done));
         }
-        hub.publish(&final_event(done));
+        hub.publish(&final_event(done, SOURCE));
     }
 }
 
@@ -123,6 +135,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.diagnose = args.diagnose;
     settings.gpu = gpu;
     settings.max_resident = args.max_resident;
+    settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
         match Replacements::load(path) {
@@ -233,6 +246,9 @@ fn tell_resident(strings: &Strings, hub: &Hub, engine: &mut Engine) {
         if let Some(notice) = Notice::from_resident(&event) {
             say_notice(strings, hub, &notice);
         }
+    }
+    for step in engine.take_route_notices() {
+        say_notice(strings, hub, &Notice::from_route(&step));
     }
 }
 
@@ -347,7 +363,12 @@ mod tests {
         Final {
             id: 1,
             text: String::from("テスト"),
+            lang: String::from("ja"),
+            tier: "rz",
             audio_seconds: 1.5,
+            t0_s: 0.25,
+            t1_s: 1.75,
+            end_wall_ms: 1_790_000_000_123,
             timings: Timings {
                 vad_ms: 1.0,
                 lid_ms: 0.0,
@@ -362,6 +383,8 @@ mod tests {
 
     fn args_with_replace(path: Option<&str>) -> Args {
         Args {
+            mode: Mode::Single,
+            lang: None,
             wav: "a.wav".into(),
             realtime: false,
             models: "models".into(),
@@ -377,7 +400,7 @@ mod tests {
 
     #[test]
     fn the_wire_form_has_the_keys_of_the_existing_final_event() {
-        let event = final_event(&finished());
+        let event = final_event(&finished(), SOURCE);
         for key in [
             "type",
             "text",
@@ -395,6 +418,23 @@ mod tests {
         assert_eq!(event["type"], "final");
         assert_eq!(event["latency_ms"], 120.0);
         assert_eq!(event["decode_ms"], 111.0);
+    }
+
+    #[test]
+    fn the_final_event_carries_the_five_items_the_relay_joins_on() {
+        let event = final_event(&finished(), "mic");
+        assert_eq!(event["id"], "mic-1");
+        assert_eq!(event["source"], "mic");
+        assert_eq!(event["t0_s"], 0.25);
+        assert_eq!(event["t1_s"], 1.75);
+        assert_eq!(event["end_wall_ms"], 1_790_000_000_123_u64);
+    }
+
+    #[test]
+    fn a_wav_run_names_its_utterances_after_the_file_source() {
+        let event = final_event(&finished(), SOURCE);
+        assert_eq!(event["source"], "file");
+        assert_eq!(event["id"], "file-1");
     }
 
     #[test]

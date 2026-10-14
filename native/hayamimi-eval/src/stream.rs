@@ -17,11 +17,14 @@ use crate::ingest::{self, Plan, sent_at};
 use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event, summarize};
 use crate::log;
 use crate::manifest::{read_rows, write_text};
+use crate::relay_events::{Watch, in_time_order};
 use crate::wav::{SAMPLE_RATE, read_wav};
 
 pub struct Options {
     pub host: String,
     pub port: u16,
+    /// The relay's `/events` port, when its translations are read too.
+    pub relay_port: Option<u16>,
     pub wav: PathBuf,
     pub manifest: PathBuf,
     pub repeat: u32,
@@ -178,6 +181,10 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
 
     let origin = Instant::now();
     let mut connection = open_ingest(&options.host, options.port, origin)?;
+    let relay = match options.relay_port {
+        Some(port) => Some(Watch::open(&options.host, port, origin)?),
+        None => None,
+    };
     connection.start()?;
     log::info(
         "eval.stream.started",
@@ -191,10 +198,14 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     );
     let sent_us = connection.play(&plan, &audio.samples)?;
     let received = connection.finish(Duration::from_secs(u64::from(options.drain_s)))?;
+    let heard = match &relay {
+        Some(watch) => in_time_order(received.events, watch.events()),
+        None => received.events,
+    };
 
-    let mut events: Vec<Event> = Vec::with_capacity(received.events.len());
+    let mut events: Vec<Event> = Vec::with_capacity(heard.len());
     let mut unparsed = 0;
-    for (t_us, text) in &received.events {
+    for (t_us, text) in &heard {
         match parse_event(*t_us, text) {
             Ok(event) => events.push(event),
             Err(error) => {
@@ -215,10 +226,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     write_lines(samples.iter().map(serde_json::to_string), &options.out)?;
     let raw_path = sidecar(&options.out, "events.jsonl");
     write_lines(
-        received
-            .events
-            .iter()
-            .map(|(t_us, text)| raw_event_line(*t_us, text)),
+        heard.iter().map(|(t_us, text)| raw_event_line(*t_us, text)),
         &raw_path,
     )?;
     let summary_path = sidecar(&options.out, "summary.json");
@@ -234,7 +242,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
             ("samples", samples.len().into()),
             ("with_final", summary.with_final.into()),
             ("with_translation", summary.with_translation.into()),
-            ("events", received.events.len().into()),
+            ("events", heard.len().into()),
             ("events_unparsed", unparsed.into()),
             ("closed_by_server", received.closed_by_server.into()),
         ],
@@ -242,7 +250,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     Ok(Report {
         samples,
         summary,
-        events_received: received.events.len(),
+        events_received: heard.len(),
         events_unparsed: unparsed,
     })
 }

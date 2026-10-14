@@ -22,6 +22,9 @@ type GpuStage = (&'static str, &'static str);
 
 /// The GPU stages the Japanese route loads: the punctuation model.
 const LOADED: [GpuStage; 1] = [("punct", "punct_bert.onnx")];
+/// The GPU stages a run that routes by language loads: the punctuation model
+/// and the language identifier (the encoder session stands for the pair).
+const LOADED_ROUTED: [GpuStage; 2] = [("punct", "punct_bert.onnx"), ("lid", "tiny-encoder.onnx")];
 
 /// A run, and the GPU stages it loaded.
 struct Run {
@@ -384,6 +387,75 @@ fn unloaded_gpu_stage_needs_no_fallback_event() -> TestResult {
     Ok(())
 }
 
+// ---- the language identifier ----
+
+/// The same run, read as one that also loaded the language identifier.
+fn routed(run: Run) -> Run {
+    Run {
+        loaded: LOADED_ROUTED.to_vec(),
+        ..run
+    }
+}
+
+fn routed_hidden_stdout() -> String {
+    hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu") + &fallback_line("lid")
+}
+
+fn routed_hidden_wire() -> Vec<Value> {
+    vec![wire_final(), wire_fallback("punct"), wire_fallback("lid")]
+}
+
+/// T-RP-16-018
+#[test]
+fn no_gpu_run_that_also_loads_the_identifier_passes() -> TestResult {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        routed_hidden_wire(),
+    ));
+    check_no_gpu_run(&run)?;
+    Ok(())
+}
+
+/// T-RP-16-019
+#[test]
+fn missing_identifier_fallback_log_event_is_named() {
+    let stdout = hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(run_of(0, &stdout, "nvidia-smi\n", routed_hidden_wire()));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-020
+#[test]
+fn missing_identifier_events_fallback_is_named() {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        hidden_wire(),
+    ));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-021
+#[test]
+fn gpu_present_run_with_the_identifier_on_cuda_passes() -> TestResult {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cuda");
+    check_gpu_run(&routed(visible_run(&stdout, vec![wire_final()])))?;
+    Ok(())
+}
+
+/// T-RP-16-022
+#[test]
+fn gpu_present_run_with_the_identifier_on_cpu_is_rejected() {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(visible_run(&stdout, vec![wire_final()]));
+    assert!(names(check_gpu_run(&run), "lid"));
+}
+
 // ---- real runs ----
 
 fn real_run(locale: &str, extra: &[(&str, &str)]) -> Result<Run, Failure> {
@@ -425,6 +497,47 @@ fn hidden_gpu_falls_back_to_cpu_with_a_reason() -> TestResult {
 #[ignore = "runs the models on the GPU"]
 fn visible_gpu_run_does_not_fall_back() -> TestResult {
     check_gpu_run(&real_run("C.UTF-8", &[])?)?;
+    Ok(())
+}
+
+/// The `final` events on `/events` that carry no language or no time spent
+/// in the identifier.
+fn finals_without_identification(wire: &[Value]) -> Vec<&Value> {
+    wire.iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .filter(|event| {
+            let said = text_of(event, "lang").is_some_and(|lang| !lang.is_empty());
+            let timed = event.get("lid_ms").and_then(Value::as_f64) > Some(0.0);
+            !(said && timed)
+        })
+        .collect()
+}
+
+/// T-RP-16-035: a run without `--lang` builds the identifier once and every
+/// final names a language and the time the identifier took.
+#[test]
+#[ignore = "runs the hayamimi binary"]
+fn binary_run_identifies_the_language() -> TestResult {
+    let models = models_dir()?;
+    let models = models.to_str().ok_or("the models path is not UTF-8")?;
+    let wav = clip();
+    let wav = wav.to_str().ok_or("the clip path is not UTF-8")?;
+    let args = ["--wav", wav, "--no-realtime", "--models", models];
+    let served = serve(&args, Some("C.UTF-8"), &[])?;
+    let all = events(&served.output.stdout)?;
+    let identifier: Vec<&Value> = named(&all, CREATED)
+        .into_iter()
+        .filter(|event| text_of(event, "model") == Some("tiny-encoder.onnx"))
+        .collect();
+    assert_eq!(identifier.len(), 1, "{}", served.output.stderr);
+    let finals = served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .count();
+    assert!(finals > 0, "no final on /events");
+    let missing = finals_without_identification(&served.wire);
+    assert!(missing.is_empty(), "{missing:?}");
     Ok(())
 }
 

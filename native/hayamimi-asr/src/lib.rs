@@ -7,10 +7,12 @@
 //! which stay in memory) and decodes with the tier a caller names.
 
 pub mod audio;
+mod backend;
 pub mod decode;
 pub mod error;
 pub mod fallback;
 pub mod itn;
+pub mod lid;
 pub mod ort_runtime;
 pub mod pipeline;
 pub mod punct;
@@ -18,6 +20,7 @@ pub mod recognizer;
 pub mod replace;
 pub mod resident;
 pub mod retry;
+pub mod route;
 pub mod tier;
 pub mod vad;
 
@@ -29,4 +32,4 @@ pub use pipeline::{
     DEFAULT_MAX_RESIDENT, Demotion, Engine, Final, SessionReport, Settings, Stages, Timings,
 };
 pub use recognizer::LangTag;
-pub use tier::Tier;
+pub use route::Tier;

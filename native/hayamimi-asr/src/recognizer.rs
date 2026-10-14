@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
+use hayamimi_gpu::session_lock::lock_for_session;
 use hayamimi_gpu::stream_result::result_lang;
 use sherpa_onnx::{
     OfflineModelConfig, OfflineNemoEncDecCtcModelConfig, OfflineOmnilingualAsrCtcModelConfig,
@@ -12,7 +13,9 @@ use sherpa_onnx::{
 
 use crate::audio::SAMPLE_RATE;
 use crate::error::AsrError;
-use crate::tier::{Tier, find_model};
+use crate::lid::sv_lid_tag;
+use crate::route::Tier;
+use crate::tier::find_model;
 
 const ENCODER: &str = "encoder-epoch-35-avg-1.int8.onnx";
 const DECODER: &str = "decoder-epoch-35-avg-1.int8.onnx";
@@ -121,9 +124,6 @@ fn decoding_of(tier: Tier, config: &mut OfflineRecognizerConfig) {
     }
 }
 
-/// The languages SenseVoice tells apart, as the bare codes the engine uses.
-const SENSEVOICE_LANGS: [&str; 5] = ["ja", "en", "zh", "ko", "yue"];
-
 /// The language a model put on what it read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LangTag {
@@ -147,9 +147,8 @@ impl LangTag {
 
 /// The tag SenseVoice writes (`<|ja|>`) as a [`LangTag`].
 pub fn tag_from(raw: &str) -> LangTag {
-    let bare = raw.trim().trim_start_matches("<|").trim_end_matches("|>");
-    match SENSEVOICE_LANGS.iter().find(|code| **code == bare) {
-        Some(code) => LangTag::Known((*code).to_owned()),
+    match sv_lid_tag(raw) {
+        Some(code) => LangTag::Known(code.to_owned()),
         None => LangTag::Unknown,
     }
 }
@@ -174,7 +173,11 @@ impl Recognizer {
         config.model_config.tokens = Some(utf8(&tier.path(models).join(TOKENS))?);
         config.model_config.provider = Some(String::from("cpu"));
         config.model_config.num_threads = threads;
-        let inner = OfflineRecognizer::create(&config).ok_or(AsrError::Create("recognizer"))?;
+        let inner = {
+            let _building = lock_for_session();
+            OfflineRecognizer::create(&config)
+        }
+        .ok_or(AsrError::Create("recognizer"))?;
         Ok(Recognizer { inner, tier })
     }
 

@@ -24,6 +24,7 @@ pub mod nsys;
 pub mod ort_stages;
 pub mod percentile;
 pub mod record;
+pub mod relay_events;
 pub mod score;
 pub mod scorecard;
 pub mod scorecard_run;

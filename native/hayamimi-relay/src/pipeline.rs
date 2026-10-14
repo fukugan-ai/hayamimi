@@ -2,10 +2,12 @@
 //! the unit annotation. Each stage runs once, in this order. V sees the text
 //! of E exactly; the annotation is added after V and never shown to it.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::annotate::{
     AnnotateRequest, Annotated, Annotation, Annotator, AnnotatorConfig, Skipped,
@@ -46,6 +48,9 @@ pub struct Translation {
     pub source: String,
     pub src_lang: Lang,
     pub lang: Lang,
+    /// The SHA-256 of the source text, as lowercase hex. A reader that holds
+    /// the text of a `final` finds the translation of that exact text by it.
+    pub src_sha256: String,
     pub status: Status,
     pub hold_reason: Option<HoldReason>,
     /// The edited translation, as the model wrote it; empty when held.
@@ -87,6 +92,17 @@ pub trait Observer {
 pub struct NoObserver;
 
 impl Observer for NoObserver {}
+
+/// The SHA-256 of `text`'s UTF-8 bytes, as lowercase hex.
+pub fn sha256_hex(text: &str) -> String {
+    let digest = Sha256::digest(text.as_bytes());
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        // Writing to a String cannot fail.
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
 
 fn language_name(lang: Lang) -> &'static str {
     match lang {
@@ -283,6 +299,7 @@ impl<L: Llm> Pipeline<L> {
             source: request.source.to_owned(),
             src_lang: request.src_lang,
             lang: request.src_lang.other(),
+            src_sha256: sha256_hex(request.text),
             status,
             hold_reason: reason,
             text: String::new(),
@@ -463,6 +480,33 @@ mod tests {
         assert_eq!(json["status"], "held");
         assert_eq!(json["hold_reason"], "unavailable");
         assert_eq!(json["lang"], "en");
+        assert_eq!(json["src_sha256"], sha256_hex("こんにちは。"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_digest_is_the_lowercase_hex_of_the_utf8_bytes() {
+        assert_eq!(
+            sha256_hex("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(
+            sha256_hex(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn every_outcome_names_the_text_it_translated() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello.")), Ok(String::from("Hello."))]);
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        let said = pipeline.run(&request("こんにちは。"), &mut NoObserver, &mut sink);
+        let held = pipeline.run(&request("さようなら。"), &mut NoObserver, &mut sink);
+        assert_eq!(said.status, Status::Ok);
+        assert_eq!(held.hold_reason, Some(HoldReason::Unavailable));
+        assert_eq!(said.src_sha256, sha256_hex("こんにちは。"));
+        assert_eq!(held.src_sha256, sha256_hex("さようなら。"));
         Ok(())
     }
 }

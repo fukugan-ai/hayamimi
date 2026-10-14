@@ -3,13 +3,23 @@
 //! reads on stderr. All three come from the same fields, so they cannot
 //! disagree about which stage fell back or why.
 
+use hayamimi_asr::route::RouteNotice;
 use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 6] = ["punct", "recognizer", "vad", "asr", "events", "replace"];
+pub const STAGES: [&str; 8] = [
+    "punct",
+    "recognizer",
+    "vad",
+    "asr",
+    "events",
+    "replace",
+    "lid",
+    "second_opinion",
+];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 8] = [
+pub const REASONS: [&str; 9] = [
     "no_device",
     "driver_unreadable",
     "session_failed",
@@ -18,6 +28,7 @@ pub const REASONS: [&str; 8] = [
     "memory_budget",
     "library_unavailable",
     "in_use",
+    "provider_mismatch",
 ];
 /// Every destination a notice can carry.
 pub const DESTINATIONS: [&str; 6] = [
@@ -94,6 +105,17 @@ impl Notice {
             ResidentEvent::Loaded { .. }
             | ResidentEvent::Evicted { .. }
             | ResidentEvent::LangUnknown => None,
+        }
+    }
+
+    /// What a step of the language route asks the user to be told. A tier that
+    /// is not installed gives way to another; a stage left out is a fallback.
+    pub fn from_route(notice: &RouteNotice) -> Notice {
+        match notice {
+            RouteNotice::Substituted { requested, used } => {
+                Notice::substituted(requested.name(), used.name(), Reason::Missing.name())
+            }
+            RouteNotice::Left(fallback) => Notice::from_fallback(fallback),
         }
     }
 
@@ -236,6 +258,41 @@ mod tests {
         assert_eq!(notice.event, MODEL_DISABLED);
         assert_eq!(notice.domain(), "model");
         assert!(!notice.is_gpu());
+    }
+
+    #[test]
+    fn the_identifier_on_the_cpu_and_the_second_opinion_left_out_are_named_notices() {
+        let moved = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::ProviderMismatch,
+            to: To::Cpu,
+        });
+        assert_eq!(
+            (moved.event, moved.stage, moved.reason, moved.to),
+            (GPU_FALLBACK, "lid", "provider_mismatch", "cpu")
+        );
+        let left = Notice::from_fallback(&Fallback {
+            stage: Stage::SecondOpinion,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (left.event, left.stage, left.reason, left.to),
+            (MODEL_DISABLED, "second_opinion", "missing", "disabled")
+        );
+        let no_model = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (no_model.event, no_model.stage, no_model.to),
+            (MODEL_DISABLED, "lid", "disabled")
+        );
+        for notice in [moved, left, no_model] {
+            assert!(STAGES.contains(&notice.stage), "{}", notice.stage);
+            assert!(REASONS.contains(&notice.reason), "{}", notice.reason);
+        }
     }
 
     #[test]
