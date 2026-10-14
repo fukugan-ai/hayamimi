@@ -651,16 +651,20 @@ hook と guard（`guard_commands.rs` ほか）は開発の安全の gate で、�
 R8e の run では、Rust の `L` の p50 が Python より約 229 ms 遅く、差のほとんどは「訳」の段（`final` から最初の訳の event まで。Python の p50 212 ms と p95 1019 ms に対し、Rust は 439 ms と 1526 ms）に在る（原因の席の打ち直しで、設計の席は確かめていない。NOT VERIFIED）。
 T の訳が V を通った行の `L` の p50 は Python と同じで、遅いのは T の訳が V に落ちた行（93 行中 45 行）である。
 この行では、中継が E の応答とその V を待ってから最初の event を出すので（3.6 の 1。先の訳は T が V を通った時だけ出す）、E の 1 回の時間がそのまま `L` に載る。
-同じ run の測り方にも欠陥が 2 つ在り、差の大きさはまだ決まらない。
+同じ run の測り方にも欠陥が 2 つ在る。
 93 行中 31 行で、`held` の空の訳を字幕が出たと数えていた（3.1 の `t_tr` の条件の前の形）。
 遅れて着いた `final` の 8 標本が次の発話の窓に入り、母数から落ちていた。
-どちらも Rust の `L` を実際より小さく見せる向きに効く。
+R8e の記録を 3.1 の数え方で数え直すと、Rust の `L` は p50 1710 ms から 1533 ms、p95 3145 ms から 2752 ms に下がり、母数は 93 から 67 に減る（試験の席の `jq` の数え直し。設計の席は確かめていない。NOT VERIFIED）。
+下がるのは、`held` の行は E の後に出る遅い行で、数え直すと訳の無い標本として母数の外へ出るからである。
+数え直した値も Python（p50 1481 ms、p95 2008 ms）を超える。
+したがって、2 つの欠陥は Rust の `L` を大きく見せる向きに効いており、V が止める行が増えるほど、訳の取れた標本だけの `L` は小さく出る。
+この向きを合否で捕まえるために、RP-32 は訳の取れた標本の割合を合否に入れる。
 Python と Rust を別の日時に、負荷を記録せずに測ってもいる。
 
 R8h は次の 4 つを、この順に持つ。
 主指標は `L` の p50 と p95 で、受入は「同じ負荷で交互に測った Python 以下」（RP-32）である。
 
-1. **数え方を直す**（RP-31）：3.1 の `t_tr` の条件（`status` が `ok`、`text` が空でない）と、`id` と `t1_s` による結び方を `hayamimi-eval stream` の集計に入れる。設計を動かさない。差が見かけより大きく出る向きの直しなので、最初に入れる。
+1. **数え方を直す**（RP-31）：3.1 の `t_tr` の条件（`status` が `ok`、`text` が空でない）と、`id` と `t1_s` による結び方を `hayamimi-eval stream` の集計に入れる。設計を動かさない。字幕に出ない訳の時刻を `L` から外す直しで、2 から 4 の値はすべてこの数え方で読むので、最初に入れる。
 ② は B（R8f の V の直し）だけを進め、A は ④ の run と H6 の確認が揃った時にだけ作る。③ は作らず、RP-34 の合否列を `decode_ms` から `L_asr − decode_ms` に改め、待ちの log と GPU の記録を ④ の前に入れる（評議の判定。② は下の 2、③ は 3、④ は 4 を指す）。
 
 2. **T が V に落ちた行の最初の訳を早める**（RP-33）：B を進める。A は、4 の run と H6 の確かめが揃い、次の 5 つを全部満たす時にだけ作る。H6 が通る。2 音源が同時に話した時の T 2 本、E0 2 本、速報、E が slot 4 本に収まる（収まらなければ slot を上げて RP-22 を測る）。T が V を通った行の `L` が悪くならない。E0 にも V を掛け、閾値を動かさずに RP-35 を通す。E0 が答えなければ直列の E へ落とし、3.15 の形で event を出す。今 A を作らないのは、`feat/r8f-verify` が main に入っておらず中継の同じ関数を 2 席が触ることになり、E0 の指示が `edit_prompt` に無い新しい prompt で、H6 が確かめられていないからである。4 は E2E の波の中で打つので、4 の後に作る A は 07:00 に入らない。
@@ -669,7 +673,7 @@ R8h は次の 4 つを、この順に持つ。
 3. **確定の復号の待ちを測る**（RP-34）：復号の順は変えない。同じ run で 4〜7 秒の発話の `decode_ms` の p50 が Python の 183 ms に対し 275 ms、7 秒以上で 248 ms に対し 440 ms だった（原因の席の打ち直し。NOT VERIFIED）。ただし `decode_ms` は `decode_segment` の `timed` が `recognizer.decode` だけを測った値で、速報の復号を待った時間を含まない。したがって RP-34 は待ちを `L_asr − decode_ms` で測る。`on_window` は feed の後に速報の復号を 1 本回す直列で、確定より先に捨てられる速報の復号は無い（発話の終わりの検出の前提は ASSUMPTION）。挙動を変えない次の 3 つは、4 の run の前に入れる。
    - H6 の 1 秒の probe（接続を閉じた依頼の生成が止まるか）。
    - window を受けてから feed を始めるまでの待ちの log（`hayamimi` の log の event）。
-   - RP-32 の各 run の前後の `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits` の記録。GPU の負荷が違う対は無効にする。
+   - RP-32 の各 run の前後の `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits` の記録。llama-server は Python の run の間も起こしたままにし、読みは各 run の直前の 1 回で比べる。Python と Rust の対で、直前の `utilization.gpu` のどちらかが 5 % を超えるか、直前の `memory.used` の差が 256 MiB を超える対は無効にする（5 % と 256 MiB は仮の値。256 MiB は RP-6 の幅に合わせた。持ち主は R8h で、最初の RP-32 の run の 6 本の直前の読みの幅を記録し、幅が 5 % か 256 MiB に近ければ評議へ出す）。
 
    採らない形は 2 つである。速報の復号を別の thread と別の session に移す形は、認識器を CPU に置くので（3.5）2 本の復号が core を取り合う。発話の終わりで始まっていない速報の復号を捨てる形は、捨てる対象が無い。
 4. **同じ負荷で交互に測る**（RP-32）：Python と Rust を同じ機械で、Python、Rust、Python、Rust … の順に 3 対流し、各 run の前と後の `/proc/loadavg` と、中継の stdout と、`hayamimi` と Python の log を run の file と同じ所に残す。run の間は他の席が cargo の build を打たず、各 run の前の 1 分の load が 2 未満であることを記録する（R7 の測り直しと同じ規則）。合否は 3 対を合わせた標本で、RP-3 の期待値の式で決める。
@@ -772,7 +776,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-29 | GPU 以外の資源が無くても止まらない（3.15 の表の場面） | 3.15 の表の場面ごとに、資源を外した run と在る run を対で起こす `cargo test --release --test rp29 -- --ignored`（model の file を外した directory、llama-server を起こさない、送り先を閉じた port、8833 を先に塞いだ port、出力の装置を止めた機械、sherpa-onnx の library を外した directory、壊した設定の file）。各行は持ち主の slice が足す | 資源を外した run は、終了 code が 0、`final`（推論の library を外した行では server の `ready`）が出て、その場面の `<domain>.fallback.<落ち先>` の log の event と `/events` の `fallback` が段ごとに 1 件ずつ出る | 資源の在る run では、同じ場面の fallback の event が 0 件（在るのに落ちない） | 資源を外したのに event を出さない build で落ちる。資源が在るのに落ちる build（常に小さい model を読む build など）で、在る run の event が 1 件以上になり落ちる |
 | RP-30 | `fallback` の `stage` と `reason` の値の一覧が code と同じ | `cargo test --release -p hayamimi --test rp30` が、3.15 の「`fallback` の event の `stage` の値は」の段落の 2 つの一覧と、`native/hayamimi/src/notice.rs` の `STAGES` と `REASONS` を突き合わせる（test は `#[ignore]` を持たない。docs と code の定数だけを読む） | `hayamimi` の `stage` の 13 個と `reason` の 10 個が、順を問わず集合として code と一致する。どちらかにだけ在る値は名指しして落ちる | 同じ test が、3.15 の段落から `stage` を 13 個、`reason` を 10 個読める | 一覧から 1 つ消した docs の fixture、code に無い値を 1 つ足した docs の fixture のどちらでも、その値を名指しして落ちる |
 | RP-31 | `L` の数え方（3.1 の `t_tr` の条件と結び方、3.16 の 1） | `cargo test --release -p hayamimi-eval --test rp31` が、`stream` の集計の関数に fixture の event の列を渡す（`#[ignore]` を持たない） | `status` が `held` か `unavailable` の訳と `text` が空の訳は `t_tr` に入らず、同じ `id` の後の `ok` の訳が `t_tr` になる。Rust の run では `final` が `t1_s` で発話に結ばれ、次の発話の窓の中に着いた `final` も自分の発話の標本に入る。Python の run では、前の窓が「final なし」で次の窓に `final` が 2 件以上在る標本の数が別の列に出る | 同じ関数が、`held` の無い fixture で今の数え方と同じ `L` を出す | `held` の空の訳を先に置いた fixture で、空の訳の時刻を `t_tr` にする数え方を落とす。遅れて着いた `final` を着いた時刻で割る数え方を、その発話が「final なし」になることで落とす |
-| RP-32 | 同じ負荷で交互に測った `L`（主指標、3.16 の 4） | 3.16 の 4 の順で `<ev> stream --wav lat-ja.wav --repeat 5 --out <run>.jsonl` を Python と Rust で交互に 3 対流し、`cargo test --release --test rp32 -- --ignored` が全 run と各 run の `/proc/loadavg` の記録を読む | 各 run の前の 1 分の load が 2 未満で、順が Python、Rust の交互。3 対を合わせた標本で、Rust の `L` の p50 と p95 が Python の p50 と p95 以下（RP-31 の数え方）。RP-3 の対の比較（17 発話以上）も同じ標本で数える。`L_asr` と `L_tr` と、「訳」の段（`final` から `t_tr` まで）の p50 と p95 を別の列に出す | 同じ test が Python 同士の 2 run の対から同じ列を出せる | load の記録が無い run、1 分の load が 2 以上の run、Python を続けて 2 回流した順のどれかが在れば、値を出さずに落ちる |
+| RP-32 | 同じ負荷で交互に測った `L`（主指標、3.16 の 4） | 3.16 の 4 の順で `<ev> stream --wav lat-ja.wav --repeat 5 --out <run>.jsonl` を Python と Rust で交互に 3 対流し、`cargo test --release --test rp32 -- --ignored` が全 run と各 run の `/proc/loadavg` の記録を読む | 各 run の前の 1 分の load が 2 未満で、順が Python、Rust の交互。3 対を合わせた標本で、Rust の `L` の p50 と p95 が Python の p50 と p95 以下（RP-31 の数え方）。RP-3 の対の比較（17 発話以上）も同じ標本で数える。Rust の有効な標本のうち訳の取れた割合が 20 / 23 以上で（E2E-1 と同じ値）、Python の同じ割合からの欠けも別の列に出す。訳の取れない標本は p50 と p95 から外れ、V が止めるほど `L` が小さく出るので、割合を合否に入れる。`L_asr` と `L_tr` と、「訳」の段（`final` から `t_tr` まで）の p50 と p95 を別の列に出す | 同じ test が Python 同士の 2 run の対から同じ列を出せる | load の記録が無い run、1 分の load が 2 以上の run、Python を続けて 2 回流した順のどれかが在れば、値を出さずに落ちる。訳の取れた割合が 20 / 23 未満の Rust の run（R8e の記録の 67 / 93 の形）は、`L` が Python 以下でも落ちる |
 | RP-33 | T が V に落ちた行の最初の訳（3.16 の 2） | RP-32 の Rust の run を `cargo test --release --test rp33 -- --ignored` が読み、中継の stdout の行ごとの記録で、T の訳が V に落ちた行と通った行に分ける | 「訳」の段の p50 と p95 が、全行で Python の「訳」の段の p50 と p95 以下。T が V に落ちた行だけの p50 と p95 と行の数を別の列に出す。B（R8f の V の直し）の後の run で打つ。A を作った時は、T が V を通った行の `L` の p50 と p95 が A の前の run 以下であることも足す | 同じ test が、T が V を通った行だけの列も出せる | T が V に落ちた行の最初の訳を 600 ms 遅らせる偽の中継で落ちる |
 | RP-34 | 確定の復号の前の待ち（3.16 の 3） | RP-32 の Rust と Python の run を `cargo test --release --test rp34 -- --ignored` が読み、`final` ごとに `L_asr − decode_ms` を出し、発話の長さ（4 秒未満、4〜7 秒、7 秒以上）で分ける。Rust の run は window を受けてから feed を始めるまでの待ちの log と、各 run の前後の `nvidia-smi` の `utilization.gpu` と `memory.used` の記録も読む | 3 つの長さの組のそれぞれで、Rust の `L_asr − decode_ms` の p50 が Python 以下。`decode_ms` の p50 と待ちの log の p50 は記録の列で、合否に使わない。GPU の負荷の記録が Python と Rust の対で違う対は無効にし、その数を出す（Python の `decode_ms` の意味は確かめていない。10 の H43）。速報は RP-5 を満たす | 同じ test が、速報を切った Rust の run からも同じ列を出せる | 確定の復号の前に 300 ms の待ちを入れた偽の engine の run で、3 つの組のどれかが落ちる。GPU の記録が無い run で、値を出さずに落ちる |
 | RP-35 | `L` の詰めで品質を下げない（3.16 の品質の条件。2 の B を入れた時と、A を作った時の両方で打つ） | R8h の前の main と R8h の branch で、同じ llama-server と model に `<relay> eval --final --heldout <path> --direction ja-en` と `--direction en-ja`、RP-13 の en の行を打ち、`cargo test --release --test rp35 -- --ignored` が 2 組の結果と RP-32 の Rust の run の中継の stdout を読む | held-out の chrF が両方の向きで前の main 以上、V が止めた行の数が前の main 以下（止める行が増えない）、RP-13 の en の chrF が前の main 以上。RP-32 の run で、`status` が `ok` の訳の全件に、その訳の文字列に掛けた V の `ok` の記録が在る。3 を入れた時は RP-1 の ja の CER が前の main 以下 | 同じ test が前の main 同士の 2 組から差 0 を出す | E0（または E）の応答に V を掛けずに出す偽の中継で、V の記録の無い `ok` の訳が 1 件以上になり落ちる。T の訳をそのまま確定にする偽の中継で held-out の chrF が下がり落ちる |
@@ -1020,7 +1024,7 @@ V は止めすぎてもいる（RP-13 の run で、正しい訳を止めた行�
 T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛けず、V で外れた行を `held` にする形に合わせて書き替える。書き替えは test-designer の席へ回す（セラが運ぶ）。
 - **H33** CPU に落ちた段の誤り率は、同じ model を読むので GPU の run と同じと見込んでいる（ASSUMPTION）。fp32 の数値の差で字が変わりうるので、R2 が RP-18 の句読点の全件を CPU の provider でも掛け、`expected` と一致する件数を記録する。小さい model へ落ちた段の誤り率は測っていない（NOT VERIFIED）。
 - **H42** Python の `final` は `t1_s` を持たないので、Python の run の遅れて着いた `final` は、前の窓が「final なし」で次の窓に `final` が 2 件以上在る形からの推定でしか数えられない（3.1）。推定の数が Python の p95 を小さく見せている量は分からない（NOT VERIFIED）。持ち主は R8h で、RP-32 の Python の run でその数を記録し、Rust の同じ数（`t1_s` で結んだ時に次の窓に着いていた `final` の数）と並べる。
-- **H43** R8e の run の「訳」の段と `decode_ms` の差は、原因の席の打ち直しの値で、設計の席は確かめていない（NOT VERIFIED）。`decode_ms` の差が負荷の差か engine の差かも分かっていない。Python の `decode_ms` が何を測った値か（待ちを含むか）と、発話の終わりの検出（`detected()`）の挙動も確かめていない。3.16 の 2 の A で、2 本並べた依頼が T の待ちを延ばす量も測っていない。持ち主は R8h で、RP-32 と RP-34 の run の段ごとの列で確かめ、2 の A を作るかの材料にする。
+- **H43** R8e の run の「訳」の段と `decode_ms` の差と、3.1 の数え方で数え直した `L`（p50 1533 ms、p95 2752 ms、母数 67。数え直す前より下がる）は、原因の席と試験の席の打ち直しの値で、設計の席は確かめていない（NOT VERIFIED）。数え直すと母数が 93 から 67 に減り、訳の取れた割合が RP-32 の 20 / 23 に届かない。`decode_ms` の差が負荷の差か engine の差かも分かっていない。Python の `decode_ms` が何を測った値か（待ちを含むか）と、発話の終わりの検出（`detected()`）の挙動も確かめていない。3.16 の 2 の A で、2 本並べた依頼が T の待ちを延ばす量も測っていない。持ち主は R8h で、RP-32 と RP-34 の run の段ごとの列で確かめ、2 の A を作るかの材料にする。
 
 ## 11. 出所
 
