@@ -3,7 +3,7 @@ name = "hayamimi-relay"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "Translation relay for hayamimi: verification, unit annotation and exchange-rate fetching."
+description = "Translation relay for hayamimi: follows the recognizers' events, translates, verifies and annotates each line, serves the translations, and fetches exchange rates."
 
 [lib]
 name = "hayamimi_relay"
@@ -18,6 +18,7 @@ dirs = "7"
 roxmltree = "0.21"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.11"
 sys-locale = "0.3"
 toml = "1.1"
 # ERROR POLICY: ureq is confined to the llama-server client and the rate fetch; both map its errors to concrete enums.

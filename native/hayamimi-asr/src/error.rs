@@ -26,6 +26,8 @@ pub enum AsrError {
     Gpu(hayamimi_gpu::error::GpuError),
     /// A count does not fit the integer type of the C API.
     Overflow(&'static str),
+    /// The clock reads a time before 1970.
+    Clock,
 }
 
 impl fmt::Display for AsrError {
@@ -41,6 +43,7 @@ impl fmt::Display for AsrError {
             AsrError::Io(message) => write!(f, "io: {message}"),
             AsrError::Gpu(error) => write!(f, "gpu: {error}"),
             AsrError::Overflow(what) => write!(f, "{what} does not fit the integer type"),
+            AsrError::Clock => write!(f, "the clock reads a time before 1970"),
         }
     }
 }
