@@ -17,6 +17,7 @@ wav ─> VAD ─> 認識（int8、CPU）─> ITN ─> 句読点（GPU、無け�
 
 GPU 版の sherpa-onnx の build（`build_gpu.ja.md`）が済んでいることが前提です。
 `SHERPA_ONNX_LIB_DIR` は、その build の `install/lib` です。
+Linux（WSL）では、ALSA の開発用の package も要ります（`sudo apt-get install -y libasound2-dev`、戻すときは `sudo apt-get remove libasound2-dev`）。取り込みの `cpal` が `alsa-sys` を引き、これが無いと `hayamimi` と `hayamimi-eval` の build が `alsa-sys` の build script で止まるからです。
 
 ```bash
 # WSL
@@ -77,7 +78,6 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 受入は `cargo test --release -p hayamimi --test r6` です。
 この test は上の 2 つを自分で打ち、本物の `hayamimi --wav ja_014.wav --serve` を起こします。
 確かめるのは、3 頁が `web/index.html` と同じ bytes であること、index とその script が読む `/ui/` の file が全部 200 で bytes も同じであること、無い名前と `..` が 404 であることです。
-Linux の build には ALSA の開発 file（`libasound2-dev`）が要ります。
 
 **採らない手段**：
 
