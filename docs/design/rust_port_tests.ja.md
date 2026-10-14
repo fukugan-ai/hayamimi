@@ -1662,7 +1662,7 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-45 �
 
 command：`cd native && CARGO_BUILD_JOBS=2 cargo test --release -p hayamimi-relay --test rp45`。記録を読む行は `-- --ignored --nocapture` を足す。関数の名前は `rp45_` に「関数の末尾」を続けた物にする。
 入力：偽の llama-server が 1 本目の要求（T）に `draft`、2 本目以降（E）に `edited` を答える。`Pipeline::run` が settle した `Translation` の `status`、`stage`、`text` と、`translate.edit.held` の `hold_reason` を読む。原文は en→ja が `He went inside and examined his letters, but there was nothing from Dana.`、ja→en が `彼は中に入って手紙を確認した。`。札の語は `Draf`、`Rewrit`、`English:`、`Japanese:`、`Japaese` で、V とは別に数える。
-札の読み方（`edit_answer.rs` の `translation_of`）：行の頭の `Draft` 系（`Draf` で始まる 7 byte 以内）と `Rewritten` に、言語名の 1 語（綴りは問わない）と `:`（全角も）が続く形を札とし、最後の札の後ろを訳とする。原文の札は答えの先頭にだけ置く。`</s>` を含む答えは切らずに V へ渡す。
+札の読み方（`edit_answer.rs` の `translation_of`）：行の頭の `Draft` 系（`Draf` で始まる 7 byte 以内）と `Rewritten` に、訳の言語名（prompt が渡した名前から 2 文字以内の綴りゆれ）と `:`（全角も）が続く形が行頭に在る時だけ札とし、最後の札の後ろを訳とする。行の途中のキーワード、言語名でない語を挟む形（`Draft law:`）、単独の `English:` は札にしない。`English:` は、答えに `Draft` か `Rewritten` の札が在る時に、最後の札の前として落ちる。`</s>` を含む答えは切らずに V へ渡す。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -1671,13 +1671,13 @@ command：`cd native && CARGO_BUILD_JOBS=2 cargo test --release -p hayamimi-rela
 | T-RP-45-003 | 札の無い答え（前後に空白と改行） | 札が無い | 1 件 | `text` が trim しただけの `edited`、`translate.edit.held` が 0 件（specified、RP-45 の「札の無い E の答えをそのまま確定にする」） | 陽性（対照） | `an_answer_without_labels_is_unchanged` |
 | T-RP-45-004 | 最後の札の後ろが原文の言語（英語の 1 文） | 札を剥がしても訳でない | 1 件 | V が `form` で止め、`stage` が `t`、`text` が T の訳、`translate.edit.held` が `form` で 1 件（specified、V の形の検査は変えない） | 陰性 | `the_wrong_language_behind_the_label_is_withheld_for_form` |
 | T-RP-45-005 | 最後の札の後ろが空。T の訳が V を通る組と、通らない組 | 空になる答え | 2 件 | 前者は `stage` が `t` で `form` が 1 件。後者は `status` が `held`、`hold_reason` が `form`、`text` が空（specified、「空になる答えを `form` で止める」） | 陰性 | `an_answer_empty_behind_its_labels_is_withheld_for_form` |
-| T-RP-45-006 | 1 行の中に札が残る答え（行頭の札では切れない） | 剥がしても札が残る | 1 件 | `stage` が `t`、`form` が 1 件（specified、「剥がした後にも札が残る答えを `form` で止める」） | 陰性 | `a_label_left_inside_a_line_is_withheld_for_form` |
+| T-RP-45-006 | 札に似た正しい訳 10 種：`The draft: nobody read it.`、`Final draft: ready.`、`The Draft Board: it called him up.`、`He said the rewritten: version is better.`、`Draft law: passed.`、`Draft plan: submit by Friday.`、`Japanese: language class`、`English: 英語の授業`、`Draft 3: the plan`、`理由は次の通り: 雨だった。` | 行の途中のキーワード、言語名でない語、単独の原文の札 | 10 種 | 両方向で `translation_of` が入力と同じ。うち否定を含まない 3 種は ja→en の run で `stage` が `e`、`text` が答えと同じ、`form` が 0 件（specified、正しい訳を札と読んで落とさない） | 陽性（対照） | `text_that_only_looks_like_a_label_is_not_cut` |
 | T-RP-45-007 | 正しい訳 `彼はダナと\nNASAの計画について話した。`（ラテン文字の略語と改行） | V を厳しくしない | 1 件 | `stage` が `e`、`text` が `edited`、`form` が 0 件（specified、8 の R8p の「英字や改行を含む文を落とす形に厳しくはしない」） | 陽性（対照） | `latin_letters_and_a_line_break_in_a_correct_translation_still_pass` |
-| T-RP-45-008 | 文中の `:`（`理由は次の通り: 雨だった。`、`The draft was late: nobody came.`、`Draft 3: the plan`） | 札でない `:` | 3 件 | `translation_of` が入力と同じ（specified、札の読みの境界） | 陽性（対照） | `a_colon_in_a_sentence_is_not_a_label` |
-| T-RP-45-009 | `docs/results/r8h_verify/e2e2c.events.jsonl` のうち `type` が `translation`、`of` が `final`、`stage` が `e` の 35 件の `text` | 記録の実物 | 35 件 | 札の語を含む件が 20 件から 0 件になる（`jq` の独立の式で数えた 20 件と一致）。`#[ignore]` を持つ | 陽性 | `recorded_edit_answers_lose_their_labels` |
+| T-RP-45-008 | `English: 英語の授業`、と `English:\nHi\n\nRewritten Japanese:\n英語の授業` | 単独の原文の札と、札と並ぶ原文の札 | 2 件 | 前者は入力と同じ、後者は `英語の授業`（specified、原文の札は他の札が在る時だけ落ちる） | 陽性（対照） | `a_lone_source_label_is_text` |
+| T-RP-45-009 | `docs/results/r8h_verify/e2e2c.events.jsonl` のうち `type` が `translation`、`of` が `final`、`stage` が `e` の 35 件の `text` | 記録の実物 | 35 件 | 札の語を含む件が 20 件から 0 件になり、剥がして空になる件が 0 件（`jq` の独立の式で数えた 20 件と一致）。`#[ignore]` を持つ | 陽性 | `recorded_edit_answers_lose_their_labels` |
 
-陰性の build：`pipeline.rs` の `edit` で `translation_of` を外し、`trim` だけに戻した build。001、002、004、005、006 の 5 件が落ちる。
-残る穴：行頭が `Draft:` や `Rewritten:` で始まる訳の行は札と読まれ、その前が落ちる。落ちた後の数と否定の検査は V が掛ける。言語名が 2 語以上の札は読まない。
+陰性の build：(a) `pipeline.rs` の `edit` で `translation_of` を外し、`trim` だけに戻した build は 001、002、004、005 の 4 件が落ちる。(b) `names_language` を、空でない語なら真にする build は 006 が落ちる。
+残る穴：行頭が `Draft <言語名>:` や `Rewritten <言語名>:` で始まる訳の行は札と読まれ、その前が落ちる。行の途中に残った札は剥がさず、V が他の文と同じに判定する。言語名が 2 語以上の札は読まない。
 
 ### 4.56 RP-46（英語の認識器を最初の英語の発話より前に読む）
 

@@ -616,7 +616,7 @@ impl<L: Llm> Pipeline<L> {
             }
         };
         let e_ms = edit_started.elapsed().as_millis();
-        let text = translation_of(&edited, language_name(request.src_lang)).to_owned();
+        let text = translation_of(&edited, language_name(request.src_lang.other())).to_owned();
         let verify_started = Instant::now();
         observer.stage(Stage::Verify);
         observer.verify_input(&text);
