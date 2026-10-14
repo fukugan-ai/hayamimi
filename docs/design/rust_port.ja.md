@@ -584,6 +584,12 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `speaker.embedding.started` | その確定文の話者の埋め込みを始める時（debug） | `id`、`mono_us` |
 | `gpu.session.created` | session を作るたび | model の名前、要求した provider、実際に使った provider |
 | `gpu.session.placed` | `--gpu-diagnose` で起こしたとき | ORT が CUDA に置いた node の数と CPU に置いた node の数 |
+| `asr.model.loaded` | 認識器を memory に読み込んだとき（info） | `model`（tier の名前）、`load_ms` |
+| `asr.model.evicted` | `--max-resident` の上限のため、最も使われていない認識器を手放したとき。新しい認識器を作る前に出す（info） | `model` |
+| `asr.lang.unknown` | SenseVoice の結果の `lang` の tag を読めないとき。言語は不明として続ける（warn） | `error_code` |
+| `gpu.memory.unreadable` | GPU の memory を読めないとき。予算なしで続ける（warn） | `error_code` |
+| `model.fallback.substitute` | 認識器が使えず、別の認識器が答えるとき（warn） | `requested`、`used`、`reason` |
+| `model.fallback.chunks` | 発話の検出器が使えず、長い音声を一定の長さで切るとき（warn） | `reason` |
 | `gpu.device.unavailable` | 起動時に CUDA の device が 0 か、driver が読めない（warn） | `error_code`、`reason` |
 | `<domain>.fallback.<落ち先>` | 3.15 の表の場面で落ちたとき、段ごとに 1 回（warn） | `error_code`（`HAYAMIMI_<DOMAIN>_FALLBACK`）、`stage`、`reason` |
 | `<domain>.fallback.cleared` | 落ちた資源が戻って元の道へ戻したとき（info） | `stage` |
