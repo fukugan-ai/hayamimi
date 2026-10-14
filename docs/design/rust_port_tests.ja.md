@@ -1585,8 +1585,9 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 | T-RP-42-006 | 001 の形で T の文だけを入れ替える。`SOURCE` に対し `Six were not there.`（数）、`Maybe five were not there.`（推量）、`Sure, five were not there.`（前置き）。原文 `五人はAcmeにいませんでした。` に対し `Five were not there.`（Latin 語の名前を落とす）。E は常に `They were not there.` を答える | T の理由の取り得る値 | 4 通り | T の側の理由が順に `number`、`uncertainty`、`form`、`proper_noun` と一致する（specified、RP-42 の「V の理由と同じ enum の値」。`negation` は 001 が持つ） | 境界 | `every_reason_of_v_can_be_the_reason_of_t` |
 | T-RP-42-007 | `PLAIN_SOURCE`、T も E も `Five people are there.`（E まで通る） | 止まらない行 | 載せない | `status` が `ok`、`translate.line.held` が 0 件。dev 用の file を開いていても止まらない行の文は log に出ない（specified、RP-42 は「両方止めた行」の観測） | 陰性 | `a_line_that_goes_out_logs_no_held_event` |
 | T-RP-42-008 | 中継の `RelayConfig` の dev 用の file を持たせない（`None`）run。001 と同じ行を流す | `--verify-text` を渡さない | 作らない | 一時の dir にも他の場所にも file が作られず、`translate.line.held` は T の側の理由つきで 1 件（specified、RP-42 の「起こす側が path を渡した時だけ」、10 の H56） | 陰性 | `a_relay_without_a_named_file_writes_none` |
+| T-RP-42-009 | `hayamimi-relay live` の引数の解釈：`--verify-text` を付けない引数と、`--verify-text <path>` を付けた引数 | 起こす側が path を渡した時だけ（引数から `RelayConfig` まで） | 付けた時だけ Some | 付けない引数は dev 用の file の指定が無く、付けた引数は `<path>` を持つ（specified、8 の R8o の「`--verify-text <file>` を付けた時だけ」、10 の H56。008 は `RelayConfig` から先、これは引数から `RelayConfig` まで） | 境界 | `live_without_verify_text_names_no_file` |
 
-実装済みの行は 001 から 005 で、006 から 008 は未実装である（実装の席が足す）。
+実装済みの行は 001 から 005 で、006 から 009 は未実装である（実装の席が足す）。009 は `cli.rs` の引数の解釈（`verify_text: Option<PathBuf>`）を読む。
 陰性の build（T の側の理由を載せない build）で落ちる行は 001、003、006 である。log に止めた訳の本文を載せる build は 001、005 が落ちる。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
@@ -1614,8 +1615,12 @@ command（001 から 008）：`cd native && flock -w 1800 target/release/.cargo-
 | T-RP-43-007 | `それは本物ではなさそうです。`→`It does not seem to be genuine.`（残す）と `It seems to be genuine.`（落とす） | 「では」を伴う形 | 語で読む | 残す訳は `Ok`、落とす訳は `Held(Negation)`（derived、RP-43。「なさそう」の前の字に依らない） | 境界 | `a_nasasou_after_dewa_is_read_as_negation` |
 | T-RP-43-008 | 001 の原文で、訳が否定を足した文：`あまり美味しそうです。`→`It does not seem tasty.` | 原文に否定の語が無く訳に有る（逆向き） | 止まる | `Held(Negation)`（derived、否定の検査は有無の一致を見る） | 陰性 | `a_negation_added_to_a_plain_source_is_held` |
 | T-RP-43-009 | E2E-1 の打ち直し：llama-server、中継、process A を起こして `<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl` を打ち、`cargo test --release --test e2e1 -- --ignored` を打つ | 実走 | 実走 | 訳の取れた標本が 70/80 以上（70/80＝0.875 は 20/23＝0.8696 以上、69/80＝0.8625 は未満。70 は通り 69 は落ちる）。utt 16 の 4 件のうち 3 件以上が戻る。71/80 は見込みで、確かめていない（NOT VERIFIED）（specified、RP-43） | 境界 | - |
+| T-RP-43-010 | 否定を残した原文 2 つ：`申し訳なさそうではない。`→`He does not seem apologetic.`、`仕方なさそうにしない。`→`He does not appear resigned.` | 「〜なさそう」に否定が続く形で、訳が推量の語（`seem`、`appear`、`look like`）を持つ | `Ok` | 2 件とも `Ok`。原文の `そう` が推量の表に当たり、訳の推量の語と揃う（derived、10 の H59 の機構：`exclude` は否定の表にだけ効き、推量の表の `そう` は `さそう` に当たる） | 穴の固定 | `a_negated_nasasou_with_a_hedge_word_in_the_translation_passes` |
+| T-RP-43-011 | 010 の原文で、訳が推量の語を持たない文：`He is not apologetic.`、`He does not look resigned.`（`look` だけで `look like` ではない） | 同じ原文で、訳に推量の語が無い | 止まる | 2 件とも `Held(Uncertainty)`。否定を残した正しい訳が止まる。今の挙動の固定である。直すかは評議の問い（10 の H59）で、直す日にこの行が落ち、H59 と一緒に書き直す（derived、H59。所見の訳の文字列は設計の席が打ち直していない） | 穴の固定 | `a_negated_nasasou_without_a_hedge_word_in_the_translation_is_held_for_uncertainty` |
 
-実装済みの行は 001 から 005 で（001 から 003 は 1 本の関数）、006 から 008 は未実装である（実装の席が足す）。009 は E2E の席が打つ。
+実装済みの行は 001 から 005 で（001 から 003 は 1 本の関数）、006 から 008 と 010、011 は未実装である（実装の席が足す）。009 は E2E の席が打つ。010 と 011 は今の `verify.rs` で通る。
+
+
 陰性の build：「なさ」だけを表に足した build は 003 が落ちる（「ごめんなさい」が `negation` で止まる）。表を足さない build は 001、002、006、007 が落ちる。`exclude` を外した build は 005 が落ちる。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
@@ -1658,7 +1663,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 ### 4.55 RP-45（E の雛形が字幕に出ない）
 
 test：`native/hayamimi-relay/tests/rp45.rs`。受入 test の名前は `rp45_edit_template_never_reaches_the_subtitle`。偽の llama-server の行は `#[ignore]` を持たない。E2E-2 の打ち直しで札の語を数える行だけが記録を読む。
-case 行は `rust_port.ja.md` の 6 の RP-45 の行と 8 の R8p から書いた。010 から 016 は、札の読みを行頭に狭めた後に残る形を、陽性、陰性、未実装の行として置いた。
+case 行は `rust_port.ja.md` の 6 の RP-45 の行と 8 の R8p から書いた。010 から 017 は、札の読みを行頭に狭めた後に残る形を、陽性の行と穴の固定の行として置いた（10 の H60）。
 
 command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp45`。記録を読む行は `-- --ignored --nocapture` を足す。関数の名前は `rp45_` に「関数の末尾」を続けた物にする。
 入力：偽の llama-server が 1 本目の要求（T）に `draft`、2 本目以降（E）に `edited` を答える。`Pipeline::run` が settle した `Translation` の `status`、`stage`、`text` と、`translate.edit.held` の `hold_reason` を読む。原文は en→ja が `He went inside and examined his letters, but there was nothing from Dana.`、ja→en が `彼は中に入って手紙を確認した。`。札の語は `Draf`、`Rewrit`、`English:`、`Japanese:`、`Japaese` で、V とは別に数える。
@@ -1676,22 +1681,23 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 | T-RP-45-008 | `English: 英語の授業`、と `English:\nHi\n\nRewritten Japanese:\n英語の授業` | 単独の原文の札と、札と並ぶ原文の札 | 2 件 | 前者は入力と同じ、後者は `英語の授業`（specified、原文の札は他の札が在る時だけ落ちる） | 陽性（対照） | `a_lone_source_label_is_text` |
 | T-RP-45-009 | `docs/results/r8h_verify/e2e2c.events.jsonl` のうち `type` が `translation`、`of` が `final`、`stage` が `e` の 35 件の `text` | 記録の実物 | 35 件 | 札の語を含む件が 20 件から 0 件になり、剥がして空になる件が 0 件（`jq` の独立の式で数えた 20 件と一致）。`#[ignore]` を持つ | 陽性 | `recorded_edit_answers_lose_their_labels` |
 
-| T-RP-45-010 | ja→en の E の答え 5 種：`The draft: nobody read it.`、`Final draft: ready.`、`Draft law: passed.`、`Draft plan: submit by Friday.`、`Japanese: language class`。en→ja の E の答え 1 種：`English: 英語の授業`。T の答えは通る訳 | 札に似た形を V の経路に通す。006 は関数単体、これは `Pipeline::run` | 6 種 | 6 種とも `status` が `ok`、`stage` が `e`、`text` が答えと同じ、`translate.edit.held` が 0 件（specified、10 の H57：行の途中の `draft:` で答え全体が空になる形、`Draft <言語名でない語>:`、単独の原文の札を落とさない） | 陽性（対照） | `text_that_looks_like_a_label_goes_out_as_the_translation` |
+| T-RP-45-010 | ja→en の E の答え 5 種：`The draft: nobody read it.`、`Final draft: ready.`、`Draft law: passed.`、`Draft plan: submit by Friday.`、`Japanese: language class`。en→ja の E の答え 1 種：`English: 英語の授業`。T の答えは通る訳 | 札に似た形を V の経路に通す。006 は関数単体、これは `Pipeline::run` | 6 種 | 6 種とも `status` が `ok`、`stage` が `e`、`text` が答えと同じ、`translate.edit.held` が 0 件（specified、10 の H60 と 6 の RP-45：行の途中の `draft:` で答え全体が空になる形、`Draft <言語名でない語>:`、単独の原文の札を落とさない） | 陽性（対照） | `text_that_looks_like_a_label_goes_out_as_the_translation` |
 | T-RP-45-011 | en→ja の E の答え：`Draft Jpanse:\n下書き\n\nRewritten Jpanse:\n` + `edited`（言語名 `Japanese` から 2 文字違う）と、同じ形で `Jpans`（3 文字違う） | 綴りゆれの境界（2 文字と 3 文字） | 2 文字は札 | 前者は `text` が `edited`（札として落ちる）。後者は札と読まず、`text` が答えの全文で、札の語（`Draft`、`Rewritten`）が残る（specified、8 の R8p の「綴りゆれは 2 文字まで」。2 文字は Levenshtein の編集距離で、`Japanese` から `Jpanse` は削除 2 回、`Jpans` は 3 回） | 境界 | `a_language_name_two_edits_away_is_a_label_and_three_is_not` |
-| T-RP-45-012 | E の答え `**Rewritten Japanese:** ` + `edited`（太字の札） | 行頭が記号の札 | 札の語が残らない | `text` が `edited` で、`Rewritten` と `Japanese:` を含まない（specified、RP-45 の「札の語は確定の訳に残らない」）。今の実装は行頭が `**` なので札と読まず、答えの全文が確定の訳になって落ちる（未実装） | 陰性 | `a_bold_label_is_stripped` |
-| T-RP-45-013 | E の答え `Rewritten Japanese (final): ` + `edited`（言語名と `:` の間に括弧） | 札の形の揺れ | 札の語が残らない | 012 と同じ期待値。今の実装は言語名の後に 1 語が挟まる形を札と読まず、落ちる（未実装） | 陰性 | `a_label_with_a_note_before_the_colon_is_stripped` |
-| T-RP-45-014 | E の答え `1. Rewritten Japanese: ` + `edited`（番号つきの札） | 行頭が番号の札 | 札の語が残らない | 012 と同じ期待値。今の実装は行頭が番号なので札と読まず、落ちる（未実装） | 陰性 | `a_numbered_label_is_stripped` |
-| T-RP-45-015 | E の答えが 1 行に全部続く形：`English: ` + 原文 + ` Draft Japanese: ` + `draft` + ` Rewritten Japanese: ` + `edited`（改行なし） | 札が行の途中に並ぶ | 札の語が残らない | `text` が `edited`（specified、RP-45 の「札の後ろの訳だけが確定の訳」。モデルが改行を落とした雛形）。今の実装は行頭の `English:` だけを見て札と読まず、全文が確定の訳になり落ちる（未実装） | 陰性 | `a_template_written_on_one_line_is_stripped` |
-| T-RP-45-016 | E の答え `Draft Javanese:\n` + `edited`（`Javanese` は `Japanese` と 1 文字違う別の言語名） | 行頭の札が別の言語名の綴りゆれの内側に入る | 札と読む | `text` が `edited`（行頭の `Draft` + 1 文字違いの語 + `:` は 2 文字までの綴りゆれの内側）。穴を固定する行である。訳の本文が `Draft Javanese:` で始まる場合も同じに落ちるので、本文の頭が失われる（specified、8 の R8p の綴りゆれの許し。許しの代償） | 穴の固定 | `a_line_head_javanese_label_is_read_as_a_misspelling` |
+| T-RP-45-012 | en→ja の E の答え `**Rewritten Japanese:** ` + `edited`（太字の札） | 行頭が記号で、札と読まない形 | 札の語が残る | `status` が `ok`、`stage` が `e`、`text` が答えの全文と同じで、`Rewritten` と `Japanese:` を含む。穴の固定である。行頭に無い札の形は剥がさず訳の本文として V に渡す（specified、6 の RP-45 と 10 の H60）。剥がす実装に変わった日にこの行が落ち、H60 と一緒に書き直す | 穴の固定 | `a_bold_label_is_kept_as_text` |
+| T-RP-45-013 | en→ja の E の答え `Rewritten Japanese (final): ` + `edited`（言語名と `:` の間に注） | 注を挟む札 | 札の語が残る | 012 と同じ期待値（specified、RP-45、H60） | 穴の固定 | `a_label_with_a_note_before_the_colon_is_kept_as_text` |
+| T-RP-45-014 | en→ja の E の答え `1. Rewritten Japanese: ` + `edited`（番号つきの札） | 行頭が番号 | 札の語が残る | 012 と同じ期待値（specified、RP-45、H60） | 穴の固定 | `a_numbered_label_is_kept_as_text` |
+| T-RP-45-015 | en→ja の E の答えが 1 行に全部続く形：`English: ` + 原文 + ` Draft Japanese: ` + `draft` + ` Rewritten Japanese: ` + `edited`（改行なし） | 札が行の途中に並ぶ | 札の語が残る | 012 と同じ期待値。`text` は答えの全文（specified、RP-45、H60） | 穴の固定 | `a_template_written_on_one_line_is_kept_as_text` |
+| T-RP-45-016 | en→ja の E の答え `Draft Javanese:\n` + `edited`（`Javanese` は `Japanese` と 1 文字違う別の言語名） | 行頭の札が、2 文字までの綴りゆれの内側に入る実在の別の語 | 札と読む | `text` が `edited`（`Draft Javanese:` が札として落ちる）。穴の固定である。訳の本文が `Draft Javanese:` で始まる場合も同じに落ち、本文の頭が失われる（specified、8 の R8p の「この代償は受ける」と 10 の H60） | 穴の固定 | `a_line_head_javanese_label_is_read_as_a_misspelling` |
+| T-RP-45-017 | ja→en の E の答え `Draft Enlist:\n` + `edited`（`Enlist` は `English` から 2 文字違う実在の語） | 016 と同じ。目的言語が英語の側 | 札と読む | `text` が `edited`。穴の固定である（specified、R8p と H60 の `Enlist`。`English` から `Enlist` は g の削除と h から t への置換の 2 回） | 穴の固定 | `a_line_head_enlist_label_is_read_as_a_misspelling` |
 
-実装した行は 001 から 009 で、010 から 016 は未実装である（実装の席が足す）。012 から 015 は今の実装が満たさず、足した test は赤になる。
-陰性の build：(a) `pipeline.rs` の `edit` で `translation_of` を外し、`trim` だけに戻した build は 001、002、004、005 の 4 件が落ちる。(b) `names_language` を、空でない語なら真にする build は 006、010、011 が落ちる。(c) 札を行の途中でも読む build（H57 の前の形）は 006、010 が落ちる。
+実装した行は 001 から 009 で、010 から 017 は未実装である（実装の席が足す）。012 から 017 は今の実装の挙動を固定する行で、足した test は今の `edit_answer.rs` で通る。
+陰性の build：(a) `pipeline.rs` の `edit` で `translation_of` を外し、`trim` だけに戻した build は 001、002、004、005 の 4 件が落ちる。(b) `names_language` を、空でない語なら真にする build は 006、010、011 が落ちる。(c) 札を行の途中でも読む build（行頭に限る前の形）は 006、010 が落ちる。
 残る穴：行頭が `Draft <言語名>:` や `Rewritten <言語名>:` で始まる訳の行は札と読まれ、その前が落ちる（016 が固定する）。行の途中に残った札は剥がさず、V が他の文と同じに判定する。言語名が 2 語以上の札は読まない。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 
-- 012 から 015 の形（太字、括弧つき、番号つき、1 行に続く雛形）は、8 の R8p が「札は行頭の `Draft` 系と `Rewritten` に言語名と `:` が続く形」と狭めたので、設計の文では札でなく訳の本文になる。一方 6 の RP-45 は「札の語は確定の訳に残らない」と書く。2 つの文が 4 つの形で食い違う。設計は、(1) 4 つの形も札として剥がす、(2) 4 つの形は本文のままで、RP-45 の期待値に「行頭の札だけ」と書く、のどちらかを決める。(1) なら 012 から 015 が合格の行で、(2) なら 4 つの行を消し、残る穴に「モデルがこの形で雛形を書くと札が字幕に出る」と書く。この席は (1) の期待値で行を書いた。
-- 016 の許しの代償。言語名の綴りゆれの許し（2 文字）は、実在の別の言語名（`Javanese`）まで届く。許しを縮めるか、代償として受けるかは設計が決める。
+- 012 から 015 の形（太字、注つき、番号つき、1 行に続く雛形）と、016、017 の綴りゆれの代償は、設計が受ける側に決めた（10 の H60、6 の RP-45）。6 行は穴の固定の行で、設計が札の読みを広げた日に落ちる。その時は H60 と一緒に書き直す。
+- E2E-2 の打ち直しで札の語を含む訳が 1 件でも出たら、012 から 015 のどの形かを名指しして設計へ戻す（6 の RP-45）。この判定は記録を読む 009 の同じ式で数え、行頭か否かを問わない。
 - 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp45_` + 末尾である。この節は実装に合わせた。
 - キーワードの `Draft` 系の幅（`Draf` で始まる 7 byte 以内）の境界の行。設計に幅の文が無いので置かない。
 
