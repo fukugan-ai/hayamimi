@@ -1,0 +1,47 @@
+{
+  "engine": "hayamimi",
+  "lid": "oracle",
+  "rows": [
+    {
+      "lang": "ja",
+      "clips": 15,
+      "lid_correct": null,
+      "tiers": "rz",
+      "mean_err_micros": 37512,
+      "mean_rtf_micros": 156516
+    },
+    {
+      "lang": "en",
+      "clips": 15,
+      "lid_correct": null,
+      "tiers": "v3",
+      "mean_err_micros": 22606,
+      "mean_rtf_micros": 132964
+    },
+    {
+      "lang": "zh",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "pz",
+      "mean_err_micros": 65609,
+      "mean_rtf_micros": 82970
+    },
+    {
+      "lang": "ko",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "sv",
+      "mean_err_micros": 86939,
+      "mean_rtf_micros": 68450
+    },
+    {
+      "lang": "yue",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "sv",
+      "mean_err_micros": 61454,
+      "mean_rtf_micros": 40902
+    }
+  ],
+  "fallbacks": []
+}

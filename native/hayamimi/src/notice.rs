@@ -155,6 +155,7 @@ impl Notice {
             reason: reason.name(),
             to: "cpu",
             url: None,
+            tiers: None,
         }
     }
 

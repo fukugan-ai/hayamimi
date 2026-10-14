@@ -229,6 +229,10 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
             args.engine
         )));
     }
+    // The C library is delay-loaded; the copy beside the executable must be the first ONNX Runtime in the process.
+    #[cfg(windows)]
+    hayamimi_gpu::runtime::preload_beside_executable("onnxruntime.dll")
+        .map_err(|e| EvalError::Invalid(e.to_string()))?;
     let outcome = scorecard_run::run(&scorecard_run::Options {
         models: args.models,
         sets: args.sets,
