@@ -89,11 +89,11 @@ fn utterance_without_partial_translation_is_not_judged() {
     assert_eq!(check_partial_translation_first(&run), Ok(()));
 }
 
-/// The samples of the recorded Python run (`--min-silence 0.35`, first file).
+/// The samples of the recorded Python run (`--min-silence 0.30`, the value the Rust run is given; first file).
 fn recorded_python_run() -> Result<Vec<Sample>, Box<dyn std::error::Error>> {
-    let files = run_files("0.35")?;
+    let files = run_files("0.30")?;
     let Some((_, path)) = files.first() else {
-        return Err("no recorded run for --min-silence 0.35".into());
+        return Err("no recorded run for --min-silence 0.30".into());
     };
     let mut samples = Vec::new();
     for line in read(path)?.lines().filter(|line| !line.trim().is_empty()) {

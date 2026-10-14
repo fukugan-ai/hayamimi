@@ -58,8 +58,8 @@ pub fn tally(samples: &[Sample]) -> Result<Tally, Fault> {
         .iter()
         .filter(|s| s.t_final_us.is_none() && s.t_partial_us.is_some())
         .count();
-    let neither = neither_of(samples.len(), with_final, partial_only)
-        .ok_or(Fault::MiscountedUtterances)?;
+    let neither =
+        neither_of(samples.len(), with_final, partial_only).ok_or(Fault::MiscountedUtterances)?;
     Ok(Tally {
         with_final,
         partial_only,
@@ -140,7 +140,14 @@ mod tests {
         assert_eq!(neither_of(5, 3, 1), Some(1));
         assert_eq!(neither_of(5, 4, 2), None);
         assert_eq!(neither_of(2, 3, 0), None);
-        assert_eq!(tally(&[]), Ok(Tally { with_final: 0, partial_only: 0, neither: 0 }));
+        assert_eq!(
+            tally(&[]),
+            Ok(Tally {
+                with_final: 0,
+                partial_only: 0,
+                neither: 0
+            })
+        );
     }
 
     #[test]
