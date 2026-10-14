@@ -816,6 +816,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 各 ID の下の case 行（`T-RP-<n>-nnn`）は test-designer が `rust_port_tests.ja.md` に書く。
 この表の test の名前が code に在るかは、機械では当たらない（`hayamimi-eval doc-links` は Markdown の link の行き先の file だけを見て、表の中の名前を読まない）。検証の席が、slice ごとに `rg -n 'fn <名前>' native/` で 1 件在ることを確かめる。
 全体の test の数も機械では当たらない。`test result:` の行を足す数え方は、test の stdout の行が割り込んで `test result:` の行が 2 行に分かれる時と、test の中で走る入れ子の cargo の `test result:` の行に弱いからである。数を合否か記録に使う席は、test の binary の数と `test result: ok. N passed` の行の数を並べて貼り、2 つが合わなければ数を使わない。
+比べる式は「`Running` の行の数（binary）＋ `Doc-tests` の行の数（crate ごとに 1 本）＝ ok 行の数」で、`rp23` の中で走る入れ子の cargo の `test result:` の行（4 本）は ok 行に数えない。
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
