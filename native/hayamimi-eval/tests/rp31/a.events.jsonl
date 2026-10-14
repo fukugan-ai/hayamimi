@@ -1,0 +1,44 @@
+{"event":{"sr":16000,"type":"ready"},"t_us":25039}
+{"event":{"text":"警察のちゃんと","type":"partial"},"t_us":2932525}
+{"event":{"text":"警察署のチャンドラシェル","type":"partial"},"t_us":3406479}
+{"event":{"text":"警察のチャンドラシェ海岸","type":"partial"},"t_us":3926567}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":4440765}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば","type":"partial"},"t_us":4975205}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":5506125}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を確認","type":"partial"},"t_us":6031513}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":6560353}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ送官によれば被告人は顔を隠して法廷に出頭する","type":"partial"},"t_us":7050179}
+{"event":{"text":"警察のチャンドラシェカール・ソダンキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":7604785}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":8124233}
+{"event":{"audio_s":6.742,"decode_ms":811.2901940000002,"end_wall_ms":1791973055873,"id":"mic-1","lang":"ja","latency_ms":811.34438,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":1.958,"t1_s":7.7,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":8937248}
+{"event":{"annotations":[],"hold_reason":"uncertainty","id":"mic-1","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49","stage":"e","status":"held","text":"","type":"translation"},"t_us":9802292}
+{"event":{"text":"する地域もあれば","type":"partial"},"t_us":14872747}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ddf16c8c2c294494c05aaa0b3789c0528d847df53cc0f10ba0002ab40ba06105","stage":"t","status":"ok","text":"There are regions where this is done.","type":"translation"},"t_us":15128174}
+{"event":{"text":"この間で沫する地域もあれば沫","type":"partial"},"t_us":15374421}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0d21886a98d4579876343001f7e4e1f1069edddcbd8d7873bd0a8f2a6fe8118f","stage":"t","status":"ok","text":"There are areas that are slushy in between, and there are also slushy areas.","type":"translation"},"t_us":15676804}
+{"event":{"text":"沸騰する地域もあれば沸騰するまで","type":"partial"},"t_us":15886221}
+{"event":{"text":"沙する地域もあれば沸騰するまでにな","type":"partial"},"t_us":16410133}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a2130d912a4e893c9e2a188c731980568706c073020d0242828bcdd6e6e69f88","stage":"t","status":"ok","text":"There are areas that become muddy, and others that boil before they can.","type":"translation"},"t_us":16638986}
+{"event":{"audio_s":3.446,"decode_ms":126.153191,"end_wall_ms":1791973064464,"id":"mic-2","lang":"ja","latency_ms":126.17556899999998,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":13.926,"t1_s":16.372,"text":"沸騰する地域もあれば沸騰するまでに何分。","tier":"rz","type":"final"},"t_us":16842250}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68972f77abf17f7011c960d9dfbe44519d08add6bf055a19c75123964b7edeb1","stage":"t","status":"ok","text":"Some areas boil instantly, while others take several minutes.","type":"translation"},"t_us":17051980}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-2","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"68972f77abf17f7011c960d9dfbe44519d08add6bf055a19c75123964b7edeb1","stage":"e","status":"ok","text":"Some areas boil instantly, while others take several minutes.","type":"translation"},"t_us":17267336}
+{"event":{"text":"地域もありま","type":"partial"},"t_us":17784884}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5e65b874490267d3f61c3c35ca480255870313324719696f6e7e4629e449bd7e","stage":"t","status":"ok","text":"There are also regions.","type":"translation"},"t_us":17945549}
+{"event":{"audio_s":1.536,"decode_ms":134.99752999999998,"end_wall_ms":1791973066004,"id":"mic-3","lang":"ja","latency_ms":135.00625,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":16.87,"t1_s":17.908,"text":"地域もあります。","tier":"rz","type":"final"},"t_us":18391167}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0b9f619f58a2141153ab1ebf7c2448d4d9786885a87046c004efacbad6e96ca6","stage":"t","status":"ok","text":"There are also regions.","type":"translation"},"t_us":18483305}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-3","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"0b9f619f58a2141153ab1ebf7c2448d4d9786885a87046c004efacbad6e96ca6","stage":"e","status":"ok","text":"There are also regions.","type":"translation"},"t_us":18602637}
+{"event":{"text":"現在羽根を織り","type":"partial"},"t_us":24017877}
+{"event":{"text":"現在羽根を折り返すこと","type":"partial"},"t_us":24597051}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bb6671e00f8739aacd309c3eeeeb8232b1444be2a2ffe92457ea0a0c07d40a8b","stage":"t","status":"ok","text":"Currently, folding the shroud.","type":"translation"},"t_us":24762295}
+{"event":{"text":"現在羽根を折り返すことができない","type":"partial"},"t_us":25056931}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"038c16fc6d0df0b0ba2e6cfb0191e8de7e9723645f4587651da49cd5f884f1e6","stage":"t","status":"ok","text":"Currently, the feather cannot be folded back.","type":"translation"},"t_us":25219500}
+{"event":{"text":"現在羽根を折り返すことができない昆虫は","type":"partial"},"t_us":25605948}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b962e1a1d722535f73f63aa8ca8990c31e4b00d6e619703be873545e5193b70d","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are","type":"translation"},"t_us":25765138}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとい","type":"partial"},"t_us":26130557}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"516cf00baa1a178489003c8f0b2a0dfc70db9fd1e53c2daff1661d3736a00c29","stage":"t","status":"ok","text":"Currently, insects that cannot fold their wings back are dragonflies.","type":"translation"},"t_us":26335899}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲルを飼育さん","type":"partial"},"t_us":26635588}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27174387}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27673677}
+{"event":{"audio_s":5.398,"decode_ms":136.840595,"end_wall_ms":1791973075604,"id":"mic-4","lang":"ja","latency_ms":136.86094300000002,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":23.11,"t1_s":27.508,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":27992988}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"t","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":28267506}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-4","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"de7001cd73f40a5b2d0625e63700ded6bbf801e10f222c07d19ad3e9cad377da","stage":"e","status":"ok","text":"Currently, the only insects that cannot fold their wings back are dragonflies and mayflies.","type":"translation"},"t_us":28573338}

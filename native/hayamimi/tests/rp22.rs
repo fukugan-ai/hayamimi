@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use hayamimi_eval::vram::{BUDGET_MIB, check_vram, parse_readings};
 use serde_json::Value;
-use support::{Failure, Served, TestResult, events, find_up, models_dir, named, serve};
+use support::{Failure, Served, TestResult, events, find_above, models_dir, named, serve};
 
 /// One reading per call: the memory in use on the whole GPU, with its header.
 const QUERY: [&str; 2] = ["--query-gpu=memory.used", "--format=csv"];
@@ -37,6 +37,36 @@ struct Measured {
     served: Served,
     before: Vec<u64>,
     during: Vec<u64>,
+    /// The budget the run was started with, in MiB.
+    budget_mib: u64,
+}
+
+/// Where the budget of a run comes from.
+#[derive(Clone, Copy)]
+enum Plan {
+    /// The program's own budget.
+    Default,
+    /// One MiB over the largest reading taken before this run started. The
+    /// whole GPU is read, and the other processes on it move the figure from
+    /// one run to the next, so a budget taken from another run's peak may sit
+    /// above everything this run reaches. A budget taken from this run's own
+    /// start is below what the loaded program holds, whatever the others do.
+    OverTheStart,
+}
+
+/// The budget of a run in MiB and the arguments that set it.
+fn plan_budget(plan: Plan, before: &[u64]) -> Result<(u64, Vec<String>), Failure> {
+    match plan {
+        Plan::Default => Ok((BUDGET_MIB, Vec::new())),
+        Plan::OverTheStart => {
+            let Some(start) = before.iter().copied().max() else {
+                return Err(String::from("no memory was read before the start"));
+            };
+            let budget = start + 1;
+            let args = vec![String::from("--gpu-budget"), budget.to_string()];
+            Ok((budget, args))
+        }
+    }
 }
 
 /// One call of `nvidia-smi`.
@@ -69,20 +99,21 @@ fn sample_until(stop: Arc<AtomicBool>) -> JoinHandle<Result<Vec<u64>, Failure>> 
 }
 
 /// Plays `lat-multi.wav` in real time with the subtitle server on, reading the memory throughout.
-fn measured_run(extra: &[&str]) -> Result<Measured, Failure> {
+fn measured_run(plan: Plan) -> Result<Measured, Failure> {
     // A thread that panicked while holding the lock left nothing to repair.
     let _alone = match ONE_RUN_AT_A_TIME.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    let wav = find_up("testdata/lat-multi.wav")?;
+    let wav = find_above("testdata/lat-multi.wav")?;
     let models = models_dir()?;
     let (wav, models) = (path_text(&wav)?, path_text(&models)?);
     let before = read_before()?;
+    let (budget_mib, budget_args) = plan_budget(plan, &before)?;
     let stop = Arc::new(AtomicBool::new(false));
     let sampler = sample_until(Arc::clone(&stop));
     let mut args = vec!["--wav", wav.as_str(), "--models", models.as_str()];
-    args.extend(extra);
+    args.extend(budget_args.iter().map(String::as_str));
     let served = serve(&args, None, &[]);
     stop.store(true, Ordering::Relaxed);
     let during = sampler
@@ -92,6 +123,7 @@ fn measured_run(extra: &[&str]) -> Result<Measured, Failure> {
         served: served?,
         before,
         during,
+        budget_mib,
     })
 }
 
@@ -104,7 +136,7 @@ fn path_text(path: &std::path::Path) -> Result<String, Failure> {
 /// The run with the default budget, made once for the cases that need it.
 fn default_run() -> Result<&'static Measured, Failure> {
     static RUN: OnceLock<Result<Measured, Failure>> = OnceLock::new();
-    RUN.get_or_init(|| measured_run(&[]))
+    RUN.get_or_init(|| measured_run(Plan::Default))
         .as_ref()
         .map_err(Clone::clone)
 }
@@ -127,7 +159,7 @@ fn wire_count(wire: &[Value], kind: &str, reason: Option<&str>) -> usize {
         .count()
 }
 
-/// Where the readings of the default run are kept for the case that sets its budget from them.
+/// Where the figures of the default run are kept.
 const RECORD: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../docs/results/r3/rp22_run.json"
@@ -147,17 +179,6 @@ fn record_run(run: &Measured) -> Result<(), Failure> {
     });
     let text = serde_json::to_string_pretty(&record).map_err(|error| error.to_string())?;
     std::fs::write(RECORD, text + "\n").map_err(|error| format!("cannot write {RECORD}: {error}"))
-}
-
-/// The largest reading of the recorded default run.
-fn recorded_peak() -> Result<u64, Failure> {
-    let text = std::fs::read_to_string(RECORD)
-        .map_err(|error| format!("cannot read {RECORD}, run T-RP-22-007 first: {error}"))?;
-    let record: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
-    record
-        .get("peak_mib")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| format!("{RECORD} has no peak_mib"))
 }
 
 /// T-RP-22-007
@@ -200,12 +221,10 @@ fn budget_not_reached_emits_no_memory_fallback() -> TestResult {
 
 /// T-RP-22-008
 #[test]
-#[ignore = "plays nine minutes of audio in real time on the GPU, after T-RP-22-007 has recorded its peak"]
+#[ignore = "plays nine minutes of audio in real time on the GPU"]
 fn budget_reached_falls_back_instead_of_stopping() -> TestResult {
-    let Some(budget) = recorded_peak()?.checked_sub(1) else {
-        return Err("the recorded run read no memory in use".into());
-    };
-    let run = measured_run(&["--gpu-budget", &budget.to_string()])?;
+    let run = measured_run(Plan::OverTheStart)?;
+    let budget = run.budget_mib;
     assert_eq!(run.served.output.code, Some(0), "the run stopped");
     assert!(
         wire_count(&run.served.wire, "final", None) > 0,
@@ -250,7 +269,7 @@ fn most_resident(all: &[Value]) -> usize {
 
 /// Plays `lat-multi.wav` as fast as the models go with `--max-resident <cap>`.
 fn run_with_cap(cap: &str) -> Result<Vec<Value>, Failure> {
-    let wav = find_up("testdata/lat-multi.wav")?;
+    let wav = find_above("testdata/lat-multi.wav")?;
     let models = models_dir()?;
     let (wav, models) = (path_text(&wav)?, path_text(&models)?);
     let output = support::run(
@@ -272,7 +291,7 @@ fn run_with_cap(cap: &str) -> Result<Vec<Value>, Failure> {
 
 /// T-RP-22-010
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
     let all = run_with_cap("2")?;
     assert!(
@@ -286,7 +305,7 @@ fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
 
 /// T-RP-22-011
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn default_cap_drops_nothing_for_five_languages() -> TestResult {
     let all = run_with_cap("3")?;
     // Without this the zero below would hold for a run that never used the recognizers.

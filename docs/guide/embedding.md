@@ -77,8 +77,10 @@ for a consumer that wants to poll rather than be called back.
 |---|---|---|
 | `session_start` | `{"type":"session_start"}` | once, at the top of a session |
 | `partial` | `{"type":"partial","text":str}` | an in-progress draft updates (about every 0.5s while speaking) |
-| `final` | `{"type":"final","text":str,"lang":str,"speaker":str,"latency_ms":float\|null,"tier":str,"audio_s":float,"lid_ms":float\|null,"decode_ms":float\|null,"switched":bool}` | a VAD segment finalizes; `switched` is true only when `lang` differs from the previous final's (false for the session's first) |
-| `translation` | `{"type":"translation","lang":str,"text":str}` | a `--translate` target finishes translating a ja final or refine line |
+| `final` | `{"type":"final","id":str,"source":str,"t0_s":float,"t1_s":float,"end_wall_ms":int,"text":str,"lang":str,"speaker":str,"latency_ms":float\|null,"tier":str,"audio_s":float,"lid_ms":float\|null,"decode_ms":float\|null,"switched":bool}` | a VAD segment finalizes; `switched` is true only when `lang` differs from the previous final's (false for the session's first) |
+| `translation` | the shape in "The `translation` event" below | the translation relay sends a translation of a final, a refine line or a draft in progress; it goes out on a port of the relay's own, not on the `/events` of `hayamimi` |
+| `speaker` | `{"type":"speaker","id":str,"speaker":str}` | the speaker of a final is decided after the final; see "The `speaker` event" below |
+| `fallback` | `{"type":"fallback","stage":str,"reason":str,"to":str\|null}` | a stage did not run as designed and moved to another road; with `to` null it has returned to its first road and carries no `reason`. When the relay cannot reach an outside destination, `stage` is `sink` |
 | `refine` | `{"type":"refine","text":str,"lang":str,"speaker":str,"audio_s":float}` | the second-pass re-decode of an utterance group lands |
 | `model_load` | `{"type":"model_load","model":str,"phase":"start"\|"done","ms":float\|null}` | a recognizer/LID/punctuation/translator model starts or finishes loading; `model` is the engine's own short name (`rz`/`pz`/`sv`/`v3`/`omni`/`pja`/`lid`/`punct`, or `translator:<lang>`). `model` stays `"punct"` regardless of `punct_model=` -- to tell bert from 4class, watch for a `punct_model_unavailable` warning (its absence means the requested one loaded) |
 | `model_fallback` | `{"type":"model_fallback","requested":str,"used":str,"reason":str}` | routing substituted a different tier because the one asked for is missing (e.g. a `--minimal` install), reported once per requested model per session |
@@ -86,6 +88,51 @@ for a consumer that wants to poll rather than be called back.
 | `session_summary` | `{"type":"session_summary","stats":{...},"speakers":{...}\|null}` | at process shutdown and again right before a session reset; `stats` mirrors the `=== session summary: ... ===` console line's numbers, `speakers` mirrors the speaker-diagnostic console lines when `--speakers` is on (`null` otherwise) |
 | `recluster` | `{"type":"recluster","time_s":float,"n_entries":int,"n_clusters":int,"mapping":{...}}` | `--speaker-global-recluster`'s end-of-session diagnostic actually runs |
 | `session_reset` | `{"type":"session_reset"}` | a `POST /reset` (or a direct `reset_live_session()` call) finishes |
+
+**Items that tie a line to its translation.**
+The Rust `hayamimi` sends a `final` with five more items than the shape above.
+The existing items do not change.
+
+| Item | Type | Meaning |
+|---|---|---|
+| `id` | string | `<source>-<sequence number>`, counted from 1 for each start of the process |
+| `source` | `"mic"`\|`"loopback"`\|`"file"` | Which input the final came from. It follows from `--input` and can be overridden with `--source` |
+| `t0_s` | float | Start of the utterance, in seconds from the start of the stream |
+| `t1_s` | float | End of the utterance, in seconds |
+| `end_wall_ms` | integer | The time the VAD decided the utterance had ended (epoch ms) |
+
+The translation relay (`hayamimi-relay`) joins a final to its translation by this `id`.
+It joins by `id` because a translation that is pasted onto the previous line would land on the wrong line whenever it arrives after the next final.
+
+**The `translation` event.**
+The relay sends `translation` events on a port of its own, in this shape:
+
+```json
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
+ "status":"ok"|"held","hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
+ "text":str,"annotations":[{"start":int,"end":int,"text":str}],
+ "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
+```
+
+- `settled` says whether this is the line's decided translation. A `translation` with `settled` false is a draft and can be replaced by a later one with the same `id`.
+- A line with `of` set to `final` gets at most two: a draft (`stage` `t`, `settled` false), then one decided translation (`settled` true). A line with `of` set to `refine` gets the decided one only.
+- A translation with `of` set to `partial` is a translation of the draft in progress. Its `stage` is `t`, `settled` is false and `status` is `ok`, and its `id` is the one the utterance's final will take. It is never passed on to an outside destination (OBS, Zoom, Teams).
+- When `status` is `held`, `text`, `annotations` and `skipped` are empty. The text of a withheld translation is never put on the wire.
+- `start` and `end` in `annotations` are positions in `text`, counted in Unicode scalar values from 0. The screen and the SRT draw each element's `text` inserted at the `end` position.
+- `src_sha256` is the sha256 of the source text the translation was made from, in lowercase hex.
+
+**The `speaker` event.**
+A final does not wait for the speaker embedding, so the `speaker` of a `final` is an empty string.
+Once the speaker of an utterance is decided, one `{"type":"speaker","id":<id of the final>,"speaker":<mark>}` follows with the same `id`.
+It is not sent for an utterance whose mark stays undecided.
+A build without speaker identification leaves `speaker` empty and does not send this event.
+
+**Forms not taken.**
+The design considered and rejected two forms:
+
+- **Sending `translation` on the `/events` of `hayamimi`**: the relay takes the events of both recognizer processes in one place and joins them by `id`, so the `hayamimi` side does not change.
+- **Making a final wait for the speaker embedding**: that would put about 70 ms of embedding on the thread that shows subtitles.
 
 **Runtime control over HTTP (`--serve` only).** Three endpoints besides the
 `/replacements`/`/itn_overrides` pair described above:

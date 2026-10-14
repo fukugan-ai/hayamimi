@@ -126,7 +126,7 @@ ko の平均は A で 0.0793、C で 0.0806 で、どちらも Python の 0.081 
 ## 比べ方と測る build
 
 1. **丸め**：Python の表は小数 3 桁で、Python 自身の yue は 0.061454 である。
-   `check_scorecard` は Rust の平均を小数 3 桁へ四捨五入してから比べる（`scorecard.rs` の `at_table_places`）。
+   `check_scorecard` は Rust の平均を小数 3 桁へ四捨五入してから比べる（`scorecard.rs` の `thousandths`）。R11 の入口の ko は丸めず 86939 と整数で比べる(10 の H35)。
    0.061454 は 0.061 になって通り、0.0615 は 0.062 で落ちる。閾値は動かしていない。
 2. **測る build**：RP-1 の合否は、配る形の build（自前の sherpa-onnx と ORT 1.31.0、Windows）で決める。
    版を Python に合わせて古くする手は、依存を最新に保つ規則に反するので採らない。

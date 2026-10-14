@@ -6,6 +6,7 @@
 
 use std::convert::Infallible;
 use std::io::{self, BufRead, BufReader, Read};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::logging::{Level, LogEvent, LogSink};
@@ -181,6 +182,30 @@ fn session(
     (true, pump(reader, sink, on_event))
 }
 
+/// One connection and the wait after it. `wait` is the wait before the next
+/// attempt: it starts over once a connection has been open and grows while
+/// attempts fail.
+fn round(
+    agent: &ureq::Agent,
+    (endpoint, url): (usize, &str),
+    (backoff, wait): (Backoff, &mut Duration),
+    sink: &mut dyn LogSink,
+    on_event: &mut OnEvent<'_>,
+) {
+    let (opened, cause) = session(agent, (endpoint, url), sink, on_event);
+    if opened {
+        *wait = backoff.initial;
+    }
+    sink.emit(
+        subscribe_event("events.subscribe.lost", Level::Warn, endpoint)
+            .with("reason", cause.as_str())
+            .with("retry_after_ms", u64::try_from(wait.as_millis()).ok())
+            .with_error("LOST"),
+    );
+    std::thread::sleep(*wait);
+    *wait = backoff.next(*wait);
+}
+
 /// Follows the stream at `url` for ever. `endpoint` is the number the log
 /// events name this stream by. A connection that ended is logged once, then
 /// opened again after a wait that grows while attempts fail and starts over
@@ -194,18 +219,35 @@ pub fn follow(
     let agent = agent();
     let mut wait = backoff.initial;
     loop {
-        let (opened, cause) = session(&agent, (endpoint, url), sink, on_event);
-        if opened {
-            wait = backoff.initial;
-        }
-        sink.emit(
-            subscribe_event("events.subscribe.lost", Level::Warn, endpoint)
-                .with("reason", cause.as_str())
-                .with("retry_after_ms", u64::try_from(wait.as_millis()).ok())
-                .with_error("LOST"),
+        round(
+            &agent,
+            (endpoint, url),
+            (backoff, &mut wait),
+            sink,
+            on_event,
         );
-        std::thread::sleep(wait);
-        wait = backoff.next(wait);
+    }
+}
+
+/// Like [`follow`], but ends at the first end of a connection after `running`
+/// has turned false. A connection that is open and silent is not interrupted.
+pub fn follow_while(
+    running: &AtomicBool,
+    (endpoint, url): (usize, &str),
+    backoff: Backoff,
+    sink: &mut dyn LogSink,
+    on_event: &mut OnEvent<'_>,
+) {
+    let agent = agent();
+    let mut wait = backoff.initial;
+    while running.load(Ordering::SeqCst) {
+        round(
+            &agent,
+            (endpoint, url),
+            (backoff, &mut wait),
+            sink,
+            on_event,
+        );
     }
 }
 

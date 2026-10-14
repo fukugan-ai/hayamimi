@@ -11,22 +11,32 @@ prefixes = [
 ]
 
 [ja.negation]
-markers = ["ない", "なかっ", "なく", "ません", "ずに", "せず"]
+# "もってのほか" is a prohibition written without a negative word.
+markers = ["ない", "なかっ", "なく", "ません", "ずに", "せず", "おらず", "できず", "もってのほか"]
 exclude = [
   "すみません", "申し訳ありません", "ないといけません", "ないといけない", "ないといけ",
   "なければなりません", "なければならない", "なければなら", "かもしれません",
   "かもしれない", "しかありません", "しかない", "ほかない", "少ない", "危ない",
-  "つまらない",
+  "つまらない", "まもなく", "間もなく", "ほどなく", "くまなく", "だけでなく",
+  "だけではなく", "のみならず", "ではないか", "じゃないか", "少なくとも",
 ]
 
+# "そう" after a plain-form verb ("作ったそうです") reports what was said; it
+# does not hedge the statement, so a translation like "he said" carries no marker.
 [ja.uncertainty]
 markers = [
-  "かもしれ", "可能性", "と思", "そう", "想定", "約", "くらい", "ぐらい",
-  "おそらく", "たぶん", "でしょう", "だろう", "ようです", "みたい",
+  "かもしれ", "可能性", "ではないか", "と思", "思え", "思われ", "そう", "想定", "約", "くらい",
+  "ぐらい", "ほど", "程度", "前後", "およそ", "ほぼ", "おそらく", "たぶん", "でしょう",
+  "だろう", "ようです", "みたい",
 ]
 exclude = [
   "そうですね", "そうですか", "そうなんですか", "そうしましょう", "そういう",
   "そうした", "そうする", "そうなる", "そうだね", "でしょうか", "ましょうか",
+  "そういった", "そうして", "たそうです", "たそうだ", "るそうです", "るそうだ",
+  "だそうです", "だそうだ", "思えば", "どのくらい", "どれくらい", "どのぐらい", "どれぐらい",
+  "どれほど", "どのほど", "それほど", "これほど", "あれほど", "なるほど", "ほどなく",
+  "後ほど", "のちほど", "ほどほど", "ほどよ",
+  "ある程度", "どの程度", "その程度", "この程度",
   "約束", "契約", "予約", "節約", "要約", "制約", "条約", "規約", "婚約", "公約",
   "解約", "集約", "倹約", "誓約", "約款",
 ]
@@ -34,18 +44,97 @@ exclude = [
 [en.negation]
 markers = [
   "not", "no", "never", "without", "cannot", "nobody", "nothing", "none",
-  "neither", "nor",
+  "neither", "nor", "failed to", "fail to", "fails to", "failing to", "unable",
+  "rarely", "seldom", "hardly", "barely", "scarcely",
 ]
 suffixes = ["n't"]
-exclude = []
+exclude = ["not only", "not just", "not merely", "not simply"]
 
+# "about" and "around" hedge a figure; before a name or a pronoun they are
+# prepositions ("information about the park", "around the world").
 [en.uncertainty]
 markers = [
   "may", "might", "probably", "think", "thinks", "thinking", "seem", "seems",
-  "seemed", "look like", "looks like", "looked like", "around", "about",
-  "assume", "assumes", "assumed", "assuming", "approximately", "roughly",
-  "maybe", "perhaps", "likely", "estimate", "estimated", "guess", "suppose",
-  "possibly",
+  "seemed", "appear", "appears", "appeared", "look like", "looks like",
+  "looked like", "around", "about", "assume", "assumes", "assumed", "assuming",
+  "approximately", "roughly", "nearly", "almost", "maybe", "perhaps", "likely",
+  "unlikely", "possibility", "probable", "estimate", "estimated",
+  "guess", "suppose", "possibly",
 ]
 suffixes = []
-exclude = ["how about", "what about", "could you", "can you", "would you"]
+exclude = [
+  "how about", "what about", "could you", "can you", "would you", "about to",
+  "about the", "about this", "about that", "about these", "about those",
+  "about it", "about them", "about him", "about her", "about his", "about their",
+  "about its", "about our", "about your", "about my", "about me", "about us",
+  "about you", "about what", "about how", "about whether", "about why",
+  "about when", "about where", "about who", "about which", "about being",
+  "around the", "around this", "around that", "around these", "around those",
+  "around it", "around them", "around him", "around her", "around his",
+  "around their", "around its", "around our", "around your", "around my",
+  "around me", "around us", "around you",
+]
+
+# Languages a Japanese line is translated into by `--translate`. The same
+# rules as for `ja` and `en`: a marker of the source must come back as a
+# marker of the translation. Chinese and Korean are matched as substrings
+# (no spaces between words); Spanish is matched as whole words, lower-cased.
+
+[zh.negation]
+markers = ["不", "没", "沒", "无", "無", "未", "别", "別", "勿", "莫", "并非", "而非"]
+exclude = [
+  "不错", "不錯", "不得不", "不过", "不過", "不管", "不如", "不同", "不断", "不斷",
+  "不久", "不少", "不好意思", "对不起", "對不起", "不客气", "不客氣", "差不多",
+  "说不定", "說不定", "非常", "无聊", "無聊", "无论", "無論", "无数", "無數",
+  "未来", "未來", "别人", "別人", "别的", "別的", "分别", "分別", "特别", "特別",
+  "区别", "區別", "差别", "差別", "个别", "個別", "性别", "性別", "未必",
+  "不太可能", "不大可能", "不仅", "不僅", "不但", "不光", "不只",
+]
+
+[zh.uncertainty]
+markers = [
+  "可能", "也许", "也許", "或许", "或許", "大概", "大约", "大約", "约", "約", "左右",
+  "估计", "估計", "似乎", "好像", "看起来", "看起來", "看上去", "差不多", "说不定",
+  "說不定", "我想", "我觉得", "我覺得", "我认为", "我認為", "我猜",
+  "几乎", "幾乎", "将近", "將近", "未必",
+]
+exclude = [
+  "我想要", "预约", "預約", "约定", "約定", "约会", "約會", "约束", "約束", "契约", "契約",
+  "合约", "合約", "制约", "制約", "节约", "節約", "条约", "條約", "婚约", "婚約",
+  "解约", "解約", "公约", "公約", "要约", "要約",
+]
+
+[ko.negation]
+markers = [
+  "않", "안 ", "못 ", "못하", "못해", "못했", "못할", "없", "아니", "아닙", "아닌", "아냐",
+  "말고", "말라", "마세요", "마십시오", "불가능",
+]
+exclude = ["아니면", "않을까", "않나요", "뿐만 아니라", "뿐 아니라"]
+
+[ko.uncertainty]
+markers = [
+  "것 같", "아마", "어쩌면", "수도 있", "대략", "쯤", "정도", "가량", "내외", "추정",
+  "생각합", "생각해", "가능성", "보인다", "보입니다", "약 0", "약 1", "약 2", "약 3",
+  "약 4", "약 5", "약 6", "약 7", "약 8", "약 9",
+]
+exclude = []
+
+[es.negation]
+markers = [
+  "no", "nunca", "jamás", "jamas", "ni", "nadie", "nada", "ninguno", "ninguna",
+  "ningún", "ningun", "sin", "tampoco",
+]
+exclude = [
+  "¿no?", "sin embargo", "no obstante", "sin duda", "de nada", "no hay de qué",
+  "no solo", "no sólo", "no solamente", "no únicamente",
+]
+
+[es.uncertainty]
+markers = [
+  "quizá", "quizás", "tal vez", "probablemente", "posiblemente", "puede que",
+  "podría", "podrían", "a lo mejor", "creo", "parece", "parecía",
+  "pareció", "pienso", "supongo", "aproximadamente", "alrededor", "cerca de",
+  "casi", "más o menos", "calculo", "estimo", "probable", "improbable",
+  "posibilidad", "puede ser", "pueden ser",
+]
+exclude = ["¿podría", "¿podrías", "¿podrían"]

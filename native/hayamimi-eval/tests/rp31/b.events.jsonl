@@ -1,0 +1,68 @@
+{"event":{"text":"転倒していますさあ","type":"partial"},"t_us":302486599}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8625892067ca9463c216e92140cbf4497df161459cbd9ee5b90b9aae98ff23fb","stage":"t","status":"ok","text":"I’m falling—come on.","type":"translation"},"t_us":302694836}
+{"event":{"text":"さあ百M","type":"partial"},"t_us":303022243}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1698ec83d6e3e6e0c36ab84d2cd80c05e17154a00f53fa5f026fc49422a6e189","stage":"t","status":"ok","text":"Now 100M","type":"translation"},"t_us":303128468}
+{"event":{"text":"さあ百M のターン","type":"partial"},"t_us":303542683}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"28ee02e2204fcc580660ad045a6eb7eaa2d48324c49c7da484534795e89012f9","stage":"t","status":"ok","text":"Alright, it’s the 100‑M turn.","type":"translation"},"t_us":303751020}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":304080588}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b857e76b2eaac058dfaf17c8389af5d8cc4e71941895857d2255c2046992ceef","stage":"t","status":"ok","text":"Approaching the 100‑million‑turn mark.","type":"translation"},"t_us":304321497}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":304607334}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":305160508}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":305658970}
+{"event":{"text":"本多選手はこの得意のドルフィン","type":"partial"},"t_us":306239045}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":306739585}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b857e76b2eaac058dfaf17c8389af5d8cc4e71941895857d2255c2046992ceef","stage":"t","status":"ok","text":"Approaching the 100‑million‑turn mark.","type":"translation"},"t_us":306953271}
+{"event":{"text":"本多選手はこの得意のドルフィンキックで","type":"partial"},"t_us":307266556}
+{"event":{"audio_s":6.39,"decode_ms":275.571713,"end_wall_ms":1791973355022,"id":"mic-37","lang":"ja","latency_ms":275.594501,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":301.542,"t1_s":306.93199999999996,"text":"本多選手はこの得意のドルフィンキックで。","tier":"rz","type":"final"},"t_us":307550054}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-37","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"959f949ae7cf49e30e76511ab5b006ce44b238bda1c51ba46f7ef05654b0916a","stage":"e","status":"ok","text":"Player Honda delivered this signature dolphin kick.","type":"translation"},"t_us":308008448}
+{"event":{"text":"あぶった","type":"partial"},"t_us":309920077}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"12bd6fd9a6305915db96761ab1d8c968ca06467bf7efe08b115581655b6529af","stage":"t","status":"ok","text":"Abred","type":"translation"},"t_us":310086187}
+{"event":{"text":"あぶった","type":"partial"},"t_us":310457810}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":310966884}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a556415113ad819e3de755882274928797de374cdd7e6054724bde976b989d90","stage":"t","status":"ok","text":"But Mr. Suruga.","type":"translation"},"t_us":311085570}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":311526830}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":312033256}
+{"event":{"text":"でも駿河さん九十一","type":"partial"},"t_us":312608395}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313085355}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313724155}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":314150677}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":314782571}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":315254602}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":315806742}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":316303582}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":317142987}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":318024657}
+{"event":{"audio_s":8.886,"decode_ms":591.90314,"end_wall_ms":1791973365774,"id":"mic-38","lang":"ja","latency_ms":591.932818,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":308.998,"t1_s":316.884,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":318628342}
+{"event":{"text":"話でずいぶん","type":"partial"},"t_us":319362982}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"132e01f91888756d1fbea7e6bf410354a5370203d70ef0304850d6b7bef50954","stage":"t","status":"ok","text":"A lot of talk","type":"translation"},"t_us":319518078}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-38","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"1eefe859ef92f83dc20184ba88e286e97313c49fc4dca2c7bbdab1062134a2a0","stage":"e","status":"ok","text":"But Mr. Suru is 91 years old. His running will become more powerful.","type":"translation"},"t_us":319522568}
+{"event":{"text":"話で随分ありました","type":"partial"},"t_us":319947074}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"cbf678c7555e952992c01af90997ef38fb22186b3fe8a9322ae56183dca7bb94","stage":"t","status":"ok","text":"There was quite a bit of talk.","type":"translation"},"t_us":320253128}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":320562085}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a0bf8b22967f68539a7287c1e79ab10aa973fd2af36aa47c66a9c9866cbf6027","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":320727762}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":321052863}
+{"event":{"audio_s":3.414,"decode_ms":422.730119,"end_wall_ms":1791973368829,"id":"mic-39","lang":"ja","latency_ms":422.749338,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":318.246,"t1_s":320.65999999999997,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":321504365}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":321712869}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-39","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"e","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":321943463}
+{"event":{"text":"住民によると","type":"partial"},"t_us":322434558}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"8260e590e2330e3cb3342f3b4e93a41bef9400251a591d1e5e2d64c34514f7d7","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":322717192}
+{"event":{"text":"住民によると","type":"partial"},"t_us":322946560}
+{"event":{"audio_s":2.304,"decode_ms":128.417079,"end_wall_ms":1791973371066,"id":"mic-40","lang":"ja","latency_ms":128.434388,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":321.478,"t1_s":322.964,"text":"住民によると。","tier":"rz","type":"final"},"t_us":323446458}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":323630957}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-40","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"e","status":"ok","text":"According to the residents.","type":"translation"},"t_us":323882347}
+{"event":{"text":"過去にも二","type":"partial"},"t_us":324513886}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"a4efa2af9a1b20e84ff082288a0db89ae908fe2ecb6e2c90e9046c4ab5b2ae40","stage":"t","status":"ok","text":"Also in the past, two","type":"translation"},"t_us":324772349}
+{"event":{"text":"過去にも似たよ","type":"partial"},"t_us":325098557}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"696325489f960fdf07a30a6784227e613fbda5edb08a3ad6b792a8a1f7e8f991","stage":"t","status":"ok","text":"It’s similar to the past.","type":"translation"},"t_us":325280895}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":325592634}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"57576a1c9ea4f558a92453d2f1c494777b0394ca2083558ff37010c08e0bef20","stage":"t","status":"ok","text":"Similar visits in the past.","type":"translation"},"t_us":325723238}
+{"event":{"text":"過去にも似たような訪問があったと","type":"partial"},"t_us":326114796}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"b9df77d80ce5628a1cd57246e3bfb80dca9f081c70d3539cb84e2db420729ec4","stage":"t","status":"ok","text":"There have been similar visits in the past.","type":"translation"},"t_us":326302890}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":326694580}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"78eb00bedd3cfcb44b8fffb9b29ee546fab08090fdfab1b1b3a654b5726aaac0","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":326962575}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":327203516}
+{"event":{"audio_s":4.0,"decode_ms":127.625946,"end_wall_ms":1791973375064,"id":"mic-41","lang":"ja","latency_ms":127.645555,"lid_ms":0.0,"source":"mic","speaker":"","switched":false,"t0_s":323.59,"t1_s":326.964,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":327445514}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"final","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"t","status":"ok","text":"It is said that there were similar visits in the past.","type":"translation"},"t_us":327643922}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-41","lang":"en","of":"final","settled":true,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"e","status":"ok","text":"Japanese:\nThere was also a similar visit in the past.\n\nDRAFT English:\nIt is said that there were similar visits in the past.\n\nREWRITTEN English:","type":"translation"},"t_us":328397930}
+{"event":{"text":"しっかり打ち切れる","type":"partial"},"t_us":329488600}
+{"event":{"annotations":[],"hold_reason":null,"id":"mic-42","lang":"en","of":"partial","settled":false,"skipped":[],"source":"mic","src_lang":"ja","src_sha256":"5e8a17bc2d3ef128bd68760c4c6fd75826d003206d481848a6c7b0f193c87bd6","stage":"t","status":"ok","text":"Can be firmly terminated.","type":"translation"},"t_us":329725071}

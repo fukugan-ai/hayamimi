@@ -4,7 +4,8 @@
 //!
 //! FLEURS is n-way parallel: one `id` names the same sentence in every
 //! language. The pairs are the ids both languages have, sorted, shuffled
-//! with Python's generator seeded by `--seed`, and cut to `--n`.
+//! with Python's generator seeded by `--seed`, and cut to `--n`. The tables
+//! are those of the split `--split` names (`dev` unless told otherwise).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -49,9 +50,32 @@ pub fn config_for(lang: &str) -> Result<&'static str, EvalError> {
         })
 }
 
-/// Where the validation split's text table of a configuration lives.
-pub fn tsv_url(config: &str) -> String {
-    format!("https://huggingface.co/datasets/google/fleurs/resolve/main/data/{config}/dev.tsv")
+/// The FLEURS split a table is read from.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Split {
+    /// The validation split.
+    #[default]
+    Dev,
+    /// The test split.
+    Test,
+}
+
+impl Split {
+    /// The table's file stem in the FLEURS repository.
+    fn stem(self) -> &'static str {
+        match self {
+            Split::Dev => "dev",
+            Split::Test => "test",
+        }
+    }
+}
+
+/// Where a split's text table of a configuration lives.
+pub fn tsv_url(config: &str, split: Split) -> String {
+    format!(
+        "https://huggingface.co/datasets/google/fleurs/resolve/main/data/{config}/{}.tsv",
+        split.stem()
+    )
 }
 
 /// `id` to `raw_transcription` from a split's tab-separated table. Rows
@@ -129,9 +153,9 @@ pub fn degrade(reference: &str, lang: &str) -> String {
     }
 }
 
-/// The text of one language's validation table.
-fn download(config: &str) -> Result<String, EvalError> {
-    let url = tsv_url(config);
+/// The text of one language's table of a split.
+fn download(config: &str, split: Split) -> Result<String, EvalError> {
+    let url = tsv_url(config, split);
     let http_error = |message: String| EvalError::Http {
         url: url.clone(),
         message,
@@ -163,18 +187,20 @@ pub struct Written {
 }
 
 /// Writes `<lang>.ids.txt`, `<lang>.ja.txt` and `<lang>.ref.txt` (and
-/// `<lang>.hyp.txt` with `degrade`) for each target into `out`.
+/// `<lang>.hyp.txt` with `degrade`) for each target into `out`, from the
+/// tables of `split`.
 pub fn run(
     targets: &[String],
     n: usize,
     seed: u32,
     out: &Path,
     with_degraded: bool,
+    split: Split,
 ) -> Result<Vec<Written>, EvalError> {
-    let ja = parse_tsv(&download(config_for("ja")?)?)?;
+    let ja = parse_tsv(&download(config_for("ja")?, split)?)?;
     let mut written = Vec::with_capacity(targets.len());
     for lang in targets {
-        let target = parse_tsv(&download(config_for(lang)?)?)?;
+        let target = parse_tsv(&download(config_for(lang)?, split)?)?;
         let pairs = choose_pairs(&ja, &target, n, seed)?;
         let file = |suffix: &str| out.join(format!("{lang}.{suffix}.txt"));
         write_text(
@@ -233,7 +259,24 @@ mod tests {
 
     #[test]
     fn the_table_url_names_the_configuration() {
-        assert!(tsv_url("ja_jp").ends_with("/data/ja_jp/dev.tsv"));
+        assert!(tsv_url("ja_jp", Split::Dev).ends_with("/data/ja_jp/dev.tsv"));
+    }
+
+    #[test]
+    fn the_test_split_url_names_the_test_table() {
+        assert_eq!(
+            tsv_url("es_419", Split::Test),
+            "https://huggingface.co/datasets/google/fleurs/resolve/main/data/es_419/test.tsv"
+        );
+    }
+
+    #[test]
+    fn the_default_split_is_the_dev_table_of_the_recorded_runs() {
+        assert_eq!(Split::default(), Split::Dev);
+        assert_eq!(
+            tsv_url("ja_jp", Split::default()),
+            "https://huggingface.co/datasets/google/fleurs/resolve/main/data/ja_jp/dev.tsv"
+        );
     }
 
     #[test]

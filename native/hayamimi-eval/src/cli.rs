@@ -7,7 +7,8 @@ use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
 use crate::{
-    cli_der, cli_stages, fleurs, log, manifest, record, scorecard, scorecard_run, stream,
+    chrf, cli_der, cli_stages, doc_links, fleurs, log, manifest, record, scorecard, scorecard_run,
+    stream,
 };
 
 #[derive(Parser)]
@@ -31,6 +32,8 @@ enum Command {
     FetchSet(FetchSetArgs),
     /// Write Japanese/target sentence pairs from FLEURS.
     FleursPairs(FleursArgs),
+    /// Score translations against their references with chrF.
+    Chrf(ChrfArgs),
     /// Time every stage of the Rust port on one provider and write a run file.
     Stages(cli_stages::StagesArgs),
     /// Write the result document of the stage measurement from run files.
@@ -41,8 +44,23 @@ enum Command {
     OrtPlaced(cli_stages::OrtPlacedArgs),
     /// Score the engine on the real-speech sets and write the scorecard as JSON.
     Scorecard(ScorecardArgs),
+    /// Run as another audio source for `stages --peers`: decode until standard input closes.
+    StagesPeer(cli_stages::PeerArgs),
+    /// Write the R7 document (two sources, placement, search) from run files.
+    R7Report(cli_stages::R7ReportArgs),
     /// Score the speaker labels of the Rust route against an RTTM reference set.
     Der(cli_der::DerArgs),
+    /// Check that every Markdown link of a repository points at a file that exists.
+    DocLinks(DocLinksArgs),
+}
+
+#[derive(Args)]
+struct DocLinksArgs {
+    /// The repository root, against which absolute and `blob/main/` links resolve.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// A subtree to check instead of the whole repository.
+    subtree: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -176,6 +194,34 @@ struct FleursArgs {
     /// Also write <lang>.hyp.txt: each reference with its first word dropped.
     #[arg(long)]
     degrade: bool,
+    /// The FLEURS split the sentences are drawn from.
+    #[arg(long, value_enum, default_value_t = SplitArg::Dev)]
+    split: SplitArg,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum SplitArg {
+    Dev,
+    Test,
+}
+
+impl From<SplitArg> for fleurs::Split {
+    fn from(arg: SplitArg) -> fleurs::Split {
+        match arg {
+            SplitArg::Dev => fleurs::Split::Dev,
+            SplitArg::Test => fleurs::Split::Test,
+        }
+    }
+}
+
+#[derive(Args)]
+struct ChrfArgs {
+    /// The directory of `<lang>.ref.txt`, as `fleurs-pairs` wrote it.
+    #[arg(long)]
+    pairs: PathBuf,
+    /// The directory of `<lang>.hyp.txt`, one translation per reference line.
+    #[arg(long)]
+    hyps: PathBuf,
 }
 
 /// `manifests/<stem>.json` beside the wav.
@@ -240,14 +286,28 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
         Command::Scorecard(args) => scorecard(args),
+        Command::Chrf(args) => chrf::score_directories(&args.pairs, &args.hyps).map(|scores| {
+            for (lang, corpus) in scores {
+                println!("{lang}\t{:.4}\t{}", corpus.score, corpus.pairs);
+            }
+        }),
+        Command::StagesPeer(args) => cli_stages::stages_peer(args),
+        Command::R7Report(args) => cli_stages::r7_report(args),
         Command::Der(args) => cli_der::der(args),
-        Command::FleursPairs(args) => {
-            fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
-                for one in written {
-                    println!("{}\t{}", one.lang, one.pairs);
-                }
-            })
-        }
+        Command::DocLinks(args) => doc_links_command(args),
+        Command::FleursPairs(args) => fleurs::run(
+            &args.targets,
+            args.n,
+            args.seed,
+            &args.out,
+            args.degrade,
+            args.split.into(),
+        )
+        .map(|written| {
+            for one in written {
+                println!("{}\t{}", one.lang, one.pairs);
+            }
+        }),
     }
 }
 
@@ -270,8 +330,14 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
     scorecard::write_json(&args.out, &outcome.card)?;
     for clip in &outcome.clips {
         println!(
-            "{}\ttier={}\terr={}\trtf={}\t{}",
-            clip.name, clip.tier, clip.err_micros, clip.rtf_micros, clip.text
+            "{}\tlang={}\tdetected={:?}\ttier={}\terr={}\trtf={}\t{}",
+            clip.name,
+            clip.lang,
+            clip.detected,
+            clip.tier,
+            clip.err_micros,
+            clip.rtf_micros,
+            clip.text
         );
     }
     for row in &outcome.card.rows {
@@ -281,6 +347,23 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
         );
     }
     Ok(())
+}
+
+/// Prints the broken links and fails when there are any.
+fn doc_links_command(args: DocLinksArgs) -> Result<(), EvalError> {
+    let scan = match &args.subtree {
+        Some(subtree) => subtree,
+        None => &args.repo,
+    };
+    let broken = doc_links::check(&args.repo, scan)?;
+    print!("{}", doc_links::report(&broken));
+    if broken.is_empty() {
+        return Ok(());
+    }
+    Err(EvalError::Invalid(format!(
+        "{} broken Markdown link(s)",
+        broken.len()
+    )))
 }
 
 fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {
@@ -333,6 +416,7 @@ pub fn run() -> ExitCode {
 mod tests {
     use super::*;
     use clap::CommandFactory;
+    use clap::error::ErrorKind;
 
     #[test]
     fn the_command_line_definition_is_consistent() {
@@ -355,6 +439,56 @@ mod tests {
             default_manifest(Path::new("lat-ja.wav"))?,
             PathBuf::from("manifests/lat-ja.json")
         );
+        Ok(())
+    }
+
+    /// The split `fleurs-pairs` would draw from for these extra arguments.
+    fn parsed_split(extra: &[&str]) -> Result<fleurs::Split, clap::Error> {
+        let mut argv = vec![
+            "hayamimi-eval",
+            "fleurs-pairs",
+            "--targets",
+            "en",
+            "--out",
+            "p",
+        ];
+        argv.extend_from_slice(extra);
+        match Cli::try_parse_from(argv)?.command {
+            Command::FleursPairs(args) => Ok(args.split.into()),
+            _ => Err(Cli::command().error(ErrorKind::UnknownArgument, "not fleurs-pairs")),
+        }
+    }
+
+    #[test]
+    fn fleurs_pairs_without_a_split_reads_dev() -> Result<(), clap::Error> {
+        assert_eq!(parsed_split(&[])?, fleurs::Split::Dev);
+        Ok(())
+    }
+
+    #[test]
+    fn fleurs_pairs_split_test_reads_test_and_dev_reads_dev() -> Result<(), clap::Error> {
+        assert_eq!(parsed_split(&["--split", "test"])?, fleurs::Split::Test);
+        assert_eq!(parsed_split(&["--split", "dev"])?, fleurs::Split::Dev);
+        Ok(())
+    }
+
+    #[test]
+    fn an_unknown_split_is_a_usage_error() {
+        let refused = parsed_split(&["--split", "train2"]);
+        assert!(matches!(
+            &refused,
+            Err(error) if error.kind() == ErrorKind::InvalidValue && error.exit_code() == 2
+        ));
+    }
+
+    #[test]
+    fn fleurs_pairs_help_lists_the_split_option() -> Result<(), Box<dyn std::error::Error>> {
+        let Some(mut sub) = Cli::command().find_subcommand("fleurs-pairs").cloned() else {
+            return Err("no fleurs-pairs sub command".into());
+        };
+        let help = sub.render_help().to_string();
+        assert!(help.contains("--split"), "{help}");
+        assert!(help.contains("[default: dev]"), "{help}");
         Ok(())
     }
 

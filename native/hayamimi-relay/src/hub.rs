@@ -11,6 +11,7 @@
 
 use std::io::{self, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -180,11 +181,25 @@ fn answer(mut stream: TcpStream, hub: &Hub) {
 /// Serves `hub` on `listener` from threads of their own; they end with the
 /// process. Returns the address the server is on.
 pub fn serve(listener: TcpListener, hub: Hub) -> io::Result<SocketAddr> {
+    serve_while(listener, hub, Arc::new(AtomicBool::new(true)))
+}
+
+/// Like [`serve`], but the accepting thread ends, and the port is given up, at
+/// the first connection after `running` has turned false. Clients already
+/// connected are served until they go away.
+pub fn serve_while(
+    listener: TcpListener,
+    hub: Hub,
+    running: Arc<AtomicBool>,
+) -> io::Result<SocketAddr> {
     let address = listener.local_addr()?;
     std::thread::Builder::new()
         .name(String::from("relay-events"))
         .spawn(move || {
             for stream in listener.incoming().flatten() {
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
                 let hub = hub.clone();
                 std::thread::spawn(move || answer(stream, &hub));
             }

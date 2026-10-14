@@ -1,0 +1,31 @@
+/// Every stage name a notice can carry.
+pub const STAGES: [&str; 14] = [
+    "source",
+    "punct",
+    "recognizer",
+    "vad",
+    "asr",
+    "events",
+    "replace",
+    "speaker",
+    "ingest",
+    "capture",
+    "translate",
+    "lid",
+    "second_opinion",
+    "extra_stage",
+];
+/// Every reason a notice can carry.
+pub const REASONS: [&str; 11] = [
+    "bad_value",
+    "no_device",
+    "driver_unreadable",
+    "session_failed",
+    "missing",
+    "unreadable",
+    "memory_budget",
+    "library_unavailable",
+    "in_use",
+    "device_missing",
+    "provider_mismatch",
+];

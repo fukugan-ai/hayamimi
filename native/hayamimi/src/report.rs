@@ -5,6 +5,8 @@
 use std::sync::mpsc::Receiver;
 use std::thread::JoinHandle;
 
+use hayamimi_asr::{Engine, SessionReport};
+
 use crate::capture::supervise::Event;
 use crate::log;
 use crate::notice::{Cleared, Notice};
@@ -28,6 +30,21 @@ pub fn say_notice(strings: &Strings, hub: &Hub, notice: &Notice) {
     if let Some(url) = &notice.url {
         // An address is data, not a sentence of the table.
         eprintln!("{url}");
+    }
+}
+
+/// Logs one session an engine created.
+pub fn log_session(strings: &Strings, report: &SessionReport) {
+    log::print(&log::session_created_line(strings, report));
+    if let Some(line) = log::session_placed_line(strings, report) {
+        log::print(&line);
+    }
+}
+
+/// Logs the sessions an opened engine created.
+pub fn log_sessions(strings: &Strings, engine: &Engine) {
+    for report in engine.sessions() {
+        log_session(strings, report);
     }
 }
 

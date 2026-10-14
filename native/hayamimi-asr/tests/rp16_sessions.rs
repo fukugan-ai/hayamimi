@@ -150,7 +150,10 @@ fn child_unlocked_d_recognizer() -> TestResult {
 #[ignore = "starts 20 child processes that open model sessions"]
 fn opening_sessions_in_parallel_never_aborts() -> TestResult {
     let aborts = aborts_in("child_locked_")?;
-    assert_eq!(aborts, 0, "{aborts} of {RUNS} runs aborted with the lock on");
+    assert_eq!(
+        aborts, 0,
+        "{aborts} of {RUNS} runs aborted with the lock on"
+    );
     Ok(())
 }
 

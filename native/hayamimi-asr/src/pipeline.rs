@@ -21,7 +21,7 @@ use crate::partial::{self, DraftClock};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
 use crate::recognizer::{THREADS, model_files};
 use crate::replace::Replacements;
-use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier};
+use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier};
 use crate::speaker_stage::{Mark, SpeakerStage};
 use crate::vad::{Segment, Sensitivity, Vad, VadSettings};
 
@@ -540,8 +540,14 @@ impl Engine {
             return Ok(None);
         };
         let samples = route.history.draft(start, partial::MAX_SAMPLES);
-        let read = route.router.partial(&samples, None).map_err(asr_error_of)?;
-        let text = self.replacements.apply(&read);
+        // A draft is read in the language of the session; before the first
+        // final there is none, and the Japanese tier answers.
+        let tier = match route.router.last_lang() {
+            Some(lang) => requested_tier(lang, route.router.policy().en_tier),
+            None => Tier::Rz,
+        };
+        let drafted = route.router.decoder_mut().decode_whole(tier, &samples)?;
+        let text = self.replacements.apply(&drafted.text);
         Ok((!text.trim().is_empty()).then_some(text))
     }
 

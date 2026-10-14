@@ -72,6 +72,16 @@ label = "m²"
 "sink.fallback.cleared" = "送り先に届くようになりました"
 "srt.cue.skipped" = "この行は SRT に書きません"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
+"translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
+"translate.eval.held" = "この文の訳はどちらも採りませんでした"
+"translate.eval.written" ="1 つの言語の訳を書き出しました"
+"srt.output.exists" = "この動画の SRT が既にあるので、何もしません"
+"srt.extract.started" = "動画から音声を取り出します"
+"srt.extract.failed" = "動画から音声を取り出せませんでした"
+"srt.recognize.failed" = "音声を認識できませんでした"
+"srt.output.empty" = "この動画に話し声がないので、SRT を書きません"
+"srt.output.written" = "SRT を書き出しました"
+"send.config.too_open" = "送り先を書いた file を他の人が読める、または調べられないので、その file からは送りません"
 "translate.partial.ok" = "話している途中の文を訳しました"
 "translate.partial.held" = "照合が外れたので、話している途中の文の訳は出しません"
 "translate.partial.aborted" = "新しい文が来たので、前の文の訳をやめました"
@@ -81,7 +91,9 @@ label = "m²"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
+  hayamimi-relay srt <動画> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"
@@ -96,3 +108,16 @@ port_moved = "頼んだ port が使えないので、訳を次の URL で配っ�
 sink_local = "字幕の送り先に届きません。訳は SRT と画面に残し、次の行から送り直します"
 sink_cleared = "字幕の送り先に届くようになりました"
 srt_not_opened = "SRT を開けませんでした。SRT なしで続けます"
+need_pairs_and_out = "eval には --pairs と --out が要ります"
+eval_target_skipped = "この言語は訳さず外しました:"
+eval_failed = "訳を書き出せませんでした"
+send_not_opened = "送り先を書いた file を準備できなかったので、起動しませんでした"
+need_video = "srt には最初の引数に動画の file が要ります"
+srt_written = "SRT を書き出しました。cue の数:"
+srt_no_name = "動画の path に file の名前がありません"
+srt_exists = "この動画の SRT が既にあるので、何もしませんでした（作り直すなら消すか名前を変えてください）"
+srt_extract_failed = "動画から音声を取り出せませんでした（ffmpeg は入っていますか。動画に音声はありますか）"
+srt_recognize_failed = "音声を認識または翻訳できませんでした（hayamimi は入っていますか。翻訳器に届きますか）"
+srt_no_speech = "この動画に話し声がないので、SRT を書きませんでした"
+srt_write_failed = "SRT を書き込めませんでした"
+srt_no_work_dir = "cache の directory に作業用の file を置く場所を作れませんでした"

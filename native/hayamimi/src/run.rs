@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 use axum::Router;
 use hayamimi_asr::audio::read_wav;
@@ -33,7 +34,7 @@ use crate::inputs::Input;
 use crate::log;
 use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
-use crate::report::{say, say_notice, spawn_capture_reporter};
+use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
 use crate::session::Session;
@@ -203,23 +204,13 @@ fn check_gpu(strings: &Strings) -> Gpu {
     gpu
 }
 
-/// Logs the sessions an opened engine created.
-fn log_sessions(strings: &Strings, engine: &Engine) {
-    for report in engine.sessions() {
-        log::print(&log::session_created_line(strings, report));
-        if let Some(line) = log::session_placed_line(strings, report) {
-            log::print(&line);
-        }
-    }
-}
-
 /// Opens the reader of the GPU memory when there is a GPU to read. A reader
 /// that cannot be opened is logged, and the run goes on without a budget.
 fn open_guard(args: &Args, strings: &Strings, gpu: Gpu) -> Option<MemoryGuard<MemoryMeter>> {
     if !matches!(gpu, Gpu::Try) {
         return None;
     }
-    match MemoryGuard::open(args.gpu_budget_mib, std::time::Instant::now()) {
+    match MemoryGuard::open(args.gpu_budget_mib, Instant::now()) {
         Ok(guard) => Some(guard),
         Err(_) => {
             log::print(&log::memory_unreadable_line(strings));
@@ -360,10 +351,9 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     let stop = install_stop()?;
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;
     hub.publish_session_start();
-    let guard = open_guard(args, strings, gpu);
     Session {
         engine,
-        guard,
+        guard: open_guard(args, strings, gpu),
         hub: &hub,
         strings,
         controls: &controls,
@@ -389,7 +379,7 @@ pub fn run(raw: &[String], locale_tag: Option<&str>) -> u8 {
             println!("{}", strings.cli_text(keys::HELP));
             return EXIT_OK;
         }
-        Ok(Parsed::Run(args)) => *args,
+        Ok(Parsed::Run(args)) => args,
         Err(error) => {
             say(&strings, &[error.key(), keys::USAGE_HINT]);
             return EXIT_REFUSED;

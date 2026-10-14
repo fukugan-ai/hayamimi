@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::lang::Lang;
 use crate::logging::LogSink;
-use crate::numbers;
+use crate::numbers::{self, Tongue};
+use crate::target::Target;
 use crate::watched::Watched;
 
 pub const DEFAULT_MARKERS: &str = include_str!("../data/verify_markers.toml");
@@ -75,40 +76,84 @@ pub struct FormRules {
     pub prefixes: Vec<String>,
 }
 
+/// How the markers of a language are looked for in a text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Scan {
+    /// Anywhere in the text: languages written without spaces between words,
+    /// or with endings glued to the stem.
+    Substring,
+    /// As whole words of the lower-cased text.
+    Words,
+}
+
+impl Scan {
+    fn of(lang: Lang) -> Scan {
+        match lang {
+            Lang::Ja => Scan::Substring,
+            Lang::En => Scan::Words,
+        }
+    }
+}
+
 /// `verify_markers.toml`.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Markers {
     pub form: FormRules,
     pub ja: LangMarkers,
     pub en: LangMarkers,
+    /// The languages of `--translate` that have a table of their own. A
+    /// language without one is not checked for negation and uncertainty.
+    #[serde(default)]
+    pub zh: Option<LangMarkers>,
+    #[serde(default)]
+    pub ko: Option<LangMarkers>,
+    #[serde(default)]
+    pub es: Option<LangMarkers>,
 }
 
 impl Markers {
-    /// Parses the table. English entries are lower-cased and every exclude
-    /// list is ordered longest first, so the longest phrase is removed first.
+    /// Parses the table. The entries of the word-matched languages are
+    /// lower-cased and every exclude list is ordered longest first, so the
+    /// longest phrase is removed first.
     pub fn parse(bytes: &[u8]) -> Result<Markers, String> {
         let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
         let mut markers: Markers = toml::from_str(text).map_err(|error| error.to_string())?;
-        for set in [&mut markers.en.negation, &mut markers.en.uncertainty] {
-            for list in [&mut set.markers, &mut set.suffixes, &mut set.exclude] {
-                for entry in list.iter_mut() {
-                    *entry = entry.to_lowercase();
-                }
-            }
-        }
         for prefix in &mut markers.form.prefixes {
             *prefix = prefix.to_lowercase();
         }
-        for set in [
-            &mut markers.ja.negation,
-            &mut markers.ja.uncertainty,
-            &mut markers.en.negation,
-            &mut markers.en.uncertainty,
-        ] {
-            set.exclude
-                .sort_by_key(|entry| std::cmp::Reverse(entry.chars().count()));
+        let mut word_matched = vec![&mut markers.en];
+        word_matched.extend(markers.es.as_mut());
+        for table in word_matched {
+            for set in [&mut table.negation, &mut table.uncertainty] {
+                for list in [&mut set.markers, &mut set.suffixes, &mut set.exclude] {
+                    for entry in list.iter_mut() {
+                        *entry = entry.to_lowercase();
+                    }
+                }
+            }
+        }
+        let mut tables = vec![&mut markers.ja, &mut markers.en];
+        tables.extend(markers.zh.as_mut());
+        tables.extend(markers.ko.as_mut());
+        tables.extend(markers.es.as_mut());
+        for table in tables {
+            for set in [&mut table.negation, &mut table.uncertainty] {
+                set.exclude
+                    .sort_by_key(|entry| std::cmp::Reverse(entry.chars().count()));
+            }
         }
         Ok(markers)
+    }
+
+    /// The table of a language of `--translate` and how it is scanned; `None`
+    /// for a language without one.
+    fn table_for(&self, code: &str) -> Option<(&LangMarkers, Scan)> {
+        match code {
+            "zh" => self.zh.as_ref().map(|table| (table, Scan::Substring)),
+            "ko" => self.ko.as_ref().map(|table| (table, Scan::Substring)),
+            "es" => self.es.as_ref().map(|table| (table, Scan::Words)),
+            _ => None,
+        }
     }
 
     fn embedded() -> Result<Markers, String> {
@@ -152,28 +197,108 @@ pub fn verify_with(
     if !form_ok(markers, src, translation, src_lang.other()) {
         return Verdict::Held(HoldReason::Form);
     }
-    if numbers::compared_values(src) != numbers::compared_values(translation) {
+    let dst_code = src_lang.other().code();
+    if !numbers_agree(src, src_lang.code(), translation, dst_code) {
         return Verdict::Held(HoldReason::Number);
     }
     let (src_markers, dst_markers) = match src_lang {
         Lang::Ja => (&markers.ja, &markers.en),
         Lang::En => (&markers.en, &markers.ja),
     };
-    let flag = |set: &MarkerSet, lang: Lang, text: &str| has_marker(set, lang, text);
-    if flag(&src_markers.negation, src_lang, src)
-        != flag(&dst_markers.negation, src_lang.other(), translation)
-    {
-        return Verdict::Held(HoldReason::Negation);
-    }
-    if flag(&src_markers.uncertainty, src_lang, src)
-        != flag(&dst_markers.uncertainty, src_lang.other(), translation)
-    {
-        return Verdict::Held(HoldReason::Uncertainty);
+    let (src_side, dst_side) = (
+        (src_markers, Scan::of(src_lang)),
+        (dst_markers, Scan::of(src_lang.other())),
+    );
+    if let Some(reason) = marker_mismatch(src_side, dst_side, src, translation) {
+        return Verdict::Held(reason);
     }
     if !proper_nouns_ok(glossary, src, translation, src_lang) {
         return Verdict::Held(HoldReason::ProperNoun);
     }
     Verdict::Ok
+}
+
+/// The first of negation and uncertainty on which the source and the
+/// translation disagree, each side read with its own table and scan.
+fn marker_mismatch(
+    (src_table, src_scan): (&LangMarkers, Scan),
+    (dst_table, dst_scan): (&LangMarkers, Scan),
+    src: &str,
+    translation: &str,
+) -> Option<HoldReason> {
+    let negation = has_marker(&src_table.negation, src_scan, src)
+        != has_marker(&dst_table.negation, dst_scan, translation);
+    if negation {
+        return Some(HoldReason::Negation);
+    }
+    let uncertainty = has_marker(&src_table.uncertainty, src_scan, src)
+        != has_marker(&dst_table.uncertainty, dst_scan, translation);
+    uncertainty.then_some(HoldReason::Uncertainty)
+}
+
+/// Verifies a translation into `target`. Into the other language of the live
+/// pair this is [`verify_with`]. Into any other language only what holds in
+/// every language is checked: the form, the numbers, and the Latin names a
+/// Japanese source carries. No table of negation or hedging markers exists for
+/// those languages, so those two checks are not made. A language that has a
+/// table in `verify_markers.toml` (Chinese, Korean, Spanish) is also checked
+/// for negation and uncertainty against the table of the source language.
+pub fn verify_into(
+    markers: &Markers,
+    glossary: &Glossary,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+    target: &Target,
+) -> Verdict {
+    if target.lang() == Some(src_lang.other()) {
+        return verify_with(markers, glossary, src, translation, src_lang);
+    }
+    if !form_into(markers, src, translation, target) {
+        return Verdict::Held(HoldReason::Form);
+    }
+    if !numbers_agree(src, src_lang.code(), translation, target.code) {
+        return Verdict::Held(HoldReason::Number);
+    }
+    if let Some(reason) = marker_mismatch_into(markers, src, translation, src_lang, target) {
+        return Verdict::Held(reason);
+    }
+    if src_lang == Lang::Ja && !latin_names_kept(src, translation) {
+        return Verdict::Held(HoldReason::ProperNoun);
+    }
+    Verdict::Ok
+}
+
+/// [`marker_mismatch`] for a translation into `target`; `None` when the target
+/// has no table, which leaves negation and uncertainty unchecked.
+fn marker_mismatch_into(
+    markers: &Markers,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+    target: &Target,
+) -> Option<HoldReason> {
+    let dst_side = markers.table_for(target.code)?;
+    let src_table = match src_lang {
+        Lang::Ja => &markers.ja,
+        Lang::En => &markers.en,
+    };
+    marker_mismatch((src_table, Scan::of(src_lang)), dst_side, src, translation)
+}
+
+/// Whether the numbers of a source and of its translation are the same, each
+/// text read with the number words of its own language.
+fn numbers_agree(src: &str, src_code: &str, translation: &str, dst_code: &str) -> bool {
+    numbers::compared_values(src, Tongue::of_code(src_code))
+        == numbers::compared_values(translation, Tongue::of_code(dst_code))
+}
+
+/// Whether every Latin word of a Japanese source stands in its translation.
+fn latin_names_kept(src: &str, translation: &str) -> bool {
+    let translation_lower = translation.to_lowercase();
+    ascii_words(src)
+        .iter()
+        .all(|word| translation_lower.contains(&word.to_lowercase()))
 }
 
 /// Whether a model's text carries the end-of-sequence marker anywhere.
@@ -190,17 +315,32 @@ fn is_japanese_char(c: char) -> bool {
 /// The form check: non-empty, no end marker, not the source itself, in the
 /// target language's script, no preface, no quotes the source lacks.
 fn form_ok(markers: &Markers, src: &str, translation: &str, target: Lang) -> bool {
-    let text = translation.trim();
-    if text.is_empty() || contains_eos(text) || text == src.trim() {
-        return false;
-    }
-    let in_target_script = match target {
+    form_checks(markers, src, translation, |text| match target {
         Lang::Ja => text.chars().any(is_japanese_char),
         Lang::En => {
             text.chars().any(|c| c.is_ascii_alphabetic()) && !text.chars().any(is_japanese_char)
         }
-    };
-    if !in_target_script {
+    })
+}
+
+/// [`form_ok`] for a target that is not one of the live pair.
+fn form_into(markers: &Markers, src: &str, translation: &str, target: &Target) -> bool {
+    form_checks(markers, src, translation, |text| target.script.fits(text))
+}
+
+/// The form checks every target shares; `in_target_script` is the one that
+/// differs by language.
+fn form_checks(
+    markers: &Markers,
+    src: &str,
+    translation: &str,
+    in_target_script: impl Fn(&str) -> bool,
+) -> bool {
+    let text = translation.trim();
+    if text.is_empty() || contains_eos(text) || text == src.trim() {
+        return false;
+    }
+    if !in_target_script(text) {
         return false;
     }
     let lower = text.to_lowercase();
@@ -233,15 +373,15 @@ fn wrapped_in_foreign_quotes(src: &str, text: &str) -> bool {
     })
 }
 
-fn has_marker(set: &MarkerSet, lang: Lang, text: &str) -> bool {
-    match lang {
-        Lang::Ja => {
+fn has_marker(set: &MarkerSet, scan: Scan, text: &str) -> bool {
+    match scan {
+        Scan::Substring => {
             let cleaned = remove_substrings(text, &set.exclude);
             set.markers
                 .iter()
                 .any(|marker| cleaned.contains(marker.as_str()))
         }
-        Lang::En => {
+        Scan::Words => {
             let lower = text.to_lowercase().replace('’', "'");
             let cleaned = remove_phrases(&lower, &set.exclude);
             set.suffixes
@@ -307,11 +447,21 @@ fn find_word(haystack: &str, needle: &str, from: usize) -> Option<usize> {
 }
 
 /// Maximal runs of ASCII letters and digits that contain a letter and are
-/// at least two characters long.
+/// at least two characters long, leaving out measures (`4892m`, `km2`), which
+/// a translation writes in its own way.
 fn ascii_words(text: &str) -> Vec<&str> {
     text.split(|c: char| !c.is_ascii_alphanumeric())
         .filter(|word| word.len() >= 2 && word.bytes().any(|b| b.is_ascii_alphabetic()))
+        .filter(|word| !is_measure(word))
         .collect()
+}
+
+/// A figure with its unit (`4892m`) or a length unit squared or cubed (`km2`).
+fn is_measure(word: &str) -> bool {
+    let unit_exponent = word
+        .strip_suffix(['2', '3'])
+        .is_some_and(|unit| matches!(unit, "m" | "cm" | "km" | "mm" | "dm"));
+    word.starts_with(|c: char| c.is_ascii_digit()) || unit_exponent
 }
 
 fn proper_nouns_ok(glossary: &Glossary, src: &str, translation: &str, src_lang: Lang) -> bool {
@@ -326,10 +476,7 @@ fn proper_nouns_ok(glossary: &Glossary, src: &str, translation: &str, src_lang: 
                     .any(|form| src_lower.contains(&form.to_lowercase()));
                 !present || translation_lower.contains(&term.en.to_lowercase())
             });
-            terms_ok
-                && ascii_words(src)
-                    .iter()
-                    .all(|word| translation_lower.contains(&word.to_lowercase()))
+            terms_ok && latin_names_kept(src, translation)
         }
         Lang::En => glossary.terms.iter().all(|term| {
             let present = find_word(&src_lower, &term.en.to_lowercase(), 0).is_some();
@@ -387,6 +534,28 @@ impl Verifier {
             src,
             translation,
             src_lang,
+        )
+    }
+
+    /// Verifies one line translated into `target`, first picking up any
+    /// table file that changed.
+    pub fn verify_into(
+        &mut self,
+        src: &str,
+        translation: &str,
+        src_lang: Lang,
+        target: &Target,
+        sink: &mut dyn LogSink,
+    ) -> Verdict {
+        self.markers.refresh(sink);
+        self.glossary.refresh(sink);
+        verify_into(
+            self.markers.current(),
+            self.glossary.current(),
+            src,
+            translation,
+            src_lang,
+            target,
         )
     }
 }
@@ -515,6 +684,225 @@ mod tests {
         assert_eq!(said, Ok(Verdict::Ok));
     }
 
+    fn check_into(
+        src: &str,
+        translation: &str,
+        code: &str,
+    ) -> Result<Verdict, Box<dyn std::error::Error>> {
+        let (markers, glossary) = tables()?;
+        let Some(target) = Target::from_code(code) else {
+            return Err(format!("no target {code}").into());
+        };
+        Ok(verify_into(
+            &markers,
+            &glossary,
+            src,
+            translation,
+            Lang::Ja,
+            &target,
+        ))
+    }
+
+    #[test]
+    fn a_translation_into_the_live_language_is_verified_as_before()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (src, translation) in [
+            ("こんにちは。", "Hello."),
+            ("Zoomで共有します。", "I will share it."),
+            (
+                "予算は五百万円を想定しています。",
+                "The budget is 1,500,000 yen.",
+            ),
+            ("こんにちは。", "Hello.</s>"),
+        ] {
+            assert_eq!(
+                check_into(src, translation, "en")?,
+                check(src, translation, Lang::Ja)?,
+                "{src}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_matching_translation_into_another_language_passes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            check_into("猫が寝ています。", "El gato duerme.", "es")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("猫が寝ています。", "猫在睡觉。", "zh")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("猫が寝ています。", "고양이가 잔다.", "ko")?,
+            Verdict::Ok
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_changed_amount_is_held_for_number_in_another_language()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let said = check_into(
+            "予算は五百万円です。",
+            "El presupuesto es de 7 millones de yenes.",
+            "es",
+        )?;
+        assert_eq!(said, Verdict::Held(HoldReason::Number));
+        Ok(())
+    }
+
+    #[test]
+    fn the_wrong_script_is_held_for_form_in_another_language()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let kana_in_chinese = check_into("こんにちは。", "こんにちは、猫です。", "zh")?;
+        assert_eq!(kana_in_chinese, Verdict::Held(HoldReason::Form));
+        let han_in_spanish = check_into("こんにちは。", "Hola 猫", "es")?;
+        assert_eq!(han_in_spanish, Verdict::Held(HoldReason::Form));
+        let marker = check_into("こんにちは。", "Hola.</s>", "es")?;
+        assert_eq!(marker, Verdict::Held(HoldReason::Form));
+        Ok(())
+    }
+
+    #[test]
+    fn a_dropped_latin_name_is_held_in_another_language() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let said = check_into("Zoomで共有します。", "Lo compartiré.", "es")?;
+        assert_eq!(said, Verdict::Held(HoldReason::ProperNoun));
+        let kept = check_into("Zoomで共有します。", "Lo compartiré por Zoom.", "es")?;
+        assert_eq!(kept, Verdict::Ok);
+        Ok(())
+    }
+
+    /// There is no marker table for French, so a lost negation passes: the
+    /// limit of the check, pinned so that it is not mistaken for a guarantee.
+    #[test]
+    fn negation_is_not_checked_into_a_language_without_a_marker_table()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let said = check_into("そこにいませんでした。", "J'étais là.", "fr")?;
+        assert_eq!(said, Verdict::Ok);
+        Ok(())
+    }
+
+    /// The pairs of H36: a Japanese sentence, a translation that keeps its
+    /// negation or hedge, and one that drops it.
+    const NEGATION_CASES: [(&str, &str, &str, &str); 3] = [
+        (
+            "zh",
+            "そこにいませんでした。",
+            "我没有在那里。",
+            "我在那里。",
+        ),
+        (
+            "ko",
+            "そこにいませんでした。",
+            "저는 거기에 없었어요.",
+            "저는 거기에 있었어요.",
+        ),
+        (
+            "es",
+            "そこにいませんでした。",
+            "No estaba allí.",
+            "Estaba allí.",
+        ),
+    ];
+    const UNCERTAINTY_CASES: [(&str, &str, &str, &str); 3] = [
+        (
+            "zh",
+            "明日は雨かもしれません。",
+            "明天可能会下雨。",
+            "明天会下雨。",
+        ),
+        (
+            "ko",
+            "明日は雨かもしれません。",
+            "내일은 비가 올 수도 있어요.",
+            "내일은 비가 와요.",
+        ),
+        (
+            "es",
+            "明日は雨かもしれません。",
+            "Quizás llueva mañana.",
+            "Lloverá mañana.",
+        ),
+    ];
+
+    #[test]
+    fn a_translation_that_dropped_the_negation_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, src, kept, dropped) in NEGATION_CASES {
+            assert_eq!(check_into(src, kept, code)?, Verdict::Ok, "{code} kept");
+            assert_eq!(
+                check_into(src, dropped, code)?,
+                Verdict::Held(HoldReason::Negation),
+                "{code} dropped"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_translation_that_dropped_the_hedge_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, src, kept, dropped) in UNCERTAINTY_CASES {
+            assert_eq!(check_into(src, kept, code)?, Verdict::Ok, "{code} kept");
+            assert_eq!(
+                check_into(src, dropped, code)?,
+                Verdict::Held(HoldReason::Uncertainty),
+                "{code} dropped"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_negation_the_source_lacks_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, _, negated, plain) in NEGATION_CASES {
+            let said = check_into("そこにいました。", negated, code)?;
+            assert_eq!(said, Verdict::Held(HoldReason::Negation), "{code}");
+            assert_eq!(check_into("そこにいました。", plain, code)?, Verdict::Ok);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn words_that_only_look_like_negation_are_not_counted_in_zh_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // "非常" (very), "不过" (however) and "sin embargo" are not negations.
+        let zh = check_into(
+            "とても大きいです。しかし高いです。",
+            "非常大。不过很贵。",
+            "zh",
+        )?;
+        assert_eq!(zh, Verdict::Ok);
+        let es = check_into("しかし大きいです。", "Sin embargo, es grande.", "es")?;
+        assert_eq!(es, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn spanish_markers_are_whole_words() -> Result<(), Box<dyn std::error::Error>> {
+        // "nota" holds "no" and "creó" is not "creo": neither is a marker.
+        let said = check_into("メモを書きました。", "Escribí una nota.", "es")?;
+        assert_eq!(said, Verdict::Ok);
+        let said = check_into("彼が作りました。", "Él lo creó.", "es")?;
+        assert_eq!(said, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn the_embedded_table_has_zh_ko_and_es() -> Result<(), String> {
+        let markers = Markers::embedded()?;
+        for code in ["zh", "ko", "es"] {
+            assert!(markers.table_for(code).is_some(), "{code}");
+        }
+        assert!(markers.table_for("fr").is_none());
+        Ok(())
+    }
+
     #[test]
     fn find_word_respects_word_boundaries() {
         assert_eq!(find_word("a note", "not", 0), None);
@@ -541,6 +929,158 @@ mod tests {
         let mut verifier = Verifier::open(None, &mut sink)?;
         let verdict = verifier.verify("こんにちは。", "Hello.", Lang::Ja, &mut sink);
         assert_eq!(verdict, Verdict::Ok);
+        Ok(())
+    }
+
+    /// A correct translation passes and the same translation with the quantity
+    /// changed is held: the first half proves the fix, the second the control.
+    fn passes_and_control(
+        src: &str,
+        good: &str,
+        wrong: &str,
+        held: HoldReason,
+    ) -> Result<(), String> {
+        let (markers, glossary) = tables()?;
+        let verdict =
+            |translation: &str| verify_with(&markers, &glossary, src, translation, Lang::Ja);
+        assert_eq!(verdict(good), Verdict::Ok, "{good}");
+        assert_eq!(verdict(wrong), Verdict::Held(held), "{wrong}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_squared_unit_and_a_measure_are_not_quantities_or_names() -> Result<(), String> {
+        passes_and_control(
+            "公園の面積は19,500 km2です。",
+            "The park covers 19,500 km² of land.",
+            "The park covers 7,500 km² of land.",
+            HoldReason::Number,
+        )?;
+        passes_and_control(
+            "標高4892mの山です。",
+            "It is a 4,892 m mountain.",
+            "It is a 4,000 m mountain.",
+            HoldReason::Number,
+        )
+    }
+
+    #[test]
+    fn a_japanese_month_matches_the_month_name() -> Result<(), String> {
+        passes_and_control(
+            "12月に開催されます。",
+            "It takes place in December.",
+            "It takes place in June.",
+            HoldReason::Number,
+        )
+    }
+
+    #[test]
+    fn hearsay_is_not_a_hedge_but_appearance_is() -> Result<(), String> {
+        let (markers, glossary) = tables()?;
+        let said = verify_with(
+            &markers,
+            &glossary,
+            "彼はドアベルを作ったそうです。",
+            "He said he built a doorbell.",
+            Lang::Ja,
+        );
+        assert_eq!(said, Verdict::Ok);
+        let looks = verify_with(
+            &markers,
+            &glossary,
+            "雨が降りそうです。",
+            "It is raining.",
+            Lang::Ja,
+        );
+        assert_eq!(looks, Verdict::Held(HoldReason::Uncertainty));
+        Ok(())
+    }
+
+    #[test]
+    fn an_implied_prohibition_needs_a_negation_in_the_translation() -> Result<(), String> {
+        passes_and_control(
+            "冗談を言うなどもってのほかです。",
+            "Do not make jokes.",
+            "Make jokes.",
+            HoldReason::Negation,
+        )?;
+        passes_and_control(
+            "決勝に上がれませんでした。",
+            "The team failed to reach the final.",
+            "The team reached the final.",
+            HoldReason::Negation,
+        )
+    }
+
+    #[test]
+    fn about_before_a_noun_is_not_a_hedge_but_before_a_figure_is() -> Result<(), String> {
+        passes_and_control(
+            "生態系に関する情報です。",
+            "It is information about the ecosystem.",
+            "It is information, about 3.",
+            HoldReason::Number,
+        )?;
+        let (markers, glossary) = tables()?;
+        let held = verify_with(
+            &markers,
+            &glossary,
+            "1日前のことです。",
+            "It was about a day ago.",
+            Lang::Ja,
+        );
+        assert_eq!(held, Verdict::Held(HoldReason::Uncertainty));
+        Ok(())
+    }
+
+    #[test]
+    fn not_only_is_not_a_negation() -> Result<(), String> {
+        let (markers, glossary) = tables()?;
+        let said = verify_with(
+            &markers,
+            &glossary,
+            "知識だけでなく文化も大切です。",
+            "Not only knowledge but culture matters.",
+            Lang::Ja,
+        );
+        assert_eq!(said, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn chinese_liang_and_spanish_number_words_are_the_numbers_they_say()
+    -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            check_into("2人いました。", "有两个人。", "zh")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("2人いました。", "有三个人。", "zh")?,
+            Verdict::Held(HoldReason::Number)
+        );
+        assert_eq!(
+            check_into("2時間かかりました。", "Tardó dos horas.", "es")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("2時間かかりました。", "Tardó tres horas.", "es")?,
+            Verdict::Held(HoldReason::Number)
+        );
+        assert_eq!(
+            check_into("80%でした。", "Fue el ochenta por ciento.", "es")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("意味がありました。", "Eso tenía sentido.", "es")?,
+            Verdict::Ok
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn chinese_words_that_only_contain_a_negation_character_are_not_negations()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let said = check_into("それぞれ4位と5位です。", "分别是第四和第五。", "zh")?;
+        assert_eq!(said, Verdict::Ok);
         Ok(())
     }
 }

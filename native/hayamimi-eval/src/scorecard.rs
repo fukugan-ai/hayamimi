@@ -185,18 +185,16 @@ fn row_of<'a>(card: &'a Scorecard, lang: &str) -> Result<&'a LangRow, ScoreError
         .ok_or_else(|| ScoreError::MissingLanguage(lang.to_owned()))
 }
 
-/// The step of the Python table: its errors are recorded to 3 decimals.
-const TABLE_STEP_MICROS: u64 = 1_000;
-
-/// An error rounded half-up to the 3 decimals of the Python table, so that it is
-/// compared with a value recorded at the same precision.
-fn at_table_places(micros: u64) -> u64 {
-    (micros + TABLE_STEP_MICROS / 2) / TABLE_STEP_MICROS * TABLE_STEP_MICROS
+/// An error rate in millionths as thousandths, rounded half up: the Python
+/// figures are recorded to three decimals, so both sides are compared there.
+fn thousandths(micros: u64) -> u64 {
+    (micros + 500) / 1000
 }
 
-/// One language: the error no worse than the baseline's, and no fewer right detections.
+/// One language: the error no worse than the baseline's at three decimals,
+/// and no fewer right detections.
 fn check_language(python: &LangRow, rust: &LangRow) -> Result<(), ScoreError> {
-    if at_table_places(rust.mean_err_micros) > python.mean_err_micros {
+    if thousandths(rust.mean_err_micros) > thousandths(python.mean_err_micros) {
         return Err(ScoreError::Worse {
             lang: python.lang.clone(),
             python_micros: python.mean_err_micros,
@@ -470,7 +468,7 @@ mod tests {
     fn an_equal_run_is_accepted_and_a_worse_one_is_named() {
         let python = card(vec![row("ja", 38_000, Some(15))]);
         assert_eq!(check_scorecard(&python, &python), Ok(()));
-        let worse = card(vec![row("ja", 38_500, Some(15))]);
+        let worse = card(vec![row("ja", 39_000, Some(15))]);
         assert!(matches!(
             check_scorecard(&python, &worse),
             Err(ScoreError::Worse { lang, .. }) if lang == "ja"
@@ -478,26 +476,24 @@ mod tests {
     }
 
     #[test]
-    fn an_error_is_rounded_half_up_to_the_table_places_before_the_compare() {
-        // 0.061454 is 0.061 in the table; 0.0615 is 0.062.
-        let python = card(vec![row("yue", 61_000, Some(15))]);
-        for passes in [61_000, 61_454, 61_499] {
-            let run = card(vec![row("yue", passes, Some(15))]);
-            assert_eq!(check_scorecard(&python, &run), Ok(()), "{passes}");
-        }
-        for fails in [61_500, 61_501, 62_000] {
-            let run = card(vec![row("yue", fails, Some(15))]);
-            assert!(check_scorecard(&python, &run).is_err(), "{fails}");
-        }
+    fn the_comparison_rounds_half_up_to_three_decimals() {
+        let python = card(vec![row("ja", 38_000, Some(15))]);
+        // 0.038499 is 0.038 at three decimals; 0.038500 is 0.039.
+        let within = card(vec![row("ja", 38_499, Some(15))]);
+        let beyond = card(vec![row("ja", 38_500, Some(15))]);
+        assert_eq!(check_scorecard(&python, &within), Ok(()));
+        assert!(matches!(
+            check_scorecard(&python, &beyond),
+            Err(ScoreError::Worse { .. })
+        ));
     }
 
     #[test]
-    fn rounding_at_the_table_places_is_half_up_and_keeps_table_values() {
-        assert_eq!(at_table_places(0), 0);
-        assert_eq!(at_table_places(499), 0);
-        assert_eq!(at_table_places(500), 1_000);
-        assert_eq!(at_table_places(86_939), 87_000);
-        assert_eq!(at_table_places(38_000), 38_000);
+    fn thousandths_round_half_up() {
+        assert_eq!(thousandths(0), 0);
+        assert_eq!(thousandths(499), 0);
+        assert_eq!(thousandths(500), 1);
+        assert_eq!(thousandths(86_939), 87);
     }
 
     #[test]

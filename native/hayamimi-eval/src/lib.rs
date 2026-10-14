@@ -5,14 +5,19 @@
 //! runtime binary does not link it.
 
 pub mod cer;
+pub mod chrf;
 pub mod cli;
 pub mod cli_der;
 pub mod cli_stages;
+pub mod compare;
 pub mod der;
 pub mod der_run;
+pub mod descendants;
+pub mod doc_links;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;
+pub mod gpu_load;
 pub mod gpu_memory;
 pub mod gpu_nodes;
 pub mod gpu_results;
@@ -28,6 +33,7 @@ pub mod nsys;
 pub mod ort_stages;
 pub mod partial;
 pub mod percentile;
+pub mod r7_report;
 pub mod record;
 pub mod relay_events;
 pub mod score;
@@ -37,8 +43,10 @@ pub mod sha;
 pub mod speaker;
 pub mod stage_load;
 pub mod stage_models;
+pub mod stage_peer;
 pub mod stage_report;
 pub mod stage_runs;
+pub mod stage_search;
 pub mod stage_table;
 pub mod stages;
 pub mod stream;
