@@ -215,7 +215,11 @@ fn read_events(ports: &[u16]) -> String {
                 let request = b"GET /events HTTP/1.1\r\nHost: localhost\r\n\r\n";
                 // A server that closes at once leaves whatever was read, which the checks judge.
                 let _ = stream.write_all(request);
-                let _ = stream.read_to_string(&mut text);
+                // Bytes are kept as read: a reset in the middle of a multi-byte
+                // character must not drop everything read before it.
+                let mut bytes = Vec::new();
+                let _ = stream.read_to_end(&mut bytes);
+                text.push_str(&String::from_utf8_lossy(&bytes));
                 return text;
             }
         }

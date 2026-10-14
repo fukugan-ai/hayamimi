@@ -238,7 +238,13 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
     for clip in &outcome.clips {
         println!(
             "{}\tlang={}\tdetected={:?}\ttier={}\terr={}\trtf={}\t{}",
-            clip.name, clip.lang, clip.detected, clip.tier, clip.err_micros, clip.rtf_micros, clip.text
+            clip.name,
+            clip.lang,
+            clip.detected,
+            clip.tier,
+            clip.err_micros,
+            clip.rtf_micros,
+            clip.text
         );
     }
     for row in &outcome.card.rows {

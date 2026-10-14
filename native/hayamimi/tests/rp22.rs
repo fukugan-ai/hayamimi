@@ -272,7 +272,7 @@ fn run_with_cap(cap: &str) -> Result<Vec<Value>, Failure> {
 
 /// T-RP-22-010
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
     let all = run_with_cap("2")?;
     assert!(
@@ -286,7 +286,7 @@ fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
 
 /// T-RP-22-011
 #[test]
-#[ignore = "needs the routing that sends each language to its recognizer"]
+#[ignore = "plays lat-multi through the binary as fast as the models go"]
 fn default_cap_drops_nothing_for_five_languages() -> TestResult {
     let all = run_with_cap("3")?;
     // Without this the zero below would hold for a run that never used the recognizers.
