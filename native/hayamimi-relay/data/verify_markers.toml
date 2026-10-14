@@ -18,8 +18,11 @@ markers = [
 ]
 # A bare "なさ" is not a marker: "なさい", "なさる" and "ごめんなさい" carry it.
 # "つまらなさそう" and the like are the positive adjectives with the stem "な".
+# "申し訳ない", "仕方ない", "情けない" and "頼りない" are set words without a
+# negative meaning, in the base form and in "〜なさそう", "〜なく" and the rest.
 exclude = [
   "つまらなさ", "危なさ", "少なさ",
+  "申し訳な", "仕方な", "情けな", "頼りな",
   "すみません", "申し訳ありません", "ないといけません", "ないといけない", "ないといけ",
   "なければなりません", "なければならない", "なければなら", "かもしれません",
   "かもしれない", "しかありません", "しかない", "ほかない", "少ない", "危ない",
