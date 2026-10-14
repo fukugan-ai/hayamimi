@@ -144,15 +144,20 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 `hayamimi` の `translation` とは別の port に出し、`hayamimi` 側の形は変えない。
 
 ```
-{"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
  "status":"ok"|"held",
  "hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
  "text":str,"annotations":[{"start":int,"end":int,"text":str}],
  "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
 ```
 
-- `text` は E の応答そのままで、添え書きを差し込まない。
+- `src_sha256` は、訳の元にした原文の文字列の sha256 を小文字の hex で書いた物である（`rust_port.ja.md` 3.1 の `t_tr` が読む）。
+- `stage` は `text` を出した段（T か E）で、`settled` はその訳が確定の訳かどうかである（`rust_port.ja.md` 3.6 の 2）。
+- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は R8d が決める（`rust_port.ja.md` 3.6 の 3）。
+- 確定の `text` は、E の訳が V を通れば E の応答そのまま（`stage: "e"`）、E が V に落ちれば T の草稿と同じ文字列（`stage: "t"`、`settled: true`）である。どちらも添え書きを差し込まない。
   画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
+- `status` が `held` の event の `text` は空の文字列で、`annotations` と `skipped` も空である。止めた訳の文字列は wire に載せない。
 - `start` と `end` は `text` の中の Unicode の文字（scalar value）の位置で、0 から数える。
   `start` から `end` の手前までが、換算の元にした値と単位の表現である。
 - `skipped` は、換算の元になる表現を見つけたが添えなかった物を 1 つずつ持つ。
@@ -162,6 +167,10 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 
 訳は `id` で行に結ぶ。
 直前の行に貼る形では、訳が遅れて次の確定文が先に着くと、訳を別の行に貼るためである。
+
+中継は同じ port に、外の送り先の `fallback` の event も出す（`rust_port.ja.md` 3.15 の外の送り先の行）。
+送り先に届かなくなった時に `{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}` を、届くようになった時に `{"type":"fallback","stage":"sink","to":null}` を 1 回ずつ出す。
+効いている `fallback` は取っておき、遅れて接続した client に最初に送る。
 
 ### 3.4 翻訳の 3 段
 
