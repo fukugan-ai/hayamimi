@@ -2,10 +2,11 @@
 //! several times over, and measures how late each utterance's `final` and
 //! translation arrive.
 //!
-//! Writes three files next to `--out`: the per-utterance samples (`.jsonl`,
+//! Writes four files next to `--out`: the per-utterance samples (`.jsonl`,
 //! one line per repetition and utterance), every event received with its
-//! arrival time (`.events.jsonl`), and the summary (`.summary.json`, also
-//! printed on stdout).
+//! arrival time (`.events.jsonl`), the GPU's utilization and memory read
+//! before and after the run (`.gpu.json`), and the summary (`.summary.json`,
+//! also printed on stdout).
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -13,8 +14,9 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 
 use crate::error::EvalError;
+use crate::gpu_load;
 use crate::ingest::{self, Plan, sent_at};
-use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event, summarize};
+use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event, summarize_run};
 use crate::log;
 use crate::manifest::{read_rows, write_text};
 use crate::relay_events::{Watch, in_time_order};
@@ -263,7 +265,9 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
             ("chunks", plan.chunks.len().into()),
         ],
     );
+    let gpu_before = gpu_load::read_for_record("before");
     let (sent_us, received) = deliver(options, (&plan, &audio.samples), origin)?;
+    let gpu_after = gpu_load::read_for_record("after");
     let heard = match &relay {
         Some(watch) => in_time_order(received.events, watch.events()),
         None => received.events,
@@ -287,7 +291,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     }
     let windows = windows_for(&plan, &sent_us, &utterances.spans, options.repeat)?;
     let samples = build_samples(&windows, &utterances.references, &events)?;
-    let summary = summarize(&samples)?;
+    let summary = summarize_run(&samples, &events)?;
 
     write_lines(samples.iter().map(serde_json::to_string), &options.out)?;
     let raw_path = sidecar(&options.out, "events.jsonl");
@@ -295,6 +299,11 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
         heard.iter().map(|(t_us, text)| raw_event_line(*t_us, text)),
         &raw_path,
     )?;
+    let gpu_record = gpu_load::GpuRecord {
+        before: gpu_before,
+        after: gpu_after,
+    };
+    gpu_load::write_record(&sidecar(&options.out, "gpu.json"), &gpu_record)?;
     let summary_path = sidecar(&options.out, "summary.json");
     let summary_text =
         serde_json::to_string_pretty(&summary).map_err(|e| EvalError::json(&summary_path, e))?;

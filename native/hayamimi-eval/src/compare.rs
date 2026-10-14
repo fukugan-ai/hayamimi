@@ -88,6 +88,66 @@ pub fn is_valid_l_asr(sample: &Sample, min_silence_ms: i64) -> bool {
     silence_gap_micros(sample).is_some_and(|gap| gap >= min_silence_ms * 1_000_000)
 }
 
+/// Of the valid samples of a run, at least this many in 23 must have a shown translation.
+const SHARE_NUMERATOR: usize = 20;
+const SHARE_DENOMINATOR: usize = 23;
+
+/// The valid samples of a run (the utterance samples whose `L_asr` is the
+/// recognizer's, [`is_valid_l_asr`]) and how many of them got a translation.
+/// A valid sample with only a `held` translation, or whose translation never
+/// came, counts in `valid` and not in `translated`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TranslatedShare {
+    pub valid: usize,
+    pub translated: usize,
+}
+
+impl TranslatedShare {
+    /// The valid samples that got no translation.
+    pub fn missing(&self) -> usize {
+        self.valid - self.translated
+    }
+
+    /// `translated / valid` is at least 20 / 23. A run with no valid sample is not a pass.
+    pub fn is_enough(&self) -> bool {
+        self.valid > 0 && self.translated * SHARE_DENOMINATOR >= self.valid * SHARE_NUMERATOR
+    }
+}
+
+/// Counts the valid samples of a run and those among them with a translation.
+pub fn translated_share(samples: &[Sample], min_silence_ms: i64) -> TranslatedShare {
+    let valid = valid_samples(samples, min_silence_ms);
+    TranslatedShare {
+        valid: valid.len(),
+        translated: valid
+            .iter()
+            .filter(|sample| sample.t_tr_us.is_some())
+            .count(),
+    }
+}
+
+/// The share of valid samples with a translation reaches 20 / 23. A run
+/// below it fails however small its `L` is: a translation the checker stops
+/// leaves no `L`, so a fast `L` over the rest proves nothing.
+pub fn check_translated_share(
+    samples: &[Sample],
+    min_silence_ms: i64,
+) -> Result<TranslatedShare, EvalError> {
+    let share = translated_share(samples, min_silence_ms);
+    if share.valid == 0 {
+        return Err(invalid(
+            "the run has no valid sample: an empty run is not a pass",
+        ));
+    }
+    if !share.is_enough() {
+        return Err(invalid(format!(
+            "{} of {} valid samples have a translation, {SHARE_NUMERATOR} of {SHARE_DENOMINATOR} are needed",
+            share.translated, share.valid
+        )));
+    }
+    Ok(share)
+}
+
 fn valid_samples(samples: &[Sample], min_silence_ms: i64) -> Vec<&Sample> {
     samples
         .iter()
@@ -393,6 +453,53 @@ mod tests {
     fn eighteen_of_twenty_pass_and_seventeen_do_not() {
         assert!(check_paired(20, 18).is_ok());
         assert!(check_paired(20, 17).is_err());
+    }
+
+    /// `valid` valid samples, the first `translated` of them with a translation.
+    fn run_of(valid: usize, translated: usize) -> Vec<Sample> {
+        (0..valid)
+            .map(|index| Sample {
+                t_tr_us: (index < translated).then_some(2_000_000),
+                ..sample(1, 700, 300.0)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn twenty_of_twenty_three_have_enough_translations_and_nineteen_do_not() {
+        assert!(translated_share(&run_of(23, 20), SILENCE_MS).is_enough());
+        assert!(!translated_share(&run_of(23, 19), SILENCE_MS).is_enough());
+        // The boundary moves with the count: 40 of 46 is exactly 20 / 23.
+        assert!(check_translated_share(&run_of(46, 40), SILENCE_MS).is_ok());
+        assert!(check_translated_share(&run_of(46, 39), SILENCE_MS).is_err());
+    }
+
+    #[test]
+    fn a_run_with_no_valid_sample_is_not_a_pass() {
+        assert!(check_translated_share(&[], SILENCE_MS).is_err());
+        assert!(check_translated_share(&[without_final(1)], SILENCE_MS).is_err());
+    }
+
+    #[test]
+    fn samples_with_a_wrong_end_or_no_final_are_not_in_the_denominator() {
+        let mut run = run_of(23, 20);
+        // Neither of these is valid, so 20 of 23 stays 20 of 23.
+        run.push(sample(2, 650, 300.001));
+        run.push(without_final(3));
+        let share = translated_share(&run, SILENCE_MS);
+        assert_eq!((share.valid, share.translated), (23, 20));
+        assert!(share.is_enough());
+    }
+
+    #[test]
+    fn a_valid_sample_without_a_translation_is_in_the_denominator() {
+        let share = translated_share(&run_of(93, 67), SILENCE_MS);
+        assert_eq!(
+            (share.valid, share.translated, share.missing()),
+            (93, 67, 26)
+        );
+        let said = check_translated_share(&run_of(93, 67), SILENCE_MS);
+        assert!(matches!(&said, Err(EvalError::Invalid(m)) if m.contains("67 of 93")));
     }
 
     #[test]

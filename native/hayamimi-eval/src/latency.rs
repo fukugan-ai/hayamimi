@@ -6,6 +6,12 @@
 //! first `partial` (`t_partial`). `L = t_tr - t_end`, `L_asr = t_final -
 //! t_end`, `L_tr = t_tr - t_final`. All times are microseconds since the run
 //! started; a percentile is reported in whole milliseconds, halves up.
+//!
+//! Only a translation the subtitle would show counts as `t_tr`: its `status`
+//! is `ok` (or absent, as in the Python server's events) and its `text` is not
+//! empty. A `final` that carries an `id` and `t1_s` (the Rust server) is tied
+//! to its utterance by `t1_s` and to its translation by `id` and the sha256 of
+//! its text; a `final` without them is tied by arrival time and position.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,6 +19,7 @@ use serde_json::Value;
 use crate::cer::{Cer, cer};
 use crate::error::EvalError;
 use crate::percentile::{micros_to_ms, nearest_rank};
+use crate::sha::sha256_hex;
 
 /// What an event was, as far as the delay measurement cares.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,9 +28,17 @@ pub enum EventKind {
     Final {
         text: String,
         latency_ms: Option<f64>,
+        /// The line id the Rust server gives; the Python server has none.
+        id: Option<String>,
+        /// `t1_s` (the utterance end on the stream) in whole microseconds.
+        t1_us: Option<i64>,
     },
     Translation {
         text: String,
+        id: Option<String>,
+        status: Option<String>,
+        /// sha256 of the source text the translation was made from.
+        src_sha256: Option<String>,
     },
     /// A translation of the text of an utterance in progress (`of` is
     /// `partial`). It never closes an utterance, so it is not paired with a
@@ -49,6 +64,18 @@ fn text_of(value: &Value) -> Result<String, EvalError> {
     }
 }
 
+/// A string field of an event, when it has one.
+fn string_field(value: &Value, key: &str) -> Option<String> {
+    value.get(key).and_then(Value::as_str).map(str::to_owned)
+}
+
+/// Whole microseconds of a seconds figure, rounded to the nearest; `None`
+/// for a figure that is not finite or does not fit.
+fn seconds_to_us(seconds: f64) -> Option<i64> {
+    let us = (seconds * 1_000_000.0).round();
+    (us.abs() < 9.0e18).then_some(us as i64)
+}
+
 /// Reads one event from the JSON text the server sent.
 pub fn parse_event(t_us: i64, json_text: &str) -> Result<Event, EvalError> {
     let value: Value = serde_json::from_str(json_text)
@@ -58,16 +85,36 @@ pub fn parse_event(t_us: i64, json_text: &str) -> Result<Event, EvalError> {
         Some("final") => EventKind::Final {
             text: text_of(&value)?,
             latency_ms: value.get("latency_ms").and_then(Value::as_f64),
+            id: string_field(&value, "id"),
+            t1_us: value
+                .get("t1_s")
+                .and_then(Value::as_f64)
+                .and_then(seconds_to_us),
         },
         Some("translation") if value.get("of").and_then(Value::as_str) == Some("partial") => {
             EventKind::PartialTranslation
         }
         Some("translation") => EventKind::Translation {
             text: text_of(&value)?,
+            id: string_field(&value, "id"),
+            status: string_field(&value, "status"),
+            src_sha256: string_field(&value, "src_sha256"),
         },
         _ => EventKind::Other,
     };
     Ok(Event { t_us, kind })
+}
+
+impl EventKind {
+    /// Whether this is a translation the subtitle shows: `status` `ok` (or
+    /// none, as in the Python server's events) and a `text` that is not empty.
+    fn is_shown_translation(&self) -> bool {
+        matches!(
+            self,
+            EventKind::Translation { text, status, .. }
+                if !text.is_empty() && status.as_deref().is_none_or(|s| s == "ok")
+        )
+    }
 }
 
 /// The span of one utterance in one repetition, on the tool's clock.
@@ -124,27 +171,66 @@ impl Sample {
 }
 
 /// For each `final` in `events` (by index), the translation it is paired
-/// with: the first `translation` after it and before the next `final`.
+/// with: the first shown `translation` (see [`EventKind::is_shown_translation`])
+/// after it and before the next `final`.
 ///
-/// The server's translation event carries no id, so position is the only
-/// link. A translation that arrives before any final, or after another
+/// The Python server's translation event carries no id, so position is the
+/// only link. A translation that arrives before any final, or after another
 /// final has already been received, belongs to no one.
 pub fn positional_translations(events: &[Event]) -> Vec<(usize, Option<usize>)> {
     let mut pairs: Vec<(usize, Option<usize>)> = Vec::new();
     for (index, event) in events.iter().enumerate() {
-        match event.kind {
-            EventKind::Final { .. } => pairs.push((index, None)),
-            EventKind::Translation { .. } => {
-                if let Some(last) = pairs.last_mut()
-                    && last.1.is_none()
-                {
-                    last.1 = Some(index);
-                }
-            }
-            _ => {}
+        if matches!(event.kind, EventKind::Final { .. }) {
+            pairs.push((index, None));
+        } else if event.kind.is_shown_translation()
+            && let Some(last) = pairs.last_mut()
+            && last.1.is_none()
+        {
+            last.1 = Some(index);
         }
     }
     pairs
+}
+
+/// The first shown translation made from the text of the `final` at
+/// `closing`: same `id`, `src_sha256` equal to the sha256 of the final's text.
+fn translation_by_id(events: &[Event], closing: usize) -> Option<usize> {
+    let EventKind::Final {
+        id: Some(id), text, ..
+    } = &events[closing].kind
+    else {
+        return None;
+    };
+    let source = sha256_hex(text.as_bytes());
+    events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| match &event.kind {
+            EventKind::Translation {
+                id: Some(of),
+                src_sha256: Some(sha),
+                ..
+            } => of == id && *sha == source && event.kind.is_shown_translation(),
+            _ => false,
+        })
+        .min_by_key(|(_, event)| event.t_us)
+        .map(|(index, _)| index)
+}
+
+/// The translation that closes the utterance whose closing `final` is at
+/// `closing`: by `id` when the final has one, else by position.
+fn translation_of(
+    events: &[Event],
+    pairs: &[(usize, Option<usize>)],
+    closing: usize,
+) -> Option<usize> {
+    if matches!(&events[closing].kind, EventKind::Final { id: Some(_), .. }) {
+        return translation_by_id(events, closing);
+    }
+    pairs
+        .iter()
+        .find(|(final_index, _)| *final_index == closing)
+        .and_then(|(_, translation)| *translation)
 }
 
 /// The index of the last window that started at or before `t_us`.
@@ -154,13 +240,43 @@ fn window_at(windows: &[Window], t_us: i64) -> Option<usize> {
         .checked_sub(1)
 }
 
+/// The moment a `final` is placed by: the utterance end on the stream when it
+/// carries one, else the time it arrived.
+fn placement_us(event: &Event) -> i64 {
+    match event.kind {
+        EventKind::Final {
+            t1_us: Some(t1), ..
+        } => t1,
+        _ => event.t_us,
+    }
+}
+
+/// For each window, the indexes of the `final` events placed in it, in
+/// placement order.
+fn finals_by_window(windows: &[Window], events: &[Event]) -> Vec<Vec<usize>> {
+    let mut by_window: Vec<Vec<usize>> = vec![Vec::new(); windows.len()];
+    for (index, event) in events.iter().enumerate() {
+        if matches!(event.kind, EventKind::Final { .. })
+            && let Some(k) = window_at(windows, placement_us(event))
+        {
+            by_window[k].push(index);
+        }
+    }
+    for finals in &mut by_window {
+        finals.sort_by_key(|&i| placement_us(&events[i]));
+    }
+    by_window
+}
+
 /// Builds one sample per window from the run's events.
 ///
-/// A `final` belongs to the latest utterance that had started when it
-/// arrived, so the early finals of an utterance the server cut at its
-/// maximum length still count toward that utterance's text. The last of an
-/// utterance's finals closes it; if that one arrived before the utterance's
-/// last sample was sent, the utterance has no closing final.
+/// A `final` belongs to the latest utterance that had started at its
+/// placement moment (see [`placement_us`]), so the early finals of an
+/// utterance the server cut at its maximum length still count toward that
+/// utterance's text, and a `final` that arrived late still belongs to the
+/// utterance it ended. The last of an utterance's finals closes it; if that
+/// one arrived before the utterance's last sample was sent, the utterance has
+/// no closing final.
 pub fn build_samples(
     windows: &[Window],
     references: &[String],
@@ -175,14 +291,7 @@ pub fn build_samples(
         )));
     }
     let pairs = positional_translations(events);
-    let mut finals_by_window: Vec<Vec<usize>> = vec![Vec::new(); windows.len()];
-    for (index, event) in events.iter().enumerate() {
-        if matches!(event.kind, EventKind::Final { .. })
-            && let Some(k) = window_at(windows, event.t_us)
-        {
-            finals_by_window[k].push(index);
-        }
-    }
+    let placed = finals_by_window(windows, events);
     let mut samples = Vec::with_capacity(windows.len());
     for (k, window) in windows.iter().enumerate() {
         let Some(reference) = usize::try_from(window.utt)
@@ -195,7 +304,7 @@ pub fn build_samples(
                 window.utt
             )));
         };
-        let finals = &finals_by_window[k];
+        let finals = &placed[k];
         let text: String = finals
             .iter()
             .filter_map(|&i| match &events[i].kind {
@@ -212,16 +321,11 @@ pub fn build_samples(
             EventKind::Final { latency_ms, .. } => *latency_ms,
             _ => None,
         });
-        let paired = closing.and_then(|i| {
-            pairs
-                .iter()
-                .find(|(final_index, _)| *final_index == i)
-                .and_then(|(_, translation)| *translation)
-        });
+        let paired = closing.and_then(|i| translation_of(events, &pairs, i));
         let (t_tr_us, translation) = match paired.map(|i| &events[i]) {
             Some(Event {
                 t_us,
-                kind: EventKind::Translation { text },
+                kind: EventKind::Translation { text, .. },
             }) => (Some(*t_us), Some(text.clone())),
             _ => (None, None),
         };
@@ -288,6 +392,11 @@ pub struct Summary {
     /// closing final. `samples = with_translation + untranslated`.
     pub untranslated: usize,
     pub finals_total: usize,
+    /// Utterances with no closing final whose next utterance holds two or more
+    /// finals: the signature of a final that arrived after its window closed.
+    /// Counted only for finals placed by arrival time (the Python server's);
+    /// `None` for a run whose finals carry `t1_s`, which is not counted at all.
+    pub late_final_suspects: Option<usize>,
     pub l: Option<Stat>,
     pub l_asr: Option<Stat>,
     pub l_tr: Option<Stat>,
@@ -349,6 +458,7 @@ pub fn summarize(samples: &[Sample]) -> Result<Summary, EvalError> {
         with_translation: l.len(),
         untranslated: samples.len() - l.len(),
         finals_total: samples.iter().map(|s| s.finals as usize).sum(),
+        late_final_suspects: None,
         l: stat_of(&l)?,
         l_asr: stat_of(&l_asr)?,
         l_tr: stat_of(&l_tr)?,
@@ -360,6 +470,33 @@ pub fn summarize(samples: &[Sample]) -> Result<Summary, EvalError> {
         cer_denom: total.denom,
         cer_micros: total.micros(),
     })
+}
+
+/// How many utterances had no closing final while the next one holds two or
+/// more: a `final` placed by arrival time that came after its window.
+pub fn late_final_suspects(samples: &[Sample]) -> usize {
+    samples
+        .windows(2)
+        .filter(|pair| pair[0].finals == 0 && pair[1].finals >= 2)
+        .count()
+}
+
+/// Whether any `final` in the run was placed by arrival time because it
+/// carries no `t1_s`.
+fn has_finals_placed_by_arrival(events: &[Event]) -> bool {
+    events
+        .iter()
+        .any(|event| matches!(event.kind, EventKind::Final { t1_us: None, .. }))
+}
+
+/// Summarises a run: the samples' numbers, and the late-final suspects when
+/// the run's finals were placed by arrival time.
+pub fn summarize_run(samples: &[Sample], events: &[Event]) -> Result<Summary, EvalError> {
+    let mut summary = summarize(samples)?;
+    if has_finals_placed_by_arrival(events) {
+        summary.late_final_suspects = Some(late_final_suspects(samples));
+    }
+    Ok(summary)
 }
 
 #[cfg(test)]
@@ -376,6 +513,8 @@ mod tests {
             EventKind::Final {
                 text: text.to_owned(),
                 latency_ms: Some(100.0),
+                id: None,
+                t1_us: None,
             },
         )
     }
@@ -385,6 +524,9 @@ mod tests {
             t_us,
             EventKind::Translation {
                 text: text.to_owned(),
+                id: None,
+                status: None,
+                src_sha256: None,
             },
         )
     }
@@ -410,7 +552,9 @@ mod tests {
                 5,
                 EventKind::Final {
                     text: String::from("こんにちは"),
-                    latency_ms: Some(99.5)
+                    latency_ms: Some(99.5),
+                    id: None,
+                    t1_us: None,
                 }
             )
         );

@@ -5,6 +5,7 @@
 //! on one queue. The loop reads the queue and nothing else, so it does not
 //! know which input it is serving.
 
+use std::cell::Cell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -28,17 +29,25 @@ pub enum AudioItem {
     End,
 }
 
+/// An item on the queue, stamped with the moment it was put there.
+struct Stamped {
+    item: AudioItem,
+    queued_at: Instant,
+}
+
 /// The sending end. Clones share the queue.
 #[derive(Clone)]
 pub struct AudioTx {
-    sender: Sender<AudioItem>,
+    sender: Sender<Stamped>,
     queued: Arc<AtomicUsize>,
 }
 
 /// The receiving end, read by the loop.
 pub struct AudioRx {
-    receiver: Receiver<AudioItem>,
+    receiver: Receiver<Stamped>,
     queued: Arc<AtomicUsize>,
+    /// How long the item last returned had waited on the queue.
+    waited: Cell<Duration>,
 }
 
 /// The queue between the inputs and the loop.
@@ -50,7 +59,11 @@ pub fn channel() -> (AudioTx, AudioRx) {
             sender,
             queued: Arc::clone(&queued),
         },
-        AudioRx { receiver, queued },
+        AudioRx {
+            receiver,
+            queued,
+            waited: Cell::new(Duration::ZERO),
+        },
     )
 }
 
@@ -63,7 +76,11 @@ impl AudioTx {
             return false;
         }
         self.queued.fetch_add(1, Ordering::Relaxed);
-        if self.sender.send(item).is_err() {
+        let stamped = Stamped {
+            item,
+            queued_at: Instant::now(),
+        };
+        if self.sender.send(stamped).is_err() {
             self.queued.fetch_sub(1, Ordering::Relaxed);
             return false;
         }
@@ -83,9 +100,16 @@ impl AudioTx {
 impl AudioRx {
     /// The next item, waiting at most `wait`.
     pub fn recv_timeout(&self, wait: Duration) -> Result<AudioItem, RecvTimeoutError> {
-        let item = self.receiver.recv_timeout(wait)?;
+        let stamped = self.receiver.recv_timeout(wait)?;
         self.queued.fetch_sub(1, Ordering::Relaxed);
-        Ok(item)
+        self.waited.set(stamped.queued_at.elapsed());
+        Ok(stamped.item)
+    }
+
+    /// How long the item `recv_timeout` returned last had waited on the queue:
+    /// the time from an input putting a window there to the loop taking it.
+    pub fn last_wait(&self) -> Duration {
+        self.waited.get()
     }
 
     /// How many items wait: the loop is behind real time by this many windows.
@@ -135,6 +159,18 @@ mod tests {
         assert!(tx.send(AudioItem::Flush));
         assert_eq!(rx.recv_timeout(TICK), Ok(AudioItem::Window(vec![1.0])));
         assert_eq!(rx.recv_timeout(TICK), Ok(AudioItem::Flush));
+    }
+
+    #[test]
+    fn the_last_wait_is_the_time_the_item_spent_on_the_queue() {
+        let (tx, rx) = channel();
+        assert_eq!(rx.last_wait(), Duration::ZERO);
+        tx.send(AudioItem::Flush);
+        std::thread::sleep(Duration::from_millis(30));
+        assert_eq!(rx.recv_timeout(TICK), Ok(AudioItem::Flush));
+        let waited = rx.last_wait();
+        assert!(waited >= Duration::from_millis(30), "{waited:?}");
+        assert!(waited < Duration::from_secs(5), "{waited:?}");
     }
 
     #[test]

@@ -110,13 +110,30 @@ impl Session<'_> {
 
     fn on_window(&mut self, state: &mut State, window: &[f32]) -> Result<(), AsrError> {
         state.stats.add_window(WINDOW);
+        // Read before the feed: the wait is the queue's, not the feed's own time.
+        let (waited, backlog) = (self.audio.last_wait(), self.audio.backlog());
         let finals = match self.engine.as_mut() {
             Some(engine) => engine.feed(window)?,
             None => return Ok(()),
         };
         self.announce(state, &finals);
+        self.say_feed_waits(&finals, waited, backlog);
         self.draft();
         Ok(())
+    }
+
+    /// Says how long the window that made each of `finals` waited on the queue
+    /// before its feed started. After the finals are published, so a log line
+    /// never delays a subtitle.
+    fn say_feed_waits(&self, finals: &[Final], waited: Duration, backlog: usize) {
+        for done in finals {
+            log::print(&log::feed_waited_line(
+                self.strings,
+                done.id,
+                waited,
+                backlog,
+            ));
+        }
     }
 
     /// Logs and publishes what the utterances made. Every `final` goes out
