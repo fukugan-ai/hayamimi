@@ -11,6 +11,8 @@ pub mod cli_stages;
 pub mod compare;
 pub mod der;
 pub mod der_run;
+pub mod descendants;
+pub mod doc_links;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;
