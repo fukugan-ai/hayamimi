@@ -49,6 +49,8 @@ label = "m²"
 "translate.line.ok" = "訳を出しました"
 "translate.line.held" = "照合が外れたので訳を出しません"
 "translate.request.failed" = "翻訳器に届きませんでした"
+"translate.fallback.held" = "翻訳器に届かないので、訳を保留して原文の字幕を出し続けます"
+"translate.fallback.cleared" = "翻訳器に届くようになったので、訳を再開します"
 "annotate.line.added" = "換算を添えました"
 "annotate.line.skipped" = "換算を添えませんでした"
 "schedule.task.installed" = "毎朝の取得を登録しました"
@@ -62,10 +64,18 @@ label = "m²"
 "translate.publish.failed" = "訳を書き出せませんでした"
 "relay.serve.started" = "訳を配り始めました"
 "server.fallback.port" = "頼んだ port が使えないので、別の port を使います"
+"translate.edit.held" = "直した訳の照合が外れたので、先の訳を残します"
+"translate.send.ok" = "字幕を送りました"
+"translate.send.failed" = "字幕を送れませんでした"
+"translate.deliver.failed" = "訳を出力の係へ渡せませんでした"
+"sink.fallback.local" = "送り先に届きません。訳は SRT と画面に残します"
+"sink.fallback.cleared" = "送り先に届くようになりました"
+"srt.cue.skipped" = "この行は SRT に書きません"
+"srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]...
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"
@@ -77,3 +87,6 @@ bad_port = "--serve には 0 から 65535 までの port の番号が要りま�
 cannot_serve = "訳を配れません。開ける port がありません"
 serving_at = "訳を次の URL で配っています"
 port_moved = "頼んだ port が使えないので、訳を次の URL で配っています"
+sink_local = "字幕の送り先に届きません。訳は SRT と画面に残し、次の行から送り直します"
+sink_cleared = "字幕の送り先に届くようになりました"
+srt_not_opened = "SRT を開けませんでした。SRT なしで続けます"

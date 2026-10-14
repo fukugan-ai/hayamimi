@@ -5,7 +5,7 @@ mod support;
 
 use std::path::Path;
 
-use support::{BASE, FIXTURES, Failure, TestResult, read};
+use support::{FIXTURES, Failure, TestResult, base, read};
 
 const EXPECTED: [(&str, &str); 5] = [
     ("sacrebleu", "2.6.0"),
@@ -68,7 +68,7 @@ fn check_pip_show_versions(text: &str) -> Result<(), Failure> {
 }
 
 fn pip_show() -> Result<String, Failure> {
-    read(&Path::new(BASE).join("pip_show.txt"))
+    read(&base()?.join("pip_show.txt"))
 }
 
 #[test]

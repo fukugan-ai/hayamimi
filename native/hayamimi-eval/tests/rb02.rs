@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 use support::{
-    BASE, FIXTURES, Failure, GOLDEN, REPO, RESULTS, TESTDATA, TestResult, read, read_bytes,
-    read_json, section, sha256_hex,
+    FIXTURES, Failure, GOLDEN, RESULTS, TestResult, base, read, read_bytes, read_json, section,
+    sha256_hex, testdata,
 };
 
 const SETS: [&str; 6] = [
@@ -25,10 +25,8 @@ const LAT_SETS: [&str; 2] = ["lat-ja", "lat-en"];
 /// Row keys that give the position of a row in its source.
 const SOURCE_ROW_KEYS: [&str; 3] = ["fleurs_id", "row", "source_row"];
 
-fn manifest_path(set: &str) -> PathBuf {
-    Path::new(TESTDATA)
-        .join("manifests")
-        .join(format!("{set}.json"))
+fn manifest_path(set: &str) -> Result<PathBuf, Failure> {
+    Ok(testdata()?.join("manifests").join(format!("{set}.json")))
 }
 
 fn rows_of(text: &str) -> Result<Vec<Value>, Failure> {
@@ -40,7 +38,7 @@ fn rows_of(text: &str) -> Result<Vec<Value>, Failure> {
 }
 
 fn manifest_rows(set: &str) -> Result<Vec<Value>, Failure> {
-    rows_of(&read(&manifest_path(set))?)
+    rows_of(&read(&manifest_path(set)?)?)
 }
 
 fn text_of<'a>(row: &'a Value, key: &str) -> Result<&'a str, Failure> {
@@ -175,7 +173,7 @@ fn summary_rb2() -> Result<String, Failure> {
 #[test]
 fn rb02_eval_sets_match_their_manifests_six_manifests_exist() -> TestResult {
     for set in SETS {
-        assert!(manifest_path(set).is_file(), "{set}");
+        assert!(manifest_path(set)?.is_file(), "{set}");
     }
     Ok(())
 }
@@ -183,7 +181,7 @@ fn rb02_eval_sets_match_their_manifests_six_manifests_exist() -> TestResult {
 #[test]
 fn rb02_eval_sets_match_their_manifests_row_count_equals_wav_count_in_each_set() -> TestResult {
     for set in SOURCE_SETS {
-        let wavs = std::fs::read_dir(Path::new(TESTDATA).join(set))?
+        let wavs = std::fs::read_dir(testdata()?.join(set))?
             .filter_map(Result::ok)
             .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "wav"))
             .count();
@@ -236,7 +234,12 @@ fn rb02_eval_sets_match_their_manifests_every_row_sha256_matches_its_wav() -> Te
     for set in SETS {
         let rows = manifest_rows(set)?;
         assert!(!rows.is_empty(), "{set} has no rows");
-        check_row_sha256(&rows, Path::new(REPO))?;
+        // The rows name their wav files from the checkout that holds testdata/.
+        let data = testdata()?;
+        let Some(root) = data.parent() else {
+            return Err(format!("{} has no parent", data.display()).into());
+        };
+        check_row_sha256(&rows, root)?;
     }
     Ok(())
 }
@@ -245,7 +248,7 @@ fn rb02_eval_sets_match_their_manifests_every_row_sha256_matches_its_wav() -> Te
 fn rb02_eval_sets_match_their_manifests_lat_end_positions_increase_and_fit_in_the_wav() -> TestResult
 {
     for set in LAT_SETS {
-        let total = total_samples(&Path::new(TESTDATA).join(format!("{set}.wav")))?;
+        let total = total_samples(&testdata()?.join(format!("{set}.wav")))?;
         check_end_positions(&ends_of(&manifest_rows(set)?)?, total)?;
     }
     Ok(())
@@ -290,12 +293,8 @@ fn rb02_eval_sets_match_their_manifests_equal_consecutive_end_positions_are_reje
 #[test]
 fn rb02_eval_sets_match_their_manifests_second_pin_run_is_byte_identical() -> TestResult {
     for set in SOURCE_SETS {
-        let second = read_bytes(
-            &Path::new(BASE)
-                .join("pin_second")
-                .join(format!("{set}.json")),
-        )?;
-        let first = read_bytes(&manifest_path(set))?;
+        let second = read_bytes(&base()?.join("pin_second").join(format!("{set}.json")))?;
+        let first = read_bytes(&manifest_path(set)?)?;
         assert!(second == first, "{set}: the second --pin run differs");
     }
     Ok(())

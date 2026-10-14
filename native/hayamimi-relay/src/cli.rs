@@ -1,10 +1,13 @@
 //! The command line: `run`, `fx-fetch` and `fx-schedule`.
 
+use std::fs::File;
+use std::io::Write;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::calendar;
+use crate::deliver::{Outputs, Words};
 use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
@@ -46,6 +49,8 @@ pub enum Command {
         events: Vec<String>,
         llm: String,
         serve: u16,
+        /// Where to write the settled translations as SRT cues.
+        srt: Option<PathBuf>,
     },
     FxFetch {
         out: Option<PathBuf>,
@@ -89,6 +94,7 @@ struct RunOptions {
     events: Vec<String>,
     llm: String,
     serve: u16,
+    srt: Option<PathBuf>,
 }
 
 impl Default for RunOptions {
@@ -97,6 +103,7 @@ impl Default for RunOptions {
             events: Vec::new(),
             llm: DEFAULT_LLM.to_owned(),
             serve: DEFAULT_SERVE,
+            srt: None,
         }
     }
 }
@@ -106,13 +113,14 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
-        if !matches!(option, "--events" | "--llm" | "--serve") {
+        if !matches!(option, "--events" | "--llm" | "--serve" | "--srt") {
             return Err(CliError::UnknownOption);
         }
         let value = rest.next().ok_or(CliError::MissingValue)?;
         match option {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
+            "--srt" => options.srt = Some(PathBuf::from(value)),
             _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
@@ -130,6 +138,7 @@ fn parse_run(args: &[String]) -> Result<Command, CliError> {
         events,
         llm: options.llm,
         serve: options.serve,
+        srt: options.srt,
     })
 }
 
@@ -305,7 +314,33 @@ fn announce_serving(
     eprintln!("{} http://{address}/events", strings.cli_text(key));
 }
 
-fn run_relay(events: Vec<String>, llm: String, serve: u16, now: i64, strings: &Strings) -> u8 {
+/// Opens the subtitle file. A file that cannot be opened is left out and the
+/// run goes on without it.
+fn open_srt(
+    path: &Path,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) -> Option<Box<dyn Write + Send>> {
+    match File::create(path) {
+        Ok(file) => Some(Box::new(file)),
+        Err(_) => {
+            sink.emit(
+                LogEvent::new(Level::Error, "srt.output.failed", "storage").with_error("SRT_OPEN"),
+            );
+            eprintln!("{}", strings.cli_text("srt_not_opened"));
+            None
+        }
+    }
+}
+
+fn run_relay(
+    events: Vec<String>,
+    llm: String,
+    serve: u16,
+    srt: Option<PathBuf>,
+    now: i64,
+    strings: &Strings,
+) -> u8 {
     let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
     let Ok(listener) = hub::bind(serve) else {
         print_error(strings, "cannot_serve");
@@ -317,7 +352,19 @@ fn run_relay(events: Vec<String>, llm: String, serve: u16, now: i64, strings: &S
         backoff: Backoff::STANDARD,
         started_epoch: now,
     };
-    let Ok(address) = relay::start(listener, config, pipeline_factory(llm), sink.clone()) else {
+    let outputs = Outputs {
+        destinations: Vec::new(),
+        srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
+        words: Words::from_strings(strings),
+    };
+    let started = relay::start_with(
+        listener,
+        config,
+        pipeline_factory(llm),
+        sink.clone(),
+        outputs,
+    );
+    let Ok(address) = started else {
         print_error(strings, "cannot_serve");
         return 1;
     };
@@ -348,7 +395,12 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
     };
     let mut sink = StdoutSink::new(strings.clone());
     match command {
-        Command::Run { events, llm, serve } => run_relay(events, llm, serve, now_epoch, &strings),
+        Command::Run {
+            events,
+            llm,
+            serve,
+            srt,
+        } => run_relay(events, llm, serve, srt, now_epoch, &strings),
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
         }
@@ -450,8 +502,41 @@ mod tests {
                     String::from("http://b/events")
                 ],
                 llm: String::from("http://x:1"),
-                serve: 9100
+                serve: 9100,
+                srt: None
             })
+        );
+    }
+
+    #[test]
+    fn run_takes_the_file_the_subtitles_are_written_to() {
+        let parsed = parse_args(&args(&[
+            "live", "--llm", "u", "--serve", "0", "--srt", "live.srt",
+        ]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run { srt: Some(ref path), .. }) if path == Path::new("live.srt")
+        ));
+        assert_eq!(
+            parse_args(&args(&["run", "--llm", "u", "--serve", "0", "--srt"])),
+            Err(CliError::MissingValue)
+        );
+    }
+
+    #[test]
+    fn a_subtitle_file_that_cannot_be_opened_is_left_out_and_said() {
+        let mut sink = crate::logging::MemorySink::default();
+        let Ok(strings) = Strings::embedded(Lang::En) else {
+            panic!("embedded table missing");
+        };
+        let missing = Path::new("/no/such/directory/live.srt");
+        assert!(open_srt(missing, &mut sink, &strings).is_none());
+        assert_eq!(
+            sink.events
+                .iter()
+                .map(|e| e.event.as_str())
+                .collect::<Vec<_>>(),
+            ["srt.output.failed"]
         );
     }
 
@@ -482,6 +567,7 @@ mod tests {
             events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
             llm: String::from("http://127.0.0.1:8080"),
             serve: 8835,
+            srt: None,
         };
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
@@ -535,6 +621,9 @@ mod tests {
                 "cannot_serve",
                 "serving_at",
                 "port_moved",
+                "sink_local",
+                "sink_cleared",
+                "srt_not_opened",
             ] {
                 assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
             }
@@ -556,6 +645,14 @@ mod tests {
                 "translate.publish.failed",
                 "relay.serve.started",
                 "server.fallback.port",
+                "translate.edit.held",
+                "translate.send.ok",
+                "translate.send.failed",
+                "translate.deliver.failed",
+                "sink.fallback.local",
+                "sink.fallback.cleared",
+                "srt.cue.skipped",
+                "srt.output.failed",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }

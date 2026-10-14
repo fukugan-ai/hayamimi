@@ -1,8 +1,19 @@
 //! The three stages for one line: translate (T), edit (E), verify (V), then
-//! the unit annotation. Each stage runs once, in this order. V sees the text
-//! of E exactly; the annotation is added after V and never shown to it.
+//! the unit annotation. T and E each run once, in this order. V checks each of
+//! the two translations once, so it runs at most twice per line, and a
+//! translation that fails V is never shown. The annotation is added after V
+//! and never shown to it.
+//!
+//! A `final` line is shown as early as it can be: when T's translation passes
+//! V, it goes out at once (`stage: "t"`, `settled: false`) while E is still
+//! being asked. The line is then settled exactly once: E's translation when it
+//! passes V (`stage: "e"`), otherwise T's translation when that passed
+//! (`stage: "t"`), otherwise a held line. Only the settled translation is
+//! sent outside (`deliver`). A `refine` line has no screen that shows a draft,
+//! so it is published once, settled.
 
 use std::fmt::Write as _;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -38,6 +49,26 @@ pub enum Status {
     Held,
 }
 
+/// The pass that made the text of a translation event.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Pass {
+    /// The translation of T, before E.
+    T,
+    /// The translation of E.
+    E,
+}
+
+impl Pass {
+    /// The wire name of the pass.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Pass::T => "t",
+            Pass::E => "e",
+        }
+    }
+}
+
 /// The `translation` event the relay sends to the screens.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Translation {
@@ -53,7 +84,13 @@ pub struct Translation {
     pub src_sha256: String,
     pub status: Status,
     pub hold_reason: Option<HoldReason>,
-    /// The edited translation, as the model wrote it; empty when held.
+    /// The pass the text comes from. A held line has no text; its pass is the
+    /// one that decided to withhold it.
+    pub stage: Pass,
+    /// True on the one event that decides the translation of the line, and
+    /// false on the draft that may be replaced before it.
+    pub settled: bool,
+    /// The translation, as the model wrote it; empty when held.
     pub text: String,
     pub annotations: Vec<Annotation>,
     pub skipped: Vec<Skipped>,
@@ -74,7 +111,10 @@ pub struct LineRequest<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     Translate,
+    /// V on the translation of T, which decides whether it is shown early.
+    VerifyDraft,
     Edit,
+    /// V on the translation of E.
     Verify,
     Annotate,
 }
@@ -84,8 +124,10 @@ pub enum Stage {
 pub trait Observer {
     /// A stage is about to run.
     fn stage(&mut self, _stage: Stage) {}
-    /// The exact translation text handed to V.
+    /// The exact translation text of E handed to V.
     fn verify_input(&mut self, _translation: &str) {}
+    /// The exact translation text of T handed to V.
+    fn draft_verify_input(&mut self, _translation: &str) {}
 }
 
 /// An observer that sees nothing.
@@ -185,6 +227,14 @@ pub struct Pipeline<L: Llm> {
     ja_style: Watched<JaStyle>,
 }
 
+/// T's answer, and whether V let it through.
+struct Draft {
+    text: String,
+    passed: bool,
+    /// Milliseconds spent so far in T, E and V, in that order.
+    ms: [u128; 3],
+}
+
 impl<L: Llm> Pipeline<L> {
     pub fn open(
         llm: L,
@@ -224,39 +274,106 @@ impl<L: Llm> Pipeline<L> {
         })
     }
 
-    /// Runs one line through T, E, V and the annotation.
+    /// Runs one line through T, E, V and the annotation and returns the
+    /// settled translation. No draft is handed out.
     pub fn run(
         &mut self,
         request: &LineRequest<'_>,
         observer: &mut dyn Observer,
         sink: &mut dyn LogSink,
     ) -> Translation {
+        self.run_staged(request, observer, &mut |_| {}, sink)
+    }
+
+    /// Runs one line like [`Pipeline::run`] and hands `early` the draft of a
+    /// `final` line as soon as T's translation has passed V, before E is asked.
+    pub fn run_staged(
+        &mut self,
+        request: &LineRequest<'_>,
+        observer: &mut dyn Observer,
+        early: &mut dyn FnMut(Translation),
+        sink: &mut dyn LogSink,
+    ) -> Translation {
         self.calques.refresh(sink);
         self.ja_style.refresh(sink);
         let started = Instant::now();
+        let draft = match self.draft(request, observer, started, sink) {
+            ControlFlow::Continue(draft) => draft,
+            ControlFlow::Break(done) => return done,
+        };
+        if draft.passed && request.of == LineKind::Final {
+            early(self.draft_event(request, &draft.text));
+        }
+        self.edit(request, draft, observer, started, sink)
+    }
+
+    /// T and the first V. `Break` carries a line that is settled without E.
+    fn draft(
+        &mut self,
+        request: &LineRequest<'_>,
+        observer: &mut dyn Observer,
+        started: Instant,
+        sink: &mut dyn LogSink,
+    ) -> ControlFlow<Translation, Draft> {
         observer.stage(Stage::Translate);
         let prompt = translate_prompt(request.src_lang, request.text);
-        let draft = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
+        let answer = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
             Ok(text) => text,
-            Err(error) => return self.unavailable(request, &error.to_string(), started, sink),
+            Err(error) => {
+                let line = self.unavailable(request, &error.to_string(), started, Pass::T, sink);
+                return ControlFlow::Break(line);
+            }
         };
         let t_ms = started.elapsed().as_millis();
-        if contains_eos(&draft) {
+        if contains_eos(&answer) {
             // `stop` did not take effect; the marker would reach E's prompt.
-            return self.held(request, HoldReason::Form, [t_ms, 0, 0], sink);
+            let line = self.held(request, HoldReason::Form, [t_ms, 0, 0], Pass::T, sink);
+            return ControlFlow::Break(line);
         }
+        let text = answer.trim().to_owned();
+        let verify_started = Instant::now();
+        observer.stage(Stage::VerifyDraft);
+        observer.draft_verify_input(&text);
+        let verdict = self
+            .verifier
+            .verify(request.text, &text, request.src_lang, sink);
+        ControlFlow::Continue(Draft {
+            text,
+            passed: verdict == Verdict::Ok,
+            ms: [t_ms, 0, verify_started.elapsed().as_millis()],
+        })
+    }
+
+    /// E, the second V, and the settled translation.
+    fn edit(
+        &mut self,
+        request: &LineRequest<'_>,
+        draft: Draft,
+        observer: &mut dyn Observer,
+        started: Instant,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
         let edit_started = Instant::now();
         observer.stage(Stage::Edit);
         let prompt = edit_prompt(
             request.src_lang,
             request.text,
-            draft.trim(),
+            &draft.text,
             self.calques.current(),
             self.ja_style.current(),
         );
         let edited = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
             Ok(text) => text,
-            Err(error) => return self.unavailable(request, &error.to_string(), started, sink),
+            Err(error) => {
+                return self.edit_failed(
+                    request,
+                    draft,
+                    &error.to_string(),
+                    observer,
+                    started,
+                    sink,
+                );
+            }
         };
         let e_ms = edit_started.elapsed().as_millis();
         let text = edited.trim().to_owned();
@@ -266,24 +383,80 @@ impl<L: Llm> Pipeline<L> {
         let verdict = self
             .verifier
             .verify(request.text, &text, request.src_lang, sink);
-        let v_ms = verify_started.elapsed().as_millis();
+        let v_ms = draft.ms[2] + verify_started.elapsed().as_millis();
+        let ms = [draft.ms[0], e_ms, v_ms];
         match verdict {
-            Verdict::Held(reason) => self.held(request, reason, [t_ms, e_ms, v_ms], sink),
-            Verdict::Ok => {
-                observer.stage(Stage::Annotate);
-                let annotated = self.annotator.annotate(
-                    &AnnotateRequest {
-                        id: request.id,
-                        src: request.text,
-                        translation: &text,
-                        src_lang: request.src_lang,
-                        now_epoch: request.now_epoch,
-                    },
-                    sink,
-                );
-                self.finish_ok(request, text, annotated, [t_ms, e_ms, v_ms], sink)
+            Verdict::Ok => self.settle(request, text, Pass::E, ms, observer, sink),
+            // An answer that still carries the end marker means `stop` did not
+            // take effect; the line is withheld, not rescued by the draft.
+            Verdict::Held(reason) if draft.passed && !contains_eos(&text) => {
+                self.keep_draft(request, draft.text, reason, ms, observer, sink)
             }
+            Verdict::Held(reason) => self.held(request, reason, ms, Pass::E, sink),
         }
+    }
+
+    /// E could not be asked. A draft that passed V stands; otherwise the line
+    /// is unavailable.
+    fn edit_failed(
+        &mut self,
+        request: &LineRequest<'_>,
+        draft: Draft,
+        detail: &str,
+        observer: &mut dyn Observer,
+        started: Instant,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        if !draft.passed {
+            return self.unavailable(request, detail, started, Pass::E, sink);
+        }
+        self.log_request_failed(request, detail, started, sink);
+        let ms = [draft.ms[0], 0, draft.ms[2]];
+        self.settle(request, draft.text, Pass::T, ms, observer, sink)
+    }
+
+    /// E's translation failed V, so T's translation, which passed, is the one
+    /// that stays.
+    fn keep_draft(
+        &mut self,
+        request: &LineRequest<'_>,
+        text: String,
+        reason: HoldReason,
+        ms: [u128; 3],
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        sink.emit(
+            LogEvent::new(Level::Info, "translate.edit.held", "service")
+                .with("id", request.id)
+                .with("source", request.source)
+                .with("hold_reason", reason.as_str()),
+        );
+        self.settle(request, text, Pass::T, ms, observer, sink)
+    }
+
+    /// Annotates a translation that passed V and settles it.
+    fn settle(
+        &mut self,
+        request: &LineRequest<'_>,
+        text: String,
+        pass: Pass,
+        ms: [u128; 3],
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        observer.stage(Stage::Annotate);
+        let annotated = self.annotator.annotate(
+            &AnnotateRequest {
+                id: request.id,
+                src: request.text,
+                translation: &text,
+                src_lang: request.src_lang,
+                now_epoch: request.now_epoch,
+            },
+            sink,
+        );
+        self.finish_ok(request, text, annotated, ms, pass, sink)
     }
 
     fn base(
@@ -291,6 +464,8 @@ impl<L: Llm> Pipeline<L> {
         request: &LineRequest<'_>,
         status: Status,
         reason: Option<HoldReason>,
+        pass: Pass,
+        settled: bool,
     ) -> Translation {
         Translation {
             event_type: "translation",
@@ -302,10 +477,19 @@ impl<L: Llm> Pipeline<L> {
             src_sha256: sha256_hex(request.text),
             status,
             hold_reason: reason,
+            stage: pass,
+            settled,
             text: String::new(),
             annotations: Vec::new(),
             skipped: Vec::new(),
         }
+    }
+
+    /// The draft event: T's translation, before E, without a note.
+    fn draft_event(&self, request: &LineRequest<'_>, text: &str) -> Translation {
+        let mut line = self.base(request, Status::Ok, None, Pass::T, false);
+        line.text = text.to_owned();
+        line
     }
 
     fn finish_ok(
@@ -314,14 +498,18 @@ impl<L: Llm> Pipeline<L> {
         text: String,
         annotated: Annotated,
         ms: [u128; 3],
+        pass: Pass,
         sink: &mut dyn LogSink,
     ) -> Translation {
-        sink.emit(timing(
-            LogEvent::new(Level::Info, "translate.line.ok", "service"),
-            request,
-            ms,
-        ));
-        let mut line = self.base(request, Status::Ok, None);
+        sink.emit(
+            timing(
+                LogEvent::new(Level::Info, "translate.line.ok", "service"),
+                request,
+                ms,
+            )
+            .with("stage", pass.as_str()),
+        );
+        let mut line = self.base(request, Status::Ok, None, pass, true);
         line.text = text;
         line.annotations = annotated.annotations;
         line.skipped = annotated.skipped;
@@ -333,6 +521,7 @@ impl<L: Llm> Pipeline<L> {
         request: &LineRequest<'_>,
         reason: HoldReason,
         ms: [u128; 3],
+        pass: Pass,
         sink: &mut dyn LogSink,
     ) -> Translation {
         sink.emit(timing(
@@ -341,16 +530,16 @@ impl<L: Llm> Pipeline<L> {
             request,
             ms,
         ));
-        self.base(request, Status::Held, Some(reason))
+        self.base(request, Status::Held, Some(reason), pass, true)
     }
 
-    fn unavailable(
+    fn log_request_failed(
         &self,
         request: &LineRequest<'_>,
         detail: &str,
         started: Instant,
         sink: &mut dyn LogSink,
-    ) -> Translation {
+    ) {
         let duration = u64::try_from(started.elapsed().as_millis()).ok();
         sink.emit(
             LogEvent::new(Level::Error, "translate.request.failed", "service")
@@ -360,7 +549,24 @@ impl<L: Llm> Pipeline<L> {
                 .with("detail", detail.split(':').next().map(str::to_owned))
                 .with_error("LLM_UNAVAILABLE"),
         );
-        self.base(request, Status::Held, Some(HoldReason::Unavailable))
+    }
+
+    fn unavailable(
+        &self,
+        request: &LineRequest<'_>,
+        detail: &str,
+        started: Instant,
+        pass: Pass,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        self.log_request_failed(request, detail, started, sink);
+        self.base(
+            request,
+            Status::Held,
+            Some(HoldReason::Unavailable),
+            pass,
+            true,
+        )
     }
 }
 
@@ -393,6 +599,11 @@ mod tests {
                 prompts: RefCell::new(Vec::new()),
             }
         }
+
+        /// A translator that answers T and then E with the given texts.
+        fn saying(t: &str, e: &str) -> Scripted {
+            Scripted::new(vec![Ok(t.to_owned()), Ok(e.to_owned())])
+        }
     }
 
     impl Llm for &Scripted {
@@ -415,6 +626,43 @@ mod tests {
             text,
             now_epoch: 1_790_000_000,
         }
+    }
+
+    /// What one run showed early, what it settled, and what it asked V.
+    struct Trace {
+        early: Vec<Translation>,
+        settled: Translation,
+        stages: Vec<Stage>,
+    }
+
+    #[derive(Default)]
+    struct Stages(Vec<Stage>);
+
+    impl Observer for Stages {
+        fn stage(&mut self, stage: Stage) {
+            self.0.push(stage);
+        }
+    }
+
+    fn run_traced(
+        script: &Scripted,
+        request: &LineRequest<'_>,
+    ) -> Result<Trace, Box<dyn std::error::Error>> {
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(script, &PipelineConfig::default(), &mut sink)?;
+        let mut early = Vec::new();
+        let mut stages = Stages::default();
+        let settled = pipeline.run_staged(
+            request,
+            &mut stages,
+            &mut |draft| early.push(draft),
+            &mut sink,
+        );
+        Ok(Trace {
+            early,
+            settled,
+            stages: stages.0,
+        })
     }
 
     #[test]
@@ -481,6 +729,8 @@ mod tests {
         assert_eq!(json["hold_reason"], "unavailable");
         assert_eq!(json["lang"], "en");
         assert_eq!(json["src_sha256"], sha256_hex("こんにちは。"));
+        assert_eq!(json["stage"], "t");
+        assert_eq!(json["settled"], true);
         Ok(())
     }
 
@@ -507,6 +757,166 @@ mod tests {
         assert_eq!(held.hold_reason, Some(HoldReason::Unavailable));
         assert_eq!(said.src_sha256, sha256_hex("こんにちは。"));
         assert_eq!(held.src_sha256, sha256_hex("さようなら。"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_draft_that_passes_is_shown_before_e_is_asked() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("Hello.", "Hi there.");
+        let trace = run_traced(&script, &request("こんにちは。"))?;
+        assert_eq!(trace.early.len(), 1);
+        let draft = &trace.early[0];
+        assert_eq!((draft.stage, draft.settled), (Pass::T, false));
+        assert_eq!((draft.status, draft.text.as_str()), (Status::Ok, "Hello."));
+        assert!(draft.annotations.is_empty());
+        assert_eq!(
+            (trace.settled.stage, trace.settled.settled),
+            (Pass::E, true)
+        );
+        assert_eq!(trace.settled.text, "Hi there.");
+        // The draft left before the edit stage began.
+        let order = [
+            Stage::Translate,
+            Stage::VerifyDraft,
+            Stage::Edit,
+            Stage::Verify,
+            Stage::Annotate,
+        ];
+        assert_eq!(trace.stages, order);
+        Ok(())
+    }
+
+    #[test]
+    fn the_draft_is_handed_out_before_the_edit_request_is_made()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("Hello.", "Hello.");
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        let mut asked_when_drafted = Vec::new();
+        let line = request("こんにちは。");
+        pipeline.run_staged(
+            &line,
+            &mut NoObserver,
+            &mut |_| asked_when_drafted.push(script.prompts.borrow().len()),
+            &mut sink,
+        );
+        assert_eq!(asked_when_drafted, [1]);
+        assert_eq!(script.prompts.borrow().len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn an_edit_that_fails_v_leaves_the_draft_as_the_settled_translation()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("The budget is 500 yen.", "The budget is 900 yen.");
+        let trace = run_traced(&script, &request("予算は500円です。"))?;
+        assert_eq!(trace.early.len(), 1);
+        let settled = &trace.settled;
+        assert_eq!(
+            (settled.status, settled.stage, settled.settled),
+            (Status::Ok, Pass::T, true)
+        );
+        assert_eq!(settled.text, trace.early[0].text);
+        Ok(())
+    }
+
+    #[test]
+    fn a_draft_that_fails_v_is_not_shown_and_a_good_edit_settles_the_line()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("The budget is 900 yen.", "The budget is 500 yen.");
+        let trace = run_traced(&script, &request("予算は500円です。"))?;
+        assert!(trace.early.is_empty());
+        assert_eq!(
+            (trace.settled.status, trace.settled.stage),
+            (Status::Ok, Pass::E)
+        );
+        assert_eq!(trace.settled.text, "The budget is 500 yen.");
+        Ok(())
+    }
+
+    #[test]
+    fn a_line_whose_two_translations_both_fail_v_is_held_once()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("The budget is 900 yen.", "The budget is 800 yen.");
+        let trace = run_traced(&script, &request("予算は500円です。"))?;
+        assert!(trace.early.is_empty());
+        let settled = &trace.settled;
+        assert_eq!(settled.hold_reason, Some(HoldReason::Number));
+        assert_eq!((settled.status, settled.settled), (Status::Held, true));
+        assert!(settled.text.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_edit_request_leaves_a_draft_that_passed() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let script = Scripted::new(vec![
+            Ok(String::from("Hello.")),
+            Err(LlmError::Transport(String::from("down"))),
+        ]);
+        let trace = run_traced(&script, &request("こんにちは。"))?;
+        assert_eq!(trace.early.len(), 1);
+        let settled = &trace.settled;
+        assert_eq!(
+            (settled.status, settled.stage, settled.settled),
+            (Status::Ok, Pass::T, true)
+        );
+        assert_eq!(settled.text, "Hello.");
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_edit_request_holds_a_line_whose_draft_failed()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![
+            Ok(String::from("The budget is 900 yen.")),
+            Err(LlmError::Transport(String::from("down"))),
+        ]);
+        let trace = run_traced(&script, &request("予算は500円です。"))?;
+        assert!(trace.early.is_empty());
+        assert_eq!(trace.settled.hold_reason, Some(HoldReason::Unavailable));
+        Ok(())
+    }
+
+    #[test]
+    fn a_refine_line_is_published_once_and_settled() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("Hello.", "Hello.");
+        let mut line = request("こんにちは。");
+        line.of = LineKind::Refine;
+        let trace = run_traced(&script, &line)?;
+        assert!(trace.early.is_empty());
+        assert_eq!(
+            (trace.settled.of, trace.settled.settled),
+            (LineKind::Refine, true)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_draft_with_the_end_marker_is_held_without_asking_e()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("Hello.</s>", "Hello.");
+        let trace = run_traced(&script, &request("こんにちは。"))?;
+        assert!(trace.early.is_empty());
+        assert_eq!(trace.settled.hold_reason, Some(HoldReason::Form));
+        assert_eq!(script.prompts.borrow().len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn the_lines_that_edit_failed_to_improve_say_so_in_the_log()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("The budget is 500 yen.", "The budget is 900 yen.");
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        pipeline.run(&request("予算は500円です。"), &mut NoObserver, &mut sink);
+        let held: Vec<_> = sink
+            .events
+            .iter()
+            .filter(|event| event.event == "translate.edit.held")
+            .collect();
+        assert_eq!(held.len(), 1);
+        assert_eq!(held[0].fields["hold_reason"], "number");
         Ok(())
     }
 }

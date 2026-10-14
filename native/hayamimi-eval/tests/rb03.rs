@@ -6,7 +6,8 @@ mod support;
 use std::path::Path;
 
 use support::{
-    BASE, FIXTURES, Failure, RESULTS, TestResult, micros, read, read_bytes, section, table_rows,
+    FIXTURES, Failure, RESULTS, TestResult, base as base_dir, micros, read, read_bytes, section,
+    table_rows,
 };
 
 const LANGS: [&str; 5] = ["ja", "en", "zh", "ko", "yue"];
@@ -125,14 +126,14 @@ fn check_same_up_to_line_endings(restored: &[u8], record: &[u8]) -> Result<(), F
     }
 }
 
-fn base(name: &str) -> std::path::PathBuf {
-    Path::new(BASE).join(name)
+fn base(name: &str) -> Result<std::path::PathBuf, Failure> {
+    Ok(base_dir()?.join(name))
 }
 
 #[test]
 fn rb03_python_scorecard_reproduces_record_record_file_parses_to_the_five_recorded_means()
 -> TestResult {
-    let found = means(&read(&base("scorecard_record.md"))?)?;
+    let found = means(&read(&base("scorecard_record.md")?)?)?;
     let want: Vec<(String, i64)> = RECORD
         .iter()
         .map(|(lang, mean)| ((*lang).to_owned(), *mean))
@@ -143,13 +144,13 @@ fn rb03_python_scorecard_reproduces_record_record_file_parses_to_the_five_record
 
 #[test]
 fn rb03_python_scorecard_reproduces_record_run1_means_within_0_005_of_record() -> TestResult {
-    check_run(&read(&base("scorecard_run1.md"))?)?;
+    check_run(&read(&base("scorecard_run1.md")?)?)?;
     Ok(())
 }
 
 #[test]
 fn rb03_python_scorecard_reproduces_record_run2_means_within_0_005_of_record() -> TestResult {
-    check_run(&read(&base("scorecard_run2.md"))?)?;
+    check_run(&read(&base("scorecard_run2.md")?)?)?;
     Ok(())
 }
 
@@ -180,7 +181,7 @@ fn rb03_python_scorecard_reproduces_record_missing_language_row_is_named() {
 #[test]
 fn rb03_python_scorecard_reproduces_record_runs_report_t2s_normalisation_for_yue() -> TestResult {
     for name in ["scorecard_run1.md", "scorecard_run2.md"] {
-        assert!(read(&base(name))?.contains("yueはt2s正規化"), "{name}");
+        assert!(read(&base(name)?)?.contains("yueはt2s正規化"), "{name}");
     }
     Ok(())
 }
@@ -195,7 +196,7 @@ fn rb03_python_scorecard_reproduces_record_run_without_opencc_is_rejected() {
 fn rb03_python_scorecard_reproduces_record_runs_contain_the_lid_misjudgement_section() -> TestResult
 {
     for name in ["scorecard_run1.md", "scorecard_run2.md"] {
-        assert!(read(&base(name))?.contains("LID誤判定の内訳"), "{name}");
+        assert!(read(&base(name)?)?.contains("LID誤判定の内訳"), "{name}");
     }
     Ok(())
 }
@@ -206,8 +207,8 @@ fn rb03_python_scorecard_reproduces_record_baseline_summary_records_the_differen
     let summary = read(&Path::new(RESULTS).join("baseline_python.md"))?;
     check_run_differences(
         &summary,
-        &read(&base("scorecard_run1.md"))?,
-        &read(&base("scorecard_run2.md"))?,
+        &read(&base("scorecard_run1.md")?)?,
+        &read(&base("scorecard_run2.md")?)?,
     )?;
     Ok(())
 }
@@ -215,7 +216,7 @@ fn rb03_python_scorecard_reproduces_record_baseline_summary_records_the_differen
 #[test]
 fn rb03_python_scorecard_reproduces_record_summary_without_run_difference_is_rejected() -> TestResult
 {
-    let run = read(&base("scorecard_run1.md"))?;
+    let run = read(&base("scorecard_run1.md")?)?;
     let said = check_run_differences(
         include_str!("fixtures/rb03_summary_without_difference.md"),
         &run,
@@ -229,7 +230,7 @@ fn rb03_python_scorecard_reproduces_record_summary_without_run_difference_is_rej
 fn rb03_python_scorecard_reproduces_record_scorecard_md_is_restored_up_to_line_endings()
 -> TestResult {
     let restored = read_bytes(&Path::new(RESULTS).join("scorecard.md"))?;
-    check_same_up_to_line_endings(&restored, &read_bytes(&base("scorecard_record.md"))?)?;
+    check_same_up_to_line_endings(&restored, &read_bytes(&base("scorecard_record.md")?)?)?;
     Ok(())
 }
 

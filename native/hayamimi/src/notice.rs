@@ -8,13 +8,14 @@ use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 8] = [
+pub const STAGES: [&str; 9] = [
     "punct",
     "recognizer",
     "vad",
     "asr",
     "events",
     "replace",
+    "translate",
     "lid",
     "second_opinion",
 ];
@@ -145,6 +146,18 @@ impl Notice {
         }
     }
 
+    /// The translation server runs on the CPU, with no layer on the GPU.
+    pub fn translate_on_cpu(reason: Reason) -> Notice {
+        Notice {
+            event: GPU_FALLBACK,
+            error_code: "HAYAMIMI_GPU_FALLBACK",
+            stage: "translate",
+            reason: reason.name(),
+            to: "cpu",
+            url: None,
+        }
+    }
+
     /// The inference libraries did not open, so there is no recognition.
     pub fn library_unavailable() -> Notice {
         Notice {
@@ -245,6 +258,22 @@ mod tests {
         assert_eq!(
             (notice.stage, notice.reason, notice.to),
             ("punct", "no_device", "cpu")
+        );
+    }
+
+    #[test]
+    fn the_translation_server_on_the_cpu_is_a_gpu_fallback_of_the_translate_stage() {
+        let notice = Notice::translate_on_cpu(Reason::SessionFailed);
+        assert_eq!(notice.event, GPU_FALLBACK);
+        assert!(notice.is_gpu());
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("translate", "session_failed", "cpu")
+        );
+        let wire = notice.wire();
+        assert_eq!(
+            (wire["stage"].as_str(), wire["to"].as_str()),
+            (Some("translate"), Some("cpu"))
         );
     }
 
@@ -382,6 +411,9 @@ mod tests {
             Notice::port_in_use(None),
             Notice::port_in_use(Some(String::new())),
             Notice::config_unreadable(),
+            Notice::translate_on_cpu(Reason::NoDevice),
+            Notice::translate_on_cpu(Reason::DriverUnreadable),
+            Notice::translate_on_cpu(Reason::SessionFailed),
         ];
         let resident = [
             v2_for_v3(),
