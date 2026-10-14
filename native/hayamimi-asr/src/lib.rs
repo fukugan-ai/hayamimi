@@ -6,15 +6,22 @@
 //! through sherpa-onnx.
 
 pub mod audio;
+pub mod cluster;
+pub mod diarize;
+pub mod embedder;
 pub mod error;
 pub mod fallback;
+pub mod hungarian;
 pub mod itn;
 pub mod ort_runtime;
 pub mod pipeline;
 pub mod punct;
 pub mod recognizer;
+pub mod refine;
 pub mod replace;
 pub mod retry;
+pub mod speaker;
+pub mod speaker_stage;
 pub mod vad;
 
 pub use error::AsrError;

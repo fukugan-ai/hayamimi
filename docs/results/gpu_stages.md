@@ -176,10 +176,14 @@
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | cpu | int8 | 負荷 | 1 | 115 | 32040 | 36624 | 分割、埋め込み、clustering を含む 1 呼び出し |
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | cpu | fp32 | 負荷 | 2 | 115 | 42048 | 47455 | 分割、埋め込み、clustering を含む 1 呼び出し |
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | cpu | int8 | 負荷 | 2 | 115 | 30065 | 37595 | 分割、埋め込み、clustering を含む 1 呼び出し |
-| 清書の clustering（FastClustering）と全体の対応づけ | cuda | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
-| 清書の clustering（FastClustering）と全体の対応づけ | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
-| 清書の clustering（FastClustering）と全体の対応づけ | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
-| 清書の clustering（FastClustering）と全体の対応づけ | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
+| 清書の clustering（FastClustering）と全体の対応づけ | cuda | transfer-floor | 無負荷 | 1 | 115 | 278 | 352 | 下限: 転送の往復だけで kernel を含まない。FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cuda | transfer-floor | 無負荷 | 2 | 115 | 222 | 282 | 下限: 転送の往復だけで kernel を含まない。FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cuda | transfer-floor | 無負荷 | 3 | 115 | 268 | 353 | 下限: 転送の往復だけで kernel を含まない。FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
+| 清書の clustering（FastClustering）と全体の対応づけ | cpu | cpu | 無負荷 | 1 | 115 | 24 | 26 | FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cpu | cpu | 無負荷 | 2 | 115 | 30 | 39 | FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cpu | cpu | 無負荷 | 3 | 115 | 28 | 37 | FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている |
+| 清書の clustering（FastClustering）と全体の対応づけ | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
 | 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 1 | 115 | 256584 | 409758 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
 | 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 2 | 115 | 250591 | 400465 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
 | 訳 T と E（llama-server、CUDA） | cuda | CAT-Translate-3.3b-Q8_0 | 無負荷 | 3 | 115 | 252986 | 422328 | T の 1 回。E は測っていない。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
@@ -266,7 +270,7 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 226840 µs（fp32） / CPU 70909 µs（fp32）。負荷下の p50: GPU 268114 µs（fp32） / CPU 82711 µs（fp32） |
 | 話者の速報の割り当て（cosine と重心の更新） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 244 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 733 µs（transfer-floor） / CPU 3 µs（cpu） |
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 118134 µs（fp32） / CPU 26436 µs（int8）。負荷下の p50: GPU 204992 µs（fp32） / CPU 31052 µs（int8） |
-| 清書の clustering（FastClustering）と全体の対応づけ | 未決 | sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い |
+| 清書の clustering（FastClustering）と全体の対応づけ | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 256 µs（transfer-floor） / CPU 27 µs（cpu） |
 | 訳 T と E（llama-server、CUDA） | GPU | 無負荷の p50: GPU 253387 µs（CAT-Translate-3.3b-Q8_0） / CPU 2858195 µs（CAT-Translate-3.3b-Q8_0）。負荷下の p50: GPU 434935 µs（CAT-Translate-3.3b-Q8_0） / CPU 3337105 µs（CAT-Translate-3.3b-Q8_0）。測った環境: WSL の llama-server（CUDA 12.0 の build）で、本番の Windows、CUDA 13 の形ではない |
 | 認識の文字列 → 訳の入力 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 225 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 519 µs（transfer-floor） / CPU 2 µs（cpu） |
 | 照合 V と単位の換算 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 238 µs（transfer-floor） / CPU 8 µs（cpu）。負荷下の p50: GPU 450 µs（transfer-floor） / CPU 9 µs（cpu） |

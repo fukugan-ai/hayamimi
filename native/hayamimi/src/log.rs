@@ -21,6 +21,7 @@ pub const SESSION_PLACED: &str = "gpu.session.placed";
 pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
+pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
 
 /// A time in milliseconds to three decimals.
@@ -128,7 +129,20 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
             ("punct_ms", millis(t.punct_ms)),
             ("itn_ms", millis(t.itn_ms)),
             ("l_dec_ms", millis(t.l_dec_ms)),
+            ("speaker_ms", millis(done.speaker.ms)),
         ],
+    )
+}
+
+/// `asr.speaker.failed`: the speaker mark failed for one utterance and the text went on without it.
+pub fn speaker_failed_line(strings: &Strings, done: &Final) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        SPEAKER_FAILED,
+        "asr",
+        None,
+        &[("id", Value::from(done.id))],
     )
 }
 
@@ -168,6 +182,7 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::Timings;
     use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_asr::speaker_stage::Mark;
     use hayamimi_relay::lang::Lang;
 
     fn strings() -> Result<Strings, String> {
@@ -201,6 +216,7 @@ mod tests {
                 l_dec_ms: 130.0,
             },
             punct_error: None,
+            speaker: Mark::none(),
         }
     }
 
@@ -277,6 +293,7 @@ mod tests {
             "punct_ms",
             "itn_ms",
             "l_dec_ms",
+            "speaker_ms",
         ] {
             assert!(event.get(key).is_some(), "{key} is missing");
         }
@@ -296,6 +313,7 @@ mod tests {
                 DEVICE_UNAVAILABLE,
                 UTTERANCE_TIMED,
                 PUNCT_FAILED,
+                SPEAKER_FAILED,
                 ENGINE_FAILED,
                 notice::GPU_FALLBACK,
                 notice::MODEL_DISABLED,

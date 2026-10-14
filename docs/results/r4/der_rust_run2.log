@@ -1,0 +1,7 @@
+[ES2011a] DER=17.5%  ref_speakers=4 hyp_speakers=5  ref_turns=83 hyp_segments=68  decode=43.2s  diar=32.5s over 32 groups (diar_rtf=0.054)  opened_by={'fast': 8}
+[IS1008a] DER=4.1%  ref_speakers=4 hyp_speakers=9  ref_turns=107 hyp_segments=88  decode=77.5s  diar=67.0s over 22 groups (diar_rtf=0.112)  opened_by={'fast': 6, 'remap': 3}
+[ES2004a] DER=17.3%  ref_speakers=4 hyp_speakers=8  ref_turns=131 hyp_segments=89  decode=38.3s  diar=28.5s over 39 groups (diar_rtf=0.047)  opened_by={'fast': 8, 'remap': 1}
+[IS1009a] DER=13.7%  ref_speakers=4 hyp_speakers=5  ref_turns=145 hyp_segments=123  decode=59.2s  diar=50.2s over 24 groups (diar_rtf=0.084)  opened_by={'fast': 6}
+[TS3003a] DER=13.9%  ref_speakers=4 hyp_speakers=6  ref_turns=62 hyp_segments=53  decode=60.9s  diar=49.4s over 28 groups (diar_rtf=0.082)  opened_by={'fast': 7, 'remap': 2}
+
+=== mean DER over 5 meeting(s): 13.3% (collar=0.25s) ===

@@ -7,7 +7,15 @@ use hayamimi_asr::{Fallback, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 6] = ["punct", "recognizer", "vad", "asr", "events", "replace"];
+pub const STAGES: [&str; 7] = [
+    "punct",
+    "recognizer",
+    "vad",
+    "asr",
+    "events",
+    "replace",
+    "speaker",
+];
 /// Every reason a notice can carry.
 pub const REASONS: [&str; 7] = [
     "no_device",

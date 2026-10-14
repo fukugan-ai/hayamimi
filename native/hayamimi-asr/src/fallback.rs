@@ -13,6 +13,8 @@ pub enum Stage {
     Recognizer,
     /// The voice detector.
     Vad,
+    /// The speaker mark of an utterance.
+    Speaker,
 }
 
 impl Stage {
@@ -22,6 +24,7 @@ impl Stage {
             Stage::Punct => "punct",
             Stage::Recognizer => "recognizer",
             Stage::Vad => "vad",
+            Stage::Speaker => "speaker",
         }
     }
 }
@@ -97,6 +100,7 @@ mod tests {
     #[test]
     fn the_names_are_the_words_of_the_events() {
         assert_eq!(Stage::Punct.name(), "punct");
+        assert_eq!(Stage::Speaker.name(), "speaker");
         assert_eq!(Reason::DriverUnreadable.name(), "driver_unreadable");
         assert_eq!(Reason::SessionFailed.name(), "session_failed");
         assert_eq!(To::Disabled.name(), "disabled");

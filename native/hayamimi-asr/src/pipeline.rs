@@ -18,18 +18,23 @@ use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
 use crate::recognizer::{Recognizer, model_files};
 use crate::replace::Replacements;
 use crate::retry::{Splitter, looks_truncated};
+use crate::speaker_stage::{Mark, SpeakerStage};
 use crate::vad::{Segment, Vad, VadSettings};
 
 /// The language of the route.
 const LANGUAGE: &str = "ja";
 /// The file name the VAD session is reported under.
 const VAD_MODEL: &str = "silero_vad.onnx";
+/// The file name the speaker embedding session is reported under.
+const SPEAKER_MODEL: &str = crate::embedder::MODEL_FILE;
 
 /// Which optional stages run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Stages {
     pub itn: bool,
     pub punctuate: bool,
+    /// The speaker mark of each utterance.
+    pub speakers: bool,
 }
 
 impl Default for Stages {
@@ -37,6 +42,7 @@ impl Default for Stages {
         Stages {
             itn: true,
             punctuate: true,
+            speakers: true,
         }
     }
 }
@@ -104,6 +110,8 @@ pub struct Final {
     pub timings: Timings,
     /// Set when punctuation failed and the text went on without it.
     pub punct_error: Option<String>,
+    /// Who spoke; empty label when the speaker stage is out.
+    pub speaker: Mark,
 }
 
 /// The detector and the recognizer, which only work together.
@@ -119,6 +127,8 @@ pub struct Engine {
     /// `None` when the detector or the recognizer could not be opened: the engine then makes no utterances.
     route: Option<Route>,
     punctuator: Option<Punctuator>,
+    /// `None` when the stage is off or its model is not there: utterances then carry no mark.
+    speakers: Option<SpeakerStage>,
     stages: Stages,
     itn_overrides: Overrides,
     replacements: Replacements,
@@ -294,6 +304,27 @@ fn open_punct(
     Ok(Some((punctuator, report)))
 }
 
+/// Opens the speaker stage when it is on. Its model runs on the CPU (design
+/// 3.5); a model that is missing or unreadable leaves the stage out.
+fn open_speakers(
+    settings: &Settings,
+    reports: &mut Vec<SessionReport>,
+    fallbacks: &mut Vec<Fallback>,
+) -> Result<Option<SpeakerStage>, AsrError> {
+    if !settings.stages.speakers {
+        return Ok(None);
+    }
+    let opened = open_or_disable(
+        SpeakerStage::open(&settings.models),
+        Stage::Speaker,
+        fallbacks,
+    )?;
+    if opened.is_some() {
+        reports.push(cpu_report(String::from(SPEAKER_MODEL)));
+    }
+    Ok(opened)
+}
+
 impl Engine {
     /// Opens every model. A stage whose model is missing or unreadable is left
     /// out, a punctuation session that cannot run on the GPU runs on the CPU,
@@ -313,9 +344,11 @@ impl Engine {
             reports.push(report);
             punctuator = Some(opened);
         }
+        let speakers = open_speakers(&settings, &mut reports, &mut fallbacks)?;
         Ok(Engine {
             route,
             punctuator,
+            speakers,
             stages: settings.stages,
             itn_overrides: settings.itn_overrides,
             replacements: settings.replacements,
@@ -404,6 +437,9 @@ impl Engine {
         }
         let id = self.next_id;
         self.next_id += 1;
+        // The text is finished here; the mark is timed apart and not counted in `l_dec_ms`.
+        let l_dec_ms = millis(started);
+        let speaker = self.mark_speaker(&segment.samples);
         Ok(Some(Final {
             id,
             text,
@@ -414,10 +450,19 @@ impl Engine {
                 decode_ms: decoded.decode_ms,
                 punct_ms,
                 itn_ms,
-                l_dec_ms: millis(started),
+                l_dec_ms,
             },
             punct_error,
+            speaker,
         }))
+    }
+
+    /// The speaker mark of one utterance; no mark when the stage is out.
+    fn mark_speaker(&mut self, samples: &[f32]) -> Mark {
+        match self.speakers.as_mut() {
+            Some(stage) => stage.mark(samples),
+            None => Mark::none(),
+        }
     }
 
     /// Inverse text normalisation, when the stage is on, and the time it took.
@@ -486,7 +531,8 @@ mod tests {
             Stages::default(),
             Stages {
                 itn: true,
-                punctuate: true
+                punctuate: true,
+                speakers: true
             }
         );
     }
@@ -533,7 +579,8 @@ mod tests {
             [
                 ("vad", "disabled"),
                 ("recognizer", "disabled"),
-                ("punct", "disabled")
+                ("punct", "disabled"),
+                ("speaker", "disabled")
             ]
         );
         assert!(engine.sessions().is_empty());
@@ -554,6 +601,35 @@ mod tests {
         );
         assert_eq!(disable_reason(&AsrError::Wav(String::from("w"))), None);
         assert_eq!(disable_reason(&AsrError::Overflow("n")), None);
+    }
+
+    #[test]
+    fn a_run_with_the_speaker_stage_off_neither_opens_it_nor_says_it_fell_back()
+    -> Result<(), AsrError> {
+        let mut settings = Settings::new(PathBuf::from("no-such-models"));
+        settings.stages.speakers = false;
+        let mut reports = Vec::new();
+        let mut fallbacks = Vec::new();
+        let opened = open_speakers(&settings, &mut reports, &mut fallbacks)?;
+        assert!(opened.is_none());
+        assert!(reports.is_empty());
+        assert!(fallbacks.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_missing_speaker_model_leaves_that_stage_out_and_nothing_else() -> Result<(), AsrError> {
+        let settings = Settings::new(PathBuf::from("no-such-models"));
+        let mut reports = Vec::new();
+        let mut fallbacks = Vec::new();
+        assert!(open_speakers(&settings, &mut reports, &mut fallbacks)?.is_none());
+        assert!(reports.is_empty());
+        let left_out: Vec<(&str, &str, &str)> = fallbacks
+            .iter()
+            .map(|f| (f.stage.name(), f.reason.name(), f.to.name()))
+            .collect();
+        assert_eq!(left_out, [("speaker", "missing", "disabled")]);
+        Ok(())
     }
 
     #[test]

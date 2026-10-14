@@ -67,7 +67,7 @@ fn final_event(done: &Final) -> Value {
         "type": "final",
         "text": done.text,
         "lang": "ja",
-        "speaker": "",
+        "speaker": done.speaker.label,
         "latency_ms": t.l_dec_ms,
         "tier": "rz",
         "audio_s": done.audio_seconds,
@@ -83,6 +83,9 @@ fn announce(strings: &Strings, hub: &Hub, finals: &[Final]) {
         log::print(&log::utterance_timed_line(strings, done));
         if done.punct_error.is_some() {
             log::print(&log::punct_failed_line(strings, done));
+        }
+        if done.speaker.error.is_some() {
+            log::print(&log::speaker_failed_line(strings, done));
         }
         hub.publish(&final_event(done));
     }
@@ -266,6 +269,7 @@ pub fn run(raw: &[String], locale_tag: Option<&str>) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hayamimi_asr::speaker_stage::Mark;
     use hayamimi_asr::{Reason, Timings};
 
     fn finished() -> Final {
@@ -282,6 +286,7 @@ mod tests {
                 l_dec_ms: 120.0,
             },
             punct_error: None,
+            speaker: Mark::none(),
         }
     }
 

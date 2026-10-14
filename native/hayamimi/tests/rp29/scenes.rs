@@ -27,6 +27,13 @@ pub const MODEL_DISABLED: Scene = Scene {
     reason: "missing",
     to: "disabled",
 };
+pub const SPEAKER: Scene = Scene {
+    name: "speaker",
+    event: "model.fallback.disabled",
+    stage: "speaker",
+    reason: "missing",
+    to: "disabled",
+};
 pub const LIBRARY: Scene = Scene {
     name: "library",
     event: "asr.fallback.disabled",

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+pub mod der_logs;
 pub mod stages;
 
 /// What a `check_*` function returns for a wrong input: a message that

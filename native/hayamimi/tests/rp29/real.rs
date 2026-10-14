@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::checks::{check_port_move, check_resource_fallback, check_resource_present, port_of};
-use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT};
+use serde_json::Value;
+
+use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT, SPEAKER, text_of};
 use crate::support::{
     Failure, Served, clip, events, free_port, models_dir, named, serve, serve_from,
 };
@@ -84,6 +86,43 @@ pub fn model_scene() -> Result<(), Failure> {
     check_resource_present(&MODEL_DISABLED, &run_with(&models_dir()?, &[])?)
 }
 
+/// How many `final` events on the wire carry a speaker mark, and how many there are.
+fn marked_finals(served: &Served) -> (usize, usize) {
+    let finals: Vec<&Value> = served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .collect();
+    let marked = finals
+        .iter()
+        .filter(|event| text_of(event, "speaker").is_some_and(|mark| !mark.is_empty()))
+        .count();
+    (marked, finals.len())
+}
+
+/// The speaker model is taken away: the stage is left out, subtitles come
+/// without a mark, and with the model present every utterance has one.
+pub fn speaker_scene() -> Result<(), Failure> {
+    let without = models_without("campplus_sv.onnx")?;
+    let bare = run_with(&without, &[])?;
+    check_resource_fallback(&SPEAKER, &bare, true)?;
+    let (marked, total) = marked_finals(&bare);
+    if marked != 0 {
+        return Err(format!(
+            "speaker: {marked} of {total} finals have a mark without the model"
+        ));
+    }
+    let whole = run_with(&models_dir()?, &[])?;
+    check_resource_present(&SPEAKER, &whole)?;
+    let (marked, total) = marked_finals(&whole);
+    if total == 0 || marked != total {
+        return Err(format!(
+            "speaker: {marked} of {total} finals have a mark with the model"
+        ));
+    }
+    Ok(())
+}
+
 /// The requested port is held: the server moves to one of the next ten.
 pub fn port_scene() -> Result<(), Failure> {
     let blocked = free_port()?;
@@ -121,6 +160,7 @@ pub fn config_scene() -> Result<(), Failure> {
 /// Every scene of the Japanese route, one after another.
 pub fn all_scenes() -> Result<(), Failure> {
     model_scene()?;
+    speaker_scene()?;
     port_scene()?;
     config_scene()
 }
