@@ -1,0 +1,15 @@
+{
+  "engine": "hayamimi",
+  "lid": "detected",
+  "rows": [
+    {
+      "lang": "ko",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "sv",
+      "mean_err_micros": 86939,
+      "mean_rtf_micros": 49518
+    }
+  ],
+  "fallbacks": []
+}

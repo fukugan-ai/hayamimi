@@ -63,6 +63,24 @@ fn rp36_ko_86940_is_over_the_cap() -> TestResult {
     Ok(())
 }
 
+/// T-RP-36-005: the equal side of the cap, from a fixture, so it runs
+/// without `--ignored`.
+#[test]
+fn rp36_ko_86939_is_within_the_cap() -> TestResult {
+    let card = read_json(&Path::new(FIXTURES).join("rp36_ko_86939.json"))?;
+    assert_eq!(check_ko_cap(&card), Ok(86_939));
+    Ok(())
+}
+
+/// T-RP-36-006: only the Korean row is compared; a Chinese row over the cap
+/// does not matter.
+#[test]
+fn rp36_only_the_ko_row_is_compared() -> TestResult {
+    let card = read_json(&Path::new(FIXTURES).join("rp36_zh_over_cap_ko_within.json"))?;
+    assert_eq!(check_ko_cap(&card), Ok(80_572));
+    Ok(())
+}
+
 /// T-RP-36-004: a record with no Korean row is refused, not passed.
 #[test]
 fn rp36_a_record_without_a_ko_row_is_refused() -> TestResult {
