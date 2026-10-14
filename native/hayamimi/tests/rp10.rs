@@ -48,6 +48,12 @@ fn check_no_error_event(events: &[Value]) -> Result<(), Failure> {
 /// The finals of the stream come after the server is up, there is at least
 /// one `partial` and one `final`, and every `final` is English.
 pub fn check_event_stream(events: &[Value]) -> Result<(), Failure> {
+    check_event_stream_in(events, Some("en"))
+}
+
+/// The same check with the language of the finals fixed by `lang`, or left
+/// unchecked with `None` (a build whose English route is not in yet).
+pub fn check_event_stream_in(events: &[Value], lang: Option<&str>) -> Result<(), Failure> {
     check_no_error_event(events)?;
     let up =
         first_of(events, &["ready", "session_start"]).ok_or("the server never sent `ready`")?;
@@ -57,9 +63,9 @@ pub fn check_event_stream(events: &[Value]) -> Result<(), Failure> {
     }
     first_of(events, &["partial"]).ok_or("no `partial` event came out")?;
     for event in events.iter().filter(|event| kind(event) == Some("final")) {
-        let lang = text_of(event, "lang");
-        if lang != Some("en") {
-            return Err(format!("a `final` has lang {lang:?}, want \"en\""));
+        let found = text_of(event, "lang");
+        if lang.is_some() && found != lang {
+            return Err(format!("a `final` has lang {found:?}, want {lang:?}"));
         }
     }
     Ok(())
@@ -202,6 +208,18 @@ fn wsl_wav_run_passes_the_same_check() -> TestResult {
         Some("C.UTF-8"),
         &[],
     )?;
-    check_event_stream(&served.wire)?;
+    // The `lang == en` condition is not R5's: the English route comes with R3b.
+    check_event_stream_in(&served.wire, None)?;
     Ok(())
+}
+
+/// The language condition is the only one the real run leaves out.
+#[test]
+fn leaving_the_language_unchecked_still_wants_ready_partial_and_final() {
+    let japanese = json!({"type": "final", "text": "こんにちは", "lang": "ja"});
+    assert!(check_event_stream_in(&[ready(), partial(), japanese.clone()], None).is_ok());
+    assert!(names(
+        check_event_stream_in(&[ready(), japanese], None),
+        "no `partial`"
+    ));
 }
