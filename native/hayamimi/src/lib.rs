@@ -3,6 +3,7 @@
 
 pub mod args;
 pub mod gpu_check;
+pub mod llama;
 pub mod log;
 pub mod notice;
 pub mod run;

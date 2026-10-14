@@ -64,9 +64,25 @@ pub trait Llm {
     fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError>;
 }
 
+#[derive(Deserialize)]
+struct HealthAnswer {
+    status: String,
+}
+
+/// What `GET /health` says once the model is loaded and the server takes requests.
+const HEALTH_READY: &str = "ok";
+
+fn from_ureq(error: ureq::Error) -> LlmError {
+    match error {
+        ureq::Error::StatusCode(code) => LlmError::Status(code),
+        other => LlmError::Transport(other.to_string()),
+    }
+}
+
 /// A llama-server reached over HTTP.
 pub struct HttpLlm {
     endpoint: String,
+    health: String,
     agent: ureq::Agent,
 }
 
@@ -76,9 +92,29 @@ impl HttpLlm {
         let config = ureq::Agent::config_builder()
             .timeout_global(Some(REQUEST_TIMEOUT))
             .build();
+        let root = base_url.trim_end_matches('/');
         HttpLlm {
-            endpoint: format!("{}/completion", base_url.trim_end_matches('/')),
+            endpoint: format!("{root}/completion"),
+            health: format!("{root}/health"),
             agent: ureq::Agent::new_with_config(config),
+        }
+    }
+
+    /// Whether the server answers `GET /health` with `{"status":"ok"}`. A
+    /// server that is still loading its model answers 503, which is
+    /// [`LlmError::Status`].
+    pub fn health(&self) -> Result<(), LlmError> {
+        let mut response = self.agent.get(&self.health).call().map_err(from_ureq)?;
+        let text = response
+            .body_mut()
+            .read_to_string()
+            .map_err(|error| LlmError::Transport(error.to_string()))?;
+        let answer: HealthAnswer =
+            serde_json::from_str(&text).map_err(|error| LlmError::Body(error.to_string()))?;
+        if answer.status == HEALTH_READY {
+            Ok(())
+        } else {
+            Err(LlmError::Body(format!("health status {}", answer.status)))
         }
     }
 }
@@ -92,10 +128,7 @@ impl Llm for HttpLlm {
             .post(&self.endpoint)
             .header("Content-Type", "application/json")
             .send(body)
-            .map_err(|error| match error {
-                ureq::Error::StatusCode(code) => LlmError::Status(code),
-                other => LlmError::Transport(other.to_string()),
-            })?;
+            .map_err(from_ureq)?;
         let text = response
             .body_mut()
             .read_to_string()
@@ -131,5 +164,76 @@ mod tests {
         let llm = HttpLlm::new("http://127.0.0.1:1");
         let answer = llm.complete(&Completion::new("x", 1));
         assert!(matches!(answer, Err(LlmError::Transport(_))));
+    }
+
+    /// Answers one request on the loopback address with `status_line` and
+    /// `body`, and returns the base URL of that server.
+    fn serve_once(status_line: &'static str, body: &'static str) -> std::io::Result<String> {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
+        let base = format!("http://{}", listener.local_addr()?);
+        std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let mut request = [0_u8; 1024];
+            // A client that sent nothing leaves nothing to answer.
+            if stream.read(&mut request).is_err() {
+                return;
+            }
+            let answer = format!(
+                "HTTP/1.1 {status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            // A client that hung up has no use for the answer.
+            let _ = stream.write_all(answer.as_bytes());
+        });
+        Ok(base)
+    }
+
+    #[test]
+    fn the_health_url_joins_the_base_without_a_double_slash() {
+        let llm = HttpLlm::new("http://127.0.0.1:8099/");
+        assert_eq!(llm.health, "http://127.0.0.1:8099/health");
+    }
+
+    #[test]
+    fn a_server_that_says_ok_is_healthy() -> Result<(), Box<dyn std::error::Error>> {
+        let base = serve_once("200 OK", r#"{"status":"ok"}"#)?;
+        HttpLlm::new(&base).health()?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_server_that_is_loading_its_model_is_a_status_error()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let base = serve_once(
+            "503 Service Unavailable",
+            r#"{"error":{"code":503,"message":"Loading model"}}"#,
+        )?;
+        assert!(matches!(
+            HttpLlm::new(&base).health(),
+            Err(LlmError::Status(503))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn a_status_other_than_ok_in_a_200_answer_is_not_healthy()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let base = serve_once("200 OK", r#"{"status":"loading"}"#)?;
+        assert!(matches!(
+            HttpLlm::new(&base).health(),
+            Err(LlmError::Body(_))
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn a_health_check_of_an_unreachable_server_is_a_transport_error() {
+        assert!(matches!(
+            HttpLlm::new("http://127.0.0.1:1").health(),
+            Err(LlmError::Transport(_))
+        ));
     }
 }
