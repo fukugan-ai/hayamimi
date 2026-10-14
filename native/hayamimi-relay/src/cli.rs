@@ -1,4 +1,4 @@
-//! The command line: `run`, `fx-fetch` and `fx-schedule`.
+//! The command line: `live` (also `run`), `srt`, `fx-fetch` and `fx-schedule`.
 
 use std::fs::File;
 use std::io::Write;
@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::calendar;
-use crate::deliver::{Outputs, Words};
+use crate::captions::{HttpCaptions, Kind};
+use crate::deliver::{Destination, Outputs, Words};
 use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
@@ -18,6 +19,8 @@ use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::relay::{self, Lanes, MakePipeline, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
+use crate::send_config::SendFile;
+use crate::srt_command::{self, SrtPlan};
 use crate::strings::Strings;
 
 /// The streams `run` follows when none is named: the microphone's recognizer
@@ -52,9 +55,14 @@ pub enum Command {
         serve: u16,
         /// Where to write the settled translations as SRT cues.
         srt: Option<PathBuf>,
+        /// The file that names the Zoom token and the Teams link; without it
+        /// nothing is sent outside.
+        send: Option<PathBuf>,
         /// Whether the text of an utterance in progress is translated too.
         partial_translation: PartialTranslation,
     },
+    /// Make the subtitle files of a video.
+    Srt(SrtPlan),
     FxFetch {
         out: Option<PathBuf>,
         source_url: Option<String>,
@@ -76,6 +84,7 @@ pub enum CliError {
     UnknownOption,
     NeedInstallOrRemove,
     BadPort,
+    NeedVideo,
 }
 
 impl CliError {
@@ -87,6 +96,7 @@ impl CliError {
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
+            CliError::NeedVideo => "need_video",
         }
     }
 }
@@ -98,6 +108,7 @@ struct RunOptions {
     llm: String,
     serve: u16,
     srt: Option<PathBuf>,
+    send: Option<PathBuf>,
     partial_translation: PartialTranslation,
 }
 
@@ -108,6 +119,7 @@ impl Default for RunOptions {
             llm: DEFAULT_LLM.to_owned(),
             serve: DEFAULT_SERVE,
             srt: None,
+            send: None,
             partial_translation: PartialTranslation::On,
         }
     }
@@ -122,7 +134,10 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
             options.partial_translation = PartialTranslation::Off;
             continue;
         }
-        if !matches!(option, "--events" | "--llm" | "--serve" | "--srt") {
+        if !matches!(
+            option,
+            "--events" | "--llm" | "--serve" | "--srt" | "--send"
+        ) {
             return Err(CliError::UnknownOption);
         }
         let value = rest.next().ok_or(CliError::MissingValue)?;
@@ -130,6 +145,7 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
             "--srt" => options.srt = Some(PathBuf::from(value)),
+            "--send" => options.send = Some(PathBuf::from(value)),
             _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
@@ -148,8 +164,34 @@ fn parse_run(args: &[String]) -> Result<Command, CliError> {
         llm: options.llm,
         serve: options.serve,
         srt: options.srt,
+        send: options.send,
         partial_translation: options.partial_translation,
     })
+}
+
+/// `srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>]
+/// [--models <dir>]`.
+fn parse_srt(args: &[String]) -> Result<Command, CliError> {
+    let (video, rest) = args.split_first().ok_or(CliError::NeedVideo)?;
+    if video.starts_with("--") {
+        return Err(CliError::NeedVideo);
+    }
+    let mut plan = SrtPlan::new(PathBuf::from(video), DEFAULT_LLM);
+    let mut rest = rest.iter();
+    while let Some(arg) = rest.next() {
+        let option = arg.as_str();
+        if !matches!(option, "--llm" | "--ffmpeg" | "--hayamimi" | "--models") {
+            return Err(CliError::UnknownOption);
+        }
+        let value = rest.next().ok_or(CliError::MissingValue)?;
+        match option {
+            "--llm" => plan.llm.clone_from(value),
+            "--ffmpeg" => plan.ffmpeg = PathBuf::from(value),
+            "--hayamimi" => plan.hayamimi = PathBuf::from(value),
+            _ => plan.models = Some(PathBuf::from(value)),
+        }
+    }
+    Ok(Command::Srt(plan))
 }
 
 #[derive(Default)]
@@ -191,6 +233,7 @@ pub fn parse_args(args: &[String]) -> Result<Command, CliError> {
     match name.as_str() {
         // `live` is the name in the design; `run` stays as an alias.
         "live" | "run" => parse_run(rest),
+        "srt" => parse_srt(rest),
         "fx-fetch" => {
             let options = parse_options(rest, false)?;
             Ok(Command::FxFetch {
@@ -222,7 +265,7 @@ pub fn default_rates_path() -> Option<PathBuf> {
     dirs::data_local_dir().map(|dir| dir.join("hayamimi").join(RATES_FILE_NAME))
 }
 
-fn print_error(strings: &Strings, key: &str) {
+pub(crate) fn print_error(strings: &Strings, key: &str) {
     eprintln!("{}", strings.cli_text(key));
     eprintln!("{}", strings.cli_text("usage"));
 }
@@ -285,7 +328,7 @@ fn run_schedule(
 }
 
 /// The per-user directory of table files that override the built-in ones.
-fn default_tables_dir() -> Option<PathBuf> {
+pub(crate) fn default_tables_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|dir| dir.join("hayamimi"))
 }
 
@@ -343,12 +386,31 @@ fn open_srt(
     }
 }
 
+/// The Zoom and Teams destinations. Both read `path` for their addresses
+/// every time a caption goes out, so the file may not be there yet.
+fn send_destinations(
+    path: Option<PathBuf>,
+    sink: &SharedSink,
+) -> Result<Vec<Box<dyn Destination>>, String> {
+    let Some(path) = path else {
+        return Ok(Vec::new());
+    };
+    [Kind::Zoom, Kind::Teams]
+        .into_iter()
+        .map(|kind| {
+            let file = SendFile::open(path.clone(), sink.clone())?;
+            Ok(Box::new(HttpCaptions::new(kind, file)) as Box<dyn Destination>)
+        })
+        .collect()
+}
+
 /// What `live` runs with, apart from the clock and the locale.
 struct RunPlan {
     events: Vec<String>,
     llm: String,
     serve: u16,
     srt: Option<PathBuf>,
+    send: Option<PathBuf>,
     partial_translation: PartialTranslation,
 }
 
@@ -358,11 +420,16 @@ fn run_relay(plan: RunPlan, now: i64, strings: &Strings) -> u8 {
         llm,
         serve,
         srt,
+        send,
         partial_translation,
     } = plan;
     let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
     let Ok(listener) = hub::bind(serve) else {
         print_error(strings, "cannot_serve");
+        return 1;
+    };
+    let Ok(destinations) = send_destinations(send, &sink) else {
+        print_error(strings, "send_not_opened");
         return 1;
     };
     let config = RelayConfig {
@@ -372,7 +439,7 @@ fn run_relay(plan: RunPlan, now: i64, strings: &Strings) -> u8 {
         started_epoch: now,
     };
     let outputs = Outputs {
-        destinations: Vec::new(),
+        destinations,
         srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
         words: Words::from_strings(strings),
     };
@@ -420,6 +487,7 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
             llm,
             serve,
             srt,
+            send,
             partial_translation,
         } => {
             let plan = RunPlan {
@@ -427,10 +495,12 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
                 llm,
                 serve,
                 srt,
+                send,
                 partial_translation,
             };
             run_relay(plan, now_epoch, &strings)
         }
+        Command::Srt(plan) => srt_command::run(plan, now_epoch, &strings),
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
         }
@@ -534,6 +604,7 @@ mod tests {
                 llm: String::from("http://x:1"),
                 serve: 9100,
                 srt: None,
+                send: None,
                 partial_translation: PartialTranslation::On,
             })
         );
@@ -632,9 +703,76 @@ mod tests {
             llm: String::from("http://127.0.0.1:8080"),
             serve: 8835,
             srt: None,
+            send: None,
             partial_translation: PartialTranslation::On,
         };
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
+    }
+
+    #[test]
+    fn live_sends_outside_only_when_it_is_given_the_file() {
+        let parsed = parse_args(&args(&["live", "--send", "send.toml"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run { send: Some(ref path), .. }) if path == Path::new("send.toml")
+        ));
+        assert_eq!(
+            parse_args(&args(&["live", "--send"])),
+            Err(CliError::MissingValue)
+        );
+    }
+
+    #[test]
+    fn srt_takes_a_video_and_leaves_the_other_defaults() {
+        let parsed = parse_args(&args(&["srt", "talk.mp4"]));
+        assert_eq!(
+            parsed,
+            Ok(Command::Srt(SrtPlan::new(
+                PathBuf::from("talk.mp4"),
+                DEFAULT_LLM
+            )))
+        );
+    }
+
+    #[test]
+    fn srt_takes_the_programs_the_translator_and_the_models() {
+        let parsed = parse_args(&args(&[
+            "srt",
+            "talk.mp4",
+            "--llm",
+            "http://x:1",
+            "--ffmpeg",
+            "f",
+            "--hayamimi",
+            "h",
+            "--models",
+            "m",
+        ]));
+        let Ok(Command::Srt(plan)) = parsed else {
+            panic!("srt was refused: {parsed:?}");
+        };
+        assert_eq!(plan.llm, "http://x:1");
+        assert_eq!(plan.ffmpeg, PathBuf::from("f"));
+        assert_eq!(plan.hayamimi, PathBuf::from("h"));
+        assert_eq!(plan.models, Some(PathBuf::from("m")));
+    }
+
+    #[test]
+    fn srt_needs_a_video_and_refuses_what_it_does_not_know() {
+        assert_eq!(parse_args(&args(&["srt"])), Err(CliError::NeedVideo));
+        assert_eq!(
+            parse_args(&args(&["srt", "--llm", "u"])),
+            Err(CliError::NeedVideo)
+        );
+        assert_eq!(
+            parse_args(&args(&["srt", "a.mp4", "--serve", "1"])),
+            Err(CliError::UnknownOption)
+        );
+        assert_eq!(
+            parse_args(&args(&["srt", "a.mp4", "--llm"])),
+            Err(CliError::MissingValue)
+        );
+        assert_eq!(CliError::NeedVideo.key(), "need_video");
     }
 
     #[test]
@@ -718,6 +856,13 @@ mod tests {
                 "sink.fallback.cleared",
                 "srt.cue.skipped",
                 "srt.output.failed",
+                "srt.output.exists",
+                "srt.extract.started",
+                "srt.extract.failed",
+                "srt.recognize.failed",
+                "srt.output.empty",
+                "srt.output.written",
+                "send.config.too_open",
                 "translate.partial.ok",
                 "translate.partial.held",
                 "translate.partial.aborted",
