@@ -20,7 +20,7 @@
 1. overlay は 5 の条件で `mobile/hayamimi_core/lib/server/overlay_html.dart` と同じに描く（`tests/test_overlay_parity.py` が今それを測っている）。
 2. 画面の文言は 11 の表から取り、`strings.<locale>.toml` に置く。code に直書きしない（設計 3.14）。
 3. 頁は外の host へ 1 本も request を出さない（font の取得を含む）。
-4. wire の key 名が 12 の W1 から W3 で決まっていない部分は、event を部品の状態へ変える 1 つの関数（adapter）に閉じ込める。key 名が決まったときに直す所をそこだけにするためである。
+4. wire の key 名と値（速報の訳の `of: "partial"`、確定を知らせる `settled`、12 の W1 と W3 の仮の値）は、event を部品の状態へ変える 1 つの関数（adapter）に閉じ込める。key 名が決まったときに直す所をそこだけにするためである。
 
 ## 2. 作る順の判断
 
@@ -375,11 +375,11 @@ partial の訳 ─┐ 受けるたびに全体を置き換える。確定した�
               │
 final を受ける ─ 速報の訳の行を空にする（確定の訳の行は空のまま高さを保つ）
               │
-T の訳（stage t） ── 確定の訳の行に `First`（先の訳）
+T の訳（stage t、settled 偽） ── 確定の訳の行に `First`（先の訳）
               │
-E の訳（stage e） ── 同じ行で文字列を置き換えて `Confirmed`（置き換えは 1 回）
+E の訳（stage e、settled 真） ── 同じ行で文字列を置き換えて `Confirmed`（置き換えは 1 回）
               │
-E が V に落ちた ── `First` の文字列を `Confirmed` として残す（12 の W2）
+E が V に落ちた（stage t、settled 真） ── 同じ文字列のまま `First` から `Confirmed` へ
 ```
 
 `final` を受けた瞬間に速報の訳を確定の行へ持ち越さないのは、`final` の原文が最後の速報と違う場合に、別の原文の訳が新しい行の下に出るのを避けるためである。
@@ -393,8 +393,8 @@ E が V に落ちた ── `First` の文字列を `Confirmed` として残す�
 |---|---|---|---|
 | `partial`（`text`） | 速報の行 | 速報の帯の原文 | 使わない |
 | `final`（`text`、`lang`、`speaker`、`latency_ms`、`id`） | 確定の行 | 確定の行、言語の印、話者の印、遅れ、header の 3 つの chip | 使わない |
-| `translation`（速報の訳） | 速報の訳の行 | 速報の帯の訳の行 | 使わない |
-| `translation`（`of` が `final`、`id`、`stage`、`status`、`hold_reason`、`lang`、`text`、`annotations`） | 確定の訳の行 | 確定の行の訳の行 | 使わない |
+| `translation`（`of` が `partial`） | 速報の訳の行 | 速報の帯の訳の行 | 使わない |
+| `translation`（`of` が `final`、`id`、`stage`、`settled`、`status`、`hold_reason`、`lang`、`text`、`annotations`） | 確定の訳の行（`held` と `unavailable` は出さない） | 確定の行の訳の行 | 使わない |
 | `translation`（`of` が `refine`、`id`） | 使わない | 清書の段落の訳の行 | 段落の訳の行 |
 | `refine`（`text`、`lang`、`speaker`、`id`） | 使わない | 清書の列 | 清書の段落 |
 | `fallback`（`stage`、`reason`、`to`） | 右上の印 | fallback の帯 | 使わない |
@@ -467,11 +467,8 @@ key は `ui.<頁>.<名前>` の形にする。
 
 | 番号 | 穴 | 持ち主と置き直す条件 |
 |---|---|---|
-| W1 | 速報の訳の event を、他の訳から見分ける key が決まっていない。この板は `of` が `partial` の訳を速報の訳として扱う（ASSUMPTION） | R8d が wire を決めたとき、adapter の 1 関数を直す |
-| W2 | E が V に落ちて先の訳が確定の訳になるとき、画面がそれを知る手段が決まっていない。決まるまでは、`First` のまま残り、dashboard の色は paper-dim のままで、overlay は見た目が変わらない | R8c が wire を決める。決まるまで BD-6 の `Confirmed` は E の訳が届いた場合だけを測る |
+| W1 | 速報の訳は `of` が `"partial"` の `translation` で見分ける（設計 3.6 の 3）。速報の訳の `id` に何を入れるか（後で確定文が取る `id` か、速報ごとの番号か）は仮に「後で確定文が取る `id`」とする | 持ち主は R8d。速報の時点で確定文の `id` が決まらないと分かったら、R8d が値を置き直し、adapter の 1 関数を直す |
 | W3 | `fallback` の `stage` と `to` の値の一覧が、設計 3.15 に「段の名前」としか無い。11 の stage の表は値が決まった分だけ足す | R2 から R8c の席が値を決めるとき、表を足す |
-| W4 | OBS の字幕頁へ先の訳を出す（設計 3.6）と、相手へ送る物は確定の訳だけにする（`conversation_subtitles.ja.md` の 3.4 の表、:213-218）が、OBS の字幕頁をどちらに数えるか読みが割れる。この板は先の訳を出し、`Held` と `Unavailable` は空にした | 設計の側が決める。変わったら 4.2 の overlay の列を直す |
-| W5 | 配信の画面に fallback の印が映る。方針（設計 3.15）が overlay に印を出すと決めているので、この板は出す。OBS 側で source を切り取るか非表示にできる | 運用で困るなら設計へ戻す |
 | W6 | font を同梱しないので、入っていない端末では代替の字体で出る。同梱は licence の表示を足す変更になる（3 つとも SIL OFL と記憶しているが NOT VERIFIED） | R10 が `THIRD_PARTY_NOTICES.md` を書くときに決める |
 | W7 | feed の行数の上限は決めていない。WASM の描画が何行から遅れるかは測っていない（NOT VERIFIED） | R6 が長い run で測り、必要なら上限を足す |
 | W8 | 平均応答は平均のままで、p50 と p95 を出さない。主指標は p50 と p95（設計 3.1）で、画面の chip は今の頁と同じ値を出す | 出すかは設計の側が決める |

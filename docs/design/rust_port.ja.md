@@ -362,9 +362,9 @@ profiler が Windows で使えないときは WSL の同じ build で数え、�
 T と E を直列に待つと、訳の遅れはその 2 倍になる。
 速度を第一にするので、次の 6 つで `L_tr` を縮める。
 
-1. **先に T の訳を出す**：T の応答に V を掛け、通れば先の訳として自分の重ね窓と OBS の字幕頁に出す（`status: "ok"`、`stage: "t"`）。続けて E を頼み、E の応答に V を掛けて通れば同じ `id` の行を置き換える（`stage: "e"`）。E が V に落ちたら T の訳を残す。V は 1 行につき多くて 2 回で、同じ訳には 2 回掛けない。
-2. **確定の訳だけを外へ出す**：**確定の訳**は、E の訳が V を通ればその訳、外れて T の訳が通っていれば T の訳とし、E の応答を照合した後に 1 回だけ決める。Zoom と Teams への送信と SRT は確定の訳だけを使い、1 つの `id` につき 1 回送る（会話字幕の設計 3.4、3.10、3.13）。送った字幕は相手の画面で置き換えられないからである。
-3. **速報（partial）の訳**：認識の速報が更新されるたびに、その文字列を T に頼み直す（re-translation）。前の訳と今の訳の最長共通接頭辞だけを確定した字形で描き、残りは薄く描く。IWSLT 2026 の Pinch-AST が同じ文字単位の最長共通接頭辞の方針を取っている（S9）。速報の依頼は 1 本だけを走らせ、新しい速報が来たら走っている依頼を打ち切る（stream の応答の接続を閉じる。llama-server が接続を閉じたときに生成を止めるかは 10 の H6）。`cache_prompt` を真にし、伸びた文字列の前の部分の計算を使い回す。速報の訳にも V を掛け、外れたら速報の訳は出さない。
+1. **先に T の訳を出す**：T の応答に V を掛け、通れば先の訳として自分の重ね窓と OBS の字幕頁に出す（`status: "ok"`、`stage: "t"`）。続けて E を頼み、E の応答に V を掛けて通れば同じ `id` の行を置き換える（`stage: "e"`）。E が V に落ちたら T の訳を残す。OBS の字幕頁は表示を置き換えられるので、自分の重ね窓と同じく先の訳を出して確定の訳で置き換える。V に落ちた行（`held`）と翻訳器が答えない行（`unavailable`）は、OBS の字幕頁には何も出さない（会話字幕の設計 3.4 の「相手へ」の列と同じ）。V は 1 行につき多くて 2 回で、同じ訳には 2 回掛けない。
+2. **確定の訳だけを外へ出す**：**確定の訳**は、E の訳が V を通ればその訳、外れて T の訳が通っていれば T の訳とし、E の応答を照合した後に 1 回だけ決める。中継の `translation` の event は `settled`（真偽）を持ち、確定の訳を決めた event だけが真である。E の訳が V を通れば `stage: "e"` で `settled: true`、E が V に落ちれば T の訳と同じ `text` を `stage: "t"` で `settled: true` として同じ `id` に 1 回送り直す。先の訳は `settled: false` である。画面は `settled` が真の event で行を確定の形にする。Zoom と Teams への送信と SRT は確定の訳だけを使い、1 つの `id` につき 1 回送る（会話字幕の設計 3.4、3.10、3.13）。送った字幕は相手の画面で置き換えられないからである。
+3. **速報（partial）の訳**：認識の速報が更新されるたびに、その文字列を T に頼み直す（re-translation）。速報の訳は `translation` の event の `of` を `"partial"` にして見分け（会話字幕の設計 3.3 の `of` に `"partial"` を足す）、`settled` は常に偽で、外の送り先には送らない。前の訳と今の訳の最長共通接頭辞だけを確定した字形で描き、残りは薄く描く。IWSLT 2026 の Pinch-AST が同じ文字単位の最長共通接頭辞の方針を取っている（S9）。速報の依頼は 1 本だけを走らせ、新しい速報が来たら走っている依頼を打ち切る（stream の応答の接続を閉じる。llama-server が接続を閉じたときに生成を止めるかは 10 の H6）。`cache_prompt` を真にし、伸びた文字列の前の部分の計算を使い回す。速報の訳にも V を掛け、外れたら速報の訳は出さない。
 4. **揺れを数える**：1 つの発話について、字幕に出た訳の文字列が変わった回数と、一度確定した字形で描いた接頭辞が後で消えた回数を数える（RP-25）。速度のために先に出す形が、読む人に揺れとして見える量を測るためである。
 5. **並べて走らせる物**：llama-server の slot を 4 にする（mic の確定、loopback の確定、速報、E）。認識（ORT）と訳（llama.cpp）は同じ GPU を時間で分け合う。負荷の下での `L` は RP-3 で測る。
 6. **llama-server の置き場**：Windows の native の CUDA 版に置く（会話字幕の設計 3.7）。model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置き、正本の WSL の `/mnt/h3-models` から写す（2.3。Windows から直に読めないため）。写した file の sha256 を同じ directory の `manifest.json` に記録する（記録で、起動の条件にしない）。hooks の `guard_commands.rs` は、`llama-` で始まる実行 file の名前を含む command を WSL の build の鮮度で refuse する（`problems` の中の `LLAMA_EXECUTABLE` の検査）。Windows の llama-server は PowerShell から起こし、WSL の shell からは起こさない（10 の H20）。
@@ -575,7 +575,7 @@ locale は実行の環境が意味を決める値で、この repo の設定で�
 
 1. **検出する**：起動時と、その資源を使う時に確かめる。
 2. **代わりの道へ落とす**：CPU、小さい model、機能を縮めた形のどれかで動き続ける。
-3. **段ごとに出す**：落ちた段ごとに、log の event を 1 回、`/events` に `{"type": "fallback", "stage": ..., "reason": ..., "to": ...}` を 1 回送る。server は `fallback` の event と `session_start` の event を送った順に取っておき、遅れて接続した client と接続し直した client には、取っておいた event を送った順に最初にまとめて送ってから、以後の event を流す。fallback は起動時の確かめで決まり `session_start` より先に送るので、遅れて接続した client も `fallback` の後に `session_start` を受ける。dashboard と overlay は効いている fallback の印を出す（見た目は designer の席が持つ。3.8）。stderr にも利用者の locale の文で 1 回出す。
+3. **段ごとに出す**：落ちた段ごとに、log の event を 1 回、`/events` に `{"type": "fallback", "stage": ..., "reason": ..., "to": ...}` を 1 回送る。server は `fallback` の event と `session_start` の event を送った順に取っておき、遅れて接続した client と接続し直した client には、取っておいた event を送った順に最初にまとめて送ってから、以後の event を流す。fallback は起動時の確かめで決まり `session_start` より先に送るので、遅れて接続した client も `fallback` の後に `session_start` を受ける。dashboard と overlay は効いている fallback の印を出す（見た目は designer の席が持つ。3.8）。OBS の配信の画面に映る overlay も印を出し、映したくない運用では OBS の側で source を切り取る（overlay の `?show=partial` は印を出さない）。stderr にも利用者の locale の文で 1 回出す。
 
 資源が戻ったとき（device、llama-server、送り先、装置）は、使う時の確かめで戻ったことを検出し、元の道へ戻して `<domain>.fallback.cleared` と `{"type": "fallback", "stage": ..., "to": null}` を 1 回出す。
 GPU の段は起動時に置き場を決めるので、実行中には戻さない。
