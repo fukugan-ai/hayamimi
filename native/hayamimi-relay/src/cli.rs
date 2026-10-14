@@ -23,6 +23,14 @@ pub const DEFAULT_EVENTS: [&str; 2] = [
     "http://127.0.0.1:8834/events",
 ];
 
+/// The translator `live` calls when `--llm` is not given: llama-server on its
+/// default port.
+pub const DEFAULT_LLM: &str = "http://127.0.0.1:8080";
+
+/// The port `live` serves on when `--serve` is not given: the one after the
+/// two recognizers' subtitle ports. A taken port moves to the next free one.
+pub const DEFAULT_SERVE: u16 = 8835;
+
 /// What `fx-schedule` was asked to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScheduleAction {
@@ -59,7 +67,6 @@ pub enum CliError {
     MissingValue,
     UnknownOption,
     NeedInstallOrRemove,
-    NeedLlmAndServe,
     BadPort,
 }
 
@@ -71,18 +78,27 @@ impl CliError {
             CliError::MissingValue => "missing_value",
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
-            CliError::NeedLlmAndServe => "need_llm_and_serve",
             CliError::BadPort => "bad_port",
         }
     }
 }
 
-/// What `run` was given.
-#[derive(Default)]
+/// What `live` was given. `llm` and `serve` start at the design's defaults;
+/// `events` stays empty until named and then falls to [`DEFAULT_EVENTS`].
 struct RunOptions {
     events: Vec<String>,
-    llm: Option<String>,
-    serve: Option<u16>,
+    llm: String,
+    serve: u16,
+}
+
+impl Default for RunOptions {
+    fn default() -> Self {
+        Self {
+            events: Vec::new(),
+            llm: DEFAULT_LLM.to_owned(),
+            serve: DEFAULT_SERVE,
+        }
+    }
 }
 
 fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
@@ -96,8 +112,8 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
         let value = rest.next().ok_or(CliError::MissingValue)?;
         match option {
             "--events" => options.events.push(value.clone()),
-            "--llm" => options.llm = Some(value.clone()),
-            _ => options.serve = Some(value.parse().map_err(|_| CliError::BadPort)?),
+            "--llm" => options.llm.clone_from(value),
+            _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
     Ok(options)
@@ -105,15 +121,16 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
 
 fn parse_run(args: &[String]) -> Result<Command, CliError> {
     let options = parse_run_options(args)?;
-    let (Some(llm), Some(serve)) = (options.llm, options.serve) else {
-        return Err(CliError::NeedLlmAndServe);
-    };
     let events = if options.events.is_empty() {
         DEFAULT_EVENTS.map(str::to_owned).to_vec()
     } else {
         options.events
     };
-    Ok(Command::Run { events, llm, serve })
+    Ok(Command::Run {
+        events,
+        llm: options.llm,
+        serve: options.serve,
+    })
 }
 
 #[derive(Default)]
@@ -153,7 +170,8 @@ pub fn parse_args(args: &[String]) -> Result<Command, CliError> {
         return Err(CliError::UnknownCommand);
     };
     match name.as_str() {
-        "run" => parse_run(rest),
+        // `live` is the name in the design; `run` stays as an alias.
+        "live" | "run" => parse_run(rest),
         "fx-fetch" => {
             let options = parse_options(rest, false)?;
             Ok(Command::FxFetch {
@@ -393,7 +411,7 @@ mod tests {
     #[test]
     fn bad_command_lines_are_refused_with_a_key() {
         assert_eq!(parse_args(&[]), Err(CliError::UnknownCommand));
-        assert_eq!(parse_args(&args(&["live"])), Err(CliError::UnknownCommand));
+        assert_eq!(parse_args(&args(&["nope"])), Err(CliError::UnknownCommand));
         assert_eq!(
             parse_args(&args(&["fx-fetch", "--out"])),
             Err(CliError::MissingValue)
@@ -438,6 +456,18 @@ mod tests {
     }
 
     #[test]
+    fn live_is_the_name_and_run_is_its_alias() {
+        let rest = ["--serve", "9100", "--llm", "http://x:1"];
+        let with = |name: &'static str| {
+            let mut line = vec![name];
+            line.extend(rest);
+            parse_args(&args(&line))
+        };
+        assert!(matches!(with("live"), Ok(Command::Run { .. })));
+        assert_eq!(with("live"), with("run"));
+    }
+
+    #[test]
     fn run_without_streams_follows_the_two_recognizer_ports() {
         let parsed = parse_args(&args(&["run", "--serve", "0", "--llm", "http://x:1"]));
         let Ok(Command::Run { events, .. }) = parsed else {
@@ -447,19 +477,30 @@ mod tests {
     }
 
     #[test]
-    fn run_needs_both_the_translator_and_the_port() {
-        for list in [
-            &["run"][..],
-            &["run", "--llm", "http://x:1"],
-            &["run", "--serve", "9100"],
-            &["run", "--events", "http://a/events"],
-        ] {
-            assert_eq!(
-                parse_args(&args(list)),
-                Err(CliError::NeedLlmAndServe),
-                "{list:?}"
-            );
-        }
+    fn live_without_options_uses_the_designed_defaults() {
+        let expected = Command::Run {
+            events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
+            llm: String::from("http://127.0.0.1:8080"),
+            serve: 8835,
+        };
+        assert_eq!(parse_args(&args(&["live"])), Ok(expected));
+    }
+
+    #[test]
+    fn one_named_option_leaves_the_other_defaults() {
+        let parsed = parse_args(&args(&["live", "--serve", "9100"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run { ref llm, serve: 9100, .. }) if llm == DEFAULT_LLM
+        ));
+        let parsed = parse_args(&args(&["live", "--llm", "http://x:1"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run {
+                serve: DEFAULT_SERVE,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -489,14 +530,12 @@ mod tests {
             let Ok(strings) = Strings::embedded(lang) else {
                 panic!("embedded table missing");
             };
-            for error in [CliError::NeedLlmAndServe, CliError::BadPort] {
-                assert_ne!(
-                    strings.cli_text(error.key()),
-                    error.key(),
-                    "{lang:?} {error:?}"
-                );
-            }
-            for key in ["cannot_serve", "serving_at", "port_moved"] {
+            for key in [
+                CliError::BadPort.key(),
+                "cannot_serve",
+                "serving_at",
+                "port_moved",
+            ] {
                 assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
             }
         }

@@ -65,7 +65,7 @@ label = "m²"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay run --llm <url> --serve <port> [--events <url>]...
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]...
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"
@@ -73,7 +73,6 @@ missing_value = "値が足りない option があります"
 unknown_option = "知らない option です"
 need_install_or_remove = "--install か --remove のどちらかが要ります"
 no_default_dir = "既定の保存先を決められません。--out を渡してください"
-need_llm_and_serve = "run には --llm と --serve が要ります"
 bad_port = "--serve には 0 から 65535 までの port の番号が要ります"
 cannot_serve = "訳を配れません。開ける port がありません"
 serving_at = "訳を次の URL で配っています"
