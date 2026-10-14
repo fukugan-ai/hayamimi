@@ -1,0 +1,23 @@
+{
+  "window": "2026-10-15 04:45:09 to 04:55:48 +09:00",
+  "m1_loadavg_at_0445": "04:45:09 1.98 2.10 1.70 5/683 2556557",
+  "unit": "us",
+  "stage": "recognize_total",
+  "peers": 1,
+  "n_per_run": 115,
+  "runs": [
+    {"run": "gpu_1", "start": "04:45:13", "load_before": "1.98 2.10 1.70", "variant": "cuda_fp32", "p50": 227491, "p95": 342810, "peer_decodes": 465},
+    {"run": "cpu_1", "start": "04:47:22", "load_before": "3.80 2.83 2.03", "variant": "cpu_int8", "p50": 153733, "p95": 233482, "peer_decodes": 330},
+    {"run": "cpu_1", "start": "04:47:22", "load_before": "3.80 2.83 2.03", "variant": "cpu_fp32", "p50": 200120, "p95": 303142, "peer_decodes": 330},
+    {"run": "gpu_2", "start": "04:49:44", "load_before": "4.90 4.50 2.83", "variant": "cuda_fp32", "p50": 229705, "p95": 382187, "peer_decodes": 451},
+    {"run": "cpu_2", "start": "04:51:44", "load_before": "5.01 4.77 3.14", "variant": "cpu_int8", "p50": 173544, "p95": 277393, "peer_decodes": 332},
+    {"run": "cpu_2", "start": "04:51:44", "load_before": "5.01 4.77 3.14", "variant": "cpu_fp32", "p50": 192884, "p95": 302304, "peer_decodes": 332},
+    {"run": "gpu_3", "start": "04:52:41", "load_before": "11.39 6.61 3.88", "variant": "cuda_fp32", "p50": 229785, "p95": 342233, "peer_decodes": 456},
+    {"run": "cpu_3", "start": "04:54:47", "load_before": "4.80 5.71 3.90", "variant": "cpu_int8", "p50": 178258, "p95": 291885, "peer_decodes": 335},
+    {"run": "cpu_3", "start": "04:54:47", "load_before": "4.80 5.71 3.90", "variant": "cpu_fp32", "p50": 204268, "p95": 335493, "peer_decodes": 335}
+  ],
+  "median_of_three_p50": {"cuda_fp32": 229705, "cpu_int8": 173544, "cpu_fp32": 200120},
+  "m4_cpu_int8_p50_greater_than_gpu_fp32_p50": false,
+  "m4_return_to_council": false,
+  "m3_separate_processes": "6 separate hayamimi-eval stages processes, each with --only recognize; no encoder_only in any; same-process H41 order check not run"
+}
