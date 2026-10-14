@@ -60,6 +60,7 @@ fn utterance() -> Final {
             l_dec_ms: 120.0,
         },
         punct_error: None,
+        speaker_audio: Vec::new(),
     }
 }
 

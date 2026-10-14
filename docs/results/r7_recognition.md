@@ -1,5 +1,23 @@
 # R7 認識の置き場と 2 音源同時の遅れ
 
+## 元にした run file
+
+- `docs/results/r7/cpu_peers0.jsonl`
+- `docs/results/r7/cpu_peers1.jsonl`
+- `docs/results/r7/cuda_p0_recognize.jsonl`
+- `docs/results/r7/cuda_p0_encoder_only.jsonl`
+- `docs/results/r7/cuda_p1_recognize.jsonl`
+- `docs/results/r7/cuda_p1_encoder_only.jsonl`
+
+取り方（CUDA は認識と encoder 単独を別 process にする。peers は 0 と 1）：
+
+```
+hayamimi-eval stages --provider cuda --wav <wav> --models <models> --repeat 5 --peers <n> --only recognize --out <run>
+hayamimi-eval stages --provider cuda --wav <wav> --models <models> --repeat 5 --peers <n> --only encoder_only,search_replay --out <run>
+hayamimi-eval stages --provider cpu --wav <wav> --models <models> --repeat 5 --peers <n> --out <run>
+hayamimi-eval r7-report --runs <run...> --conditions <file> --out <this document>
+```
+
 ## run
 
 | provider | peers | peer が終えた decode | repeat | 発話数 | os |

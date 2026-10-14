@@ -111,6 +111,9 @@ pub struct R7ReportArgs {
     /// Run files written by `stages`.
     #[arg(long, required = true, num_args = 1..)]
     pub runs: Vec<PathBuf>,
+    /// The conditions the runs were taken under (markdown, hand-written), copied in verbatim.
+    #[arg(long)]
+    pub conditions: PathBuf,
     /// The document to write.
     #[arg(long)]
     pub out: PathBuf,
@@ -274,7 +277,13 @@ pub fn r7_report(args: R7ReportArgs) -> Result<(), EvalError> {
         .iter()
         .map(|path| crate::stages::read_run(path))
         .collect::<Result<Vec<_>, _>>()?;
-    let document = crate::r7_report::render_document(&runs)?;
+    let sources: Vec<String> = args
+        .runs
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect();
+    let conditions = read_text(&args.conditions)?;
+    let document = crate::r7_report::render_document(&runs, &sources, &conditions)?;
     write_text(&args.out, &document)?;
     println!("{}", args.out.display());
     Ok(())

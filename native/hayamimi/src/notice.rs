@@ -7,7 +7,7 @@ use hayamimi_asr::{Fallback, Reason, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 12] = [
+pub const STAGES: [&str; 13] = [
     "source",
     "punct",
     "recognizer",
@@ -15,6 +15,7 @@ pub const STAGES: [&str; 12] = [
     "asr",
     "events",
     "replace",
+    "speaker",
     "ingest",
     "capture",
     "translate",

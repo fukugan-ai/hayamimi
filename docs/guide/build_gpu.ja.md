@@ -475,8 +475,12 @@ hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models -
 hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --only encoder_only,search_replay --out <cuda_p1_search>.jsonl
 hayamimi-eval stages --provider cpu --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --out <cpu_p1>.jsonl
 # 結果の文書
-hayamimi-eval r7-report --runs <run file...> --out docs\results\r7_recognition.md
+hayamimi-eval r7-report --runs <run file...> --conditions docs\results\r7\conditions.md --out docs\results\r7_recognition.md
 ```
+
+`--conditions` の file は手で書いた測定時の条件で、文書の末尾へそのまま写されます。
+文書を作り直しても、条件の節は消えません。
+元にした run file は `docs/results/r7/` に置いてあります。
 
 GPU の run の前後に `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` を打ち、ほかの process の GPU 利用を記録します。
 `stages-report` は peers が 0 でない run を受け付けません。2 音源の run は `r7-report` だけが読みます。

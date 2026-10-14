@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_stages, fleurs, log, manifest, record, stream};
+use crate::{cli_der, cli_stages, fleurs, log, manifest, record, stream};
 
 #[derive(Parser)]
 #[command(
@@ -41,6 +41,8 @@ enum Command {
     StagesPeer(cli_stages::PeerArgs),
     /// Write the R7 document (two sources, placement, search) from run files.
     R7Report(cli_stages::R7ReportArgs),
+    /// Score the speaker labels of the Rust route against an RTTM reference set.
+    Der(cli_der::DerArgs),
 }
 
 #[derive(Args)]
@@ -220,6 +222,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
         Command::StagesPeer(args) => cli_stages::stages_peer(args),
         Command::R7Report(args) => cli_stages::r7_report(args),
+        Command::Der(args) => cli_der::der(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {

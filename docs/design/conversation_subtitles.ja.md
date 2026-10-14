@@ -175,6 +175,8 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 ### 3.4 翻訳の 3 段
 
 訳は次の 3 段を、この順に 1 回ずつ通す。
+ja と en の外の言語（`--translate` の zh、ko、es ほか）の訳は T と V だけで、E を掛けず、V で外れた行は `held` にする（`rust_port.ja.md` の 3.6）。
+E がそれらの言語の chrF に効く量は測っていない（NOT VERIFIED）。
 
 ```mermaid
 flowchart LR

@@ -467,8 +467,28 @@ fn merge_runs(runs: &[RunFile]) -> Result<Vec<RunFile>, EvalError> {
     Ok(merged)
 }
 
-/// The whole document.
-pub fn render_document(runs: &[RunFile]) -> Result<String, EvalError> {
+/// The run files the tables were made from, and the commands that make such a file.
+fn sources_section(sources: &[String]) -> String {
+    let files: String = sources.iter().map(|name| format!("- `{name}`\n")).collect();
+    format!(
+        "## 元にした run file\n\n{files}\n\
+取り方（CUDA は認識と encoder 単独を別 process にする。peers は 0 と 1）：\n\n\
+```\n\
+hayamimi-eval stages --provider cuda --wav <wav> --models <models> --repeat 5 --peers <n> --only recognize --out <run>\n\
+hayamimi-eval stages --provider cuda --wav <wav> --models <models> --repeat 5 --peers <n> --only encoder_only,search_replay --out <run>\n\
+hayamimi-eval stages --provider cpu --wav <wav> --models <models> --repeat 5 --peers <n> --out <run>\n\
+hayamimi-eval r7-report --runs <run...> --conditions <file> --out <this document>\n\
+```\n"
+    )
+}
+
+/// The whole document: `sources` are the names of the run files, and `conditions` is the
+/// hand-written text of the conditions the runs were taken under, kept verbatim.
+pub fn render_document(
+    runs: &[RunFile],
+    sources: &[String],
+    conditions: &str,
+) -> Result<String, EvalError> {
     if runs.is_empty() {
         return Err(invalid("no run file was given"));
     }
@@ -476,12 +496,14 @@ pub fn render_document(runs: &[RunFile]) -> Result<String, EvalError> {
     let runs = runs.as_slice();
     let sections = [
         String::from("# R7 認識の置き場と 2 音源同時の遅れ\n"),
+        sources_section(sources),
         runs_section(runs),
         recognition_section(runs)?,
         placement_section(runs)?,
         host_section(runs)?,
         search_section(runs)?,
         String::from(READING),
+        conditions.to_owned(),
     ];
     Ok(sections.join("\n"))
 }
@@ -645,8 +667,13 @@ mod tests {
     #[test]
     fn a_document_names_every_section() -> Result<(), EvalError> {
         let runs = [run("cpu", 0, recognition("int8", 100_000))];
-        let text = render_document(&runs)?;
+        let sources = [String::from("cpu_p0.jsonl")];
+        let text = render_document(&runs, &sources, "## 測定時の条件\n\nhand-written\n")?;
         for heading in [
+            "## 元にした run file",
+            "`cpu_p0.jsonl`",
+            "## 測定時の条件",
+            "hand-written",
             "## run",
             "## 認識の時間",
             "## 認識の置き場",
@@ -655,7 +682,7 @@ mod tests {
         ] {
             assert!(text.contains(heading), "{heading}");
         }
-        assert!(render_document(&[]).is_err());
+        assert!(render_document(&[], &[], "").is_err());
         Ok(())
     }
 }
