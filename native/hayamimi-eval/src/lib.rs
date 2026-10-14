@@ -17,6 +17,7 @@ pub mod doc_links;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;
+pub mod gpu_load;
 pub mod gpu_memory;
 pub mod gpu_nodes;
 pub mod gpu_results;

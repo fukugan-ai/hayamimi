@@ -149,6 +149,25 @@ jq -s -r '[.[]|select(.event=="asr.utterance.timed")|.l_dec_ms]|sort as $v|($v|l
 
 結果は `docs/results/r2/l_dec_ms.md` に置きました。
 
+## 確定の前の待ちと GPU の負荷を残す
+
+`asr.feed.waited` は、`final` を作った window が queue に置かれてから loop に取られるまでの待ちを、`final` ごとに 1 行出します（`id`、`wait_ms`、`backlog`）。
+RP-34 の `L_asr − decode_ms` のうち、loop が前の window の処理で塞がっていた分を `wait_ms` で読みます。
+
+```bash
+jq -s -r '[.[]|select(.event=="asr.feed.waited")|.wait_ms]|sort as $v|($v|length) as $n|"n=\($n) p50=\($v[(($n*0.5)|ceil)-1]) p95=\($v[(($n*0.95)|ceil)-1])"' <hayamimi の stdout を残した file>
+```
+
+`hayamimi-eval stream --out <run>.jsonl` は `<run>.gpu.json` も書きます。
+run の前と後に `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits` を 1 回ずつ読んだ値です。
+読めなかった側は `null` で、run は止めずに warn の `eval.stream.gpu_unreadable` を出します。
+
+Python と Rust の対は、run の前の読みのどちらかの `utilization.gpu` が 5 % を超えるか、`memory.used` の差が 256 MiB を超えれば無効です（`hayamimi_eval::gpu_load::pair_is_valid`。2 つの幅は仮の値）。
+
+`<run>.summary.json` の `late_final_suspects` は、`final` が `t1_s` を持たない Python の run でだけ数を持ちます。
+前の窓が `final` なしで、次の窓に `final` が 2 件以上在る回の数です。
+Rust の run は `null` で、数えていないことを表します。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash
