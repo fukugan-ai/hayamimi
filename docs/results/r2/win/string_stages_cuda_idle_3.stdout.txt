@@ -1,0 +1,2 @@
+itn	transfer-floor	cuda	n=115	p50_us=207	p95_us=240
+punct_rules	transfer-floor	cuda	n=115	p50_us=205	p95_us=249

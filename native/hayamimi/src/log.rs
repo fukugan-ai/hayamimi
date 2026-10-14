@@ -1,0 +1,320 @@
+//! Structured log events (`observability-log/v1`, one JSON object per line)
+//! on stdout. Subtitle text, audio and file paths never appear in an event;
+//! an event carries names, counts and times.
+
+use std::io::Write;
+
+use hayamimi_asr::{Final, Reason, SessionReport};
+use hayamimi_relay::logging::{Level, LogEvent};
+use serde_json::Value;
+
+use crate::notice::Notice;
+use crate::strings::Strings;
+
+/// Identifies the running build in every line.
+pub const BUILD_REVISION: &str = concat!("hayamimi-", env!("CARGO_PKG_VERSION"));
+/// The error code of a start without a usable CUDA device.
+pub const GPU_UNAVAILABLE_CODE: &str = "HAYAMIMI_GPU_DEVICE_UNAVAILABLE";
+
+pub const SESSION_CREATED: &str = "gpu.session.created";
+pub const SESSION_PLACED: &str = "gpu.session.placed";
+pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
+pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
+pub const PUNCT_FAILED: &str = "asr.punct.failed";
+pub const ENGINE_FAILED: &str = "asr.engine.failed";
+
+/// A time in milliseconds to three decimals.
+fn millis(value: f64) -> Value {
+    Value::from((value * 1000.0).round() / 1000.0)
+}
+
+/// The one-line JSON form of an event.
+pub fn event_line(
+    strings: &Strings,
+    level: Level,
+    event: &str,
+    component: &'static str,
+    error_code: Option<&str>,
+    fields: &[(&str, Value)],
+) -> String {
+    let mut built = LogEvent::new(level, event, component);
+    built.build_revision = BUILD_REVISION;
+    built.message = strings.message_for(event).to_owned();
+    built.error_code = error_code.map(str::to_owned);
+    for (key, value) in fields {
+        built = built.with(key, value.clone());
+    }
+    built.to_json_line()
+}
+
+/// `gpu.session.created`: what a model session was asked for and what ran.
+pub fn session_created_line(strings: &Strings, report: &SessionReport) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        SESSION_CREATED,
+        "gpu",
+        None,
+        &[
+            ("model", Value::from(report.model.as_str())),
+            ("requested_provider", Value::from(report.requested)),
+            ("actual_provider", Value::from(report.actual)),
+        ],
+    )
+}
+
+/// `gpu.session.placed`: the node counts of a session, when they were measured.
+pub fn session_placed_line(strings: &Strings, report: &SessionReport) -> Option<String> {
+    let nodes = report.nodes?;
+    Some(event_line(
+        strings,
+        Level::Info,
+        SESSION_PLACED,
+        "gpu",
+        None,
+        &[
+            ("model", Value::from(report.model.as_str())),
+            ("cuda_nodes", Value::from(nodes.cuda)),
+            ("cpu_nodes", Value::from(nodes.cpu)),
+        ],
+    ))
+}
+
+/// `gpu.device.unavailable`: the start found no usable CUDA device. The run goes on.
+pub fn device_unavailable_line(strings: &Strings, why: Reason) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        DEVICE_UNAVAILABLE,
+        "gpu",
+        Some(GPU_UNAVAILABLE_CODE),
+        &[("reason", Value::from(why.name()))],
+    )
+}
+
+/// `<domain>.fallback.<destination>`: one stage that did not run as designed.
+pub fn fallback_line(strings: &Strings, notice: &Notice) -> String {
+    let mut fields = vec![
+        ("stage", Value::from(notice.stage)),
+        ("reason", Value::from(notice.reason)),
+    ];
+    if let Some(url) = &notice.url {
+        fields.push(("url", Value::from(url.as_str())));
+    }
+    event_line(
+        strings,
+        Level::Warn,
+        notice.event,
+        notice.domain(),
+        Some(notice.error_code),
+        &fields,
+    )
+}
+
+/// `asr.utterance.timed`: where the time of one utterance went.
+pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
+    let t = &done.timings;
+    event_line(
+        strings,
+        Level::Info,
+        UTTERANCE_TIMED,
+        "asr",
+        None,
+        &[
+            ("id", Value::from(done.id)),
+            ("vad_ms", millis(t.vad_ms)),
+            ("lid_ms", millis(t.lid_ms)),
+            ("decode_ms", millis(t.decode_ms)),
+            ("punct_ms", millis(t.punct_ms)),
+            ("itn_ms", millis(t.itn_ms)),
+            ("l_dec_ms", millis(t.l_dec_ms)),
+        ],
+    )
+}
+
+/// `asr.punct.failed`: punctuation failed for one utterance and the text went on without it.
+pub fn punct_failed_line(strings: &Strings, done: &Final) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        PUNCT_FAILED,
+        "asr",
+        None,
+        &[("id", Value::from(done.id))],
+    )
+}
+
+/// `asr.engine.failed`: the route stopped on an error.
+pub fn engine_failed_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Error,
+        ENGINE_FAILED,
+        "asr",
+        Some("HAYAMIMI_ASR_ENGINE_FAILED"),
+        &[],
+    )
+}
+
+/// Writes one line to stdout.
+pub fn print(line: &str) {
+    // A closed stdout leaves nowhere to report to.
+    let _ = writeln!(std::io::stdout().lock(), "{line}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::notice;
+    use hayamimi_asr::Timings;
+    use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_relay::lang::Lang;
+
+    fn strings() -> Result<Strings, String> {
+        Strings::embedded(Lang::En)
+    }
+
+    fn parsed(line: &str) -> Result<Value, serde_json::Error> {
+        serde_json::from_str(line)
+    }
+
+    fn report(nodes: Option<NodeCounts>) -> SessionReport {
+        SessionReport {
+            model: String::from("punct_bert.onnx"),
+            requested: "cuda",
+            actual: "cuda",
+            nodes,
+        }
+    }
+
+    fn finished() -> Final {
+        Final {
+            id: 3,
+            text: String::from("本文"),
+            audio_seconds: 2.0,
+            timings: Timings {
+                vad_ms: 1.0,
+                lid_ms: 0.0,
+                decode_ms: 120.4567,
+                punct_ms: 9.0,
+                itn_ms: 0.01,
+                l_dec_ms: 130.0,
+            },
+            punct_error: None,
+        }
+    }
+
+    #[test]
+    fn a_created_session_names_the_model_and_both_providers()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = session_created_line(&strings()?, &report(None));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], SESSION_CREATED);
+        assert_eq!(event["model"], "punct_bert.onnx");
+        assert_eq!(event["requested_provider"], "cuda");
+        assert_eq!(event["actual_provider"], "cuda");
+        assert_eq!(event["message"], "Model session created");
+        assert_eq!(event["build_revision"], BUILD_REVISION);
+        Ok(())
+    }
+
+    #[test]
+    fn a_placed_event_needs_counts() -> Result<(), Box<dyn std::error::Error>> {
+        assert!(session_placed_line(&strings()?, &report(None)).is_none());
+        let counts = NodeCounts { cuda: 453, cpu: 77 };
+        let Some(line) = session_placed_line(&strings()?, &report(Some(counts))) else {
+            return Err("no line for a session with counts".into());
+        };
+        let event = parsed(&line)?;
+        assert_eq!(event["cuda_nodes"], 453);
+        assert_eq!(event["cpu_nodes"], 77);
+        Ok(())
+    }
+
+    #[test]
+    fn the_unavailable_event_is_a_warning_with_the_error_code_and_the_reason()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let event = parsed(&device_unavailable_line(&strings()?, Reason::NoDevice))?;
+        assert_eq!(event["event"], DEVICE_UNAVAILABLE);
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], GPU_UNAVAILABLE_CODE);
+        assert_eq!(event["reason"], "no_device");
+        let driver = parsed(&device_unavailable_line(
+            &strings()?,
+            Reason::DriverUnreadable,
+        ))?;
+        assert_eq!(driver["reason"], "driver_unreadable");
+        Ok(())
+    }
+
+    #[test]
+    fn a_fallback_event_names_the_stage_the_reason_and_its_error_code()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let event = parsed(&fallback_line(&strings()?, &Notice::config_unreadable()))?;
+        assert_eq!(event["event"], "config.fallback.default");
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], "HAYAMIMI_CONFIG_FALLBACK");
+        assert_eq!(event["stage"], "replace");
+        assert_eq!(event["reason"], "unreadable");
+        assert!(event.get("url").is_none());
+        let port = Notice::port_in_use(Some(String::from("http://127.0.0.1:8834/events")));
+        let moved = parsed(&fallback_line(&strings()?, &port))?;
+        assert_eq!(moved["url"], "http://127.0.0.1:8834/events");
+        Ok(())
+    }
+
+    #[test]
+    fn an_utterance_event_has_the_timing_fields_and_no_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = utterance_timed_line(&strings()?, &finished());
+        assert!(!line.contains("本文"));
+        let event = parsed(&line)?;
+        for key in [
+            "id",
+            "vad_ms",
+            "lid_ms",
+            "decode_ms",
+            "punct_ms",
+            "itn_ms",
+            "l_dec_ms",
+        ] {
+            assert!(event.get(key).is_some(), "{key} is missing");
+        }
+        assert_eq!(event["decode_ms"], 120.457);
+        assert_eq!(event["id"], 3);
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    #[test]
+    fn every_event_the_code_emits_has_a_message_in_both_tables() -> Result<(), String> {
+        for lang in [Lang::En, Lang::Ja] {
+            let table = Strings::embedded(lang)?;
+            for event in [
+                SESSION_CREATED,
+                SESSION_PLACED,
+                DEVICE_UNAVAILABLE,
+                UTTERANCE_TIMED,
+                PUNCT_FAILED,
+                ENGINE_FAILED,
+                notice::GPU_FALLBACK,
+                notice::MODEL_DISABLED,
+                notice::ASR_DISABLED,
+                notice::SERVER_PORT,
+                notice::CONFIG_DEFAULT,
+            ] {
+                assert!(
+                    table.messages.contains_key(event),
+                    "{lang:?} lacks `{event}`"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_line_has_no_newline() -> Result<(), Box<dyn std::error::Error>> {
+        assert!(!utterance_timed_line(&strings()?, &finished()).contains('\n'));
+        Ok(())
+    }
+}

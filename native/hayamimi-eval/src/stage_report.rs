@@ -153,7 +153,12 @@ const STAGE_MAP: [StageMap; 19] = [
         "判定の比較 1 回。解き直しは認識の encoder の行と同じ呼び出し",
         false,
     ),
-    map("ITN", &[], "Rust の ITN がまだ無く、測れない", false),
+    map(
+        "ITN",
+        &["itn"],
+        "lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い",
+        false,
+    ),
     map(
         "句読点（BERT",
         &["punct_bert"],
@@ -162,8 +167,8 @@ const STAGE_MAP: [StageMap; 19] = [
     ),
     map(
         "句読点の後処理",
-        &[],
-        "Rust の後処理がまだ無く、測れない",
+        &["punct_rules"],
+        "lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い",
         false,
     ),
     map("話者の埋め込み", &["speaker_embed"], "", false),

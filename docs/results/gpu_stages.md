@@ -119,10 +119,14 @@
 | 冒頭欠落の疑い判定と分割再試行 | cpu | cpu | 無負荷 | 2 | 115 | 1 | 1 | 判定の比較 1 回。解き直しは認識の encoder の行と同じ呼び出し |
 | 冒頭欠落の疑い判定と分割再試行 | cpu | cpu | 負荷 | 1 | 115 | 1 | 1 | 判定の比較 1 回。解き直しは認識の encoder の行と同じ呼び出し |
 | 冒頭欠落の疑い判定と分割再試行 | cpu | cpu | 負荷 | 2 | 115 | 1 | 1 | 判定の比較 1 回。解き直しは認識の encoder の行と同じ呼び出し |
-| ITN（漢数字 → 算用数字） | cuda | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
-| ITN（漢数字 → 算用数字） | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
-| ITN（漢数字 → 算用数字） | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
-| ITN（漢数字 → 算用数字） | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の ITN がまだ無く、測れない |
+| ITN（漢数字 → 算用数字） | cuda | transfer-floor | 無負荷 | 1 | 115 | 216 | 259 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cuda | transfer-floor | 無負荷 | 2 | 115 | 228 | 302 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cuda | transfer-floor | 無負荷 | 3 | 115 | 207 | 240 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
+| ITN（漢数字 → 算用数字） | cpu | cpu | 無負荷 | 1 | 115 | 5 | 6 | lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cpu | cpu | 無負荷 | 2 | 115 | 9 | 12 | lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cpu | cpu | 無負荷 | 3 | 115 | 9 | 12 | lat-ja の正解文 1 発話ぶんの変換（既定の除外つき）。CPU の段で GPU の経路は無い |
+| ITN（漢数字 → 算用数字） | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
 | 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 1 | 115 | 8303 | 10922 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
 | 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 2 | 115 | 8688 | 11419 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
 | 句読点（BERT、`ort` の CUDA） | cuda | fp32 | 無負荷 | 3 | 115 | 7825 | 11085 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
@@ -133,10 +137,14 @@
 | 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 無負荷 | 3 | 115 | 46491 | 57493 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
 | 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 負荷 | 1 | 115 | 43004 | 51345 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
 | 句読点（BERT、`ort` の CUDA） | cpu | fp32 | 負荷 | 2 | 115 | 40110 | 51270 | forward だけ。入力は punct_ja_parity.json の最初の 23 case の input_ids で、lat-ja の発話の文字列ではない。token id の変換は含まない |
-| 句読点の後処理と疑問符の規則、置換辞書 | cuda | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
-| 句読点の後処理と疑問符の規則、置換辞書 | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
-| 句読点の後処理と疑問符の規則、置換辞書 | cpu | - | 無負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
-| 句読点の後処理と疑問符の規則、置換辞書 | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | Rust の後処理がまだ無く、測れない |
+| 句読点の後処理と疑問符の規則、置換辞書 | cuda | transfer-floor | 無負荷 | 1 | 115 | 219 | 281 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cuda | transfer-floor | 無負荷 | 2 | 115 | 259 | 384 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cuda | transfer-floor | 無負荷 | 3 | 115 | 205 | 249 | 下限: 転送の往復だけで kernel を含まない。lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cuda | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
+| 句読点の後処理と疑問符の規則、置換辞書 | cpu | cpu | 無負荷 | 1 | 115 | 1 | 2 | lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cpu | cpu | 無負荷 | 2 | 115 | 1 | 2 | lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cpu | cpu | 無負荷 | 3 | 115 | 2 | 3 | lat-ja の正解文に、一定の形の score を掛けて印を置き、疑問符の規則を当てるまで。BERT の forward と token id の変換、置換辞書は含まない。CPU の段で GPU の経路は無い |
+| 句読点の後処理と疑問符の規則、置換辞書 | cpu | - | 負荷 | 0 | 0 | 未測定 | 未測定 | この組は測っていない |
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | cuda | fp32 | 無負荷 | 1 | 115 | 231596 | 268551 |  |
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | cuda | fp32 | 無負荷 | 2 | 115 | 241094 | 280550 |  |
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | cuda | fp32 | 無負荷 | 3 | 115 | 207832 | 258014 |  |
@@ -234,11 +242,11 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 
 | model | device | CUDA の node | CPU の node |
 |---|---|---|---|
-| encoder-epoch-35-avg-1.onnx | cuda | 3537 | 1599 |
 | encoder-epoch-35-avg-1.fp16.onnx | cuda | 3564 | 1611 |
+| encoder-epoch-35-avg-1.onnx | cuda | 3537 | 1599 |
 | punct_bert.onnx | cuda | 453 | 77 |
-| tiny-encoder.onnx | cuda | 159 | 31 |
 | tiny-decoder.onnx | cuda | 636 | 201 |
+| tiny-encoder.onnx | cuda | 159 | 31 |
 
 ## 置き場の提案
 
@@ -252,9 +260,9 @@ cache が空の process と、同じ cache で続けた process の、認識の�
 | 認識の encoder（全 model） | CPU（int8） | 根拠 1（variant `fp32`）。sherpa-onnx の認識全体の同じ fp32 の対で、無負荷の p50: GPU 171414 µs / CPU 151299 µs、負荷の下の p50: GPU 375176 µs / CPU 175025 µs。CPU の中で最も速い精度は int8 で、無負荷の p50 は 128615 µs。参考（置き場の判定に使わない）: ort で encoder だけ fp32 の対で、無負荷の p50: GPU 66262 µs / CPU 121091 µs、負荷の下の p50: GPU 92936 µs / CPU 117756 µs |
 | fbank と探索（sherpa-onnx の中） | CPU（sherpa-onnx の中。provider に依らず host で走る） | 無負荷の p50: GPU 5572 µs（fp16） / CPU 7475 µs（fp32）。負荷下の p50: GPU 6356 µs（fp32） / CPU 8387 µs（int8） |
 | 冒頭欠落の疑い判定と分割再試行 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 232 µs（transfer-floor） / CPU 1 µs（cpu）。負荷下の p50: GPU 695 µs（transfer-floor） / CPU 1 µs（cpu） |
-| ITN（漢数字 → 算用数字） | 未決 | Rust の ITN がまだ無く、測れない |
+| ITN（漢数字 → 算用数字） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 217 µs（transfer-floor） / CPU 7 µs（cpu） |
 | 句読点（BERT、`ort` の CUDA） | GPU | 無負荷の p50: GPU 8272 µs（fp32） / CPU 44899 µs（fp32）。負荷下の p50: GPU 11112 µs（fp32） / CPU 41557 µs（fp32） |
-| 句読点の後処理と疑問符の規則、置換辞書 | 未決 | Rust の後処理がまだ無く、測れない |
+| 句読点の後処理と疑問符の規則、置換辞書 | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 227 µs（transfer-floor） / CPU 1 µs（cpu） |
 | 話者の埋め込み（CAM++、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 226840 µs（fp32） / CPU 70909 µs（fp32）。負荷下の p50: GPU 268114 µs（fp32） / CPU 82711 µs（fp32） |
 | 話者の速報の割り当て（cosine と重心の更新） | CPU | CPU の p50 が GPU の転送だけの下限より小さい。無負荷の p50: GPU 244 µs（transfer-floor） / CPU 2 µs（cpu）。負荷下の p50: GPU 733 µs（transfer-floor） / CPU 3 µs（cpu） |
 | 清書の再分離（pyannote、sherpa-onnx の `provider`） | CPU | 無負荷の p50: GPU 118134 µs（fp32） / CPU 26436 µs（int8）。負荷下の p50: GPU 204992 µs（fp32） / CPU 31052 µs（int8） |

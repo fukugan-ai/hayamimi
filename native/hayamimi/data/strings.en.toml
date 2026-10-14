@@ -1,0 +1,58 @@
+# Command-line and log text shown to an English reader.
+
+[messages]
+"gpu.device.unavailable" = "No usable CUDA device was found; stages placed on the GPU run on the CPU"
+"gpu.session.created" = "Model session created"
+"gpu.session.placed" = "Model nodes placed"
+"asr.utterance.timed" = "Utterance finished"
+"asr.punct.failed" = "Punctuation failed; the text went on without it"
+"asr.engine.failed" = "The recognition route failed"
+"gpu.fallback.cpu" = "A stage moved from the GPU to the CPU and goes on"
+"model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"
+"asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
+"server.fallback.port" = "The port is in use; the run goes on with another one"
+"config.fallback.default" = "A settings file could not be read; the run goes on with the defaults"
+
+[cli]
+help = """hayamimi: real-time Japanese speech recognition (runs on the CPU when there is no GPU)
+
+usage: hayamimi --wav <file> [options]
+
+options:
+  --wav <file>         transcribe this 16-bit wav file
+  --no-realtime        do not pace the file at the speed of the audio
+  --mode <mode>        language mode; only single is available (default single)
+  --lang <code>        language of the audio; only ja is available (default ja)
+  --models <dir>       directory that holds the model directories (default models)
+  --min-silence <sec>  silence that ends an utterance (default 0.30)
+  --max-speech <sec>   speech after which an utterance is finalised (default 12)
+  --replace <file>     replacement dictionary, one wrong=right per line
+  --serve [port]       serve the subtitle events at /events (default port 8833)
+  --gpu-diagnose       log where the nodes of each GPU model were placed
+  --help               show this text"""
+usage_hint = "Run with --help for the options."
+unknown_option = "Unknown option."
+missing_value = "An option is missing its value."
+bad_number = "An option needs a positive number."
+mode_unsupported = "Only --mode single is available."
+lang_unsupported = "Only --lang ja is available."
+need_wav = "An input is required: pass --wav <file>."
+no_gpu_check = "Check the GPU and the driver with: nvidia-smi"
+run_failed = "The run failed:"
+stage_punct = "Stage that fell back: punctuation"
+stage_recognizer = "Stage that fell back: recognizer"
+stage_vad = "Stage that fell back: voice detection"
+stage_asr = "Stage that fell back: recognition"
+stage_events = "Stage that fell back: subtitle server"
+stage_replace = "Stage that fell back: replacement dictionary"
+reason_no_device = "Reason: no CUDA device was found."
+reason_driver_unreadable = "Reason: the NVIDIA driver or the CUDA runtime could not be loaded."
+reason_session_failed = "Reason: the CUDA session could not be built."
+reason_missing = "Reason: a model file is missing."
+reason_unreadable = "Reason: a file could not be read."
+reason_library_unavailable = "Reason: the inference libraries could not be opened."
+reason_in_use = "Reason: the port is in use."
+to_cpu = "Now: the same model runs on the CPU."
+to_disabled = "Now: the stage is left out and the run goes on."
+to_next_port = "Now: the next free port is used."
+to_default = "Now: the default settings are used."

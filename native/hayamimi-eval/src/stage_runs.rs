@@ -10,6 +10,8 @@ use std::hint::black_box;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use hayamimi_asr::itn::{self, Overrides};
+use hayamimi_asr::punct::{rules, tokenizer};
 use hayamimi_gpu::transfer::Transfer;
 use hayamimi_gpu::{modules, probe};
 use hayamimi_relay::annotate::{AnnotateRequest, Annotator, AnnotatorConfig};
@@ -31,7 +33,7 @@ use crate::translate_call::{ChatClient, translate_body};
 use crate::wav::read_wav;
 
 /// The stage identifiers, in the order a full run measures them.
-pub const STAGES: [&str; 14] = [
+pub const STAGES: [&str; 16] = [
     "resample",
     "ring",
     "vad",
@@ -46,6 +48,8 @@ pub const STAGES: [&str; 14] = [
     "verify_convert",
     "punct_bert",
     "encoder_only",
+    "itn",
+    "punct_rules",
 ];
 
 /// The variant label of the encoder timed alone through `ort`.
@@ -728,6 +732,46 @@ impl Run<'_> {
         outcome
     }
 
+    /// The inverse text normalization of the reference text of each utterance, with the default exclusions.
+    fn measure_itn(&mut self) -> Result<(), EvalError> {
+        let overrides = Overrides::default();
+        self.host_stage(
+            "itn",
+            |clip| (clip.reference.len(), clip.reference.len()),
+            |_, clip| {
+                black_box(itn::convert(&clip.reference, "ja", &overrides));
+                Ok(())
+            },
+        )
+    }
+
+    /// The string rules after the punctuation BERT: where the marks go and which sentence asks.
+    /// The scores are a fixed pattern of the right shape, because the rules read numbers only.
+    fn measure_punct_rules(&mut self) -> Result<(), EvalError> {
+        let inputs: Vec<(Vec<char>, Vec<f32>)> = self
+            .clips
+            .iter()
+            .map(|clip| {
+                let mut chars = tokenizer::normalized_chars(&clip.reference);
+                chars.truncate(rules::MAX_CHARS);
+                let logits = (0..(chars.len() + 2) * 2)
+                    .map(|i| if i % 11 == 3 { 2.0 } else { -2.0 })
+                    .collect();
+                (chars, logits)
+            })
+            .collect();
+        self.host_stage(
+            "punct_rules",
+            |clip| (clip.reference.len(), clip.reference.len()),
+            |utt, _| {
+                let (chars, logits) = &inputs[utt];
+                let text = rules::punctuate(chars, logits).map_err(|e| invalid(e.to_string()))?;
+                black_box(rules::apply_question_marks(&text));
+                Ok(())
+            },
+        )
+    }
+
     /// The punctuation BERT's forward alone, on the `input_ids` of the fixture, one case per utterance.
     fn measure_punct_bert(&mut self) -> Result<(), EvalError> {
         let cases = self
@@ -808,6 +852,8 @@ impl Run<'_> {
             "verify_convert" => self.measure_verify_convert(),
             "punct_bert" => self.measure_punct_bert(),
             "encoder_only" => self.measure_encoder_only(),
+            "itn" => self.measure_itn(),
+            "punct_rules" => self.measure_punct_rules(),
             other => Err(invalid(format!("unknown stage `{other}`"))),
         };
         let level = if outcome.is_ok() {

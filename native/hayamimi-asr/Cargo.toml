@@ -1,0 +1,32 @@
+[package]
+name = "hayamimi-asr"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "The Japanese recognition route of hayamimi: VAD, pre-roll, recognizer, split retry, ITN, punctuation and the replacement dictionary."
+
+[lib]
+name = "hayamimi_asr"
+path = "src/lib.rs"
+
+[dependencies]
+hayamimi-gpu = { path = "../hayamimi-gpu" }
+hound = "3"
+# The ONNX Runtime is the sherpa-onnx build's own copy, loaded by path; ort never downloads one.
+# ERROR POLICY: ort's errors are mapped to AsrError::Ort at the punctuation session boundary.
+ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "api-31", "load-dynamic", "cuda"] }
+# The same shared build the GPU crate links; see docs/guide/build_gpu.ja.md.
+sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"] }
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+hayamimi-eval = { path = "../hayamimi-eval" }
+serde_json = "1"
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

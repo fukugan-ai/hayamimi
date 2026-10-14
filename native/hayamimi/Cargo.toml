@@ -1,0 +1,37 @@
+[package]
+name = "hayamimi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "hayamimi: real-time Japanese speech recognition with the GPU."
+
+[[bin]]
+name = "hayamimi"
+path = "src/main.rs"
+
+[lib]
+name = "hayamimi_app"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+hayamimi-asr = { path = "../hayamimi-asr" }
+hayamimi-gpu = { path = "../hayamimi-gpu" }
+hayamimi-relay = { path = "../hayamimi-relay" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sys-locale = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+toml = "1.1"
+
+[dev-dependencies]
+hayamimi-eval = { path = "../hayamimi-eval" }
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
