@@ -4,7 +4,7 @@
 
 use std::io::Write;
 
-use hayamimi_asr::{Final, Reason, SessionReport};
+use hayamimi_asr::{Final, Reason, ResidentEvent, SessionReport};
 use hayamimi_relay::logging::{Level, LogEvent};
 use serde_json::Value;
 
@@ -22,6 +22,10 @@ pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
+pub const MODEL_LOADED: &str = "asr.model.loaded";
+pub const MODEL_EVICTED: &str = "asr.model.evicted";
+pub const MEMORY_UNREADABLE: &str = "gpu.memory.unreadable";
+pub const LANG_UNKNOWN: &str = "asr.lang.unknown";
 
 /// A time in milliseconds to three decimals.
 fn millis(value: f64) -> Value {
@@ -101,6 +105,10 @@ pub fn fallback_line(strings: &Strings, notice: &Notice) -> String {
     if let Some(url) = &notice.url {
         fields.push(("url", Value::from(url.as_str())));
     }
+    if let Some((requested, used)) = notice.tiers {
+        fields.push(("requested", Value::from(requested)));
+        fields.push(("used", Value::from(used)));
+    }
     event_line(
         strings,
         Level::Warn,
@@ -156,6 +164,54 @@ pub fn engine_failed_line(strings: &Strings) -> String {
     )
 }
 
+/// `asr.model.loaded` and `asr.model.evicted`: a recognizer came into memory
+/// or was dropped to make room. The other events of the recognizers are
+/// fallbacks and have a [`Notice`].
+pub fn resident_line(strings: &Strings, event: &ResidentEvent) -> Option<String> {
+    match event {
+        ResidentEvent::Loaded { tier, ms } => Some(event_line(
+            strings,
+            Level::Info,
+            MODEL_LOADED,
+            "asr",
+            None,
+            &[
+                ("model", Value::from(tier.name())),
+                ("load_ms", millis(*ms)),
+            ],
+        )),
+        ResidentEvent::Evicted { tier } => Some(event_line(
+            strings,
+            Level::Info,
+            MODEL_EVICTED,
+            "asr",
+            None,
+            &[("model", Value::from(tier.name()))],
+        )),
+        ResidentEvent::LangUnknown => Some(event_line(
+            strings,
+            Level::Warn,
+            LANG_UNKNOWN,
+            "asr",
+            Some("HAYAMIMI_ASR_LANG_UNKNOWN"),
+            &[],
+        )),
+        ResidentEvent::Substituted { .. } | ResidentEvent::CutIntoChunks { .. } => None,
+    }
+}
+
+/// `gpu.memory.unreadable`: the memory of the GPU cannot be read, so the run has no budget.
+pub fn memory_unreadable_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        MEMORY_UNREADABLE,
+        "gpu",
+        Some("HAYAMIMI_GPU_MEMORY_UNREADABLE"),
+        &[],
+    )
+}
+
 /// Writes one line to stdout.
 pub fn print(line: &str) {
     // A closed stdout leaves nowhere to report to.
@@ -166,8 +222,8 @@ pub fn print(line: &str) {
 mod tests {
     use super::*;
     use crate::notice;
-    use hayamimi_asr::Timings;
     use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
 
     fn strings() -> Result<Strings, String> {
@@ -297,8 +353,14 @@ mod tests {
                 UTTERANCE_TIMED,
                 PUNCT_FAILED,
                 ENGINE_FAILED,
+                MODEL_LOADED,
+                MODEL_EVICTED,
+                MEMORY_UNREADABLE,
+                LANG_UNKNOWN,
                 notice::GPU_FALLBACK,
                 notice::MODEL_DISABLED,
+                notice::MODEL_SUBSTITUTE,
+                notice::MODEL_CHUNKS,
                 notice::ASR_DISABLED,
                 notice::SERVER_PORT,
                 notice::CONFIG_DEFAULT,
@@ -309,6 +371,77 @@ mod tests {
                 );
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_model_loaded_or_dropped_is_an_info_line_with_the_tier_and_no_path()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let loaded = resident_line(
+            &strings()?,
+            &ResidentEvent::Loaded {
+                tier: Tier::Pz,
+                ms: 1234.5678,
+            },
+        );
+        let Some(loaded) = loaded else {
+            return Err("a loaded model made no line".into());
+        };
+        let event = parsed(&loaded)?;
+        assert_eq!(event["event"], MODEL_LOADED);
+        assert_eq!(event["level"], "info");
+        assert_eq!(event["model"], "pz");
+        assert_eq!(event["load_ms"], 1234.568);
+        let dropped = resident_line(&strings()?, &ResidentEvent::Evicted { tier: Tier::Sv });
+        let Some(dropped) = dropped else {
+            return Err("a dropped model made no line".into());
+        };
+        let event = parsed(&dropped)?;
+        assert_eq!(event["event"], MODEL_EVICTED);
+        assert_eq!(event["model"], "sv");
+        Ok(())
+    }
+
+    #[test]
+    fn a_language_tag_that_could_not_be_read_is_a_warning_line()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let Some(line) = resident_line(&strings()?, &ResidentEvent::LangUnknown) else {
+            return Err("an unreadable tag made no line".into());
+        };
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], LANG_UNKNOWN);
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], "HAYAMIMI_ASR_LANG_UNKNOWN");
+        Ok(())
+    }
+
+    #[test]
+    fn a_fallback_of_the_recognizers_has_no_resident_line() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let substituted = ResidentEvent::Substituted {
+            requested: Tier::V2,
+            used: Tier::V3,
+            reason: Reason::Missing,
+        };
+        assert_eq!(resident_line(&strings()?, &substituted), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_substitution_names_the_tier_asked_for_and_the_tier_used()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let Some(notice) = Notice::from_resident(&ResidentEvent::Substituted {
+            requested: Tier::V2,
+            used: Tier::V3,
+            reason: Reason::Missing,
+        }) else {
+            return Err("a substitution made no notice".into());
+        };
+        let event = parsed(&fallback_line(&strings()?, &notice))?;
+        assert_eq!(event["event"], "model.fallback.substitute");
+        assert_eq!(event["requested"], "v2");
+        assert_eq!(event["used"], "v3");
+        assert_eq!(event["stage"], "recognizer");
         Ok(())
     }
 

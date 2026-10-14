@@ -12,6 +12,12 @@
 "asr.fallback.disabled" = "推論の library を開けないので、認識を外して続けます"
 "server.fallback.port" = "port が使えないので、別の port で続けます"
 "config.fallback.default" = "設定の file を読めないので、既定の設定で続けます"
+"asr.model.loaded" = "認識器を読み込みました"
+"asr.model.evicted" = "上限を守るため、最も使われていない認識器を手放しました"
+"asr.lang.unknown" = "SenseVoice の結果の言語の tag を読めないので、言語は不明として扱います"
+"gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
+"model.fallback.substitute" = "認識器が使えないので、別の認識器が代わりに答えます"
+"model.fallback.chunks" = "発話の検出器が使えないので、長い音声を一定の長さで切って続けます"
 
 [cli]
 help = """hayamimi: 日本語の実時間音声認識（GPU が無ければ CPU で動く）
@@ -28,6 +34,8 @@ options:
   --max-speech <sec>   この秒数の発話が続いたら確定する（既定は 12）
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
+  --max-resident <n>   日本語の認識器のほかに memory へ置く認識器の数（既定は 3。0 なら全部）
+  --gpu-budget <MiB>   使用中の GPU memory がこの値になったら段を CPU へ移す（既定は 14000）
   --gpu-diagnose       GPU の model の node がどこへ置かれたかを log に出す
   --help               この文を出す"""
 usage_hint = "使える option は --help で見られます。"
@@ -51,8 +59,11 @@ reason_session_failed = "理由: CUDA の session を作れませんでした。
 reason_missing = "理由: model の file がありません。"
 reason_unreadable = "理由: file を読めません。"
 reason_library_unavailable = "理由: 推論の library を開けません。"
+reason_memory_budget = "理由: 使用中の GPU memory が予算に届きました。"
 reason_in_use = "理由: port が使われています。"
 to_cpu = "落ち先: CPU で同じ model を動かします。"
 to_disabled = "落ち先: この段を外して続けます。"
+to_substitute = "落ち先: 別の認識器が代わりに答えます。"
+to_chunks = "落ち先: 長い音声を一定の長さで切ります。"
 to_next_port = "落ち先: 次の空いた port を使います。"
 to_default = "落ち先: 既定の設定で動かします。"

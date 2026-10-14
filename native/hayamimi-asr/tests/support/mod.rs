@@ -35,6 +35,19 @@ pub fn models_dir() -> Result<PathBuf, Failure> {
         .ok_or_else(|| format!("no models/silero_vad.onnx at or above {}", start.display()))
 }
 
+/// The directory `testdata/` at or above the repository checkout. Evaluation
+/// audio is not in git, so a worktree reads it from the main checkout.
+pub fn testdata_dir() -> Result<PathBuf, Failure> {
+    let start = Path::new(REPO)
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve {REPO}: {error}"))?;
+    start
+        .ancestors()
+        .map(|directory| directory.join("testdata"))
+        .find(|testdata| testdata.join("eval_real").join("manifest.json").is_file())
+        .ok_or_else(|| format!("no testdata/eval_real at or above {}", start.display()))
+}
+
 pub fn read(path: &Path) -> Result<String, Failure> {
     std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))

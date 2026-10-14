@@ -12,6 +12,8 @@ pub enum AsrError {
     Create(&'static str),
     /// The recognizer answered a decode with no result.
     NoResult,
+    /// No recognizer model of the chain is usable on this machine.
+    NoRecognizer,
     /// ONNX Runtime (through `ort`) failed.
     Ort(String),
     /// The vocabulary file lacks a token the tokenizer needs.
@@ -34,6 +36,7 @@ impl fmt::Display for AsrError {
             AsrError::MissingModel(path) => write!(f, "model file not found: {}", path.display()),
             AsrError::Create(what) => write!(f, "cannot create the {what}"),
             AsrError::NoResult => write!(f, "the recognizer returned no result"),
+            AsrError::NoRecognizer => write!(f, "no recognizer model is usable"),
             AsrError::Ort(message) => write!(f, "ort: {message}"),
             AsrError::Vocab(message) => write!(f, "vocab: {message}"),
             AsrError::Shape(message) => write!(f, "punctuation model output: {message}"),

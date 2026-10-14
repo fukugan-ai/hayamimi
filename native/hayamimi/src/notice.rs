@@ -3,28 +3,40 @@
 //! reads on stderr. All three come from the same fields, so they cannot
 //! disagree about which stage fell back or why.
 
-use hayamimi_asr::{Fallback, To};
+use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
 pub const STAGES: [&str; 6] = ["punct", "recognizer", "vad", "asr", "events", "replace"];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 7] = [
+pub const REASONS: [&str; 8] = [
     "no_device",
     "driver_unreadable",
     "session_failed",
     "missing",
     "unreadable",
+    "memory_budget",
     "library_unavailable",
     "in_use",
 ];
 /// Every destination a notice can carry.
-pub const DESTINATIONS: [&str; 4] = ["cpu", "disabled", "next_port", "default"];
+pub const DESTINATIONS: [&str; 6] = [
+    "cpu",
+    "disabled",
+    "substitute",
+    "chunks",
+    "next_port",
+    "default",
+];
 
 /// The log event of a stage that moved to the CPU.
 pub const GPU_FALLBACK: &str = "gpu.fallback.cpu";
 /// The log event of a stage left out because its model is not usable.
 pub const MODEL_DISABLED: &str = "model.fallback.disabled";
+/// The log event of a recognizer that another one answers for.
+pub const MODEL_SUBSTITUTE: &str = "model.fallback.substitute";
+/// The log event of long buffers cut into fixed chunks for want of the cutting detector.
+pub const MODEL_CHUNKS: &str = "model.fallback.chunks";
 /// The log event of recognition left out because the inference libraries did not open.
 pub const ASR_DISABLED: &str = "asr.fallback.disabled";
 /// The log event of the subtitle server on another port.
@@ -42,6 +54,8 @@ pub struct Notice {
     pub to: &'static str,
     /// Where the subtitle server listens now, for a port notice.
     pub url: Option<String>,
+    /// The tier asked for and the tier that answered, for a substitution.
+    pub tiers: Option<(&'static str, &'static str)>,
 }
 
 impl Notice {
@@ -58,6 +72,54 @@ impl Notice {
             reason: fallback.reason.name(),
             to: fallback.to.name(),
             url: None,
+            tiers: None,
+        }
+    }
+
+    /// What a recognizer event asks the user to be told, if anything. A model
+    /// loaded or dropped, or a language tag that could not be read, is a log
+    /// line and not a fallback.
+    pub fn from_resident(event: &ResidentEvent) -> Option<Notice> {
+        match event {
+            ResidentEvent::Substituted {
+                requested,
+                used,
+                reason,
+            } => Some(Notice::substituted(
+                requested.name(),
+                used.name(),
+                reason.name(),
+            )),
+            ResidentEvent::CutIntoChunks { reason } => Some(Notice::cut_into_chunks(*reason)),
+            ResidentEvent::Loaded { .. }
+            | ResidentEvent::Evicted { .. }
+            | ResidentEvent::LangUnknown => None,
+        }
+    }
+
+    /// The recognizer asked for is not usable and another answers in its place.
+    fn substituted(requested: &'static str, used: &'static str, reason: &'static str) -> Notice {
+        Notice {
+            event: MODEL_SUBSTITUTE,
+            error_code: "HAYAMIMI_MODEL_FALLBACK",
+            stage: "recognizer",
+            reason,
+            to: "substitute",
+            url: None,
+            tiers: Some((requested, used)),
+        }
+    }
+
+    /// The cutting detector is not usable: long buffers are cut into fixed chunks.
+    fn cut_into_chunks(reason: Reason) -> Notice {
+        Notice {
+            event: MODEL_CHUNKS,
+            error_code: "HAYAMIMI_MODEL_FALLBACK",
+            stage: "vad",
+            reason: reason.name(),
+            to: "chunks",
+            url: None,
+            tiers: None,
         }
     }
 
@@ -70,6 +132,7 @@ impl Notice {
             reason: "library_unavailable",
             to: "disabled",
             url: None,
+            tiers: None,
         }
     }
 
@@ -88,6 +151,7 @@ impl Notice {
             reason: "in_use",
             to,
             url,
+            tiers: None,
         }
     }
 
@@ -100,6 +164,7 @@ impl Notice {
             reason: "unreadable",
             to: "default",
             url: None,
+            tiers: None,
         }
     }
 
@@ -139,7 +204,7 @@ impl Notice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hayamimi_asr::{Reason, Stage};
+    use hayamimi_asr::{Stage, Tier};
 
     fn punct_on_cpu() -> Notice {
         Notice::from_fallback(&Fallback {
@@ -189,16 +254,85 @@ mod tests {
         assert_eq!(Notice::port_in_use(None).to, "disabled");
     }
 
+    fn punct_over_budget() -> Notice {
+        Notice::from_fallback(&Fallback {
+            stage: Stage::Punct,
+            reason: Reason::MemoryBudget,
+            to: To::Cpu,
+        })
+    }
+
+    fn v2_for_v3() -> Option<Notice> {
+        Notice::from_resident(&ResidentEvent::Substituted {
+            requested: Tier::V2,
+            used: Tier::V3,
+            reason: Reason::Missing,
+        })
+    }
+
+    #[test]
+    fn a_stage_moved_for_memory_is_a_gpu_fallback_with_the_memory_budget_reason() {
+        let notice = punct_over_budget();
+        assert_eq!(notice.event, GPU_FALLBACK);
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("punct", "memory_budget", "cpu")
+        );
+        assert_eq!(notice.wire()["reason"], "memory_budget");
+    }
+
+    #[test]
+    fn a_substituted_recognizer_names_both_tiers_and_why() {
+        let Some(notice) = v2_for_v3() else {
+            panic!("a substitution made no notice");
+        };
+        assert_eq!(notice.event, MODEL_SUBSTITUTE);
+        assert_eq!(notice.tiers, Some(("v2", "v3")));
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("recognizer", "missing", "substitute")
+        );
+    }
+
+    #[test]
+    fn a_detector_that_is_gone_makes_a_chunks_notice() {
+        let notice = Notice::from_resident(&ResidentEvent::CutIntoChunks {
+            reason: Reason::Missing,
+        });
+        assert_eq!(
+            notice.map(|one| (one.event, one.stage, one.to)),
+            Some((MODEL_CHUNKS, "vad", "chunks"))
+        );
+    }
+
+    #[test]
+    fn a_model_loaded_or_dropped_is_a_log_line_and_not_a_fallback() {
+        let loaded = ResidentEvent::Loaded {
+            tier: Tier::Pz,
+            ms: 1.0,
+        };
+        let evicted = ResidentEvent::Evicted { tier: Tier::Pz };
+        assert_eq!(Notice::from_resident(&loaded), None);
+        assert_eq!(Notice::from_resident(&evicted), None);
+    }
+
     #[test]
     fn every_name_a_notice_can_carry_is_in_the_lists_the_tables_are_checked_against() {
         let notices = [
             punct_on_cpu(),
+            punct_over_budget(),
             Notice::library_unavailable(),
             Notice::port_in_use(None),
             Notice::port_in_use(Some(String::new())),
             Notice::config_unreadable(),
         ];
-        for notice in notices {
+        let resident = [
+            v2_for_v3(),
+            Notice::from_resident(&ResidentEvent::CutIntoChunks {
+                reason: Reason::Unreadable,
+            }),
+        ];
+        for notice in notices.into_iter().chain(resident.into_iter().flatten()) {
             assert!(STAGES.contains(&notice.stage), "{}", notice.stage);
             assert!(REASONS.contains(&notice.reason), "{}", notice.reason);
             assert!(DESTINATIONS.contains(&notice.to), "{}", notice.to);

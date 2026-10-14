@@ -37,6 +37,20 @@ pub const KEY_FINAL_LATENCY: &str = "final_latency_ms";
 pub const KEY_CER_DIST: &str = "cer_dist";
 pub const KEY_CER_DENOM: &str = "cer_denom";
 
+/// `relative` under the nearest directory at or above the repository checkout
+/// that holds it: untracked data is not in a worktree, so it is read from the
+/// main checkout.
+pub fn find_up(relative: &str) -> Result<PathBuf, Failure> {
+    let start = Path::new(REPO)
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve {REPO}: {error}"))?;
+    start
+        .ancestors()
+        .map(|directory| directory.join(relative))
+        .find(|path| path.exists())
+        .ok_or_else(|| format!("no {relative} at or above {}", start.display()))
+}
+
 /// The text of a result file. Output saved from a Windows console can hold
 /// bytes that are not UTF-8, so they are replaced rather than refused.
 pub fn read(path: &Path) -> Result<String, Failure> {

@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_stages, fleurs, log, manifest, record, stream};
+use crate::{cli_stages, fleurs, log, manifest, record, scorecard, scorecard_run, stream};
 
 #[derive(Parser)]
 #[command(
@@ -37,6 +37,27 @@ enum Command {
     NsysTransfers(cli_stages::NsysTransfersArgs),
     /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
     OrtPlaced(cli_stages::OrtPlacedArgs),
+    /// Score the engine on the real-speech sets and write the scorecard as JSON.
+    Scorecard(ScorecardArgs),
+}
+
+#[derive(Args)]
+struct ScorecardArgs {
+    /// The engine to score; only hayamimi is built in.
+    #[arg(long, default_value = "hayamimi")]
+    engine: String,
+    /// Evaluation set directories, each with a manifest.json, comma separated.
+    #[arg(long, value_delimiter = ',', required = true)]
+    sets: Vec<PathBuf>,
+    /// The scorecard written (.json).
+    #[arg(long)]
+    out: PathBuf,
+    /// The directory that holds the model directories.
+    #[arg(long, default_value = "models")]
+    models: PathBuf,
+    /// Recognizers kept in memory besides the Japanese one; 0 keeps all.
+    #[arg(long, default_value_t = 3)]
+    max_resident: usize,
 }
 
 #[derive(Args)]
@@ -186,6 +207,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::StagesReport(args) => cli_stages::stages_report(args),
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
+        Command::Scorecard(args) => scorecard(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {
@@ -194,6 +216,34 @@ fn execute(command: Command) -> Result<(), EvalError> {
             })
         }
     }
+}
+
+fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
+    if args.engine != "hayamimi" {
+        return Err(EvalError::Invalid(format!(
+            "unknown engine `{}`; only hayamimi is built in",
+            args.engine
+        )));
+    }
+    let outcome = scorecard_run::run(&scorecard_run::Options {
+        models: args.models,
+        sets: args.sets,
+        max_resident: std::num::NonZeroUsize::new(args.max_resident),
+    })?;
+    scorecard::write_json(&args.out, &outcome.card)?;
+    for clip in &outcome.clips {
+        println!(
+            "{}\ttier={}\terr={}\trtf={}\t{}",
+            clip.name, clip.tier, clip.err_micros, clip.rtf_micros, clip.text
+        );
+    }
+    for row in &outcome.card.rows {
+        println!(
+            "{}\t{}\t{}\t{}\t{}",
+            row.lang, row.clips, row.tiers, row.mean_err_micros, row.mean_rtf_micros
+        );
+    }
+    Ok(())
 }
 
 fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {

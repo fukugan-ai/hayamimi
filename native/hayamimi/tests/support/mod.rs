@@ -67,6 +67,20 @@ pub fn models_dir() -> Result<PathBuf, Failure> {
         .ok_or_else(|| format!("no models/silero_vad.onnx at or above {}", start.display()))
 }
 
+/// `relative` under the nearest directory at or above the repository checkout
+/// that holds it: untracked data is not in a worktree, so it is read from the
+/// main checkout.
+pub fn find_up(relative: &str) -> Result<PathBuf, Failure> {
+    let start = Path::new(REPO)
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve {REPO}: {error}"))?;
+    start
+        .ancestors()
+        .map(|directory| directory.join(relative))
+        .find(|path| path.exists())
+        .ok_or_else(|| format!("no {relative} at or above {}", start.display()))
+}
+
 /// The binary with a clean locale environment, then `locale` and `extra`
 /// set. The test names the values; the program reads them.
 fn command(binary: &str, args: &[String], locale: Option<&str>, extra: &[(&str, &str)]) -> Command {

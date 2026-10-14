@@ -6,24 +6,30 @@
 //! passes through ITN, punctuation and the replacement dictionary, in that
 //! order. Nothing here chooses a language: the route is Japanese only.
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::audio::{History, SAMPLE_RATE, windows};
+use crate::decode::{Recognizers, ResidentEvent};
 use crate::error::AsrError;
-use crate::fallback::{Fallback, Gpu, Reason, Stage, To};
+use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
-use crate::recognizer::{Recognizer, model_files};
+use crate::recognizer::{THREADS, model_files};
 use crate::replace::Replacements;
-use crate::retry::{Splitter, looks_truncated};
+use crate::tier::Tier;
 use crate::vad::{Segment, Vad, VadSettings};
 
 /// The language of the route.
 const LANGUAGE: &str = "ja";
 /// The file name the VAD session is reported under.
 const VAD_MODEL: &str = "silero_vad.onnx";
+/// How many recognizers besides the Japanese one stay in memory unless the
+/// command line says otherwise: Parakeet v3, Paraformer and SenseVoice are
+/// the three the five languages of the evaluation use.
+pub const DEFAULT_MAX_RESIDENT: Option<NonZeroUsize> = NonZeroUsize::new(3);
 
 /// Which optional stages run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +59,8 @@ pub struct Settings {
     pub diagnose: bool,
     /// What the start found about the GPU.
     pub gpu: Gpu,
+    /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
+    pub max_resident: Option<NonZeroUsize>,
 }
 
 impl Settings {
@@ -60,6 +68,7 @@ impl Settings {
         Settings {
             models,
             gpu: Gpu::Try,
+            max_resident: DEFAULT_MAX_RESIDENT,
             vad: VadSettings::default(),
             stages: Stages::default(),
             itn_overrides: Overrides::default(),
@@ -106,19 +115,29 @@ pub struct Final {
     pub punct_error: Option<String>,
 }
 
-/// The detector and the recognizer, which only work together.
+/// The detector and the recognizers, which only work together.
 struct Route {
-    recognizer: Recognizer,
+    recognizers: Recognizers,
     vad: Vad,
-    splitter: Splitter,
     history: History,
     vad_ms: f64,
+}
+
+/// One GPU stage moved to the CPU to give memory back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Demotion {
+    pub fallback: Fallback,
+    /// The session built on the CPU, when the model could be opened there.
+    pub report: Option<SessionReport>,
 }
 
 pub struct Engine {
     /// `None` when the detector or the recognizer could not be opened: the engine then makes no utterances.
     route: Option<Route>,
     punctuator: Option<Punctuator>,
+    /// Where the punctuation session runs now.
+    punct_device: Option<Device>,
+    models: PathBuf,
     stages: Stages,
     itn_overrides: Overrides,
     replacements: Replacements,
@@ -151,18 +170,6 @@ fn recognizer_models(settings: &Settings) -> Vec<String> {
         .collect()
 }
 
-/// Why a model that failed to open leaves its stage out, or `None` when the
-/// failure is not about the model (and so must not be absorbed).
-fn disable_reason(error: &AsrError) -> Option<Reason> {
-    match error {
-        AsrError::MissingModel(_) => Some(Reason::Missing),
-        AsrError::Create(_) | AsrError::Ort(_) | AsrError::Vocab(_) | AsrError::Io(_) => {
-            Some(Reason::Unreadable)
-        }
-        _ => None,
-    }
-}
-
 fn disabled(stage: Stage, reason: Reason) -> Fallback {
     Fallback {
         stage,
@@ -180,7 +187,7 @@ fn open_or_disable<T>(
 ) -> Result<Option<T>, AsrError> {
     match opened {
         Ok(value) => Ok(Some(value)),
-        Err(error) => match disable_reason(&error) {
+        Err(error) => match reason_of(&error) {
             Some(reason) => {
                 fallbacks.push(disabled(stage, reason));
                 Ok(None)
@@ -202,20 +209,19 @@ fn open_route(
         Stage::Vad,
         fallbacks,
     )?;
-    let recognizer = open_or_disable(
-        Recognizer::open(&settings.models),
-        Stage::Recognizer,
-        fallbacks,
-    )?;
-    let (Some(vad), Some(recognizer)) = (vad, recognizer) else {
+    let mut recognizers = Recognizers::new(&settings.models, THREADS, settings.max_resident);
+    let recognizer_out = recognizers.load(Tier::Rz)?;
+    if let Some(reason) = recognizer_out {
+        fallbacks.push(disabled(Stage::Recognizer, reason));
+    }
+    let (Some(vad), None) = (vad, recognizer_out) else {
         return Ok(None);
     };
     reports.push(cpu_report(String::from(VAD_MODEL)));
     reports.extend(recognizer_models(settings).into_iter().map(cpu_report));
     Ok(Some(Route {
-        recognizer,
+        recognizers,
         vad,
-        splitter: Splitter::new(&settings.models),
         history: History::new(),
         vad_ms: 0.0,
     }))
@@ -279,19 +285,20 @@ fn punct_report(
 
 /// Opens the punctuation model where `settings.gpu` says, and on the CPU when
 /// the CUDA session cannot be built. The model that cannot be opened at all
-/// leaves the stage out. Returns the session's report with the punctuator.
+/// leaves the stage out. Returns the punctuator with the device it runs on
+/// and its session's report.
 fn open_punct(
     runtime: &OrtRuntime,
     settings: &Settings,
     fallbacks: &mut Vec<Fallback>,
-) -> Result<Option<(Punctuator, SessionReport)>, AsrError> {
+) -> Result<Option<(Punctuator, Device, SessionReport)>, AsrError> {
     let first = first_device(settings.gpu, fallbacks);
     let (attempt, device) = open_on_device(runtime, settings, first, fallbacks);
     let Some(punctuator) = open_or_disable(attempt, Stage::Punct, fallbacks)? else {
         return Ok(None);
     };
     let report = punct_report(runtime, settings, device)?;
-    Ok(Some((punctuator, report)))
+    Ok(Some((punctuator, device, report)))
 }
 
 impl Engine {
@@ -307,15 +314,19 @@ impl Engine {
         let mut reports = Vec::new();
         let route = open_route(&settings, &mut reports, &mut fallbacks)?;
         let mut punctuator = None;
+        let mut punct_device = None;
         if settings.stages.punctuate
-            && let Some((opened, report)) = open_punct(runtime, &settings, &mut fallbacks)?
+            && let Some((opened, device, report)) = open_punct(runtime, &settings, &mut fallbacks)?
         {
             reports.push(report);
             punctuator = Some(opened);
+            punct_device = Some(device);
         }
         Ok(Engine {
             route,
             punctuator,
+            punct_device,
+            models: settings.models,
             stages: settings.stages,
             itn_overrides: settings.itn_overrides,
             replacements: settings.replacements,
@@ -333,6 +344,69 @@ impl Engine {
     /// The stages that did not run as designed, in the order they fell back.
     pub fn fallbacks(&self) -> &[Fallback] {
         &self.fallbacks
+    }
+
+    /// What the recognizers did since the last call: models loaded and
+    /// dropped, and tiers that gave way to others. An engine with no route
+    /// has no recognizers and so nothing to say.
+    pub fn take_resident_events(&mut self) -> Vec<ResidentEvent> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| route.recognizers.take_events())
+            .collect()
+    }
+
+    /// The recognizer tiers in memory.
+    pub fn resident(&self) -> Vec<Tier> {
+        self.route
+            .as_ref()
+            .into_iter()
+            .flat_map(|route| route.recognizers.resident())
+            .collect()
+    }
+
+    /// Gives GPU memory back by moving the next GPU stage to the CPU: the
+    /// stage whose move costs the least latency first (punctuation, 8 ms on
+    /// the GPU against 45 ms on the CPU). `None` when no stage is on the GPU.
+    /// The model that cannot be opened on the CPU leaves its stage out.
+    pub fn demote_for_memory(&mut self) -> Result<Option<Demotion>, AsrError> {
+        if self.punct_device != Some(Device::Cuda) {
+            return Ok(None);
+        }
+        // The GPU session is dropped before the CPU one is built, so that its memory is free first.
+        self.punctuator = None;
+        self.punct_device = None;
+        let runtime = OrtRuntime::shared()?;
+        let opened = Punctuator::open(runtime, &self.models, Device::Cpu, false);
+        let mut left_out = Vec::new();
+        let Some(punctuator) = open_or_disable(opened, Stage::Punct, &mut left_out)? else {
+            let fallback = disabled(Stage::Punct, Reason::MemoryBudget);
+            self.fallbacks.push(fallback);
+            return Ok(Some(Demotion {
+                fallback,
+                report: None,
+            }));
+        };
+        self.punctuator = Some(punctuator);
+        self.punct_device = Some(Device::Cpu);
+        let fallback = Fallback {
+            stage: Stage::Punct,
+            reason: Reason::MemoryBudget,
+            to: To::Cpu,
+        };
+        let report = SessionReport {
+            model: String::from(PUNCT_MODEL),
+            requested: Device::Cuda.name(),
+            actual: Device::Cpu.name(),
+            nodes: None,
+        };
+        self.fallbacks.push(fallback);
+        self.reports.push(report.clone());
+        Ok(Some(Demotion {
+            fallback,
+            report: Some(report),
+        }))
     }
 
     /// Feeds one window of `WINDOW` samples; returns the utterances it finished.
@@ -455,15 +529,9 @@ struct Decoded {
 fn decode_segment(route: &mut Route, segment: &Segment) -> Result<Decoded, AsrError> {
     let samples = route.history.with_preroll(segment.start, &segment.samples);
     let seconds = samples.len() as f64 / f64::from(SAMPLE_RATE);
-    let (text, decode_ms) = timed(|| -> Result<String, AsrError> {
-        let text = route.recognizer.decode(&samples)?;
-        if looks_truncated(&text, seconds, seconds) {
-            return route.splitter.retry(&route.recognizer, &text, &samples);
-        }
-        Ok(text)
-    });
+    let (decoded, decode_ms) = timed(|| route.recognizers.decode(Tier::Rz, LANGUAGE, &samples));
     Ok(Decoded {
-        text: text?,
+        text: decoded?.text,
         seconds,
         decode_ms,
     })
@@ -543,17 +611,25 @@ mod tests {
     }
 
     #[test]
-    fn the_failures_that_are_about_a_model_leave_a_stage_out_and_the_others_do_not() {
-        assert_eq!(
-            disable_reason(&AsrError::MissingModel(PathBuf::from("m"))),
-            Some(Reason::Missing)
-        );
-        assert_eq!(
-            disable_reason(&AsrError::Create("VAD")),
-            Some(Reason::Unreadable)
-        );
-        assert_eq!(disable_reason(&AsrError::Wav(String::from("w"))), None);
-        assert_eq!(disable_reason(&AsrError::Overflow("n")), None);
+    fn the_resident_cap_starts_at_three_and_a_cap_of_none_keeps_all() {
+        assert_eq!(DEFAULT_MAX_RESIDENT, NonZeroUsize::new(3));
+        let settings = Settings::new(PathBuf::from("models"));
+        assert_eq!(settings.max_resident, DEFAULT_MAX_RESIDENT);
+    }
+
+    #[test]
+    fn an_engine_with_no_route_has_no_recognizers_to_report() -> Result<(), AsrError> {
+        let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
+        assert!(engine.take_resident_events().is_empty());
+        assert!(engine.resident().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn with_no_stage_on_the_gpu_there_is_nothing_to_give_back() -> Result<(), AsrError> {
+        let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
+        assert_eq!(engine.demote_for_memory()?, None);
+        Ok(())
     }
 
     #[test]

@@ -4,6 +4,7 @@
 pub mod args;
 pub mod gpu_check;
 pub mod log;
+pub mod memory_guard;
 pub mod notice;
 pub mod run;
 pub mod server;

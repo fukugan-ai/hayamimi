@@ -10,12 +10,14 @@ use std::time::{Duration, Instant};
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW, read_wav, windows};
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::vad::VadSettings;
-use hayamimi_asr::{AsrError, Engine, Final, Gpu, Settings, check_library};
+use hayamimi_asr::{AsrError, Engine, Final, Gpu, SessionReport, Settings, check_library};
+use hayamimi_gpu::memory::MemoryMeter;
 use serde_json::{Value, json};
 
 use crate::args::{self, Args, Parsed};
 use crate::gpu_check;
 use crate::log;
+use crate::memory_guard::{Look, MemoryGuard};
 use crate::notice::Notice;
 use crate::server::{self, Hub};
 use crate::strings::{self, Strings, keys};
@@ -120,6 +122,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     };
     settings.diagnose = args.diagnose;
     settings.gpu = gpu;
+    settings.max_resident = args.max_resident;
     let mut notice = None;
     if let Some(path) = &args.replace {
         match Replacements::load(path) {
@@ -159,12 +162,76 @@ fn check_gpu(strings: &Strings) -> Gpu {
     gpu
 }
 
+/// Logs one session an engine created.
+fn log_session(strings: &Strings, report: &SessionReport) {
+    log::print(&log::session_created_line(strings, report));
+    if let Some(line) = log::session_placed_line(strings, report) {
+        log::print(&line);
+    }
+}
+
 /// Logs the sessions an opened engine created.
 fn log_sessions(strings: &Strings, engine: &Engine) {
     for report in engine.sessions() {
-        log::print(&log::session_created_line(strings, report));
-        if let Some(line) = log::session_placed_line(strings, report) {
+        log_session(strings, report);
+    }
+}
+
+/// Opens the reader of the GPU memory when there is a GPU to read. A reader
+/// that cannot be opened is logged, and the run goes on without a budget.
+fn open_guard(args: &Args, strings: &Strings, gpu: Gpu) -> Option<MemoryGuard<MemoryMeter>> {
+    if !matches!(gpu, Gpu::Try) {
+        return None;
+    }
+    match MemoryGuard::open(args.gpu_budget_mib, Instant::now()) {
+        Ok(guard) => Some(guard),
+        Err(_) => {
+            log::print(&log::memory_unreadable_line(strings));
+            None
+        }
+    }
+}
+
+/// Moves the next GPU stage to the CPU and says so on the three channels.
+fn demote(strings: &Strings, hub: &Hub, engine: &mut Engine) -> Result<(), RunError> {
+    if let Some(demotion) = engine.demote_for_memory()? {
+        say_notice(strings, hub, &Notice::from_fallback(&demotion.fallback));
+        if let Some(report) = &demotion.report {
+            log_session(strings, report);
+        }
+    }
+    Ok(())
+}
+
+/// Reads the GPU memory when it is time to, and gives memory back if the
+/// budget is reached. Reaching the budget never stops the run.
+fn keep_within_budget(
+    strings: &Strings,
+    hub: &Hub,
+    guard: &mut Option<MemoryGuard<MemoryMeter>>,
+    engine: &mut Engine,
+) -> Result<(), RunError> {
+    let Some(watch) = guard.as_mut() else {
+        return Ok(());
+    };
+    match watch.look(Instant::now()) {
+        Look::Quiet => Ok(()),
+        Look::Blind => {
+            log::print(&log::memory_unreadable_line(strings));
+            Ok(())
+        }
+        Look::Reached { .. } => demote(strings, hub, engine),
+    }
+}
+
+/// Says what the recognizers did since the last call.
+fn tell_resident(strings: &Strings, hub: &Hub, engine: &mut Engine) {
+    for event in engine.take_resident_events() {
+        if let Some(line) = log::resident_line(strings, &event) {
             log::print(&line);
+        }
+        if let Some(notice) = Notice::from_resident(&event) {
+            say_notice(strings, hub, &notice);
         }
     }
 }
@@ -206,18 +273,25 @@ fn play(
     hub: &Hub,
     samples: &[f32],
     mut engine: Option<Engine>,
+    mut guard: Option<MemoryGuard<MemoryMeter>>,
 ) -> Result<(), RunError> {
+    if let Some(opened) = engine.as_mut() {
+        tell_resident(strings, hub, opened);
+    }
     let start = Instant::now();
     for (index, window) in windows(samples).enumerate() {
         if args.realtime {
             pace(start, index);
         }
         if let Some(running) = engine.as_mut() {
+            keep_within_budget(strings, hub, &mut guard, running)?;
             announce(strings, hub, &running.feed(&window)?);
+            tell_resident(strings, hub, running);
         }
     }
     if let Some(running) = engine.as_mut() {
         announce(strings, hub, &running.finish()?);
+        tell_resident(strings, hub, running);
     }
     Ok(())
 }
@@ -234,7 +308,8 @@ fn transcribe_wav(args: &Args, strings: &Strings) -> Result<(), RunError> {
     let engine = open_engine(args, strings, gpu, &mut notices)?;
     tell_notices(strings, &hub, &notices, gpu);
     hub.publish_session_start();
-    play(args, strings, &hub, &samples, engine)
+    let guard = open_guard(args, strings, gpu);
+    play(args, strings, &hub, &samples, engine, guard)
 }
 
 /// Runs the program and returns its exit code.
@@ -295,6 +370,8 @@ mod tests {
             replace: path.map(Into::into),
             serve: None,
             diagnose: false,
+            max_resident: None,
+            gpu_budget_mib: 14_000,
         }
     }
 

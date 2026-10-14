@@ -24,6 +24,9 @@ pub mod nsys;
 pub mod ort_stages;
 pub mod percentile;
 pub mod record;
+pub mod score;
+pub mod scorecard;
+pub mod scorecard_run;
 pub mod sha;
 pub mod stage_load;
 pub mod stage_models;
@@ -33,6 +36,7 @@ pub mod stage_table;
 pub mod stages;
 pub mod stream;
 pub mod translate_call;
+pub mod vram;
 pub mod wav;
 pub mod ws;
 
