@@ -123,15 +123,57 @@ ko の平均は A で 0.0793、C で 0.0806 で、どちらも Python の 0.081 
 4. 同じ Rust を B（ORT 1.31.0）で動かすと、zh と yue は C と同じ値になり、ko は ko_03 と ko_05 が悪くなって 0.0869 になる。library を替えるたびに、境界上の別の clip が入れ替わる。
 5. スレッド数は結果を変えない。zh_09 は 1、2、4、6 スレッドのどれでも WSL では「半唱歌」だった。
 
-## 設計の判断が要る点
+## 比べ方と測る build
 
-1. **yue の閾値**：Python の表は小数 3 桁で、Python 自身の値は 0.061454 である。
-   RP-1 の「Python の値以下」を表の値（0.061）で読むと、Python と同じ性能の engine が通らない。
-   Python の clip ごとの値から丸める前の値を作る、Rust の値を Python の表と同じ 3 桁に丸めて比べる、許容幅を置く、のどれにするかは設計の判断である。
-2. **library の版**：A の zh と yue、B の ko が閾値を超えるのは、library が境界上の字を入れ替えるからで、Rust の code の側に直す所が無い。
-   RP-1 をどの library の build で測るかを決める必要がある。
+1. **丸め**：Python の表は小数 3 桁で、Python 自身の yue は 0.061454 である。
+   `check_scorecard` は Rust の平均を小数 3 桁へ四捨五入してから比べる（`scorecard.rs` の `at_table_places`）。
+   0.061454 は 0.061 になって通り、0.0615 は 0.062 で落ちる。閾値は動かしていない。
+2. **測る build**：RP-1 の合否は、配る形の build（自前の sherpa-onnx と ORT 1.31.0、Windows）で決める。
    版を Python に合わせて古くする手は、依存を最新に保つ規則に反するので採らない。
 3. **LID の数**：`hayamimi-eval scorecard` は言語を clip の正解で決める（`lid: oracle`）ので、RP-1 の LID の列は空のままで、T-RP-1-012 は言語判定を繋ぐ slice が済むまで通らない。
+
+## 配る形の build の RP-1
+
+`win_self_built.json` は、merge 後の code で打ち直した値である。
+
+| 言語 | Rust（百万分率） | 丸め後 | Python の表 | 判定 |
+|---|---|---|---|---|
+| ja | 37512 | 38000 | 38000 | 通る |
+| en | 22606 | 23000 | 23000 | 通る |
+| zh | 65609 | 66000 | 66000 | 通る |
+| ko | 86939 | 87000 | 81000 | 超える（H35） |
+| yue | 61454 | 61000 | 61000 | 通る |
+
+## ko の fp32
+
+SenseVoice を CPU の fp32 で読ませた。
+sherpa-onnx の `asr-models` にある `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17` の `model.onnx` を、int8 の dir と同じ名前の dir に置いた別の models 根を渡し、code と build は配る形のままにした（`win_sv_fp32.json`）。
+
+| 言語 | 誤り率 int8（配る形） | 誤り率 fp32 | RTF int8 から fp32 |
+|---|---|---|---|
+| ko | 86939 | 93700 | 68450 から 135249 |
+| yue | 61454 | 91235 | 40902 から 59622 |
+
+ko は fp32 でも 0.081 に届かず、0.0937 と悪くなる。
+時間は RTF で約 2 倍になる。fp32 に替える条件（ko が 0.081 以下で、`L` の延びが 1% 以内）はどちらも満たさない。
+ko の 12 clip のうち、int8 と fp32 で誤り率が違うのは 6 clip である。
+ko_01（0 から 0.030）、ko_03（0.160 から 0.120）、ko_05（0.192 から 0.154）、ko_08（0 から 0.125）、ko_11（0.111 から 0.083）、ko_12（0.079 から 0.053）で、fp32 は良くなる clip もあるが、別の clip の字を外す。
+配る形（B）と Python と同じ library（C）で誤り率が違う ko は、ko_03 と ko_05 の 2 clip である。
+
+## ja_02 の SenseVoice（H40）
+
+`Recognizer::open_tier(Tier::Sv)` と `decode_tagged` を呼ぶだけの probe で、ja_02 を読ませた。
+
+| build | ORT | SenseVoice の答え |
+|---|---|---|
+| 配る形（B） | 1.31.0 | zh（追卡飞卡卡。） |
+| Python と同じ library（C） | 1.27.1 | zh（飞卡皮卡追卡。） |
+
+ja_02 は、Python の wheel の ORT でも zh と答える。ORT の build 差（H35）から出た件ではない。
+入力は 16 kHz の wav で、Rust も Python も resample せずに渡す。
+Python の `eval_engine.py` の clip の順は ja_01、ja_02 の順で、最初の ja_01 で SenseVoice の probe が走り、session の言語は ja になる。
+ja_02 では whisper-tiny の答え（ja）が session の言語と同じなので、`asr_engine.py` の `transcribe` は SenseVoice を呼ばない。
+Rust 側で ja_02 が zh になるのは、ja_02 を session の最初の clip として SenseVoice に通した場合である。この読みは ASSUMPTION で、言語判定を繋いだ run（R3b、H37）を clip の順どおりに打って確かめる。
 
 ## 打った command
 

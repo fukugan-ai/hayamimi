@@ -20,9 +20,9 @@ use hayamimi_asr::vad::{Sensitivity, VadSettings};
 use hayamimi_asr::{AsrError, Engine, Gpu, Settings, check_library};
 use hayamimi_gpu::memory::MemoryMeter;
 
-use crate::args::{self, Args, Parsed};
 #[cfg(test)]
 use crate::args::Mode;
+use crate::args::{self, Args, Parsed};
 use crate::capture::SourceKind;
 use crate::capture::supervise::{self, Capture, Spec};
 use crate::control::{Command, Controls, Initial, Live};

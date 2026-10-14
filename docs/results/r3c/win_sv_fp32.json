@@ -1,0 +1,49 @@
+{
+  "engine": "hayamimi",
+  "lid": "oracle",
+  "rows": [
+    {
+      "lang": "ja",
+      "clips": 15,
+      "lid_correct": null,
+      "tiers": "rz",
+      "mean_err_micros": 37512,
+      "mean_rtf_micros": 236890
+    },
+    {
+      "lang": "en",
+      "clips": 15,
+      "lid_correct": null,
+      "tiers": "v3",
+      "mean_err_micros": 22606,
+      "mean_rtf_micros": 181782
+    },
+    {
+      "lang": "zh",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "pz",
+      "mean_err_micros": 65609,
+      "mean_rtf_micros": 123961
+    },
+    {
+      "lang": "ko",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "sv",
+      "mean_err_micros": 93700,
+      "mean_rtf_micros": 135249
+    },
+    {
+      "lang": "yue",
+      "clips": 12,
+      "lid_correct": null,
+      "tiers": "sv",
+      "mean_err_micros": 91235,
+      "mean_rtf_micros": 59622
+    }
+  ],
+  "fallbacks": [
+    "model.fallback.chunks"
+  ]
+}
