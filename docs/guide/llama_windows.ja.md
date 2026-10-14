@@ -115,6 +115,7 @@ cp <元の gguf> $DATA/models/llm/<名前>.gguf.part && mv $DATA/models/llm/<名
 
 b11609 は 2026-10-14 に `/releases?per_page=1` が返した最新です。
 llama.cpp の b 番号の release は prerelease の印が付くので、`/releases/latest` は最新を指しません。
+2026-10-14 18:16 に `/releases?per_page=1` の先頭を引き直すと b11609 のままで、3 つの zip の size と sha256 が release の digest と一致しました。
 上げるときは、この表を新しい tag の値に替え、`hayamimi llama start` を CPU と GPU で打ち直します。
 
 ## 実機で測った結果

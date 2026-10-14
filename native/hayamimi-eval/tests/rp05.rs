@@ -7,10 +7,10 @@ mod support;
 
 use hayamimi_eval::latency::Sample;
 use hayamimi_eval::partial::{
-    Fault, check_first_partial, check_partial_translation_first, count_partial_translations,
-    first_partial_delays_us,
+    Fault, Tally, check_first_partial, check_partial_translation_first, count_partial_translations,
+    first_partial_delays_us, tally,
 };
-use support::{TestResult, read, run_files};
+use support::{FIXTURES, TestResult, read, rp3_run, run_files};
 
 fn with_first_partial(delay_us: i64) -> Sample {
     Sample {
@@ -89,11 +89,11 @@ fn utterance_without_partial_translation_is_not_judged() {
     assert_eq!(check_partial_translation_first(&run), Ok(()));
 }
 
-/// The samples of the recorded Python run (`--min-silence 0.35`, first file).
+/// The samples of the recorded Python run (`--min-silence 0.30`, the value the Rust run is given; first file).
 fn recorded_python_run() -> Result<Vec<Sample>, Box<dyn std::error::Error>> {
-    let files = run_files("0.35")?;
+    let files = run_files("0.30")?;
     let Some((_, path)) = files.first() else {
-        return Err("no recorded run for --min-silence 0.35".into());
+        return Err("no recorded run for --min-silence 0.30".into());
     };
     let mut samples = Vec::new();
     for line in read(path)?.lines().filter(|line| !line.trim().is_empty()) {
@@ -138,10 +138,91 @@ fn partial_translation_counter_reads_zero_when_disabled() {
     assert!(count_partial_translations(&enabled) >= 1);
 }
 
-/// The run of `<ev> stream` against the Rust relay is made by the final slice
-/// that wires the real models (R8e); until then no recorded run exists.
+/// The samples of a run file (one `Sample` per line).
+fn samples_of(path: &std::path::Path) -> Result<Vec<Sample>, Box<dyn std::error::Error>> {
+    let mut samples = Vec::new();
+    for line in read(path)?.lines().filter(|line| !line.trim().is_empty()) {
+        samples.push(serde_json::from_str::<Sample>(line)?);
+    }
+    Ok(samples)
+}
+
+fn partial_without_final() -> Result<Vec<Sample>, Box<dyn std::error::Error>> {
+    samples_of(&std::path::Path::new(FIXTURES).join("rp05_partial_without_final.jsonl"))
+}
+
+/// T-RP-5-010: an utterance with a `partial` and no `final` is not in the
+/// 95th percentile, for a Python run and a Rust run alike.
 #[test]
-#[ignore = "needs the RP-3 run of the Rust relay (R8e)"]
+fn partial_only_utterance_is_left_out_of_the_first_partial_p95() -> TestResult {
+    let run = partial_without_final()?;
+    assert_eq!(check_first_partial(&run, &run), Ok(()));
+    let delays = first_partial_delays_us(&run);
+    assert_eq!(delays, [200_000, 300_000, 400_000]);
+    let rust_slower = [with_first_partial(401_000)];
+    assert_eq!(
+        check_first_partial(&run, &rust_slower),
+        Err(Fault::FirstPartialLater {
+            rust_ms: 401,
+            python_ms: 400
+        })
+    );
+    // The negative control: counting the partial-only utterance gives 9000.
+    let counted: Vec<i64> = run
+        .iter()
+        .filter_map(|s| s.t_partial_us.map(|t| t - s.t_start_us))
+        .collect();
+    assert_eq!(counted.len(), 4);
+    assert_eq!(counted.iter().max(), Some(&9_000_000));
+    Ok(())
+}
+
+/// T-RP-5-011
+#[test]
+fn partial_only_and_neither_utterances_are_counted_separately() -> TestResult {
+    let found = tally(&partial_without_final()?).map_err(|fault| format!("{fault:?}"))?;
+    assert_eq!(
+        found,
+        Tally {
+            with_final: 3,
+            partial_only: 1,
+            neither: 2
+        }
+    );
+    assert_eq!(found.with_final + found.partial_only + found.neither, 6);
+    Ok(())
+}
+
+/// T-RP-5-012: the same counter reads 0 where there is none, and the p95 stays.
+#[test]
+fn counter_reads_zero_partial_only_utterances_when_there_are_none() -> TestResult {
+    let mut run = partial_without_final()?;
+    run.retain(|s| s.utt != 4);
+    assert_eq!(run.len(), 5);
+    assert_eq!(
+        tally(&run),
+        Ok(Tally {
+            with_final: 3,
+            partial_only: 0,
+            neither: 2
+        })
+    );
+    assert_eq!(check_first_partial(&run, &run), Ok(()));
+    Ok(())
+}
+
+/// T-RP-5-009: the Rust run of `<ev> stream` (RP-3, recorded by R8e under
+/// `docs/results/r8e/`) against the recorded Python run.
+#[test]
+#[ignore = "reads the recorded RP-3 run of the Rust relay"]
 fn rust_partials_arrive_no_later_than_python() -> TestResult {
-    Err("the run of the Rust relay is not recorded yet".into())
+    let python = recorded_python_run()?;
+    let rust = samples_of(&rp3_run("jsonl"))?;
+    assert!(
+        count_partial_translations(&rust) > 0,
+        "no translation of a partial in the run"
+    );
+    assert_eq!(check_first_partial(&python, &rust), Ok(()));
+    assert_eq!(check_partial_translation_first(&rust), Ok(()));
+    Ok(())
 }
