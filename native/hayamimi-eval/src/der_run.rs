@@ -91,7 +91,7 @@ fn fast_spans(
         min_silence: options.min_silence,
         max_speech: options.max_speech,
     };
-    let vad = Vad::open(models, settings).map_err(asr)?;
+    let mut vad = Vad::open(models, settings).map_err(asr)?;
     let mut history = History::new();
     let mut spans = Vec::new();
     for window in windows(samples) {

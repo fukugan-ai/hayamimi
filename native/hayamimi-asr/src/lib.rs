@@ -15,6 +15,7 @@ pub mod hungarian;
 pub mod itn;
 pub mod lid;
 pub mod ort_runtime;
+pub mod partial;
 pub mod pipeline;
 pub mod punct;
 pub mod recognizer;

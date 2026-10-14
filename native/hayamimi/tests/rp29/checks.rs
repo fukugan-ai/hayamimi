@@ -104,11 +104,12 @@ pub fn check_resource_present(scene: &Scene, served: &Served) -> Result<(), Fail
     Ok(())
 }
 
-/// The actual port of a `server.fallback.port` event, read from its `url`.
+/// The actual port of a `server.fallback.port` event, read from its `url`
+/// (`http://host:port/events` or `ws://host:port/ingest`).
 pub fn port_of(event: &Value) -> Result<u16, Failure> {
     let url = text_of(event, "url").ok_or("the port event has no url")?;
     let after = url.rsplit(':').next().ok_or("the url has no port")?;
-    let digits = after.trim_end_matches("/events");
+    let digits = after.split('/').next().ok_or("the url has no port")?;
     digits
         .parse::<u16>()
         .map_err(|error| format!("`{url}`: {error}"))

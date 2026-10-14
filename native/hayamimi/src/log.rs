@@ -10,7 +10,7 @@ use hayamimi_asr::{Final, Reason, SessionReport};
 use hayamimi_relay::logging::{Level, LogEvent};
 use serde_json::Value;
 
-use crate::notice::Notice;
+use crate::notice::{Cleared, Notice};
 use crate::strings::Strings;
 
 /// Identifies the running build in every line.
@@ -27,6 +27,11 @@ pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
 pub const EMBEDDING_STARTED: &str = "speaker.embedding.started";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
+pub const PARTIAL_FAILED: &str = "asr.partial.failed";
+pub const DEVICE_OPENED: &str = "capture.device.opened";
+pub const INGEST_CONNECTED: &str = "ingest.client.connected";
+pub const INGEST_CLOSED: &str = "ingest.client.closed";
+pub const INGEST_REJECTED: &str = "ingest.client.rejected";
 
 /// A time in milliseconds to three decimals.
 fn millis(value: f64) -> Value {
@@ -116,6 +121,69 @@ pub fn fallback_line(strings: &Strings, notice: &Notice) -> String {
     )
 }
 
+/// `<domain>.fallback.cleared`: a resource came back and the stage returned to its first road.
+pub fn cleared_line(strings: &Strings, cleared: &Cleared) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        cleared.event,
+        cleared.domain(),
+        None,
+        &[("stage", Value::from(cleared.stage))],
+    )
+}
+
+/// `capture.device.opened`: which audio device a capture opened. A device name is data, not text of a table.
+pub fn device_opened_line(strings: &Strings, kind: &str, device: &str) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        DEVICE_OPENED,
+        "capture",
+        None,
+        &[("kind", Value::from(kind)), ("device", Value::from(device))],
+    )
+}
+
+/// `ingest.client.connected`: a client sent its config and audio is now taken from it.
+pub fn ingest_connected_line(strings: &Strings, sample_rate: u32, channels: usize) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        INGEST_CONNECTED,
+        "transport",
+        None,
+        &[
+            ("sample_rate", Value::from(sample_rate)),
+            ("channels", Value::from(channels)),
+        ],
+    )
+}
+
+/// `ingest.client.closed`: the audio client left; `windows` is how many windows of audio it sent.
+pub fn ingest_closed_line(strings: &Strings, windows: u64) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        INGEST_CLOSED,
+        "transport",
+        None,
+        &[("windows", Value::from(windows))],
+    )
+}
+
+/// `ingest.client.rejected`: a second audio client was refused while one was streaming.
+pub fn ingest_rejected_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        INGEST_REJECTED,
+        "transport",
+        Some("HAYAMIMI_TRANSPORT_BUSY"),
+        &[],
+    )
+}
+
 /// `asr.utterance.timed`: where the time of one utterance went.
 pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
     let t = &done.timings;
@@ -189,6 +257,18 @@ pub fn punct_failed_line(strings: &Strings, done: &Final) -> String {
         "asr",
         None,
         &[("id", Value::from(done.id))],
+    )
+}
+
+/// `asr.partial.failed`: a draft of the utterance in progress failed and was skipped.
+pub fn partial_failed_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        PARTIAL_FAILED,
+        "asr",
+        Some("HAYAMIMI_ASR_PARTIAL_FAILED"),
+        &[],
     )
 }
 

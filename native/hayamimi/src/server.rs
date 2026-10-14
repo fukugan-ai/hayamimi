@@ -1,12 +1,12 @@
-//! The subtitle event server: `GET /events`, a server-sent event stream.
+//! The event hub and the plumbing of the HTTP servers.
 //!
-//! The pipeline runs on the main thread and publishes events to a [`Hub`];
-//! the server runs on a thread of its own and sends each event to every
-//! client that is connected. Each event is one JSON object in a `data:` line,
-//! the form the existing overlay pages read.
+//! The recognition loop runs on the main thread and publishes events to a
+//! [`Hub`]; a server runs on a thread of its own and sends each event to
+//! every client that is connected. Each event is one JSON object in a `data:`
+//! line of `GET /events`, the form the existing overlay pages read.
 
 use std::convert::Infallible;
-use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use axum::Router;
@@ -26,19 +26,30 @@ const BACKLOG: usize = 1024;
 /// Ports tried after the requested one when it is taken.
 pub const NEXT_PORTS: u16 = 10;
 
+/// The key under which `session_start` is kept.
+const SESSION_START_KEY: &str = "session_start";
+
+/// An event kept for the clients that connect later, with what replaces it.
+#[derive(Debug)]
+struct Kept {
+    key: String,
+    text: String,
+}
+
 /// Where events are published.
 #[derive(Clone)]
 pub struct Hub {
     sender: broadcast::Sender<String>,
-    /// The `fallback` events that are in effect, which a client that connects
-    /// later receives before anything else. Held under the lock that also
-    /// guards sending, so a client sees each fallback exactly once.
-    active: Arc<Mutex<Vec<String>>>,
+    /// The events in effect that a client which connects later receives
+    /// before anything else: one `fallback` per stage, and `session_start`.
+    /// Held under the lock that also guards sending, so a client sees each
+    /// kept event exactly once.
+    active: Arc<Mutex<Vec<Kept>>>,
 }
 
-/// The guard of the list of active fallbacks. A thread that panicked while
-/// holding the lock left a list of whole strings, which is still valid.
-fn locked(active: &Mutex<Vec<String>>) -> MutexGuard<'_, Vec<String>> {
+/// The guard of the list of kept events. A thread that panicked while
+/// holding the lock left a list of whole entries, which is still valid.
+fn locked(active: &Mutex<Vec<Kept>>) -> MutexGuard<'_, Vec<Kept>> {
     match active.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -60,28 +71,58 @@ impl Hub {
         let _ = self.sender.send(event.to_string());
     }
 
-    /// Sends a `fallback` event and keeps it for the clients that connect later.
+    /// Sends a `fallback` event. One per stage is kept for the clients that
+    /// connect later: a newer one replaces it, and one whose `to` is null
+    /// (the stage is back on its first road) removes it.
     pub fn publish_fallback(&self, event: &Value) {
-        self.publish_kept(event);
+        let Some(stage) = event.get("stage").and_then(Value::as_str) else {
+            self.publish(event);
+            return;
+        };
+        let key = format!("fallback:{stage}");
+        if event.get("to").is_some_and(Value::is_null) {
+            self.publish_forgetting(&key, event);
+        } else {
+            self.publish_kept(key, event);
+        }
     }
 
     /// Sends `session_start` and keeps it, so that a client that connects
     /// after it still learns that the session is running.
     pub fn publish_session_start(&self) {
-        self.publish_kept(&serde_json::json!({"type": "session_start"}));
+        let event = serde_json::json!({"type": "session_start"});
+        self.publish_kept(String::from(SESSION_START_KEY), &event);
     }
 
-    fn publish_kept(&self, event: &Value) {
+    fn publish_kept(&self, key: String, event: &Value) {
         let text = event.to_string();
         let mut active = locked(&self.active);
-        active.push(text.clone());
+        match active.iter_mut().find(|kept| kept.key == key) {
+            Some(kept) => kept.text.clone_from(&text),
+            None => active.push(Kept {
+                key,
+                text: text.clone(),
+            }),
+        }
         let _ = self.sender.send(text);
     }
 
-    /// The fallbacks in effect and a receiver of everything published after them.
-    fn subscribe(&self) -> (Vec<String>, broadcast::Receiver<String>) {
+    fn publish_forgetting(&self, key: &str, event: &Value) {
+        let mut active = locked(&self.active);
+        active.retain(|kept| kept.key != key);
+        let _ = self.sender.send(event.to_string());
+    }
+
+    /// The kept events and a receiver of everything published after them.
+    pub fn subscribe(&self) -> (Vec<String>, broadcast::Receiver<String>) {
         let active = locked(&self.active);
-        (active.clone(), self.sender.subscribe())
+        let kept = active.iter().map(|kept| kept.text.clone()).collect();
+        (kept, self.sender.subscribe())
+    }
+
+    /// A receiver of everything published from now on, with no replay.
+    pub fn subscribe_live(&self) -> broadcast::Receiver<String> {
+        self.sender.subscribe()
     }
 }
 
@@ -91,42 +132,51 @@ impl Default for Hub {
     }
 }
 
-async fn events(State(hub): State<Hub>) -> impl IntoResponse {
-    // The fallbacks in effect come first. A client that fell too far behind
-    // loses the oldest events; the stream goes on.
-    let (active, receiver) = hub.subscribe();
-    let stream = tokio_stream::iter(active)
+/// `GET /events`: the kept events first, then every event as it is published.
+pub async fn events(State(hub): State<Hub>) -> impl IntoResponse {
+    // A client that fell too far behind loses the oldest events; the stream goes on.
+    let (kept, receiver) = hub.subscribe();
+    let stream = tokio_stream::iter(kept)
         .chain(BroadcastStream::new(receiver).filter_map(Result::ok))
         .map(|data| Ok::<Event, Infallible>(Event::default().data(data)));
     ([(ACCESS_CONTROL_ALLOW_ORIGIN, "*")], Sse::new(stream))
 }
 
-/// The routes of the server.
-pub fn router(hub: Hub) -> Router {
+/// A router with `/events` only.
+pub fn events_router(hub: Hub) -> Router {
     Router::new().route("/events", get(events)).with_state(hub)
 }
 
-/// Binds `127.0.0.1:requested`, or the first free one of the [`NEXT_PORTS`]
-/// ports after it. Port 0 asks the system for any port and has no next ones.
-/// The error is the last one when none could be bound.
-pub fn bind(requested: u16) -> Result<TcpListener, std::io::Error> {
+/// Binds `ip:requested`, or the first free one of the [`NEXT_PORTS`] ports
+/// after it. Port 0 asks the system for any port and has no next ones. The
+/// error is the last one when none could be bound.
+pub fn bind_on(ip: IpAddr, requested: u16) -> Result<TcpListener, std::io::Error> {
     let last = if requested == 0 {
         0
     } else {
         requested.saturating_add(NEXT_PORTS)
     };
-    let mut bound = TcpListener::bind((Ipv4Addr::LOCALHOST, requested));
+    let mut bound = TcpListener::bind((ip, requested));
     for port in (requested..=last).skip(1) {
         if bound.is_ok() {
             break;
         }
-        bound = TcpListener::bind((Ipv4Addr::LOCALHOST, port));
+        bound = TcpListener::bind((ip, port));
     }
     bound
 }
 
-/// Serves `hub` on `listener` from a thread of its own; the thread ends with the process.
-pub fn start(hub: Hub, listener: TcpListener) -> Result<SocketAddr, std::io::Error> {
+/// [`bind_on`] the loopback address.
+pub fn bind(requested: u16) -> Result<TcpListener, std::io::Error> {
+    bind_on(IpAddr::V4(Ipv4Addr::LOCALHOST), requested)
+}
+
+/// Serves `router` on `listener` from a thread called `name`; the thread ends with the process.
+pub fn serve(
+    router: Router,
+    listener: TcpListener,
+    name: &str,
+) -> Result<SocketAddr, std::io::Error> {
     listener.set_nonblocking(true)?;
     let address = listener.local_addr()?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -134,7 +184,7 @@ pub fn start(hub: Hub, listener: TcpListener) -> Result<SocketAddr, std::io::Err
         .enable_all()
         .build()?;
     std::thread::Builder::new()
-        .name(String::from("events"))
+        .name(name.to_owned())
         .spawn(move || {
             runtime.block_on(async move {
                 let Ok(listener) = tokio::net::TcpListener::from_std(listener) else {
@@ -142,10 +192,15 @@ pub fn start(hub: Hub, listener: TcpListener) -> Result<SocketAddr, std::io::Err
                 };
                 // After a successful bind the only failures left are accept errors, which
                 // axum retries itself; a fatal one ends the server and nothing else.
-                let _ = axum::serve(listener, router(hub)).await;
+                let _ = axum::serve(listener, router).await;
             });
         })?;
     Ok(address)
+}
+
+/// Serves `/events` of `hub` on `listener`.
+pub fn start(hub: Hub, listener: TcpListener) -> Result<SocketAddr, std::io::Error> {
+    serve(events_router(hub), listener, "events")
 }
 
 #[cfg(test)]
@@ -173,6 +228,10 @@ mod tests {
             seen.push_str(&String::from_utf8_lossy(&buffer[..count]));
         }
         Ok(seen)
+    }
+
+    fn fallback(stage: &str, to: Value) -> Value {
+        serde_json::json!({"type": "fallback", "stage": stage, "to": to})
     }
 
     #[test]
@@ -257,12 +316,8 @@ mod tests {
     fn a_client_that_connects_later_receives_the_fallbacks_in_effect_first() -> std::io::Result<()>
     {
         let hub = Hub::new();
-        hub.publish_fallback(
-            &serde_json::json!({"type": "fallback", "stage": "punct", "to": "cpu"}),
-        );
-        hub.publish_fallback(
-            &serde_json::json!({"type": "fallback", "stage": "vad", "to": "disabled"}),
-        );
+        hub.publish_fallback(&fallback("punct", Value::from("cpu")));
+        hub.publish_fallback(&fallback("vad", Value::from("disabled")));
         let address = start(hub.clone(), bind(0)?)?;
         let mut stream = get_events(address)?;
         let body = read_until(&mut stream, "\"stage\":\"vad\"")?;
@@ -279,17 +334,15 @@ mod tests {
     fn a_client_that_connects_after_session_start_still_receives_it_after_the_fallbacks()
     -> std::io::Result<()> {
         let hub = Hub::new();
-        hub.publish_fallback(
-            &serde_json::json!({"type": "fallback", "stage": "punct", "to": "cpu"}),
-        );
+        hub.publish_fallback(&fallback("punct", Value::from("cpu")));
         hub.publish_session_start();
         let address = start(hub.clone(), bind(0)?)?;
         let mut stream = get_events(address)?;
         let body = read_until(&mut stream, "session_start")?;
-        let fallback = body.find("\"type\":\"fallback\"");
+        let first = body.find("\"type\":\"fallback\"");
         let started = body.find("\"type\":\"session_start\"");
         assert!(
-            fallback.is_some() && started.is_some() && fallback < started,
+            first.is_some() && started.is_some() && first < started,
             "{body}"
         );
         assert_eq!(body.matches("\"type\":\"fallback\"").count(), 1, "{body}");
@@ -307,5 +360,57 @@ mod tests {
     #[test]
     fn publishing_with_nobody_connected_is_fine() {
         Hub::new().publish(&serde_json::json!({"type": "final", "text": "x"}));
+    }
+
+    #[test]
+    fn a_newer_fallback_of_a_stage_replaces_the_kept_one() {
+        let hub = Hub::new();
+        hub.publish_fallback(&fallback("capture", Value::from("single")));
+        hub.publish_fallback(&fallback("capture", Value::from("none")));
+        let (kept, _) = hub.subscribe();
+        assert_eq!(kept.len(), 1);
+        assert!(kept[0].contains("\"none\""), "{}", kept[0]);
+    }
+
+    #[test]
+    fn a_fallback_with_a_null_destination_removes_the_kept_one_and_is_still_sent() {
+        let hub = Hub::new();
+        hub.publish_fallback(&fallback("capture", Value::from("single")));
+        hub.publish_fallback(&fallback("punct", Value::from("cpu")));
+        let live = hub.subscribe_live();
+        hub.publish_fallback(&fallback("capture", Value::Null));
+        let (kept, _) = hub.subscribe();
+        assert_eq!(kept.len(), 1);
+        assert!(kept[0].contains("\"punct\""), "{}", kept[0]);
+        let mut live = live;
+        assert!(
+            live.try_recv()
+                .is_ok_and(|sent| sent.contains("\"to\":null"))
+        );
+    }
+
+    #[test]
+    fn a_null_destination_for_a_stage_never_kept_keeps_nothing() {
+        let hub = Hub::new();
+        hub.publish_fallback(&fallback("sink", Value::Null));
+        assert!(hub.subscribe().0.is_empty());
+    }
+
+    #[test]
+    fn session_start_is_kept_once_however_often_it_is_published() {
+        let hub = Hub::new();
+        hub.publish_session_start();
+        hub.publish_session_start();
+        assert_eq!(hub.subscribe().0.len(), 1);
+    }
+
+    #[test]
+    fn a_live_subscription_has_no_replay() {
+        let hub = Hub::new();
+        hub.publish_session_start();
+        let mut live = hub.subscribe_live();
+        assert!(live.try_recv().is_err());
+        hub.publish(&serde_json::json!({"type": "partial", "text": "x"}));
+        assert!(live.try_recv().is_ok());
     }
 }

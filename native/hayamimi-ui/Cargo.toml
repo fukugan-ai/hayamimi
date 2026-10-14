@@ -1,0 +1,52 @@
+[package]
+name = "hayamimi-ui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "hayamimi: the overlay, dashboard and transcript pages (Dioxus, WebAssembly)."
+
+[lib]
+name = "hayamimi_ui"
+
+# The page bundle. It is a WebAssembly program, so it is built only with the
+# `web` feature for `wasm32-unknown-unknown`.
+[[bin]]
+name = "hayamimi-ui"
+path = "src/main.rs"
+required-features = ["web"]
+
+[features]
+web = ["dioxus/web", "dioxus/launch", "dep:js-sys", "dep:wasm-bindgen", "dep:web-sys", "dep:gloo-timers", "sys-locale/js"]
+
+[dependencies]
+dioxus = { version = "0.7.10", default-features = false, features = ["macro", "html", "hooks", "signals"] }
+serde_json = "1"
+sys-locale = "0.3"
+toml = "1.1"
+gloo-timers = { version = "0.3", optional = true }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Document",
+    "Element",
+    "EventSource",
+    "Location",
+    "MessageEvent",
+    "Window",
+    "console",
+] }
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dev-dependencies]
+dioxus-ssr = "0.7.10"
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

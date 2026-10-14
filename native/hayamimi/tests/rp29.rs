@@ -27,8 +27,8 @@ use fixtures::{
     settings, whole,
 };
 use scenes::{
-    CAPTURE_NONE, CAPTURE_SINGLE, CONFIG, LIBRARY, LID_DISABLED, MODEL_SMALLER, MODEL_SUBSTITUTE,
-    SECOND_OPINION_DISABLED, SINK, SPEAKER, TRANSLATE,
+    CAPTURE_NONE, CAPTURE_SINGLE, CONFIG, INGEST_PORT, LIBRARY, LID_DISABLED, MODEL_SMALLER,
+    MODEL_SUBSTITUTE, PORT, SECOND_OPINION_DISABLED, SINK, SPEAKER, TRANSLATE,
 };
 use support::TestResult;
 
@@ -157,6 +157,35 @@ fn missing_capture_devices_fall_back_to_single_or_none() -> TestResult {
     Ok(())
 }
 
+/// The port of `/ingest` is a scene of its own: the notice names the stage
+/// `ingest` and carries the address of the socket that was bound instead.
+#[test]
+fn blocked_ingest_port_moves_to_the_next_port_and_says_so() -> TestResult {
+    check_resource_fallback(&INGEST_PORT, &fell(&INGEST_PORT), true)?;
+    let tenth = serde_json::json!({"url": "ws://127.0.0.1:8776/ingest"});
+    check_port_move(8766, port_of(&tenth)?)?;
+    let eleventh = serde_json::json!({"url": "ws://127.0.0.1:8777/ingest"});
+    assert!(check_port_move(8766, port_of(&eleventh)?).is_err());
+    // A notice for the other server is not this scene's.
+    assert!(names(
+        check_resource_fallback(&INGEST_PORT, &fell(&PORT), true),
+        "ingest"
+    ));
+    Ok(())
+}
+
+/// A capture run with the devices present says nothing of the capture scenes.
+#[test]
+fn present_capture_devices_emit_no_capture_event() -> TestResult {
+    check_resource_present(&CAPTURE_SINGLE, &whole(0))?;
+    check_resource_present(&CAPTURE_NONE, &whole(0))?;
+    assert!(names(
+        check_resource_present(&CAPTURE_NONE, &fell(&CAPTURE_NONE)),
+        "capture"
+    ));
+    Ok(())
+}
+
 /// T-RP-29-014
 #[test]
 fn broken_config_without_previous_uses_the_dump_defaults() -> TestResult {
@@ -282,6 +311,24 @@ fn silent_speaker_fallback_is_rejected() {
 #[ignore = "runs the hayamimi binary"]
 fn missing_resources_fall_back_in_real_runs() -> TestResult {
     real::all_scenes()?;
+    Ok(())
+}
+
+/// T-RP-29-021, the capture scene: the microphone is missing and the run goes on with `/ingest`.
+#[cfg(unix)]
+#[test]
+#[ignore = "runs the hayamimi binary"]
+fn missing_capture_device_falls_back_in_a_real_run() -> TestResult {
+    real::capture_scene()?;
+    Ok(())
+}
+
+/// T-RP-29-021, the port of `/ingest` is held.
+#[cfg(unix)]
+#[test]
+#[ignore = "runs the hayamimi binary"]
+fn blocked_ingest_port_moves_in_a_real_run() -> TestResult {
+    real::ingest_port_scene()?;
     Ok(())
 }
 
