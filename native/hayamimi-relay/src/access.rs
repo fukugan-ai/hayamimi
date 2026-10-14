@@ -205,4 +205,72 @@ mod tests {
             assert!(is_private(Path::new("/no/such/send.toml")).is_err());
         }
     }
+
+    /// These run `icacls` and `whoami` on a Windows machine; on any other
+    /// target they are compiled out, and `cargo check --target
+    /// x86_64-pc-windows-gnu --tests` is what proves they build.
+    #[cfg(windows)]
+    mod windows {
+        use super::*;
+        use std::process::Command;
+
+        /// The well-known id of the group `BUILTIN\Users`, the same on every
+        /// language of Windows.
+        const USERS: &str = "*S-1-5-32-545";
+
+        struct Made(std::path::PathBuf);
+
+        impl Drop for Made {
+            fn drop(&mut self) {
+                // A file the test never made has nothing to remove.
+                let _ = std::fs::remove_file(&self.0);
+            }
+        }
+
+        /// A file in the cache directory, which carries the ACL of the user's
+        /// profile: the user, SYSTEM and Administrators only.
+        fn new_file(name: &str) -> io::Result<Made> {
+            let dir = dirs::cache_dir()
+                .ok_or_else(|| io::Error::other("no cache directory"))?
+                .join("hayamimi")
+                .join("unit-tmp");
+            std::fs::create_dir_all(&dir)?;
+            let made = Made(dir.join(format!("access-{}-{name}", std::process::id())));
+            std::fs::write(&made.0, b"x")?;
+            Ok(made)
+        }
+
+        fn grant_users_read(path: &Path) -> io::Result<()> {
+            let status = Command::new("icacls")
+                .arg(path)
+                .args(["/grant", &format!("{USERS}:R")])
+                .output()?
+                .status;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(io::Error::other("icacls /grant failed"))
+            }
+        }
+
+        #[test]
+        fn a_file_in_the_profile_is_private() -> io::Result<()> {
+            let made = new_file("private")?;
+            assert!(platform_is_private(&made.0)?);
+            Ok(())
+        }
+
+        #[test]
+        fn a_file_users_were_added_to_is_not() -> io::Result<()> {
+            let made = new_file("users")?;
+            grant_users_read(&made.0)?;
+            assert!(!platform_is_private(&made.0)?);
+            Ok(())
+        }
+
+        #[test]
+        fn a_file_that_is_not_there_is_an_error() {
+            assert!(platform_is_private(Path::new("C:\\no\\such\\send.toml")).is_err());
+        }
+    }
 }

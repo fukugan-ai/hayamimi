@@ -14,6 +14,7 @@ mod support;
 
 use std::fs;
 
+use hayamimi_relay::logging::Level;
 use support::events::unused_port;
 use support::private::PrivateDir;
 use support::sinks::start;
@@ -64,7 +65,20 @@ fn cs28_send_config_is_private_and_never_logged() -> TestResult {
     scene.wait_for_log("send.config.too_open", 1);
     assert_eq!(zoom.requests().len(), 1);
     let said = scene.running.logs.named("send.config.too_open");
-    assert!(said.iter().all(|event| event.error_code.is_some()));
+    assert!(!said.is_empty(), "no `send.config.too_open` was logged");
+    for event in &said {
+        assert_eq!(event.level, Level::Error);
+        assert_eq!(event.component, "security");
+        assert_eq!(event.fields["checked"], true);
+        assert!(
+            event
+                .error_code
+                .as_deref()
+                .is_some_and(|code| code.ends_with("SEND_CONFIG_TOO_OPEN")),
+            "error_code {:?}",
+            event.error_code
+        );
+    }
     assert_eq!(scene.running.logs.named("sink.fallback.local").len(), 1);
 
     // Owner only again: the next caption goes, with no restart.

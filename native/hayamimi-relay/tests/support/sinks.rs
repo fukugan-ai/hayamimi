@@ -101,8 +101,11 @@ impl Scene {
         wait_until(|| self.srt.text().matches("-->").count() >= seq);
     }
 
-    /// Waits until the log holds `count` events named `name`.
+    /// Waits until the log holds `count` events named `name`, and fails the
+    /// test if it never does.
     pub fn wait_for_log(&self, name: &str, count: usize) {
         wait_until(|| self.running.logs.named(name).len() >= count);
+        let held = self.running.logs.named(name).len();
+        assert!(held >= count, "the log held {held} of {count} `{name}`");
     }
 }
