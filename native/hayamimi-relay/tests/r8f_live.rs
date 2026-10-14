@@ -249,3 +249,66 @@ fn a_run_that_names_only_zh_has_no_fallback_event() -> TestResult {
     running.relay.stop();
     Ok(())
 }
+
+/// Whether a text is Chinese: it has Han characters and no kana.
+fn is_chinese(text: &str) -> bool {
+    let han = text.chars().any(|c| ('\u{4E00}'..='\u{9FFF}').contains(&c));
+    let kana = text.chars().any(|c| ('\u{3040}'..='\u{30FF}').contains(&c));
+    han && !kana
+}
+
+/// The second llama-server at its default address, with TranslateGemma on it
+/// (`units/hayamimi-llama-other.service`): one Japanese line, translated by
+/// `live --translate zh`, comes out as one settled Chinese translation.
+#[test]
+#[ignore = "needs hayamimi-llama-other.service on 127.0.0.1:18081"]
+fn the_real_second_server_translates_a_japanese_line_into_chinese() -> TestResult {
+    let (recognizer, server) = (FakeRecognizer::start()?, scripted_server()?);
+    let running = start(&live_settings(
+        &recognizer,
+        &server,
+        &[
+            "--translate",
+            "zh",
+            "--llm-other",
+            hayamimi_relay::cli::DEFAULT_LLM_OTHER,
+        ],
+    )?)?;
+    recognizer.send(&final_line());
+    let got = running.collected.wait_for(1, Duration::from_secs(60));
+    let chinese = settled_in(&got, "zh");
+    assert_eq!(chinese.len(), 1, "{got:?}");
+    let Some(text) = chinese[0]["text"].as_str() else {
+        return Err(format!("the translation has no text: {got:?}").into());
+    };
+    assert_eq!(chinese[0]["status"], "ok", "{got:?}");
+    assert!(is_chinese(text), "{text}");
+    println!("settled zh translation: {text}");
+    assert!(
+        server.requests().is_empty(),
+        "the live pair's server was asked"
+    );
+    running.relay.stop();
+    Ok(())
+}
+
+/// No server at the second address: the run goes on, the line of the language
+/// outside the pair is held (its translation is not shown), and the run says
+/// that the translator could not be reached, once for the line.
+#[test]
+fn an_absent_second_server_holds_the_line_and_says_the_translator_was_unreachable() -> TestResult {
+    let (recognizer, server) = (FakeRecognizer::start()?, scripted_server()?);
+    let running = start(&live_settings(
+        &recognizer,
+        &server,
+        &["--translate", "zh", "--llm-other", "http://127.0.0.1:1"],
+    )?)?;
+    recognizer.send(&final_line());
+    let got = running.collected.wait_for(1, WAIT);
+    let shown = settled_in(&got, "zh");
+    assert_eq!(shown.len(), 1, "{got:?}");
+    assert_eq!(shown[0]["status"], "held", "{got:?}");
+    assert_eq!(running.logs.named("translate.request.failed").len(), 1);
+    running.relay.stop();
+    Ok(())
+}

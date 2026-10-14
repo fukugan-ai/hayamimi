@@ -9,6 +9,8 @@
 //!
 //! Values are kept as whole millionths so that equality is exact.
 
+use crate::spelled;
+
 /// Millionths per unit: the scale of [`Number::micro`].
 pub const MICRO: u128 = 1_000_000;
 
@@ -25,9 +27,35 @@ pub struct Number {
     pub negative: bool,
 }
 
+/// The language a text is written in, where that decides which words are
+/// numbers: Spanish number words, English ordinals and month names are read
+/// only in their own language.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tongue {
+    Other,
+    English,
+    Spanish,
+}
+
+impl Tongue {
+    /// The tongue of an ISO 639-1 code; any language without word tables is `Other`.
+    pub fn of_code(code: &str) -> Tongue {
+        match code {
+            "en" => Tongue::English,
+            "es" => Tongue::Spanish,
+            _ => Tongue::Other,
+        }
+    }
+}
+
 /// Every number in `text`, in order.
 pub fn extract(text: &str) -> Vec<Number> {
-    let scan = Scan::new(text);
+    extract_in(text, Tongue::Other)
+}
+
+/// Every number in `text`, in order, reading the word tables of `tongue`.
+pub fn extract_in(text: &str, tongue: Tongue) -> Vec<Number> {
+    let scan = Scan::new(text, tongue);
     let mut found = Vec::new();
     let mut i = 0;
     while i < scan.len() {
@@ -56,27 +84,37 @@ pub fn extract(text: &str) -> Vec<Number> {
 
 /// The values the verification step compares: every number of 2 or more,
 /// as millionths, sorted. A value of 1 is left out because phrases such as
-/// "もう一度" and "a week" carry a 1 on one side only.
-pub fn compared_values(text: &str) -> Vec<u128> {
-    let mut values: Vec<u128> = extract(text)
+/// "もう一度" and "a week" carry a 1 on one side only. A month name counts as
+/// its month, since a Japanese `7月` is written `July` elsewhere.
+pub fn compared_values(text: &str, tongue: Tongue) -> Vec<u128> {
+    let mut values: Vec<u128> = extract_in(text, tongue)
         .into_iter()
         .map(|number| number.micro)
-        .filter(|micro| *micro >= 2 * MICRO)
         .collect();
+    values.extend(spelled::month_values(text, tongue));
+    values.retain(|micro| *micro >= 2 * MICRO);
     values.sort_unstable();
     values
+}
+
+/// Whether `c` is a letter of a script written with spaces between words,
+/// as opposed to Han, kana and Hangul.
+fn is_spaced_letter(c: char) -> bool {
+    c.is_alphabetic() && u32::from(c) < 0x2E80
 }
 
 struct Scan<'a> {
     text: &'a str,
     chars: Vec<(usize, char)>,
+    tongue: Tongue,
 }
 
 impl<'a> Scan<'a> {
-    fn new(text: &'a str) -> Scan<'a> {
+    fn new(text: &'a str, tongue: Tongue) -> Scan<'a> {
         Scan {
             text,
             chars: text.char_indices().collect(),
+            tongue,
         }
     }
 
@@ -107,17 +145,60 @@ impl<'a> Scan<'a> {
     fn number_at(&self, i: usize) -> Option<(u128, usize)> {
         let c = self.ch(i)?;
         if self.digit(i).is_some() {
-            return self.arabic(i);
+            return if self.is_unit_exponent(i) {
+                None
+            } else {
+                self.arabic(i)
+            };
         }
         if kanji_digit(c).is_some() || small_unit(c).is_some() {
-            return self.kanji(i);
+            return if self.is_percent_prefix(i) {
+                None
+            } else {
+                self.kanji(i)
+            };
         }
         let word_start = c.is_ascii_alphabetic()
             && (i == 0
                 || !self
                     .ch(i - 1)
-                    .is_some_and(|prev| prev.is_ascii_alphanumeric()));
-        if word_start { self.english(i) } else { None }
+                    .is_some_and(|prev| prev.is_ascii_alphanumeric() || is_spaced_letter(prev)));
+        if !word_start {
+            return None;
+        }
+        match self.tongue {
+            Tongue::Spanish => self.spanish(i).or_else(|| self.english(i)),
+            Tongue::English | Tongue::Other => self.english(i),
+        }
+    }
+
+    /// Whether the digit at `i` is the 2 or 3 of a length unit (`km2`, `m3`).
+    /// It is written with a digit but is an exponent, not a quantity.
+    fn is_unit_exponent(&self, i: usize) -> bool {
+        if !matches!(self.digit(i), Some(2 | 3)) || self.digit(i + 1).is_some() {
+            return false;
+        }
+        let start = (0..i)
+            .rev()
+            .take_while(|&at| self.ch(at).is_some_and(|c| c.is_ascii_lowercase()))
+            .last();
+        let Some(start) = start else {
+            return false;
+        };
+        let glued_before = start > 0 && self.ch(start - 1).is_some_and(char::is_alphanumeric);
+        !glued_before
+            && matches!(
+                &self.text[self.byte(start)..self.byte(i)],
+                "m" | "cm" | "km" | "mm" | "dm"
+            )
+    }
+
+    /// Whether the numeral at `i` is the 百 or 千 of 百分之 (percent), which
+    /// names a denominator and not a quantity of its own.
+    fn is_percent_prefix(&self, i: usize) -> bool {
+        matches!(self.ch(i), Some('百' | '千'))
+            && self.ch(i + 1) == Some('分')
+            && self.ch(i + 2) == Some('之')
     }
 
     fn negative_before(&self, i: usize) -> bool {
@@ -127,11 +208,28 @@ impl<'a> Scan<'a> {
         i == 1 || !self.ch(i - 2).is_some_and(char::is_alphanumeric)
     }
 
-    /// Whether character `j` is a `,` that groups exactly three digits.
+    /// Whether character `j` is a separator that groups exactly three
+    /// digits: a `,`, or a space between a group of at most three digits and
+    /// the three that follow (`19 500`, written so in Spanish and French).
     fn is_group_comma(&self, j: usize) -> bool {
-        matches!(self.ch(j), Some(',' | '，'))
-            && (1..=3).all(|k| self.digit(j + k).is_some())
-            && self.digit(j + 4).is_none()
+        let three_follow =
+            (1..=3).all(|k| self.digit(j + k).is_some()) && self.digit(j + 4).is_none();
+        match self.ch(j) {
+            Some(',' | '，') => three_follow,
+            Some(' ' | '\u{a0}' | '\u{202f}') => three_follow && self.head_is_short(j),
+            _ => false,
+        }
+    }
+
+    /// Whether the digit run that ends just before `j` has one to three digits
+    /// and does not continue a longer number (a decimal or a `,` group).
+    fn head_is_short(&self, j: usize) -> bool {
+        let run = (0..j)
+            .rev()
+            .take_while(|&at| self.digit(at).is_some())
+            .count();
+        let before = j.checked_sub(run + 1).and_then(|at| self.ch(at));
+        (1..=3).contains(&run) && !matches!(before, Some(',' | '，' | '.' | '．'))
     }
 
     fn arabic(&self, i: usize) -> Option<(u128, usize)> {
@@ -225,7 +323,81 @@ impl<'a> Scan<'a> {
         while self.ch(end).is_some_and(|c| c.is_ascii_alphabetic()) {
             end += 1;
         }
+        // The run is a prefix of a longer word (`tenía`), not a word.
+        if self.ch(end).is_some_and(is_spaced_letter) {
+            return None;
+        }
         Some((&self.text[self.byte(j)..self.byte(end)], end))
+    }
+
+    /// A maximal run of letters of a spaced script starting at `j`.
+    fn letters(&self, j: usize) -> Option<(&'a str, usize)> {
+        let mut end = j;
+        while self.ch(end).is_some_and(is_spaced_letter) {
+            end += 1;
+        }
+        (end > j).then(|| (&self.text[self.byte(j)..self.byte(end)], end))
+    }
+
+    /// The kind and value of a number word in the tongue of the text.
+    fn kind_of(&self, word: &str, after_tens: bool) -> Option<(Kind, u128)> {
+        let plain = word_kind(word);
+        if plain.is_some() || self.tongue != Tongue::English {
+            return plain;
+        }
+        spelled::english_ordinal(word, after_tens)
+    }
+
+    /// Spanish number words: "dos", "treinta y cinco", "dos mil quinientos".
+    /// The `cien` of `por cien(to)` (percent) is not a quantity.
+    fn spanish(&self, i: usize) -> Option<(u128, usize)> {
+        let mut acc = Words::default();
+        let mut j = i;
+        let mut end = i;
+        let mut read = 0;
+        while let Some((word, word_end)) = self.letters(j) {
+            let folded = spelled::fold(word);
+            let Some((kind, value)) = spelled::spanish_kind(&folded) else {
+                if folded == "y" && self.joins_unit(&acc, word_end) {
+                    j = word_end + 1;
+                    continue;
+                }
+                break;
+            };
+            if !acc.accepts(kind) || (read == 0 && self.is_percent_word(&folded, i)) {
+                break;
+            }
+            acc.apply(kind, value);
+            read += 1;
+            end = word_end;
+            if self.ch(word_end) != Some(' ') {
+                break;
+            }
+            j = word_end + 1;
+        }
+        (read > 0).then(|| (acc.finish().saturating_mul(MICRO), end))
+    }
+
+    /// Whether a `y` after a tens word is followed by a unit: "treinta y cinco".
+    fn joins_unit(&self, acc: &Words, y_end: usize) -> bool {
+        acc.last == Some(Kind::Tens)
+            && self.ch(y_end) == Some(' ')
+            && self.letters(y_end + 1).is_some_and(|(next, _)| {
+                matches!(
+                    spelled::spanish_kind(&spelled::fold(next)),
+                    Some((Kind::Unit, _))
+                )
+            })
+    }
+
+    /// Whether `folded`, the first word of a number at `i`, is the `cien(to)`
+    /// of `por ciento`.
+    fn is_percent_word(&self, folded: &str, i: usize) -> bool {
+        matches!(folded, "cien" | "ciento")
+            && self.text[..self.byte(i)]
+                .trim_end()
+                .to_lowercase()
+                .ends_with(" por")
     }
 
     /// English number words: "fifty thousand", "a hundred", "twenty-five".
@@ -246,7 +418,7 @@ impl<'a> Scan<'a> {
         let mut end = i;
         let mut real_words = 0;
         while let Some((word, word_end)) = self.word(j) {
-            let Some((kind, value)) = word_kind(word) else {
+            let Some((kind, value)) = self.kind_of(word, acc.last == Some(Kind::Tens)) else {
                 // "one hundred and five": "and" joins when a number follows.
                 let joins = word.eq_ignore_ascii_case("and")
                     && acc.can_join_and()
@@ -277,11 +449,13 @@ impl<'a> Scan<'a> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind {
+pub(crate) enum Kind {
     Unit,
     Teen,
     Tens,
     Hundred,
+    /// A word that already means hundreds (Spanish `quinientos`, `ciento`).
+    Hundreds,
     Scale,
 }
 
@@ -336,14 +510,15 @@ struct Words {
 
 impl Words {
     fn accepts(&self, next: Kind) -> bool {
-        use Kind::{Hundred, Scale, Teen, Tens, Unit};
+        use Kind::{Hundred, Hundreds, Scale, Teen, Tens, Unit};
         matches!(
             (self.last, next),
-            (None, Unit | Teen | Tens)
+            (None, Unit | Teen | Tens | Hundreds)
                 | (Some(Unit | Teen), Hundred | Scale)
                 | (Some(Tens), Unit | Scale)
                 | (Some(Hundred), Unit | Teen | Tens | Scale)
-                | (Some(Scale), Unit | Teen | Tens)
+                | (Some(Hundreds), Unit | Teen | Tens | Scale)
+                | (Some(Scale), Unit | Teen | Tens | Hundreds)
         )
     }
 
@@ -353,7 +528,7 @@ impl Words {
 
     fn apply(&mut self, kind: Kind, value: u128) {
         match kind {
-            Kind::Unit | Kind::Teen | Kind::Tens => self.current += value,
+            Kind::Unit | Kind::Teen | Kind::Tens | Kind::Hundreds => self.current += value,
             Kind::Hundred => self.current *= value,
             Kind::Scale => {
                 let count = self.current.max(1);
@@ -381,6 +556,7 @@ fn kanji_digit(c: char) -> Option<u128> {
         '七' => 7,
         '八' => 8,
         '九' => 9,
+        '两' | '兩' => 2,
         _ => return None,
     })
 }
@@ -397,7 +573,7 @@ fn small_unit(c: char) -> Option<u128> {
 fn big_unit(c: char) -> Option<u128> {
     match c {
         '万' => Some(10_000),
-        '億' => Some(100_000_000),
+        '億' | '亿' => Some(100_000_000),
         '兆' => Some(1_000_000_000_000),
         _ => None,
     }
@@ -479,16 +655,92 @@ mod tests {
     #[test]
     fn compared_values_drop_ones_and_sort() {
         assert_eq!(
-            compared_values("もう一度 3 と 10 と二"),
+            compared_values("もう一度 3 と 10 と二", Tongue::Other),
             [2 * MICRO, 3 * MICRO, 10 * MICRO]
         );
-        assert!(compared_values("a week").is_empty());
-        assert!(compared_values("").is_empty());
+        assert!(compared_values("a week", Tongue::English).is_empty());
+        assert!(compared_values("", Tongue::Other).is_empty());
     }
 
     #[test]
     fn overflowing_digit_runs_are_skipped_not_wrapped() {
         let long = "9".repeat(60);
         assert!(extract(&long).is_empty());
+    }
+
+    fn counted(text: &str, tongue: Tongue) -> Vec<u128> {
+        compared_values(text, tongue)
+            .iter()
+            .map(|micro| micro / MICRO)
+            .collect()
+    }
+
+    #[test]
+    fn a_prefix_of_a_longer_word_is_not_a_number() {
+        assert!(counted("no tenía sentido", Tongue::Spanish).is_empty());
+        assert!(counted("no tenía sentido", Tongue::Other).is_empty());
+        assert_eq!(counted("ten dogs", Tongue::Other), [10]);
+    }
+
+    #[test]
+    fn spanish_number_words_are_read_in_spanish_only() {
+        assert_eq!(counted("dos horas", Tongue::Spanish), [2]);
+        assert_eq!(counted("treinta y cinco personas", Tongue::Spanish), [35]);
+        assert_eq!(counted("dos mil quinientos", Tongue::Spanish), [2500]);
+        assert_eq!(counted("veintitrés años", Tongue::Spanish), [23]);
+        assert_eq!(counted("once", Tongue::Spanish), [11]);
+        assert!(counted("once upon a time", Tongue::Other).is_empty());
+        assert!(counted("DOS attack", Tongue::Spanish).is_empty());
+    }
+
+    #[test]
+    fn por_ciento_is_not_a_hundred() {
+        assert_eq!(counted("ochenta por ciento", Tongue::Spanish), [80]);
+        assert_eq!(counted("ciento cinco", Tongue::Spanish), [105]);
+    }
+
+    #[test]
+    fn english_ordinals_are_read_in_english_only() {
+        assert_eq!(
+            counted("the thirteenth and twenty-fourth", Tongue::English),
+            [13, 24]
+        );
+        assert_eq!(counted("thirty-first", Tongue::English), [31]);
+        assert!(counted("first place, second best", Tongue::English).is_empty());
+        assert!(counted("the third", Tongue::Other).is_empty());
+    }
+
+    #[test]
+    fn chinese_two_and_percent_are_read() {
+        assert_eq!(counted("两小时", Tongue::Other), [2]);
+        assert_eq!(counted("两千", Tongue::Other), [2000]);
+        assert_eq!(counted("百分之八十", Tongue::Other), [80]);
+        assert_eq!(counted("百分之百", Tongue::Other), [100]);
+        assert_eq!(counted("3亿", Tongue::Other), [300_000_000]);
+    }
+
+    #[test]
+    fn a_squared_unit_is_not_a_quantity() {
+        assert_eq!(counted("19,500 km2", Tongue::Other), [19_500]);
+        assert_eq!(counted("5 m3", Tongue::Other), [5]);
+        assert_eq!(counted("H2O", Tongue::Other), [2]);
+        assert_eq!(counted("km 2", Tongue::Other), [2]);
+    }
+
+    #[test]
+    fn a_space_groups_three_digits_after_a_short_head() {
+        assert_eq!(counted("19 500 km", Tongue::Spanish), [19_500]);
+        assert_eq!(counted("in 2019 500 more", Tongue::Other), [500, 2019]);
+    }
+
+    #[test]
+    fn a_month_name_counts_as_its_month_in_its_own_language() {
+        assert_eq!(counted("7月", Tongue::Other), [7]);
+        assert_eq!(counted("in July", Tongue::English), [7]);
+        assert_eq!(counted("en julio", Tongue::Spanish), [7]);
+        assert_eq!(counted("born in May", Tongue::English), [5]);
+        assert!(counted("May I help", Tongue::English).is_empty());
+        assert!(counted("July", Tongue::Other).is_empty());
+        assert!(counted("may result", Tongue::English).is_empty());
     }
 }

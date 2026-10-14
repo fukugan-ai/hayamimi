@@ -393,7 +393,8 @@ template の token の数は 2 つの形で同じなので、1 行の訳の遅�
 `--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、言語モデルの T で訳す。
 ja と en の間は CAT-Translate-3.3b で訳す。
 CAT-Translate-3.3b は zh、ko、es を訳せない（R8f の実走：V が止めた行が ko 50/50（全部 `form`、訳が日本語の原文のまま）、zh 37/50、es 20/50）。
-したがって ja と en の外の言語は、別の言語モデルを 2 本目の llama-server（port 8081、`-np 1`、起こし方は R8b の形）に置いて訳す。
+したがって ja と en の外の言語は、別の言語モデルを 2 本目の llama-server（port 18081、`-np 1`）に置いて訳す。
+port 8081 は同じ機械の別の process が使うので避けた。起こし方は `docs/guide/llama_other_server.ja.md` に書く。
 2 本目は `--translate` に ja と en の外の言語が在る時だけ起こすので、ja と en の経路の速さは変わらない。
 model は会話字幕の設計 9 の手順（held-out の順位づけ）で決め、手元の候補の TranslateGemma-4B-it Q8_0（`testdata/probe1_translategemma-4b.log`）から測る。
 TranslateGemma は 55 言語を訳し（技術報告 arXiv 2601.09012、自動評価は WMT24++ の 55 言語対）、人手の評価に英語から中国語（簡体）と韓国語、自動評価に英語からスペイン語を含む。
@@ -402,7 +403,9 @@ TranslateGemma は 55 言語を訳し（技術報告 arXiv 2601.09012、自動�
 2 本目は T だけで訳し、E を掛けない。TranslateGemma の template は指示文の message を受けないからである（平文の message は原文として包まれ、en-GB から en-GB への翻訳の依頼になる）。V は T の訳に 1 回掛け、通らない行は止める。
 TranslateGemma の chat template は原文と訳の先の言語の code を template の変数 `source_lang_code` と `target_lang_code` で受ける。llama-server は変数を request の `chat_template_kwargs` からだけ読み、message の中に書いた code は捨てて両側を en-GB にする。中継は message に原文だけを置き、`chat_template_kwargs` に 2 つの code を置く。
 受入は 3.6 の「訳の依頼の形」と同じ形で、`native/hayamimi-relay/tests/chat_probe_gemma.rs` に在る。`curl` の答えが probe1 の log の 40 行と同じ（陽性対照）、中継の答えと `curl` の答えが同じ、code を置かない形が `curl` と違う行を持つ（陰性対照）である。
-2 本目の address は `live` と `eval` の `--llm-other`（既定は `http://127.0.0.1:8081`）で渡し、起こす側は `hayamimi llama start --model <file> --port 8081 --slots 1` を打つ。
+2 本目の address は `live` と `eval` の `--llm-other`（既定は `http://127.0.0.1:18081`）で渡す。
+起こす側は `native/hayamimi-relay/units/hayamimi-llama-other.service`（systemd の user unit）で、WSL 以外の機械では `hayamimi llama start --model <file> --port 18081 --slots 1` を打つ。
+2 本目が立たないとき中継は止まらず、組の外の言語の行は `held`（訳の無い行）になり、行ごとに `translate.request.failed` が出る。
 どの候補も RP-13 の記録を超えなければ、その言語は評議へ出す（CPU の翻訳器は 1.3 のとおり移さない）。
 持ち主は R8f である。
 ja と en の外の言語の訳は T と V だけで、E を掛けない。V で外れた行は `held` にする。E を掛けないのは、TranslateGemma の chat template が指示の message を受けず、E の依頼の形を作れないからである（評議の判定、GO）。E が chrF に効く量は測っていない（NOT VERIFIED）。

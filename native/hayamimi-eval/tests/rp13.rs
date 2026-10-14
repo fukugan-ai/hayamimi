@@ -40,7 +40,7 @@ const HUNDREDTH: i64 = 10_000;
 const LLAMA_SERVER: &str = "http://127.0.0.1:8080";
 /// Where the translator of the other languages listens, when
 /// `testdata/rp13_other_server.txt` does not name another address.
-const LLAMA_OTHER_SERVER: &str = "http://127.0.0.1:8081";
+const LLAMA_OTHER_SERVER: &str = "http://127.0.0.1:18081";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 /// The result file of the run, under `docs/results/`.
 const RESULT_FILE: &str = "rp13_translation.md";
