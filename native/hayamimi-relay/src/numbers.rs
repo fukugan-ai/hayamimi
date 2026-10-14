@@ -3,7 +3,9 @@
 //! One reader serves both the verification step and the unit annotation, so
 //! "what number is this" has a single answer. It reads Arabic digits (ASCII
 //! and full-width, with `,` digit grouping and a decimal point, optionally
-//! followed by 万/億/兆 or an English scale word), Japanese numerals
+//! followed by 万/億/兆 or an English scale word, and for Chinese, Korean and
+//! Spanish by a run of their scale words: `5百万`, `5백만`, `3 mil millones`),
+//! Japanese numerals
 //! (五百万, 二〇二六, 三千), and English number words (fifty thousand,
 //! a hundred, twenty-five).
 //!
@@ -35,6 +37,10 @@ pub enum Tongue {
     Other,
     English,
     Spanish,
+    /// Digits are followed by `十百千` and `万亿` (`5百万`).
+    Chinese,
+    /// Digits are followed by `십백천` and `만억조` (`5백만`).
+    Korean,
 }
 
 impl Tongue {
@@ -43,6 +49,8 @@ impl Tongue {
         match code {
             "en" => Tongue::English,
             "es" => Tongue::Spanish,
+            "zh" => Tongue::Chinese,
+            "ko" => Tongue::Korean,
             _ => Tongue::Other,
         }
     }
@@ -168,7 +176,7 @@ impl<'a> Scan<'a> {
         }
         match self.tongue {
             Tongue::Spanish => self.spanish(i).or_else(|| self.english(i)),
-            Tongue::English | Tongue::Other => self.english(i),
+            Tongue::English | Tongue::Other | Tongue::Chinese | Tongue::Korean => self.english(i),
         }
     }
 
@@ -252,6 +260,9 @@ impl<'a> Scan<'a> {
                 j += 1;
             }
         }
+        if let Some((scale, end)) = self.digit_scales(j) {
+            return Some((micro.checked_mul(scale)?, end));
+        }
         if let Some(scale) = self.ch(j).and_then(big_unit) {
             return Some((micro.checked_mul(scale)?, j + 1));
         }
@@ -259,6 +270,70 @@ impl<'a> Scan<'a> {
             return Some((micro.checked_mul(scale)?, end));
         }
         Some((micro, j))
+    }
+
+    /// The product of the run of scale words right after digits, in the
+    /// tongue of the text (`5百万`, `5백만`, `3 mil millones`), and where the
+    /// run ends. `None` when no scale word follows.
+    fn digit_scales(&self, j: usize) -> Option<(u128, usize)> {
+        match self.tongue {
+            Tongue::Chinese => self.unit_run(j, |c| small_unit(c).or_else(|| big_unit(c))),
+            Tongue::Korean => self.unit_run(j, korean_unit),
+            Tongue::Spanish => self.spanish_scales(j),
+            Tongue::English | Tongue::Other => None,
+        }
+    }
+
+    /// A run of one-character scale units starting at `j`, multiplied.
+    fn unit_run(&self, j: usize, unit: fn(char) -> Option<u128>) -> Option<(u128, usize)> {
+        let mut scale: u128 = 1;
+        let mut end = j;
+        while let Some(value) = self.ch(end).and_then(unit)
+            && !self.is_percent_prefix(end)
+        {
+            scale = scale.checked_mul(value)?;
+            end += 1;
+        }
+        (end > j).then_some((scale, end))
+    }
+
+    /// Spanish scale words after digits, each optionally after one space.
+    fn spanish_scales(&self, j: usize) -> Option<(u128, usize)> {
+        let mut scale: u128 = 1;
+        let mut end = j;
+        loop {
+            let start = if self.ch(end) == Some(' ') {
+                end + 1
+            } else {
+                end
+            };
+            let Some((value, next)) = self.spanish_scale_word(start) else {
+                break;
+            };
+            scale = scale.checked_mul(value)?;
+            end = next;
+        }
+        (end > j).then_some((scale, end))
+    }
+
+    fn spanish_scale_word(&self, at: usize) -> Option<(u128, usize)> {
+        SPANISH_SCALES.iter().find_map(|(word, value)| {
+            self.word_is(at, word)
+                .then(|| (*value, at + word.chars().count()))
+        })
+    }
+
+    /// Whether `word` (lower case) stands at `at`, in any case, and is not
+    /// the start of a longer word.
+    fn word_is(&self, at: usize, word: &str) -> bool {
+        let matches = word.chars().enumerate().all(|(k, expected)| {
+            self.ch(at + k)
+                .is_some_and(|c| c.to_lowercase().eq(std::iter::once(expected)))
+        });
+        matches
+            && !self
+                .ch(at + word.chars().count())
+                .is_some_and(char::is_alphanumeric)
     }
 
     /// An English scale word (optionally after one space) right after digits.
@@ -570,6 +645,27 @@ fn small_unit(c: char) -> Option<u128> {
     }
 }
 
+/// Korean scale units: `십백천` and `만억조`.
+fn korean_unit(c: char) -> Option<u128> {
+    match c {
+        '십' => Some(10),
+        '백' => Some(100),
+        '천' => Some(1_000),
+        '만' => Some(10_000),
+        '억' => Some(100_000_000),
+        '조' => Some(1_000_000_000_000),
+        _ => None,
+    }
+}
+
+/// Spanish scale words after digits, longest first.
+const SPANISH_SCALES: [(&str, u128); 4] = [
+    ("millones", 1_000_000),
+    ("millón", 1_000_000),
+    ("millon", 1_000_000),
+    ("mil", 1_000),
+];
+
 fn big_unit(c: char) -> Option<u128> {
     match c {
         '万' => Some(10_000),
@@ -636,6 +732,24 @@ mod tests {
     fn number_words_inside_other_words_are_not_numbers() {
         assert!(extract("someone often mentioned stone").is_empty());
         assert!(extract("a bit").is_empty());
+    }
+
+    #[test]
+    fn scale_words_after_digits_are_multiplied_in_zh_ko_es() {
+        assert_eq!(counted("5百万", Tongue::Chinese), [5_000_000]);
+        assert_eq!(counted("3千亿", Tongue::Chinese), [300_000_000_000]);
+        assert_eq!(counted("1.5亿", Tongue::Chinese), [150_000_000]);
+        assert_eq!(counted("5백만", Tongue::Korean), [5_000_000]);
+        assert_eq!(counted("2천", Tongue::Korean), [2_000]);
+        assert_eq!(counted("3 mil millones", Tongue::Spanish), [3_000_000_000]);
+        assert_eq!(counted("5 Millones", Tongue::Spanish), [5_000_000]);
+        assert_eq!(counted("1 millón", Tongue::Spanish), [1_000_000]);
+    }
+
+    #[test]
+    fn a_word_that_only_begins_like_a_scale_word_is_not_one() {
+        assert_eq!(counted("5 milímetros", Tongue::Spanish), [5]);
+        assert_eq!(counted("5百分之", Tongue::Chinese), [5]);
     }
 
     #[test]
