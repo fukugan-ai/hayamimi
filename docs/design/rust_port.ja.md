@@ -191,7 +191,7 @@ lat-ja の 1 回の run の標本の枠は 23 発話 × 5 回で、各標本は�
 **消すのは R11 だけ**で、R11 に入る条件は次の 3 つである。
 
 1. R0 の基準の要約（遅れ、誤り率、chrF、DER の値と、測った条件）が、git 管理下の `docs/results/baseline_python.md` に在る。
-2. RP-1、RP-14、RP-15 が `<base>` の値と照らして通っている。
+2. RP-1、RP-13、RP-14、RP-15 が `<base>` の値と照らして通っている（RP-1 の ko は 10 の H35、RP-13 は H36 の扱い。通るまで R11 は始めない）。
 3. RP-19 の対応表（Python の test の case → Rust の test の名前）が全行そろい、全部通っている。
 
 消した file の中身は git の履歴に残り、R11 の commit の 1 つ前を指せば読める。
@@ -396,6 +396,9 @@ model は会話字幕の設計 9 の手順（held-out の順位づけ）で決�
 TranslateGemma の chat template は原文と訳の先の言語の code を構造で受けるので、`/v1/chat/completions` で probe と同じ入力になるかを、3.6 の「訳の依頼の形」と同じ形の受入（probe の行と `curl` の一致）で確かめる。
 どの候補も RP-13 の記録を超えなければ、その言語は評議へ出す（CPU の翻訳器は 1.3 のとおり移さない）。
 持ち主は R8f である。
+ja と en の外の言語の訳は T と V だけで、E を掛けない。V で外れた行は `held` にする。E を掛けないのは、TranslateGemma の chat template が指示の message を受けず、E の依頼の形を作れないからである（評議の判定、GO）。E が chrF に効く量は測っていない（NOT VERIFIED）。
+R8f の仕組み（2 本目の server、T だけ、言語の code を付けた依頼）は、RP-13 が未通過のまま merge してよい（評議の判定）。RP-13 の値は未通過として記録する。
+V を掛けない全行の chrF が RP-13 の記録に届かない言語に限って、別の model を候補に開く。開く前に、2 本の server を並べた時の GPU の memory（RP-22）と `L`（RP-3 の式）を測る。
 `--translate` は訳の先の言語の組を置き換える。`--translate zh` では ja の確定文に zh の訳だけを出し、en の訳は出さない。en も出すときは `--translate en,zh` と書く。`--translate` を付けないときは、会話字幕の設計 3.1 の音源ごとの規則（mic の ja は en へ、loopback の en は ja へ）で訳す。
 品質は FLEURS の chrF で、今の値（en 47.57、zh 20.19、ko 25.20、es 42.09。FuguMT と M2M-100 で取った値、RB-7）以上を RP-13 で測る。
 V が止めた行は空の hyp のまま数える。利用者に見えるのは訳の無い行だからである。
@@ -819,7 +822,7 @@ R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
 | R8g | R8c の送り先の trait。E2E には要らない（E2E は中継の SSE と頁で字幕を読む） | 8 の R8c と R8g の行 |
 | R0b | 無し。worktree の席の rb01〜rb08 を通すので、空いた席ですぐ打つ | `native/hayamimi-eval/tests/support/mod.rs:23` と `:25` が `CARGO_MANIFEST_DIR` の 2 つ上の `testdata` だけを見る |
 | R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
-| R11 | RP-1（R3）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
+| R11 | RP-1（R3）、RP-13（R8f）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
 | 端から端 | R3（`--lang`）、R5（取り込み）、R8a〜R8c、R6 の頁 | この小節の E2E-1 と E2E-2 |
 
 R3 は 2 席に分ける。R3a は振り分け（`hayamimi-asr::route` と `::lid`、RP-19 の `route.rs` 70 行と `lid.rs` 9 行）、R3b は認識器と常駐（`::decode` と `::resident`、`decode.rs` 24 行、`hayamimi-eval scorecard`、RP-22）である。
@@ -941,6 +944,8 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 - **H38** 日本語の streaming の認識器が出ている（`docs/research/04-recheck-2026-10.ja.md` の「速度と品質に効きそうな変化」）。今の認識は非 streaming の認識器を VAD の区切りに掛け、`--min-silence` の無音を待ってから解くので、`L_asr` に無音の待ちと発話全体の解き直しが入る。streaming の認識器は、話している間に解き進めるので、`L` を縮められる見込みがある（NOT VERIFIED）。`goals.md` の 56 行目の「高精度な日本語の streaming model が出たら増分デコードを再評価する」の条件に当たる。候補は 3 つで、Rust の実行時の経路に載るかが違う。Nemotron 3.5 ASR Streaming 0.6B（ja-JP を含み、chunk は 80〜1120 ms、FLEURS の日本語 CER は 80 ms で 13.87、1.12 秒で 11.48）は sherpa-onnx が runtime を取り込んでおり、今の build の `OnlineRecognizer` で測れる見込みである（取り込みが v1.13.8 に入っているかは確かめていない）。Moonshine v0.1.5 の日本語 streaming と Voxtral Realtime（sub-200 ms から設定可）は、sherpa-onnx で動くかを確かめていない。Python や vLLM でしか動かない物は、実行時の Python を 0 本にする方針（1.3）なので採らない。持ち主は R7b（W3 の席。測るだけで、`hayamimi` の経路の code を替えない）で、Nemotron 3.5 の 560 ms の int8 の package を同じ build で読み、lat-ja の `L_asr` の p50 と p95（RP-4 の式）と、eval_real の ja の CER（RP-1 の ja）と golden の 8 本の CER（RP-2）を、今の ReazonSpeech と同じ表に並べて `docs/results/` に書く。Moonshine と Voxtral は、sherpa-onnx の docs と release に在るかだけを確かめて同じ表に書く。置き換えるかは、E2E が通った後に、その表を材料にして評議が決める。いまの W1〜W4 と E2E の経路は替えない。Nemotron 3.5 の license（OpenMDW-1.1）を配る物に入れてよいかは確かめていない（NOT VERIFIED。採る時に R10 が `THIRD_PARTY_NOTICES.md` の手番で確かめる）。
 - **H39** 道具の版の差が 3 件ある（同じ文書の表 E）。llama.cpp は b11583 から b11609 へ進んだ。持ち主は R8e で、L を測る前に R8b の置き場の build を b11609 以降の最新に入れ替え、前の版を控えて RP-16 の訳の行と CS-20 を打ち直す。ORT の退路の 1.28.2 には同じ系列の 1.28.3 が在る。持ち主は R10 で、3.12 の退路の版と xtask の `--ort-version` の退路の既定を 1.28.3 にし、退路の build を 1 回作って RP-17 を通す（現行の 1.31.0 は最新のまま）。`requirements.txt` の sherpa-onnx 1.13.6 は上げない。R0 の Python の基準をその版で測ったので、上げると基準を同じ条件で取り直せなくなる。この file は R11 で消す。
 - **H36** zh、ko、es ほかの訳の V は、形、数、ラテン文字の名前だけを見て、否定と不確かさを見ない。否定の落ちた訳が V を通りうる（会話字幕の設計 3.4 の否定と推量の表が ja と en にしか無いため）。RP-13 の chrF は否定の落ちを個別には捕まえない。持ち主は R8f で、言語ごとの否定と推量の語の表を足し、ja と en の表と同じ形の case 行（否定を落とした訳が `negation` で止まる）で確かめる。表が入るまで、ja と en の外の言語の訳は、否定の落ちを止められない物として扱う。
+V は止めすぎてもいる（RP-13 の run で、正しい訳を止めた行が RP-13 の chrF を下げる）。止めすぎの直しも R8f が持ち、条件は 3 つである（評議の判定）。調整は seed 0 の 50 組とは別の組で行い、seed 0 の 50 組は判定にだけ使う。否定、数、推量を落とした訳が止まる対照の case 行は残す。閾値は緩めない。含意の否定（否定の語を持たない否定の言い方）と伝聞の「そうです」の扱いは、V の規則そのものを変えるので、その数（止めた行と止めなかった行）を添えて評議へ戻す。RP-13 は R11 に入る条件（3.2）に入る。
+T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛けず、V で外れた行を `held` にする形に合わせて書き替える。書き替えは test-designer の席へ回す（セラが運ぶ）。
 - **H33** CPU に落ちた段の誤り率は、同じ model を読むので GPU の run と同じと見込んでいる（ASSUMPTION）。fp32 の数値の差で字が変わりうるので、R2 が RP-18 の句読点の全件を CPU の provider でも掛け、`expected` と一致する件数を記録する。小さい model へ落ちた段の誤り率は測っていない（NOT VERIFIED）。
 
 ## 11. 出所
