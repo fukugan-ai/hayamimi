@@ -80,6 +80,13 @@ label = "m²"
 "translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
 "translate.eval.held" = "No translation of this sentence was kept"
 "translate.eval.written" ="The translations of one language were written"
+"srt.output.exists" = "A subtitle file for the video is there already; nothing is done"
+"srt.extract.started" = "Taking the audio out of the video"
+"srt.extract.failed" = "The audio could not be taken out of the video"
+"srt.recognize.failed" = "The audio could not be recognized"
+"srt.output.empty" = "The video holds no speech; no subtitle file is written"
+"srt.output.written" = "The subtitle files are written"
+"send.config.too_open" = "The file that holds the caption addresses can be read by others, or could not be checked; nothing is sent from it"
 "translate.partial.ok" = "The text in progress was translated"
 "translate.partial.held" = "Verification failed; the translation of the text in progress is not shown"
 "translate.partial.aborted" = "A newer text took its place; the translation of the older one was dropped"
@@ -89,8 +96,9 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
+  hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
 unknown_command = "unknown subcommand"
@@ -108,3 +116,13 @@ srt_not_opened = "the subtitle file could not be opened; the run goes on without
 need_pairs_and_out = "eval needs --pairs and --out"
 eval_target_skipped = "this language is not translated and is left out:"
 eval_failed = "the translations could not be written"
+send_not_opened = "the file of caption addresses could not be set up; nothing was started"
+need_video = "srt needs the video file as its first argument"
+srt_written = "the subtitle files are written; cues:"
+srt_no_name = "the video path has no file name"
+srt_exists = "a subtitle file for this video is there already; nothing was done (delete or rename it to make it again)"
+srt_extract_failed = "the audio could not be taken out of the video (is ffmpeg installed, and does the video have sound?)"
+srt_recognize_failed = "the audio could not be recognized or translated (is hayamimi installed, and is the translator reachable?)"
+srt_no_speech = "the video holds no speech; no subtitle file was written"
+srt_write_failed = "the subtitle files could not be written"
+srt_no_work_dir = "no place for the work file could be made in the cache directory"

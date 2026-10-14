@@ -89,7 +89,8 @@ fn start(live: &Live) -> Result<Running, Box<dyn std::error::Error>> {
     let strings = Strings::embedded(Lang::En)?;
     let logs = Logs::default();
     let sink = SharedSink::new(logs.clone());
-    let relay = start_live(live, 1_790_000_000, &strings, &sink)?;
+    let relay = start_live(live, 1_790_000_000, &strings, &sink)
+        .map_err(|error| format!("live did not start: {error:?}"))?;
     let collected = collect_from(relay.address())?;
     Ok(Running {
         relay,

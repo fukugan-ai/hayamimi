@@ -29,6 +29,12 @@ pub struct Meta {
     pub utterances: usize,
     /// The operating system the run was measured on.
     pub os: String,
+    /// Other sources decoding in processes of their own for the whole run; 0 for a run alone.
+    #[serde(default)]
+    pub peers: u32,
+    /// The decodes those processes finished while the run measured.
+    #[serde(default)]
+    pub peer_decodes: u64,
 }
 
 /// One timed call.
@@ -189,6 +195,8 @@ mod tests {
             repeat: 5,
             utterances: 23,
             os: String::from("windows"),
+            peers: 0,
+            peer_decodes: 0,
         }
     }
 

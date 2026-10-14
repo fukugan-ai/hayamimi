@@ -1,0 +1,576 @@
+{"kind":"meta","provider":"cuda","load":false,"cache":"warm","run":1,"repeat":5,"utterances":23,"os":"linux","peers":1,"peer_decodes":166}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":0,"ns":95018207}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":0,"ns":107162728}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":0,"ns":113491015}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":0,"ns":106997278}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":0,"ns":110144496}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":0,"ns":105226488}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":0,"ns":141142949}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":0,"ns":101861761}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":0,"ns":116692509}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":0,"ns":133566720}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":0,"ns":139874705}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":0,"ns":106014980}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":0,"ns":81654107}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":0,"ns":107216768}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":0,"ns":84433249}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":0,"ns":91497347}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":0,"ns":94634016}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":0,"ns":95036381}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":0,"ns":98388342}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":0,"ns":71624820}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":0,"ns":76805148}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":0,"ns":105705289}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":0,"ns":100168203}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":1,"ns":88228930}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":1,"ns":103140513}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":1,"ns":100676757}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":1,"ns":113781616}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":1,"ns":109032863}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":1,"ns":106560275}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":1,"ns":115081299}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":1,"ns":106693113}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":1,"ns":124764393}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":1,"ns":105801195}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":1,"ns":97133283}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":1,"ns":100849728}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":1,"ns":190536776}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":1,"ns":108758070}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":1,"ns":104656335}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":1,"ns":87400029}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":1,"ns":113296816}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":1,"ns":109276080}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":1,"ns":123048269}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":1,"ns":92152865}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":1,"ns":109617834}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":1,"ns":95503318}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":1,"ns":117026055}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":2,"ns":96094013}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":2,"ns":113174626}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":2,"ns":99777330}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":2,"ns":96632861}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":2,"ns":106194333}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":2,"ns":105562050}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":2,"ns":91309425}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":2,"ns":81753046}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":2,"ns":81895335}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":2,"ns":89381978}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":2,"ns":78145452}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":2,"ns":93955522}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":2,"ns":74959175}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":2,"ns":81991050}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":2,"ns":81719566}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":2,"ns":90525305}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":2,"ns":96859651}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":2,"ns":94386089}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":2,"ns":101880468}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":2,"ns":93486914}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":2,"ns":107032688}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":2,"ns":92590565}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":2,"ns":101466794}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":3,"ns":91819148}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":3,"ns":99759156}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":3,"ns":103505563}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":3,"ns":104995163}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":3,"ns":94948100}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":3,"ns":88503869}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":3,"ns":81738367}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":3,"ns":81201321}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":3,"ns":83696475}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":3,"ns":96903748}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":3,"ns":89573828}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":3,"ns":99553785}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":3,"ns":95979410}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":3,"ns":130928404}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":3,"ns":81545074}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":3,"ns":118412692}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":3,"ns":113636405}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":3,"ns":101594584}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":3,"ns":118569285}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":3,"ns":101868941}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":3,"ns":120223421}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":3,"ns":127893624}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":3,"ns":144686382}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":0,"repeat":4,"ns":111368019}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":1,"repeat":4,"ns":114864094}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":2,"repeat":4,"ns":93552069}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":3,"repeat":4,"ns":92599204}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":4,"repeat":4,"ns":109425430}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":5,"repeat":4,"ns":123919129}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":6,"repeat":4,"ns":117992767}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":7,"repeat":4,"ns":105781424}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":8,"repeat":4,"ns":163199634}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":9,"repeat":4,"ns":151075081}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":10,"repeat":4,"ns":128638839}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":11,"repeat":4,"ns":135912753}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":12,"repeat":4,"ns":150784622}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":13,"repeat":4,"ns":154823017}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":14,"repeat":4,"ns":166267892}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":15,"repeat":4,"ns":107252150}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":16,"repeat":4,"ns":156313343}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":17,"repeat":4,"ns":121323468}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":18,"repeat":4,"ns":121468452}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":19,"repeat":4,"ns":94334824}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":20,"repeat":4,"ns":99550640}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":21,"repeat":4,"ns":101815973}
+{"kind":"sample","stage":"encoder_only","variant":"ort-encoder fp32","utt":22,"repeat":4,"ns":135905394}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":0,"repeat":0,"ns":145711998}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":0,"repeat":0,"ns":133768998}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":0,"repeat":0,"ns":188}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":0,"repeat":0,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":1,"repeat":0,"ns":73891969}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":1,"repeat":0,"ns":94402953}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":1,"repeat":0,"ns":152}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":1,"repeat":0,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":2,"repeat":0,"ns":47200936}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":2,"repeat":0,"ns":75490939}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":2,"repeat":0,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":2,"repeat":0,"ns":32}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":3,"repeat":0,"ns":47187150}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":3,"repeat":0,"ns":59843587}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":3,"repeat":0,"ns":99}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":3,"repeat":0,"ns":30}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":4,"repeat":0,"ns":68915272}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":4,"repeat":0,"ns":105219664}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":4,"repeat":0,"ns":166}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":4,"repeat":0,"ns":35}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":5,"repeat":0,"ns":212645968}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":5,"repeat":0,"ns":156849539}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":5,"repeat":0,"ns":182}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":5,"repeat":0,"ns":44}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":6,"repeat":0,"ns":116807569}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":6,"repeat":0,"ns":365760404}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":6,"repeat":0,"ns":238}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":6,"repeat":0,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":7,"repeat":0,"ns":266835181}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":7,"repeat":0,"ns":253525377}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":7,"repeat":0,"ns":212}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":7,"repeat":0,"ns":50}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":8,"repeat":0,"ns":56206231}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":8,"repeat":0,"ns":41167528}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":8,"repeat":0,"ns":69}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":8,"repeat":0,"ns":16}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":9,"repeat":0,"ns":49186392}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":9,"repeat":0,"ns":76149438}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":9,"repeat":0,"ns":78}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":9,"repeat":0,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":10,"repeat":0,"ns":119370471}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":10,"repeat":0,"ns":618290993}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":10,"repeat":0,"ns":193}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":10,"repeat":0,"ns":33}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":11,"repeat":0,"ns":362141349}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":11,"repeat":0,"ns":191000233}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":11,"repeat":0,"ns":128}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":11,"repeat":0,"ns":15}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":12,"repeat":0,"ns":133747880}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":12,"repeat":0,"ns":464119194}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":12,"repeat":0,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":12,"repeat":0,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":13,"repeat":0,"ns":329850915}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":13,"repeat":0,"ns":524796352}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":13,"repeat":0,"ns":210}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":13,"repeat":0,"ns":28}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":14,"repeat":0,"ns":38655168}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":14,"repeat":0,"ns":111762180}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":14,"repeat":0,"ns":58}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":14,"repeat":0,"ns":13}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":15,"repeat":0,"ns":383627689}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":15,"repeat":0,"ns":528323869}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":15,"repeat":0,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":15,"repeat":0,"ns":34}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":16,"repeat":0,"ns":364828684}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":16,"repeat":0,"ns":424129941}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":16,"repeat":0,"ns":159}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":16,"repeat":0,"ns":18}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":17,"repeat":0,"ns":182217130}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":17,"repeat":0,"ns":514847675}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":17,"repeat":0,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":17,"repeat":0,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":18,"repeat":0,"ns":82659627}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":18,"repeat":0,"ns":90499378}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":18,"repeat":0,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":18,"repeat":0,"ns":9}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":19,"repeat":0,"ns":223864429}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":19,"repeat":0,"ns":238620700}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":19,"repeat":0,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":19,"repeat":0,"ns":19}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":20,"repeat":0,"ns":87321147}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":20,"repeat":0,"ns":274053741}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":20,"repeat":0,"ns":146}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":20,"repeat":0,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":21,"repeat":0,"ns":42780991}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":21,"repeat":0,"ns":69944484}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":21,"repeat":0,"ns":92}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":21,"repeat":0,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":22,"repeat":0,"ns":148618753}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":22,"repeat":0,"ns":179133739}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":22,"repeat":0,"ns":101}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":22,"repeat":0,"ns":20}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":0,"repeat":1,"ns":91936297}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":0,"repeat":1,"ns":202504348}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":0,"repeat":1,"ns":188}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":0,"repeat":1,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":1,"repeat":1,"ns":89917914}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":1,"repeat":1,"ns":111292108}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":1,"repeat":1,"ns":152}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":1,"repeat":1,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":2,"repeat":1,"ns":79418878}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":2,"repeat":1,"ns":115794042}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":2,"repeat":1,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":2,"repeat":1,"ns":32}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":3,"repeat":1,"ns":56760125}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":3,"repeat":1,"ns":58740924}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":3,"repeat":1,"ns":99}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":3,"repeat":1,"ns":30}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":4,"repeat":1,"ns":77084157}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":4,"repeat":1,"ns":96380030}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":4,"repeat":1,"ns":166}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":4,"repeat":1,"ns":35}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":5,"repeat":1,"ns":77674642}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":5,"repeat":1,"ns":164364030}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":5,"repeat":1,"ns":182}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":5,"repeat":1,"ns":44}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":6,"repeat":1,"ns":102179119}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":6,"repeat":1,"ns":123954312}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":6,"repeat":1,"ns":238}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":6,"repeat":1,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":7,"repeat":1,"ns":110533318}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":7,"repeat":1,"ns":131461928}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":7,"repeat":1,"ns":212}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":7,"repeat":1,"ns":50}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":8,"repeat":1,"ns":23347418}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":8,"repeat":1,"ns":43836150}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":8,"repeat":1,"ns":69}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":8,"repeat":1,"ns":16}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":9,"repeat":1,"ns":23820586}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":9,"repeat":1,"ns":49549393}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":9,"repeat":1,"ns":78}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":9,"repeat":1,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":10,"repeat":1,"ns":82849308}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":10,"repeat":1,"ns":181849629}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":10,"repeat":1,"ns":193}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":10,"repeat":1,"ns":33}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":11,"repeat":1,"ns":52835062}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":11,"repeat":1,"ns":76746469}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":11,"repeat":1,"ns":128}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":11,"repeat":1,"ns":15}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":12,"repeat":1,"ns":101519198}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":12,"repeat":1,"ns":199315127}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":12,"repeat":1,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":12,"repeat":1,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":13,"repeat":1,"ns":94658946}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":13,"repeat":1,"ns":160818131}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":13,"repeat":1,"ns":210}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":13,"repeat":1,"ns":28}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":14,"repeat":1,"ns":43883171}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":14,"repeat":1,"ns":47517113}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":14,"repeat":1,"ns":58}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":14,"repeat":1,"ns":13}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":15,"repeat":1,"ns":86313016}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":15,"repeat":1,"ns":119245621}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":15,"repeat":1,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":15,"repeat":1,"ns":34}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":16,"repeat":1,"ns":76239209}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":16,"repeat":1,"ns":183778266}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":16,"repeat":1,"ns":159}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":16,"repeat":1,"ns":18}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":17,"repeat":1,"ns":87202547}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":17,"repeat":1,"ns":125590505}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":17,"repeat":1,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":17,"repeat":1,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":18,"repeat":1,"ns":49589221}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":18,"repeat":1,"ns":60874264}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":18,"repeat":1,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":18,"repeat":1,"ns":9}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":19,"repeat":1,"ns":45769225}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":19,"repeat":1,"ns":60537272}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":19,"repeat":1,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":19,"repeat":1,"ns":19}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":20,"repeat":1,"ns":220210800}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":20,"repeat":1,"ns":101116757}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":20,"repeat":1,"ns":146}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":20,"repeat":1,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":21,"repeat":1,"ns":37863897}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":21,"repeat":1,"ns":60734003}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":21,"repeat":1,"ns":92}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":21,"repeat":1,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":22,"repeat":1,"ns":39089966}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":22,"repeat":1,"ns":235579323}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":22,"repeat":1,"ns":101}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":22,"repeat":1,"ns":20}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":0,"repeat":2,"ns":178498415}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":0,"repeat":2,"ns":127055761}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":0,"repeat":2,"ns":188}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":0,"repeat":2,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":1,"repeat":2,"ns":159721793}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":1,"repeat":2,"ns":219063719}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":1,"repeat":2,"ns":152}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":1,"repeat":2,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":2,"repeat":2,"ns":65533250}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":2,"repeat":2,"ns":83646896}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":2,"repeat":2,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":2,"repeat":2,"ns":32}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":3,"repeat":2,"ns":125646734}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":3,"repeat":2,"ns":122232967}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":3,"repeat":2,"ns":99}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":3,"repeat":2,"ns":30}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":4,"repeat":2,"ns":69688808}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":4,"repeat":2,"ns":108150364}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":4,"repeat":2,"ns":166}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":4,"repeat":2,"ns":35}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":5,"repeat":2,"ns":205365652}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":5,"repeat":2,"ns":233861472}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":5,"repeat":2,"ns":182}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":5,"repeat":2,"ns":44}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":6,"repeat":2,"ns":110624069}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":6,"repeat":2,"ns":332681590}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":6,"repeat":2,"ns":238}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":6,"repeat":2,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":7,"repeat":2,"ns":109963893}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":7,"repeat":2,"ns":129162373}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":7,"repeat":2,"ns":212}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":7,"repeat":2,"ns":50}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":8,"repeat":2,"ns":43868392}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":8,"repeat":2,"ns":51091541}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":8,"repeat":2,"ns":69}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":8,"repeat":2,"ns":16}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":9,"repeat":2,"ns":68052029}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":9,"repeat":2,"ns":137826684}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":9,"repeat":2,"ns":78}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":9,"repeat":2,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":10,"repeat":2,"ns":91555553}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":10,"repeat":2,"ns":111637789}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":10,"repeat":2,"ns":193}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":10,"repeat":2,"ns":33}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":11,"repeat":2,"ns":62575360}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":11,"repeat":2,"ns":151231220}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":11,"repeat":2,"ns":128}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":11,"repeat":2,"ns":15}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":12,"repeat":2,"ns":80446002}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":12,"repeat":2,"ns":154090984}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":12,"repeat":2,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":12,"repeat":2,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":13,"repeat":2,"ns":278062119}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":13,"repeat":2,"ns":181960045}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":13,"repeat":2,"ns":210}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":13,"repeat":2,"ns":28}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":14,"repeat":2,"ns":87210835}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":14,"repeat":2,"ns":132399469}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":14,"repeat":2,"ns":58}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":14,"repeat":2,"ns":13}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":15,"repeat":2,"ns":111061395}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":15,"repeat":2,"ns":127967596}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":15,"repeat":2,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":15,"repeat":2,"ns":34}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":16,"repeat":2,"ns":71186262}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":16,"repeat":2,"ns":152025371}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":16,"repeat":2,"ns":159}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":16,"repeat":2,"ns":18}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":17,"repeat":2,"ns":112731171}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":17,"repeat":2,"ns":185804135}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":17,"repeat":2,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":17,"repeat":2,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":18,"repeat":2,"ns":52611756}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":18,"repeat":2,"ns":61525428}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":18,"repeat":2,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":18,"repeat":2,"ns":9}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":19,"repeat":2,"ns":55160865}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":19,"repeat":2,"ns":181542640}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":19,"repeat":2,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":19,"repeat":2,"ns":19}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":20,"repeat":2,"ns":83459602}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":20,"repeat":2,"ns":122135767}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":20,"repeat":2,"ns":146}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":20,"repeat":2,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":21,"repeat":2,"ns":40367315}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":21,"repeat":2,"ns":71355283}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":21,"repeat":2,"ns":92}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":21,"repeat":2,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":22,"repeat":2,"ns":64941267}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":22,"repeat":2,"ns":103082814}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":22,"repeat":2,"ns":101}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":22,"repeat":2,"ns":20}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":0,"repeat":3,"ns":117786174}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":0,"repeat":3,"ns":204461996}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":0,"repeat":3,"ns":188}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":0,"repeat":3,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":1,"repeat":3,"ns":109090667}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":1,"repeat":3,"ns":184950028}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":1,"repeat":3,"ns":152}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":1,"repeat":3,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":2,"repeat":3,"ns":102462608}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":2,"repeat":3,"ns":128019600}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":2,"repeat":3,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":2,"repeat":3,"ns":32}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":3,"repeat":3,"ns":53280098}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":3,"repeat":3,"ns":107263702}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":3,"repeat":3,"ns":99}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":3,"repeat":3,"ns":30}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":4,"repeat":3,"ns":135027369}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":4,"repeat":3,"ns":149503365}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":4,"repeat":3,"ns":166}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":4,"repeat":3,"ns":35}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":5,"repeat":3,"ns":98936944}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":5,"repeat":3,"ns":161228558}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":5,"repeat":3,"ns":182}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":5,"repeat":3,"ns":44}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":6,"repeat":3,"ns":118027309}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":6,"repeat":3,"ns":163340497}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":6,"repeat":3,"ns":238}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":6,"repeat":3,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":7,"repeat":3,"ns":100621839}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":7,"repeat":3,"ns":162730032}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":7,"repeat":3,"ns":212}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":7,"repeat":3,"ns":50}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":8,"repeat":3,"ns":24250340}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":8,"repeat":3,"ns":34360798}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":8,"repeat":3,"ns":69}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":8,"repeat":3,"ns":16}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":9,"repeat":3,"ns":41747737}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":9,"repeat":3,"ns":78919828}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":9,"repeat":3,"ns":78}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":9,"repeat":3,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":10,"repeat":3,"ns":102304356}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":10,"repeat":3,"ns":298967871}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":10,"repeat":3,"ns":193}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":10,"repeat":3,"ns":33}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":11,"repeat":3,"ns":123778254}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":11,"repeat":3,"ns":164924114}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":11,"repeat":3,"ns":128}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":11,"repeat":3,"ns":15}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":12,"repeat":3,"ns":129184576}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":12,"repeat":3,"ns":324873627}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":12,"repeat":3,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":12,"repeat":3,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":13,"repeat":3,"ns":99734481}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":13,"repeat":3,"ns":199829525}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":13,"repeat":3,"ns":210}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":13,"repeat":3,"ns":28}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":14,"repeat":3,"ns":99724747}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":14,"repeat":3,"ns":58936886}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":14,"repeat":3,"ns":58}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":14,"repeat":3,"ns":13}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":15,"repeat":3,"ns":50578096}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":15,"repeat":3,"ns":76361765}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":15,"repeat":3,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":15,"repeat":3,"ns":34}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":16,"repeat":3,"ns":78538748}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":16,"repeat":3,"ns":247538573}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":16,"repeat":3,"ns":159}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":16,"repeat":3,"ns":18}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":17,"repeat":3,"ns":99836613}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":17,"repeat":3,"ns":158965041}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":17,"repeat":3,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":17,"repeat":3,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":18,"repeat":3,"ns":44379688}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":18,"repeat":3,"ns":72377067}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":18,"repeat":3,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":18,"repeat":3,"ns":9}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":19,"repeat":3,"ns":140297963}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":19,"repeat":3,"ns":189934984}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":19,"repeat":3,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":19,"repeat":3,"ns":19}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":20,"repeat":3,"ns":126126460}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":20,"repeat":3,"ns":127398744}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":20,"repeat":3,"ns":146}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":20,"repeat":3,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":21,"repeat":3,"ns":138891774}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":21,"repeat":3,"ns":154280722}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":21,"repeat":3,"ns":92}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":21,"repeat":3,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":22,"repeat":3,"ns":39862678}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":22,"repeat":3,"ns":62901058}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":22,"repeat":3,"ns":101}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":22,"repeat":3,"ns":20}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":0,"repeat":4,"ns":228540916}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":0,"repeat":4,"ns":256426014}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":0,"repeat":4,"ns":188}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":0,"repeat":4,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":1,"repeat":4,"ns":69374785}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":1,"repeat":4,"ns":95421273}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":1,"repeat":4,"ns":152}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":1,"repeat":4,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":2,"repeat":4,"ns":58264237}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":2,"repeat":4,"ns":116654242}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":2,"repeat":4,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":2,"repeat":4,"ns":32}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":3,"repeat":4,"ns":67200210}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":3,"repeat":4,"ns":107188113}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":3,"repeat":4,"ns":99}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":3,"repeat":4,"ns":30}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":4,"repeat":4,"ns":204499387}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":4,"repeat":4,"ns":205745765}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":4,"repeat":4,"ns":166}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":4,"repeat":4,"ns":35}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":5,"repeat":4,"ns":140714245}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":5,"repeat":4,"ns":314172849}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":5,"repeat":4,"ns":182}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":5,"repeat":4,"ns":44}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":6,"repeat":4,"ns":95400882}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":6,"repeat":4,"ns":219752975}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":6,"repeat":4,"ns":238}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":6,"repeat":4,"ns":47}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":7,"repeat":4,"ns":108208573}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":7,"repeat":4,"ns":214949025}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":7,"repeat":4,"ns":212}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":7,"repeat":4,"ns":50}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":8,"repeat":4,"ns":27310870}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":8,"repeat":4,"ns":74912317}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":8,"repeat":4,"ns":69}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":8,"repeat":4,"ns":16}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":9,"repeat":4,"ns":52405632}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":9,"repeat":4,"ns":51236734}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":9,"repeat":4,"ns":78}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":9,"repeat":4,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":10,"repeat":4,"ns":114363270}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":10,"repeat":4,"ns":176120840}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":10,"repeat":4,"ns":193}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":10,"repeat":4,"ns":33}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":11,"repeat":4,"ns":70116529}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":11,"repeat":4,"ns":266302823}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":11,"repeat":4,"ns":128}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":11,"repeat":4,"ns":15}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":12,"repeat":4,"ns":144374148}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":12,"repeat":4,"ns":288905641}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":12,"repeat":4,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":12,"repeat":4,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":13,"repeat":4,"ns":195598088}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":13,"repeat":4,"ns":155255392}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":13,"repeat":4,"ns":210}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":13,"repeat":4,"ns":28}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":14,"repeat":4,"ns":41741665}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":14,"repeat":4,"ns":32673590}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":14,"repeat":4,"ns":58}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":14,"repeat":4,"ns":13}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":15,"repeat":4,"ns":174104834}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":15,"repeat":4,"ns":161650843}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":15,"repeat":4,"ns":133}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":15,"repeat":4,"ns":34}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":16,"repeat":4,"ns":107988246}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":16,"repeat":4,"ns":128274748}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":16,"repeat":4,"ns":159}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":16,"repeat":4,"ns":18}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":17,"repeat":4,"ns":142889686}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":17,"repeat":4,"ns":164253636}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":17,"repeat":4,"ns":208}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":17,"repeat":4,"ns":25}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":18,"repeat":4,"ns":82007659}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":18,"repeat":4,"ns":53737148}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":18,"repeat":4,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":18,"repeat":4,"ns":9}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":19,"repeat":4,"ns":126614296}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":19,"repeat":4,"ns":164285680}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":19,"repeat":4,"ns":90}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":19,"repeat":4,"ns":19}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":20,"repeat":4,"ns":65740682}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":20,"repeat":4,"ns":135382400}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":20,"repeat":4,"ns":146}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":20,"repeat":4,"ns":14}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":21,"repeat":4,"ns":57909922}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":21,"repeat":4,"ns":163259160}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":21,"repeat":4,"ns":92}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":21,"repeat":4,"ns":36}
+{"kind":"sample","stage":"search_joiner","variant":"fp32","utt":22,"repeat":4,"ns":57764755}
+{"kind":"sample","stage":"search_decoder","variant":"fp32","utt":22,"repeat":4,"ns":100813255}
+{"kind":"sample","stage":"search_frames_count","variant":"fp32","utt":22,"repeat":4,"ns":101}
+{"kind":"sample","stage":"search_tokens_count","variant":"fp32","utt":22,"repeat":4,"ns":20}
