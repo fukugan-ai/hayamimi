@@ -14,6 +14,7 @@ use crate::hub;
 use crate::lang::Lang;
 use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
+use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::relay::{self, Lanes, MakePipeline, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
@@ -51,6 +52,8 @@ pub enum Command {
         serve: u16,
         /// Where to write the settled translations as SRT cues.
         srt: Option<PathBuf>,
+        /// Whether the text of an utterance in progress is translated too.
+        partial_translation: PartialTranslation,
     },
     FxFetch {
         out: Option<PathBuf>,
@@ -95,6 +98,7 @@ struct RunOptions {
     llm: String,
     serve: u16,
     srt: Option<PathBuf>,
+    partial_translation: PartialTranslation,
 }
 
 impl Default for RunOptions {
@@ -104,6 +108,7 @@ impl Default for RunOptions {
             llm: DEFAULT_LLM.to_owned(),
             serve: DEFAULT_SERVE,
             srt: None,
+            partial_translation: PartialTranslation::On,
         }
     }
 }
@@ -113,6 +118,10 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
+        if option == "--no-partial-translation" {
+            options.partial_translation = PartialTranslation::Off;
+            continue;
+        }
         if !matches!(option, "--events" | "--llm" | "--serve" | "--srt") {
             return Err(CliError::UnknownOption);
         }
@@ -139,6 +148,7 @@ fn parse_run(args: &[String]) -> Result<Command, CliError> {
         llm: options.llm,
         serve: options.serve,
         srt: options.srt,
+        partial_translation: options.partial_translation,
     })
 }
 
@@ -333,14 +343,23 @@ fn open_srt(
     }
 }
 
-fn run_relay(
+/// What `live` runs with, apart from the clock and the locale.
+struct RunPlan {
     events: Vec<String>,
     llm: String,
     serve: u16,
     srt: Option<PathBuf>,
-    now: i64,
-    strings: &Strings,
-) -> u8 {
+    partial_translation: PartialTranslation,
+}
+
+fn run_relay(plan: RunPlan, now: i64, strings: &Strings) -> u8 {
+    let RunPlan {
+        events,
+        llm,
+        serve,
+        srt,
+        partial_translation,
+    } = plan;
     let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
     let Ok(listener) = hub::bind(serve) else {
         print_error(strings, "cannot_serve");
@@ -357,12 +376,13 @@ fn run_relay(
         srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
         words: Words::from_strings(strings),
     };
-    let started = relay::start_with(
+    let started = relay::start_partials(
         listener,
         config,
         pipeline_factory(llm),
         sink.clone(),
         outputs,
+        partial_translation,
     );
     let Ok(address) = started else {
         print_error(strings, "cannot_serve");
@@ -400,7 +420,17 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
             llm,
             serve,
             srt,
-        } => run_relay(events, llm, serve, srt, now_epoch, &strings),
+            partial_translation,
+        } => {
+            let plan = RunPlan {
+                events,
+                llm,
+                serve,
+                srt,
+                partial_translation,
+            };
+            run_relay(plan, now_epoch, &strings)
+        }
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
         }
@@ -503,9 +533,43 @@ mod tests {
                 ],
                 llm: String::from("http://x:1"),
                 serve: 9100,
-                srt: None
+                srt: None,
+                partial_translation: PartialTranslation::On,
             })
         );
+    }
+
+    #[test]
+    fn the_translation_of_the_text_in_progress_is_on_unless_it_is_turned_off() {
+        let on = |list: &[&str]| match parse_args(&args(list)) {
+            Ok(Command::Run {
+                partial_translation,
+                ..
+            }) => Some(partial_translation),
+            _ => None,
+        };
+        assert_eq!(on(&["live"]), Some(PartialTranslation::On));
+        assert_eq!(
+            on(&["live", "--no-partial-translation"]),
+            Some(PartialTranslation::Off)
+        );
+        assert_eq!(
+            on(&[
+                "live",
+                "--serve",
+                "0",
+                "--no-partial-translation",
+                "--srt",
+                "a.srt"
+            ]),
+            Some(PartialTranslation::Off)
+        );
+    }
+
+    #[test]
+    fn the_switch_that_turns_the_translation_off_takes_no_value() {
+        let parsed = parse_args(&args(&["live", "--no-partial-translation", "yes"]));
+        assert_eq!(parsed, Err(CliError::UnknownOption));
     }
 
     #[test]
@@ -568,6 +632,7 @@ mod tests {
             llm: String::from("http://127.0.0.1:8080"),
             serve: 8835,
             srt: None,
+            partial_translation: PartialTranslation::On,
         };
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
@@ -653,6 +718,12 @@ mod tests {
                 "sink.fallback.cleared",
                 "srt.cue.skipped",
                 "srt.output.failed",
+                "translate.partial.ok",
+                "translate.partial.held",
+                "translate.partial.aborted",
+                "translate.partial.failed",
+                "translate.partial.skipped",
+                "translate.partial.kept",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }

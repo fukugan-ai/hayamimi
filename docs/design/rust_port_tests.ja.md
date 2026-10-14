@@ -476,9 +476,13 @@ test：`native/hayamimi-eval/tests/rp05.rs`。
 | T-RP-5-004 | 速報の訳の時刻 500、`t_tr` が 500 | 同時 | `Err` | `Err`。より前でなければならない（specified、RP-5） | 境界、陰性 | `partial_translation_at_the_same_time_as_t_tr_is_rejected` |
 | T-RP-5-005 | 速報の訳の時刻 501、`t_tr` が 500 | 遅い | `Err` | `Err`（specified、RP-5） | 境界、陰性 | `partial_translation_after_t_tr_is_rejected` |
 | T-RP-5-006 | 速報の訳が 1 つも出ていない発話 | 判定の対象外 | `Ok` | `Ok`。速報の訳が出た発話だけが対象（specified、RP-5） | 境界 | `utterance_without_partial_translation_is_not_judged` |
-| T-RP-5-007 | python の run | 陽性対照 | 時刻が取れる | 最初の `partial` の時刻が全発話で取れる（specified、RP-5 の陽性対照） | 陽性 | `python_run_yields_first_partial_times` |
+| T-RP-5-007 | python の run | 陽性対照 | 時刻が取れる | `final` を持つ全発話で最初の `partial` の時刻が取れ、その `first_partial_delay` は正である。`final` も `partial` も無い発話（recognizer が何も聞き取らなかった発話）は対象外で、記録した run は 115 行中 12 行がそれである。`final` を持つ行と持たない行がどちらも在ることも確かめる（specified、RP-5 の陽性対照） | 陽性 | `python_run_yields_first_partial_times` |
 | T-RP-5-008 | 速報の訳を有効にした run の fixture と、切った run の fixture | 数える道具の確かめ | 切った run は 0、有効の run は 1 以上 | 速報の訳の数の関数が 0 と 1 以上を返す（specified、RP-5 の陰性欄） | 陰性 | `partial_translation_counter_reads_zero_when_disabled` |
 | T-RP-5-009 | `<ev> stream` の python と rust の run | 実走 | 実走 | `first_partial_delay` の p95 が python 以下、速報の訳が出た発話で時刻が `t_tr` より前（specified、RP-5） | 陽性 | `rust_partials_arrive_no_later_than_python` |
+
+中継の側の速報の訳は `native/hayamimi-relay/tests/r8d_partial.rs` が測る。
+次の 11 本で、順に、次の `id` で訳す、最初の確定文の前は訳さない、新しい原文が古い要求を打ち切る、確定文が来たら打ち切る、2 つの入力が互いを止めない、訳さない言語は飛ばす、外の送り先へ渡さない、設定で切ると 1 本も訳さない（陰性対照）、入れると 1 本訳す（陽性対照）、`session_reset` で番号を忘れる、確定した字形で描いた接頭辞を消す訳は出さず前の訳を残す（`a_translation_in_progress_does_not_take_away_the_committed_prefix`、RP-25 の 3 つ目の条件。守りを外すと落ちる陰性対照を確かめた）、である。
+速報の訳を切る設定は `--no-partial-translation` である。
 
 ### 4.16 RP-6（推論が GPU で走ったこと）
 

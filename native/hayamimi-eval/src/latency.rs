@@ -25,6 +25,10 @@ pub enum EventKind {
     Translation {
         text: String,
     },
+    /// A translation of the text of an utterance in progress (`of` is
+    /// `partial`). It never closes an utterance, so it is not paired with a
+    /// `final`.
+    PartialTranslation,
     Other,
 }
 
@@ -55,6 +59,9 @@ pub fn parse_event(t_us: i64, json_text: &str) -> Result<Event, EvalError> {
             text: text_of(&value)?,
             latency_ms: value.get("latency_ms").and_then(Value::as_f64),
         },
+        Some("translation") if value.get("of").and_then(Value::as_str) == Some("partial") => {
+            EventKind::PartialTranslation
+        }
         Some("translation") => EventKind::Translation {
             text: text_of(&value)?,
         },
@@ -81,6 +88,9 @@ pub struct Sample {
     pub t_start_us: i64,
     pub t_end_us: i64,
     pub t_partial_us: Option<i64>,
+    /// The first translation of the text in progress in this utterance. Files
+    /// written before the relay made such translations do not have it.
+    pub t_partial_tr_us: Option<i64>,
     pub t_final_us: Option<i64>,
     pub t_tr_us: Option<i64>,
     /// How many `final` events fell in this utterance.
@@ -216,12 +226,16 @@ pub fn build_samples(
             _ => (None, None),
         };
         let upper = t_final_us.or_else(|| windows.get(k + 1).map(|next| next.t_start_us));
-        let t_partial_us = events
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::Partial) && e.t_us >= window.t_start_us)
-            .map(|e| e.t_us)
-            .next()
-            .filter(|t| upper.is_none_or(|u| *t < u));
+        let first_in_window = |wanted: fn(&EventKind) -> bool| {
+            events
+                .iter()
+                .filter(|e| wanted(&e.kind) && e.t_us >= window.t_start_us)
+                .map(|e| e.t_us)
+                .next()
+                .filter(|t| upper.is_none_or(|u| *t < u))
+        };
+        let t_partial_us = first_in_window(|kind| matches!(kind, EventKind::Partial));
+        let t_partial_tr_us = first_in_window(|kind| matches!(kind, EventKind::PartialTranslation));
         let Cer { dist, denom } = cer(reference, &text);
         samples.push(Sample {
             repeat: window.repeat,
@@ -229,6 +243,7 @@ pub fn build_samples(
             t_start_us: window.t_start_us,
             t_end_us: window.t_end_us,
             t_partial_us,
+            t_partial_tr_us,
             t_final_us,
             t_tr_us,
             finals: u32::try_from(finals.len())
@@ -575,6 +590,7 @@ mod tests {
             t_start_us: 0,
             t_end_us: t_end,
             t_partial_us: None,
+            t_partial_tr_us: None,
             t_final_us: t_final,
             t_tr_us: t_tr,
             finals: 1,
