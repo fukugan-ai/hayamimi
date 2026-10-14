@@ -1,0 +1,31 @@
+{
+  "engine": "hayamimi",
+  "lid": "detected",
+  "rows": [
+    {
+      "lang": "ja",
+      "clips": 15,
+      "lid_correct": 15,
+      "tiers": "rz",
+      "mean_err_micros": 37512,
+      "mean_rtf_micros": 270787
+    },
+    {
+      "lang": "zh",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "pz",
+      "mean_err_micros": 90000,
+      "mean_rtf_micros": 125718
+    },
+    {
+      "lang": "ko",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "sv",
+      "mean_err_micros": 80572,
+      "mean_rtf_micros": 49518
+    }
+  ],
+  "fallbacks": []
+}
