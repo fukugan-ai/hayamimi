@@ -804,6 +804,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 
 各 ID の下の case 行（`T-RP-<n>-nnn`）は test-designer が `rust_port_tests.ja.md` に書く。
 この表の test の名前が code に在るかは、機械では当たらない（`hayamimi-eval doc-links` は Markdown の link の行き先の file だけを見て、表の中の名前を読まない）。検証の席が、slice ごとに `rg -n 'fn <名前>' native/` で 1 件在ることを確かめる。
+全体の test の数も機械では当たらない。`test result:` の行を足す数え方は、test の stdout の行が割り込んで `test result:` の行が 2 行に分かれる時と、test の中で走る入れ子の cargo の `test result:` の行に弱いからである。数を合否か記録に使う席は、test の binary の数と `test result: ok. N passed` の行の数を並べて貼り、2 つが合わなければ数を使わない。
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
@@ -1011,7 +1012,6 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 - **H3** `ort` 2.0.0-rc.14 の `load-dynamic` が、自分で build に入れた ORT 1.31.0 を開けるか（NOT VERIFIED。1.31 は `ort` の既定の C API の版で、退路の 1.28.3 では既定を外して古い API の feature を選ぶ）。別の席の調べでは `ort` の配布の binary は CUDA 13.2 以上と cuDNN 9.23 以上を対象にしている（S15）。`load-dynamic` は配布の binary を使わないが、C の API の版の下限が合うかは R1 の RP-17 で確かめる。合わなければ、句読点の model を sherpa-onnx の側で動かす手段を評議へ出す。
 - **H5** CUDA の stream を ORT と llama.cpp で共有する手段は無く、同じ GPU を 2 つの process が時間で分け合う。負荷の下の時間は R1 の RP-23 と、RP-3 で測る。
 - **H44** RP-5 の実走（T-RP-5-009）が落ちる。R8e の Rust の run の `t_partial` の p95 が 4398 ms で、同じ `--min-silence` 0.30 の Python の 3751 ms を超える。原因は特定していない（NOT VERIFIED）。持ち主は R8h で、3.16 の 3 の待ちの log と RP-32 の交互の run で速報の遅れを Python と並べ、差が残れば原因を評議へ出す。
-- **H47** R8i の merge の後の全体の test の数が、検証の席の数え（2471 passed）と実装の席の数え（relay 621 と残り 1862 で 2483）で 12 件合わない。理由は特定していない（NOT VERIFIED）。全体の test の数が前の数と合うかは、機械では当たらない（どの test も全体の数を読まない）。持ち主は E2E の席で、同じ木で `cargo test --release --no-fail-fast` を 1 回打ち、crate ごとの `test result:` の行を並べて、2 つの数えのどちらが何を含むかを書く。
 - **H46** 3.15 の「llama-server に届かない」の行の、5 秒ごとの `/health` の確かめは作っていない。`live` は依頼の時にだけ届かないことを検出するので、確定文が来ない間は `translate.fallback.held` が出ず、画面の印も遅れる。E2E には要らない（E2E-1 の陰性対照は llama-server を止めて音声を流すので、依頼の時の検出で `translate.fallback.held` が出る）。持ち主は R8h の後に中継を触る席で、E2E の後に作る。受入は RP-29 の R8b の行に、確定文を送らずに llama-server を止め、6 秒以内に `translate.fallback.held` が 1 件出る case を足す（test-designer の席が書く）。
 - **H7** 発話の終わり `t_end` は manifest に書いた sample の位置で決める。実放送の音声は参照の境界と本当の発話の終わりがずれることがあり、`L` に数十 ms の誤差が入る（ASSUMPTION）。Python と Rust に同じ誤差が入るので、比較には効かない。
 - **H8** RP-3 の en→ja の 2000 ms、RP-7 の 20%、RP-22 の 14,000 MiB は、実測の裏づけが無いまま据え置いた値である（NOT VERIFIED）。lat-en の Python の基準が無く、R1 の `L` の p95 1543 ms と 1890 ms（`gpu_stages.md` の「遅れ L の見積り」の「Rust 認識 cpu / 訳 cuda 無負荷」と「負荷」の行、:307-308）は見積りで、RP-7 の R1 の値は認識を CUDA に置いた構成の値で、`gpu_stages.md` に memory の実測が無い。持ち主は 2000 ms が R8e、20% が R7、14,000 MiB が R3 と R8e で、測って超えたら評議へ戻す。RP-3 と RP-4 の対の比較の下限（比較集合の発話の数 × 20 / 23 の切り上げ）と根拠 3 の 1% は、R0 と R1 の実測で裏づけた（6 の RP-3、3.5）。
