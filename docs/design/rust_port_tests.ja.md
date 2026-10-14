@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-37）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-38）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1412,6 +1412,11 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-36 �
 
 test：`native/hayamimi-relay/tests/rp37.rs`。受入 test の名前は `rp37_hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en`。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-37 の行と 3.6 の R8i から）。
+
+### 4.48 RP-38（`eval` の `translate.hedge.logged` は 1 行に 1 件）
+
+test：`native/hayamimi-relay/tests/rp38.rs`。受入 test の名前は `rp38_eval_logs_one_hedge_event_per_line`。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-38 の行から）。
 
 ## 5. RP-19 の対応表
 
