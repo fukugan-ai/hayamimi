@@ -386,9 +386,20 @@ template の token の数は 2 つの形で同じなので、1 行の訳の遅�
 受入は同じ llama-server で、probe1 の 40 行の原文を中継の T に流した訳の文字列が、同じ server に `curl` で `/v1/chat/completions` を同じ body で打った訳と全行で同じであることとする（陽性対照は `curl` の側が probe1 の log の出力と同じであること。llama.cpp の版が probe の時と違うと、そこが割れることがあるので、割れた行は数を記録し、合否は中継と `curl` の一致で決める）。
 陰性対照は、今の形（`/completion` に平文の `prompt`）で同じ 40 行を流し、`curl` と違う行が 1 行以上出ることである（0 行なら、この受入は 2 つの形を見分けていないので、行を足して打ち直す）。
 
-`--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、同じ言語モデルの T で訳す。
+`--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、言語モデルの T で訳す。
+ja と en の間は CAT-Translate-3.3b で訳す。
+CAT-Translate-3.3b は zh、ko、es を訳せない（R8f の実走：V が止めた行が ko 50/50（全部 `form`、訳が日本語の原文のまま）、zh 37/50、es 20/50）。
+したがって ja と en の外の言語は、別の言語モデルを 2 本目の llama-server（port 8081、`-np 1`、起こし方は R8b の形）に置いて訳す。
+2 本目は `--translate` に ja と en の外の言語が在る時だけ起こすので、ja と en の経路の速さは変わらない。
+model は会話字幕の設計 9 の手順（held-out の順位づけ）で決め、手元の候補の TranslateGemma-4B-it Q8_0（`testdata/probe1_translategemma-4b.log`）から測る。
+対応する言語は確かめていない（NOT VERIFIED。R8f が model card で確かめる）。
+TranslateGemma の chat template は原文と訳の先の言語の code を構造で受けるので、`/v1/chat/completions` で probe と同じ入力になるかを、3.6 の「訳の依頼の形」と同じ形の受入（probe の行と `curl` の一致）で確かめる。
+どの候補も RP-13 の記録を超えなければ、その言語は評議へ出す（CPU の翻訳器は 1.3 のとおり移さない）。
+持ち主は R8f である。
 `--translate` は訳の先の言語の組を置き換える。`--translate zh` では ja の確定文に zh の訳だけを出し、en の訳は出さない。en も出すときは `--translate en,zh` と書く。`--translate` を付けないときは、会話字幕の設計 3.1 の音源ごとの規則（mic の ja は en へ、loopback の en は ja へ）で訳す。
-品質は FLEURS の chrF で、今の値（en 47.57、zh 20.19、ko 25.20、es 42.09）以上を RP-13 で測る。
+品質は FLEURS の chrF で、今の値（en 47.57、zh 20.19、ko 25.20、es 42.09。FuguMT と M2M-100 で取った値、RB-7）以上を RP-13 で測る。
+V が止めた行は空の hyp のまま数える。利用者に見えるのは訳の無い行だからである。
+同じ結果の file に、止めなかった行だけの chrF と、止めた行の数を別に書く。止めた行の数は、V が正しい訳を止める数（会話字幕の CS-24）の材料にする。
 CPU の翻訳器を残さないのは、会話字幕の設計 3.6 の理由（訳の質）と同じである。
 
 音声を入れたまま訳す end-to-end の model は採らない。
