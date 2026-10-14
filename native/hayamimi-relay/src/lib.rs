@@ -48,6 +48,7 @@ pub mod reach;
 pub mod relay;
 pub mod schedule;
 pub mod send_config;
+pub mod slots;
 pub mod spelled;
 pub mod srt;
 pub mod srt_command;
