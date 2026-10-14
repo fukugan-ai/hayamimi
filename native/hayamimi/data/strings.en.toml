@@ -16,6 +16,7 @@
 "model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
 "server.fallback.port" = "The port is in use; the run goes on with another one"
+"server.lan.opened" = "The subtitle server listens on the network: other devices can open the page and change the settings"
 "config.fallback.default" = "A settings file could not be read; the run goes on with the defaults"
 "asr.model.loaded" = "A recognizer was loaded"
 "asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
@@ -62,6 +63,7 @@ options:
   --max-speech <sec>   speech after which an utterance is finalised (default 12)
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
+  --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
   --max-resident <n>   recognizers kept in memory besides the Japanese one (default 3; 0 keeps all)
   --gpu-budget <MiB>   GPU memory in use at which a stage moves to the CPU (default 14000)
   --gpu-diagnose       log where the nodes of each GPU model were placed
@@ -74,7 +76,9 @@ mode_unsupported = "--mode is one of balanced, fast, single."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."
-bad_address = "--ws-host needs an IP address."
+bad_address = "--ws-host and --serve-host need an IP address."
+lan_url = "Open from another device on the network at:"
+lan_url_unknown = "This machine has no route to a network, so no address for other devices can be named. Use the address of this machine with the port of the server."
 no_gpu_check = "Check the GPU and the driver with: nvidia-smi"
 run_failed = "The run failed:"
 stage_punct = "Stage that fell back: punctuation"

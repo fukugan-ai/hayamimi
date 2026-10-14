@@ -98,7 +98,7 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
@@ -109,9 +109,12 @@ unknown_option = "unknown option"
 need_install_or_remove = "one of --install or --remove is required"
 no_default_dir = "cannot decide the default output location; pass --out"
 bad_port = "--serve needs a port number from 0 to 65535"
+bad_address = "--serve-host needs an IP address"
 cannot_serve = "cannot serve translations: no port could be opened"
 serving_at = "translations are served at"
 port_moved = "the requested port was taken; translations are served at"
+lan_at = "open from another device on the network at"
+lan_unknown = "this machine has no route to a network, so no address for other devices can be named; use the address of this machine with the port above"
 sink_local = "a destination of captions cannot be reached; translations stay in the subtitle file and on the screens, and each next line tries again"
 sink_cleared = "the destinations of captions are reachable again"
 srt_not_opened = "the subtitle file could not be opened; the run goes on without it"

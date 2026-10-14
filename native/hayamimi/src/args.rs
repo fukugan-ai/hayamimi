@@ -1,5 +1,6 @@
 //! The command line. Every refusal names a key of the locale's `[cli]` table.
 
+use std::net::{IpAddr, Ipv4Addr};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
@@ -46,6 +47,8 @@ pub struct Args {
     pub max_speech: f32,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
+    /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
+    pub serve_host: IpAddr,
     pub diagnose: bool,
     /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
     pub max_resident: Option<NonZeroUsize>,
@@ -136,6 +139,13 @@ fn port_of(rest: &mut Rest<'_>) -> Result<u16, ArgError> {
     }
 }
 
+/// `--serve-host`: an IP address.
+fn address_of(rest: &mut Rest<'_>) -> Result<IpAddr, ArgError> {
+    value_of(rest)?
+        .parse::<IpAddr>()
+        .map_err(|_| ArgError::BadAddress)
+}
+
 /// `--mode`: one of the three ways of choosing a language.
 fn mode_of(text: &str) -> Result<Mode, ArgError> {
     match text {
@@ -177,6 +187,7 @@ impl Args {
             max_speech: DEFAULT_MAX_SPEECH,
             replace: None,
             serve: None,
+            serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             diagnose: false,
             max_resident: DEFAULT_MAX_RESIDENT,
             gpu_budget_mib: DEFAULT_GPU_BUDGET_MIB,
@@ -196,6 +207,7 @@ impl Args {
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
+            "--serve-host" => self.serve_host = address_of(rest)?,
             "--gpu-diagnose" => self.diagnose = true,
             "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
             "--gpu-budget" => self.gpu_budget_mib = positive_mib(value_of(rest)?)?,
@@ -382,6 +394,35 @@ mod tests {
         assert_eq!(run(&["--serve", "--wav", "a"])?.serve, Some(8833));
         assert_eq!(run(&["--wav", "a"])?.serve, None);
         Ok(())
+    }
+
+    #[test]
+    fn serve_listens_on_the_loopback_unless_it_is_given_an_address() -> Result<(), ArgError> {
+        assert_eq!(
+            run(&["--wav", "a", "--serve"])?.serve_host,
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
+        assert_eq!(
+            run(&["--wav", "a", "--serve", "0", "--serve-host", "0.0.0.0"])?.serve_host,
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        );
+        assert_eq!(
+            run(&["--serve-host", "192.168.200.20", "--wav", "a"])?.serve_host,
+            IpAddr::V4(Ipv4Addr::new(192, 168, 200, 20))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_serve_host_that_is_not_an_address_or_has_no_value_is_refused() {
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--serve-host", "lan"])),
+            Err(ArgError::BadAddress)
+        );
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--serve-host"])),
+            Err(ArgError::MissingValue)
+        );
     }
 
     #[test]

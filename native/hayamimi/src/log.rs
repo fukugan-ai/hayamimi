@@ -37,6 +37,7 @@ pub const DEVICE_OPENED: &str = "capture.device.opened";
 pub const INGEST_CONNECTED: &str = "ingest.client.connected";
 pub const INGEST_CLOSED: &str = "ingest.client.closed";
 pub const INGEST_REJECTED: &str = "ingest.client.rejected";
+pub const SERVER_LAN_OPENED: &str = "server.lan.opened";
 
 /// A time in milliseconds to three decimals.
 fn millis(value: f64) -> Value {
@@ -190,6 +191,19 @@ pub fn ingest_rejected_line(strings: &Strings) -> String {
         "transport",
         Some("HAYAMIMI_TRANSPORT_BUSY"),
         &[],
+    )
+}
+
+/// `server.lan.opened`: the subtitle server listens on an address other than the loopback, so
+/// devices on the network can reach it. The page, `/config` and `/reset` have no authentication.
+pub fn lan_opened_line(strings: &Strings, port: u16) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        SERVER_LAN_OPENED,
+        "transport",
+        None,
+        &[("port", Value::from(port))],
     )
 }
 
@@ -511,6 +525,19 @@ mod tests {
     }
 
     #[test]
+    fn opening_the_server_to_the_network_is_a_warn_line_with_the_port_and_no_address()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = lan_opened_line(&strings()?, 8833);
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "server.lan.opened");
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["port"], 8833);
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    #[test]
     fn every_event_the_code_emits_has_a_message_in_both_tables() -> Result<(), String> {
         for lang in [Lang::En, Lang::Ja] {
             let table = Strings::embedded(lang)?;
@@ -529,6 +556,7 @@ mod tests {
                 MODEL_EVICTED,
                 MEMORY_UNREADABLE,
                 LANG_UNKNOWN,
+                SERVER_LAN_OPENED,
                 notice::GPU_FALLBACK,
                 notice::MODEL_DISABLED,
                 notice::MODEL_SUBSTITUTE,

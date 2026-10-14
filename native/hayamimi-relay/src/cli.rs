@@ -3,7 +3,7 @@
 
 use std::fs::File;
 use std::io::Write;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,6 +15,7 @@ use crate::eval;
 use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
+use crate::lan::{self, LanUrl};
 use crate::lang::Lang;
 use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
@@ -62,6 +63,8 @@ pub struct Live {
     /// The translator of the languages outside the live pair.
     pub llm_other: String,
     pub serve: u16,
+    /// The address `serve` listens on: the loopback unless `--serve-host` names another.
+    pub serve_host: IpAddr,
     /// Where to write the settled translations as SRT cues.
     pub srt: Option<PathBuf>,
     /// The file that names the Zoom token and the Teams link; without it
@@ -111,6 +114,7 @@ pub enum CliError {
     UnknownOption,
     NeedInstallOrRemove,
     BadPort,
+    BadAddress,
     NeedPairsAndOut,
     NeedVideo,
 }
@@ -124,6 +128,7 @@ impl CliError {
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
+            CliError::BadAddress => "bad_address",
             CliError::NeedPairsAndOut => "need_pairs_and_out",
             CliError::NeedVideo => "need_video",
         }
@@ -149,6 +154,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         llm: DEFAULT_LLM.to_owned(),
         llm_other: DEFAULT_LLM_OTHER.to_owned(),
         serve: DEFAULT_SERVE,
+        serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
         srt: None,
         send: None,
         translate: None,
@@ -168,6 +174,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
                 | "--llm"
                 | "--llm-other"
                 | "--serve"
+                | "--serve-host"
                 | "--srt"
                 | "--send"
                 | "--translate"
@@ -180,6 +187,9 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
             "--llm-other" => options.llm_other.clone_from(value),
+            "--serve-host" => {
+                options.serve_host = value.parse().map_err(|_| CliError::BadAddress)?;
+            }
             "--srt" => options.srt = Some(PathBuf::from(value)),
             "--send" => options.send = Some(PathBuf::from(value)),
             "--verify-text" => options.verify_text = Some(PathBuf::from(value)),
@@ -437,8 +447,22 @@ fn announce_serving(
             "serving_at",
         )
     };
-    sink.emit(event.with("port", address.port()));
+    sink.emit(
+        event
+            .with("port", address.port())
+            .with("scope", lan::scope_of(address.ip())),
+    );
     eprintln!("{} http://{address}/events", strings.cli_text(key));
+    announce_lan(address, strings);
+}
+
+/// Says the URL a client on the LAN opens, when the server is not on the loopback.
+fn announce_lan(address: SocketAddr, strings: &Strings) {
+    match lan::lan_url(address, "/events") {
+        LanUrl::Loopback => {}
+        LanUrl::At(url) => eprintln!("{} {url}", strings.cli_text("lan_at")),
+        LanUrl::Unknown => eprintln!("{}", strings.cli_text("lan_unknown")),
+    }
 }
 
 /// Opens the subtitle file. A file that cannot be opened is left out and the
@@ -506,7 +530,7 @@ pub fn start_live(
     sink: &SharedSink,
 ) -> Result<Relay, LiveError> {
     let mut log = sink.clone();
-    let listener = hub::bind(live.serve).map_err(|_| LiveError::CannotServe)?;
+    let listener = hub::bind_on(live.serve_host, live.serve).map_err(|_| LiveError::CannotServe)?;
     let destinations =
         send_destinations(live.send.clone(), sink).map_err(|_| LiveError::SendNotOpened)?;
     let config = RelayConfig {
@@ -734,12 +758,46 @@ mod tests {
                 llm: String::from("http://x:1"),
                 llm_other: String::from(DEFAULT_LLM_OTHER),
                 serve: 9100,
+                serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
                 srt: None,
                 send: None,
                 translate: None,
                 partial_translation: PartialTranslation::On,
                 verify_text: None,
             }))
+        );
+    }
+
+    fn serve_host_of(list: &[&str]) -> Result<IpAddr, CliError> {
+        match parse_args(&args(list))? {
+            Command::Run(live) => Ok(live.serve_host),
+            _ => Err(CliError::UnknownCommand),
+        }
+    }
+
+    #[test]
+    fn live_listens_on_the_loopback_unless_it_is_given_an_address() -> Result<(), CliError> {
+        assert_eq!(serve_host_of(&["live"])?, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(
+            serve_host_of(&["live", "--serve-host", "0.0.0.0"])?,
+            IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+        );
+        assert_eq!(
+            serve_host_of(&["live", "--serve-host", "192.168.200.20", "--serve", "0"])?,
+            IpAddr::V4(Ipv4Addr::new(192, 168, 200, 20))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_serve_host_that_is_not_an_address_or_has_no_value_is_refused() {
+        assert_eq!(
+            serve_host_of(&["live", "--serve-host", "lan"]),
+            Err(CliError::BadAddress)
+        );
+        assert_eq!(
+            serve_host_of(&["live", "--serve-host"]),
+            Err(CliError::MissingValue)
         );
     }
 
@@ -851,6 +909,7 @@ mod tests {
             llm: String::from("http://127.0.0.1:8080"),
             llm_other: String::from(DEFAULT_LLM_OTHER),
             serve: 8835,
+            serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             srt: None,
             send: None,
             translate: None,
@@ -1005,9 +1064,12 @@ mod tests {
             };
             for key in [
                 CliError::BadPort.key(),
+                CliError::BadAddress.key(),
                 "cannot_serve",
                 "serving_at",
                 "port_moved",
+                "lan_at",
+                "lan_unknown",
                 "sink_local",
                 "sink_cleared",
                 "srt_not_opened",
