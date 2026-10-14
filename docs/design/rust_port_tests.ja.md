@@ -1120,9 +1120,9 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-32 �
 test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。`#[ignore]` を持ち、RP-32 の Rust の run と中継の stdout を読む。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-33 の行と 3.16 の 2 から）。
 
-### 4.44 RP-34（確定の復号が速報の復号を待たない）
+### 4.44 RP-34（確定の復号の前の待ち）
 
-test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_final_decode_does_not_wait_for_partial_decode`。`#[ignore]` を持ち、RP-32 の run を読む。
+test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_wait_before_final_decode_not_longer_than_python`。`#[ignore]` を持ち、RP-32 の run と、待ちの log と、各 run の前後の `nvidia-smi` の記録を読む。合否の列は `L_asr − decode_ms` である。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-34 の行と 3.16 の 3 から）。
 
 ### 4.45 RP-35（`L` の詰めで品質を下げない）
