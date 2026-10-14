@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-44）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-47）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1535,6 +1535,21 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-43 �
 
 test：`native/hayamimi-eval/tests/rp44.rs`。受入 test の名前は `rp44_new_heldout_set_is_fresh_and_has_nasasou`。`#[ignore]` を持ち、repo の外の組の ids を読む。組を作るのは test-designer の席で、V を直す席に path を渡さない。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-44 の行から）。
+
+### 4.55 RP-45（E の雛形が字幕に出ない）
+
+test：`native/hayamimi-relay/tests/rp45.rs`。受入 test の名前は `rp45_edit_template_never_reaches_the_subtitle`。偽の llama-server の行は `#[ignore]` を持たない。E2E-2 の打ち直しで札の語を数える行だけが記録を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-45 の行と 8 の R8p から）。
+
+### 4.56 RP-46（英語の認識器を最初の英語の発話より前に読む）
+
+test：`native/hayamimi/tests/rp46.rs`。受入 test の名前は `rp46_english_recognizer_loads_before_ready`。`#[ignore]` を持つ（本物の認識器を読む）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-46 の行と 8 の R8q から）。
+
+### 4.57 RP-47（新しい確定文の T を前の行の E の後ろに並べない）
+
+test：`native/hayamimi-relay/tests/rp47.rs`。受入 test の名前は `rp47_next_draft_is_not_queued_behind_the_previous_edit`。`#[ignore]` を持たない（偽の llama-server だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-47 の行と 8 の R8r から）。
 
 ## 5. RP-19 の対応表
 
