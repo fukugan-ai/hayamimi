@@ -882,6 +882,7 @@ Windows の実機の test（RP-10、RP-16 の訳の行、R8b、端から端）�
 
 マイクの実機（RDP の録音の転送を通る音声）は、process A を起こして `capture.fallback.none` が 0 件で、マイクの装置の名前が log に出ることまでを機械で確かめる。
 人が話した ja で en の字幕が出ることは、話す者が居る時にしか打てない（NOT VERIFIED）。
+E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（llama-server を止めた陰性対照の run）の DOM で、帯の高さと `role="status"` を R6 の板（`r6_board.ja.md` の 4.3）と照らす。R6 の画面テストはこの状態を測っていない。
 
 | ID | 受入 test の名前 | 置き場 |
 |---|---|---|
