@@ -173,14 +173,16 @@ fn yue_cer_normalises_traditional_to_simplified() -> TestResult {
     Ok(())
 }
 
-/// T-RP-1-012: the scorecard run is `<ev> scorecard --engine hayamimi --sets
+/// T-RP-1-012: the scorecard run of the shipped build on Windows, `<ev>
+/// scorecard --engine hayamimi --sets
 /// testdata/eval_real,testdata/eval_real_zhko,testdata/eval_real_yue --out
-/// docs/results/r3/rp01.json`. It passes only when the route detects languages;
-/// a run that used the true language leaves the detections empty and is refused.
+/// docs/results/r3c/win_routed.json`. It passes only when the route detects
+/// languages; a run that used the true language leaves the detections empty and
+/// is refused.
 #[test]
 #[ignore = "reads the scorecard of a Rust run"]
 fn hayamimi_scorecard_not_worse_than_python() -> TestResult {
-    let rust = read_json(&Path::new(RESULTS).join("r3").join("rp01.json"))?;
+    let rust = read_json(&Path::new(RESULTS).join("r3c").join("win_routed.json"))?;
     check_scorecard(&python_runs()?, &rust)?;
     Ok(())
 }
