@@ -182,6 +182,11 @@ pub fn shown_from_wire(json: &str) -> Result<Option<Shown>, Fault> {
     if event.get("type").and_then(Value::as_str) != Some("translation") {
         return Ok(None);
     }
+    // The translation of the text in progress shares the `id` the line will
+    // take, but it is a line of its own on the screen.
+    if event.get("of").and_then(Value::as_str) == Some("partial") {
+        return Ok(None);
+    }
     let id = event.get("id").and_then(Value::as_str);
     let settled = event.get("settled").and_then(Value::as_bool);
     let (Some(id), Some(settled), Some(text)) = (id, settled, rendered(&event)) else {
@@ -220,6 +225,12 @@ mod tests {
         );
         assert_eq!(shown_from_wire("nope"), Err(Fault::Malformed));
         Ok(())
+    }
+
+    #[test]
+    fn the_translation_of_a_text_in_progress_is_not_a_line_of_the_screen() {
+        let json = r#"{"type":"translation","id":"a","of":"partial","settled":false,"text":"Hi","annotations":[]}"#;
+        assert_eq!(shown_from_wire(json), Ok(None));
     }
 
     #[test]

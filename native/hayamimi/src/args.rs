@@ -59,7 +59,7 @@ pub struct Args {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parsed {
     Help,
-    Run(Args),
+    Run(Box<Args>),
 }
 
 /// Why a command line was refused.
@@ -223,7 +223,7 @@ pub fn parse(args: &[String]) -> Result<Parsed, ArgError> {
         parsed.apply(arg, &mut rest)?;
     }
     if parsed.io.is_complete(seen_wav) {
-        Ok(Parsed::Run(parsed))
+        Ok(Parsed::Run(Box::new(parsed)))
     } else {
         Err(ArgError::NeedWav)
     }
@@ -239,7 +239,7 @@ mod tests {
 
     fn run(list: &[&str]) -> Result<Args, ArgError> {
         match parse(&args(list))? {
-            Parsed::Run(parsed) => Ok(parsed),
+            Parsed::Run(parsed) => Ok(*parsed),
             Parsed::Help => Err(ArgError::UnknownOption),
         }
     }

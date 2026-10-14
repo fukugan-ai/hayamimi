@@ -49,6 +49,18 @@ impl Source {
             Source::File => 2,
         }
     }
+
+    /// Whether speech in `lang` from this source is translated: the
+    /// microphone is Japanese and is translated to English, the loopback is
+    /// English and is translated to Japanese, and a file is translated
+    /// whichever of the two it is.
+    pub fn translates(self, lang: Lang) -> bool {
+        match self {
+            Source::Mic => lang == Lang::Ja,
+            Source::Loopback => lang == Lang::En,
+            Source::File => true,
+        }
+    }
 }
 
 /// Why an event that claims to be a line was not used. The name goes into the
@@ -109,17 +121,53 @@ fn kind_of(event: &Value) -> Option<LineKind> {
 /// that lacks what the relay needs, or a text that is not JSON at all.
 pub fn parse_line(json: &str) -> Result<Option<Line>, Skip> {
     let event: Value = serde_json::from_str(json).map_err(|_| Skip::NotJson)?;
-    let Some(kind) = kind_of(&event) else {
+    line_of(&event)
+}
+
+/// What an event of a recognizer's stream is to the relay.
+#[derive(Debug, PartialEq)]
+pub enum Heard {
+    /// A `final` or a `refine`.
+    Line(Line),
+    /// The text of the utterance in progress.
+    Partial(String),
+    /// A session has begun, or begun again, so what the stream said about
+    /// the numbering of its lines may be out of date.
+    Reset,
+    /// Any other event.
+    Other,
+}
+
+/// Reads one event for everything the relay does with it.
+pub fn hear(json: &str) -> Result<Heard, Skip> {
+    let event: Value = serde_json::from_str(json).map_err(|_| Skip::NotJson)?;
+    match string_of(&event, "type") {
+        Some("partial") => Ok(partial_of(&event)),
+        Some("session_start" | "session_reset") => Ok(Heard::Reset),
+        _ => Ok(line_of(&event)?.map_or(Heard::Other, Heard::Line)),
+    }
+}
+
+/// A `partial` with text. One without text is nothing to translate.
+fn partial_of(event: &Value) -> Heard {
+    match string_of(event, "text").filter(|text| !text.trim().is_empty()) {
+        Some(text) => Heard::Partial(text.to_owned()),
+        None => Heard::Other,
+    }
+}
+
+fn line_of(event: &Value) -> Result<Option<Line>, Skip> {
+    let Some(kind) = kind_of(event) else {
         return Ok(None);
     };
-    let id = string_of(&event, "id")
+    let id = string_of(event, "id")
         .filter(|id| !id.is_empty())
         .ok_or(Skip::NoId)?;
-    let source = string_of(&event, "source")
+    let source = string_of(event, "source")
         .and_then(Source::from_wire)
         .ok_or(Skip::NoSource)?;
-    let lang = string_of(&event, "lang").ok_or(Skip::NoLang)?;
-    let text = string_of(&event, "text")
+    let lang = string_of(event, "lang").ok_or(Skip::NoLang)?;
+    let text = string_of(event, "text")
         .filter(|text| !text.trim().is_empty())
         .ok_or(Skip::NoText)?;
     Ok(Some(Line {
@@ -128,7 +176,7 @@ pub fn parse_line(json: &str) -> Result<Option<Line>, Skip> {
         source,
         lang: Lang::from_code(lang),
         text: text.to_owned(),
-        span: span_of(&event),
+        span: span_of(event),
     }))
 }
 
@@ -140,12 +188,7 @@ impl Line {
     /// it is.
     pub fn source_language(&self) -> Option<Lang> {
         let lang = self.lang?;
-        let wanted = match self.source {
-            Source::Mic => lang == Lang::Ja,
-            Source::Loopback => lang == Lang::En,
-            Source::File => true,
-        };
-        wanted.then_some(lang)
+        self.source.translates(lang).then_some(lang)
     }
 
     /// The request that runs this line through the pipeline.
@@ -323,5 +366,66 @@ mod tests {
         );
         assert_eq!(request.of, LineKind::Final);
         Ok(())
+    }
+
+    #[test]
+    fn a_partial_with_text_is_heard_as_the_text() {
+        let heard = hear(r#"{"type":"partial","text":"こんに"}"#);
+        assert_eq!(heard, Ok(Heard::Partial(String::from("こんに"))));
+    }
+
+    #[test]
+    fn a_partial_without_text_is_nothing_to_translate() {
+        for json in [
+            r#"{"type":"partial"}"#,
+            r#"{"type":"partial","text":""}"#,
+            r#"{"type":"partial","text":"  "}"#,
+            r#"{"type":"partial","text":7}"#,
+        ] {
+            assert_eq!(hear(json), Ok(Heard::Other), "{json}");
+        }
+    }
+
+    #[test]
+    fn a_session_start_or_reset_is_heard_as_a_reset() {
+        assert_eq!(hear(r#"{"type":"session_start"}"#), Ok(Heard::Reset));
+        assert_eq!(hear(r#"{"type":"session_reset"}"#), Ok(Heard::Reset));
+    }
+
+    #[test]
+    fn a_final_is_heard_as_the_line_parse_line_reads() -> Result<(), Skip> {
+        let json = line("ja", "mic");
+        assert_eq!(
+            hear(&json)?,
+            Heard::Line(parse_line(&json)?.ok_or(Skip::NoId)?)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_final_that_lacks_what_the_relay_needs_is_refused_when_heard() {
+        assert_eq!(
+            hear(r#"{"type":"final","source":"mic","lang":"ja","text":"あ"}"#),
+            Err(Skip::NoId)
+        );
+        assert_eq!(hear("not json"), Err(Skip::NotJson));
+    }
+
+    #[test]
+    fn other_events_are_heard_as_other() {
+        for json in [
+            r#"{"type":"fallback","stage":"punct","to":"cpu"}"#,
+            r#"{"type":"speaker","id":"mic-1","speaker":"A"}"#,
+            "{}",
+        ] {
+            assert_eq!(hear(json), Ok(Heard::Other), "{json}");
+        }
+    }
+
+    #[test]
+    fn each_source_names_the_languages_it_translates() {
+        assert!(Source::Mic.translates(Lang::Ja) && !Source::Mic.translates(Lang::En));
+        assert!(Source::Loopback.translates(Lang::En) && !Source::Loopback.translates(Lang::Ja));
+        assert!(Source::File.translates(Lang::Ja) && Source::File.translates(Lang::En));
     }
 }

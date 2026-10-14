@@ -340,6 +340,9 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     let mut notices = Vec::new();
     start_servers(args, strings, &hub, &controls, &audio_tx, &mut notices)?;
     notices.extend(config_notice);
+    if args.io.source_refused {
+        notices.push(Notice::source_unknown());
+    }
     let engine = open_engine(settings, strings, &mut notices)?;
     controls
         .live()
@@ -359,7 +362,7 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
         stop: &stop,
         partial: args.io.partial,
         live: is_live(args),
-        source: args.input().source(),
+        source: args.io.source_name(),
     }
     .run()?;
     Ok(())
@@ -447,6 +450,18 @@ mod tests {
             settings_of(&args_with(None, Some("no-such-dictionary.txt")), Gpu::Try);
         assert!(settings.replacements.is_empty());
         assert_eq!(notice, Some(Notice::config_unreadable()));
+    }
+
+    #[test]
+    fn the_source_flag_reaches_the_utterances_and_a_bad_one_keeps_the_input_source() {
+        let mut args = args_with(Some(Input::Ws), None);
+        args.io.source = crate::inputs::parse_source("loopback");
+        assert_eq!(args.io.source_name(), "loopback");
+        let mut bad = args_with(Some(Input::Ws), None);
+        bad.io.source = crate::inputs::parse_source("line");
+        bad.io.source_refused = true;
+        assert_eq!(bad.io.source_name(), "mic");
+        assert_eq!(Notice::source_unknown().stage, "source");
     }
 
     #[test]
