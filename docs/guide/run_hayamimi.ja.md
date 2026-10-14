@@ -297,6 +297,26 @@ GPU の memory は、同じ間に `nvidia-smi --query-gpu=memory.used --format=c
 H6 と `cache_prompt` は `cargo test --release -p hayamimi-relay --test r8e_server -- --ignored` です（server を起こしたまま打ちます）。
 結果は `docs/results/r8e/README.md` です。
 
+## 止めた行の理由と訳を読む（R8o）
+
+両方止めた行は訳を出しません。
+理由は log の `translate.line.held` で読みます。
+`hold_reason` が E の側、`t_hold_reason` が T の側の理由です。
+T が V を通った行には `t_hold_reason` が付きません。
+log には訳の本文を載せません。
+
+本文を読む時だけ、`live` に repo の外の file を `--verify-text` で渡します。
+
+```bash
+hayamimi-relay live --events http://127.0.0.1:8833/events --llm http://127.0.0.1:8080 --serve 8835 --verify-text <repo の外の dir>/verify-text.jsonl
+```
+
+V に渡した訳が、T の分と E の分で 1 行ずつ、`{"id","pass","text"}` の JSON で追記されます（`pass` は `t` か `e`）。
+`translate.line.held` の `id` と突き合わせて、止めた行の訳を読みます。
+`--verify-text` を付けない run は何も書きません。
+file は訳の本文を含むので repo に入れません。
+file を開けない時は `translate.dump.failed` を 1 件出し、書かずに続けます。
+
 ## WSL の llama.cpp を戻す
 
 WSL の llama.cpp を b11577 から b11628 へ上げた時、前の build を tar に控えました。

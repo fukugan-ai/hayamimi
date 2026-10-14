@@ -79,6 +79,7 @@ label = "m²"
 "srt.output.failed" = "The subtitle file could not be written; it is left out"
 "translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
 "translate.hedge.logged" = "The hedging differs between the source and the translation; the translation went out"
+"translate.dump.failed" = "The file for the translations handed to verification could not be opened; the run goes on without it"
 "translate.eval.held" = "No translation of this sentence was kept"
 "translate.eval.written" ="The translations of one language were written"
 "srt.output.exists" = "A subtitle file for the video is there already; nothing is done"
@@ -97,7 +98,7 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]

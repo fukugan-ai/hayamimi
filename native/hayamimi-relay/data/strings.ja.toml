@@ -74,6 +74,7 @@ label = "m²"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
 "translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
 "translate.hedge.logged" = "推量の語が原文と訳で食い違いますが、訳は止めずに出しました"
+"translate.dump.failed" = "照合に渡した訳を書く file を開けませんでした。書かずに続けます"
 "translate.eval.held" = "この文の訳はどちらも採りませんでした"
 "translate.eval.written" ="1 つの言語の訳を書き出しました"
 "srt.output.exists" = "この動画の SRT が既にあるので、何もしません"
@@ -92,7 +93,7 @@ label = "m²"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <動画> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
