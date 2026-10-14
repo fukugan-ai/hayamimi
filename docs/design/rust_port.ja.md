@@ -744,11 +744,13 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R7 | 認識の遅れの詰め。R1 で遅いと分かった段を直す。3.5 の CPU の時間は 1 stream で測った値で、mic と loopback の 2 音源同時の CPU は未測定なので、2 音源を同時に流した CPU の段の p50 と p95 を測る。認識は 2 音源同時で GPU（fp32）と CPU（同じ fp32 と int8）を測り直し、CPU の側が GPU より遅くなれば 3.5 の置き場を評議へ戻す。認識全体の cuda の時間のうち encoder 以外の約 99 ms の内訳を調べる（10 の H31） | RP-4、RP-7 | 設定と commit を revert |
 | R8a | 中継が Rust の `hayamimi` の `/events` を購読する（3.3 の 5 項目と `src_sha256`）。5 項目を `hayamimi` の確定文の event に足す。`<ev> stream` が中継の SSE の訳も読む | 会話字幕の CS-21、CS-22 | 中継の購読先を戻す |
 | R8b | llama-server を Windows の native に置く（`%LOCALAPPDATA%\hayamimi\models\llm\`、slot 4）。起こす側が 3.11 の確かめを打ち、GPU が無ければ `-ngl 0` か CPU の build で起こし、`gpu.fallback.cpu`（`stage` が `translate`）を出す。llama-server に届かないときは訳を保留して原文を出し続ける（3.15） | 会話字幕の CS-20、RP-16 の訳の行、RP-29 の R8b の行。Windows の CUDA 13.4 の llama-server で T を測り直し、`gpu_stages.md` の T の行を置き換える（RP-23 の T の行の形） | WSL の llama-server に戻す |
-| R8c | T の訳を先に出し、E の訳で置き換え、確定の訳だけを外へ出す。外の送り先に届かないときは SRT と重ね窓に残す（3.15）。会話字幕の T-CX-1-002 を test-designer が書き替える | RP-25、会話字幕の CS-5、CS-25、RP-29 の R8c の行 | 中継の commit を revert |
+| R8c | T の訳を先に出し、E の訳で置き換え、確定の訳だけを外へ出す。外へ出す口は、確定の訳（`settled: true`）だけを受ける送り先の trait 1 つにし、Zoom、Teams、SRT の中身は R8g が作る。外の送り先に届かないときは SRT と重ね窓に残す（3.15）。会話字幕の T-CX-1-002 は test-designer（sonnet）の席を R8c と同じ時に出して書き替え、R8c の検証の前に入れる（V に渡る文字列は E の応答で、V は T の応答と E の応答に 1 回ずつ、多くて 2 回）。wire の文書（会話字幕の設計 3.3）と実装の差は、R8c が差の一覧を返し、設計の席が同じ波の検証の前に 3.3 を直す | RP-25、会話字幕の CS-5、CS-25、RP-29 の R8c の行 | 中継の commit を revert |
 | R8d | 速報の訳（re-translation、最長共通接頭辞、打ち切り、`cache_prompt`） | RP-5、RP-25 | 設定で速報の訳を切る |
 | R8e | 4 つの slot と負荷の下の `L`。CPU に落ちた run の `L` を測り、RP-28 の仮の上限を置き直す | RP-3、RP-28 | slot の数を戻す |
 | R8f | `--translate` の言語を llama-server の T で訳す | RP-13 | commit を revert |
-| R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-14、RP-19 の spec の行 | 文書の commit を revert |
+| R8g | 外の送り先の中身。R8c の送り先の trait に、Zoom の字幕 API、Teams の CART、SRT の書き出し（会話字幕の設計 3.10 と 3.13）を足す。指定は中継の `hayamimi-relay live --send <send.toml>`（Zoom の token と Teams の link）と `--srt <path>` で、どちらも無ければ送らずに動く。token か link が手元に無い機械では CS-17 と CS-18 を打たずに残る穴にする（state.json の `blocked_on` と同じ） | 会話字幕の CS-17、CS-18（token か link が在るときだけ）、SRT の case 行（会話字幕の設計 3.13）、RP-29 の R8c の行（送り先に届かないとき） | commit を revert |
+| R0b | worktree に `testdata/` が無いとき、test の support が本体の `testdata/` を引く。`hayamimi-eval` の `tests/support/mod.rs` の `BASE` と `TESTDATA` を、まず `CARGO_MANIFEST_DIR` の 2 つ上の `testdata`、無ければ `git rev-parse --path-format=absolute --git-common-dir` の親の `testdata` の順で探す関数にする。両方に無ければ、探した 2 つの path を名指しして `Err` を返す（黙って通さない）。symlink は使わない（Windows から WSL の symlink を辿れない。RP-24 の os error 1920） | worktree の中で `cargo test -p hayamimi-eval --test rb01 … --test rb08` の FAILED が 0。陰性対照は、本体にも worktree にも `testdata/` が無い clone で、2 つの path を名指しした `Err` で落ちる | commit を revert |
+| R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。`docs/guide/embedding.md` と `embedding.ja.md` の wire の記述を、その時の実装（3.3 の項目、`settled`、`of: "partial"`、`speaker` の event）に合わせる。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-14、RP-19 の spec の行 | 文書の commit を revert |
 | R11 | 3.2 の 3 つの条件を確かめてから、Python の 78 本と `requirements*.txt` を消し、CI を cargo に替え、Dart の comment を書き替える | RP-9、RP-19 | R11 の commit を revert |
 
 R0 で Python を動かすのは、置き換える前の物の速さと誤り率を同じ機械で測るためで、Python の file は 1 行も書かない。
@@ -788,6 +790,8 @@ R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
 | R8d | R8a と R5 の速報の event | 8 の R8d の行 |
 | R8e | R5 の `/ingest`、R8a〜R8d、R8b | RP-3 の command（6）が `/ingest` と中継の訳を読む |
 | R8f | R8b の llama-server。中継の `eval` は R8f が足す | RP-13 の command（6） |
+| R8g | R8c の送り先の trait。E2E には要らない（E2E は中継の SSE と頁で字幕を読む） | 8 の R8c と R8g の行 |
+| R0b | 無し。worktree の席の rb01〜rb08 を通すので、空いた席ですぐ打つ | `native/hayamimi-eval/tests/support/mod.rs:23` と `:25` が `CARGO_MANIFEST_DIR` の 2 つ上の `testdata` だけを見る |
 | R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
 | R11 | RP-1（R3）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
 | 端から端 | R3（`--lang`）、R5（取り込み）、R8a〜R8c、R6 の頁 | この小節の E2E-1 と E2E-2 |
@@ -800,11 +804,11 @@ R3a は R3b の `decode` を、言語の tier を受けて文字列を返す 1 �
 | 波 | 時間（JST） | slice | 見積り |
 |---|---|---|---|
 | W0 | 13:30〜14:00 | 設計の席：`gpu_stages.md` の引用の打ち直し（済み）、この計画、R3 の着手の 4 件。designer の席を出す | 0.5 時間 |
-| W1 | 14:00〜20:00 | R3a、R3b、R4、R5、R8a | 各 4〜6 時間 |
+| W1 | 14:00〜20:00 | R3a、R3b、R4、R5、R8a。R3a の merge で空いた席に R0b（0.5 時間） | 各 4〜6 時間 |
 | V1 | 20:00〜21:00 | 検証と merge（順は R8a、R4、R3b、R3a、R5。`args.rs` を足す席が後ろ） | 1 時間 |
 | W2 | 21:00〜01:00 | R6、R7、R8b、R8c、R8d | 各 3〜4 時間 |
 | V2 | 01:00〜01:45 | 検証と merge | 0.75 時間 |
-| W3 | 01:45〜04:15 | R8e、R8f、R10 | 各 2.5 時間 |
+| W3 | 01:45〜04:15 | R8e、R8f、R8g、R10 | 各 2.5 時間 |
 | V3 | 04:15〜04:45 | 検証と merge | 0.5 時間 |
 | W4 | 04:45〜05:45 | R11 | 1 時間 |
 | E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95 | 1 時間 |
