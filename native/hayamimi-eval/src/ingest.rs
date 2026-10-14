@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use crate::error::EvalError;
 use crate::log;
+use crate::sse::Listener;
 use crate::wav::SAMPLE_RATE;
 use crate::ws::{self, FrameReader, Handshake, Incoming, OP_CLOSE, OP_TEXT};
 
@@ -25,8 +26,8 @@ pub const EVENTS_PATH: &str = "/events";
 pub const CHUNK_SAMPLES: usize = 320;
 /// The first message of an ingest connection.
 const CONFIG_JSON: &str = r#"{"sr":16000,"format":"pcm_s16le","channels":1}"#;
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const READY_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const READY_TIMEOUT: Duration = Duration::from_secs(60);
 const READ_TICK: Duration = Duration::from_millis(100);
 
 /// One network frame's worth of audio, as sample positions in the stream.
@@ -122,8 +123,6 @@ struct Collected {
 
 /// An open ingest connection and the thread reading its events.
 pub struct Ingest {
-    /// Whether this connection carries audio to the server (`/ingest`) or only listens (`/events`).
-    sends_audio: bool,
     stream: TcpStream,
     handshake: Handshake,
     origin: Instant,
@@ -142,8 +141,27 @@ pub struct Received {
     pub closed_by_server: bool,
 }
 
+/// What a finished connection heard, whatever it was connected by.
+#[derive(Debug)]
+pub struct Heard {
+    /// Every event the server sent, with its arrival time in microseconds
+    /// since `origin`.
+    pub events: Vec<(i64, String)>,
+    pub closed_by_server: bool,
+}
+
+impl Received {
+    /// What was heard, without the upgrade exchange.
+    pub fn into_heard(self) -> Heard {
+        Heard {
+            events: self.events,
+            closed_by_server: self.closed_by_server,
+        }
+    }
+}
+
 /// True when `text` is an event of type `kind`.
-fn is_type(text: &str, kind: &str) -> bool {
+pub(crate) fn is_type(text: &str, kind: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(text)
         .is_ok_and(|v| v.get("type").and_then(serde_json::Value::as_str) == Some(kind))
 }
@@ -190,11 +208,12 @@ pub fn open(host: &str, port: u16, origin: Instant) -> Result<Ingest, EvalError>
     connect_at(host, port, (INGEST_PATH, "ready"), origin)
 }
 
-/// Connects to `/events` and starts reading events, sending no audio: the
-/// audio reaches the server some other way (the loopback sink). The
-/// connection is up once the server's kept `session_start` has arrived.
-pub fn listen(host: &str, port: u16, origin: Instant) -> Result<Ingest, EvalError> {
-    connect_at(host, port, (EVENTS_PATH, "session_start"), origin)
+/// Connects to `/events` (server-sent events) and starts reading events,
+/// sending no audio: the audio reaches the server some other way (the
+/// loopback sink). The connection is up once the server's kept
+/// `session_start` has arrived.
+pub fn listen(host: &str, port: u16, origin: Instant) -> Result<Listener, EvalError> {
+    Listener::open(host, port, origin)
 }
 
 /// `route` is the path and the event type that says the server is ready.
@@ -227,7 +246,6 @@ fn connect_at(
         std::thread::spawn(move || read_events(reading, connection.leftover, origin, stop, flag))
     };
     Ok(Ingest {
-        sends_audio: path == INGEST_PATH,
         stream,
         handshake: connection.handshake,
         origin,
@@ -241,24 +259,34 @@ fn send_error(error: std::io::Error) -> EvalError {
     EvalError::Protocol(format!("sending to the server: {error}"))
 }
 
+/// Waits until `ready` is set. Gives up at [`READY_TIMEOUT`], or as soon as
+/// `gone` says the connection that would set it has ended.
+pub(crate) fn wait_ready(
+    ready: &AtomicBool,
+    gone: impl Fn() -> bool,
+    missing: &str,
+) -> Result<(), EvalError> {
+    let deadline = Instant::now() + READY_TIMEOUT;
+    while !ready.load(Ordering::Relaxed) {
+        if Instant::now() >= deadline || gone() {
+            return Err(EvalError::Protocol(missing.to_owned()));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
+}
+
 impl Ingest {
-    /// Sends the config message (on `/ingest`) and waits for the server's
-    /// `ready` (`session_start` on `/events`).
+    /// Sends the config message and waits for the server's `ready`.
     pub fn start(&mut self) -> Result<(), EvalError> {
-        if self.sends_audio {
-            self.stream
-                .write_all(&ws::client_frame(OP_TEXT, CONFIG_JSON.as_bytes()))
-                .map_err(send_error)?;
-        }
-        let deadline = Instant::now() + READY_TIMEOUT;
-        while !self.ready.load(Ordering::Relaxed) {
-            if Instant::now() >= deadline || self.reader.is_finished() {
-                return Err(EvalError::Protocol(String::from(
-                    "the server sent no ready event after the config",
-                )));
-            }
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        self.stream
+            .write_all(&ws::client_frame(OP_TEXT, CONFIG_JSON.as_bytes()))
+            .map_err(send_error)?;
+        wait_ready(
+            &self.ready,
+            || self.reader.is_finished(),
+            "the server sent no ready event after the config",
+        )?;
         log::info("eval.ingest.ready", "transport", "server is ready", &[]);
         Ok(())
     }
