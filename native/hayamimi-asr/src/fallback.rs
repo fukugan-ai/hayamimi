@@ -4,13 +4,19 @@
 //! the CPU instead, or it is left out. Each such step is one [`Fallback`], so
 //! that the caller can say it in the log, on the screen and to the user.
 
+use hayamimi_gpu::error::GpuError;
+
 /// A stage that can fall back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
+    /// The spoken-language identifier.
+    Lid,
     /// The punctuation model.
     Punct,
     /// The speech recognizer.
     Recognizer,
+    /// The second reading of Japanese by the Parakeet CTC model.
+    SecondOpinion,
     /// The voice detector.
     Vad,
 }
@@ -19,8 +25,10 @@ impl Stage {
     /// The stage name used in events.
     pub fn name(self) -> &'static str {
         match self {
+            Stage::Lid => "lid",
             Stage::Punct => "punct",
             Stage::Recognizer => "recognizer",
+            Stage::SecondOpinion => "second_opinion",
             Stage::Vad => "vad",
         }
     }
@@ -35,6 +43,8 @@ pub enum Reason {
     DriverUnreadable,
     /// The CUDA session of the stage could not be built.
     SessionFailed,
+    /// The session was built on CUDA but the provider that ran was not CUDA.
+    ProviderMismatch,
     /// A model file is not there.
     Missing,
     /// A model file is there and cannot be read as a model.
@@ -48,6 +58,7 @@ impl Reason {
             Reason::NoDevice => "no_device",
             Reason::DriverUnreadable => "driver_unreadable",
             Reason::SessionFailed => "session_failed",
+            Reason::ProviderMismatch => "provider_mismatch",
             Reason::Missing => "missing",
             Reason::Unreadable => "unreadable",
         }
@@ -90,6 +101,37 @@ pub enum Gpu {
     Absent(Reason),
 }
 
+/// The status `cuInit` answers when the driver is there and no device is
+/// visible to the process (`CUDA_ERROR_NO_DEVICE`).
+const CUDA_ERROR_NO_DEVICE: i32 = 100;
+
+impl Gpu {
+    /// Maps the driver's answer about the device count to the state the
+    /// stages are built under.
+    pub fn from_count(count: Result<u32, GpuError>) -> Gpu {
+        match count {
+            Ok(0) => Gpu::Absent(Reason::NoDevice),
+            Ok(_) => Gpu::Try,
+            Err(GpuError::Cuda {
+                status: CUDA_ERROR_NO_DEVICE,
+                ..
+            }) => Gpu::Absent(Reason::NoDevice),
+            Err(_) => Gpu::Absent(Reason::DriverUnreadable),
+        }
+    }
+
+    /// Asks the driver again before a CUDA session is built. A `Try` that no
+    /// longer holds becomes `Absent`: building a CUDA session with no device
+    /// behind it ends the process inside the inference library, so the count
+    /// is taken first and the stage goes to the CPU instead.
+    pub fn confirmed(self) -> Gpu {
+        match self {
+            Gpu::Try => Gpu::from_count(hayamimi_gpu::cuda::device_count()),
+            absent @ Gpu::Absent(_) => absent,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,6 +139,9 @@ mod tests {
     #[test]
     fn the_names_are_the_words_of_the_events() {
         assert_eq!(Stage::Punct.name(), "punct");
+        assert_eq!(Stage::Lid.name(), "lid");
+        assert_eq!(Stage::SecondOpinion.name(), "second_opinion");
+        assert_eq!(Reason::ProviderMismatch.name(), "provider_mismatch");
         assert_eq!(Reason::DriverUnreadable.name(), "driver_unreadable");
         assert_eq!(Reason::SessionFailed.name(), "session_failed");
         assert_eq!(To::Disabled.name(), "disabled");

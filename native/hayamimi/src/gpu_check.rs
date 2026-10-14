@@ -3,24 +3,16 @@
 //! which `hayamimi-asr` does. A machine without a device is not stopped: the
 //! stages placed on the GPU are built on the CPU instead.
 
-use hayamimi_asr::{Gpu, Reason};
+use hayamimi_asr::Gpu;
 use hayamimi_gpu::error::GpuError;
 
-/// The status `cuInit` answers when the driver is there and no device is
-/// visible to the process (`CUDA_ERROR_NO_DEVICE`).
-const CUDA_ERROR_NO_DEVICE: i32 = 100;
+#[cfg(test)]
+use hayamimi_asr::Reason;
 
-/// Maps the driver's answer to the state the stages are built under.
+/// Maps the driver's answer to the state the stages are built under; the
+/// library holds the mapping so that its own stages can ask again.
 pub fn classify(count: Result<u32, GpuError>) -> Gpu {
-    match count {
-        Ok(0) => Gpu::Absent(Reason::NoDevice),
-        Ok(_) => Gpu::Try,
-        Err(GpuError::Cuda {
-            status: CUDA_ERROR_NO_DEVICE,
-            ..
-        }) => Gpu::Absent(Reason::NoDevice),
-        Err(_) => Gpu::Absent(Reason::DriverUnreadable),
-    }
+    Gpu::from_count(count)
 }
 
 /// Counts the CUDA devices through the driver API.
