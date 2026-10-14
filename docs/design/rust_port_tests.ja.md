@@ -1118,6 +1118,10 @@ fixture は `native/hayamimi-eval/tests/rp31/` に file で置く。
 - **R8e の Rust の run**：commit `c90242e` の `docs/results/r8e/rp3_rust.events.jsonl`（1729 行）と `rp3_rust.jsonl`（115 行。1 行が 1 標本で、`repeat`、`utt`、`t_start_us`、`t_end_us` が窓）。`--min-silence 0.30`。
 - **R0 の Python の run**：`testdata/baseline/lat_ja_0.35_1` と `lat_ja_0.35_2` の `.events.jsonl` と `.jsonl`（git 管理外）。
 
+test は git 管理外の file を読まない。
+Python の slice も、下の表の範囲を一度だけ切り出した file を `native/hayamimi-eval/tests/rp31/` に commit し、test はその file だけを読む。
+fixture の file が無ければ、skip せずに、その path を名指しした `Err` で落ちる（どの機械でも、Windows でも同じ）。
+
 切り出す slice は 6 つで、窓は `.jsonl` の該当行、event は表の範囲の行である。
 
 | slice | 出所 | 窓（`t_start_us`、`t_end_us`） | event の範囲（行の数） |
