@@ -1028,7 +1028,10 @@ V は止めすぎてもいる（RP-13 の run で、正しい訳を止めた行�
 V の直しの参照訳の止まる行 70→30（seed 0）と 98→55（seed 1）は調整に使った組の値で held-out ではなく、効果は FLEURS の test split の新しい組を 1 回だけ使って出すまで未検証（NOT VERIFIED）、RP-13 は en 以外も含め未通過のまま記録する（評議の判定）。
 dev からは新しい組を引けない。dev の ja と対象の言語の重なりは en、zh、ko、es で 135、135、118、135 行で、seed 0 の 50 組を引くと 85、85、68、85 行になり、seed 1 の組と同じ行しか残らないからである。
 test split は 321、320、249、320 行で、dev と id の重なりは 0 である。
-`fleurs-pairs` は dev に固定されているので（`native/hayamimi-eval/src/fleurs.rs` の `tsv_url`）、`--split` を足す。
+`fleurs-pairs --split <dev|test>` が、表を引く split を選ぶ（`native/hayamimi-eval/src/fleurs.rs` の `tsv_url`）。
+既定は dev で、既存の run の組（`testdata/baseline/pairs`）と byte で一致する。
+dev と test 以外の値は使い方の誤り（exit 2）で止まる。
+test split の表は `https://huggingface.co/datasets/google/fleurs/resolve/main/data/<config>/test.tsv` にある（T-RP-13-022〜026）。
 組を引くのは test-designer の席で、打つのは V を直していない検証の席である。直す席には組の path を渡さず、組は 1 回打ったら使わない。
 品質の記録（RB-7 の値）は書き換えない。
 E を掛けない腕で出た en の 46.65 は RP-13 の en の値ではなく、RP-13 の en は未測定である。
