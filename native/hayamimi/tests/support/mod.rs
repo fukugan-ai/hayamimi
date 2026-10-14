@@ -31,7 +31,7 @@ pub const RESULTS: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../docs/results/gpu_stages.md"
 );
-const BINARY: &str = env!("CARGO_BIN_EXE_hayamimi");
+pub const BINARY: &str = env!("CARGO_BIN_EXE_hayamimi");
 
 /// The environment that hides every GPU from the child. An empty
 /// `CUDA_VISIBLE_DEVICES` hides them on Linux; the Windows driver ignores an
@@ -69,10 +69,10 @@ pub fn models_dir() -> Result<PathBuf, Failure> {
         .ok_or_else(|| format!("no models/silero_vad.onnx at or above {}", start.display()))
 }
 
-/// `relative` under the nearest directory at or above the repository checkout
-/// that holds it: untracked data is not in a worktree, so it is read from the
-/// main checkout.
-pub fn find_up(relative: &str) -> Result<PathBuf, Failure> {
+/// The path at or above the repository checkout that ends in `relative`:
+/// recordings and recorded data are not in git, so a worktree reads them from
+/// the main checkout.
+pub fn find_above(relative: &str) -> Result<PathBuf, Failure> {
     let start = Path::new(REPO)
         .canonicalize()
         .map_err(|error| format!("cannot resolve {REPO}: {error}"))?;
@@ -81,6 +81,13 @@ pub fn find_up(relative: &str) -> Result<PathBuf, Failure> {
         .map(|directory| directory.join(relative))
         .find(|path| path.exists())
         .ok_or_else(|| format!("no {relative} at or above {}", start.display()))
+}
+
+/// A path as text, or an error that names it.
+pub fn path_text(path: &Path) -> Result<String, Failure> {
+    path.to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{} is not UTF-8", path.display()))
 }
 
 /// The binary with a clean locale environment, then `locale` and `extra`
@@ -273,7 +280,37 @@ pub fn serve_binary(
     locale: Option<&str>,
     extra: &[(&str, &str)],
 ) -> Result<Served, Failure> {
+    serve_driven(binary, args, ports, (locale, extra), |_| Ok(()))
+}
+
+/// Ends a running child the way a user does with Ctrl-C, so that it can
+/// finish and exit with its own code.
+#[cfg(unix)]
+pub fn interrupt(child: &Child) -> Result<(), Failure> {
+    let status = Command::new("kill")
+        .args(["-INT", &child.id().to_string()])
+        .status()
+        .map_err(|error| format!("cannot run kill: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("kill -INT {} failed", child.id()))
+    }
+}
+
+/// Runs the program at `binary` with `--serve`, reads `/events` throughout,
+/// and calls `drive` once the process is started: it may talk to the process
+/// (play audio into it, end it with [`interrupt`]). The run is judged after
+/// the process has exited.
+pub fn serve_driven(
+    binary: &str,
+    args: &[&str],
+    ports: (u16, Vec<u16>),
+    environment: (Option<&str>, &[(&str, &str)]),
+    drive: impl FnOnce(&mut Child) -> Result<(), Failure>,
+) -> Result<Served, Failure> {
     let (requested, client_ports) = ports;
+    let (locale, extra) = environment;
     let number = requested.to_string();
     let mut all: Vec<&str> = args.to_vec();
     all.extend(["--serve", number.as_str()]);
@@ -282,7 +319,13 @@ pub fn serve_binary(
     let stderr = child.stderr.take().ok_or("no stderr pipe")?;
     let (out, err) = (collect(stdout), collect(stderr));
     let wire = std::thread::spawn(move || read_events(&client_ports));
+    let driven = drive(&mut child);
+    if driven.is_err() {
+        // A drive that failed leaves the process running; end it so that the run can be read.
+        let _ = child.kill();
+    }
     let status = child.wait().map_err(|error| error.to_string())?;
+    driven?;
     let join = |handle: JoinHandle<String>| {
         handle
             .join()

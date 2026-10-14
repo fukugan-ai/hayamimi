@@ -6,7 +6,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::checks::{check_port_move, check_resource_fallback, check_resource_present, port_of};
+#[cfg(unix)]
+use crate::scenes::{CAPTURE_NONE, INGEST_PORT};
 use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT};
+#[cfg(unix)]
+use crate::support::{BINARY, interrupt, serve_driven};
 use crate::support::{
     Failure, Served, clip, events, free_port, models_dir, named, serve, serve_from,
 };
@@ -118,9 +122,112 @@ pub fn config_scene() -> Result<(), Failure> {
     check_resource_present(&CONFIG, &run_with(&models_dir()?, &[])?)
 }
 
-/// Every scene of the Japanese route, one after another.
+/// Connects to the `/ingest` of the first of `ports` that answers.
+#[cfg(unix)]
+fn connect_ingest(
+    ports: &[u16],
+    origin: std::time::Instant,
+) -> Result<hayamimi_eval::ingest::Ingest, Failure> {
+    let deadline = origin + std::time::Duration::from_secs(120);
+    while std::time::Instant::now() < deadline {
+        for port in ports {
+            if let Ok(client) = hayamimi_eval::ingest::open("127.0.0.1", *port, origin) {
+                return Ok(client);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Err(format!("no /ingest answered on {ports:?}"))
+}
+
+/// Plays the clip into the `/ingest` of the running binary, checks that a
+/// `final` came back to the client, and ends the run the way Ctrl-C does.
+#[cfg(unix)]
+fn play_and_interrupt(child: &mut std::process::Child, ports: &[u16]) -> Result<(), Failure> {
+    let wav = hayamimi_eval::wav::read_wav(&clip()).map_err(|error| error.to_string())?;
+    let mut client = connect_ingest(ports, std::time::Instant::now())?;
+    client.start().map_err(|error| error.to_string())?;
+    let gap = wav.samples.len() / 2;
+    let plan = hayamimi_eval::ingest::plan(wav.samples.len(), &[], 1, gap);
+    client
+        .play(&plan, &wav.samples)
+        .map_err(|error| error.to_string())?;
+    // The models may still be opening when the audio ends; the answers come after.
+    let heard = client
+        .finish(std::time::Duration::from_secs(40))
+        .map_err(|error| error.to_string())?;
+    if !heard
+        .events
+        .iter()
+        .any(|(_, text)| text.contains("\"type\":\"final\""))
+    {
+        return Err(String::from("no `final` came back on /ingest"));
+    }
+    interrupt(child)
+}
+
+/// A run that takes its audio from `/ingest` on `ingest_ports` (the first
+/// that answers), and ends when the audio has been answered.
+#[cfg(unix)]
+fn run_on_ingest(input: &[&str], requested: u16, ingest_ports: &[u16]) -> Result<Served, Failure> {
+    let models = path_text(&models_dir()?)?;
+    let number = requested.to_string();
+    let mut args = vec!["--models", models.as_str(), "--ws-port", number.as_str()];
+    args.extend(input);
+    let serve_port = free_port()?;
+    serve_driven(
+        BINARY,
+        &args,
+        (serve_port, vec![serve_port]),
+        (Some("C.UTF-8"), &[]),
+        |child| play_and_interrupt(child, ingest_ports),
+    )
+}
+
+/// The microphone is missing: the run says so once, goes on with the audio of
+/// `/ingest`, makes subtitles from it, and ends with code 0.
+#[cfg(unix)]
+pub fn capture_scene() -> Result<(), Failure> {
+    let port = free_port()?;
+    // A name no device has, so that the scene holds on a machine that has a microphone too.
+    let missing = ["--input", "mic", "--mic-device", "no-such-microphone-9f3a"];
+    check_resource_fallback(
+        &CAPTURE_NONE,
+        &run_on_ingest(&missing, port, &[port])?,
+        true,
+    )?;
+    let port = free_port()?;
+    let present = run_on_ingest(&["--input", "ws"], port, &[port])?;
+    check_resource_present(&CAPTURE_NONE, &present)
+}
+
+/// The port of `/ingest` is held: the server moves to one of the next ten.
+#[cfg(unix)]
+pub fn ingest_port_scene() -> Result<(), Failure> {
+    let blocked = free_port()?;
+    let _held = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, blocked))
+        .map_err(|error| error.to_string())?;
+    let candidates: Vec<u16> = (blocked + 1..=blocked + NEXT_PORTS).collect();
+    let served = run_on_ingest(&["--input", "ws"], blocked, &candidates)?;
+    check_resource_fallback(&INGEST_PORT, &served, true)?;
+    let all = events(&served.output.stdout)?;
+    let event = named(&all, INGEST_PORT.event)
+        .into_iter()
+        .next()
+        .ok_or("no port event")?;
+    check_port_move(blocked, port_of(event)?)
+}
+
+/// Every scene of the Japanese route, one after another. The scenes that
+/// play audio into `/ingest` and end the run with an interrupt are for Unix.
 pub fn all_scenes() -> Result<(), Failure> {
     model_scene()?;
     port_scene()?;
-    config_scene()
+    config_scene()?;
+    #[cfg(unix)]
+    {
+        ingest_port_scene()?;
+        capture_scene()?;
+    }
+    Ok(())
 }

@@ -5,7 +5,7 @@
 mod support;
 
 use serde_json::Value;
-use support::{TestResult, find_up, models_dir, serve};
+use support::{TestResult, find_above, models_dir, serve};
 
 const CLIP: &str = "testdata/eval_real/en_01.wav";
 
@@ -22,7 +22,7 @@ fn text_of<'a>(event: &'a Value, key: &str) -> Option<&'a str> {
 
 /// Plays the English clip through the binary with `extra` arguments.
 fn english_run(extra: &[&str]) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
-    let clip = find_up(CLIP)?;
+    let clip = find_above(CLIP)?;
     let models = models_dir()?;
     let clip = clip.to_str().ok_or("the clip path is not UTF-8")?;
     let models = models.to_str().ok_or("the models path is not UTF-8")?;
@@ -70,7 +70,7 @@ fn lang_en_reads_the_clip_in_english() -> TestResult {
 #[test]
 #[ignore = "runs the hayamimi binary on a Japanese clip"]
 fn japanese_clip_is_not_read_in_english() -> TestResult {
-    let clip = find_up("testdata/eval_real/ja_01.wav")?;
+    let clip = find_above("testdata/eval_real/ja_01.wav")?;
     let models = models_dir()?;
     let clip = clip.to_str().ok_or("the clip path is not UTF-8")?;
     let models = models.to_str().ok_or("the models path is not UTF-8")?;

@@ -185,9 +185,16 @@ fn row_of<'a>(card: &'a Scorecard, lang: &str) -> Result<&'a LangRow, ScoreError
         .ok_or_else(|| ScoreError::MissingLanguage(lang.to_owned()))
 }
 
-/// One language: the error no worse than the baseline's, and no fewer right detections.
+/// An error rate in millionths as thousandths, rounded half up: the Python
+/// figures are recorded to three decimals, so both sides are compared there.
+fn thousandths(micros: u64) -> u64 {
+    (micros + 500) / 1000
+}
+
+/// One language: the error no worse than the baseline's at three decimals,
+/// and no fewer right detections.
 fn check_language(python: &LangRow, rust: &LangRow) -> Result<(), ScoreError> {
-    if rust.mean_err_micros > python.mean_err_micros {
+    if thousandths(rust.mean_err_micros) > thousandths(python.mean_err_micros) {
         return Err(ScoreError::Worse {
             lang: python.lang.clone(),
             python_micros: python.mean_err_micros,
@@ -461,11 +468,32 @@ mod tests {
     fn an_equal_run_is_accepted_and_a_worse_one_is_named() {
         let python = card(vec![row("ja", 38_000, Some(15))]);
         assert_eq!(check_scorecard(&python, &python), Ok(()));
-        let worse = card(vec![row("ja", 38_001, Some(15))]);
+        let worse = card(vec![row("ja", 39_000, Some(15))]);
         assert!(matches!(
             check_scorecard(&python, &worse),
             Err(ScoreError::Worse { lang, .. }) if lang == "ja"
         ));
+    }
+
+    #[test]
+    fn the_comparison_rounds_half_up_to_three_decimals() {
+        let python = card(vec![row("ja", 38_000, Some(15))]);
+        // 0.038499 is 0.038 at three decimals; 0.038500 is 0.039.
+        let within = card(vec![row("ja", 38_499, Some(15))]);
+        let beyond = card(vec![row("ja", 38_500, Some(15))]);
+        assert_eq!(check_scorecard(&python, &within), Ok(()));
+        assert!(matches!(
+            check_scorecard(&python, &beyond),
+            Err(ScoreError::Worse { .. })
+        ));
+    }
+
+    #[test]
+    fn thousandths_round_half_up() {
+        assert_eq!(thousandths(0), 0);
+        assert_eq!(thousandths(499), 0);
+        assert_eq!(thousandths(500), 1);
+        assert_eq!(thousandths(86_939), 87);
     }
 
     #[test]

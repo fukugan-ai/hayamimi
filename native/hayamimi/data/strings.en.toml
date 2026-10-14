@@ -7,6 +7,7 @@
 "asr.utterance.timed" = "Utterance finished"
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.engine.failed" = "The recognition route failed"
+"asr.partial.failed" = "A draft of the utterance in progress failed and was skipped"
 "gpu.fallback.cpu" = "A stage moved from the GPU to the CPU and goes on"
 "model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
@@ -18,6 +19,13 @@
 "gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"
 "model.fallback.substitute" = "A recognizer is not usable; another one answers in its place"
 "model.fallback.chunks" = "The voice detector is not usable; long audio is cut into fixed chunks"
+"capture.fallback.single" = "An audio device is missing; the run goes on with the other one"
+"capture.fallback.none" = "No audio device is usable; the run waits for /ingest and the wav file"
+"capture.fallback.cleared" = "An audio device is back and in use again"
+"capture.device.opened" = "Audio device opened"
+"ingest.client.connected" = "An audio client connected to /ingest"
+"ingest.client.closed" = "The audio client of /ingest left"
+"ingest.client.rejected" = "A second audio client was refused: only one is accepted at a time"
 "translate.server.started" = "The translation server answers"
 "translate.server.running" = "A translation server already answers; none was started"
 "translate.server.failed" = "One way of starting the translation server did not come up"
@@ -26,11 +34,17 @@
 [cli]
 help = """hayamimi: real-time Japanese speech recognition (runs on the CPU when there is no GPU)
 
-usage: hayamimi --wav <file> [options]
+usage: hayamimi (--wav <file> | --input <kind>) [options]
 
 options:
   --wav <file>         transcribe this 16-bit wav file
   --no-realtime        do not pace the file at the speed of the audio
+  --input <kind>       where the audio comes from: wav, mic, speaker, mix or ws (default wav)
+  --mic-device <name>  microphone to open, by part of its name (default: the system's)
+  --speaker-device <name>  output device to capture, by part of its name (default: the system's)
+  --ws-port <port>     listen for audio clients at /ingest on this port (default 8766 with --input ws)
+  --ws-host <address>  address /ingest listens on (default 127.0.0.1)
+  --no-partial         do not show drafts of the utterance in progress
   --mode <mode>        balanced (default), fast, or single: how the language of each utterance is chosen
   --lang <code>        read everything in this language and identify none (ja, en, zh, ko, yue, ...)
   --models <dir>       directory that holds the model directories (default models)
@@ -48,7 +62,9 @@ missing_value = "An option is missing its value."
 bad_number = "An option needs a positive number."
 mode_unsupported = "--mode is one of balanced, fast, single."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
-need_wav = "An input is required: pass --wav <file>."
+need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
+unknown_input = "--input takes wav, mic, speaker, mix or ws."
+bad_address = "--ws-host needs an IP address."
 no_gpu_check = "Check the GPU and the driver with: nvidia-smi"
 run_failed = "The run failed:"
 stage_punct = "Stage that fell back: punctuation"
@@ -57,6 +73,9 @@ stage_vad = "Stage that fell back: voice detection"
 stage_asr = "Stage that fell back: recognition"
 stage_events = "Stage that fell back: subtitle server"
 stage_replace = "Stage that fell back: replacement dictionary"
+stage_ingest = "Stage that fell back: audio client server (/ingest)"
+stage_capture = "Stage that fell back: audio capture"
+reason_device_missing = "Reason: an audio device is missing."
 stage_translate = "Stage that fell back: translation server"
 stage_lid = "Stage that fell back: language identification"
 stage_second_opinion = "Stage that fell back: second reading of Japanese"
@@ -75,6 +94,8 @@ to_substitute = "Now: another recognizer answers in its place."
 to_chunks = "Now: long audio is cut into fixed chunks."
 to_next_port = "Now: the next free port is used."
 to_default = "Now: the default settings are used."
+to_single = "Now: the other audio source is used alone."
+to_none = "Now: the run waits for /ingest and the wav file."
 llama_help = """hayamimi llama: start the translation model server (llama.cpp's llama-server)
 
 usage: hayamimi llama start --model <file> [options]
