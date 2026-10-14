@@ -123,6 +123,12 @@ pub fn rates_a() -> String {
     )
 }
 
+/// The body of a `/v1/chat/completions` answer whose message says `content`.
+pub fn chat_reply(content: &str) -> String {
+    serde_json::json!({ "choices": [{ "message": { "role": "assistant", "content": content } }] })
+        .to_string()
+}
+
 /// A temporary directory holding `fx_rates.json` with the given content,
 /// and the path of that file.
 pub fn dir_with_rates(content: &str) -> io::Result<(TempDir, PathBuf)> {
