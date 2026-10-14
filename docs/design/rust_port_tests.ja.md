@@ -993,7 +993,7 @@ test：`native/hayamimi-eval/tests/rp25.rs`。
 | T-RP-25-007 | fixture：先の訳を Zoom へ送った後に確定の訳が違う文字列 | 先の訳を外へ送る偽の中継 | `Err` | `Err`（specified、RP-25 の陰性欄。送った字幕は置き換えられない） | 陰性 | `early_translation_sent_outside_is_rejected` |
 | T-RP-25-008 | fixture：先の訳と確定の訳が違う発話が 2 つ | 数える道具 | 2 | 数 = 2（specified、RP-25 の陽性対照） | 陽性 | `counter_reads_two_utterances_with_different_early_and_final` |
 | T-RP-25-009 | fixture：E が V に落ちて T の訳が確定の訳になる発話 | 確定の決め方 | `Ok` | `Ok`。置き換えが 0 回（specified、3.6 の 2） | 境界 | `held_e_keeps_the_early_translation_as_final` |
-| T-RP-25-010 | 実走：RP-3 の Rust の run を読む | 実走 | 実走 | 全発話で 001 から 009 の判定を通る（specified、RP-25） | 陽性 | `translation_flicker_is_bounded_in_the_real_run` |
+| T-RP-25-010 | 実走：RP-3 の Rust の run を読む | 実走 | 実走 | 全発話で 001 から 009 の判定を通る（specified、RP-25） | 陽性 | `rp25_translation_flicker_is_bounded` |
 
 ### 4.36 RP-26（言語の切り替え）
 
@@ -1107,28 +1107,285 @@ fixture の docs は、実物の段落を file に写して 1 語だけ直した
 ### 4.41 RP-31（`L` の数え方）
 
 test：`native/hayamimi-eval/tests/rp31.rs`。受入 test の名前は `rp31_latency_counts_only_shown_translations_of_their_own_utterance`。`#[ignore]` を持たない。
-fixture の event の列は `native/hayamimi-eval/tests/rp31/` に file で置く。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-31 の行と 3.1 の `t_tr` の条件から）。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp31`。
+`stream` の集計の関数（今の `build_samples` と `summarize`）へ、発話の窓の列と event の列を渡す。
+R8h は、この関数が event の `id`、`status`、`text`、`t1_s`、`src_sha256` を読む形に直す。
+関数の名前と引数の形は実装の席が決め、test はその綴りを 1 か所の定数に持つ（4.1）。
+
+fixture は `native/hayamimi-eval/tests/rp31/` に file で置く。
+出所は 2 つである。
+
+- **R8e の Rust の run**：commit `c90242e` の `docs/results/r8e/rp3_rust.events.jsonl`（1729 行）と `rp3_rust.jsonl`（115 行。1 行が 1 標本で、`repeat`、`utt`、`t_start_us`、`t_end_us` が窓）。`--min-silence 0.30`。
+- **R0 の Python の run**：`testdata/baseline/lat_ja_0.35_1` と `lat_ja_0.35_2` の `.events.jsonl` と `.jsonl`（git 管理外）。
+
+切り出す slice は 6 つで、窓は `.jsonl` の該当行、event は表の範囲の行である。
+
+| slice | 出所 | 窓（`t_start_us`、`t_end_us`） | event の範囲（行の数） |
+|---|---|---|---|
+| A | R8e | repeat 1 の発話 1（54969、7634967）、2（11154964、17314945）、3（21354951、26734974） | `t_us` ≤ 29000000（44） |
+| B | R8e | repeat 2 の発話 12（301272618、306472593）、13（308225226、316596860）、14（318116850、326574992） | 301500000 ≤ `t_us` ≤ 330000000（68） |
+| PL | Python `_2` | repeat 5 の発話 20〜23 | 952265000 ≤ `t_us` ≤ 977300000（40） |
+| PO | Python `_1` | repeat 5 の発話 20〜23 | 同じ範囲（40） |
+| PB | Python `_2` | repeat 1 の発話 10、11 | 91886063 ≤ `t_us` ≤ 107500000（19） |
+| PC | Python `_2` | repeat 1 の発話 13、14 | 112873709 ≤ `t_us` ≤ 134500000（37） |
+
+```
+git show c90242e:docs/results/r8e/rp3_rust.events.jsonl | jq -c 'select(.t_us <= 29000000)'
+git show c90242e:docs/results/r8e/rp3_rust.jsonl | jq -c 'select(.repeat == 1 and .utt <= 3)'
+git show c90242e:docs/results/r8e/rp3_rust.events.jsonl | jq -c 'select(.t_us >= 301500000 and .t_us <= 330000000)'
+git show c90242e:docs/results/r8e/rp3_rust.jsonl | jq -c 'select(.repeat == 2 and .utt >= 12 and .utt <= 14)'
+```
+
+「足した」と書いた行は、実物の event を写して case 行が言う key だけを変えた物である。
+写す元は A の `mic-1` の `held` の訳（`id` が `mic-1`、`of` が `final`、`src_sha256` が `86c6dc546f34858831daa226260cf714b1c3584eb0dec712aff6388cdca81e49`、`text` が空、時刻 9802292）である。
+`mic-2` の確定文の sha256 は `68972f77abf17f7011c960d9dfbe44519d08add6bf055a19c75123964b7edeb1` である。
+
+期待値の oracle は、別に書いた jq の式（下）と、`printf '%s' <確定文> | sha256sum` である。
+集計の code とは別の式で、`final` を `t1_s` を µs の整数に直した値で窓に割り（窓は発話の始まりから次の発話の始まりの手前まで）、窓の最後の `final` の `id` が同じ `of` が `final` で `status` が `ok` で `text` が空でない最初の訳を `t_tr` にする。
+R8e の全記録に掛けた式の `t_tr` 67 件は、`src_sha256` が窓の最後の `final` の確定文の sha256 と全件一致した。
+
+```
+jq -n --slurpfile S <windows.jsonl> --slurpfile E <events.jsonl> '
+ ($S) as $s
+ | ($E | map(select(.event.type == "final"))) as $finals
+ | ($E | map(select(.event.type == "translation" and .event.of == "final"))) as $trs
+ | [ $s[] | . as $w
+   | ($s | map(select(.t_start_us > $w.t_start_us)) | (min_by(.t_start_us) // null)) as $next
+   | [ $finals[] | select((.event.t1_s * 1000000) >= $w.t_start_us
+       and ($next == null or (.event.t1_s * 1000000) < $next.t_start_us)) ] as $own
+   | ($own | max_by(.event.t1_s)) as $closing
+   | (if $closing == null or $closing.t_us < $w.t_end_us then null else $closing end) as $close
+   | (if $close == null then null
+      else ($trs | map(select(.event.id == $close.event.id and .event.status == "ok"
+             and (.event.text | length) > 0)) | (min_by(.t_us) // null)) end) as $tr
+   | {repeat: $w.repeat, utt: $w.utt, finals: ($own | length),
+      t_final: $close.t_us, t_tr: $tr.t_us, t_end: $w.t_end_us} ]'
+```
+
+Python の run の「遅れて着いた疑い」は、`.jsonl` の行の並びに `jq -s '[ . as $s | range(0; length - 1) | select($s[.].finals == 0 and $s[.+1].finals >= 2) ] | length'` を掛けた値である（Python の `final` は `t1_s` を持たず、`.jsonl` は着いた時刻で割った現行の集計の出力）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-31-001 | A の発話 1（`mic-1` の `final`、`t1_s` が 7.7）。訳は `held` で `text` が空の 1 件だけ | `held` の空の訳だけ | `t_tr` 無し | 発話 1 は `finals` 1、`t_final` 8937248、`L_asr` 1302281 µs。`t_tr` と `L` と `L_tr` は無く、訳の取れない標本に数える。記録の旧い行は `t_tr_us` 9802292 で `L` が 2167325 µs（specified、3.1 の「`held` の訳と `text` が空の訳は `t_tr` に入れない」。時刻は jq の式） | 陰性 | `a_held_empty_translation_is_not_t_tr` |
+| T-RP-31-002 | 001 に、時刻 10100000 の `ok` の訳（`id` が `mic-1`、`text` が非空、`src_sha256` が `mic-1` の物）を足す | `held` の後の `ok` | 10100000 | `t_tr` 10100000、`L` 2465033 µs、`L_tr` 1162752 µs。`held` の 9802292 は選ばれない（specified、3.1 と RP-31 の「同じ `id` の後の `ok` の訳が `t_tr` になる」） | 陽性 | `an_ok_translation_after_a_held_one_is_t_tr` |
+| T-RP-31-003 | 001 の `held` の前、時刻 9700000 に 002 と同じ `ok` の訳を足す | `ok` が先、`held` が後 | 9700000 | `t_tr` 9700000、`L` 2065033 µs、`L_tr` 762752 µs。後ろの `held` は `t_tr` を動かさない（specified、3.1 の「初めて受けた」） | 境界 | `a_later_held_translation_does_not_replace_the_first_ok` |
+| T-RP-31-004 | 001 の `held` の訳の `text` を非空にする | `status` だけで除く（`text` は非空） | `t_tr` 無し | `t_tr` 無し（specified、3.1。`status` と `text` は別の条件） | 境界、陰性 | `a_held_translation_with_text_is_not_t_tr` |
+| T-RP-31-005 | 001 の `held` の訳を `status` が `ok` で `text` が空の物にする | `text` だけで除く | `t_tr` 無し | `t_tr` 無し（specified、3.1） | 境界、陰性 | `an_ok_translation_with_empty_text_is_not_t_tr` |
+| T-RP-31-006 | 001 の `held` の訳を `status` が `unavailable` で `text` が空の物にする | `unavailable`（実物の記録に 0 件。足した行） | `t_tr` 無し | `t_tr` 無し（specified、3.1 の「`held` か `unavailable`」） | 陰性 | `an_unavailable_translation_is_not_t_tr` |
+| T-RP-31-007 | 006 の `text` を非空にする | `unavailable` で `text` が非空 | `t_tr` 無し | `t_tr` 無し（specified、3.1） | 境界、陰性 | `an_unavailable_translation_with_text_is_not_t_tr` |
+| T-RP-31-008 | 002 の訳の `src_sha256` を `mic-2` の確定文の sha256 にする | 原文が `final` と一致しない | `t_tr` 無し | `t_tr` 無し（specified、3.1 の「訳の元にした原文の文字列が `final` の文字列と一致」。RP-3 の 002 と同じ条件を Rust の run の `id` の結びの上で確かめる） | 陰性 | `a_translation_of_another_source_text_is_not_t_tr` |
+| T-RP-31-009 | 002 の訳の `id` を `mic-2` にする（`src_sha256` は `mic-1` の物のまま） | `id` が違う | 発話 1 は `t_tr` 無し | 発話 1 は `t_tr` 無し。発話 2 の値（012）は動かない（specified、3.1 の「`final` と同じ `id` で結ぶ」） | 陰性 | `a_translation_with_another_id_is_not_tied_to_the_utterance` |
+| T-RP-31-010 | 002 の訳の `of` を `partial` にする | 速報の訳 | `t_tr` 無し | `t_tr` 無し。速報の訳は `L` に入れない（specified、3.1 の「速報の訳の時刻は `L` に入れず」） | 陰性 | `a_partial_translation_is_not_t_tr` |
+| T-RP-31-011 | A の発話 3（`mic-4`）と B の発話 12（`mic-37`）。`held` が無い | `held` の無い fixture | 旧い行と同じ | 発話 3 は `t_tr` 28267506、`L` 1532532 µs。発話 12 は `t_tr` 308008448、`L` 1535855 µs。どちらも記録の旧い行の `t_tr_us` と同じ（derived、`rp3_rust.jsonl` の行。jq の式も同じ値） | 陽性 | `utterances_without_a_held_translation_keep_their_l` |
+| T-RP-31-012 | A の発話 2。訳は `mic-2` の `final` の分が 17051980 と 17267336、`mic-3` の分が 18483305（`stage` が `t`）と 18602637（`stage` が `e`）で、どれも `ok` | 最初の `ok` と、早い `final` の訳 | 18483305 | `t_tr` 18483305、`L` 1168360 µs、`L_tr` 92138 µs。後の 18602637 でも、`mic-2` の 17051980 でもない（specified、3.1。`mic-2` の訳は `src_sha256` が `mic-3` の確定文と違う） | 境界、陽性 | `t_tr_is_the_first_ok_translation_of_the_closing_final` |
+| T-RP-31-013 | 012 と同じ。発話 2 の `final` は `mic-2`（`t1_s` 16.372、着いた時刻 16842250）と `mic-3`（`t1_s` 17.908、着いた時刻 18391167） | 1 つの発話に 2 つの `final` | `finals` 2 | `finals` 2、窓の最後の `final` は `mic-3`、`t_final` 18391167、`L_asr` 1076222 µs。`mic-2` は `t_end` 17314945 より前に着いた早い `final` で、閉じない（derived、現行の `build_samples` の「最後の `final` が閉じる」を `t1_s` の順に移した式） | 陽性 | `a_split_utterance_is_closed_by_its_last_final_by_t1_s` |
+| T-RP-31-014 | B の発話 13。`final` は `mic-38`（`t1_s` 316.884、着いた時刻 318628342）。着いた時刻は発話 14 の始まり 318116850 より後 | 遅れて着いた `final` | `finals` 1 | 発話 13 は `finals` 1、`t_final` 318628342、`L_asr` 2031482 µs、`t_tr` 319522568（`mic-38` の `stage` が `e` の `ok` の訳）、`L` 2925708 µs、`L_tr` 894226 µs。記録の旧い行は `finals` 0 で「final なし」（specified、3.1 と RP-31。値は jq の式） | 陰性、陽性 | `a_late_final_belongs_to_its_own_utterance_by_t1_s` |
+| T-RP-31-015 | B の発話 14。`final` は `mic-39`（`t1_s` 320.66）、`mic-40`（322.964）、`mic-41`（326.964） | 遅れて着いた `final` を取り除かれた次の窓 | `finals` 3 | 発話 14 は `finals` 3（記録の旧い行は 4）、`t_final` 327445514、`t_tr` 327643922（`mic-41` の `stage` が `t`）、`L` 1068930 µs、`L_asr` 870522 µs（derived、jq の式） | 陽性 | `the_next_utterance_loses_the_late_final_it_never_owned` |
+| T-RP-31-016 | B の発話 14 の窓の `t_start_us` を 318117000 に変え、`mic-38` の `t1_s` を 318.116 にする（足した行） | 窓の境界の手前 | 発話 13 | `mic-38` は発話 13 の標本に入る。`t1_s` を µs の整数に直してから比べる（derived。設計は窓の境界を書いていない。窓は始まりを含み次の始まりを含まない） | 境界 | `t1_s_just_before_the_next_start_belongs_to_the_earlier_utterance` |
+| T-RP-31-017 | 016 の `t1_s` を 318.117 にする | 窓の境界の上 | 発話 14 | `mic-38` は発話 14 の標本に入り、発話 13 は `finals` 0（derived。001 から 016 と同じ規則） | 境界 | `t1_s_equal_to_the_next_start_belongs_to_the_next_utterance` |
+| T-RP-31-018 | R8e の全記録（`docs/results/r8e/` の 2 file をそのまま読む。file が無ければその path を名指しして `Err`） | 全記録 | 表の値 | 標本 115、`with_final` 101、`with_translation` 67、`untranslated` 48、`finals_total` 125、`l_tr_negative` 0。`L` は n 67、p50 1533 ms、p95 2752 ms。`L_asr` は n 101、p50 1302 ms、p95 2050 ms。`L_tr` は n 67、p50 316 ms、p95 1237 ms。記録の旧い値は 93、93、22、125 と、`L` 1710 ms、3145 ms（pseudo、jq の式。有効の判定の前の値で、`summarize` が出す欄と同じ母数） | 陽性、陰性 | `the_whole_r8e_record_gives_the_corrected_counts` |
+| T-RP-31-019 | 018 と同じ記録 | 新旧の差 | 8 標本 | 旧い行に `t_final` が無く新しい数え方で有る標本は 8 で、(repeat、utt) が (2、13)、(3、11)、(3、22)、(4、12)、(4、13)、(4、22)、(5、12)、(5、13)。このうち訳が取れるのは (2、13)、(4、12)、(4、13)、(5、12)、(5、13) の 5 つで、(3、11)、(3、22)、(4、22) は `held` で訳が無い。旧い行と新しい数え方で `t_final` の値が変わる標本は 0（pseudo、jq の式。設計の「遅れて着いた `final` の 8 標本」と一致） | 陽性 | `eight_samples_regain_their_late_final_and_none_changes_its_time` |
+| T-RP-31-020 | PL（Python `_2` の repeat 5 の発話 20〜23）。`finals` は順に 1、0、2、1 | 前の窓が「final なし」で次の窓に `final` が 2 件（境界の等号） | 遅れた疑い 1 | 別の列の「遅れて着いた疑い」が 1。発話 21 が `finals` 0、発話 22 が `finals` 2（specified、3.1 と RP-31。jq の式が同じ値） | 陽性、境界 | `a_python_late_final_is_counted_in_its_own_column` |
+| T-RP-31-021 | PO（Python `_1` の同じ 4 窓）。`finals` は順に 1、1、1、1 | 同じ発話で、`final` が窓の中に着いた run | 遅れた疑い 0 | 「遅れて着いた疑い」が 0。020 と同じ発話の対で、`_2` の run だけ発話 21 の `final` が発話 22 の始まり 964873298 より後に着く（specified、RP-31。jq の式が同じ値） | 陰性 | `a_python_run_with_on_time_finals_counts_no_suspect` |
+| T-RP-31-022 | PB（Python `_2` の repeat 1 の発話 10、11）。`finals` は 0、1 | 次の窓の `final` が 1 件（境界の下） | 遅れた疑い 0 | 0。次の窓の `final` が 2 件に足りない（specified、3.1 の「2 件以上」） | 境界、陰性 | `one_final_in_the_next_window_is_not_a_suspect` |
+| T-RP-31-023 | PC（Python `_2` の repeat 1 の発話 13、14）。`finals` は 1、3 | 前の窓に `final` が在る | 遅れた疑い 0 | 0。次の窓に `final` が 3 件在っても、前の窓が「final なし」でなければ数えない（specified、3.1） | 境界、陰性 | `a_previous_window_with_a_final_is_not_a_suspect` |
+| T-RP-31-024 | PL の発話 20、22、23 の標本 | Python の訳は `status` の key が無い | 旧い行と同じ | 発話 20 は `t_tr` 957098241、`L` 1187137 µs。発話 22 は `t_tr` 969859404、`L` 1247548 µs。発話 23 は `t_tr` 975384593、`L` 1132919 µs。`status` の key が無い訳を、`text` が非空なら `ok` と同じに数える。訳は着いた順に、窓の最後の `final` の後で次の `final` の前の最初の物に結ぶ（derived、記録の旧い行。RB-5 の規則） | 陽性 | `a_python_translation_without_status_still_counts` |
+| T-RP-31-025 | PL の発話 22 の `final` の後に、`text` が空の `translation` を 1 件足す（時刻は 969800000。本物の訳 969859404 より前） | Python の空の訳 | 969859404 | 発話 22 の `t_tr` は 969859404 のまま。空の訳は数えない（specified、3.1 の「`text` が空の訳は `t_tr` に入れない」は Python の run にも掛かる） | 境界、陰性 | `a_python_translation_with_empty_text_is_skipped` |
+| T-RP-31-026 | B（Rust の run）の集計結果 | Rust の run の「遅れた疑い」の欄 | 数えない | 欄は「数えていない」を表す値（`None` など）で、`0` ではない。020 の `1`、021 の `0` と区別できる（specified、RP-31 の「Python の run では…別の列に出る」。数えていない 0 と数えて 0 を分ける） | 陰性 | `the_suspect_column_is_not_counted_for_a_rust_run` |
+| T-RP-31-027 | 実走：Rust の run と Python の run を `<ev> stream` で 1 本ずつ | 実走 | 実走 | 両方の結果の file に、`with_translation` と訳の取れない標本の数（`untranslated`）と、Python の run だけ「遅れて着いた疑い」が別々の欄で在る（specified、3.1 の「3 つの数と、訳の取れない有効な標本の数は、結果の file に別々に書く」） | 陽性 | `real_runs_write_the_counts_in_separate_fields` |
+
+001 から 019 は、実物の記録から切り出した値と足した行の対で、旧い数え方を落とす。
+001 は空の訳の時刻 9802292 を `t_tr` にする数え方を、014 は着いた時刻で窓に割る数え方を落とす。
+この 2 つの旧い数え方は、記録の `rp3_rust.jsonl` の行（発話 1 の `t_tr_us`、repeat 2 の発話 13 の `finals` 0）がそのまま持つ。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 窓の境界。3.1 は「`t1_s` で結ぶ」とだけ書く。016 と 017 は「始まりを含み次の始まりを含まない」を置いた。R8e の記録に掛けると、旧い行と食い違う標本が設計の 8 と一致するので、この規則で記録とは合う。
+- 直す方向。3.16 は、`held` の空の訳の数え方と遅れて着いた `final` の欠けが、どちらも Rust の `L` を小さく見せると書く。018 の jq の式で数え直すと、R8e の記録では `L` は p50 が 1710 から 1533 ms、p95 が 3145 から 2752 ms へ小さくなる。`held` の 31 行は `L` が大きい行（その行だけの p50 2081 ms、p95 4125 ms）で、数えなくなると母数から抜ける。遅れて着いた `final` の 8 標本のうち訳が取れる 5 つ（`L` は 2294〜2925 ms）は、大きい側に足される。母数は 93 から 67 に減り、差し引きで `L` は小さくなる。V が止める行ほど `L` が大きいので、止める行が増えるほど、訳の取れた標本だけで数える `L` は小さく出る。RP-32 は訳の取れない標本の数を合否に使わないので、この向きは受入で捕まらない。
+- Rust の run が `id` と `t1_s` の無い `final` を含むときの扱い。
 
 ### 4.42 RP-32（同じ負荷で交互に測った `L`）
 
-test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。`#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-32 の行と 3.16 の 4 から）。
+test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。実走の行（T-RP-32-029）だけが `#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp32`。実走の行はこれに `-- --ignored` を足す。
+`check_alternated_runs(runs)` は、流した順の run の列を受ける。1 つの run は、実装（Python か Rust）、前と後の `/proc/loadavg` の 1 行、RP-31 の数え方で出した標本の列である。
+次の 3 つを確かめる。順と対の数と load の記録（001 から 014）、3 対を合わせた標本の合否（015 から 022）、列の出力（023 から 028）。
+関数の名前と引数の形は実装の席が決める。
+
+**F32**（式で作る。実測のふりをしない）：実装 X が Python か Rust、対 k が 1〜3、発話 u が 1〜19 ごとに標本が 1 つ。
+`t_end` は 0、`L_asr` は 700 + u ms、`L` は 1000 + 10u + k ms（したがって `L_tr` は 300 + 9u + k ms）。
+Rust の標本は、書いた箇所のほかは Python と同じにする。
+3 対の標本は 57 個で、小さい方から数えた p50 は 29 番目（(50 × 57 + 99) / 100）、p95 は 55 番目（(95 × 57 + 99) / 100）である。
+`L` の 29 番目は u = 10、k = 2 の 1102 ms、55 番目は u = 19、k = 1 の 1191 ms。
+`L_asr` の 29 番目は 710 ms、55 番目は 719 ms。`L_tr` の 29 番目は 392 ms、55 番目は 472 ms。
+比較集合は 19 発話で、対の比較の閾値は RP-3 の T-RP-3-018 の式で (19 × 20 + 22) / 23 = 17。
+load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で、先頭の欄が 1 分の load である。値は小数 2 桁なので、10 の -2 乗の整数に読んで比べる。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-32-001 | F32 そのまま。順は Python、Rust、Python、Rust、Python、Rust。前の load は全 run で `0.50` | 正しい順、load、Rust が Python と同じ | `Ok` | `Ok`（specified、RP-32 の「以下」。等号側） | 境界、陽性 | `three_alternated_pairs_with_equal_values_pass` |
+| T-RP-32-002 | 001 で順を Python、Python、Rust、Rust、Python、Rust にする | Python が続けて 2 回 | `Err` | `Err` で 2 番目の run を名指し（specified、RP-32 の陰性欄） | 陰性 | `two_python_runs_in_a_row_are_rejected` |
+| T-RP-32-003 | 001 で順を Rust、Python、Rust、Python、Rust、Python にする | Rust が先頭 | `Err` | `Err` で 1 番目の run を名指し（specified、3.16 の 4 の「Python、Rust、Python、Rust … の順」） | 陰性 | `a_run_order_that_starts_with_rust_is_rejected` |
+| T-RP-32-004 | 001 の最後の Rust の run を除いた 5 本 | 対が欠ける | `Err` | `Err`。最後の Python の run が対を持たない（specified、RP-32 の「3 対」） | 境界、陰性 | `five_runs_leave_the_last_pair_unfinished` |
+| T-RP-32-005 | 001 の先頭の 2 対だけ（4 本）。結果に対の数 2 が記録されている | 2 対（記録あり） | `Ok` | `Ok`。3 対が収まらなかった場合の 2 対を、数を記録していれば受ける（specified、3.16 の順と置き場） | 境界 | `two_pairs_with_the_count_recorded_are_accepted` |
+| T-RP-32-006 | 005 で対の数の記録が無い | 2 対（記録なし） | `Err` | `Err` で記録が無いことを名指し（specified、3.16 の「その数を記録する」） | 陰性 | `two_pairs_without_the_recorded_count_are_rejected` |
+| T-RP-32-007 | 先頭の 1 対だけ（2 本）。対の数 1 が記録されている | 1 対 | `Err` | `Err`。2 対が下限（specified、3.16 の順と置き場。3 対が基本で、2 対まで） | 境界、陰性 | `one_pair_is_rejected_even_with_the_count_recorded` |
+| T-RP-32-008 | 001 で 4 番目の run の前の load を `1.99 0.50 0.50 1/300 1000` にする | load の上側の境界の手前 | `Ok` | `Ok`（specified、RP-32 の「2 未満」。199 < 200） | 境界、陽性 | `a_load_of_1_99_before_a_run_passes` |
+| T-RP-32-009 | 008 の load を `2.00 0.50 0.50 1/300 1000` にする | 境界の値 | `Err` | `Err` で 4 番目の run を名指し（specified、RP-32 の「2 未満」。200 は 2 未満でない） | 境界、陰性 | `a_load_of_2_00_before_a_run_is_rejected` |
+| T-RP-32-010 | 008 の load を `0.00 0.00 0.00 1/300 1000` にする | load の下限 | `Ok` | `Ok`（specified、RP-32） | 境界 | `a_load_of_0_00_before_a_run_passes` |
+| T-RP-32-011 | 001 で 4 番目の run の前の load の記録が無い | 前の記録の欠け | `Err` | `Err` で 4 番目の run を名指し。値は出さない（specified、RP-32 の陰性欄「load の記録が無い run」） | 陰性 | `a_run_without_a_load_before_record_is_rejected` |
+| T-RP-32-012 | 001 で 4 番目の run の後の load の記録が無い | 後の記録の欠け | `Err` | `Err` で 4 番目の run を名指し（specified、3.16 の 4 の「各 run の前と後の `/proc/loadavg`」） | 陰性 | `a_run_without_a_load_after_record_is_rejected` |
+| T-RP-32-013 | 001 で 4 番目の run の前の load の行が `n/a` | 読めない値 | `Err` | `Err`。読めない値を 0 と読んで 2 未満に通さない（implicit） | 境界、陰性 | `an_unreadable_load_line_is_rejected_not_read_as_zero` |
+| T-RP-32-014 | 001 で 4 番目の run の前の load が `1.99`、後が `9.99` | 後の load | `Ok` | `Ok`。後の load は記録だけで、上限は前の load にだけ在る（specified、RP-32 の「各 run の前の 1 分の load」）。出力に後の load の値が残る | 境界 | `the_load_after_a_run_is_recorded_but_not_judged` |
+| T-RP-32-015 | F32 で Rust の `L` の 29 番目（u = 10、k = 2）を +1 ms | p50 の順位に当たる標本 | `Err` | `Err` で p50 を名指し。Rust の 29 番目は 1103 ms で Python の 1102 ms を超える（specified、RP-32。nearest-rank の式 (p × n + 99) / 100） | 境界、陰性 | `p50_one_millisecond_over_at_the_29th_sample_is_rejected` |
+| T-RP-32-016 | F32 で Rust の `L` の 30 番目（u = 10、k = 3）だけを +1 ms | p50 の順位の次 | `Ok` | `Ok`。29 番目は 1102 ms のまま（derived、nearest-rank。順位が p50 を決める） | 境界 | `p50_is_decided_by_the_29th_sample_only` |
+| T-RP-32-017 | F32 で Rust の `L` の 55、56、57 番目（u = 19 の 3 つ）を +1 ms | p95 の順位に当たる標本 | `Err` | `Err` で p95 を名指し。Rust の 55 番目は 1192 ms で Python の 1191 ms を超える。p50 は通る（specified、RP-32） | 境界、陰性 | `p95_one_millisecond_over_at_the_55th_sample_is_rejected` |
+| T-RP-32-018 | F32 で Rust の `L` の 56、57 番目（u = 19 の k = 2、3）だけを +1 ms | p95 の順位の次 | `Ok` | `Ok`。55 番目は 1191 ms のまま（derived、nearest-rank） | 境界 | `p95_is_decided_by_the_55th_sample_only` |
+| T-RP-32-019 | F32 で Rust の u = 1、2 の標本 6 つを +1 ms（発話ごとの中央値が Python を超えるのは 2 発話） | 対の比較の閾値の上 | `Ok` | `Ok`。比較集合 19 発話のうち 17 発話で Rust の中央値が Python 以下。p50 と p95 の順位に当たる標本は動かない（specified、RP-32 の「RP-3 の対の比較（17 発話以上）」と RP-3 の 007） | 境界、陽性 | `seventeen_of_19_utterances_not_slower_pass` |
+| T-RP-32-020 | 019 に加えて u = 3 の標本 3 つを +1 ms（超えるのは 3 発話） | 閾値の下 | `Err` | `Err` で対の比較を名指し（16 発話）。p50 と p95 は通る（specified、RP-3 の 008） | 境界、陰性 | `sixteen_of_19_utterances_not_slower_are_rejected_though_p50_and_p95_pass` |
+| T-RP-32-021 | F32 で Python の 3 つの run がどれも u = 19 の標本を持たない（`final` なし）。Rust は u = 19 の標本を持つ | 比較集合は Python の run だけで決まる | 18 発話 | 関数が返す比較集合は 18 発話で u = 19 を含まず、閾値は (18 × 20 + 22) / 23 = 16。Rust の標本があっても入らない。判定全体は見ない（この入力では p95 が `Err` になる。Rust は 57 標本の 55 番目で 1191 ms、Python は 54 標本の 52 番目で 1181 ms）（specified、3.1 の「比較集合は Python の run だけで決め」、RP-3 の 020 と同じ式） | 陽性、陰性 | `the_comparison_set_ignores_utterances_python_never_finished` |
+| T-RP-32-022 | F32 に、RP-31 の A の発話 1（`held` の空の訳だけ）の形の標本を Rust に 1 つ足す | `held` の標本 | `L` の標本は 57 のまま | Rust の `L` の標本の数は 57 で、`held` の標本は訳の取れない標本の数に入る。RP-31 の数え方を通した標本を受ける（specified、RP-32 の「RP-31 の数え方」） | 陰性 | `a_held_sample_is_not_counted_in_l` |
+| T-RP-32-023 | F32 | 列の出力 | 6 つの値 | `L_asr` の p50 710 ms、p95 719 ms。`L_tr` の p50 392 ms、p95 472 ms。「訳」の段の p50、p95 の列が在る（392 ms、472 ms）。`L` の p50 1102 ms、p95 1191 ms（derived、F32 の式。「訳」の段は 3.1 の `L_tr` と同じ定義の値で、設計は 2 つを別の列として挙げる） | 陽性 | `l_asr_l_tr_and_translation_stage_columns_are_written` |
+| T-RP-32-024 | 023 で「訳」の段の列が無い出力 | 列の欠け | `Err` | `Err` で「訳」の段を名指し（specified、RP-32 の「別の列に出す」） | 陰性 | `a_missing_translation_stage_column_is_rejected` |
+| T-RP-32-025 | 023 で `L_tr` の列が無い出力 | 列の欠け | `Err` | `Err` で `L_tr` を名指し（specified、RP-32） | 陰性 | `a_missing_l_tr_column_is_rejected` |
+| T-RP-32-026 | R0 の Python 同士の 2 run（`testdata/baseline/lat_ja_0.35_1.jsonl` と `_2.jsonl`）を、順を問わない 1 対として渡す | Python 同士の対 | 列が出る | `L` の標本の数が 95 と 94、列は 023 と同じ 6 つ以上。有効の判定は 350 ms（pseudo、jq。`select(.t_final_us != null)` と `((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 350` と `.t_tr_us != null` の数を数えた値。RB-5 の分割と同じ式）。この 1 対は合否の判定には掛けない（RP-32 の陽性欄の「Python 同士の 2 run の対から同じ列を出せる」） | 陽性 | `python_against_python_pair_yields_the_same_columns` |
+| T-RP-32-027 | 026 の 2 run に、`_1` を Rust として渡した 1 対 | 同じ run を 2 回 | 差 0 | `L` の p50 と p95 の差が 0 で、`Ok`（pseudo。同じ入力は差を持たない） | 陽性 | `the_same_run_against_itself_has_no_difference` |
+| T-RP-32-028 | R8e の Rust の run（RP-31 の 018 の数え方）と R0 の Python の run（`lat_ja_0.30_1`）を 1 対として列を出す。対の数と load は掛けない。有効の判定は両方 `min_silence` 300 ms | 実物の記録 | `L` の欄の値 | Rust の `L` が p50 1533 ms、p95 2752 ms（n 66）。Python の `L` が p50 1481 ms、p95 2008 ms（n 95）。Rust の p50 と p95 のどちらも Python を超える（pseudo、jq。有効の判定は `((t_final − t_end) / 1000 − final の latency_ms) >= 300`）。数え方を直した後も残る差を、判定の道具が「超える」と読む確かめ | 陰性 | `the_recorded_r8e_gap_is_read_as_slower_than_python` |
+| T-RP-32-029 | 実走：Python、Rust、Python、Rust、Python、Rust の 6 run と、各 run の前後の `/proc/loadavg` | 実走 | 実走 | 001 の形で `Ok`（specified、RP-32） | 陽性 | `three_alternated_pairs_of_real_runs_beat_python` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 「訳」の段（`final` から `t_tr` まで）と `L_tr`（`t_tr − t_final`）は、3.1 の定義では同じ値である。設計が 2 つを別の列に挙げる意図が、別の測り方（たとえば中継の log の時刻）なら、その測り方。023 は同じ値を 2 列に出す形で書いた。
+- 対の比較の「発話ごとの 5 回の中央値」は、3 対を合わせると 1 発話 15 標本になる。F32 は 1 発話 3 標本（1 回 × 3 対）で、中央値を 3 つから取る。比較集合の「Python の全 run」を 3 つの run のそれぞれと読んだ（021）。
+- 後の load は記録だけにした（014）。設計は後の load の上限を書かない。
+- 「他の席が cargo の build を打たない」ことは、前の load が 2 未満であることでしか見えない。build が run の途中に始まっても、前の load には出ない。
+- 順は Python が先頭（003）。設計は「Python、Rust、Python、Rust … の順」と書く。
+- 訳の取れない標本の数を合否に使わない。028 の差は、数え方を直しても Rust が Python を超える。
 
 ### 4.43 RP-33（T が V に落ちた行の最初の訳）
 
-test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。`#[ignore]` を持ち、RP-32 の Rust の run と中継の stdout を読む。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-33 の行と 3.16 の 2 から）。
+test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。実走の行（T-RP-33-015）だけが `#[ignore]` を持ち、RP-32 の Rust の run と中継の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp33`。実走の行はこれに `-- --ignored` を足す。
+`check_first_translation(rust, python)` は、RP-31 の数え方で出した標本のうち、有効で訳が取れた物の「訳」の段（`final` から `t_tr` まで）を、T が V に落ちた行と通った行に分けて、p50 と p95 を出す。
+採る案は 3.16 の 2 のとおり B で、A は 5 つの条件が揃った時にだけ作る。したがって行は 2 つに分かれる。001 から 013 は B のままでも A を作った後でも同じに通る行、014 から 016 は A を作った時にだけ足す行である。
+
+**行の分け方**：T が V を通った行は、窓の最後の `final` と同じ `id` で、`of` が `final` で `stage` が `t`、`status` が `ok` の訳の event が在る行である。中継は先の訳（`stage` が `t`）を、T の訳が V を通った時だけ出す（`pipeline.rs` の `run_staged`。`draft.passed` が真で `of` が `final` の時だけ `early` を呼ぶ）。無い行が、T が V に落ちた行である。
+設計は「中継の stdout の行ごとの記録」で分けると書くが、中継の stdout の `translate.line.ok` は `id`、`source`、`t_ms`、`e_ms`、`v_ms`、`stage` を持ち、T の訳が V に落ちたかを持たない。この節は、test が受けた `/events` の `translation` の event（R8e の記録と同じ物）で分ける。
+
+**F33**（式で作る。実測のふりをしない）：Rust の run は有効で訳が取れた 20 行で、10 行が T の訳が V を通った行、10 行が V に落ちた行。「訳」の段は特に書かない限り全行 200 ms。Python の run は 20 行で全行 200 ms。n = 20 のとき nearest-rank の p50 は 10 番目（(50 × 20 + 99) / 100）、p95 は 19 番目（(95 × 20 + 99) / 100）である。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-33-001 | F33 そのまま | 全行が Python と同じ | `Ok` | `Ok`（specified、RP-33 の「以下」。等号側） | 境界、陽性 | `equal_translation_stage_passes` |
+| T-RP-33-002 | F33 で Rust の 19、20 番目の 2 行（V に落ちた行）を 201 ms にする | p95 の順位に当たる標本 | `Err` | `Err` で p95 だけを名指し。19 番目が 201 ms で Python の 200 ms を超え、p50 の 10 番目は 200 ms（specified、RP-33） | 境界、陰性 | `p95_one_millisecond_over_at_the_19th_row_is_rejected` |
+| T-RP-33-003 | F33 で Rust の 20 番目の 1 行だけを 201 ms にする | p95 の順位の次 | `Ok` | `Ok`。19 番目は 200 ms のまま（derived、nearest-rank） | 境界 | `p95_is_decided_by_the_19th_row_only` |
+| T-RP-33-004 | F33 で Rust の 10 行を 201 ms にする（11〜20 番目） | p50 の順位の次まで | p50 は `Ok` | p50 の 10 番目は 200 ms で通り、p95 の 19 番目が 201 ms で `Err`（p95 だけを名指し）（derived、nearest-rank） | 境界 | `ten_slower_rows_leave_the_p50_alone` |
+| T-RP-33-005 | F33 で Rust の 11 行を 201 ms にする（10〜20 番目） | p50 の順位に当たる標本 | `Err` | `Err` で p50 と p95 の両方を名指し（specified、RP-33） | 境界、陰性 | `p50_one_millisecond_over_at_the_10th_row_is_rejected` |
+| T-RP-33-006 | F33 で V に落ちた 10 行の最初の訳を 600 ms 遅らせる（800 ms） | 偽の中継（RP-33 の陰性欄） | `Err` | `Err` で p95 を名指し。10 番目までが 200 ms の 10 行で p50 は通り、19 番目が 800 ms。V に落ちた行の列は n = 10、p50 800 ms、p95 800 ms（specified、RP-33 の陰性欄。値は F33 の式） | 陰性 | `six_hundred_ms_slower_failed_drafts_are_rejected` |
+| T-RP-33-007 | F33 | 列の出力 | 2 つの列 | V に落ちた行の列が n = 10、p50 200 ms、p95 200 ms。V を通った行の列が n = 10、p50 200 ms、p95 200 ms（specified、RP-33 の「別の列に出す」と陽性欄「T が V を通った行だけの列も出せる」） | 陽性 | `failed_and_passed_draft_columns_are_written_apart` |
+| T-RP-33-008 | 007 で V に落ちた行の列が無い出力 | 列の欠け | `Err` | `Err` で V に落ちた行の列を名指し（specified、RP-33） | 陰性 | `a_missing_failed_draft_column_is_rejected` |
+| T-RP-33-009 | F33 に、V に落ちて訳が `held` で出なかった行（訳の取れない標本）を 4 行足す | 訳の無い行 | n = 10 のまま | V に落ちた行の列の n は 10 のまま。訳の無い行は p50 と p95 にも n にも入らない（specified、3.1 の「訳の取れない有効な標本の数は…別々に書く」。RP-31 の 001 と同じ除き方） | 境界、陰性 | `rows_without_a_shown_translation_are_left_out_of_the_columns` |
+| T-RP-33-010 | RP-31 の A の発話 2（`mic-3` の `stage` が `t` の訳が在る）、B の発話 13（`mic-38` は `stage` が `e` の訳だけ）、A の発話 1（`mic-1` は `held` で `stage` が `e` だけ） | 行の分け方 | 通った、落ちた、落ちた（訳なし） | 発話 2 は V を通った行。発話 13 は V に落ちた行で訳が在る。発話 1 は V に落ちた行で訳が無い。`stage` が `t` の速報の訳（`of` が `partial`）は分けるのに使わない（derived、`pipeline.rs` の `run_staged`。jq で数えた R8e の記録：訳の取れた旧い 93 行のうち `stage` が `t` の訳が無い行が 45、設計の「93 行中 45 行」と一致） | 陽性、陰性 | `a_row_without_a_t_draft_event_is_a_failed_draft` |
+| T-RP-33-011 | 010 の `mic-3` の `stage` が `t` の訳の `of` を `partial` にした物 | 速報の `t` で分けない | 落ちた | 発話 2 は V に落ちた行になる。`of` が `partial` の `stage` が `t` の訳は、窓の最後の `final` の先の訳ではない（specified、3.16 の「先の訳は T が V を通った時だけ出す」は `final` の分） | 境界、陰性 | `a_partial_t_translation_does_not_make_a_passed_draft` |
+| T-RP-33-012 | R8e の全記録（`docs/results/r8e/` を RP-31 の 018 の数え方で。file が無ければその path を名指しして `Err`）と、R0 の Python の run（`lat_ja_0.30_1`）。有効の判定は 300 ms | 実物の記録 | 表の値 | Rust の「訳」の段は全行 n 66、p50 313 ms、p95 1237 ms。V を通った行 n 47、p50 260 ms、p95 439 ms。V に落ちた行 n 19、p50 701 ms、p95 1526 ms。Python は n 95、p50 212 ms、p95 1019 ms。全行の列は p50 と p95 のどちらも Python を超え、判定は `Err`（pseudo、jq の式。V に落ちた行の n は、訳が取れた行だけを数える。2026-10-14 の記録が示す差を、判定の道具が「超える」と読む確かめ） | 陽性、陰性 | `the_recorded_r8e_failed_drafts_are_slower_than_python` |
+| T-RP-33-013 | 012 の Rust の 3 つの列の合計 | 母数 | 47 + 19 = 66 | V を通った行 47 と落ちた行 19 の和が全行 66 と等しい。どちらにも入らない有効な行を作らない（derived、分け方の定義） | 境界 | `passed_and_failed_rows_add_up_to_all_rows` |
+| T-RP-33-014 | A を作った時だけ。A の前の run の V を通った行の `L` が 1000〜1009 ms の 10 行（n = 10 で p50 は 5 番目、p95 は 10 番目）。A の後の run が同じ値 | V を通った行の `L`（等号） | `Ok` | `Ok`（specified、RP-33 の「A を作った時は…A の前の run 以下」） | 境界、陽性 | `a_passed_draft_l_equal_to_before_a_passes` |
+| T-RP-33-015 | 014 で A の後の run の 5 番目の行（1004 ms）を 1005 ms にする。10 番目の行を 1010 ms にした別の入力も作る | p50 の順位、p95 の順位 | `Err` | 5 番目が 1005 ms になる入力は `Err` で p50 を名指し。10 番目が 1010 ms になる入力は `Err` で p95 を名指し。1 番目だけを 1001 ms にした入力は `Ok`（specified、RP-33） | 境界、陰性 | `a_slower_passed_draft_l_after_a_is_rejected` |
+| T-RP-33-016 | 実走：RP-32 の Rust の run の `/events`（B の後の run）。A を作った後は A の前の run も | 実走 | 実走 | 001 の形で、全行の「訳」の段が Python 以下（specified、RP-33） | 陽性 | `rust_translation_stage_beats_python_after_the_v_fix` |
+
+A を作る条件（3.16 の 2）のうち、ID の合否に入る物は 014 と 015 だけである。残りの 3 つは A を作る時の前提で、測り方は次の表のとおり（A を作った時だけ足す。今は走らせない）。
+
+| 前提 | 測り方 | 閾値 | 期待値 |
+|---|---|---|---|
+| H6 が通る | R8e の branch の `native/hayamimi-relay/tests/r8e_server.rs` の `closing_the_stream_after_the_first_token_frees_the_slot_within_a_second` と `an_open_stream_keeps_its_slot_busy_until_the_answer_ends`（`--ignored`、port 8080 の slot 4 本の llama-server） | 1 秒以内 | 閉じた後の slot が 1 秒以内に空き、閉じない対照では生成の終わりまで埋まる（R8e の記録は 44 ms） |
+| E0 にも V を掛け、閾値を動かさずに RP-35 を通す | RP-35 の 012 から 018 を A の build で打つ | RP-35 のとおり | RP-35 のとおり |
+| E0 が答えなければ直列の E へ落とし、3.15 の形で event を出す | E0 に答えない偽の llama-server で 1 行を流し、`/events` と中継の log を読む | event 1 件 | 行は `ok` で出て、3.15 の形の `fallback` の event と log が 1 件。event の名前と `reason` は設計に無い |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- T の訳が V に落ちたことを持つ記録。中継の stdout にも `/events` にも「落ちた」を直接示す欄は無く、この節は先の訳の event が無いことから導いた。落ちた理由は中継が捨てている（`draft()` の `passed` が真偽だけを持つ）。B の「`hold_reason` ごとに数える」ための欄は、B の席が足す。
+- B の後の run であること。run がどの build かを示す欄の名前が設計に無い。B の前の run を渡しても、001 から 013 は同じに通ったり落ちたりし、見分けられない。
+- A を作った時の slot 4 本の収まり（2 音源が同時に話した時の T 2 本、E0 2 本、速報、E）。同時に走った依頼の数を示す記録が中継にも llama-server の log にも設計に無く、数えられない。
+- E0 が答えない時の event の名前と `reason`。
 
 ### 4.44 RP-34（確定の復号の前の待ち）
 
-test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_wait_before_final_decode_not_longer_than_python`。`#[ignore]` を持ち、RP-32 の run と、待ちの log と、各 run の前後の `nvidia-smi` の記録を読む。合否の列は `L_asr − decode_ms` である。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-34 の行と 3.16 の 3 から）。
+test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_wait_before_final_decode_not_longer_than_python`。実走の行（T-RP-34-017）だけが `#[ignore]` を持ち、RP-32 の run と、待ちの log と、各 run の前後の `nvidia-smi` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp34`。実走の行はこれに `-- --ignored` を足す。
+合否の列は `W = L_asr − decode_ms` である。復号の順は変えないので（3.16 の 3）、案の分かれる行は無い。
+`check_wait(rust, python)` は、有効な標本（RP-3 の分割式で有効）ごとに、窓の最後の `final` の `audio_s` で組を決める。4 秒未満、4 秒以上 7 秒未満、7 秒以上である。組ごとに `W` の p50 を出し、Rust が Python 以下かを比べる。
+`W` は µs の整数（`L_asr` は µs、`decode_ms` は 10 の -3 乗 ms の整数に四捨五入）で比べる。
+
+**F34**（式で作る。実測のふりをしない）：組ごとに標本 n 個、i = 1〜n。`decode_ms` は 100 + i、`L_asr` は 900 + 2i ms（したがって `W` は 800 + i ms）。4 秒未満は n = 12（`audio_s` 2.0）、4〜7 秒は n = 13（5.0）、7 秒以上は n = 11（8.0）。Rust は書いた箇所のほかは Python と同じ。p50 の順位は n = 12 で 6 番目、n = 13 で 7 番目、n = 11 で 6 番目（(50 × n + 99) / 100）。したがって `W` の p50 は 806、807、806 ms。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-34-001 | `audio_s` が 3.999、4.000、6.999、7.000 の標本 | 組の境界 | 4 秒未満、4〜7 秒、4〜7 秒、7 秒以上 | 4.000 は 4〜7 秒の組、7.000 は 7 秒以上の組（specified、RP-34 の「4 秒未満、4〜7 秒、7 秒以上」） | 境界 | `group_edges_put_4_seconds_in_the_middle_and_7_seconds_in_the_top` |
+| T-RP-34-002 | F34 で 7 秒以上の標本が 0 個 | 組が空 | `Err` | `Err` で 7 秒以上の組を名指し。空の組を通過と読まない（implicit） | 境界、陰性 | `an_empty_group_is_an_error_not_a_pass` |
+| T-RP-34-003 | F34 そのまま | 等号 | `Ok` | `Ok`（specified、RP-34 の「Python 以下」） | 境界、陽性 | `equal_waits_pass` |
+| T-RP-34-004 | F34 で Rust の 4 秒未満の組の 6 番目の `L_asr` を +1 µs | p50 の順位（4 秒未満） | `Err` | `Err` で 4 秒未満を名指し。806.001 ms が 806 ms を超える（specified、RP-34） | 境界、陰性 | `short_group_one_microsecond_over_at_the_6th_sample_is_rejected` |
+| T-RP-34-005 | 004 を 7 番目の標本にする | p50 の順位の次 | `Ok` | `Ok`（derived、nearest-rank） | 境界 | `short_group_wait_is_decided_by_the_6th_sample_only` |
+| T-RP-34-006 | F34 で Rust の 4〜7 秒の組の 7 番目の `L_asr` を +1 µs | p50 の順位（中） | `Err` | `Err` で 4〜7 秒を名指し（specified、RP-34） | 境界、陰性 | `middle_group_one_microsecond_over_at_the_7th_sample_is_rejected` |
+| T-RP-34-007 | F34 で Rust の 7 秒以上の組の 6 番目の `L_asr` を +1 µs | p50 の順位（上） | `Err` | `Err` で 7 秒以上を名指し（specified、RP-34） | 境界、陰性 | `top_group_one_microsecond_over_at_the_6th_sample_is_rejected` |
+| T-RP-34-008 | F34 で Rust の 3 つの組のそれぞれ 1 番目の `L_asr` を −1 µs | 下側 | `Ok` | `Ok`（specified、RP-34） | 境界 | `a_shorter_wait_passes` |
+| T-RP-34-009 | F34 で Rust の `decode_ms` を全標本 2 倍にし、`L_asr` を `W` が同じになるように足す。待ちの log の p50 は 5000 ms | 記録の列は合否に使わない | `Ok` | `Ok`。`decode_ms` の p50 と待ちの log の p50 は記録の列に出て、判定に入らない（specified、RP-34） | 境界 | `decode_ms_and_the_wait_log_are_recorded_but_do_not_decide` |
+| T-RP-34-010 | F34 で Rust の全標本の `L_asr` を +300 ms | 確定の復号の前に 300 ms 待つ偽の engine | `Err` | `Err` で 3 つの組すべてを名指し（specified、RP-34 の陰性欄「3 つの組のどれかが落ちる」。この入力は全組に 300 ms が乗る） | 陰性 | `a_300_ms_wait_before_the_final_decode_is_rejected` |
+| T-RP-34-011 | 3 対の GPU の記録（前後の `utilization.gpu` と `memory.used`）が Python と Rust で同じ | 負荷が同じ対 | 無効な対 0 | `Ok`。無効にした対の数 0 が列に出る（数えて 0 と数えていない 0 を分ける）（specified、RP-34） | 陽性 | `pairs_with_the_same_gpu_load_are_valid_and_the_invalid_count_is_zero` |
+| T-RP-34-012 | 1 つの対で、Python の記録が `0, 9803`、Rust の記録が `95, 15000`（`utilization.gpu` の %、`memory.used` の MiB） | 負荷が大きく違う対 | 無効な対 1 | その対は判定から除き、無効にした対の数 1 が出る（specified、RP-34 の「違う対は無効にし、その数を出す」。「違う」の幅は設計に無いので、どの幅を置いても違う入力を選んだ） | 陰性 | `a_pair_with_very_different_gpu_load_is_invalidated_and_counted` |
+| T-RP-34-013 | 012 で Rust の run の GPU の記録が無い | 記録の欠け | `Err` | `Err` で run を名指し。値は出さない（specified、RP-34 の陰性欄「GPU の記録が無い run」） | 陰性 | `a_run_without_a_gpu_record_is_rejected` |
+| T-RP-34-014 | F34 の Rust の run で、速報を切った run（`partial` の event が 0 件）。待ちの log は在る | 速報を切った run | 列が出る | 3 つの組の `W` の p50 と `decode_ms` の p50 と待ちの log の p50 が出る（specified、RP-34 の陽性欄）。速報の遅れの判定は掛けない | 陽性 | `a_run_without_partials_still_yields_the_columns` |
+| T-RP-34-015 | F34 の run に、速報の遅れ（RP-5 の `first_partial_delay`）の p95 が Python より 1 ms 大きい Rust の run | 速報は RP-5 を満たす | `Err` | `Err` で RP-5 を名指し。`W` の判定は通る（specified、RP-34 の「速報は RP-5 を満たす」。RP-5 の 002 と同じ関数） | 境界、陰性 | `partial_delay_over_rp5_is_rejected_even_when_the_wait_passes` |
+| T-RP-34-016 | R8e の Rust の run（RP-31 の 018 の数え方）と R0 の Python の run（`lat_ja_0.30_1`）。有効の判定は 300 ms | 実物の記録 | 表の値 | `W` の p50 は、4 秒未満が Rust 884.706 ms、Python 884.021 ms（n 12 と 12）、4〜7 秒が Rust 990.724 ms、Python 946.288 ms（n 65 と 65）、7 秒以上が Rust 902.800 ms、Python 860.555 ms（n 23 と 23）。3 つの組のどれも Rust が超え、`Err`（pseudo、jq。Python の `decode_ms` の p50 は 111.0、182.7、248.1 ms。旧い数え方の Rust の `decode_ms` の p50 は 4〜7 秒が 274.6 ms、7 秒以上が 440.1 ms で、3.16 の 275 ms と 440 ms に一致する） | 陰性 | `the_recorded_r8e_wait_is_longer_than_python_in_all_three_groups` |
+| T-RP-34-017 | 実走：RP-32 の Rust と Python の run と、待ちの log と、前後の `nvidia-smi` の記録 | 実走 | 実走 | 3 つの組のそれぞれで Rust の `W` の p50 が Python 以下。無効にした対の数を出す（specified、RP-34） | 陽性 | `rust_wait_before_final_decode_is_not_longer_than_python` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- GPU の負荷が「違う」対の幅。`utilization.gpu` の %、`memory.used` の MiB のどちらに何を置くか。幅を境にした行（境界の両側）は、決まるまで書けない（011 と 012 は極端な入力で、幅の値に依らない）。
+- 全部の対が無効になった時の扱い。
+- 「発話の長さ」は窓の最後の `final` の `audio_s` で読んだ（R8e の記録の `decode_ms` の p50 が 3.16 の 275 ms と 440 ms に一致する組分け）。
+- 待ちの log の event の名前と欄。014 と 009 は意味の名前で書いた。
+- `decode_ms` の意味。Python の `decode_ms` が待ちを含むかは確かめられていない（10 の H43）。016 は両方の `decode_ms` を同じ欄として引いた。
 
 ### 4.45 RP-35（`L` の詰めで品質を下げない）
 
-test：`native/hayamimi-eval/tests/rp35.rs`。受入 test の名前は `rp35_latency_work_keeps_chrf_and_verify`。`#[ignore]` を持ち、前の main と R8h の branch の `eval` の結果と、RP-32 の Rust の run の中継の stdout を読む。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-35 の行と 3.16 の品質の条件から）。
+test：`native/hayamimi-eval/tests/rp35.rs`。受入 test の名前は `rp35_latency_work_keeps_chrf_and_verify`。実走の行（T-RP-35-021）だけが `#[ignore]` を持ち、前の main と R8h の branch の `eval` の結果と、RP-32 の Rust の run の中継の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp35`。実走の行はこれに `-- --ignored` を足す。
+`check_quality_kept(before, after, v_records)` は、2 組の `eval --final` の結果（方向ごとに `heldout_sha256`、T と E の model の名前、行の数、V が止めた行の数、chrF）と、RP-13 の en の chrF、RP-32 の run の `status` が `ok` の訳の列と V の記録の列を受ける。
+chrF は 10 の -6 乗の整数に読んで比べる（4.1）。held-out の chrF の出し方（`eval` の結果の file の欄か、参照訳と hyp から RP-14 の関数で出すか）は設計に無いので、test は値を受ける関数の形にする。
+
+**F35**（式で作る。実測のふりをしない）：前の main の結果は、ja→en が行 40、止めた行 2、chrF 40.000000。en→ja が行 40、止めた行 1、chrF 30.000000。RP-13 の en の chrF は 47.570000。model の名前と `heldout_sha256` は前後で同じ。R8h の結果は、書いた箇所のほかは前の main と同じ。
+V の記録は、translation の `id`、`stage`、V に掛けた文字列の sha256、判定（`ok` か止めた）の組である。記録の欄の名前は設計に無く、実装の席が決める（今の中継の stdout には `ok` の記録が無い。`translate.line.ok` は `id`、`source`、`t_ms`、`e_ms`、`v_ms`、`stage` だけを持つ）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-35-001 | F35 そのまま | 全部が等号 | `Ok` | `Ok`（specified、RP-35 の「以上」「以下」の等号側） | 境界、陽性 | `equal_results_pass` |
+| T-RP-35-002 | F35 で R8h の ja→en の chrF を 39.999999 にする | 最小の桁だけ下 | `Err` | `Err` で ja→en の chrF を名指し（specified、RP-35） | 境界、陰性 | `ja_en_chrf_one_micro_below_is_rejected` |
+| T-RP-35-003 | F35 で R8h の en→ja の chrF を 29.999999 にする | 方向ごとに独立 | `Err` | `Err` で en→ja の chrF を名指し。ja→en は通る（specified、RP-35 の「両方の向きで」） | 境界、陰性 | `en_ja_chrf_one_micro_below_is_rejected` |
+| T-RP-35-004 | F35 で R8h の chrF を両方とも +0.000001 | 上側 | `Ok` | `Ok`（specified、RP-35） | 境界 | `slightly_better_chrf_passes` |
+| T-RP-35-005 | F35 で R8h の ja→en の止めた行を 3 にする | 止める行が増える | `Err` | `Err` で ja→en の止めた行を名指し（specified、RP-35 の「止める行が増えない」） | 境界、陰性 | `one_more_stopped_row_is_rejected` |
+| T-RP-35-006 | F35 で R8h の ja→en の止めた行を 1 にする | 止める行が減る | `Ok` | `Ok`（specified、RP-35 の「前の main 以下」） | 境界 | `one_fewer_stopped_row_passes` |
+| T-RP-35-007 | F35 で R8h の RP-13 の en の chrF を 47.569999 にする | RP-13 の en の行 | `Err` | `Err` で RP-13 の en を名指し（specified、RP-35 の「RP-13 の en の chrF が前の main 以上」） | 境界、陰性 | `rp13_en_chrf_one_micro_below_is_rejected` |
+| T-RP-35-008 | F35 で R8h の RP-13 の en の chrF を 47.570000（等号）にして、ほかを F35 のままにする | RP-13 の en の等号 | `Ok` | `Ok`（specified、RP-35） | 境界、陽性 | `rp13_en_chrf_equal_passes` |
+| T-RP-35-009 | F35 で R8h の `heldout_sha256` を前の main と違う値にする | 同じ held-out でない | `Err` | `Err` で `heldout_sha256` を名指し。比べない（derived、RP-35 の「同じ llama-server と model」の前提の同じ組） | 陰性 | `different_heldout_batches_are_not_compared` |
+| T-RP-35-010 | F35 で R8h の E の model の名前を前の main と違う値にする | 同じ model でない | `Err` | `Err` で model を名指し（specified、3.16 の「同じ server、同じ model」） | 陰性 | `different_models_are_not_compared` |
+| T-RP-35-011 | F35 で R8h の ja→en の行を 39 にする | 行の数が違う | `Err` | `Err` で行の数を名指し。行が減った結果の止めた行の数を比べない（derived） | 境界、陰性 | `different_row_counts_are_not_compared` |
+| T-RP-35-012 | RP-32 の Rust の run の fixture：`status` が `ok` の訳 4 件（`stage` が `t` の先の訳が 2 件、`e` が 2 件）。4 件とも、同じ `id` と `stage` と訳の文字列の sha256 の V の記録が `ok` で在る | V の記録が全件に在る | `Ok` | `Ok`（specified、RP-35 の「`status` が `ok` の訳の全件に、その訳の文字列に掛けた V の `ok` の記録が在る」） | 陽性 | `every_ok_translation_has_its_own_ok_verify_record` |
+| T-RP-35-013 | 012 で 1 件の `ok` の訳（`stage` が `e`）の V の記録を除く | V を掛けずに出した訳（E0 か E の応答） | `Err` | `Err` でその訳の `id` と `stage` を名指し（specified、RP-35 の陰性欄） | 陰性 | `an_ok_translation_without_a_verify_record_is_rejected` |
+| T-RP-35-014 | 012 で 1 件の訳の V の記録を、別の文字列（その `id` の先の訳の文字列）の sha256 にする | 記録が別の文字列に掛けた物 | `Err` | `Err` でその訳を名指し。訳の文字列の sha256 と記録の sha256 が一致しなければ記録と数えない（specified、RP-35 の「その訳の文字列に掛けた」） | 境界、陰性 | `a_verify_record_for_another_text_does_not_count` |
+| T-RP-35-015 | 012 で 1 件の V の記録の判定を「止めた」にする | 止めた訳が出ている | `Err` | `Err` でその訳を名指し（specified、RP-35 の「V の `ok` の記録」） | 陰性 | `an_ok_translation_whose_verify_record_is_a_stop_is_rejected` |
+| T-RP-35-016 | 012 に `status` が `held` の訳と `unavailable` の訳を 1 件ずつ足す。V の記録は無い | 出ない訳 | `Ok` | `Ok`。V の記録の対象は `ok` の訳だけ（specified、RP-35） | 境界 | `held_and_unavailable_translations_need_no_ok_record` |
+| T-RP-35-017 | 012 に `of` が `partial` で `status` が `ok` の訳を 1 件足す。V の記録は無い | 速報の訳 | `Err` | `Err` でその訳を名指し。速報の訳も `status` が `ok` の訳で、V を通った物だけが出る（specified、RP-35 の「全件」と 3.6 の「速報の訳にも V を掛け」） | 境界、陰性 | `a_partial_translation_without_a_verify_record_is_rejected` |
+| T-RP-35-018 | F35 で R8h の ja→en の chrF を 38.5 にする | T の訳をそのまま確定にする偽の中継 | `Err` | `Err` で ja→en の chrF を名指し。en→ja は通る（specified、RP-35 の陰性欄。値は F35 の式で、実測ではない） | 陰性 | `t_draft_used_as_final_lowers_chrf_and_is_rejected` |
+| T-RP-35-019 | 前の main の結果を 2 組（同じ内容）渡す | 前の main 同士 | 差 0 | `Ok` で、chrF、止めた行、RP-13 の en のどの差も 0（specified、RP-35 の陽性欄） | 陽性 | `identical_baselines_give_zero_difference` |
+| T-RP-35-020 | 待ちの log を入れた build と分かる印が在る結果。ja の CER が前の main 0.038、R8h 0.038 | RP-1 の ja の CER | `Ok` | `Ok`。R8h の ja の CER を 0.039 にすると `Err`（specified、3.16 の「待ちの log は RP-1 の ja の CER と RP-5 の速報の遅れを悪くしない」。RP-1 の最小の桁は 0.001） | 境界 | `a_worse_ja_cer_after_the_wait_log_is_rejected` |
+| T-RP-35-021 | 実走：前の main と R8h の branch で、同じ llama-server と model に `eval --final --heldout <path> --direction ja-en` と `--direction en-ja`、RP-13 の en の行を打つ。RP-32 の Rust の run の中継の記録 | 実走 | 実走 | 001 の形で `Ok`（specified、RP-35）。held-out は 1 batch につき 1 回で、表が同じ `tables_sha256` の 2 回目だけを走らせる（会話字幕の CS-30） | 陽性 | `r8h_keeps_chrf_and_every_shown_translation_passed_v` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- V の `ok` の記録の欄の名前。今の中継は `ok` の判定を log にも `/events` にも出さないので、012 から 017 の実走（021）は、記録を出す変更が先に要る。
+- 待ちの log を入れた build と分かる印（020）。
+- held-out の chrF の出所（結果の file の欄か、test が計算か）。held-out の参照訳は repo の外にあり、test の席が読めるのは `eval` の結果だけである。
+- LLM の出力が run ごとに揺れる場合の扱い。「前の main 以上」は 1 回ずつの比較で、同じ入力でも揺れれば落ちたり通ったりする。揺れの幅は未測定である。
 
 ## 5. RP-19 の対応表
 
