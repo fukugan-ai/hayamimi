@@ -816,6 +816,9 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-39 | zh、ko、es の倍の語を読む V の数の検査（3.6 の R8l） | `cargo test --release -p hayamimi-relay --test rp39` が `numbers.rs` の読みと、偽の llama-server の応答を V に通す。merge の前に dev の seed 0 と seed 1 の組で `hayamimi-relay vprobe`（`--out` なし）を今の main と branch で打つ | 3.6 の R8l の例の値を全部その数で読む。`予算は五百万円です。` を zh `预算是5百万日元。`、ko `예산은 5백만 엔이에요.`、es `El presupuesto es de 5 millones de yenes.` へ訳した行が止まらずに出る。vprobe では参照訳の止まる数が今の main 以下、数の壊した行の止まる数が今の main 以上 | 同じ test が、日本語と英語の今の読み（`500万`、`5 million`）を同じ値で読む | 数を変えた訳（zh `7百万`、ko `7백만`、es `7 millones`）が `number` で止まらない build で落ちる。倍の語を読まない今の `numbers.rs` で、`5百万` の行が止まり落ちる |
 | RP-40 | 字幕の頁と中継の SSE に LAN から届く（8 の R5b） | `cargo test --release -p hayamimi --test rp40 -- --ignored` が、`<hy> --wav tests/golden/ja/ja_014.wav --serve 0 --serve-host 0.0.0.0` と `<relay> live --serve 0 --serve-host 0.0.0.0` を起こし、その機械の loopback でない IPv4 の address（test が UDP の socket の local address で引く）へ `GET /` と `GET /events` を打つ | 2 つの process の `GET /` が 200 で、`/events` が `text/event-stream` を返す。起動の stderr に、その address の URL が 1 行出る | 同じ test が `127.0.0.1` に打っても 200 を返す | `--serve-host` を付けない run（既定 `127.0.0.1`）では、同じ LAN の address に繋がらず落ちる側を確かめる（繋がれば落ちる） |
 | RP-41 | `hayamimi-eval stream` の `listen` が Rust の `/events` を SSE で読む（8 の R8m） | `cargo test --release -p hayamimi-eval --test rp41` が、偽の SSE の server（`text/event-stream` で `final` と `translation` を 1 件ずつ送る）に `listen` を向ける | `listen` が 2 件の event を受け、時刻を記録する | 同じ test が、`<hy> --serve 0` の本物の `/events` からも 1 件以上の event を受ける（`--ignored` の行） | WebSocket で繋ぐ今の `listen` で、偽の SSE の server に繋げず落ちる |
+| RP-42 | 両方止めた行の理由が log で読める（8 の R8o の 2、観測だけ） | `cargo test --release -p hayamimi-relay --test rp42` が、偽の llama-server で T と E の両方が V に止められる ja→en の 1 行を中継に流す | `translate.line.held` に、E の側の理由に加えて T の側の理由（V の理由と同じ enum の値）が載る。log には止めた訳の本文が載らない。`Observer` の `draft_verify_input` と `verify_input` が受けた 2 つの訳の文字列は、repo の外の dev 用の file（起こす側が path を渡した時だけ）に 1 行ずつ出る | 同じ test が、T が V を通る行では T の側の理由を載せない | T の側の理由を載せない build、log に止めた訳の本文を載せる build のどちらでも落ちる |
+| RP-43 | 否定の表に「なさそう」「なさげ」「なさすぎ」（8 の R8o の 1） | `cargo test --release -p hayamimi-relay --test rp43` が V に原文と訳を渡す。merge の前に、同じ run で E2E-1 を打ち直す | 原文の「なさそう」「なさげ」「なさすぎ」が否定の語と読まれ、否定を残した en の訳は止まらず、否定を落とした訳は `negation` で止まる。「なさい」「なさる」「ごめんなさい」は否定の語と読まない。E2E-1 の打ち直しで、Rust の訳の取れた標本が 70/80 以上（utt 16 の 4 件のうち 3 件以上が戻る）。71/80 は見込みで確かめていない | 同じ test が、今の表の「ない」の行を今のとおり読む | 「なさ」だけを表に足した build で「ごめんなさい」の行が `negation` で止まり落ちる。表を足さない今の build で「なさそう」の行が落ちる |
+| RP-44 | R8o の後の RP-35 の held-out の組（新しく作る） | test-designer の席が repo の外に新しい組を作り、`cargo test --release -p hayamimi-eval --test rp44 -- --ignored` が組の ids と記録を読む | dev と test split の id との重なりが 0 で、原文に「なさそう」を含む行が 1 行以上在る。言語ごとの ids の sha256 を state.json に書く。組は 1 回だけ使う（会話字幕の CS-30 は同じ `heldout_sha256` の 2 回目を拒む）。組が届くまでの RP-35 の代わりは、dev の seed 0 と seed 1 の vprobe（RP-37 の形）である | 同じ test が、dev の seed 0 の組の ids から重なりを数えられる | dev の id を 1 つ混ぜた ids で落ちる |
 
 ## 7. test の名前
 
@@ -867,6 +870,9 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-39 | `rp39_number_scales_read_in_zh_ko_es` | `native/hayamimi-relay/tests/rp39.rs` | 数を変えた訳を止めない build、倍の語を読まない今の `numbers.rs` |
 | RP-40 | `rp40_pages_and_relay_events_reach_from_the_lan` | `native/hayamimi/tests/rp40.rs` | `--serve-host` を付けない run |
 | RP-41 | `rp41_stream_listen_reads_events_over_sse` | `native/hayamimi-eval/tests/rp41.rs` | WebSocket で繋ぐ今の `listen` |
+| RP-42 | `rp42_held_line_logs_both_reasons_without_the_text` | `native/hayamimi-relay/tests/rp42.rs` | T の側の理由を載せない build、本文を載せる build |
+| RP-43 | `rp43_nasasou_is_read_as_negation` | `native/hayamimi-relay/tests/rp43.rs` | 「なさ」だけを足した build、表を足さない build |
+| RP-44 | `rp44_new_heldout_set_is_fresh_and_has_nasasou` | `native/hayamimi-eval/tests/rp44.rs` | dev の id を混ぜた ids |
 
 test は会話字幕の設計 7.1 と同じ規則で書く（`Result` を返して `?`、`unwrap` と `expect` と `unwrap_or*` を書かない、実行時に環境変数を読まない）。
 `CUDA_VISIBLE_DEVICES`、`CUDA_CACHE_PATH`、`LANG` は test の code が読む値ではなく、test が子の process を起こすときに渡す値である。
@@ -901,6 +907,7 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R5b | 字幕の server（`native/hayamimi/src/run.rs` の bind）と中継の SSE（`native/hayamimi-relay/src/hub.rs` の bind）に `--serve-host <addr>` を足す。既定は `127.0.0.1` のまま（Python の `subtitle_server.py` と `--ws-host` と同じ）で、LAN の端末から頁を見る時は `--serve-host 0.0.0.0` を付ける。既定を LAN にしないのは、`/ingest` と `/config` が認証なしで音声と設定を受けるので、LAN へ開くのは利用者が選んだ時だけにするためである。loopback でない address に bind した時は、起動の stderr に LAN の URL を 1 行出す。手順書（`docs/guide/run_hayamimi.ja.md`）の E2E と LAN で見る手順に `--serve-host 0.0.0.0` を書く | RP-40 | commit を revert |
 | R8m | `hayamimi-eval` の `ingest.rs` の `listen` を、`/events` の SSE を読む形に直す（Rust と Python の `/events` はどちらも SSE） | RP-41 | commit を revert |
 | R8n | 6 と E2E の表に名前が在って repo に無い受入 test を作る：RP-32 の判定（`rp32_alternated_runs_under_the_same_load_beat_python`）、RP-33、RP-34、RP-35、E2E-1、E2E-2 | RP-32〜35、E2E-1、E2E-2 の test が在り、記録（`docs/results/r8h_verify/`）を読んで値を出す | commit を revert |
+| R8o | H53 の決め（評議の判定）。2（観測）：`translate.line.held` に T の側の理由を enum で足し、止めた訳の本文は log に載せず、`Observer` の `draft_verify_input` と `verify_input` から repo の外の dev 用の file へ出す。1（同じ run）：`verify_markers.toml` の `ja.negation` に「なさそう」「なさげ」「なさすぎ」を足す（「なさ」だけは「なさい」「なさる」「ごめんなさい」を巻き込むので足さない）。両方止めた行は今までどおり訳を出さない。新しい held-out の組は test-designer の席が作る（RP-44） | RP-42、RP-43、RP-44 | commit を revert |
 | R3d | T-RP-1-013 の陰性対照の口：`hayamimi-eval scorecard` に、ja の clip を SenseVoice の tier へ送る評価用の引数を足す（配る `hayamimi` には足さない） | T-RP-1-013 | commit を revert |
 | R8l | zh、ko、es の V の数の検査で、算用数字の後の倍の語の列を読む（3.6）。語だけで書いた数は 10 の H51 | RP-39 | その commit を `git revert` |
 | R0b | worktree に `testdata/` が無いとき、test の support が本体の `testdata/` を引く。`hayamimi-eval` の `tests/support/mod.rs` の `BASE` と `TESTDATA` を、まず `CARGO_MANIFEST_DIR` の 2 つ上の `testdata`、無ければ `git rev-parse --path-format=absolute --git-common-dir` の親の `testdata` の順で探す関数にする。両方に無ければ、探した 2 つの path を名指しして `Err` を返す（黙って通さない）。symlink は使わない（Windows から WSL の symlink を辿れない。RP-24 の os error 1920） | worktree の中で `cargo test -p hayamimi-eval --test rb01 … --test rb08` の FAILED が 0。陰性対照は、本体にも worktree にも `testdata/` が無い clone で、2 つの path を名指しした `Err` で落ちる | commit を revert |
@@ -964,6 +971,7 @@ R3 は 2 席に分ける。R3a は振り分け（`hayamimi-asr::route` と `::li
 R3a は R3b の `decode` を、言語の tier を受けて文字列を返す 1 つの関数として呼び、R3b が出来るまでは test の中の偽の関数で通す。
 
 実装の席は `docs/design/status.md` と `status.ja.md` を書かない。slice を main へ merge した時に、設計の席がその slice の行の 4 列（状態、merge の commit、検証の出所、受入の通過）を英語版と日本語版の両方で書く（branch と main の間で status がぶつかるのを避けるため）。
+status を書く同じ手番で、`README.md` と `README.ja.md` に在る数字（その日の時点の固定値）が status の値と食い違えば、README も直す。
 
 **波**：
 
@@ -1049,7 +1057,10 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 - **H5** CUDA の stream を ORT と llama.cpp で共有する手段は無く、同じ GPU を 2 つの process が時間で分け合う。負荷の下の時間は R1 の RP-23 と、RP-3 で測る。
 - **H44** RP-5 の実走（T-RP-5-009）が落ちる。R8e の Rust の run の `t_partial` の p95 が 4398 ms で、同じ `--min-silence` 0.30 の Python の 3751 ms を超える。原因は特定していない（NOT VERIFIED）。持ち主は R8h で、3.16 の 3 の待ちの log と RP-32 の交互の run で速報の遅れを Python と並べ、差が残れば原因を評議へ出す。
 - **H48** `eval.rs` の `settle_pair`（ja と en の間）は V を 2 回（T の訳と E の訳）掛ける。今は en の推量の表が無く（`verify.rs` の `table_for` が en で `None`）、推量の log は出ないが、en に推量の表を足すと、同じ行で `translate.hedge.logged` を 2 件出す。持ち主は en に推量の表を足す席で、足す同じ手番で `settle_pair` を確定の訳の V だけで log を出す形にし、RP-38 に en の行を足す。
-- **H53** E2E-1 の Rust の訳の取れた割合が 67/80（0.8375）で、RP-32 と E2E-1 の 20/23（0.8696）に届かない（E2E の席の申告、`docs/results/r8h_verify/`。`--repeat 2` の 2 対で、設計の 5 回と 3 対より少ない）。`L` は Python の p50 1481 ms と p95 2018 ms に対し Rust が 1420 ms と 1950 ms で、`L` だけなら下回る。原因は特定していない（NOT VERIFIED）。持ち主は原因の席（opus）で、訳の取れない 13 標本を `held` の理由ごとに分ける。R8h の 2 の B（V が正しい訳を止める理由を直す）と H36 の周りの見込みで、受入は原因が出てから置く。
+- **H53** E2E-1 の Rust の訳の取れた割合が 67/80（0.8375）で、RP-32 と E2E-1 の 20/23（0.8696）に届かない（E2E の席の申告、`docs/results/r8h_verify/`。`--repeat 2` の 2 対で、設計の 5 回と 3 対より少ない）。`L` は Python の p50 1481 ms と p95 2018 ms に対し Rust が 1420 ms と 1950 ms で、`L` だけなら下回る。
+原因（原因の席の申告を評議が記録から打ち直して一致）：抜けた 13 標本は 13 件とも T と E の両方が V に止められ、中継が何も出さずに閉じた行である（`pipeline.rs` の両方止めた行の扱い）。12 件は utt 11（`number`）、utt 16（`negation`。原文の「なさそう」が `verify_markers.toml` の `ja.negation` に無い）、utt 23（`uncertainty`。think と about a の仮説）の 3 発話が 2 run で 2 回ずつで、1 件は rs2b の utt 22（`number`）である。時間切れ、T の失敗、wire の欠けは 0 件である。
+決め（評議の判定）：両方止めた行は今までどおり訳を出さない。止めた訳を出す形（a）は採らない。Zoom と Teams に出した字幕は取り消せず、20/23 の定義を変えるだけになり、wire の契約（`docs/guide/embedding.md` と `deliver.rs` の held の扱い）が割れるからである。止めた行に印は付けない（SRT は `〔訳を控えました〕` と原文、board は `ui.tr.held`、OBS は何も出さず、Zoom と Teams には送らない）。
+順は R8o の 2（観測）、R8o の 1（否定の表、同じ run）、E2E の打ち直し、3（推量の扱い、保留）である。3 は、R8o の 2 の後に `uncertainty` が主因と分かれば、zh、ko、es と同じ「log のみ」への降格（RP-37 の先例）を評議へ出す。
 - **H54** E2E-2（`/ingest` に送った en→ja。実の loopback ではない）の `L` の p95 が 3139 ms で、上限の 2000 ms を超える（n 25、訳 25/30、E2E の席の申告）。原因は特定していない（NOT VERIFIED）。持ち主は H53 と同じ原因の席で、en→ja の段ごとの時間（`L_asr`、「訳」の段）を分ける。実の loopback の run は R8m の後に打つ。
 - **H55** Windows の `hayamimi.exe` が今の main で build されておらず、RP-10（`lang` の条件つき）と Windows の実機の E2E を打てない。持ち主は Windows の build を持つ席（R10 の続き）で、build の後に、書いていない検証の席が RP-10 を打つ。
 - **H51** V の数の検査は、ko の語だけで書いた数（`오백만`）と、es の小数点が読点の数（`1,5 millones`）を読まない。原文と同じ数の正しい訳が `number` で止まりうる。es の `1,5` は区切りの読点と見分けられない。持ち主は R8l の後に `numbers.rs` を触る席で、dev の組の vprobe で `number` で止まった参照訳の行を数え、語だけの数が何行在るかを材料に、直すかを評議へ出す。

@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-41）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-44）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1520,6 +1520,21 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-40 �
 
 test：`native/hayamimi-eval/tests/rp41.rs`。受入 test の名前は `rp41_stream_listen_reads_events_over_sse`。偽の SSE の server の行は `#[ignore]` を持たず、本物の `/events` の行だけが持つ。
 case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-41 の行と 8 の R8m から）。
+
+### 4.52 RP-42（両方止めた行の理由が log で読める）
+
+test：`native/hayamimi-relay/tests/rp42.rs`。受入 test の名前は `rp42_held_line_logs_both_reasons_without_the_text`。`#[ignore]` を持たない（偽の llama-server だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-42 の行と 8 の R8o から）。
+
+### 4.53 RP-43（否定の表の「なさそう」「なさげ」「なさすぎ」）
+
+test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80 は `e2e1` の run で確かめる。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-43 の行から）。
+
+### 4.54 RP-44（R8o の後の新しい held-out の組）
+
+test：`native/hayamimi-eval/tests/rp44.rs`。受入 test の名前は `rp44_new_heldout_set_is_fresh_and_has_nasasou`。`#[ignore]` を持ち、repo の外の組の ids を読む。組を作るのは test-designer の席で、V を直す席に path を渡さない。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-44 の行から）。
 
 ## 5. RP-19 の対応表
 
