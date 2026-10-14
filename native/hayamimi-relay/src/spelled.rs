@@ -190,7 +190,7 @@ fn month_of(tokens: &[&str], at: usize, tongue: Tongue) -> Option<u128> {
     let names = match tongue {
         Tongue::English => &ENGLISH_MONTHS,
         Tongue::Spanish => &SPANISH_MONTHS,
-        Tongue::Other => return None,
+        Tongue::Other | Tongue::Chinese | Tongue::Korean => return None,
     };
     let number = names
         .iter()
