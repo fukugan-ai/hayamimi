@@ -1513,28 +1513,147 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-39 �
 
 ### 4.50 RP-40（字幕の頁と中継の SSE に LAN から届く）
 
-test：`native/hayamimi/tests/rp40.rs`。受入 test の名前は `rp40_pages_and_relay_events_reach_from_the_lan`。`#[ignore]` を持つ（本物の `hayamimi` と `hayamimi-relay` を起こす）。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-40 の行と 8 の R5b から）。
+test：`native/hayamimi/tests/rp40.rs`。受入 test の名前は `rp40_pages_and_relay_events_reach_from_the_lan`（001 から 006）。`#[ignore]` を持つ（本物の `hayamimi` と `hayamimi-relay` を起こす）。
+関数の名前は `rp40_` に各行の「関数の末尾」を続けた物にする。
+入力：`<hy>`＝`native/target/release/hayamimi`、`<relay>`＝`native/target/release/hayamimi-relay`（先に `cargo build --release -p hayamimi -p hayamimi-relay` で作る。無ければ test は path を名指しして落ちる）。起こす command は `<hy> --wav tests/golden/ja/ja_014.wav --serve 0 [--serve-host 0.0.0.0]` と `<relay> live --serve 0 [--serve-host 0.0.0.0]`。LAN の address は、test が UDP の socket を公開 address に向けて connect し（何も送らない）、その local address として引く IPv4 で、loopback ではない。各 server の port は、起動の stderr の URL の行から読む。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi --test rp40 -- --ignored`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-40-001 | `<hy>` を `--serve-host 0.0.0.0` で起こし、LAN の address へ `GET /` | LAN の端末から字幕の頁 | 200 | status が 200（specified、RP-40） | 陽性 | `pages_and_relay_events_reach_from_the_lan` |
+| T-RP-40-002 | 001 の `<hy>` へ LAN の address から `GET /events` | LAN の端末から `hayamimi` の SSE | 200 と型 | status が 200、`content-type` が `text/event-stream` で始まる（specified、RP-40 の「`hayamimi` の `/events` も `text/event-stream`」） | 陽性 | 001 と同じ 1 本 |
+| T-RP-40-003 | `<relay> live --serve 0 --serve-host 0.0.0.0` を起こし、LAN の address へ `GET /events` | LAN の端末から中継の SSE | 200 と型 | status が 200、`content-type` が `text/event-stream` で始まる（specified、RP-40） | 陽性 | 001 と同じ 1 本 |
+| T-RP-40-004 | 003 の中継へ LAN の address から `GET /` | 中継の `/` は頁を持たない | 404 | status が 404（specified、RP-40 の「中継の `/` は頁を持たず 404 のまま」） | 境界、陰性 | `the_relay_has_no_page_and_answers_404` |
+| T-RP-40-005 | 001 と 003 の 2 つの server へ `127.0.0.1` から同じ 3 つの GET（`<hy>` の `/` と `/events`、中継の `/events`） | loopback でも同じ | 001 から 003 と同じ | 001、002、003 と同じ status と型（specified、RP-40 の陽性対照） | 陽性 | 001 と同じ 1 本 |
+| T-RP-40-006 | 001 と 003 の stderr | 起動の URL の行 | 1 行ずつ | `http://<LAN の address>:<port>` を含む行が、各 process で 1 行だけ。後から増えない（specified、RP-40 の「その address の URL が 1 行」と 8 の R5b の「LAN の URL を 1 行」） | 境界 | 001 と同じ 1 本 |
+| T-RP-40-007 | `--serve-host` を付けずに `<hy>` と `<relay>` を起こす | 既定の bind | LAN は拒む | LAN の address への接続が失敗し、loopback への `GET /`（`<hy>`）と `GET /events`（中継）は通る。stderr に LAN の address の URL の行が無い（specified、RP-40 の陰性欄と 8 の R5b の「既定は `127.0.0.1`」） | 陰性 | `without_serve_host_the_lan_address_is_refused` |
+| T-RP-40-008 | `--serve-host 127.0.0.1` を明示して `<hy>` と `<relay>` を起こす | 既定と同じ値の明示 | 007 と同じ | 007 と同じ（LAN は拒まれ、LAN の URL の行が無い）（derived、8 の R5b の「既定は `127.0.0.1`」） | 境界 | `an_explicit_loopback_serve_host_is_the_default` |
+
+実装した行は 001 から 003、005 から 007 で、004 と 008 は未実装である（実装の席が足す）。
+陰性の build（`--serve-host` を付けない run で LAN に繋がる形）で落ちる行は 007 と 008 である。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp40_` + 末尾である。この節は実装に合わせた。
+- `--serve-host` に address でない値や、持たない address（IPv6、機械に無い IPv4）を渡した時の振る舞い。設計に条件が無いので行にしない。
+- 起動の URL の行の書式。001 から 003 と 006 は `http://<address>:<port>` を含む行で数える。
+- `<relay>` の build を test が起こすか、先に作るか。この節は先に作る形にした。
 
 ### 4.51 RP-41（`stream` の `listen` が `/events` を SSE で読む）
 
-test：`native/hayamimi-eval/tests/rp41.rs`。受入 test の名前は `rp41_stream_listen_reads_events_over_sse`。偽の SSE の server の行は `#[ignore]` を持たず、本物の `/events` の行だけが持つ。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-41 の行と 8 の R8m から）。
+test：`native/hayamimi-eval/tests/rp41.rs`。受入 test の名前は `rp41_stream_listen_reads_events_over_sse`（001）。偽の SSE の server の行は `#[ignore]` を持たず、本物の `/events` の行（007）だけが持つ。
+関数の名前は `rp41_` に各行の「関数の末尾」を続けた物にする。
+入力：偽の server は 127.0.0.1 の空き port で 1 接続だけ受け、`GET /events HTTP/1.1` の行を控える。本文の枠は 2 通りで、chunked（`hayamimi` の `/events` の形）と、接続が閉じるまで続く形（中継の形）。`final` は `{"type":"final","id":"mic-1","text":"hello"}`、`translation` は `{"type":"translation","id":"mic-1","text":"hallo"}`。`listen(host, port, origin)` が返す物に `finish(drain)` を呼んで、受けた event（時刻 µs と本文）を読む。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp41`。007 は `<hy> --serve 0` を起こしてから同じ command に `-- --ignored` を足す。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-41-001 | 偽の SSE の server が `text/event-stream` で `final` と `translation` を 1 件ずつ送る。2 通りの枠で | 正常な SSE | 2 件 | 受けた event が 2 件で、型が `final`、`translation` の順。時刻は 1 件目 ≤ 2 件目 ≤ 起点からの経過。server が受けた要求の行が `GET /events HTTP/1.1`（specified、RP-41 の「`listen` が 2 件の event を受け、時刻を記録する」） | 陽性 | `stream_listen_reads_events_over_sse` |
+| T-RP-41-002 | 001 の server に、受けた本文を照らす：`final` の `text` が `hello`、`translation` の `text` が `hallo` | 本文が欠けない | 一致 | 記録した本文の JSON が送った JSON と同じ（specified、RP-41。型だけでなく中身を記録する。001 は型しか見ない） | 陽性 | `the_recorded_events_carry_the_bodies_that_were_sent` |
+| T-RP-41-003 | 偽の server が `text/html` で答える | 型が SSE でない | `Err` | `Protocol` の error（derived、RP-41：`listen` は SSE の答えだけを読む） | 陰性 | `listen_refuses_an_answer_that_is_not_an_event_stream` |
+| T-RP-41-004 | 偽の server が `404 Not Found` で答える | 状態が 200 でない | `Err` | `Http` の error（derived、003 と同じ） | 陰性 | 003 と同じ 1 本 |
+| T-RP-41-005 | 閉じている port へ `listen` | 繋がらない | `Err` | `Connect` の error（implicit） | 境界、陰性 | `listen_to_a_closed_port_is_a_connect_error` |
+| T-RP-41-006 | 偽の server が `session_start` を送ってから `final` を送る。`start()` を呼ぶ | 起動の合図 | 待つ | `start()` が `session_start` を受けてから返り、受けた event は `session_start`、`final` の順（derived、8 の R8m：`listen` が Rust の `/events` を読む形） | 陽性 | `start_waits_for_the_kept_session_start` |
+| T-RP-41-007 | 偽の server が `session_start` を送らずに `final` だけ送って閉じる。`start()` を呼ぶ | 合図が来ない | `Err` | `Protocol` の error で、ready の timeout まで待たない（20 秒未満）（derived） | 境界、陰性 | `start_fails_when_the_stream_ends_without_session_start` |
+| T-RP-41-008 | 偽の server が 50 ms 後に閉じる run と、500 ms 開けておく run | 閉じた接続の報告 | 区別 | 閉じた run は `closed_by_server` が真、開けた run は偽で event が 1 件（derived） | 境界 | `a_stream_the_server_closed_is_reported` |
+| T-RP-41-009 | `<hy> --serve 0` の本物の `/events` に `listen` する。`<hy>` は `--wav` を再生する | 本物の server | 1 件以上 | 受けた event が 1 件以上で、各本文が JSON の `type` を持つ（specified、RP-41 の陽性欄の `--ignored` の行） | 陽性 | `listen_hears_the_real_events_of_hayamimi` |
+
+実装済みの行は 001、003 から 008（003 と 004 は 1 本の関数）、未実装の行は 002 と 009 である（実装の席が足す）。
+陰性の build（WebSocket で繋ぐ今の `listen`）で落ちる行は 001、006、007、008 である。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp41_` + 末尾である。この節は実装に合わせた。
+- 006 から 008 の `start` と `closed_by_server` は、設計の RP-41 の文に無い（実装が足した API）。`listen` を SSE にする変更の周りで守る物として、この席が行に起こした。
+- SSE の注釈行（`:` で始まる行）、`event:` の欄、複数行の `data:` の読み方。設計に条件が無いので行にしない。
+- 009 の本物の `<hy>` の起こし方と音声（`--wav` の指定）。
 
 ### 4.52 RP-42（両方止めた行の理由が log で読める）
 
-test：`native/hayamimi-relay/tests/rp42.rs`。受入 test の名前は `rp42_held_line_logs_both_reasons_without_the_text`。`#[ignore]` を持たない（偽の llama-server だけを使う）。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-42 の行と 8 の R8o から）。
+test：`native/hayamimi-relay/tests/rp42.rs`。受入 test の名前は `rp42_held_line_logs_both_reasons_without_the_text`（001）。`#[ignore]` を持たない（偽の llama-server だけを使う）。
+関数の名前は `rp42_` に各行の「関数の末尾」を続けた物にする。
+入力：偽の llama-server は 1 本目の要求（T）に第 1 の文、2 本目以降（E）に第 2 の文を答える。原文 `SOURCE`＝`五人はそこにいませんでした。`（数 5 と否定の語 `ません`）、T の文 `Five were there.`（数を残し否定を落とす）、E の文 `They were not there.`（否定を残し数を落とす）。`PLAIN_SOURCE`＝`そこに五人います。`、その訳 `Five people are there.`。ja→en の 1 行を `Pipeline::run` に流し、`Translation` と、集まった log の event を読む。dev 用の file は `VerifyDump` が開く一時の path である。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp42`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-42-001 | `SOURCE`、T は `Five were there.`、E は `They were not there.`。`VerifyDump` を名指しした path で開く | T と E の両方が V に止められる | 止める | `status` が `held`、`text` が空、`hold_reason`（E の側）が `number`。`translate.line.held` が 1 件で、`hold_reason` が `number`、T の側の理由が `negation`。どの event の JSON にも T の文と E の文が入らない。dev 用の file は 2 行で、1 行目が T の文、2 行目が E の文（specified、RP-42。実装の key は `t_hold_reason` と、行の `id`、`pass`、`text`） | 陽性 | `held_line_logs_both_reasons_without_the_text` |
+| T-RP-42-002 | `PLAIN_SOURCE`、T は `Five people are there.`、E は同じ文に `</s>` を付けた文 | T は V を通り、E は止まる | T の理由を載せない | `status` が `held`、`hold_reason` が `form`、`translate.line.held` に T の側の理由の欄が無い（specified、RP-42 の陽性欄「T が V を通る行では T の側の理由を載せない」） | 陰性 | `a_line_whose_t_passed_logs_no_reason_for_t` |
+| T-RP-42-003 | `SOURCE`、T も E も `Five were there.` | 2 つの理由が同じ | 両方載る | `hold_reason` と T の側の理由がどちらも `negation`（specified、RP-42。同じ値でも欄を省かない） | 境界 | `both_reasons_are_logged_when_they_agree` |
+| T-RP-42-004 | `observer` を渡さない run と、`VerifyDump::open` に開けない path（dir）を渡した run | file は名指しされた時だけ | 作らない | 名指ししない run は一時の dir に何も作らない。開けない path は `translate.dump.failed`（error_code `HYM_STORAGE_DUMP_OPEN`）が 1 件で `None`（specified、RP-42 の「起こす側が path を渡した時だけ」。欄の名前は実装の物） | 境界、陰性 | `the_dump_exists_only_when_a_file_is_named_and_opens` |
+| T-RP-42-005 | 中継（`relay::start_with`）の `RelayConfig` に dev 用の file を持たせ、偽の認識器が `SOURCE` の `final` を 1 件送る | 中継の lane が行を渡す | 2 行 | dev 用の file の 2 行が T の文と E の文で、id が `final` の `id`。中継の log に T の文と E の文が入らない。`translate.line.held` が 1 件（specified、RP-42。観測は実際の経路で出る） | 陽性 | `the_relay_writes_the_rows_of_the_lines_it_translates` |
+| T-RP-42-006 | 001 の形で T の文だけを入れ替える。`SOURCE` に対し `Six were not there.`（数）、`Maybe five were not there.`（推量）、`Sure, five were not there.`（前置き）。原文 `五人はAcmeにいませんでした。` に対し `Five were not there.`（Latin 語の名前を落とす）。E は常に `They were not there.` を答える | T の理由の取り得る値 | 4 通り | T の側の理由が順に `number`、`uncertainty`、`form`、`proper_noun` と一致する（specified、RP-42 の「V の理由と同じ enum の値」。`negation` は 001 が持つ） | 境界 | `every_reason_of_v_can_be_the_reason_of_t` |
+| T-RP-42-007 | `PLAIN_SOURCE`、T も E も `Five people are there.`（E まで通る） | 止まらない行 | 載せない | `status` が `ok`、`translate.line.held` が 0 件。dev 用の file を開いていても止まらない行の文は log に出ない（specified、RP-42 は「両方止めた行」の観測） | 陰性 | `a_line_that_goes_out_logs_no_held_event` |
+| T-RP-42-008 | 中継の `RelayConfig` の dev 用の file を持たせない（`None`）run。001 と同じ行を流す | `--verify-text` を渡さない | 作らない | 一時の dir にも他の場所にも file が作られず、`translate.line.held` は T の側の理由つきで 1 件（specified、RP-42 の「起こす側が path を渡した時だけ」、10 の H56） | 陰性 | `a_relay_without_a_named_file_writes_none` |
+
+実装済みの行は 001 から 005 で、006 から 008 は未実装である（実装の席が足す）。
+陰性の build（T の側の理由を載せない build）で落ちる行は 001、003、006 である。log に止めた訳の本文を載せる build は 001、005 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp42_` + 末尾である。この節は実装に合わせた。
+- 007 は、設計が言わない物（止まらない行が log を出さないこと）をこの席が置いた境界である。
+- 止める理由の値のうち `unavailable`（llama-server が答えない）は、T の側の理由として載るか。T が答えない行には V が掛からず、設計に条件が無いので行にしない。
+- 006 の `proper_noun` は、原文の Latin 語（`Acme`）が訳に残らない時の理由である。この理由が出る検査は `verify.rs` の Latin 語の検査で、設計に条件の文が無い。
 
 ### 4.53 RP-43（否定の表の「なさそう」「なさげ」「なさすぎ」）
 
-test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80 は `e2e1` の run で確かめる。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-43 の行から）。
+test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`（001 から 003）。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80（009）は `e2e1` の run で確かめる。
+関数の名前は `rp43_` に各行の「関数の末尾」を続けた物にする。
+入力：`Verifier::open(None, sink)` が持つ内蔵の表に、日本語の原文と訳を渡して `verify(src, translation, Lang::Ja, sink)` の判定（`Ok` か `Held(理由)`）を読む。llama-server は使わない。表は `native/hayamimi-relay/data/verify_markers.toml` の `ja.negation` と `exclude`。
+command（001 から 008）：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp43`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-43-001 | 否定を残した訳：`あまり美味しくなさそうです。`→`It doesn't seem very tasty.`、`彼は興味がなさげでした。`→`He was not interested.`、`やる気がなさすぎます。`→`He has no motivation at all.` | 「なさそう」「なさげ」「なさすぎ」の 3 語 | `Ok` | 3 件とも `Ok`（specified、RP-43 の「否定を残した en の訳は止まらない」） | 陽性 | `nasasou_is_read_as_negation` |
+| T-RP-43-002 | 001 の原文で、否定を落とした訳：`It seems very tasty.`、`He was interested.`、`He has too much motivation.` | 同じ 3 語 | 止まる | 3 件とも `Held(Negation)`（specified、RP-43 の「否定を落とした訳は `negation` で止まる」） | 陰性 | 001 と同じ 1 本 |
+| T-RP-43-003 | 否定の語でない 4 文：`早く食べなさい。`→`Eat quickly.`、`ごめんなさい。`→`I'm sorry.`、`先生がお話しなさる。`→`The teacher speaks.`、`皆さん、静かにしなさい。`→`Everyone, be quiet.` | 「なさ」を含む否定でない語 | `Ok` | 4 件とも `Ok`（specified、RP-43 の「なさい」「なさる」「ごめんなさい」は否定の語と読まない） | 境界、陽性 | 001 と同じ 1 本 |
+| T-RP-43-004 | `それは美味しくない。`→`It is not tasty.`（残した訳）と `It is tasty.`（落とした訳） | 今の表の「ない」の行 | 前と同じ | 残した訳は `Ok`、落とした訳は `Held(Negation)`（specified、RP-43 の陽性対照） | 陽性 | `the_nai_row_reads_as_before` |
+| T-RP-43-005 | 否定でない語の 11 文：`つまらなさそうな顔をしている。`→`He seems bored.`、`少なさげな数字です。`→`The number looks small.`、`危なさそうな道です。`→`The road seems dangerous.`、`申し訳なさそうな顔をしている。`→`He seems apologetic.`、`仕方なさそうに笑った。`→`He seems resigned and smiled.`、`情けなさそうな声だった。`→`His voice seemed pitiful.`、`頼りなさそうな人です。`→`He seems unreliable.`、`申し訳ない気持ちです。`→`I feel sorry.`、`仕方ない話です。`→`It is unavoidable.`、`情けない結果です。`→`The result is pitiful.`、`頼りない人です。`→`He is unreliable.` | 語幹が「な」の形容詞と、否定の意味を持たない定型の語（10 の H56）。「〜なさそう」と基本形 | `Ok` | 11 件とも `Ok`。否定を持たない正しい訳を止めない（specified、10 の H56 の持ち主の決め） | 境界、陽性 | `a_positive_adjective_with_the_stem_na_is_not_negation` |
+| T-RP-43-006 | 活用した形：`ご飯が美味しくなさそうに見える。`→`The food does not look tasty.`（残す）と `The food looks tasty.`（落とす）、`興味がなさげな顔だった。`→`He looked uninterested.`（残す）と `He looked interested.`（落とす）、`やる気がなさすぎて困る。`→`He has no motivation, which is a problem.`（残す）と `He has motivation, which is a problem.`（落とす） | 3 語の後ろに続く字 | 語で読む | 残す 3 件は `Ok`、落とす 3 件は `Held(Negation)`（derived、RP-43：表の語は部分文字列で読む） | 境界 | `the_conjugated_forms_are_read_as_negation_too` |
+| T-RP-43-007 | `それは本物ではなさそうです。`→`It does not seem to be genuine.`（残す）と `It seems to be genuine.`（落とす） | 「では」を伴う形 | 語で読む | 残す訳は `Ok`、落とす訳は `Held(Negation)`（derived、RP-43。「なさそう」の前の字に依らない） | 境界 | `a_nasasou_after_dewa_is_read_as_negation` |
+| T-RP-43-008 | 001 の原文で、訳が否定を足した文：`あまり美味しそうです。`→`It does not seem tasty.` | 原文に否定の語が無く訳に有る（逆向き） | 止まる | `Held(Negation)`（derived、否定の検査は有無の一致を見る） | 陰性 | `a_negation_added_to_a_plain_source_is_held` |
+| T-RP-43-009 | E2E-1 の打ち直し：llama-server、中継、process A を起こして `<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl` を打ち、`cargo test --release --test e2e1 -- --ignored` を打つ | 実走 | 実走 | 訳の取れた標本が 70/80 以上（70/80＝0.875 は 20/23＝0.8696 以上、69/80＝0.8625 は未満。70 は通り 69 は落ちる）。utt 16 の 4 件のうち 3 件以上が戻る。71/80 は見込みで、確かめていない（NOT VERIFIED）（specified、RP-43） | 境界 | - |
+
+実装済みの行は 001 から 005 で（001 から 003 は 1 本の関数）、006 から 008 は未実装である（実装の席が足す）。009 は E2E の席が打つ。
+陰性の build：「なさ」だけを表に足した build は 003 が落ちる（「ごめんなさい」が `negation` で止まる）。表を足さない build は 001、002、006、007 が落ちる。`exclude` を外した build は 005 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp43_` + 末尾である。この節は実装に合わせた。
+- 006 から 008 は、設計の文（RP-43 の期待値）から導いた境界である。「語で読む」は表が部分文字列で読む前提（`verify_markers.toml` の `ja.negation` の読み方）に依る。
+- 005 の 8 件目から 11 件目（基本形）は 10 の H56 の決めである。基本形が否定でないと決めたのは `exclude` に `申し訳な` などの部分文字列を足したためで、同じ部分文字列を含む別の語（例：`申し訳ないが断る`）も否定でなくなる。この境界の行は設計が決めるまで置かない。
+- 009 の E2E-1 の実走の command は 6 と E2E の表のとおりで、70/80 を判定する test の置き場と名前が設計に無い。
 
 ### 4.54 RP-44（R8o の後の新しい held-out の組）
 
-test：`native/hayamimi-eval/tests/rp44.rs`。受入 test の名前は `rp44_new_heldout_set_is_fresh_and_has_nasasou`。`#[ignore]` を持ち、repo の外の組の ids を読む。組を作るのは test-designer の席で、V を直す席に path を渡さない。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-44 の行から）。
+test：`native/hayamimi-eval/tests/rp44.rs`。受入 test の名前は `rp44_new_heldout_set_is_fresh_and_has_nasasou`（001 から 003）。`#[ignore]` を持ち、repo の外の組の ids と日本語の原文を読む。組を作るのは test-designer の席で、V を直す席に path を渡さない。この節に組の置き場と中身を書かない（置き場は `state.json` の RP-44 の項に受付が書く）。
+関数の名前は `rp44_` に各行の「関数の末尾」を続けた物にする。
+組の作り方：FLEURS の train の表（dev と test の表と id が重ならない）から、ja と対象の言語の 4 言語（en、zh、ko、es）に共通の id を、`sha256("rp44:" + id)` の昇順で 30 件取り、同じ id と同じ原文を 4 言語で使う。残る 5 行は、「なさそう」「なさげ」「なさすぎ」を含む手書きの行（id は 9000001 から 9000005。3 行が否定の語、2 行が H56 の否定でない語）で、FLEURS の表には「なさそう」を含む行が無い。言語ごとに `<lang>.ids.txt`、`<lang>.ja.txt`、`<lang>.ref.txt` を 35 行ずつ置く。手書きの 5 行の参照訳は、この席が書いた。
+入力：組の ids（4 つ）と ja の原文（4 つ）、dev の組（`testdata/baseline/pairs/` と `testdata/baseline/pairs_seed1/`）の ids、test split の組の ids（id だけを読み、原文と参照訳は開かない）。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp44 -- --ignored`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-44-001 | 言語ごとの組の ids と、dev の seed 0 と seed 1 の ids の和 | 重なり | 0 | 4 言語とも重なり 0（specified、RP-44 の「dev と test split の id との重なりが 0」。独立の式：`comm -12 <(sort -u <組>) <(sort -u <dev の seed 0> <dev の seed 1>) \| wc -l`）。陽性対照：同じ式で組を組と照らすと 35 | 陽性 | `new_heldout_set_is_fresh_and_has_nasasou` |
+| T-RP-44-002 | 言語ごとの組の ids と、test split の組の ids | 重なり | 0 | 4 言語とも重なり 0（specified、RP-44）。陽性対照：test split の ids を test split の ids と照らすと 50 | 陽性 | 001 と同じ 1 本 |
+| T-RP-44-003 | 言語ごとの組の ja の原文 | 「なさそう」を含む行 | 1 行以上 | 4 言語とも `なさそう` を含む行が 1 行以上（実測は 3 行）。「なさげ」か「なさすぎ」を含む行が 2 行（specified、RP-44。独立の式：`rg -c 'なさそう' <組の ja>`）。陽性対照：dev の組の ja に同じ式を打つと 0 件で、組が dev と別であることを示す | 陽性 | 001 と同じ 1 本 |
+| T-RP-44-004 | 組の ids の 1 行を、dev の seed 0 の id に替えた ids（fixture） | dev の id が 1 つ混ざる | `Err` | 重なり 1 を名指しした `Err`（specified、RP-44 の陰性欄「dev の id を 1 つ混ぜた ids で落ちる」） | 境界、陰性 | `a_dev_id_in_the_set_is_refused` |
+| T-RP-44-005 | dev の seed 0 の組の ids を組として渡す | 重なり 50 の全部 | `Err` | 重なり 50 を名指しした `Err`（derived、RP-44 の陽性欄「dev の seed 0 の組の ids から重なりを数えられる」） | 陽性 | `a_set_equal_to_dev_seed_0_overlaps_in_every_id` |
+| T-RP-44-006 | 言語ごとに `ids`、`ja`、`ref` の行の数と、空行の数 | 3 つの file が揃う | 35 と 0 | 4 言語 × 3 file とも 35 行で、空行が 0（derived、`eval --final` が行ごとに対を読む）。ids は 4 言語で同じ | 境界 | `the_three_files_of_each_language_line_up` |
+| T-RP-44-007 | 言語ごとの ids の sha256 の頭 16 桁（`sha256sum < <lang>.ids.txt \| cut -c1-16`） | 記録と一致 | 一致 | `state.json` に書いた値と一致する（derived、組を作った時に測った値）。値が違えば組が差し替わっている。4 言語の ids は同じ内容なので、4 つが同じ値になる | 陽性 | `the_ids_digest_matches_the_recorded_one` |
+
+実装済みの行は無い。`rp44.rs` は未作成で、001 から 007 を実装の席が足す。
+陰性の build（ids に dev の id を混ぜる）で落ちる行は 001 と 004 である。
+組を使えるのは 1 回だけである（会話字幕の CS-30 が同じ `heldout_sha256` の 2 回目を拒む）。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- FLEURS の train の表の文を、評価する翻訳 model が学習で見ていないことは確かめていない（NOT VERIFIED）。見ていれば chrF が高く出る。確かめ方は、model の学習データの公開資料を調べること（持ち主は設計の席）。
+- 手書きの 5 行は参照訳が 1 本だけで、FLEURS の参照訳と性質が違う（書いた人が 1 人）。chrF の平均を FLEURS の行だけで出すか、5 行を含めるかは設計が決める。
+- 組の大きさ（言語ごとに 35 行）。RP-35 の前の main の結果は 40 行だった（F35）ので、`heldout_sha256` を持つ別の batch として比べることになる。
+- 001 から 003 を 1 本の関数にまとめた。落ちた時に分かるのは言語までで、行（001 から 003 のどれか）ではない。
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書く。この節は他の節（4.46 から）と同じ `rp44_` + 末尾にした。
 
 ### 4.55 RP-45（E の雛形が字幕に出ない）
 
@@ -1562,13 +1681,63 @@ command：`cd native && CARGO_BUILD_JOBS=2 cargo test --release -p hayamimi-rela
 
 ### 4.56 RP-46（英語の認識器を最初の英語の発話より前に読む）
 
-test：`native/hayamimi/tests/rp46.rs`。受入 test の名前は `rp46_english_recognizer_loads_before_ready`。`#[ignore]` を持つ（本物の認識器を読む）。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-46 の行と 8 の R8q から）。
+test：`native/hayamimi/tests/rp46.rs`。受入 test の名前は `rp46_english_recognizer_loads_before_ready`（001 から 003）。001、002、004 は `#[ignore]` を持つ（本物の認識器を読む）。ほかの行は fixture か偽の hub で通常の run に入る。
+関数の名前は `rp46_` に各行の「関数の末尾」を続けた物にする。ただし 006 から 014 の関数は、実装の席が `rp46_` を前置きにしていない。そこは全名を書いた。
+入力：`<hy> --input ws --lang en --ws-port 0`（004 は `--lang ja`）を起こし、`/ingest` へ `testdata/eval_real/en_01.wav`（英語 1 発話）を、発話の後ろに 2 秒の無音を置いて 2 回送る。`ws-port 0` は client に port を知らせないので、test は少し前まで空いていた port を指定する。順序は、program が stderr に出す行（`asr.model.loaded`、`ingest.client.connected`）の並びで読む。`ingest.client.connected` は program が `ready` を client に送った直後に出る行で、`ready` の代わりに使う。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi --test rp46 -- --ignored`。ほかの行は同じ command から `-- --ignored` を除く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-46-001 | `--lang en` の run で、最初の発話を送る前の stderr の行の並び | 英語の認識器を読む時 | `ready` より前 | `asr.model.loaded` で `model` が `v3` の行が、`ingest.client.connected` の行より前に在る。v3 の読み込みが 1 回だけ（specified、RP-46 の「`asr.model.loaded`（`model` が `v3`）が `/ingest` の `ready` より前に出る」） | 陽性 | `english_recognizer_loads_before_ready` |
+| T-RP-46-002 | 001 の run の 1 発話目と 2 発話目の `final` の `decode_ms` と、v3 の `load_ms` | 最初の発話に読み込みを含めない | 1 発話目 < `load_ms`、1 発話目 ≤ 2 発話目の 10 倍 | 1 発話目の `decode_ms` が v3 の `load_ms` より小さく、2 発話目の `decode_ms` の 10 倍以下（specified、RP-46。「同じ桁」を 10 倍以下とこの席が置いた。「`load_ms` を足した値より小さく」は、2 発話目の `decode_ms` に `load_ms` を足した値と読むと 1 発話目に読み込みを含む run が通りうるので、`load_ms` そのものより小さいと読んだ） | 境界 | 001 と同じ 1 本 |
+| T-RP-46-003 | 001 の run で client が 2 発話を送る | 比べる発話が揃う | 2 件以上 | `final` が 2 件以上出る。1 件しか出ない run は 002 を判定せず、件数を名指しして落ちる（implicit。空の入力を通過と読まない） | 境界、陰性 | 001 と同じ 1 本 |
+| T-RP-46-004 | `--lang ja` の run の stderr の行の並び | 日本語の session | ReazonSpeech は `ready` より前 | `asr.model.loaded` で `model` が `rz` の行が `ingest.client.connected` より前に在る。`v3` の読み込みが 0 回（specified、RP-46 の陽性欄「`--lang ja` の run で ReazonSpeech の読み込みを `ready` より前に見る」。`v3` が 0 回は、英語の認識器を日本語の session で読まないという derived の境界） | 陽性 | `japanese_session_loads_only_the_japanese_recognizer_before_ready` |
+| T-RP-46-005 | 振り分けで en を使う設定の run（`--lang` を付けず、LID が en に振る設定） | 8 の R8q の「振り分けで en を使う設定」 | `ready` より前 | 001 と同じ並び（derived、8 の R8q）。設定の書き方が設計に無く、行は書けるが command を置けない | 陽性 | 設計の席が設定を決めるまで未実装 |
+| T-RP-46-006 | 偽の stderr の行：`rz` の読み込み、`v3` の読み込み、`ingest.client.connected` の順 | 順序の判定関数の正例 | 通る | 判定が `Ok`（specified、RP-46） | 陽性 | `a_load_before_the_client_was_answered_passes` |
+| T-RP-46-007 | 偽の行：`rz`、`ingest.client.connected`、発話の行、`v3` の読み込みの順 | 読み込みが `ready` の後（RP-46 が止める形） | 落ちる | 判定が `Err`（`after the client` を含む）（specified、RP-46 の陰性欄） | 陰性 | `a_load_after_the_client_was_answered_is_refused` |
+| T-RP-46-008 | 偽の行：`ingest.client.connected` だけ、または `v3` の読み込みだけ | 行が欠ける | 落ちる | どちらも `Err`。読み込みの行が 0 件の run を「ready より前」と読まない（implicit） | 境界、陰性 | `a_model_that_was_never_loaded_or_a_client_never_answered_is_refused` |
+| T-RP-46-009 | 偽の行 `rz` が 900 ms、`v3` が 8000 ms で、`v3` と `pz` の `load_ms` を引く | 読み込みの時間は名指しした model の物 | 引ける | `v3` は 8000、`pz` は無く `Err`（derived） | 境界 | `the_load_time_is_read_from_the_model_it_names` |
+| T-RP-46-010 | 1 発話目 900 ms、2 発話目 700 ms、`load_ms` 8000 ms | 読み込みを含まない 1 発話目 | 通る | `Ok`（specified、RP-46） | 陽性 | `a_first_decode_without_the_load_is_of_the_order_of_the_second` |
+| T-RP-46-011 | 1 発話目 8401 ms、2 発話目 420 ms、`load_ms` 7979.6 ms（読み込みを含む 1 発話目）と、1 発話目が `load_ms` と等しい組（8000、8000、8000） | `load_ms` の境界（超える側と等号） | 落ちる | どちらも `Err`（`holds the model load` を含む）（specified、RP-46 の「読み込みの時間を含まない」。等号は含むと読む） | 境界、陰性 | `a_first_decode_that_holds_the_load_is_refused` |
+| T-RP-46-012 | 1 発話目 4000 ms、2 発話目 300 ms、`load_ms` 8000 ms と、1 発話目 3000 ms と 3000.1 ms（2 発話目 300 ms） | 「同じ桁」の境界（10 倍） | 10 倍以下 | 4000 は `Err`（`order` を含む）、3000 は `Ok`、3000.1 は `Err`（この席が置いた 10 倍の両側） | 境界、陰性 | `a_first_decode_far_slower_than_the_second_is_refused` |
+| T-RP-46-013 | 偽の hub に client が繋ぎ config を送る。セッションがまだ始まっていない | `ready` はセッション開始の後 | 600 ms 内に来ない | 600 ms の間 `ready` が来ない（derived、RP-46 の並びの仕組み：`ready` は認識器の読み込み後のセッション開始で返す）。`session_start` を出した後 5 秒内に `ready` が来る | 境界、陰性 | `ready_waits_for_the_session_to_start` |
+| T-RP-46-014 | 013 の hub が先に `session_start` を出している | セッションが始まった後 | すぐ来る | `ready` が 5 秒内に来る（derived） | 陽性 | `ready_is_answered_at_once_after_the_session_started` |
+
+実装した行は 001 から 004 と 006 から 014 である（005 は未実装で、設定の書き方が要る）。
+陰性の build（最初の英語の発話で読み込む今の形）で落ちる行は 001、002 である。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 「`load_ms` を足した値より小さく」の読み方。002 は `load_ms` そのものより小さいと読んだ（上の欄）。2 発話目の `decode_ms` との和と読む設計なら、002 の閾値が変わる。
+- `ready` を client が受けた時刻を直接測る手段が無い（`/ingest` の `ready` を受ける client の時刻を 001 は取らず、`ingest.client.connected` の行で代用した）。この代用が `ready` の後に出ることは program の実装に依る。
+- 005 の「振り分けで en を使う設定」。
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書く。この節は 001 から 005 を実装の `rp46_` + 末尾に合わせ、006 から 014 は実装の名前のまま全名の末尾（`rp46_` を前置きにしない）を書いた。
 
 ### 4.57 RP-47（新しい確定文の T を前の行の E の後ろに並べない）
 
-test：`native/hayamimi-relay/tests/rp47.rs`。受入 test の名前は `rp47_next_draft_is_not_queued_behind_the_previous_edit`。`#[ignore]` を持たない（偽の llama-server だけを使う）。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-47 の行と 8 の R8r から）。
+test：`native/hayamimi-relay/tests/rp47.rs`。受入 test の名前は `rp47_next_draft_is_not_queued_behind_the_previous_edit`（001）。`#[ignore]` を持たない（偽の llama-server だけを使う）。
+関数の名前は `rp47_` に各行の「関数の末尾」を続けた物にする。
+入力：偽の llama-server は要求ごとに別の thread で答え、T の要求は即答し、E の要求は 1000 ms 遅れて答える（言語の code を持つ要求は 300 ms）。各要求の到着の時刻と答えた時刻を控え、同時に出ていた要求の最大数（peak）を数える。中継は本物の HTTP でこの server に繋がり、`Lanes::PerSource` で走る。偽の認識器が `final` を送る。2 つ目の確定文は 1 つ目の 200 ms 後に送る。slot の数は 4（3.6 の 5。`LLAMA_SLOTS`）。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp47`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-47-001 | mic から確定文を 2 つ（200 ms 間隔）。E は 1000 ms | 前の行の E が出ている間に次の確定文が来る | 2 つ目の T が 1 つ目の E の答えより前 | 1 つ目の E の到着 < 2 つ目の T の到着（E が出ている間に来た）。2 つ目の T の到着 + 400 ms ≤ 1 つ目の E の答え（余裕 400 ms は、E の 1000 ms と間隔 200 ms から、T が 200 ms 台、E の答えが 1000 ms 以降の差 800 ms に収まる値としてこの席が置いた）。2 つ目の下書きの表示が 1 つ目の確定の表示より前。peak は 2 から 4（specified、RP-47 の「2 つ目の T の依頼が 1 つ目の E の応答より前に出る」） | 陽性 | `next_draft_is_not_queued_behind_the_previous_edit` |
+| T-RP-47-002 | 001 の入力 | 行ごとに 1 つの訳 | 1 つずつ、順に | どの行も 1 回だけ settle し、訳が自分の原文から作られ、1 つ目の settle が 2 つ目の settle より先に配信される（specified、RP-47 は順序を変えない。訳の配信は到着の順） | 境界 | `every_line_is_settled_once_and_in_the_order_it_came` |
+| T-RP-47-003 | mic、loopback、file の 3 音源から、それぞれ確定文を 2 つ（100 ms 間隔）。E は 1000 ms | 3 音源が同時に次の確定文を出す。E が 3 つ出ている間に T が 3 つ来る（要求 6 本を並べようとする） | peak ≤ 4 | peak が 4 に等しい（上限に達し、超えない）。6 件とも settle する（specified、RP-47 の「slot の数を超えて依頼を並べない」。peak が 4 に達することは、上限が効いた証拠で、上限を外すと 6 になる） | 境界、陰性 | `no_more_requests_are_made_at_once_than_the_server_has_slots` |
+| T-RP-47-004 | zh だけを訳す中継（E が無い）。mic から確定文を 2 つ（100 ms 間隔） | E の無い言語 | T が直列 | 要求が 2 件で全部「言語の code を持つ要求」。1 つ目の答え ≤ 2 つ目の到着（直列）。2 件とも `status` が `ok`、`lang` が `zh`（specified、RP-47 の陽性欄） | 陽性 | `a_language_without_an_edit_asks_its_translations_one_after_the_other` |
+| T-RP-47-005 | 001 と同じ入力で、2 つ目の確定文を 1500 ms 後に送る（1 つ目の E の答えの後） | 間隔が E より長い | 順序の判定は変わらない | 2 つ目の T の到着 ≥ 1 つ目の E の答え。peak が 1（derived、RP-47：並べるのは E が出ている間だけ。E の無い時間に並べる物は無い） | 境界 | `a_second_line_after_the_edit_asks_alone` |
+| T-RP-47-006 | 001 の入力を 3 行に増やす（100 ms 間隔、E は 1000 ms） | 同じ音源の lane に 3 行が重なる | peak ≤ 4 | peak が 4 以下で、3 行とも settle し、配信が到着の順（derived、RP-47：slot 4 の範囲で、T を E より先に頼む） | 境界 | `three_lines_of_one_source_stay_within_the_slots_and_in_order` |
+
+実装した行は 001 から 004 で、005 と 006 は未実装である（実装の席が足す）。
+陰性の build（訳の lane が 1 本で直列の今の形）で落ちる行は 001（2 つ目の T の到着が 1 つ目の E の答えの後）と 006 である。slot の上限を外す build は 003 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装の test は `rp47_` + 末尾である。この節は実装に合わせた。
+- 001 の余裕 400 ms は、偽の server の待ちの値に依る。実機の E は 1000 ms と限らず、設計は余裕の値を言わない。
+- 003 の peak が 4 に等しいことは、偽の server が 6 本を同時に受けられる前提の値で、設計は「超えない」までを言う。
+- E が答えない（接続が切れる、timeout）行で、並べた次の T がどう動くか。設計に条件が無いので行にしない。
 
 ## 5. RP-19 の対応表
 
