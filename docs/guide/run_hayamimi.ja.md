@@ -295,7 +295,8 @@ tar -xf <backup>/llama-cpp-b11577-build-cuda120-20261014.tar
 git checkout "$(cat <backup>/llama-cpp-b11577-build-cuda120-20261014.HEAD)"
 ```
 
-確かめます。`/props` の `build_info` が `b11577` で始まれば戻っています。
+確かめます。`/props` の `build_info` が `b11578-ec483d3f3` なら戻っています（`b11578` で始まり、commit が `ec483d3f3`）。
+tar の名前の `b11577` は、上げる前に `git describe` が示した最も近い tag で、その checkout の build number は 11578 でした。
 
 ```bash
 systemctl --user start 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
