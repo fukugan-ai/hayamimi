@@ -1032,6 +1032,10 @@ test split は 321、320、249、320 行で、dev と id の重なりは 0 で�
 既定は dev で、既存の run の組（`testdata/baseline/pairs`）と byte で一致する。
 dev と test 以外の値は使い方の誤り（exit 2）で止まる。
 test split の表は `https://huggingface.co/datasets/google/fleurs/resolve/main/data/<config>/test.tsv` にある（T-RP-13-022〜026）。
+held-out の測りに使う道具は `hayamimi-relay vprobe --pairs <dir> --lang <en|zh|ko|es> [--out <dir>]` である。
+出す物は、参照訳をそのまま V に通して止まった行 id、参照訳を決まった規則で壊した版（数を 1 字ずらす、否定の標識を落とす、推量の標識を落とす）を V に通して止まった行 id（壊し方ごと、壊した行の数つき）、`--out` を付けたときの T だけの訳（`noV/` は V なし、`V/` は止めた行を空にした file）である。
+V の公開の入口（`Verifier::open`、`verify_into`）だけを使うので、V を直す前の木にも `git apply` で入って build できる。
+seed 0 の 50 組（dev）の参照訳は、直す前の木で 70 行（en 14、zh 20、ko 14、es 22）、直した後の木で 30 行（en 3、zh 11、ko 8、es 8）止まり、V の直しの前後の数と一致した（T-RP-13-027〜031）。
 組を引くのは test-designer の席で、打つのは V を直していない検証の席である。直す席には組の path を渡さず、組は 1 回打ったら使わない。
 品質の記録（RB-7 の値）は書き換えない。
 E を掛けない腕で出た en の 46.65 は RP-13 の en の値ではなく、RP-13 の en は未測定である。

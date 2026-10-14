@@ -57,5 +57,6 @@ pub mod target;
 pub mod units;
 pub mod verify;
 pub mod video;
+pub mod vprobe;
 pub mod watched;
 pub mod ws_client;
