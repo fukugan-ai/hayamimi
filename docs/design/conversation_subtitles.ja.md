@@ -154,7 +154,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 
 - `src_sha256` は、訳の元にした原文の文字列の sha256 を小文字の hex で書いた物である（`rust_port.ja.md` 3.1 の `t_tr` が読む）。
 - `stage` は `text` を出した段（T か E）で、`settled` はその訳が確定の訳かどうかである（`rust_port.ja.md` 3.6 の 2）。
-- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は R8d が決める（`rust_port.ja.md` 3.6 の 3）。
+- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は、T と V だけを通り、`stage: "t"`、`settled: false`、`status: "ok"` で出す。`id` は、その発話の確定文が取る `id`（同じ入力の直前の確定文の次の番号）で、`source` と `src_lang` は直前の確定文から読む。速報の event は `id` を持たないので、入力の最初の発話と `session_start` の直後は、番号と原文の言語が決まらず、速報の訳を出さない。速報の訳は外の送り先へ渡さない（`rust_port.ja.md` 3.6 の 3）。
 - 確定の `text` は、E の訳が V を通れば E の応答そのまま（`stage: "e"`）、E が V に落ちれば T の草稿と同じ文字列（`stage: "t"`、`settled: true`）である。どちらも添え書きを差し込まない。
   画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
 - `status` が `held` の event の `text` は空の文字列で、`annotations` と `skipped` も空である。止めた訳の文字列は wire に載せない。
@@ -175,6 +175,8 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 ### 3.4 翻訳の 3 段
 
 訳は次の 3 段を、この順に 1 回ずつ通す。
+ja と en の外の言語（`--translate` の zh、ko、es ほか）の訳は T と V だけで、E を掛けず、V で外れた行は `held` にする（`rust_port.ja.md` の 3.6）。
+E がそれらの言語の chrF に効く量は測っていない（NOT VERIFIED）。
 
 ```mermaid
 flowchart LR

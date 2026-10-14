@@ -17,6 +17,7 @@ wav ─> VAD ─> 認識（int8、CPU）─> ITN ─> 句読点（GPU、無け�
 
 GPU 版の sherpa-onnx の build（`build_gpu.ja.md`）が済んでいることが前提です。
 `SHERPA_ONNX_LIB_DIR` は、その build の `install/lib` です。
+Linux（WSL）では、ALSA の開発用の package も要ります（`sudo apt-get install -y libasound2-dev`、戻すときは `sudo apt-get remove libasound2-dev`）。取り込みの `cpal` が `alsa-sys` を引き、これが無いと `hayamimi` と `hayamimi-eval` の build が `alsa-sys` の build script で止まるからです。
 
 ```bash
 # WSL
@@ -77,7 +78,6 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 受入は `cargo test --release -p hayamimi --test r6` です。
 この test は上の 2 つを自分で打ち、本物の `hayamimi --wav ja_014.wav --serve` を起こします。
 確かめるのは、3 頁が `web/index.html` と同じ bytes であること、index とその script が読む `/ui/` の file が全部 200 で bytes も同じであること、無い名前と `..` が 404 であることです。
-Linux の build には ALSA の開発 file（`libasound2-dev`）が要ります。
 
 **採らない手段**：
 
@@ -134,7 +134,7 @@ hayamimi-eval stages --provider cuda --wav lat-ja.wav --models <models> --only i
 
 ```bash
 hayamimi-eval stages-report \
-  --runs docs/results/r1/win/final_*.jsonl docs/results/r1/win/r1b_*.jsonl docs/results/r2/win/string_stages_c*_idle_*.jsonl \
+  --runs docs/results/r1/win/final_*.jsonl docs/results/r1/win/r1b_*.jsonl docs/results/r2/win/string_stages_c*_idle_*.jsonl docs/results/r4/win/cluster_c*_idle_*.jsonl \
   --design docs/design/rust_port.ja.md --build-json native/target/sherpa-gpu/windows/build.json --cpu "<cpu の名前>" \
   --transfers docs/results/r1/transfers.json --placed docs/results/r1/placed/win_*_cuda.json \
   --python testdata/baseline/lat_ja_0.35_1.jsonl testdata/baseline/lat_ja_0.35_2.jsonl --out docs/results/gpu_stages.md
@@ -142,6 +142,52 @@ hayamimi-eval stages-report \
 
 `docs/results/r1/transfers.json` は、`gpu_stages.md` の「転送」の表の 6 行を、そのまま JSON に戻した物です。
 上の command は、R1 の 10 本と R1b の 10 本の run file から、R2 の行を足す前の `gpu_stages.md` を 1 文字も違わずに作り直せることを確かめてあります。
+
+## 清書の clustering の CPU の時間
+
+FastClustering は sherpa-onnx の中で再分離と同じ呼び出しに含まれ、単独で呼ぶ口がありません。
+そこで同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装 `hayamimi_asr::cluster` を測ります。
+`cluster` の段が測るのは、発話 12 個の埋め込みの clustering、cluster ごとの平均、重心 8 個への全体の対応づけまでです。
+埋め込みはこの段が自分で作り（時間には入れません）、`--only cluster` だけで打てます。
+
+```bash
+hayamimi-eval stages --provider cpu  --wav lat-ja.wav --models <models> --only cluster --repeat 5 --run 1 --out docs/results/r4/win/cluster_cpu_idle_1.jsonl
+hayamimi-eval stages --provider cuda --wav lat-ja.wav --models <models> --only cluster --repeat 5 --run 1 --out docs/results/r4/win/cluster_cuda_idle_1.jsonl
+```
+
+`--run` を 1、2、3 と重ねたら、上の `stages-report` の `--runs` に `docs/results/r4/win/cluster_c*_idle_*.jsonl` を足して、`gpu_stages.md` を作り直します。
+
+## 話者の分離の DER
+
+`der` は、評価の set（`manifest.json`、wav、RTTM）の会議ごとに DER を採点します。
+流れは、VAD、発話ごとの速報の話者、2 秒の無音か 25 秒で区切る group、group ごとの再分離と全体の対応づけ、simpleder と同じ式の採点です。
+認識は掛けません。
+
+出力の 1 行の形は Python の `eval_diar.py --method refine_diarize` と同じで、`--out` の file にも同じ文字が入ります。
+`--min-silence` の既定は Python の run と同じ 0.35 です。
+`--models` を付けなければ、cwd から上へ向かって `models/silero_vad.onnx` を持つ `models/` を探します。
+
+```bash
+hayamimi-eval der --set testdata/eval_diar --collar 0.25 --out docs/results/r4/der_rust_run1.log
+cargo test --release -p hayamimi-eval --test rp15 -- --ignored
+```
+
+Rust の run は `docs/results/r4/der_rust_run<n>.log` に置きます。
+test は、Rust の run の平均と、`testdata/baseline/` の Python の run（3 回以上）の平均と幅を比べ、結果を `docs/results/r4/rp15_der.md` に書きます。
+
+## 話者の印を wire で受ける
+
+`final` の `speaker` は常に空です。
+埋め込みが済むと、同じ `id` の `{"type":"speaker","id":"file-0","speaker":"S1"}` が `final` の後に 1 回だけ届きます。
+`S1?` のように `?` が付く印は、まだ 1 回しか一致していない話者です。
+話者の model が無いか、埋め込みに失敗した発話には `speaker` の event が出ません。
+
+字幕の遅れに印が入らないことは、話者の model を外した directory との比較で確かめます。
+差は `asr.utterance.timed` の `l_dec_ms` の p50（話者あり − 話者なし）で、上限は 5 ms です。
+
+```bash
+cargo test --release -p hayamimi --test rp15_speaker -- --include-ignored
+```
 
 ## worktree で test を打つ
 

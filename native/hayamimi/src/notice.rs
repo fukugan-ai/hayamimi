@@ -8,13 +8,15 @@ use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 11] = [
+pub const STAGES: [&str; 13] = [
+    "source",
     "punct",
     "recognizer",
     "vad",
     "asr",
     "events",
     "replace",
+    "speaker",
     "ingest",
     "capture",
     "translate",
@@ -22,7 +24,8 @@ pub const STAGES: [&str; 11] = [
     "second_opinion",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 10] = [
+pub const REASONS: [&str; 11] = [
+    "bad_value",
     "no_device",
     "driver_unreadable",
     "session_failed",
@@ -228,6 +231,19 @@ impl Notice {
             stage: "capture",
             reason: "device_missing",
             to,
+            url: None,
+            tiers: None,
+        }
+    }
+
+    /// `--source` named something that is not a source; the input's own is used.
+    pub fn source_unknown() -> Notice {
+        Notice {
+            event: CONFIG_DEFAULT,
+            error_code: "HAYAMIMI_CONFIG_FALLBACK",
+            stage: "source",
+            reason: "bad_value",
+            to: "default",
             url: None,
             tiers: None,
         }
@@ -520,6 +536,7 @@ mod tests {
             Notice::port_in_use(None),
             Notice::port_in_use(Some(String::new())),
             Notice::config_unreadable(),
+            Notice::source_unknown(),
             Notice::translate_on_cpu(Reason::NoDevice),
             Notice::translate_on_cpu(Reason::DriverUnreadable),
             Notice::translate_on_cpu(Reason::SessionFailed),

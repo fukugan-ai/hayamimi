@@ -6,7 +6,9 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_stages, fleurs, log, manifest, record, scorecard, scorecard_run, stream};
+use crate::{
+    cli_der, cli_stages, fleurs, log, manifest, record, scorecard, scorecard_run, stream,
+};
 
 #[derive(Parser)]
 #[command(
@@ -39,6 +41,8 @@ enum Command {
     OrtPlaced(cli_stages::OrtPlacedArgs),
     /// Score the engine on the real-speech sets and write the scorecard as JSON.
     Scorecard(ScorecardArgs),
+    /// Score the speaker labels of the Rust route against an RTTM reference set.
+    Der(cli_der::DerArgs),
 }
 
 #[derive(Args)]
@@ -236,6 +240,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
         Command::Scorecard(args) => scorecard(args),
+        Command::Der(args) => cli_der::der(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {

@@ -6,7 +6,10 @@
 
 pub mod cer;
 pub mod cli;
+pub mod cli_der;
 pub mod cli_stages;
+pub mod der;
+pub mod der_run;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;
@@ -23,6 +26,7 @@ pub mod models_manifest;
 pub mod mt;
 pub mod nsys;
 pub mod ort_stages;
+pub mod partial;
 pub mod percentile;
 pub mod record;
 pub mod relay_events;
