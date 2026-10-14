@@ -144,6 +144,24 @@ ko の平均は A で 0.0793、C で 0.0806 で、どちらも Python の 0.081 
 | ko | 86939 | 87000 | 81000 | 超える（H35） |
 | yue | 61454 | 61000 | 61000 | 通る |
 
+## 振り分けを通した run
+
+`win_routed.json` は、配る形の build（Windows、自前の sherpa-onnx と ORT 1.31.0）で、`hayamimi-asr` の振り分けに clip の言語判定をさせた run である（`lid: detected`、clip の正解の言語は渡していない）。
+build は、この branch に R3b の 8fe1f19（scorecard を振り分けに繋ぐ変更）を足した検証用の branch で行った。
+
+| 言語 | 言語判定の正解 | 誤り率（百万分率、振り分けを通した） | 正解の言語を渡した run | 丸め後 | Python の表 | 判定 |
+|---|---|---|---|---|---|---|
+| ja | 15/15 | 37512 | 37512 | 38000 | 38000 | 通る |
+| en | 15/15 | 22606 | 22606 | 23000 | 23000 | 通る |
+| zh | 12/12 | 65609 | 65609 | 66000 | 66000 | 通る |
+| ko | 12/12 | 86939 | 86939 | 87000 | 81000 | 超える |
+| yue | 12/12 | 61454 | 61454 | 61000 | 61000 | 通る |
+
+66 clip すべてで言語判定が当たった。
+言語判定の外れた clip が無いので、言語判定の外れの分と、正しい言語で読んだ clip の分の差は 0 である。
+zh と yue は Python を超えない。ja_02 は ja と判定され、誤り率は 0 である（session の最初の clip は ja_01 で、1 set に session は 1 回）。
+R3b の申告にあった zh 0.0699 と yue 0.0682 は、この build では出ない。
+
 ## ko の fp32
 
 SenseVoice を CPU の fp32 で読ませた。
@@ -197,3 +215,5 @@ hayamimi-eval.exe scorecard --engine hayamimi \
 ```
 
 C の library は Python の同梱物の読み取りだけで、Python の file には何も書いていない。
+
+振り分けを通した run は、R3b の 8fe1f19 を足した検証用の branch で、B と同じ library と同じ引数のまま `--out docs/results/r3c/win_routed.json` に変えて打った。
