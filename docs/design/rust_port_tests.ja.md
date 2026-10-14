@@ -483,23 +483,23 @@ test：`native/hayamimi-eval/tests/rp05.rs`。
 ### 4.16 RP-6（推論が GPU で走ったこと）
 
 test：fixture と docs を読む case（012 と 013 を除く全部）は `native/hayamimi-eval/tests/rp06.rs`。実走の 012 と 013 は R2 が作る `native/hayamimi/tests/rp06.rs`。
-`nvidia-smi --query-compute-apps=process_name,used_memory --format=csv` の出力は、1 行目が見出し、続く行が `<process>, <N> MiB` の形である（NOT VERIFIED。実機の出力で確かめる）。
+GPU の memory の読みは `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits` で、1 行が MiB の整数 1 つである。`--query-compute-apps` は WSL で process の名前が `[Not Found]`、Windows で使用量が `[N/A]` になるので使わない。基準は起動前の 3 回の読みの中央値、増えた量の閾値は 256 MiB、戻った幅の閾値は ± 64 MiB（設計の RP-6、仮の値）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-RP-6-001 | fixture：`hayamimi` の行が `2048 MiB` | 使用量が正 | `Ok` | `check_compute_apps` が `Ok`（specified、RP-6） | 陽性 | `hayamimi_with_positive_memory_passes` |
-| T-RP-6-002 | fixture：`hayamimi` の行が `1 MiB` | 使用量の下端の内側 | `Ok` | `Ok`（specified、RP-6 の「0 より大きい」） | 境界、陽性 | `one_mib_of_used_memory_passes` |
-| T-RP-6-003 | fixture：`hayamimi` の行が `0 MiB` | 使用量の境界 | `Err` | `Err`（specified、RP-6） | 境界、陰性 | `zero_mib_of_used_memory_is_rejected` |
-| T-RP-6-004 | fixture：`hayamimi` の行が無い出力 | process が出ない | `Err` | `Err` で process 名を名指し（specified、RP-6 の陰性欄） | 陰性 | `missing_hayamimi_process_is_rejected` |
-| T-RP-6-005 | fixture：`llama-server` の行を含む出力 | 同じ式の陽性対照 | 行が読める | 同じ関数が `llama-server` の行から使用量を読める（specified、RP-6 の陽性対照） | 陽性 | `llama_server_process_is_read_by_the_same_function` |
+| T-RP-6-001 | fixture：起動前 1198、1198、1199、実行中の最大 1957、終了後 1198（MiB。Windows の実測の形） | 増えて戻る | `Ok` | `check_memory_rise` が `Ok`。式：基準 1198、1957 − 1198 = 759 ≥ 256、\|1198 − 1198\| = 0 ≤ 64（specified、RP-6） | 陽性 | `memory_that_rises_during_the_run_and_returns_passes` |
+| T-RP-6-002 | fixture：基準 1198、実行中の最大 1454 | 増えた量の等号 | `Ok` | `Ok`。式：1454 − 1198 = 256 ≥ 256（specified、RP-6。256 は仮の値） | 境界、陽性 | `rise_of_exactly_256_mib_passes` |
+| T-RP-6-003 | fixture：基準 1198、実行中の最大 1453 | 増えた量の外側 | `Err` | `Err` で増えた量 255 を名指し（specified、RP-6） | 境界、陰性 | `rise_of_255_mib_is_rejected` |
+| T-RP-6-004 | fixture：基準 1198、実行中の最大 1957、終了後 10 秒の読みが全部 1263 以上 | 戻らない | `Err` | `Err` で終了後の読みを名指し。式：1263 − 1198 = 65 > 64（specified、RP-6 の「基準 ± 64 MiB へ戻る」） | 境界、陰性 | `memory_that_does_not_return_after_exit_is_rejected` |
+| T-RP-6-005 | fixture：`memory.used` の読みが起動前に 2 回しか無い、または `[N/A]` の行を含む | 読みの欠け | `Err` | `Err`。3 回そろわない基準と数でない読みを 0 と読まない（implicit） | 境界、陰性 | `missing_or_non_numeric_memory_reads_are_rejected` |
 | T-RP-6-006 | fixture：3.5 の表で GPU とした段（言語判定、句読点）の `gpu.session.created` の全件で実際の provider が `cuda`、CPU とした段（VAD、認識）の session が `cpu` | provider | `Ok` | `Ok`（specified、RP-6） | 陽性 | `all_sessions_on_cuda_pass` |
 | T-RP-6-007 | fixture：006 の GPU とした段の 1 件だけ実際の provider が `cpu` | 1 件の例外 | `Err` | `Err` でその model を名指し（specified、RP-6） | 陰性 | `one_cpu_session_names_its_model` |
 | T-RP-6-008 | fixture：`gpu.session.created` が 0 件 | 空 | `Err` | `Err`。0 件を「全件の置き場が表と同じ」と読まない（implicit） | 境界、陰性 | `no_session_events_is_an_error` |
 | T-RP-6-009 | fixture：node の表（`gpu_stages.md` の形）の `punct_bert.onnx` の行が CUDA の node 453、CPU の node 77。`gpu.session.placed` の `punct_bert.onnx`（3.5 の表で GPU の句読点）の CPU の node が 77 | R1 の値の等号 | `Ok` | `Ok`。式：77 ≤ 77 が真（specified、RP-6 の「R1 の値以下」。77 と 453 は `gpu_stages.md` の node の表の `punct_bert.onnx` の行の値） | 境界、陽性 | `gpu_model_at_the_recorded_cpu_node_count_passes` |
 | T-RP-6-010 | fixture：009 と同じで、`gpu.session.placed` の `punct_bert.onnx` の CPU の node が 78 | R1 の値の外側（1 つ上） | `Err` | `Err` で `punct_bert.onnx` と 78 と 77 を名指し。式：78 ≤ 77 が偽（specified、RP-6） | 境界、陰性 | `gpu_model_one_node_over_the_recorded_count_is_rejected` |
 | T-RP-6-011 | fixture：3.5 の表に載らない model（`unlisted.onnx`）の `gpu.session.placed` の CPU の node が 5。node の表に行は無い | 判定の対象外 | `Ok` | `Ok`。記録だけ（specified、RP-6 の「表に載らない model は記録だけ」） | 境界 | `cpu_nodes_of_unlisted_models_are_recorded_only` |
-| T-RP-6-012 | 実走：`--wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja --gpu-diagnose` と `nvidia-smi` の 1 秒ごとの読み | 実走 | 実走 | compute apps に `hayamimi` が出て使用量 > 0、`gpu.session.created` の provider が 3.5 の表の置き場と全件で同じ。`gpu.session.placed` の `punct_bert.onnx` の CPU の node が、node の表の同じ model の値（いまは 77）以下（specified、RP-6） | 陽性 | `wav_run_uses_cuda_and_appears_in_compute_apps` |
-| T-RP-6-013 | 実走：`CUDA_VISIBLE_DEVICES` を空にして起こした run | GPU を隠す | 実走 | compute apps に出ず、`gpu.device.unavailable` が 1 件（specified、RP-6 の陰性欄） | 陰性 | `hidden_gpu_run_shows_no_compute_app_and_one_unavailable_event` |
+| T-RP-6-012 | 実走：`--wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja --gpu-diagnose` と `nvidia-smi` の 1 秒ごとの読み | 実走 | 実走 | 実行中の `memory.used` の最大が基準 + 256 MiB 以上で、終了後 10 秒以内に基準 ± 64 MiB へ戻る。`gpu.session.created` の provider が 3.5 の表の置き場と全件で同じ。`gpu.session.placed` の `punct_bert.onnx` の CPU の node が、node の表の同じ model の値（いまは 77）以下（specified、RP-6） | 陽性 | `wav_run_uses_cuda_and_appears_in_compute_apps` |
+| T-RP-6-013 | 実走：`CUDA_VISIBLE_DEVICES` を空にして起こした run | GPU を隠す | 実走 | 実行中の `memory.used` の最大が基準 + 64 MiB を超えず、`gpu.device.unavailable` が 1 件（specified、RP-6 の陰性欄） | 陰性 | `hidden_gpu_run_shows_no_compute_app_and_one_unavailable_event` |
 | T-RP-6-014 | fixture：009 と同じで、`gpu.session.placed` の `punct_bert.onnx` の CPU の node が 0 | R1 の値の下端 | `Ok` | `Ok`。式：0 ≤ 77 が真（specified、RP-6） | 境界、陽性 | `gpu_model_with_zero_cpu_nodes_passes` |
 | T-RP-6-015 | fixture：node の表に認識の encoder（`encoder-epoch-35-avg-1.onnx`、CUDA の node 3537、CPU の node 1599）の行が在り、3.5 の表ではこの段が CPU。`gpu.session.placed` の同じ model の CPU の node が 1600 | 判定の対象は 3.5 の表が決める（node の表に行が在るだけでは判定しない） | `Ok` | `Ok`。判定の対象は 3.5 の表で GPU とした model だけ（specified、RP-6）。1599 と 3537 は node の表の行の値（derived）。node の表の全行を判定する実装は 1600 ≤ 1599 が偽で落ちる | 境界、陰性 | `cpu_placed_model_is_not_judged_by_the_node_table` |
 | T-RP-6-016 | fixture：009 と同じ node の表と 3.5 の表で、`gpu.session.placed` に `punct_bert.onnx` の行が 1 件も無い | 記録の欠け | `Err` | `Err` で `punct_bert.onnx` を名指し。記録が無いことを「CPU の node が 0」と読まない（implicit。008 と同じ型） | 境界、陰性 | `gpu_model_without_a_placed_event_is_rejected` |
@@ -707,6 +707,7 @@ run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja 
 | T-RP-16-014 | fixture：001 と同じで、読み込んだ GPU の段が句読点だけ（言語判定は読み込んでいない）。言語判定の `gpu.fallback.cpu` は 0 件 | 読み込まない段 | `Ok` | `Ok`。読み込んでいない段には落ちた event を求めない（specified、RP-16 の「その run が読み込む 3.5 の GPU の段」） | 境界、陽性 | `unloaded_gpu_stage_needs_no_fallback_event` |
 | T-RP-16-015 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` | 実走 | 実走 | 001 の形（specified、RP-16） | 陰性 | `hidden_gpu_falls_back_to_cpu_with_a_reason` |
 | T-RP-16-016 | 実走：GPU の在る機械で 015 と同じ command（`CUDA_VISIBLE_DEVICES` を空にしない） | 実走の対照 | 実走 | 009 の形（specified、RP-16 の対照） | 陽性 | `visible_gpu_run_does_not_fall_back` |
+| T-RP-16-017 | fixture：server に句読点の `fallback`（`to` が `cpu`）と `session_start` をこの順に送った後で、`/events` に接続した client | 遅れて接続した client | 両方を受ける | 最初に受ける event の中に `fallback` と `session_start` が 1 件ずつ在り、`fallback` が `session_start` より前。その後に送った `final` も受ける（specified、設計 3.15 の「取っておいた event を送った順に最初にまとめて送る」） | 陽性 | `a_client_that_connects_after_session_start_still_receives_it_after_the_fallbacks` |
 
 ### 4.27 RP-17（自分で build した library が開け、ORT が 1 つである）
 
