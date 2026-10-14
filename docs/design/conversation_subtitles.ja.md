@@ -97,7 +97,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 | S2 | Zoom で外部の字幕を送るには、host が web の設定で caption API token を許し、会議中に host が token を写して渡す。token は会議が続く間だけ有効 | https://support.cmts.jhu.edu/hc/en-us/articles/40888716745997-Setting-Up-Closed-Captioning-in-Zoom-Using-a-Third-Party-Captioning-Service 、https://live.maestra.ai/help/zoom （第三者の手引き） |
 | S3 | Teams の CART 字幕は、主催者が会議の option で「Provide CART Captions」を入れて link を作り、字幕者へ渡す | https://support.microsoft.com/en-US/teams/meetings-events/use-cart-captions-in-a-microsoft-teams-meeting-human-generated-captions |
 | S4 | ECB のユーロ参照為替は、TARGET の休業日を除く毎営業日の 16:00 CET ごろに更新される。JPY、USD、GBP、CAD、AUD を含む。情報のための値で、取引への使用は勧めない。2026-10-12 の値は USD 1.1181、JPY 177.33。日次の file は `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html |
-| S5 | llama-server の `/completion` は `stop`（止める文字列の配列）を受け、止めた文字列を出力から除く。`-np` は slot の数 | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
+| S5 | llama-server の `/completion` は `stop`（止める文字列の配列）を受け、止めた文字列を出力から除く。`-np` は slot の数。中継は `/v1/chat/completions` で頼み、model の chat template を server に当てさせる（`rust_port.ja.md` 3.6 の「訳の依頼の形」） | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
 | S6 | 字形の file：cinecaption 2.28（`cinecaption2.28.ttf`）と UDEV Gothic v2.2.0（`UDEVGothic35-Regular.ttf` ほか）。配布条件は cinecaption が無料、改造禁止、再配布自由、UDEV Gothic が OFL 1.1 | `%USERPROFILE%\hayamimi_fonts\` の 2 つの zip（`unzip -l` で確かめた）。配布条件は `state.json` の `fonts` の転記 |
 | S7 | 換算の係数：mile 1609.344 m、ft 0.3048 m、in 0.0254 m、yd 0.9144 m、sq ft 0.09290304 m²、英ガロン 4.54609 L、°C = (°F − 32)/1.8 は厳密値。lb 0.4535924 kg、oz 28.34952 g、米ガロン 3.785412 L、米 fl oz 29.57353 mL、英 fl oz 28.41306 mL、acre 4046.873 m²（米測量 ft） | https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors/nist-guide-si-appendix-b9 |
 | S8 | 住宅の畳数の表示は 1 畳 = 1.62 m² 以上（不動産の表示に関する公正競争規約施行規則とされる） | https://smtrc.jp/useful/glossary/detail?n=3751 （用語集。規約の原文は確かめていない） |
@@ -132,7 +132,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 | 項目 | 型 | 意味 |
 |---|---|---|
 | `id` | string | `<source>-<連番>`。process の起動ごとに 1 から数える。確定文と清書は別々に番号を取る |
-| `source` | `"mic"` \| `"loopback"` \| `"file"` | どの音源か |
+| `source` | `"mic"` \| `"loopback"` \| `"file"` | どの音源か。`hayamimi` の `--input` から決め（`wav` は `file`、`mic` と `mix` と `ws` は `mic`、`loopback` は `loopback`）、`--source` で上書きできる（`rust_port.ja.md` 8 の R5 の行） |
 | `t0_s` | float | 流れの先頭からの発話の始まり（秒）。動画では動画の先頭から |
 | `t1_s` | float | 同じく発話の終わり |
 | `end_wall_ms` | integer | 発話の終わりを VAD が決めた時刻（epoch ms） |
@@ -144,15 +144,20 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 `hayamimi` の `translation` とは別の port に出し、`hayamimi` 側の形は変えない。
 
 ```
-{"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
  "status":"ok"|"held",
  "hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
  "text":str,"annotations":[{"start":int,"end":int,"text":str}],
  "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
 ```
 
-- `text` は E の応答そのままで、添え書きを差し込まない。
+- `src_sha256` は、訳の元にした原文の文字列の sha256 を小文字の hex で書いた物である（`rust_port.ja.md` 3.1 の `t_tr` が読む）。
+- `stage` は `text` を出した段（T か E）で、`settled` はその訳が確定の訳かどうかである（`rust_port.ja.md` 3.6 の 2）。
+- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は R8d が決める（`rust_port.ja.md` 3.6 の 3）。
+- 確定の `text` は、E の訳が V を通れば E の応答そのまま（`stage: "e"`）、E が V に落ちれば T の草稿と同じ文字列（`stage: "t"`、`settled: true`）である。どちらも添え書きを差し込まない。
   画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
+- `status` が `held` の event の `text` は空の文字列で、`annotations` と `skipped` も空である。止めた訳の文字列は wire に載せない。
 - `start` と `end` は `text` の中の Unicode の文字（scalar value）の位置で、0 から数える。
   `start` から `end` の手前までが、換算の元にした値と単位の表現である。
 - `skipped` は、換算の元になる表現を見つけたが添えなかった物を 1 つずつ持つ。
@@ -162,6 +167,10 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 
 訳は `id` で行に結ぶ。
 直前の行に貼る形では、訳が遅れて次の確定文が先に着くと、訳を別の行に貼るためである。
+
+中継は同じ port に、外の送り先の `fallback` の event も出す（`rust_port.ja.md` 3.15 の外の送り先の行）。
+送り先に届かなくなった時に `{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}` を、届くようになった時に `{"type":"fallback","stage":"sink","to":null}` を 1 回ずつ出す。
+効いている `fallback` は取っておき、遅れて接続した client に最初に送る。
 
 ### 3.4 翻訳の 3 段
 
@@ -638,7 +647,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 31 | CS-15 | `cs15_existing_srt_stops_before_extraction` | `native/hayamimi-relay/tests/cs15.rs` | file を消した run |
 | 32 | CS-16 | `cs16_virtual_camera_frame_carries_the_subtitle_band` | `native/hayamimi-relay/tests/cs16.rs` | 字幕の無い frame |
 | 33 | CS-19 | `cs19_translator_outage_keeps_subtitles_flowing` | `native/hayamimi-relay/tests/cs19.rs` | 戻さない run |
-| 34 | CS-20 | `cs20_windows_translator_survives_wsl_shutdown` | `native/hayamimi-relay/tests/cs20.rs` | llama-server の process を止めた後 |
+| 34 | CS-20 | `cs20_windows_translator_survives_wsl_shutdown` | `native/hayamimi/tests/cs20.rs` | llama-server の process を止めた後 |
 | 35 | CS-21 | `cs21_every_line_gets_exactly_one_translation` | `native/hayamimi-relay/tests/cs21.rs` | 列を 1 にした設定 |
 | 36 | CS-22 | `cs22_late_translation_attaches_to_its_own_line` | `native/hayamimi-relay/tests/cs22.rs` | 直前の行に貼る作り |
 | 37 | CS-28 | `cs28_send_config_is_private_and_never_logged` | `native/hayamimi-relay/tests/cs28.rs` | Users に読みを足した ACL |
@@ -807,11 +816,11 @@ V に渡った文字列は、V の入口を見張る test の部品が控える�
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-CX-1-001 | src `I paid $100.`、E の応答 `私は100ドル払いました。` | ja の読み手の通貨 | 一致 | `status` = `ok`、`annotations` が 1 件、その注釈 = `（約 15,900 円、10/12 の値）`。式：100 × 177.33 / 1.1181 = 15859.94、3 桁で 15,900（pseudo、awk）（specified、6.2） | 陽性 | `ja_dollar_annotation_text` |
-| T-CX-1-002 | 001 の run で V に渡った文字列と呼び出しの順 | 照合の入力 | 一致 | V に渡った文字列 = `私は100ドル払いました。`（E の応答と同じ）。`（`、`(`、`約`、`15,900`、`10/12` を含まない。V の呼び出し 1 回で、換算はその後（specified、3.11 と 6.2） | 陽性 | `verify_receives_the_translation_without_annotation` |
+| T-CX-1-002 | src `I paid $100.`、偽の応答は T と E の 2 本。run A：T = `私は100ドルを払いました。`、E = `私は100ドル払いました。`（T の訳が V を通る）。run B：T = `私は200ドルを払いました。`、E = A と同じ（T の訳が数で V に外れる）。観測するのは、V に渡った文字列（T の応答は `draft_verify_input`、E の応答は `verify_input`）と stage の並び。陰性の入力は stage の並びの値 4 つ：`[Translate, VerifyDraft, Edit, Verify, Verify, Annotate]`、`[Translate, Edit, Verify, Annotate]`、`[Translate, VerifyDraft, Edit, Annotate, Verify]`、V に渡った文字列が同じ 2 本 | V に掛かる訳の数。run A（T も E も通る）と run B（T だけ外れる）を代表にする。どちらも V は T の応答と E の応答に掛かり、通ったかどうかで回数は変わらない。T の応答に `</s>` が在る run は CS-8、E が外れる run は 006 が持つので、この行に入れない | V の回数 2 回（上側の境界 = 3 回が `Err`、下側の境界 = 1 回も `Err`） | run A と run B のどちらでも、(1) V に渡った文字列が [T の応答, E の応答] の順で、A = [`私は100ドルを払いました。`, `私は100ドル払いました。`]、B = [`私は200ドルを払いました。`, `私は100ドル払いました。`]（specified、偽の応答に書いた文字列そのもの）。(2) 2 本とも `（`、`(`、`約`、`15,900`、`10/12` を含まず、2 本は違う文字列（同じ訳に 2 回は掛けない）。(3) `VerifyDraft` と `Verify` が 1 回ずつで V は計 2 回、`Annotate` は 2 回目の V の後で、確定の訳 = E の応答に `annotations` が 1 件（specified、3.4、3.11、6.2 の CX-1 と CS-25）。陰性：`check_v_calls_are_one_per_translation_and_before_annotation` が、run A の stage の並びで `Ok`、入力の 4 つ（3 回、T の V 無し、換算が V の前、同じ文字列の 2 回）で全部 `Err`（pseudo、規則を別に書いた検査） | 陽性と陰性 | 陽性：`verify_receives_each_translation_once_without_annotation`。陰性：`a_third_v_call_or_a_note_before_v_is_refused_by_the_check` |
 | T-CX-1-003 | fixture `cx01_verify_input_annotated.txt`：`私は100ドル（約 15,900 円、10/12 の値）払いました。` | 換算を V の前に置いた順 | `Err` | `check_verify_input_is_unannotated` が `Err`（`（` を含む）。002 の文字列では `Ok`（specified） | 陰性 | `annotation_before_verify_is_rejected_by_the_check` |
 | T-CX-1-004 | src `I paid $100.`、訳 003 の fixture の文字列を V へ | 換算を V の前に置くと V が止める | `held` | `held`。src の値 {100}、訳の値 {100, 15900, 10, 12} で多重集合が違う（derived、3.4 の数）。`hold_reason` は問わない | 陰性 | `annotated_text_would_make_verify_hold` |
 | T-CX-1-005 | src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | en の読み手の通貨、位置 | 一致 | 注釈 = `(about $31,500, rate of Oct 12)`、`end` = 30。式：5,000,000 / 177.33 × 1.1181 = 31525.97、3 桁で 31,500。`The budget is five million yen` は 30 文字（`printf '%s' … \| wc -c` = 30）（pseudo）（specified、3.11 の表） | 陽性 | `en_annotation_text_and_end` |
-| T-CX-1-006 | src `I paid $100.`、E の応答 `私は200ドル払いました。` | V が止める | `held` | `held`、`annotations` = []。src {100}、訳 {200}（specified、3.4 の「通った訳にだけ換算を添える」） | 陰性 | `held_line_gets_no_annotation` |
+| T-CX-1-006 | src `I paid $100.`、偽の応答は T と E の 2 本で、T = `私は200ドルを払いました。`、E = `私は200ドル払いました。`（T の訳も E の訳も数で V に外れるので、残る訳が無い） | V が止める | `held` | `held`、`annotations` = []。src {100}、訳 {200}（specified、3.4 の「通った訳にだけ換算を添える」） | 陰性 | `held_line_gets_no_annotation` |
 
 #### 7.9 CX-2（曖昧な物には添えない）
 
@@ -961,6 +970,24 @@ BEGIN{print r3(100*177.33/1.1181),r3(100*180/1.2),r3(5000000/180*1.2),r3(100*154
 | T-CX-11-012 | 010 の読み手を開いたまま、壊れた表（fixture `cx11_broken.toml`：`[[[`）を置き、同じ src と E の応答の次の行 | 壊れた内容（表） | 前の内容 | 注釈 = `（約 8.05 km）`（既定のまま）。`level` = `warn` の行が 1 行（specified、6.2） | 陰性 | `broken_unit_table_keeps_the_previous_values_and_warns_once` |
 | T-CX-11-013 | 011 の手順を、開いたときにだけ表を読む偽の読み手で打った結果 | 起動したときにだけ読む build（表） | `Err` | 偽の読み手の注釈は `（約 8.05 km）` で、期待の `（約 8.00 km）` と違い、`check_annotation_equals` が `Err`（specified、6.2） | 陰性 | `startup_only_reader_misses_the_table_rewrite` |
 
+#### 7.13.2 CS-20（Windows の llama-server に、端末を閉じ WSL を止めた後も届く）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cs20`
+test：`native/hayamimi/tests/cs20.rs`。llama-server を起こす command（`hayamimi llama start`）は hayamimi の crate に在る。
+case の server は test の代役（`fake_llama_server`。`/health` に `{"status":"ok"}` を返す）で、起こす道具立て（子として持たない、端末の出力の pipe を握らない、別の process group）を確かめる。
+WSL の停止そのものは、打つと test を動かしている session も止まるので、case には入れず、実走の受入 `cs20_windows_translator_survives_wsl_shutdown`（`--ignored`）に置く。
+実走は Windows で `hayamimi llama start --model <file>` を打った後に、手で端末をすべて閉じ、`wsl --shutdown` を打ち、10 分待ってから `cargo test --release --test cs20 -- --ignored` を Windows 側で打つ。
+手順書は `docs/guide/llama_windows.ja.md`。
+NOT VERIFIED：`wsl --shutdown` の後の実走は、この slice では打っていない。打つのは利用者が session を止めてよい時である。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CS-20-001 | 代役を入れた install に `hayamimi llama start --model ok.gguf --port <空き> --dir <install> --wait 20` を打ち、command が終わった後に `GET /health` | 起こした command が終わった後 | `status` が `ok` | command の終了 code 0、`translate.server.started` の `pid` の process が生きていて、`/health` の応答の `status` が `ok`（specified、CS-20 の期待値） | 陽性 | `server_answers_after_the_start_command_ended` |
+| T-CS-20-002 | 001 の後に `pid` の process を止め、同じ `GET /health` | server を止めた後（CS-20 の陰性） | 接続できない | 接続が拒まれる（specified、CS-20 の対照。001 の応答が server に由来することを示す） | 陰性 | `killed_server_does_not_answer` |
+| T-CS-20-003 | 001 の command を、出力を pipe で受ける形で打つ | server が command の出力の pipe を握らない | 終わる | command が `--wait` の秒数より前に終わる。握ると pipe が閉じず、端末を閉じた後に server が残る代わりに、command の呼び手が server の生きる間 待たされる（derived、Windows の継承の仕様） | 境界 | `start_command_returns_while_the_server_keeps_running` |
+| T-CS-20-004 | 001 の server の process group（Linux の `/proc/<pid>/stat` の 5 番目）と、test の process group | 別の group | 違う | server の group は server の pid と等しく、test の group と違う。端末の hangup と Ctrl+C が group に届くので、別 group の server には届かない（specified、3.7。Windows は `CREATE_NEW_PROCESS_GROUP` を unit test が確かめる） | 陰性 | `server_is_in_a_process_group_of_its_own` |
+| T-CS-20-005 | 実走（Windows、`--ignored`）：手順書の手順で端末を閉じ `wsl --shutdown` を打ち 10 分待った後、PowerShell で `Invoke-RestMethod http://127.0.0.1:8080/health` | 実走 | `status` が `ok` | `status` が `ok`（specified、CS-20）。対照は起こした直後の同じ command | 陽性 | （受入の名前そのもの） |
+
 #### 7.14 対象の在り処、確かめた式、残る穴、実装がやること
 
 対象の在り処：`native/` はまだ無い（`ls native` が失敗）ので、test の対象は新しく作る crate で、既存の読み手は無い。
@@ -1060,7 +1087,6 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H8** cinecaption に無い字の数は数えていない（NOT VERIFIED）。CS-12 で数える。
 - **H9** 窓の影を切る tao の設定の名前と、WebView2 で `@font-face` に localhost の file を読ませる方法は確かめていない（NOT VERIFIED）。試し 2 の crate で、実装の席が CS-11 と CS-12 の前に確かめる。
 - **H10** 閉じた。llama-server は Windows の native に置く（3.7）ので、WSL の VM が止まっても訳は止まらない。CS-20 で確かめる。
-- **H16** slice 1 の case 行 T-CX-1-002（7.8）は、V の呼び出しを 1 回と書いている。3.4 の V が多くて 2 回の形は、`rust_port.ja.md` の slice R8c で中継に入れ、同じ手番で test-designer が T-CX-1-002 を「T の訳と E の訳に 1 回ずつ、換算はその後」に書き替える。それまで、実装と T-CX-1-002 は V が 1 回の形のまま一致している。
 - **H11** 頁そのものの透明は、OBS を使わずに CS-13 の前提（headless shell の画素の alpha）で測る。利用者の OBS には新しい測定を掛けない。OBS の browser source が透明に描くか、Windows に ffmpeg が在り `OBS Virtual Camera` を dshow で読めるかは試していない（NOT VERIFIED）。OBS の中での実測は CS-16 の手番に、portable の別の OBS で、利用者の OBS が仮想カメラを使っていないときだけ行う。
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。

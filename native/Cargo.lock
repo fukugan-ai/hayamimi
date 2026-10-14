@@ -1510,6 +1510,7 @@ name = "hayamimi"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "dirs",
  "hayamimi-asr",
  "hayamimi-eval",
  "hayamimi-gpu",
@@ -1520,6 +1521,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "toml",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

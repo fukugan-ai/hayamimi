@@ -1,0 +1,4 @@
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-14T14:25:48+09:00","level":"info","event":"translate.server.started","component":"translate","message":"翻訳 server が応答しています","error_code":null,"request_id":null,"build_revision":"hayamimi-0.1.0","build":"cuda","gpu_layers":99,"pid":8000,"port":8099,"slots":4,"tag":"b11609"}
+翻訳 server は次の address で応答しています:
+http://127.0.0.1:8099
+exit=0

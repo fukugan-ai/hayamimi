@@ -15,7 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hayamimi_eval::fleurs::degrade;
-use support::{BASE, FIXTURES, Failure, RESULTS, TestResult, micros, read, section};
+use support::{FIXTURES, Failure, RESULTS, TestResult, base as base_dir, micros, read, section};
 
 /// The recorded corpus chrF per target language, in units of 10^-6.
 const CHRF_RECORD: [(&str, i64); 4] = [
@@ -36,8 +36,8 @@ const HUNDREDTH: i64 = 10_000;
 /// A log with one mean DER line, as a run prints it.
 const ONE_RUN: &str = "=== mean DER over 5 meeting(s): 13.3% (collar=0.25s) ===";
 
-fn base(name: &str) -> PathBuf {
-    Path::new(BASE).join(name)
+fn base(name: &str) -> Result<PathBuf, Failure> {
+    Ok(base_dir()?.join(name))
 }
 
 /// Every `chrF=` value logged for `lang`, in units of 10^-6.
@@ -141,8 +141,8 @@ fn check_der_run_count(logs: &[&str]) -> Result<(), Failure> {
 /// The DER logs of `--method refine_diarize` runs: `der_eval.log` is the
 /// first, `der_eval_run<n>.log` the others. A log of another method has
 /// another name and is not listed.
-fn der_run_files() -> Vec<PathBuf> {
-    let mut found: Vec<(u32, PathBuf)> = fs::read_dir(BASE)
+fn der_run_files() -> Result<Vec<PathBuf>, Failure> {
+    let mut found: Vec<(u32, PathBuf)> = fs::read_dir(base_dir()?)
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
@@ -160,11 +160,11 @@ fn der_run_files() -> Vec<PathBuf> {
         })
         .collect();
     found.sort();
-    found.into_iter().map(|(_, path)| path).collect()
+    Ok(found.into_iter().map(|(_, path)| path).collect())
 }
 
 fn der_run_logs() -> Result<Vec<String>, Failure> {
-    der_run_files().iter().map(|path| read(path)).collect()
+    der_run_files()?.iter().map(|path| read(path)).collect()
 }
 
 /// Every meeting row of a `--method refine_diarize` run carries `diar_rtf=`;
@@ -345,7 +345,7 @@ fn summary_section() -> Result<String, Failure> {
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_chrf_within_0_01_of_record() -> TestResult {
-    check_chrf(&read(&base("chrf_eval.log"))?)?;
+    check_chrf(&read(&base("chrf_eval.log")?)?)?;
     Ok(())
 }
 
@@ -419,7 +419,7 @@ fn rb07_python_chrf_and_der_reproduce_record_meeting_ders_average_to_the_printed
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_fixture_has_50_sentences_and_one_corpus_row_per_language()
 -> TestResult {
-    let lines = check_fixture_rows(&read(&base("chrf_fixture.tsv"))?)?;
+    let lines = check_fixture_rows(&read(&base("chrf_fixture.tsv")?)?)?;
     assert_eq!(lines, 204);
     Ok(())
 }
@@ -452,14 +452,14 @@ fn rb07_python_chrf_and_der_reproduce_record_degrade_of_a_one_word_sentence_is_e
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_reference_as_hypothesis_scores_100() -> TestResult {
-    check_reference_scores_100(&read(&base("chrf_control.tsv"))?)?;
+    check_reference_scores_100(&read(&base("chrf_control.tsv")?)?)?;
     Ok(())
 }
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_source_as_hypothesis_scores_below_record() -> TestResult
 {
-    check_source_below_record(&read(&base("chrf_control.tsv"))?)?;
+    check_source_below_record(&read(&base("chrf_control.tsv")?)?)?;
     Ok(())
 }
 
