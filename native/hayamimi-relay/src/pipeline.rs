@@ -330,6 +330,14 @@ impl Draft {
     fn passed(&self) -> bool {
         self.verdict == Verdict::Ok
     }
+
+    /// Why V withheld T's translation; `None` when it passed.
+    fn hold_reason(&self) -> Option<HoldReason> {
+        match self.verdict {
+            Verdict::Ok => None,
+            Verdict::Held(reason) => Some(reason),
+        }
+    }
 }
 
 impl<L: Llm> Pipeline<L> {
@@ -621,7 +629,9 @@ impl<L: Llm> Pipeline<L> {
             Verdict::Held(reason) if draft.passed() && !contains_eos(&text) => {
                 self.keep_draft(request, draft.text, reason, ms, observer, sink)
             }
-            Verdict::Held(reason) => self.held(request, reason, ms, Pass::E, sink),
+            Verdict::Held(reason) => {
+                self.held_after(request, draft.hold_reason(), reason, ms, Pass::E, sink)
+            }
         }
     }
 
@@ -757,12 +767,27 @@ impl<L: Llm> Pipeline<L> {
         pass: Pass,
         sink: &mut dyn LogSink,
     ) -> Translation {
-        sink.emit(timing(
-            LogEvent::new(Level::Info, "translate.line.held", "service")
-                .with("hold_reason", reason.as_str()),
-            request,
-            ms,
-        ));
+        self.held_after(request, None, reason, ms, pass, sink)
+    }
+
+    /// A line withheld after E: `reason` is why V withheld E's translation,
+    /// `draft_reason` why it withheld T's, when it did. The second is logged
+    /// as `t_hold_reason`; no event carries the text of either translation.
+    fn held_after(
+        &self,
+        request: &Ctx<'_>,
+        draft_reason: Option<HoldReason>,
+        reason: HoldReason,
+        ms: [u128; 3],
+        pass: Pass,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        let mut event = LogEvent::new(Level::Info, "translate.line.held", "service")
+            .with("hold_reason", reason.as_str());
+        if let Some(draft_reason) = draft_reason {
+            event = event.with("t_hold_reason", draft_reason.as_str());
+        }
+        sink.emit(timing(event, request, ms));
         self.base(request, Status::Held, Some(reason), pass, true)
     }
 

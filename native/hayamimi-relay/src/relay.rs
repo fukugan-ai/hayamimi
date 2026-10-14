@@ -32,10 +32,11 @@ use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
 use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
-use crate::pipeline::{LineRequest, NoObserver, PartialOutcome, Pipeline, Translation};
+use crate::pipeline::{LineRequest, NoObserver, Observer, PartialOutcome, Pipeline, Translation};
 use crate::reach::{Change, Watch};
 use crate::strings::Strings;
 use crate::target::Target;
+use crate::verify_dump::VerifyDump;
 
 /// How lines are shared out to translators.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,6 +68,9 @@ pub struct RelayConfig {
     /// replaces the languages a Japanese line is translated into by these.
     /// A code outside the table is left out and said so.
     pub translate: Option<Vec<String>>,
+    /// Where the translations handed to V are written for a developer, when
+    /// the run was asked to.
+    pub verify_dump: Option<VerifyDump>,
 }
 
 /// Where a line of a source goes.
@@ -206,6 +210,7 @@ struct LaneParts<L: Llm> {
     hub: Hub,
     delivery: Delivery,
     clock: RunClock,
+    verify_dump: Option<VerifyDump>,
 }
 
 /// Translates the jobs of one lane, one after another, until the router ends.
@@ -223,10 +228,20 @@ fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedS
     for job in jobs {
         let request = job.line.request(job.src_lang, parts.clock.now_epoch());
         let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
+        let mut dump = parts
+            .verify_dump
+            .as_ref()
+            .map(|dump| dump.observer(&job.line.id));
+        let mut none = NoObserver;
+        let observer: &mut dyn Observer = match dump.as_mut() {
+            Some(dump) => dump,
+            None => &mut none,
+        };
         let translation = translate(
             &mut pipeline,
             &request,
             job.route,
+            observer,
             &mut show_draft,
             &mut sink,
         );
@@ -244,11 +259,12 @@ fn translate<L: Llm>(
     pipeline: &mut Pipeline<L>,
     request: &LineRequest<'_>,
     route: Route,
+    observer: &mut dyn Observer,
     early: &mut dyn FnMut(Translation),
     sink: &mut dyn LogSink,
 ) -> Translation {
     match route {
-        Route::Pair => pipeline.run_staged(request, &mut NoObserver, early, sink),
+        Route::Pair => pipeline.run_staged(request, observer, early, sink),
         Route::Other(target) => pipeline.run_into(request, &target, early, sink),
     }
 }
@@ -331,6 +347,7 @@ struct Router<L: Llm + 'static> {
     hub: Hub,
     delivery: Delivery,
     clock: RunClock,
+    verify_dump: Option<VerifyDump>,
     sink: SharedSink,
 }
 
@@ -342,6 +359,7 @@ impl<L: Llm + 'static> Router<L> {
             hub: self.hub.clone(),
             delivery: self.delivery.clone(),
             clock: self.clock,
+            verify_dump: self.verify_dump.clone(),
         };
         let sink = self.sink.clone();
         std::thread::spawn(move || run_lane(receiver, &parts, sink));
@@ -664,6 +682,7 @@ pub fn start_handle<L: Llm + 'static>(
         hub,
         delivery,
         clock,
+        verify_dump: config.verify_dump,
         sink: sink.clone(),
     };
     std::thread::Builder::new()

@@ -570,6 +570,7 @@ pub fn run_relay_logging<L: Llm + 'static>(
         },
         started_epoch: 1_790_000_000,
         translate: None,
+        verify_dump: None,
     };
     let sink = SharedSink::new(logs.clone());
     let address = relay::start_partials(hub::bind(0)?, config, make, sink, outputs, partials)?;

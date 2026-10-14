@@ -56,6 +56,7 @@ pub mod style;
 pub mod target;
 pub mod units;
 pub mod verify;
+pub mod verify_dump;
 pub mod video;
 pub mod vprobe;
 pub mod watched;

@@ -26,6 +26,7 @@ use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::send_config::SendFile;
 use crate::srt_command::{self, SrtPlan};
 use crate::strings::Strings;
+use crate::verify_dump::VerifyDump;
 
 /// The streams `run` follows when none is named: the microphone's recognizer
 /// and the loopback's recognizer, on the ports the recognizers serve on.
@@ -70,6 +71,9 @@ pub struct Live {
     pub translate: Option<Vec<String>>,
     /// Whether the text of an utterance in progress is translated too.
     pub partial_translation: PartialTranslation,
+    /// The developer's file for the translations handed to V (`--verify-text`);
+    /// without it nothing is written.
+    pub verify_text: Option<PathBuf>,
 }
 
 /// A parsed command line.
@@ -149,6 +153,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         send: None,
         translate: None,
         partial_translation: PartialTranslation::On,
+        verify_text: None,
     };
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -159,7 +164,14 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         }
         if !matches!(
             option,
-            "--events" | "--llm" | "--llm-other" | "--serve" | "--srt" | "--send" | "--translate"
+            "--events"
+                | "--llm"
+                | "--llm-other"
+                | "--serve"
+                | "--srt"
+                | "--send"
+                | "--translate"
+                | "--verify-text"
         ) {
             return Err(CliError::UnknownOption);
         }
@@ -170,6 +182,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
             "--llm-other" => options.llm_other.clone_from(value),
             "--srt" => options.srt = Some(PathBuf::from(value)),
             "--send" => options.send = Some(PathBuf::from(value)),
+            "--verify-text" => options.verify_text = Some(PathBuf::from(value)),
             "--translate" => {
                 let codes = translate_codes(value);
                 if codes.is_empty() {
@@ -502,6 +515,10 @@ pub fn start_live(
         backoff: Backoff::STANDARD,
         started_epoch: now,
         translate: live.translate.clone(),
+        verify_dump: live
+            .verify_text
+            .as_deref()
+            .and_then(|path| VerifyDump::open(path, &mut log)),
     };
     let outputs = Outputs {
         destinations,
@@ -721,8 +738,24 @@ mod tests {
                 send: None,
                 translate: None,
                 partial_translation: PartialTranslation::On,
+                verify_text: None,
             }))
         );
+    }
+
+    #[test]
+    fn the_verify_text_file_is_named_by_an_option_and_absent_otherwise() {
+        let file_of = |list: &[&str]| match parse_args(&args(list)) {
+            Ok(Command::Run(live)) => Some(live.verify_text),
+            _ => None,
+        };
+        assert_eq!(file_of(&["live"]), Some(None));
+        assert_eq!(
+            file_of(&["live", "--verify-text", "dump.jsonl"]),
+            Some(Some(PathBuf::from("dump.jsonl")))
+        );
+        let missing = parse_args(&args(&["live", "--verify-text"]));
+        assert_eq!(missing, Err(CliError::MissingValue));
     }
 
     #[test]
@@ -822,6 +855,7 @@ mod tests {
             send: None,
             translate: None,
             partial_translation: PartialTranslation::On,
+            verify_text: None,
         });
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
