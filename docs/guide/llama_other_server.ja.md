@@ -13,7 +13,7 @@ path が違うときは、unit の `-m` と `ExecStart` の先頭を直してか
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
+install -m 0644 native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user start hayamimi-llama-other.service
 ```
