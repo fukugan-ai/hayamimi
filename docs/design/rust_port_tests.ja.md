@@ -1539,7 +1539,7 @@ case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-44 �
 ### 4.55 RP-45（E の雛形が字幕に出ない）
 
 test：`native/hayamimi-relay/tests/rp45.rs`。受入 test の名前は `rp45_edit_template_never_reaches_the_subtitle`。偽の llama-server の行は `#[ignore]` を持たない。E2E-2 の打ち直しで札の語を数える行だけが記録を読む。
-case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-45 の行と 8 の R8p から）。下の表は、実装の席が書いた暫定の行である。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-45 の行と 8 の R8p から）。下の表は、実装の席が書いた暫定の行である。書いた席が自分の test の case を決めると、test が設計でなく実装を測るので、test-designer の席が R8p2 の前にこの表を書き直す（`rust_port.ja.md` の 10 の H57 の 3 つの形を陰性の行に入れる）。書き直すまで、この表は RP-45 の合否に使わない。
 
 command：`cd native && CARGO_BUILD_JOBS=2 cargo test --release -p hayamimi-relay --test rp45`。記録を読む行は `-- --ignored --nocapture` を足す。関数の名前は `rp45_` に「関数の末尾」を続けた物にする。
 入力：偽の llama-server が 1 本目の要求（T）に `draft`、2 本目以降（E）に `edited` を答える。`Pipeline::run` が settle した `Translation` の `status`、`stage`、`text` と、`translate.edit.held` の `hold_reason` を読む。原文は en→ja が `He went inside and examined his letters, but there was nothing from Dana.`、ja→en が `彼は中に入って手紙を確認した。`。札の語は `Draf`、`Rewrit`、`English:`、`Japanese:`、`Japaese` で、V とは別に数える。
