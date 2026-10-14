@@ -132,7 +132,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 | 項目 | 型 | 意味 |
 |---|---|---|
 | `id` | string | `<source>-<連番>`。process の起動ごとに 1 から数える。確定文と清書は別々に番号を取る |
-| `source` | `"mic"` \| `"loopback"` \| `"file"` | どの音源か |
+| `source` | `"mic"` \| `"loopback"` \| `"file"` | どの音源か。`hayamimi` の `--input` から決め（`wav` は `file`、`mic` と `mix` と `ws` は `mic`、`loopback` は `loopback`）、`--source` で上書きできる（`rust_port.ja.md` 8 の R5 の行） |
 | `t0_s` | float | 流れの先頭からの発話の始まり（秒）。動画では動画の先頭から |
 | `t1_s` | float | 同じく発話の終わり |
 | `end_wall_ms` | integer | 発話の終わりを VAD が決めた時刻（epoch ms） |
