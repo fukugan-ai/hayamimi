@@ -38,6 +38,7 @@ options:
   --speaker-device <name>  取り込む出力の device。名前の一部で選ぶ（既定は system のもの）
   --ws-port <port>     この port で /ingest の音声の client を待つ（--input ws の既定は 8766）
   --ws-host <address>  /ingest が待つ address（既定は 127.0.0.1）
+  --source <name>      字幕に書く source。mic、loopback、file のどれか（既定は入力のもの）
   --no-partial         発話の途中の速報を出さない
   --mode <mode>        言語の mode。使えるのは single だけ（既定は single）
   --lang <code>        音声の言語。使えるのは ja だけ（既定は ja）
@@ -65,6 +66,8 @@ stage_vad = "落ちた段: 発話の検出"
 stage_asr = "落ちた段: 認識"
 stage_events = "落ちた段: 字幕の server"
 stage_replace = "落ちた段: 置換辞書"
+stage_source = "落ちた段: 字幕の source（--source）"
+reason_bad_value = "理由: 値が mic、loopback、file のどれでもありません。"
 stage_ingest = "落ちた段: 音声の client の server（/ingest）"
 stage_capture = "落ちた段: 音声の取り込み"
 reason_device_missing = "理由: 音声の device がありません。"

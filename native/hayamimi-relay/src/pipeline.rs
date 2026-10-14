@@ -11,6 +11,10 @@
 //! (`stage: "t"`), otherwise a held line. Only the settled translation is
 //! sent outside (`deliver`). A `refine` line has no screen that shows a draft,
 //! so it is published once, settled.
+//!
+//! The text of an utterance still in progress (`partial`) goes through T and
+//! V only ([`Pipeline::translate_partial`]). It is never settled, and it is
+//! dropped when a newer one makes it useless.
 
 use std::fmt::Write as _;
 use std::ops::{ControlFlow, Deref};
@@ -24,7 +28,7 @@ use crate::annotate::{
     AnnotateRequest, Annotated, Annotation, Annotator, AnnotatorConfig, Skipped,
 };
 use crate::lang::Lang;
-use crate::llm::{Completion, Llm};
+use crate::llm::{Completion, Llm, LlmError, Wanted};
 use crate::logging::{Level, LogEvent, LogSink};
 use crate::style::{Calques, JaStyle};
 use crate::target::Target;
@@ -40,6 +44,8 @@ pub const MAX_TOKENS: u32 = 256;
 pub enum LineKind {
     Final,
     Refine,
+    /// The text of an utterance that has not ended.
+    Partial,
 }
 
 /// Whether the line may be shown.
@@ -163,6 +169,19 @@ pub trait Observer {
     fn verify_input(&mut self, _translation: &str) {}
     /// The exact translation text of T handed to V.
     fn draft_verify_input(&mut self, _translation: &str) {}
+}
+
+/// What came of translating the text of an utterance in progress.
+#[derive(Debug, PartialEq)]
+pub enum PartialOutcome {
+    /// T's translation passed V: the event to show.
+    Shown(Translation),
+    /// The answer was not wanted any more; nothing is shown.
+    Aborted,
+    /// V withheld the translation; nothing is shown.
+    Held(HoldReason),
+    /// The translator did not answer; nothing is shown.
+    Failed,
 }
 
 /// An observer that sees nothing.
@@ -433,6 +452,64 @@ impl<L: Llm> Pipeline<L> {
         match draft.verdict {
             Verdict::Ok => self.settle(request, draft.text, Pass::T, draft.ms, observer, sink),
             Verdict::Held(reason) => self.held(request, reason, draft.ms, Pass::T, sink),
+        }
+    }
+
+    /// Translates the text of an utterance in progress with T and checks it
+    /// with V. The request is dropped when `wanted` says a newer text has
+    /// taken this one's place; nothing is shown then, whatever it answered.
+    pub fn translate_partial(
+        &mut self,
+        request: &LineRequest<'_>,
+        wanted: &Wanted,
+        sink: &mut dyn LogSink,
+    ) -> PartialOutcome {
+        let started = Instant::now();
+        if !wanted.still() {
+            return partial_aborted(request, started, sink);
+        }
+        let prompt = translate_prompt(request.src_lang, request.text);
+        let answer = self
+            .llm
+            .complete(&Completion::new(&prompt, MAX_TOKENS).wanted(wanted));
+        match answer {
+            Ok(text) if wanted.still() => self.judge_partial(request, &text, started, sink),
+            Ok(_) | Err(LlmError::Aborted) => partial_aborted(request, started, sink),
+            Err(error) => partial_failed(request, &error, started, sink),
+        }
+    }
+
+    /// V on T's answer for a text in progress.
+    fn judge_partial(
+        &mut self,
+        request: &LineRequest<'_>,
+        answer: &str,
+        started: Instant,
+        sink: &mut dyn LogSink,
+    ) -> PartialOutcome {
+        let text = answer.trim();
+        let verdict = if contains_eos(answer) {
+            Verdict::Held(HoldReason::Form)
+        } else {
+            self.verifier
+                .verify(request.text, text, request.src_lang, sink)
+        };
+        match verdict {
+            Verdict::Ok => {
+                sink.emit(partial_log("translate.partial.ok", request, started));
+                let ctx = Ctx {
+                    request,
+                    dest: Dest::Pair,
+                };
+                PartialOutcome::Shown(self.draft_event(&ctx, text))
+            }
+            Verdict::Held(reason) => {
+                sink.emit(
+                    partial_log("translate.partial.held", request, started)
+                        .with("hold_reason", reason.as_str()),
+                );
+                PartialOutcome::Held(reason)
+            }
         }
     }
 
@@ -736,10 +813,48 @@ fn timing(event: LogEvent, request: &Ctx<'_>, ms: [u128; 3]) -> LogEvent {
         .with("v_ms", clip(ms[2]))
 }
 
+/// A log event of the text in progress. These come about twice a second, so
+/// they are `debug`.
+fn partial_log(name: &str, request: &LineRequest<'_>, started: Instant) -> LogEvent {
+    LogEvent::new(Level::Debug, name, "service")
+        .with("id", request.id)
+        .with("source", request.source)
+        .with(
+            "duration_ms",
+            u64::try_from(started.elapsed().as_millis()).ok(),
+        )
+}
+
+fn partial_aborted(
+    request: &LineRequest<'_>,
+    started: Instant,
+    sink: &mut dyn LogSink,
+) -> PartialOutcome {
+    sink.emit(partial_log("translate.partial.aborted", request, started));
+    PartialOutcome::Aborted
+}
+
+fn partial_failed(
+    request: &LineRequest<'_>,
+    error: &LlmError,
+    started: Instant,
+    sink: &mut dyn LogSink,
+) -> PartialOutcome {
+    sink.emit(
+        partial_log("translate.partial.failed", request, started)
+            .with("dependency", "llama-server")
+            .with(
+                "detail",
+                error.to_string().split(':').next().map(str::to_owned),
+            )
+            .with_error("LLM_UNAVAILABLE"),
+    );
+    PartialOutcome::Failed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::llm::LlmError;
     use crate::logging::MemorySink;
     use std::cell::RefCell;
 
@@ -1073,6 +1188,195 @@ mod tests {
             .collect();
         assert_eq!(held.len(), 1);
         assert_eq!(held[0].fields["hold_reason"], "number");
+        Ok(())
+    }
+
+    // ---- the text of an utterance in progress ---------------------------------
+
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn partial_request(text: &str) -> LineRequest<'_> {
+        LineRequest {
+            id: "mic-2",
+            of: LineKind::Partial,
+            source: "mic",
+            src_lang: Lang::Ja,
+            text,
+            now_epoch: 1_790_000_000,
+        }
+    }
+
+    fn still_wanted() -> Wanted {
+        Wanted::new(Arc::new(AtomicU64::new(1)), 1)
+    }
+
+    fn translated_in_progress(
+        script: &Scripted,
+        text: &str,
+    ) -> Result<(PartialOutcome, MemorySink), Box<dyn std::error::Error>> {
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(script, &PipelineConfig::default(), &mut sink)?;
+        let outcome =
+            pipeline.translate_partial(&partial_request(text), &still_wanted(), &mut sink);
+        Ok((outcome, sink))
+    }
+
+    #[test]
+    fn a_text_in_progress_is_translated_by_t_alone() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from(" Hello. \n"))]);
+        let (outcome, _) = translated_in_progress(&script, "こんにちは。")?;
+        let PartialOutcome::Shown(shown) = outcome else {
+            return Err(format!("not shown: {outcome:?}").into());
+        };
+        assert_eq!(script.prompts.borrow().len(), 1);
+        assert_eq!(
+            script.prompts.borrow()[0],
+            translate_prompt(Lang::Ja, "こんにちは。")
+        );
+        assert_eq!(
+            (shown.of, shown.stage, shown.settled, shown.status),
+            (LineKind::Partial, Pass::T, false, Status::Ok)
+        );
+        assert_eq!(
+            (shown.id.as_str(), shown.text.as_str()),
+            ("mic-2", "Hello.")
+        );
+        assert!(shown.annotations.is_empty() && shown.skipped.is_empty());
+        assert_eq!(shown.src_sha256, sha256_hex("こんにちは。"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_wire_form_of_a_text_in_progress_names_it_partial()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello."))]);
+        let (outcome, _) = translated_in_progress(&script, "こんにちは。")?;
+        let PartialOutcome::Shown(shown) = outcome else {
+            return Err(format!("not shown: {outcome:?}").into());
+        };
+        let json = serde_json::to_value(&shown)?;
+        assert_eq!(json["type"], "translation");
+        assert_eq!(json["of"], "partial");
+        assert_eq!(json["settled"], false);
+        assert_eq!(json["stage"], "t");
+        Ok(())
+    }
+
+    #[test]
+    fn a_translation_that_fails_v_is_not_shown() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("The budget is 900 yen."))]);
+        let (outcome, sink) = translated_in_progress(&script, "予算は500円です。")?;
+        assert_eq!(outcome, PartialOutcome::Held(HoldReason::Number));
+        let held: Vec<_> = sink
+            .events
+            .iter()
+            .filter(|event| event.event == "translate.partial.held")
+            .collect();
+        assert_eq!(held.len(), 1);
+        assert_eq!(held[0].fields["hold_reason"], "number");
+        Ok(())
+    }
+
+    #[test]
+    fn an_answer_with_the_end_marker_is_held_as_form() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello.</s>"))]);
+        let (outcome, _) = translated_in_progress(&script, "こんにちは。")?;
+        assert_eq!(outcome, PartialOutcome::Held(HoldReason::Form));
+        Ok(())
+    }
+
+    #[test]
+    fn a_text_not_wanted_when_it_is_asked_is_not_sent() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello."))]);
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        let latest = Arc::new(AtomicU64::new(2));
+        let wanted = Wanted::new(latest, 1);
+        let outcome =
+            pipeline.translate_partial(&partial_request("こんにちは。"), &wanted, &mut sink);
+        assert_eq!(outcome, PartialOutcome::Aborted);
+        assert!(script.prompts.borrow().is_empty());
+        Ok(())
+    }
+
+    /// A translator that moves the counter on while it answers, as a newer
+    /// text does.
+    struct Superseded(Arc<AtomicU64>);
+
+    impl Llm for Superseded {
+        fn complete(&self, _request: &Completion<'_>) -> Result<String, LlmError> {
+            self.0.fetch_add(1, Ordering::AcqRel);
+            Ok(String::from("Hello."))
+        }
+    }
+
+    #[test]
+    fn an_answer_that_comes_when_it_is_not_wanted_is_dropped()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let latest = Arc::new(AtomicU64::new(1));
+        let wanted = Wanted::new(Arc::clone(&latest), 1);
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(
+            Superseded(Arc::clone(&latest)),
+            &PipelineConfig::default(),
+            &mut sink,
+        )?;
+        let outcome =
+            pipeline.translate_partial(&partial_request("こんにちは。"), &wanted, &mut sink);
+        assert_eq!(outcome, PartialOutcome::Aborted);
+        assert!(
+            sink.events
+                .iter()
+                .any(|event| event.event == "translate.partial.aborted")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_request_the_translator_dropped_is_aborted_and_said()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Err(LlmError::Aborted)]);
+        let (outcome, sink) = translated_in_progress(&script, "こんにちは。")?;
+        assert_eq!(outcome, PartialOutcome::Aborted);
+        assert_eq!(sink.events.len(), 1);
+        assert_eq!(sink.events[0].event, "translate.partial.aborted");
+        assert_eq!(sink.events[0].error_code, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_translator_that_does_not_answer_fails_the_text() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let script = Scripted::new(vec![Err(LlmError::Transport(String::from("down")))]);
+        let (outcome, sink) = translated_in_progress(&script, "こんにちは。")?;
+        assert_eq!(outcome, PartialOutcome::Failed);
+        let failed: Vec<_> = sink
+            .events
+            .iter()
+            .filter(|event| event.event == "translate.partial.failed")
+            .collect();
+        assert_eq!(failed.len(), 1);
+        assert!(failed[0].error_code.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn the_log_of_a_text_in_progress_carries_no_subtitle_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello."))]);
+        let (_, sink) = translated_in_progress(&script, "こんにちは。")?;
+        let line = sink
+            .events
+            .iter()
+            .find(|event| event.event == "translate.partial.ok")
+            .map(LogEvent::to_json_line)
+            .ok_or("no ok event")?;
+        assert!(
+            !line.contains("こんにちは") && !line.contains("Hello"),
+            "{line}"
+        );
+        assert!(line.contains("\"id\":\"mic-2\"") && line.contains("\"source\":\"mic\""));
         Ok(())
     }
 }

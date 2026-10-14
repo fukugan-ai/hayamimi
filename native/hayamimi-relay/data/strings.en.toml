@@ -80,10 +80,16 @@ label = "m²"
 "translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
 "translate.eval.held" = "No translation of this sentence was kept"
 "translate.eval.written" ="The translations of one language were written"
+"translate.partial.ok" = "The text in progress was translated"
+"translate.partial.held" = "Verification failed; the translation of the text in progress is not shown"
+"translate.partial.aborted" = "A newer text took its place; the translation of the older one was dropped"
+"translate.partial.failed" = "The translator could not be reached for the text in progress"
+"translate.partial.skipped" = "The text in progress is not translated"
+"translate.partial.kept" = "The translation would take away characters already drawn in the settled form; the screen keeps the earlier one"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>] [--no-partial-translation]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""

@@ -476,9 +476,16 @@ test：`native/hayamimi-eval/tests/rp05.rs`。
 | T-RP-5-004 | 速報の訳の時刻 500、`t_tr` が 500 | 同時 | `Err` | `Err`。より前でなければならない（specified、RP-5） | 境界、陰性 | `partial_translation_at_the_same_time_as_t_tr_is_rejected` |
 | T-RP-5-005 | 速報の訳の時刻 501、`t_tr` が 500 | 遅い | `Err` | `Err`（specified、RP-5） | 境界、陰性 | `partial_translation_after_t_tr_is_rejected` |
 | T-RP-5-006 | 速報の訳が 1 つも出ていない発話 | 判定の対象外 | `Ok` | `Ok`。速報の訳が出た発話だけが対象（specified、RP-5） | 境界 | `utterance_without_partial_translation_is_not_judged` |
-| T-RP-5-007 | python の run | 陽性対照 | 時刻が取れる | 最初の `partial` の時刻が全発話で取れる（specified、RP-5 の陽性対照） | 陽性 | `python_run_yields_first_partial_times` |
+| T-RP-5-007 | python の run | 陽性対照 | 時刻が取れる | `final` を持つ全発話で最初の `partial` の時刻が取れ、その `first_partial_delay` は正である。`final` の無い発話（3.1 の「final なし」）は、`partial` が在っても無くても p95 に入れず、対象外である。記録した run は 115 行中 12 行が、`final` も `partial` も無い発話である。`final` を持つ行と持たない行がどちらも在ることも確かめる（specified、RP-5 の陽性対照） | 陽性 | `python_run_yields_first_partial_times` |
 | T-RP-5-008 | 速報の訳を有効にした run の fixture と、切った run の fixture | 数える道具の確かめ | 切った run は 0、有効の run は 1 以上 | 速報の訳の数の関数が 0 と 1 以上を返す（specified、RP-5 の陰性欄） | 陰性 | `partial_translation_counter_reads_zero_when_disabled` |
 | T-RP-5-009 | `<ev> stream` の python と rust の run | 実走 | 実走 | `first_partial_delay` の p95 が python 以下、速報の訳が出た発話で時刻が `t_tr` より前（specified、RP-5） | 陽性 | `rust_partials_arrive_no_later_than_python` |
+| T-RP-5-010 | fixture `native/hayamimi-eval/tests/fixtures/rp05_partial_without_final.jsonl`：6 発話。`final` を持つ 3 発話の `first_partial_delay` が 200、300、400 ms。`partial` だけで `final` の無い 1 発話の最初の `partial` の遅れが 9000 ms。`final` も `partial` も無い 2 発話。この fixture を python の run としても rust の run としても `first_partial_delay` の p95 の関数に渡す | `partial` だけで `final` の無い発話が p95 に入るか | p95 = 400 ms | python の run でも rust の run でも p95 = 400。式：`final` を持つ 3 発話だけで n = 3、`(95 × 3 + 99) / 100` = 3 番目 = 400（specified、RP-5 の「`final` の無い発話は p95 に入れず」と 3.1 の nearest-rank）（pseudo、awk の `int((95*3+99)/100)`）。`partial` だけの発話を入れると n = 4、`(95 × 4 + 99) / 100` = 4 番目 = 9000 になり落ちる | 陽性、陰性 | `partial_only_utterance_is_left_out_of_the_first_partial_p95` |
+| T-RP-5-011 | 010 の fixture | `partial` だけの発話と、どちらも無い発話を別の数にするか | 1 / 2 / 3 | 結果の file の 3 つの数が、`partial` だけで `final` の無い発話 1、`final` も `partial` も無い発話 2、`final` を持つ発話 3 で、和が 6（specified、RP-5 の「結果の file に別々に書く」）（pseudo、fixture を手で数えた値）。合算すると 3 と 3 になり、1 と 2 の取り違えも落ちる | 陽性、陰性 | `partial_only_and_neither_utterances_are_counted_separately` |
+| T-RP-5-012 | 010 の fixture から `partial` だけの 1 発話を除いた 5 発話 | 数える道具の確かめ（`partial` だけが 0 件） | 0 / 2 / 3 | `partial` だけの発話の数が 0、どちらも無い発話の数が 2、`final` を持つ発話の数が 3。p95 は 400 のまま（specified、RP-5）。0 は 011 で 1 を返した同じ関数の値で、「数えていない 0」と「数えて 0」を 011 が分ける | 陰性 | `counter_reads_zero_partial_only_utterances_when_there_are_none` |
+
+中継の側の速報の訳は `native/hayamimi-relay/tests/r8d_partial.rs` が測る。
+次の 11 本で、順に、次の `id` で訳す、最初の確定文の前は訳さない、新しい原文が古い要求を打ち切る、確定文が来たら打ち切る、2 つの入力が互いを止めない、訳さない言語は飛ばす、外の送り先へ渡さない、設定で切ると 1 本も訳さない（陰性対照）、入れると 1 本訳す（陽性対照）、`session_reset` で番号を忘れる、確定した字形で描いた接頭辞を消す訳は出さず前の訳を残す（`a_translation_in_progress_does_not_take_away_the_committed_prefix`、RP-25 の 3 つ目の条件。守りを外すと落ちる陰性対照を確かめた）、である。
+速報の訳を切る設定は `--no-partial-translation` である。
 
 ### 4.16 RP-6（推論が GPU で走ったこと）
 

@@ -75,10 +75,16 @@ label = "m²"
 "translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
 "translate.eval.held" = "この文の訳はどちらも採りませんでした"
 "translate.eval.written" ="1 つの言語の訳を書き出しました"
+"translate.partial.ok" = "話している途中の文を訳しました"
+"translate.partial.held" = "照合が外れたので、話している途中の文の訳は出しません"
+"translate.partial.aborted" = "新しい文が来たので、前の文の訳をやめました"
+"translate.partial.failed" = "話している途中の文を訳す翻訳器に届きませんでした"
+"translate.partial.skipped" = "話している途中の文は訳しません"
+"translate.partial.kept" = "確定した字形で描いた文字が消える訳なので出さず、前の訳を残します"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>] [--no-partial-translation]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""

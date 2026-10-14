@@ -16,6 +16,7 @@ use crate::hub;
 use crate::lang::Lang;
 use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
+use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::relay::{self, Lanes, MakePipeline, Makers, Relay, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
@@ -59,6 +60,8 @@ pub struct Live {
     pub srt: Option<PathBuf>,
     /// The `--translate` codes, when the option is given.
     pub translate: Option<Vec<String>>,
+    /// Whether the text of an utterance in progress is translated too.
+    pub partial_translation: PartialTranslation,
 }
 
 /// A parsed command line.
@@ -132,10 +135,15 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         serve: DEFAULT_SERVE,
         srt: None,
         translate: None,
+        partial_translation: PartialTranslation::On,
     };
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
+        if option == "--no-partial-translation" {
+            options.partial_translation = PartialTranslation::Off;
+            continue;
+        }
         if !matches!(
             option,
             "--events" | "--llm" | "--llm-other" | "--serve" | "--srt" | "--translate"
@@ -429,6 +437,7 @@ pub fn start_live(
         },
         log,
         outputs,
+        live.partial_translation,
     )
 }
 
@@ -610,8 +619,42 @@ mod tests {
                 serve: 9100,
                 srt: None,
                 translate: None,
+                partial_translation: PartialTranslation::On,
             }))
         );
+    }
+
+    #[test]
+    fn the_translation_of_the_text_in_progress_is_on_unless_it_is_turned_off() {
+        let on = |list: &[&str]| match parse_args(&args(list)) {
+            Ok(Command::Run(Live {
+                partial_translation,
+                ..
+            })) => Some(partial_translation),
+            _ => None,
+        };
+        assert_eq!(on(&["live"]), Some(PartialTranslation::On));
+        assert_eq!(
+            on(&["live", "--no-partial-translation"]),
+            Some(PartialTranslation::Off)
+        );
+        assert_eq!(
+            on(&[
+                "live",
+                "--serve",
+                "0",
+                "--no-partial-translation",
+                "--srt",
+                "a.srt"
+            ]),
+            Some(PartialTranslation::Off)
+        );
+    }
+
+    #[test]
+    fn the_switch_that_turns_the_translation_off_takes_no_value() {
+        let parsed = parse_args(&args(&["live", "--no-partial-translation", "yes"]));
+        assert_eq!(parsed, Err(CliError::UnknownOption));
     }
 
     #[test]
@@ -676,6 +719,7 @@ mod tests {
             serve: 8835,
             srt: None,
             translate: None,
+            partial_translation: PartialTranslation::On,
         });
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
@@ -797,6 +841,12 @@ mod tests {
                 "translate.fallback.skipped",
                 "translate.eval.written",
                 "translate.eval.held",
+                "translate.partial.ok",
+                "translate.partial.held",
+                "translate.partial.aborted",
+                "translate.partial.failed",
+                "translate.partial.skipped",
+                "translate.partial.kept",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }

@@ -11,6 +11,8 @@
 //! translations (`hub`). A translation of T that passed verification is served
 //! at once as a draft and replaced by the settled one; only the settled one is
 //! sent to a subtitle file and to the outside destinations (`deliver`, `srt`).
+//! The text of an utterance still in progress is translated again each time
+//! it grows (`partial`); that translation is for the screens only.
 //! The crate also holds the daily exchange-rate fetch and its scheduler
 //! registration. Table and rate files are re-read when they change.
 //!
@@ -30,6 +32,7 @@ pub mod line;
 pub mod llm;
 pub mod logging;
 pub mod numbers;
+pub mod partial;
 pub mod pipeline;
 pub mod reach;
 pub mod relay;

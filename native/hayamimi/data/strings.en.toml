@@ -38,6 +38,7 @@ options:
   --speaker-device <name>  output device to capture, by part of its name (default: the system's)
   --ws-port <port>     listen for audio clients at /ingest on this port (default 8766 with --input ws)
   --ws-host <address>  address /ingest listens on (default 127.0.0.1)
+  --source <name>      source named in the subtitles: mic, loopback or file (default: that of the input)
   --no-partial         do not show drafts of the utterance in progress
   --mode <mode>        language mode; only single is available (default single)
   --lang <code>        language of the audio; only ja is available (default ja)
@@ -65,6 +66,8 @@ stage_vad = "Stage that fell back: voice detection"
 stage_asr = "Stage that fell back: recognition"
 stage_events = "Stage that fell back: subtitle server"
 stage_replace = "Stage that fell back: replacement dictionary"
+stage_source = "Stage that fell back: source of the subtitles (--source)"
+reason_bad_value = "Reason: the value is not mic, loopback or file."
 stage_ingest = "Stage that fell back: audio client server (/ingest)"
 stage_capture = "Stage that fell back: audio capture"
 reason_device_missing = "Reason: an audio device is missing."
