@@ -563,10 +563,14 @@ impl<L: Llm> Pipeline<L> {
             Dest::Pair => self
                 .verifier
                 .verify(request.text, text, request.src_lang, sink),
-            Dest::Other(target) => {
-                self.verifier
-                    .verify_into(request.text, text, request.src_lang, target, sink)
-            }
+            Dest::Other(target) => self.verifier.verify_into(
+                request.id,
+                request.text,
+                text,
+                request.src_lang,
+                target,
+                sink,
+            ),
         }
     }
 

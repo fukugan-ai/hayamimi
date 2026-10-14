@@ -278,9 +278,10 @@ impl Judge {
     }
 
     fn holds(&mut self, src: &str, text: &str) -> bool {
-        let verdict = self
-            .verifier
-            .verify_into(src, text, Lang::Ja, &self.target, &mut NullSink);
+        // The sink drops events, so the id of the line is never read.
+        let verdict =
+            self.verifier
+                .verify_into("", src, text, Lang::Ja, &self.target, &mut NullSink);
         verdict != Verdict::Ok
     }
 

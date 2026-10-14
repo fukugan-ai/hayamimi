@@ -3,19 +3,27 @@
 //!
 //! The checks run in a fixed order and the first one that fails names the
 //! hold reason: form, number, negation, uncertainty, proper noun.
+//!
+//! Into Chinese, Korean and Spanish a disagreement in hedging is not a hold
+//! reason: the translation goes out and [`HEDGE_EVENT`] records the hedge
+//! words of both sides. Negation, numbers, form and names hold there as
+//! everywhere, and hedging still holds into Japanese and English.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::lang::Lang;
-use crate::logging::LogSink;
+use crate::logging::{Level, LogEvent, LogSink};
 use crate::numbers::{self, Tongue};
 use crate::target::Target;
 use crate::watched::Watched;
 
 pub const DEFAULT_MARKERS: &str = include_str!("../data/verify_markers.toml");
 pub const DEFAULT_GLOSSARY: &str = include_str!("../data/glossary.toml");
+
+/// The event that records a hedge disagreement that did not hold a line.
+pub const HEDGE_EVENT: &str = "translate.hedge.logged";
 
 /// The end-of-sequence marker a model may leave in its text.
 pub const EOS_MARKER: &str = "</s>";
@@ -218,22 +226,56 @@ pub fn verify_with(
     Verdict::Ok
 }
 
+/// A marker table and how its language is scanned.
+type Side<'a> = (&'a LangMarkers, Scan);
+
+/// Whether exactly one of the source and the translation is negated, each
+/// side read with its own table and scan.
+fn negation_differs(
+    (src_table, src_scan): Side<'_>,
+    (dst_table, dst_scan): Side<'_>,
+    src: &str,
+    translation: &str,
+) -> bool {
+    has_marker(&src_table.negation, src_scan, src)
+        != has_marker(&dst_table.negation, dst_scan, translation)
+}
+
+/// The hedge words of a source and of its translation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HedgeMismatch<'a> {
+    /// The first hedge word of the source, as the table spells it.
+    pub src: Option<&'a str>,
+    /// The first hedge word of the translation, as the table spells it.
+    pub dst: Option<&'a str>,
+}
+
+/// The hedge words of both texts when exactly one of them is hedged.
+fn hedge_mismatch<'a>(
+    (src_table, src_scan): Side<'a>,
+    (dst_table, dst_scan): Side<'a>,
+    src: &str,
+    translation: &str,
+) -> Option<HedgeMismatch<'a>> {
+    let seen = HedgeMismatch {
+        src: find_marker(&src_table.uncertainty, src_scan, src),
+        dst: find_marker(&dst_table.uncertainty, dst_scan, translation),
+    };
+    (seen.src.is_some() != seen.dst.is_some()).then_some(seen)
+}
+
 /// The first of negation and uncertainty on which the source and the
 /// translation disagree, each side read with its own table and scan.
 fn marker_mismatch(
-    (src_table, src_scan): (&LangMarkers, Scan),
-    (dst_table, dst_scan): (&LangMarkers, Scan),
+    src_side: Side<'_>,
+    dst_side: Side<'_>,
     src: &str,
     translation: &str,
 ) -> Option<HoldReason> {
-    let negation = has_marker(&src_table.negation, src_scan, src)
-        != has_marker(&dst_table.negation, dst_scan, translation);
-    if negation {
+    if negation_differs(src_side, dst_side, src, translation) {
         return Some(HoldReason::Negation);
     }
-    let uncertainty = has_marker(&src_table.uncertainty, src_scan, src)
-        != has_marker(&dst_table.uncertainty, dst_scan, translation);
-    uncertainty.then_some(HoldReason::Uncertainty)
+    hedge_mismatch(src_side, dst_side, src, translation).map(|_| HoldReason::Uncertainty)
 }
 
 /// Verifies a translation into `target`. Into the other language of the live
@@ -242,7 +284,8 @@ fn marker_mismatch(
 /// Japanese source carries. No table of negation or hedging markers exists for
 /// those languages, so those two checks are not made. A language that has a
 /// table in `verify_markers.toml` (Chinese, Korean, Spanish) is also checked
-/// for negation and uncertainty against the table of the source language.
+/// for negation against the table of the source language; a disagreement in
+/// hedging does not hold there and is read by [`hedge_into`].
 pub fn verify_into(
     markers: &Markers,
     glossary: &Glossary,
@@ -269,8 +312,17 @@ pub fn verify_into(
     Verdict::Ok
 }
 
-/// [`marker_mismatch`] for a translation into `target`; `None` when the target
-/// has no table, which leaves negation and uncertainty unchecked.
+/// The table of the source language and how it is scanned.
+fn source_side(markers: &Markers, src_lang: Lang) -> Side<'_> {
+    let table = match src_lang {
+        Lang::Ja => &markers.ja,
+        Lang::En => &markers.en,
+    };
+    (table, Scan::of(src_lang))
+}
+
+/// The negation check for a translation into `target`; `None` when the target
+/// has no table (negation is then unchecked) or the negation agrees.
 fn marker_mismatch_into(
     markers: &Markers,
     src: &str,
@@ -279,11 +331,22 @@ fn marker_mismatch_into(
     target: &Target,
 ) -> Option<HoldReason> {
     let dst_side = markers.table_for(target.code)?;
-    let src_table = match src_lang {
-        Lang::Ja => &markers.ja,
-        Lang::En => &markers.en,
-    };
-    marker_mismatch((src_table, Scan::of(src_lang)), dst_side, src, translation)
+    negation_differs(source_side(markers, src_lang), dst_side, src, translation)
+        .then_some(HoldReason::Negation)
+}
+
+/// The hedge words of a source and of its translation into `target` when
+/// exactly one is hedged. `None` when they agree and when `target` has no
+/// table of its own (Chinese, Korean and Spanish have one).
+pub fn hedge_into<'a>(
+    markers: &'a Markers,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+    target: &Target,
+) -> Option<HedgeMismatch<'a>> {
+    let dst_side = markers.table_for(target.code)?;
+    hedge_mismatch(source_side(markers, src_lang), dst_side, src, translation)
 }
 
 /// Whether the numbers of a source and of its translation are the same, each
@@ -374,23 +437,33 @@ fn wrapped_in_foreign_quotes(src: &str, text: &str) -> bool {
 }
 
 fn has_marker(set: &MarkerSet, scan: Scan, text: &str) -> bool {
+    find_marker(set, scan, text).is_some()
+}
+
+/// The first entry of `set` found in `text`, as the table spells it.
+fn find_marker<'a>(set: &'a MarkerSet, scan: Scan, text: &str) -> Option<&'a str> {
     match scan {
         Scan::Substring => {
             let cleaned = remove_substrings(text, &set.exclude);
             set.markers
                 .iter()
-                .any(|marker| cleaned.contains(marker.as_str()))
+                .map(String::as_str)
+                .find(|marker| cleaned.contains(marker))
         }
         Scan::Words => {
             let lower = text.to_lowercase().replace('’', "'");
             let cleaned = remove_phrases(&lower, &set.exclude);
-            set.suffixes
+            let suffix = set
+                .suffixes
                 .iter()
-                .any(|suffix| cleaned.contains(suffix.as_str()))
-                || set
-                    .markers
+                .map(String::as_str)
+                .find(|suffix| cleaned.contains(suffix));
+            suffix.or_else(|| {
+                set.markers
                     .iter()
-                    .any(|marker| find_word(&cleaned, marker, 0).is_some())
+                    .map(String::as_str)
+                    .find(|marker| find_word(&cleaned, marker, 0).is_some())
+            })
         }
     }
 }
@@ -537,10 +610,13 @@ impl Verifier {
         )
     }
 
-    /// Verifies one line translated into `target`, first picking up any
-    /// table file that changed.
+    /// Verifies one line `id` translated into `target`, first picking up any
+    /// table file that changed. A line that passes with a hedge the other side
+    /// lacks (into a language that has a table of its own) is recorded in
+    /// [`HEDGE_EVENT`].
     pub fn verify_into(
         &mut self,
+        id: &str,
         src: &str,
         translation: &str,
         src_lang: Lang,
@@ -549,15 +625,32 @@ impl Verifier {
     ) -> Verdict {
         self.markers.refresh(sink);
         self.glossary.refresh(sink);
-        verify_into(
-            self.markers.current(),
+        let markers = self.markers.current();
+        let verdict = verify_into(
+            markers,
             self.glossary.current(),
             src,
             translation,
             src_lang,
             target,
-        )
+        );
+        if verdict == Verdict::Ok
+            && let Some(hedge) = hedge_into(markers, src, translation, src_lang, target)
+        {
+            sink.emit(hedge_event(id, target.code, &hedge));
+        }
+        verdict
     }
+}
+
+/// [`HEDGE_EVENT`] for line `id` translated into `lang`. It carries table
+/// entries only, never the text of the line.
+fn hedge_event(id: &str, lang: &str, hedge: &HedgeMismatch<'_>) -> LogEvent {
+    LogEvent::new(Level::Info, HEDGE_EVENT, "service")
+        .with("id", id)
+        .with("lang", lang)
+        .with("src_hedge", hedge.src)
+        .with("dst_hedge", hedge.dst)
 }
 
 #[cfg(test)]
@@ -843,18 +936,84 @@ mod tests {
         Ok(())
     }
 
+    /// The hedge words of both sides when exactly one is hedged.
+    type Seen = Option<(Option<String>, Option<String>)>;
+
+    /// The hedge words of `translation` against `src` (Japanese), into `code`.
+    fn hedge_of(
+        src: &str,
+        translation: &str,
+        code: &str,
+    ) -> Result<Seen, Box<dyn std::error::Error>> {
+        let markers = Markers::embedded()?;
+        let Some(target) = Target::from_code(code) else {
+            return Err(format!("no target {code}").into());
+        };
+        let seen = hedge_into(&markers, src, translation, Lang::Ja, &target);
+        Ok(seen.map(|hedge| (hedge.src.map(str::to_owned), hedge.dst.map(str::to_owned))))
+    }
+
     #[test]
-    fn a_translation_that_dropped_the_hedge_is_held_in_zh_ko_and_es()
+    fn a_translation_that_dropped_the_hedge_passes_in_zh_ko_and_es_and_is_read_as_a_mismatch()
     -> Result<(), Box<dyn std::error::Error>> {
         for (code, src, kept, dropped) in UNCERTAINTY_CASES {
             assert_eq!(check_into(src, kept, code)?, Verdict::Ok, "{code} kept");
             assert_eq!(
                 check_into(src, dropped, code)?,
-                Verdict::Held(HoldReason::Uncertainty),
+                Verdict::Ok,
                 "{code} dropped"
+            );
+            assert_eq!(hedge_of(src, kept, code)?, None, "{code} kept");
+            let seen = hedge_of(src, dropped, code)?;
+            assert!(
+                matches!(&seen, Some((Some(_), None))),
+                "{code} dropped: {seen:?}"
             );
         }
         Ok(())
+    }
+
+    #[test]
+    fn a_hedge_the_source_lacks_is_read_as_a_mismatch_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, _, hedged, plain) in UNCERTAINTY_CASES {
+            let plain_src = "明日は雨です。";
+            let seen = hedge_of(plain_src, hedged, code)?;
+            assert!(
+                matches!(&seen, Some((None, Some(_)))),
+                "{code} added: {seen:?}"
+            );
+            assert_eq!(check_into(plain_src, plain, code)?, Verdict::Ok, "{code}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_language_without_a_table_has_no_hedge_to_read() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            hedge_of("明日は雨かもしれません。", "Il pleuvra demain.", "fr")?,
+            None
+        );
+        assert_eq!(
+            hedge_of("明日は雨かもしれません。", "It will rain tomorrow.", "en")?,
+            None
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_hedge_event_names_the_table_entries_and_no_text() {
+        let hedge = HedgeMismatch {
+            src: Some("かもしれ"),
+            dst: None,
+        };
+        let event = hedge_event("mic-7", "zh", &hedge);
+        assert_eq!(event.event, HEDGE_EVENT);
+        assert_eq!(event.level, Level::Info);
+        assert_eq!(event.fields["id"], "mic-7");
+        assert_eq!(event.fields["lang"], "zh");
+        assert_eq!(event.fields["src_hedge"], "かもしれ");
+        assert!(event.fields["dst_hedge"].is_null());
     }
 
     #[test]

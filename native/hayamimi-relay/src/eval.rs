@@ -190,14 +190,18 @@ impl<'a, L: Llm> Translator<'a, L> {
         self.llm.complete(&Completion::new(prompt, MAX_TOKENS))
     }
 
+    /// V on `text`, the translation of line `line` of its file; a hedge
+    /// disagreement is logged under the line's number.
     fn verdict(
         &mut self,
+        line: usize,
         src: &str,
         text: &str,
         target: &Target,
         sink: &mut dyn LogSink,
     ) -> Verdict {
-        self.verifier.verify_into(src, text, Lang::Ja, target, sink)
+        self.verifier
+            .verify_into(&line.to_string(), src, text, Lang::Ja, target, sink)
     }
 
     /// The settled translation of one Japanese sentence (line `line` of its
@@ -231,7 +235,7 @@ impl<'a, L: Llm> Translator<'a, L> {
             return Ok(None);
         }
         let text = answer.trim();
-        let verdict = self.verdict(src, text, target, sink);
+        let verdict = self.verdict(line, src, text, target, sink);
         if verdict == Verdict::Ok {
             return Ok(Some(one_line(text)));
         }
@@ -253,11 +257,11 @@ impl<'a, L: Llm> Translator<'a, L> {
             return Ok(None);
         }
         let draft = first.trim();
-        let draft_verdict = self.verdict(src, draft, target, sink);
+        let draft_verdict = self.verdict(line, src, draft, target, sink);
         let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
         let second = self.ask(&prompt)?;
         let edited = second.trim();
-        let edited_verdict = self.verdict(src, edited, target, sink);
+        let edited_verdict = self.verdict(line, src, edited, target, sink);
         let settled = settled_text(
             draft,
             draft_verdict == Verdict::Ok,
