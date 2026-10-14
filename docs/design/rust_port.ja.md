@@ -829,6 +829,14 @@ Windows の実機の test（RP-10、RP-16 の訳の行、R8b、端から端）�
 | A | マイク | ja（`--lang ja`） | en | 8833 | 8766 |
 | B | スピーカーの loopback | en（`--lang en`） | ja | 8834 | 8767 |
 
+中継（`hayamimi-relay run`）の既定は次の 3 つで、E2E では引数なしの `hayamimi-relay run` で起こす。
+
+| option | 既定 | 持ち主 | 置き直す条件 |
+|---|---|---|---|
+| `--llm` | `http://127.0.0.1:8080`（llama-server の `--port` の既定） | R8b | R8b が llama-server を別の port で起こす形にしたとき、同じ commit でこの既定を替える |
+| `--serve` | 8835（process A と B の字幕の port の次） | R8a | 使えなければ 3.15 の port の行のとおり次の 10 個から空いた port を使い、実際の URL を出す。8835 を他の常駐物が使うと分かったら R8a が替える |
+| `--events` | `http://127.0.0.1:8833/events` と `http://127.0.0.1:8834/events` の 2 本 | R8a | 字幕の port の表が変わったとき。片方に届かなくても止めず、届く方だけで訳し、届かない方を 5 秒ごとに繋ぎ直す |
+
 | ID | command | 期待値 | 陽性対照 | 陰性対照 |
 |---|---|---|---|---|
 | E2E-1 | llama-server、中継、process A を起こし、`<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl`、`cargo test --release --test e2e1 -- --ignored` | 有効な標本（3.1）のうち訳の取れた割合が 20 / 23 以上。`L`、`L_asr`、`L_tr` の p50 と p95 を出す。`L` は RP-3 の期待値（Python の p50 と p95 以下）で判定する | 同じ test が `<base>` の Python の run から同じ列を出せる | llama-server を止めた run では訳が 0 件で test が落ち、`hayamimi` と中継は止まらず `translate.fallback.held` を出す |
