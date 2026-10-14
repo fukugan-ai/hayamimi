@@ -2,12 +2,16 @@
 //! pages can be opened in a browser before the real server serves them.
 //!
 //! ```text
-//! cargo run --release -p hayamimi-ui --example preview -- <bundle dir> <port>
+//! cargo run --release -p hayamimi-ui --example preview -- <bundle dir> <port> [preload]
 //! ```
 //!
 //! `/`, `/dashboard` and `/transcript` give `web/index.html`; `/ui/<file>` gives
-//! a file of the bundle directory (its `snippets/` too); `/events` sends a short session, one message
-//! every 300 ms, and then keeps the connection open.
+//! a file of the bundle directory (its `snippets/` too); `/events` sends a short
+//! session, one message every 300 ms, and then keeps the connection open.
+//!
+//! With `preload`, `/events` instead sends that many confirmed lines at once,
+//! then one more every 2 s after a 12 s pause, to time how long one line takes
+//! to draw when many are already on the page.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -15,6 +19,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const INDEX: &str = include_str!("../web/index.html");
+
+/// The quiet time after a preload, long enough for the page to draw all of it.
+const PAUSE_SECONDS: u64 = 12;
 
 const SESSION: [&str; 12] = [
     r#"{"type":"fallback","stage":"translate","reason":"unreachable","to":"cpu"}"#,
@@ -41,6 +48,17 @@ fn main() {
         eprintln!("the port is not a number: {port}");
         std::process::exit(2);
     };
+    let preload = match args.next() {
+        // DEFAULT: without a third argument the usage text above fixes the scripted session, which is a preload of 0.
+        None => 0,
+        Some(text) => match text.parse::<usize>() {
+            Ok(count) => count,
+            Err(_) => {
+                eprintln!("the preload is not a number: {text}");
+                std::process::exit(2);
+            }
+        },
+    };
     let listener = match TcpListener::bind(("127.0.0.1", port)) {
         Ok(listener) => listener,
         Err(error) => {
@@ -52,7 +70,7 @@ fn main() {
     for stream in listener.incoming().flatten() {
         let bundle = bundle.clone();
         std::thread::spawn(move || {
-            if let Err(error) = serve(stream, &bundle) {
+            if let Err(error) = serve(stream, &bundle, preload) {
                 eprintln!("a connection ended: {error}");
             }
         });
@@ -67,7 +85,7 @@ fn path_of(head: &[u8]) -> Option<String> {
     Some(path.to_owned())
 }
 
-fn serve(mut stream: TcpStream, bundle: &Path) -> std::io::Result<()> {
+fn serve(mut stream: TcpStream, bundle: &Path, preload: usize) -> std::io::Result<()> {
     let mut head = Vec::new();
     let mut byte = [0_u8; 1];
     while !head.ends_with(b"\r\n\r\n") && stream.read(&mut byte)? == 1 {
@@ -80,6 +98,7 @@ fn serve(mut stream: TcpStream, bundle: &Path) -> std::io::Result<()> {
         "/" | "/dashboard" | "/transcript" => {
             reply(&mut stream, "text/html; charset=utf-8", INDEX.as_bytes())
         }
+        "/events" if preload > 0 => crowded_events(&mut stream, preload),
         "/events" => events(&mut stream),
         other => match other.strip_prefix("/ui/") {
             Some(name) if !name.contains("..") => match std::fs::read(bundle.join(name)) {
@@ -112,6 +131,29 @@ fn reply(stream: &mut TcpStream, kind: &str, body: &[u8]) -> std::io::Result<()>
 
 fn not_found(stream: &mut TcpStream) -> std::io::Result<()> {
     stream.write_all(b"HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
+}
+
+/// One confirmed line, numbered.
+fn numbered_final(number: usize) -> String {
+    format!(
+        r#"data: {{"type":"final","id":"n{number}","text":"確定した一行の文章です {number}","lang":"ja","speaker":"","latency_ms":300.0}}{}"#,
+        "\n\n"
+    )
+}
+
+/// `preload` lines at once, then a line every 2 s after a pause.
+fn crowded_events(stream: &mut TcpStream, preload: usize) -> std::io::Result<()> {
+    stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-cache\r\nconnection: close\r\n\r\n")?;
+    let burst: String = (0..preload).map(numbered_final).collect();
+    stream.write_all(burst.as_bytes())?;
+    stream.flush()?;
+    std::thread::sleep(Duration::from_secs(PAUSE_SECONDS));
+    for number in preload.. {
+        stream.write_all(numbered_final(number).as_bytes())?;
+        stream.flush()?;
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    Ok(())
 }
 
 fn events(stream: &mut TcpStream) -> std::io::Result<()> {

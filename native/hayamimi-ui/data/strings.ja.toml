@@ -14,6 +14,7 @@ empty_feed = "まだ確定した行はありません"
 [ui.common]
 empty_refined = "まだ清書はありません"
 jump_latest = "最新へ"
+dropped = "古い {n} 行は表示から外しました"
 connecting = "接続中…"
 reconnecting = "再接続中…"
 connected = "接続済み"

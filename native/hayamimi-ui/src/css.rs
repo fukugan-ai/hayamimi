@@ -53,13 +53,14 @@ pub const PARTS: &str = r#"
 .tr-mark { font-size: 12px; line-height: 1.4; padding: 0 4px; border-radius: 2px;
   border: 1px dashed var(--paper-dim); color: var(--paper-dim); }
 .tr-reason { font-size: 12px; line-height: 1.4; color: var(--paper-dim); }
-.refine { margin: 0 0 16px; animation: rise 120ms ease-out both; }
+.refine { margin: 0 0 16px; animation: rise 120ms ease-out backwards; }
 .refine-meta { display: block; font-family: var(--font-mono); font-size: 12px; line-height: 1.4;
   letter-spacing: .12em; color: var(--paper-dim); }
 .refine-meta i { font-style: normal; color: var(--lc); }
 .refine-text { font-family: var(--font-serif); font-weight: 600; font-size: 16px; line-height: 1.9; }
 .refine .tr { margin-top: 2px; }
 .empty { padding-top: 32px; text-align: center; font-size: 15px; line-height: 1.5; color: var(--paper-dim); }
+.dropped { padding-bottom: 8px; font-size: 12px; line-height: 1.4; color: var(--paper-dim); }
 .latest { position: absolute; right: 24px; bottom: 16px; font-family: var(--font-sans); font-size: 12px;
   line-height: 1.4; color: var(--paper); background: var(--ink-2); border: 1px solid var(--line);
   border-radius: 6px; padding: 4px 12px; cursor: pointer; }
@@ -129,7 +130,7 @@ h2 span { color: var(--shu); }
 .scroll { flex: 1; overflow-y: auto; padding: 16px 24px 32px; }
 .row { display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; row-gap: 2px;
   align-items: baseline; padding: 8px 0; border-bottom: 1px dashed var(--line-soft);
-  animation: rise 120ms ease-out both; }
+  animation: rise 120ms ease-out backwards; }
 .row-text { font-size: 16px; font-weight: 400; line-height: 1.65; }
 .lat { min-width: 5ch; text-align: right; font-family: var(--font-mono); font-size: 12px; line-height: 1.4;
   color: var(--paper-dim); }
@@ -211,6 +212,26 @@ mod tests {
         assert!(dashboard().contains("transition: color 160ms"));
         assert!(dashboard().contains("prefers-reduced-motion: reduce"));
         assert!(dashboard().contains("animation: none !important; transition: none !important"));
+    }
+
+    /// A finished animation that keeps filling forwards stops the browser from
+    /// holding the reader's place when old rows are dropped above it.
+    #[test]
+    fn a_new_row_rises_without_filling_forwards_so_the_reading_place_holds() {
+        let sheet = dashboard();
+        assert_eq!(
+            sheet
+                .matches("animation: rise 120ms ease-out backwards")
+                .count(),
+            2
+        );
+        assert!(!sheet.contains("ease-out both"));
+    }
+
+    /// The board fixes the header at about 61 px by its padding, and the padding stays.
+    #[test]
+    fn the_header_keeps_the_padding_of_the_board() {
+        assert!(dashboard().contains("gap: 16px; padding: 12px 24px;"));
     }
 
     #[test]

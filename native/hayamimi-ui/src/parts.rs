@@ -27,6 +27,22 @@ pub fn SpeakerBadge(speaker: String) -> Element {
     rsx! { span { class: "spk", "{speaker}" } }
 }
 
+/// The sentence that says how many older rows were dropped from a column.
+pub fn dropped_text(words: &Strings, count: usize) -> String {
+    words.text(keys::DROPPED).replace("{n}", &count.to_string())
+}
+
+/// The first line of a column that dropped rows; nothing while none were dropped.
+#[component]
+pub fn DroppedNote(count: usize) -> Element {
+    let words = use_context::<Words>();
+    rsx! {
+        if count > 0 {
+            div { class: "dropped", "{dropped_text(&words, count)}" }
+        }
+    }
+}
+
 /// The class of a piece of a translation on the dashboard and the transcript.
 fn piece_class(tone: Tone) -> Option<&'static str> {
     match tone {
@@ -117,6 +133,16 @@ pub fn fallback_label(words: &Strings, found: &Fallback) -> String {
 mod tests {
     use super::*;
     use crate::strings::Locale;
+
+    #[test]
+    fn the_dropped_note_puts_the_number_in_the_sentence_of_each_language()
+    -> Result<(), crate::strings::StringsError> {
+        let ja = Strings::embedded(Locale::Ja)?;
+        let en = Strings::embedded(Locale::En)?;
+        assert_eq!(dropped_text(&ja, 12), "古い 12 行は表示から外しました");
+        assert_eq!(dropped_text(&en, 1), "1 older lines are no longer shown");
+        Ok(())
+    }
 
     #[test]
     fn a_fallback_reads_stage_arrow_to_and_the_reason_in_brackets()

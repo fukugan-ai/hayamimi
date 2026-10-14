@@ -5,7 +5,9 @@ use dioxus::prelude::*;
 
 use crate::css;
 use crate::model::{Conn, FinalRow, Model};
-use crate::parts::{LangBadge, RefineParagraph, SpeakerBadge, TrView, Words, fallback_label};
+use crate::parts::{
+    DroppedNote, LangBadge, RefineParagraph, SpeakerBadge, TrView, Words, fallback_label,
+};
 use crate::scroll::{self, use_follow};
 use crate::strings::keys;
 
@@ -148,8 +150,9 @@ fn LatestButton(following: Signal<bool>) -> Element {
 #[component]
 fn FeedColumn(model: Signal<Model>) -> Element {
     let words = use_context::<Words>();
-    let mut following = use_follow(FEED_ID, move || model.read().finals.len());
-    let rows = model.read().finals.clone();
+    let mut following = use_follow(FEED_ID, move || model.read().final_total());
+    let state = model.read();
+    let first = state.dropped_finals;
     rsx! {
         section { class: "col",
             h2 {
@@ -162,11 +165,13 @@ fn FeedColumn(model: Signal<Model>) -> Element {
                 role: "log",
                 aria_live: "polite",
                 onscroll: move |_| following.set(scroll::near_end(FEED_ID)),
-                if rows.is_empty() {
+                DroppedNote { count: first }
+                if state.finals.is_empty() {
                     div { class: "empty", "{words.text(keys::EMPTY_FEED)}" }
                 }
-                for (at, row) in rows.into_iter().enumerate() {
-                    FeedRow { key: "{at}", row }
+                // A row keeps its number when older rows are dropped, so it is not drawn again.
+                for (number, row) in state.finals.iter().enumerate().map(|(at, row)| (first + at, row)) {
+                    FeedRow { key: "{number}", row: row.clone() }
                 }
             }
             LatestButton { following }
@@ -177,8 +182,9 @@ fn FeedColumn(model: Signal<Model>) -> Element {
 #[component]
 fn RefinedColumn(model: Signal<Model>) -> Element {
     let words = use_context::<Words>();
-    let mut following = use_follow(REFINED_ID, move || model.read().refines.len());
-    let rows = model.read().refines.clone();
+    let mut following = use_follow(REFINED_ID, move || model.read().refine_total());
+    let state = model.read();
+    let first = state.dropped_refines;
     rsx! {
         section { class: "col",
             h2 {
@@ -191,11 +197,12 @@ fn RefinedColumn(model: Signal<Model>) -> Element {
                 role: "log",
                 aria_live: "polite",
                 onscroll: move |_| following.set(scroll::near_end(REFINED_ID)),
-                if rows.is_empty() {
+                DroppedNote { count: first }
+                if state.refines.is_empty() {
                     div { class: "empty", "{words.text(keys::EMPTY_REFINED)}" }
                 }
-                for (at, row) in rows.into_iter().enumerate() {
-                    RefineParagraph { key: "{at}", row }
+                for (number, row) in state.refines.iter().enumerate().map(|(at, row)| (first + at, row)) {
+                    RefineParagraph { key: "{number}", row: row.clone() }
                 }
             }
             LatestButton { following }

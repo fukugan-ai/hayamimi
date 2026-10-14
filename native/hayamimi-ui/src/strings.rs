@@ -23,6 +23,8 @@ pub mod keys {
     pub const EMPTY_FEED: &str = "ui.dashboard.empty_feed";
     pub const EMPTY_REFINED: &str = "ui.common.empty_refined";
     pub const JUMP_LATEST: &str = "ui.common.jump_latest";
+    /// Carries `{n}`, the number of older rows dropped from the page.
+    pub const DROPPED: &str = "ui.common.dropped";
     pub const CONNECTING: &str = "ui.common.connecting";
     pub const RECONNECTING: &str = "ui.common.reconnecting";
     pub const CONNECTED: &str = "ui.common.connected";
@@ -168,7 +170,7 @@ mod tests {
     fn the_embedded_tables_parse_and_have_the_same_keys() -> Result<(), StringsError> {
         let ja = Strings::embedded(Locale::Ja)?;
         let en = Strings::embedded(Locale::En)?;
-        assert!(ja.keys().count() >= 23);
+        assert!(ja.keys().count() >= 24);
         assert_eq!(ja.keys().collect::<Vec<_>>(), en.keys().collect::<Vec<_>>());
         Ok(())
     }
@@ -186,6 +188,7 @@ mod tests {
             keys::EMPTY_FEED,
             keys::EMPTY_REFINED,
             keys::JUMP_LATEST,
+            keys::DROPPED,
             keys::CONNECTING,
             keys::RECONNECTING,
             keys::CONNECTED,

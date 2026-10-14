@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 
 use crate::css;
 use crate::model::Model;
-use crate::parts::{RefineParagraph, Words};
+use crate::parts::{DroppedNote, RefineParagraph, Words};
 use crate::scroll::{self, use_follow};
 use crate::strings::keys;
 
@@ -15,8 +15,9 @@ const TRANSCRIPT_ID: &str = "transcript";
 pub fn TranscriptPage(model: Signal<Model>) -> Element {
     let words = use_context::<Words>();
     let sheet = css::transcript();
-    let mut following = use_follow(TRANSCRIPT_ID, move || model.read().refines.len());
-    let rows = model.read().refines.clone();
+    let mut following = use_follow(TRANSCRIPT_ID, move || model.read().refine_total());
+    let state = model.read();
+    let first = state.dropped_refines;
     rsx! {
         style { "{sheet}" }
         div {
@@ -26,11 +27,12 @@ pub fn TranscriptPage(model: Signal<Model>) -> Element {
             aria_live: "polite",
             onscroll: move |_| following.set(scroll::near_end(TRANSCRIPT_ID)),
             div { class: "transcript-body",
-                if rows.is_empty() {
+                DroppedNote { count: first }
+                if state.refines.is_empty() {
                     div { class: "empty", "{words.text(keys::EMPTY_REFINED)}" }
                 }
-                for (at, row) in rows.into_iter().enumerate() {
-                    RefineParagraph { key: "{at}", row }
+                for (number, row) in state.refines.iter().enumerate().map(|(at, row)| (first + at, row)) {
+                    RefineParagraph { key: "{number}", row: row.clone() }
                 }
             }
         }

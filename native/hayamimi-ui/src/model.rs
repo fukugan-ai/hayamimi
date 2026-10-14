@@ -5,8 +5,14 @@
 //! `next_deadline` came). Neither reads a clock: the caller passes the time in
 //! milliseconds, so the timing rules are the same on a page and in a test.
 
+use std::collections::VecDeque;
+
 use crate::tr::{TrRow, partial_row, settled_row};
 use crate::wire::{FallbackEvent, FinalEvent, Of, RefineEvent, TranslationEvent, UiEvent};
+
+/// The newest rows each column keeps. The time to draw a line grows with the
+/// rows on the page, and a line must reach the screen within one frame.
+pub const ROW_LIMIT: usize = 500;
 
 /// The overlay clears its line this long after the last message of any kind.
 pub const OVERLAY_HOLD_MS: u64 = 6000;
@@ -124,8 +130,14 @@ pub struct Model {
     /// The dashboard's strip; unlike the overlay's line a final does not clear it.
     pub strip_text: String,
     pub strip_quiet: bool,
-    pub finals: Vec<FinalRow>,
-    pub refines: Vec<RefineRow>,
+    /// The newest `ROW_LIMIT` confirmed lines, oldest first.
+    pub finals: VecDeque<FinalRow>,
+    /// How many older confirmed lines were dropped from `finals`.
+    pub dropped_finals: usize,
+    /// The newest `ROW_LIMIT` refined paragraphs, oldest first.
+    pub refines: VecDeque<RefineRow>,
+    /// How many older paragraphs were dropped from `refines`.
+    pub dropped_refines: usize,
     pub fallbacks: Vec<Fallback>,
     pub stats: Stats,
     orphans: Vec<Orphan>,
@@ -136,6 +148,16 @@ pub struct Model {
 impl Model {
     pub fn set_conn(&mut self, conn: Conn) {
         self.conn = conn;
+    }
+
+    /// The confirmed lines received so far, those dropped from the page included.
+    pub fn final_total(&self) -> usize {
+        self.dropped_finals + self.finals.len()
+    }
+
+    /// The refined paragraphs received so far, those dropped from the page included.
+    pub fn refine_total(&self) -> usize {
+        self.dropped_refines + self.refines.len()
     }
 
     /// Takes one event of the stream, which arrived at `now_ms`.
@@ -211,25 +233,33 @@ impl Model {
         };
         self.partial_tr = None;
         self.stats.add(&found);
-        self.finals.push(FinalRow {
-            id: found.id.clone(),
-            text: found.text,
-            lang: found.lang,
-            speaker: found.speaker,
-            latency_ms: found.latency_ms,
-            trs: Vec::new(),
-        });
+        push_capped(
+            &mut self.finals,
+            &mut self.dropped_finals,
+            FinalRow {
+                id: found.id.clone(),
+                text: found.text,
+                lang: found.lang,
+                speaker: found.speaker,
+                latency_ms: found.latency_ms,
+                trs: Vec::new(),
+            },
+        );
         self.adopt_orphans(Of::Final, found.id.as_deref(), now_ms);
     }
 
     fn on_refine(&mut self, found: RefineEvent, now_ms: u64) {
-        self.refines.push(RefineRow {
-            id: found.id.clone(),
-            text: found.text,
-            lang: found.lang,
-            speaker: found.speaker,
-            trs: Vec::new(),
-        });
+        push_capped(
+            &mut self.refines,
+            &mut self.dropped_refines,
+            RefineRow {
+                id: found.id.clone(),
+                text: found.text,
+                lang: found.lang,
+                speaker: found.speaker,
+                trs: Vec::new(),
+            },
+        );
         self.adopt_orphans(Of::Refine, found.id.as_deref(), now_ms);
     }
 
@@ -341,6 +371,15 @@ impl Model {
             Some(held) => *held = entry,
             None => self.fallbacks.push(entry),
         }
+    }
+}
+
+/// Adds `row` as the newest and, past `ROW_LIMIT`, drops the oldest.
+fn push_capped<T>(rows: &mut VecDeque<T>, dropped: &mut usize, row: T) {
+    rows.push_back(row);
+    if rows.len() > ROW_LIMIT {
+        rows.pop_front();
+        *dropped += 1;
     }
 }
 
@@ -572,6 +611,68 @@ mod tests {
             model.partial_tr.as_ref().map(|row| row.state.clone()),
             Some(TrState::Partial { confirmed: 6 })
         );
+    }
+
+    fn refine_line(id: &str) -> UiEvent {
+        event(&format!(
+            r#"{{"type":"refine","id":"{id}","text":"段落 {id}","lang":"ja","speaker":"S1"}}"#
+        ))
+    }
+
+    /// W7: the 501st line leaves 500 on the page, drops the oldest, and counts it.
+    #[test]
+    fn the_501st_confirmed_line_drops_the_oldest_and_keeps_the_header_count() {
+        let mut model = Model::default();
+        for number in 0..=ROW_LIMIT {
+            model.apply(final_line(&format!("a-{number}"), "行"), number as u64);
+        }
+        assert_eq!(model.finals.len(), ROW_LIMIT);
+        assert_eq!(model.dropped_finals, 1);
+        assert_eq!(model.finals[0].id.as_deref(), Some("a-1"));
+        assert_eq!(
+            model.finals.back().and_then(|row| row.id.as_deref()),
+            Some("a-500")
+        );
+        // The header counts every line, the dropped one included.
+        assert_eq!(model.stats.finals, ROW_LIMIT + 1);
+        assert_eq!(model.final_total(), ROW_LIMIT + 1);
+    }
+
+    #[test]
+    fn the_500th_confirmed_line_drops_nothing() {
+        let mut model = Model::default();
+        for number in 0..ROW_LIMIT {
+            model.apply(final_line(&format!("a-{number}"), "行"), number as u64);
+        }
+        assert_eq!(model.finals.len(), ROW_LIMIT);
+        assert_eq!(model.dropped_finals, 0);
+    }
+
+    #[test]
+    fn the_501st_refined_paragraph_drops_the_oldest_and_the_finals_are_untouched() {
+        let mut model = Model::default();
+        model.apply(final_line("keep", "残る"), 0);
+        for number in 0..=ROW_LIMIT {
+            model.apply(refine_line(&format!("r-{number}")), 1 + number as u64);
+        }
+        assert_eq!(model.refines.len(), ROW_LIMIT);
+        assert_eq!(model.dropped_refines, 1);
+        assert_eq!(model.refines[0].id.as_deref(), Some("r-1"));
+        assert_eq!(model.refine_total(), ROW_LIMIT + 1);
+        // A dropped line is not moved to the other column.
+        assert_eq!(model.finals.len(), 1);
+        assert_eq!(model.dropped_finals, 0);
+    }
+
+    #[test]
+    fn a_translation_of_a_dropped_line_waits_as_an_orphan_and_changes_no_row() {
+        let mut model = Model::default();
+        for number in 0..=ROW_LIMIT {
+            model.apply(final_line(&format!("a-{number}"), "行"), number as u64);
+        }
+        model.apply(translation("final", "a-0", "gone", true), 600);
+        assert!(model.finals.iter().all(|row| row.trs.is_empty()));
+        assert_eq!(model.orphan_deadline(), Some(600 + ORPHAN_HOLD_MS));
     }
 
     #[test]
