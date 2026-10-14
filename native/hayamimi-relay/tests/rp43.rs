@@ -41,11 +41,20 @@ const NOT_NEGATED: [(&str, &str); 4] = [
 /// The "ない" row, as before: a negation kept and a negation dropped.
 const PLAIN_NAI: (&str, &str, &str) = ("それは美味しくない。", "It is not tasty.", "It is tasty.");
 
-/// Positive adjectives that end in "な" and take "さそう" or "さげ".
-const POSITIVE: [(&str, &str); 3] = [
+/// Positive adjectives that end in "な" and take "さそう" or "さげ", and the
+/// set words "申し訳ない", "仕方ない", "情けない" and "頼りない" in both forms.
+const POSITIVE: [(&str, &str); 11] = [
     ("つまらなさそうな顔をしている。", "He seems bored."),
     ("少なさげな数字です。", "The number looks small."),
     ("危なさそうな道です。", "The road seems dangerous."),
+    ("申し訳なさそうな顔をしている。", "He seems apologetic."),
+    ("仕方なさそうに笑った。", "He seems resigned and smiled."),
+    ("情けなさそうな声だった。", "His voice seemed pitiful."),
+    ("頼りなさそうな人です。", "He seems unreliable."),
+    ("申し訳ない気持ちです。", "I feel sorry."),
+    ("仕方ない話です。", "It is unavoidable."),
+    ("情けない結果です。", "The result is pitiful."),
+    ("頼りない人です。", "He is unreliable."),
 ];
 
 fn verdict(src: &str, translation: &str) -> Result<Verdict, String> {
