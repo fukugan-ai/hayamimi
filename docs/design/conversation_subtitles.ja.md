@@ -288,6 +288,7 @@ model と llama.cpp は外が更新する物なので、版と sha256 は結果�
 |---|---|
 | `translate.line.ok`、`translate.line.held` | `id`、`source`、`hold_reason`、`t_ms`、`e_ms`、`v_ms` |
 | `translate.request.failed` | `id`、`dependency: "llama-server"`、`duration_ms`、`error_code` |
+| `translate.hedge.logged`（info） | `id`、`lang`、`src_hedge`、`dst_hedge`。zh、ko、es への訳で、推量の語が原文と訳の片方にしか無いまま V を通って出した行ごとに 1 件。`src_hedge` と `dst_hedge` は `verify_markers.toml` の語で、語が無い側は `null`。本文は書かない |
 | `annotate.line.added`、`annotate.line.skipped` | `id`、`kind`（currency、length ほか）、`reason`（ambiguous、no_rate、stale_rate ほか） |
 
 直近 50 行で `held` が 5 行を超えたら、warn の event `translate.hold_rate.high` を 1 回出す。
