@@ -583,6 +583,12 @@ fn run_eval(
 /// Runs a command line. Returns the process exit code: 0 done, 1 failed,
 /// 2 the command line was refused. `run` does not return.
 pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
+    // The measurement tool answers in English only and has its own parser.
+    if let [name, rest @ ..] = args
+        && name == "vprobe"
+    {
+        return crate::vprobe::run(rest);
+    }
     // A machine that reports no locale is read as English, the documented default.
     let lang = match locale_tag {
         Some(tag) => Lang::from_locale_tag(tag),
