@@ -185,19 +185,42 @@ fn hayamimi_scorecard_not_worse_than_python() -> TestResult {
     Ok(())
 }
 
-/// T-RP-1-013: the same run made with the punctuation stage off, written to
-/// `docs/results/r3/rp01_punct_off.json`. The negative control: Japanese must
-/// come out worse than Python's, so the comparison in 012 is shown to be able
-/// to fail.
+/// The smallest Japanese error, in millionths, that rounds to more than the
+/// recorded 0.038 at three decimals.
+const JA_WORSE_FROM: u64 = 38_500;
+
+/// T-RP-1-013: the run of a build that routes the Japanese clips to the
+/// SenseVoice tier, written to `docs/results/r3/rp01_sensevoice_ja.json`; the
+/// other languages take the same path as in 012. The negative control: the
+/// comparison must name Japanese, whose error rounds above 0.038 and whose
+/// detections fall below 15, so the comparison in 012 is shown to be able to
+/// fail. A record that is not there is an error naming its path.
 #[test]
-#[ignore = "reads the scorecard of a Rust run with the punctuation stage off"]
-fn punctuation_off_run_is_worse_than_python_in_ja() -> TestResult {
-    let rust = read_json(&Path::new(RESULTS).join("r3").join("rp01_punct_off.json"))?;
+#[ignore = "reads the scorecard of a Rust run that routes the ja clips to SenseVoice"]
+fn sensevoice_routed_ja_run_is_worse_than_python_in_ja() -> TestResult {
+    let rust = read_json(
+        &Path::new(RESULTS)
+            .join("r3")
+            .join("rp01_sensevoice_ja.json"),
+    )?;
     let said = check_scorecard(&python_runs()?, &rust);
     // The error must be the Japanese error itself: a run with no detections also fails, for another reason.
     assert!(
         matches!(&said, Err(ScoreError::Worse { lang, .. }) if lang == "ja"),
         "{said:?}"
+    );
+    let Some(ja) = rust.rows.iter().find(|one| one.lang == "ja") else {
+        return Err("the record has no ja row".into());
+    };
+    assert!(
+        ja.mean_err_micros >= JA_WORSE_FROM,
+        "{}",
+        ja.mean_err_micros
+    );
+    assert!(
+        ja.lid_correct.is_some_and(|right| right < 15),
+        "{:?}",
+        ja.lid_correct
     );
     Ok(())
 }
