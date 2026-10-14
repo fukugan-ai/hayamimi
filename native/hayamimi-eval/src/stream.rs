@@ -182,12 +182,12 @@ fn through_ingest(
     port: u16,
     (plan, samples): (&Plan, &[i16]),
     origin: Instant,
-) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
     let mut connection = open_ingest(&options.host, port, origin)?;
     connection.start()?;
     let sent_us = connection.play(plan, samples)?;
     let received = connection.finish(Duration::from_secs(u64::from(options.drain_s)))?;
-    Ok((sent_us, received))
+    Ok((sent_us, received.into_heard()))
 }
 
 /// Plays the plan out of the output device while listening on `/events`.
@@ -195,7 +195,7 @@ fn through_speaker(
     options: &Options,
     (plan, samples): (&Plan, &[i16]),
     origin: Instant,
-) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
     let mut listener = ingest::listen(&options.host, options.port, origin)?;
     listener.start()?;
     let sent_us = match speaker::play(plan, samples, origin) {
@@ -216,7 +216,7 @@ fn deliver(
     options: &Options,
     audio: (&Plan, &[i16]),
     origin: Instant,
-) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
     if options.sink == Sink::Ingest {
         return through_ingest(options, options.port, audio, origin);
     }
