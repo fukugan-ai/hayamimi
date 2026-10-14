@@ -78,7 +78,7 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live --llm <url> --serve <port> [--events <url>]... [--srt <file>]
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
 unknown_command = "unknown subcommand"
@@ -86,7 +86,6 @@ missing_value = "an option is missing its value"
 unknown_option = "unknown option"
 need_install_or_remove = "one of --install or --remove is required"
 no_default_dir = "cannot decide the default output location; pass --out"
-need_llm_and_serve = "run needs --llm and --serve"
 bad_port = "--serve needs a port number from 0 to 65535"
 cannot_serve = "cannot serve translations: no port could be opened"
 serving_at = "translations are served at"

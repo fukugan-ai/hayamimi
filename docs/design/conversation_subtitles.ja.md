@@ -299,7 +299,7 @@ WSL に置くと、Windows の端末を閉じたときに VM が止まり訳も�
 model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置く。
 正本は WSL の `/mnt/h3-models` に在り、そこは ext4 の image で Windows から直には読めないので、使う model を Windows の上の置き場へ写し、写した file の sha256 を `%LOCALAPPDATA%\hayamimi\models\llm\manifest.json` に記録する（記録で、起動の条件にしない）。
 llama.cpp の版は使う前に最新の release を確かめて入れ替える。
-中継は `http://127.0.0.1:<port>` で届く。
+llama-server は `--port 8080`（llama-server の既定）で起こし、中継は既定で `http://127.0.0.1:8080` に届く。中継の既定（`--llm`、`--serve` 8835、`--events`）と持ち主は `rust_port.ja.md` の 8 の「07:00 の計画」の端から端の受入の表のそばに在る。
 slot は 4 とし（`-np 4`。mic の確定、loopback の確定、速報、E）、中継は音源ごとに先入れ先出しの列を持つ（`rust_port.ja.md` 3.6）。
 
 hooks の `guard_commands.rs` は、command に `llama-` で始まる実行 file の名前が在ると、WSL の build（`~/source/llama.cpp/build-cuda120`）が source より古いときに refuse する。
