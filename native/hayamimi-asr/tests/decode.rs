@@ -178,8 +178,9 @@ fn least_recently_used_recognizer_is_dropped_at_the_cap() -> TestResult {
             "loaded rz",
             "loaded v3",
             "loaded pz",
+            // The victim goes before the new recognizer is built, so the cap holds in memory.
+            "evicted v3",
             "loaded sv",
-            "evicted v3"
         ]
     );
     // The Japanese tier is not counted: two others are resident beside it.
@@ -206,7 +207,11 @@ fn a_tier_used_again_is_kept_and_the_one_not_used_goes() -> TestResult {
     let mut again = FIVE_LANGUAGES.to_vec();
     again.insert(3, (Tier::V3, "eval_real", "en"));
     let (_, events) = run_tiers(Some(2), &again)?;
-    assert_eq!(events.last().map(String::as_str), Some("evicted pz"));
+    assert_eq!(
+        events.iter().rev().nth(1).map(String::as_str),
+        Some("evicted pz")
+    );
+    assert_eq!(events.last().map(String::as_str), Some("loaded sv"));
     Ok(())
 }
 

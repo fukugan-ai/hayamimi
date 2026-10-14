@@ -8,7 +8,7 @@
       "lid_correct": 14,
       "tiers": "rz+pz",
       "mean_err_micros": 75147,
-      "mean_rtf_micros": 458023
+      "mean_rtf_micros": 875812
     },
     {
       "lang": "en",
@@ -16,7 +16,7 @@
       "lid_correct": 15,
       "tiers": "v3",
       "mean_err_micros": 22606,
-      "mean_rtf_micros": 222415
+      "mean_rtf_micros": 348609
     },
     {
       "lang": "zh",
@@ -24,7 +24,7 @@
       "lid_correct": 12,
       "tiers": "pz",
       "mean_err_micros": 69933,
-      "mean_rtf_micros": 77710
+      "mean_rtf_micros": 122995
     },
     {
       "lang": "ko",
@@ -32,7 +32,7 @@
       "lid_correct": 12,
       "tiers": "sv",
       "mean_err_micros": 79278,
-      "mean_rtf_micros": 52996
+      "mean_rtf_micros": 91158
     },
     {
       "lang": "yue",
@@ -40,7 +40,7 @@
       "lid_correct": 12,
       "tiers": "sv",
       "mean_err_micros": 68161,
-      "mean_rtf_micros": 63027
+      "mean_rtf_micros": 83399
     }
   ],
   "fallbacks": []
