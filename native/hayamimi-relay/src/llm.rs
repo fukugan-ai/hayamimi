@@ -202,6 +202,11 @@ fn read_stream(reader: impl BufRead, wanted: &Wanted) -> Result<String, LlmError
     )))
 }
 
+/// The JSON body that goes to the server for `request`.
+pub fn request_body(request: &Completion<'_>) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&ChatBody::from(request))
+}
+
 /// Something that completes a prompt.
 pub trait Llm {
     fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError>;
@@ -283,8 +288,7 @@ impl HttpLlm {
         &self,
         request: &Completion<'_>,
     ) -> Result<ureq::http::Response<ureq::Body>, LlmError> {
-        let body = serde_json::to_string(&ChatBody::from(request))
-            .map_err(|error| LlmError::Body(error.to_string()))?;
+        let body = request_body(request).map_err(|error| LlmError::Body(error.to_string()))?;
         self.agent
             .post(&self.endpoint)
             .header("Content-Type", "application/json")
