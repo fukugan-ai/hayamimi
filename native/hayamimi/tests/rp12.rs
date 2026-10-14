@@ -156,6 +156,7 @@ fn finished() -> Final {
             l_dec_ms: 533.0,
         },
         punct_error: None,
+        speaker_audio: Vec::new(),
     }
 }
 

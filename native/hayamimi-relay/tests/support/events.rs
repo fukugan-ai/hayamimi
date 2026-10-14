@@ -412,6 +412,11 @@ impl Logs {
             .cloned()
             .collect()
     }
+
+    /// Every event as the line the log would hold.
+    pub fn lines(&self) -> Vec<String> {
+        locked(&self.0).iter().map(LogEvent::to_json_line).collect()
+    }
 }
 
 /// Whether `value` is a translation event, and whether it is the settled one
@@ -543,7 +548,19 @@ pub fn run_relay_partials<L: Llm + 'static>(
     outputs: Outputs,
     partials: PartialTranslation,
 ) -> Result<Running, io::Error> {
-    let logs = Logs::default();
+    run_relay_logging(Logs::default(), events, lanes, make, outputs, partials)
+}
+
+/// Starts a relay like [`run_relay_partials`] whose events go to `logs`, so
+/// that a destination built with a clone of it logs to the same place.
+pub fn run_relay_logging<L: Llm + 'static>(
+    logs: Logs,
+    events: Vec<String>,
+    lanes: Lanes,
+    make: MakePipeline<L>,
+    outputs: Outputs,
+    partials: PartialTranslation,
+) -> Result<Running, io::Error> {
     let config = RelayConfig {
         events,
         lanes,

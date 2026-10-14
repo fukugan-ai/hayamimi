@@ -110,6 +110,7 @@ The full reasons are in the source sections.
 | RP-15 | FR-4, NFR-3 |
 | RP-16, RP-29 | NFR-5, NFR-8 |
 | RP-28 | NFR-5 |
+| RP-30 | NFR-5 (the fallback stage and reason values in the design match the code) |
 | RP-17, RP-24 | NFR-7 |
 | RP-18 | FR-3 |
 | RP-21 | FR-12 |

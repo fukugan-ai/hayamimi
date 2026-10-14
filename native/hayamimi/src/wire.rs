@@ -23,6 +23,7 @@ pub fn final_event(done: &Final, source: &str) -> Value {
         "end_wall_ms": done.end_wall_ms,
         "text": done.text,
         "lang": done.lang,
+        // The mark follows in a `speaker` event of the same id; the final does not wait for it.
         "speaker": "",
         "latency_ms": t.l_dec_ms,
         "tier": done.tier,
@@ -30,6 +31,15 @@ pub fn final_event(done: &Final, source: &str) -> Value {
         "lid_ms": t.lid_ms,
         "decode_ms": t.decode_ms + t.itn_ms + t.punct_ms,
         "switched": false,
+    })
+}
+
+/// The speaker of an utterance already sent as a `final`, joined to it by `id`.
+pub fn speaker_event(done: &Final, source: &str, label: &str) -> Value {
+    json!({
+        "type": "speaker",
+        "id": format!("{source}-{}", done.id),
+        "speaker": label,
     })
 }
 
@@ -96,7 +106,18 @@ mod tests {
                 l_dec_ms: 120.0,
             },
             punct_error: None,
+            speaker_audio: Vec::new(),
         }
+    }
+
+    #[test]
+    fn the_final_leaves_the_speaker_empty_and_the_speaker_event_names_the_same_id() {
+        let done = finished();
+        assert_eq!(final_event(&done, "file")["speaker"], "");
+        let event = speaker_event(&done, "file", "S2");
+        assert_eq!(event["type"], "speaker");
+        assert_eq!(event["id"], final_event(&done, "file")["id"]);
+        assert_eq!(event["speaker"], "S2");
     }
 
     #[test]
