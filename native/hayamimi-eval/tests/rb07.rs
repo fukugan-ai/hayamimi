@@ -11,14 +11,11 @@
 
 mod support;
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use hayamimi_eval::fleurs::degrade;
-use support::der_logs::{
-    MEETINGS, check_der, check_der_run_count, check_refine_diarize, der_run_logs, mean_der_lines,
-    mean_of_runs, spread_of_runs,
-};
-use support::{BASE, FIXTURES, Failure, RESULTS, TestResult, micros, read, section};
+use support::{FIXTURES, Failure, RESULTS, TestResult, base as base_dir, micros, read, section};
 
 /// The recorded corpus chrF per target language, in units of 10^-6.
 const CHRF_RECORD: [(&str, i64); 4] = [
@@ -29,13 +26,18 @@ const CHRF_RECORD: [(&str, i64); 4] = [
 ];
 const CHRF_TOLERANCE: i64 = 10_000;
 
+/// How many times the DER is measured before a mean and a spread are taken.
+const MIN_DER_RUNS: usize = 3;
+const MEETINGS: usize = 5;
 const SENTENCES: usize = 50;
+/// One hundredth of a point, in units of 10^-6 points.
+const HUNDREDTH: i64 = 10_000;
 
 /// A log with one mean DER line, as a run prints it.
 const ONE_RUN: &str = "=== mean DER over 5 meeting(s): 13.3% (collar=0.25s) ===";
 
-fn base(name: &str) -> PathBuf {
-    Path::new(BASE).join(name)
+fn base(name: &str) -> Result<PathBuf, Failure> {
+    Ok(base_dir()?.join(name))
 }
 
 /// Every `chrF=` value logged for `lang`, in units of 10^-6.
@@ -84,6 +86,102 @@ fn check_chrf(log: &str) -> Result<(), Failure> {
     Ok(())
 }
 
+/// Each `mean DER over N meeting(s): V%` line as `(N, V)`, V in units of 10^-6.
+fn mean_der_lines(log: &str) -> Result<Vec<(usize, i64)>, Failure> {
+    let mut found = Vec::new();
+    for line in log.lines() {
+        let Some((_, rest)) = line.split_once("mean DER over ") else {
+            continue;
+        };
+        let Some((count, tail)) = rest.split_once(" meeting(s): ") else {
+            return Err(format!("cannot read the mean DER line {line:?}"));
+        };
+        let Ok(count) = count.parse::<usize>() else {
+            return Err(format!("{count:?} is not a meeting count"));
+        };
+        let Some((value, _)) = tail.split_once('%') else {
+            return Err(format!("the mean DER line {line:?} has no percent sign"));
+        };
+        found.push((count, micros(value)?));
+    }
+    Ok(found)
+}
+
+/// A run's mean DER, in units of 10^-6: the log has a mean line, over five
+/// meetings.
+fn check_der(log: &str) -> Result<i64, Failure> {
+    let lines = mean_der_lines(log)?;
+    let Some((_, first)) = lines.first() else {
+        return Err(String::from("no mean DER line"));
+    };
+    for (meetings, _) in &lines {
+        if *meetings != MEETINGS {
+            return Err(format!("{meetings} meetings, want {MEETINGS}"));
+        }
+    }
+    Ok(*first)
+}
+
+/// Enough runs to take a mean and a spread: at least [`MIN_DER_RUNS`] logs
+/// carry a mean DER line.
+fn check_der_run_count(logs: &[&str]) -> Result<(), Failure> {
+    let with_mean = logs
+        .iter()
+        .filter(|log| mean_der_lines(log).is_ok_and(|lines| !lines.is_empty()))
+        .count();
+    if with_mean >= MIN_DER_RUNS {
+        Ok(())
+    } else {
+        Err(format!(
+            "{with_mean} DER runs, want at least {MIN_DER_RUNS}"
+        ))
+    }
+}
+
+/// The DER logs of `--method refine_diarize` runs: `der_eval.log` is the
+/// first, `der_eval_run<n>.log` the others. A log of another method has
+/// another name and is not listed.
+fn der_run_files() -> Result<Vec<PathBuf>, Failure> {
+    let mut found: Vec<(u32, PathBuf)> = fs::read_dir(base_dir()?)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let number = if name == "der_eval.log" {
+                1
+            } else {
+                name.strip_prefix("der_eval_run")?
+                    .strip_suffix(".log")?
+                    .parse::<u32>()
+                    .ok()?
+            };
+            Some((number, entry.path()))
+        })
+        .collect();
+    found.sort();
+    Ok(found.into_iter().map(|(_, path)| path).collect())
+}
+
+fn der_run_logs() -> Result<Vec<String>, Failure> {
+    der_run_files()?.iter().map(|path| read(path)).collect()
+}
+
+/// Every meeting row of a `--method refine_diarize` run carries `diar_rtf=`;
+/// a run of the default method prints no such field.
+fn check_refine_diarize(log: &str) -> Result<(), Failure> {
+    let rows: Vec<&str> = log.lines().filter(|line| line.contains("] DER=")).collect();
+    if rows.len() != MEETINGS {
+        return Err(format!("{} meeting rows, want {MEETINGS}", rows.len()));
+    }
+    if rows.iter().any(|row| !row.contains("diar_rtf=")) {
+        return Err(String::from(
+            "the meeting rows carry no diar_rtf=: not a --method refine_diarize run",
+        ));
+    }
+    Ok(())
+}
+
 /// The per-meeting `DER=V%` values in units of 10^-6.
 fn meeting_ders(log: &str) -> Result<Vec<i64>, Failure> {
     let mut found = Vec::new();
@@ -117,6 +215,27 @@ fn check_meeting_average(log: &str) -> Result<(), Failure> {
         ));
     }
     Ok(())
+}
+
+/// The arithmetic mean of the runs' mean DER, rounded half up to two
+/// decimals, in units of 10^-6.
+fn mean_of_runs(values: &[i64]) -> Result<i64, Failure> {
+    let Ok(count) = i64::try_from(values.len()) else {
+        return Err(String::from("too many runs"));
+    };
+    let sum: i64 = values.iter().sum();
+    match (2 * sum + count * HUNDREDTH).checked_div(2 * count * HUNDREDTH) {
+        Some(steps) => Ok(steps * HUNDREDTH),
+        None => Err(String::from("the mean of no runs")),
+    }
+}
+
+/// The spread of the runs' mean DER: the largest minus the smallest.
+fn spread_of_runs(values: &[i64]) -> Result<i64, Failure> {
+    match (values.iter().max(), values.iter().min()) {
+        (Some(high), Some(low)) => Ok(high - low),
+        _ => Err(String::from("the spread of no runs")),
+    }
 }
 
 /// The value after `marker` on its line of the summary, in units of 10^-6.
@@ -226,7 +345,7 @@ fn summary_section() -> Result<String, Failure> {
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_chrf_within_0_01_of_record() -> TestResult {
-    check_chrf(&read(&base("chrf_eval.log"))?)?;
+    check_chrf(&read(&base("chrf_eval.log")?)?)?;
     Ok(())
 }
 
@@ -300,7 +419,7 @@ fn rb07_python_chrf_and_der_reproduce_record_meeting_ders_average_to_the_printed
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_fixture_has_50_sentences_and_one_corpus_row_per_language()
 -> TestResult {
-    let lines = check_fixture_rows(&read(&base("chrf_fixture.tsv"))?)?;
+    let lines = check_fixture_rows(&read(&base("chrf_fixture.tsv")?)?)?;
     assert_eq!(lines, 204);
     Ok(())
 }
@@ -333,14 +452,14 @@ fn rb07_python_chrf_and_der_reproduce_record_degrade_of_a_one_word_sentence_is_e
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_reference_as_hypothesis_scores_100() -> TestResult {
-    check_reference_scores_100(&read(&base("chrf_control.tsv"))?)?;
+    check_reference_scores_100(&read(&base("chrf_control.tsv")?)?)?;
     Ok(())
 }
 
 #[test]
 fn rb07_python_chrf_and_der_reproduce_record_source_as_hypothesis_scores_below_record() -> TestResult
 {
-    check_source_below_record(&read(&base("chrf_control.tsv"))?)?;
+    check_source_below_record(&read(&base("chrf_control.tsv")?)?)?;
     Ok(())
 }
 

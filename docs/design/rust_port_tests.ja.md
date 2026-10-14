@@ -667,7 +667,8 @@ sacrebleu の `-b` の既定は小数 1 桁（NOT VERIFIED。`<py> -m sacrebleu 
 
 ### 4.25 RP-15（話者の分離）
 
-test：`native/hayamimi-eval/tests/rp15.rs`。
+test：`native/hayamimi-eval/tests/rp15.rs`（001〜011）と `native/hayamimi/tests/rp15_speaker.rs`（012、013）。
+012 と 013 を `hayamimi` の crate に置くのは、`native/hayamimi/Cargo.toml` が `hayamimi-eval` を依存に持ち、eval の test から `<hy>` を起こせないからである。
 `<base>` の Python の平均 DER は `der_eval.log` の `mean DER` の行（RB-7）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
@@ -683,8 +684,8 @@ test：`native/hayamimi-eval/tests/rp15.rs`。
 | T-RP-15-009 | fixture：python の DER の run が 2 つ | 幅を決められない側 | `Err` | `Err` で 2 回と言う。2 回では幅を決めない（specified、RP-15） | 境界、陰性 | `two_python_der_runs_cannot_fix_a_spread` |
 | T-RP-15-010 | fixture：python の 3 run が平均 13.3、13.1、13.5（平均 13.30、幅 0.4）。rust の平均が 13.69 | 平均より 0.39 pt 悪い（幅より小さい） | `Ok` | `Ok`。結果の file に差 0.39 と幅 0.4 を書く（specified、RP-15 の「差が幅より小さい」） | 境界、陽性 | `worse_than_python_mean_by_less_than_the_spread_passes` |
 | T-RP-15-011 | 同じ fixture で rust の平均が 13.70 | 平均より 0.40 pt 悪い（幅と等しい） | `Err` | `Err`（差が幅と等しいのは「幅より小さい」に入らない。specified、RP-15） | 境界、陰性 | `worse_than_python_mean_by_exactly_the_spread_is_rejected` |
-| T-RP-15-012 | 実走：`<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` を話者ありと話者なし（話者の model を外した directory）で 1 回ずつ | 確定文が話者を待たない | 実走 | 話者ありの run で、各 `final` の `speaker` が空で、同じ `id` の `speaker` の event がその `final` の後に 1 件。`asr.utterance.timed` の `l_dec_ms` の p50 の差（話者あり − 話者なし）が 5 ms 以下（specified、設計 8 の R4 の行。5 ms は仮の値で、持ち主は R4、R7 が 2 音源で測り直して置き直す） | 陽性 | `final_does_not_wait_for_the_speaker` |
-| T-RP-15-013 | fixture：埋め込みを待ってから `final` を出した run の log（`l_dec_ms` の p50 の差 70 ms、`final` の `speaker` が埋まっている） | 待つ形 | `Err` | `Err` で差と `speaker` の埋まった `final` を名指し（specified、同上） | 陰性 | `final_waiting_for_the_speaker_is_rejected` |
+| T-RP-15-012 | 実走（`native/hayamimi/tests/rp15_speaker.rs`）：`<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` を話者の model の在る directory で 1 回 | 確定文が話者を待たない | 実走 | 各 `id` で、log の `asr.final.published` の `mono_us` が、同じ `id` の `speaker.embedding.started` の `mono_us` 以下（確定文を出し終えてから埋め込みを始める）。各 `final` の `speaker` が空で、同じ `id` の `speaker` の event がその `final` の後に 1 件（specified、設計 8 の R4 の行。時刻の前後で見るので run ごとの雑音に依らない） | 陽性 | `final_does_not_wait_for_the_speaker` |
+| T-RP-15-013 | fixture：`speaker.embedding.started` の `mono_us` が同じ `id` の `asr.final.published` より前の log（`final` の `speaker` は空） | 埋め込みの後に確定文を出す形 | `Err` | `Err` でその `id` と 2 つの時刻を名指し（specified、同上。`speaker` を空にしたまま待つ形も、時刻の前後で落ちる） | 陰性 | `final_waiting_for_the_speaker_is_rejected` |
 
 ### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
@@ -1031,6 +1032,8 @@ test：`native/hayamimi/tests/rp29.rs`。受入 test の名前は `rp29_missing_
 | T-RP-29-024 | fixture：parakeet-ja の model が無い run。`model.fallback.disabled` 1 件（`stage` = `second_opinion`、`reason` = `missing`）、`/events` の `fallback` 1 件 | R3 の場面：second opinion を切る | `Ok` | `Ok`（specified、3.15 の「parakeet-ja が無ければ second opinion を切る」） | 陰性 | `missing_second_opinion_model_turns_it_off_and_says_so` |
 | T-RP-29-025 | fixture：model が全部在る run。言語判定の場面と認識器の代わりの場面の event が log と `/events` で 0 件 | 在るのに落ちない（022、023 の対） | `Ok` | `Ok`（specified、RP-29 の陽性対照） | 陽性 | `present_identifier_emits_no_fallback_event` |
 | T-RP-29-026 | fixture：023 と同じ外した run で、`model.fallback.disabled` が 0 件 | 外したのに言わない build（言語判定） | `Err` | `Err` で `lid` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_identifier_fallback_is_rejected` |
+| T-RP-29-027 | 実走（`native/hayamimi/tests/rp29/real.rs` の `speaker_scene`）：話者の model（`campplus_sv.onnx`）を外した directory と、全部在る directory で 1 回ずつ | R4 の場面：話者を外す | 実走 | 外した run は終了 code 0、`final` が 1 件以上、`model.fallback.disabled`（`stage` = `speaker`、`reason` = `missing`）が 1 件、`/events` の `fallback`（`to` = `disabled`）が 1 件、印の付いた `final` と `speaker` の event が 0 件。在る run は同じ場面の fallback の event が 0 件で、`speaker` の event が 1 件以上（specified、RP-29、3.15 の「話者は印なし」） | 陰性、陽性 | `speaker_scene` |
+| T-RP-29-028 | fixture：027 の外した run で `model.fallback.disabled` が 0 件の log | 外したのに言わない build（話者） | `Err` | `Err` で `speaker` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_speaker_fallback_is_rejected` |
 
 ## 5. RP-19 の対応表
 
