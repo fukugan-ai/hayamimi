@@ -36,6 +36,7 @@ pub mod eval;
 pub mod follow;
 pub mod fx;
 pub mod hub;
+pub mod lan;
 pub mod lang;
 pub mod line;
 pub mod llm;

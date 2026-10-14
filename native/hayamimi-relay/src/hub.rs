@@ -10,7 +10,7 @@
 //! effect receives it first, so that a screen opened late still shows it.
 
 use std::io::{self, Read, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -105,23 +105,28 @@ impl Hub {
     }
 }
 
-/// Binds `127.0.0.1:requested`, or the first free one of the [`NEXT_PORTS`]
-/// ports after it. Port 0 asks the system for any port and has no next ones.
-/// The error is the last one when none could be bound.
-pub fn bind(requested: u16) -> io::Result<TcpListener> {
+/// Binds `ip:requested`, or the first free one of the [`NEXT_PORTS`] ports
+/// after it. Port 0 asks the system for any port and has no next ones. The
+/// error is the last one when none could be bound.
+pub fn bind_on(ip: IpAddr, requested: u16) -> io::Result<TcpListener> {
     let last = if requested == 0 {
         0
     } else {
         requested.saturating_add(NEXT_PORTS)
     };
-    let mut bound = TcpListener::bind((Ipv4Addr::LOCALHOST, requested));
+    let mut bound = TcpListener::bind((ip, requested));
     for port in (requested..=last).skip(1) {
         if bound.is_ok() {
             break;
         }
-        bound = TcpListener::bind((Ipv4Addr::LOCALHOST, port));
+        bound = TcpListener::bind((ip, port));
     }
     bound
+}
+
+/// [`bind_on`] the loopback address: only this machine can connect.
+pub fn bind(requested: u16) -> io::Result<TcpListener> {
+    bind_on(IpAddr::V4(Ipv4Addr::LOCALHOST), requested)
 }
 
 /// The path of the request whose head is in `raw`, when it is a `GET`.
