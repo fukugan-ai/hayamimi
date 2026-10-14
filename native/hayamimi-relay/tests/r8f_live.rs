@@ -312,3 +312,155 @@ fn an_absent_second_server_holds_the_line_and_says_the_translator_was_unreachabl
     running.relay.stop();
     Ok(())
 }
+
+fn held_wire() -> Value {
+    serde_json::json!({
+        "type": "fallback", "stage": "translate", "reason": "unreachable", "to": "held",
+    })
+}
+
+fn cleared_wire() -> Value {
+    serde_json::json!({"type": "fallback", "stage": "translate", "to": null})
+}
+
+/// A `final` line of the microphone with the given number in its `id`.
+fn final_numbered(number: usize) -> String {
+    serde_json::json!({
+        "type": "final", "id": format!("mic-{number}"), "source": "mic", "lang": "ja",
+        "text": SOURCE, "t0_s": 0.5, "t1_s": 1.5, "end_wall_ms": 1_790_000_000_000_i64,
+    })
+    .to_string()
+}
+
+/// The `fallback` messages among what arrived, as they were sent.
+fn fallback_texts(got: &[(Instant, Value)]) -> Vec<Value> {
+    fallbacks(got).into_iter().cloned().collect()
+}
+
+/// H45: no translator at the live pair's address. Every line is held and
+/// fails on its own, and the run says once that the translator cannot be
+/// reached, in the log and on the stream, for the screens that come later too.
+#[test]
+fn an_unreachable_translator_is_held_once_while_each_line_fails_on_its_own() -> TestResult {
+    let (recognizer, server) = (FakeRecognizer::start()?, scripted_server()?);
+    let running = start(&live_settings(
+        &recognizer,
+        &server,
+        &["--llm", "http://127.0.0.1:1"],
+    )?)?;
+    recognizer.send(&final_numbered(1));
+    recognizer.send(&final_numbered(2));
+    let got = running.collected.wait_for(2, WAIT);
+    let shown = settled_in(&got, "en");
+    assert_eq!(shown.len(), 2, "the original lines go on: {got:?}");
+    assert!(
+        shown.iter().all(|event| event["status"] == "held"),
+        "{got:?}"
+    );
+    let got = running
+        .collected
+        .wait_until(|got| !fallbacks(got).is_empty(), WAIT);
+    assert_eq!(fallback_texts(&got), [held_wire()], "{got:?}");
+
+    assert_eq!(running.logs.named("translate.request.failed").len(), 2);
+    let held = running.logs.named("translate.fallback.held");
+    assert_eq!(held.len(), 1);
+    assert_eq!(
+        held[0].error_code.as_deref(),
+        Some("HAYAMIMI_TRANSLATE_FALLBACK")
+    );
+    assert_eq!(
+        held[0].fields.get("reason"),
+        Some(&Value::from("unreachable"))
+    );
+
+    let late = collect_from(running.relay.address())?;
+    let after = late.wait_until(|got| !fallbacks(got).is_empty(), WAIT);
+    assert_eq!(fallback_texts(&after), [held_wire()]);
+    running.relay.stop();
+    Ok(())
+}
+
+/// A translator that answers is not announced as anything.
+#[test]
+fn a_reachable_translator_says_nothing_about_a_fallback() -> TestResult {
+    let (recognizer, server) = (FakeRecognizer::start()?, scripted_server()?);
+    let running = start(&live_settings(&recognizer, &server, &[])?)?;
+    recognizer.send(&final_numbered(1));
+    recognizer.send(&final_numbered(2));
+    let got = running.collected.wait_for(2, WAIT);
+    assert_eq!(settled_in(&got, "en").len(), 2, "{got:?}");
+    std::thread::sleep(Duration::from_millis(300));
+    let got = running.collected.snapshot();
+    assert!(fallbacks(&got).is_empty(), "{got:?}");
+    assert!(running.logs.named("translate.fallback.held").is_empty());
+    assert!(running.logs.named("translate.request.failed").is_empty());
+    running.relay.stop();
+    Ok(())
+}
+
+/// The second translator is watched on its own: with the live pair's server
+/// answering, a missing second one is still said, once.
+#[test]
+fn an_unreachable_second_translator_is_held_once() -> TestResult {
+    let (recognizer, server) = (FakeRecognizer::start()?, scripted_server()?);
+    let running = start(&live_settings(
+        &recognizer,
+        &server,
+        &["--translate", "en,zh", "--llm-other", "http://127.0.0.1:1"],
+    )?)?;
+    recognizer.send(&final_numbered(1));
+    recognizer.send(&final_numbered(2));
+    let got = running.collected.wait_for(4, WAIT);
+    assert_eq!(settled_in(&got, "en").len(), 2, "{got:?}");
+    assert!(
+        settled_in(&got, "zh")
+            .iter()
+            .all(|event| event["status"] == "held")
+    );
+    let got = running
+        .collected
+        .wait_until(|got| !fallbacks(got).is_empty(), WAIT);
+    assert_eq!(fallback_texts(&got), [held_wire()], "{got:?}");
+    assert_eq!(running.logs.named("translate.fallback.held").len(), 1);
+    assert_eq!(running.logs.named("translate.request.failed").len(), 2);
+    running.relay.stop();
+    Ok(())
+}
+
+/// A translator that comes back is said once, and the kept `fallback` ends.
+#[test]
+fn a_translator_that_comes_back_clears_the_fallback_once() -> TestResult {
+    let recognizer = FakeRecognizer::start()?;
+    let server = FakeServer::start(|index, raw| match (index, user_message(raw)) {
+        (0, _) => Reply::status(503),
+        (_, Some(_)) => Reply::json(&chat_reply(ENGLISH)),
+        (_, None) => Reply::status(400),
+    })?;
+    let running = start(&live_settings(&recognizer, &server, &[])?)?;
+    recognizer.send(&final_numbered(1));
+    let got = running
+        .collected
+        .wait_until(|got| fallback_texts(got) == [held_wire()], WAIT);
+    assert_eq!(fallback_texts(&got), [held_wire()], "{got:?}");
+    recognizer.send(&final_numbered(2));
+    let got = running
+        .collected
+        .wait_until(|got| fallbacks(got).len() == 2, WAIT);
+    assert_eq!(
+        fallback_texts(&got),
+        [held_wire(), cleared_wire()],
+        "{got:?}"
+    );
+    assert_eq!(running.logs.named("translate.fallback.held").len(), 1);
+    assert_eq!(running.logs.named("translate.fallback.cleared").len(), 1);
+
+    let late = collect_from(running.relay.address())?;
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(
+        fallbacks(&late.snapshot()).is_empty(),
+        "nothing is kept in effect"
+    );
+    running.relay.stop();
+    Ok(())
+}

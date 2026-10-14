@@ -20,7 +20,8 @@ use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
 use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
-use crate::relay::{self, Lanes, MakePipeline, Makers, Relay, RelayConfig};
+use crate::reach::{Reach, Watch};
+use crate::relay::{self, Lanes, MakePipeline, Makers, Relay, RelayConfig, Watches};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::send_config::SendFile;
 use crate::srt_command::{self, SrtPlan};
@@ -386,16 +387,21 @@ pub(crate) fn default_tables_dir() -> Option<PathBuf> {
     dirs::config_dir().map(|dir| dir.join("hayamimi"))
 }
 
-/// Builds the pipeline of one lane against the llama-server at `llm_url`.
-/// The live pair and the other languages each get their own server.
-fn pipeline_factory(llm_url: String) -> MakePipeline<HttpLlm> {
-    Arc::new(move |sink: &mut dyn LogSink| {
+/// Builds the pipeline of one lane against the llama-server at `llm_url`, and
+/// the watch on whether that server can be reached. The live pair and the
+/// other languages each get their own server and watch; every lane of one
+/// server shares its watch.
+fn pipeline_factory(llm_url: String) -> (MakePipeline<Reach<HttpLlm>>, Watch) {
+    let watch = Watch::new();
+    let link = watch.link();
+    let make: MakePipeline<Reach<HttpLlm>> = Arc::new(move |sink: &mut dyn LogSink| {
         let config = PipelineConfig {
             rates_path: default_rates_path(),
             tables_dir: default_tables_dir(),
         };
-        Pipeline::open(HttpLlm::new(&llm_url), &config, sink)
-    })
+        Pipeline::open(link.wrap(HttpLlm::new(&llm_url)), &config, sink)
+    });
+    (make, watch)
 }
 
 /// Says where the translations are served, and that the port moved when it did.
@@ -505,12 +511,18 @@ pub fn start_live(
             .and_then(|path| open_srt(path, &mut log, strings)),
         words: Words::from_strings(strings),
     };
+    let (pair, pair_watch) = pipeline_factory(live.llm.clone());
+    let (other, other_watch) = pipeline_factory(live.llm_other.clone());
     relay::start_handle(
         listener,
         config,
         Makers {
-            pair: pipeline_factory(live.llm.clone()),
-            other: pipeline_factory(live.llm_other.clone()),
+            pair,
+            other,
+            watches: Watches {
+                pair: Some(pair_watch),
+                other: Some(other_watch),
+            },
         },
         log,
         outputs,
