@@ -829,7 +829,7 @@ Windows の実機の test（RP-10、RP-16 の訳の行、R8b、端から端）�
 | A | マイク | ja（`--lang ja`） | en | 8833 | 8766 |
 | B | スピーカーの loopback | en（`--lang en`） | ja | 8834 | 8767 |
 
-中継（`hayamimi-relay run`）の既定は次の 3 つで、E2E では引数なしの `hayamimi-relay run` で起こす。
+中継（`hayamimi-relay live`）の既定は次の 3 つで、E2E では引数なしの `hayamimi-relay live` で起こす。
 
 | option | 既定 | 持ち主 | 置き直す条件 |
 |---|---|---|---|
