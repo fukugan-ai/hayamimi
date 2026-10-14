@@ -3,9 +3,10 @@
 //! then the digit pass of the text pipeline is applied for the language the
 //! route chose, and the clip is scored against the reference.
 //!
-//! Each clip starts a fresh session, so one clip's language never leaks into
-//! the next. The language the route chose is kept per clip, which is what
-//! the count of right detections is made from.
+//! Each set starts a fresh session and its clips follow one another in it,
+//! as in the Python scorecard: only the first clip of a set opens a session.
+//! The language the route chose is kept per clip, which is what the count of
+//! right detections is made from.
 
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -121,7 +122,6 @@ impl Run {
         let samples = read_wav(&clip.path)
             .map_err(|error| EvalError::Invalid(format!("{}: {error}", clip.path.display())))?;
         let dur_ms = samples.len() as u64 / 16;
-        self.router.reset_session();
         let request = Request::live(&samples);
         let started = Instant::now();
         let read = self
@@ -164,6 +164,9 @@ pub fn run(options: &Options) -> Result<Outcome, EvalError> {
         fallbacks: Vec::new(),
     };
     for set in &options.sets {
+        // One session per manifest, as the Python scorecard does: the clips of
+        // a set follow one another, so the first one alone opens a session.
+        run.router.reset_session();
         for clip in load_set(set)? {
             run.score_clip(&clip)?;
         }

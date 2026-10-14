@@ -1,71 +1,71 @@
-ja_01.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=6752303	大橋さんはやっぱり大変でしたか
-ja_02.wav	lang=ja	detected=Some("zh")	tier=pz	err=1000000	rtf=3291893	对嘎最嘎
-ja_03.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=197157	そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを
-ja_04.wav	lang=ja	detected=Some("ja")	tier=rz	err=384615	rtf=306258	百M のターンを迎える
-ja_05.wav	lang=ja	detected=Some("ja")	tier=rz	err=86956	rtf=209103	でも駿河さん91歳力強い走りに変わっていきます
-ja_06.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=196995	住民によると過去にも似たような訪問があったといいます
-ja_07.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=227945	しっかり打ち切れるかです
-ja_08.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=232991	けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん
-ja_09.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=241109	そしてもう一つ大きな勢力があります
-ja_10.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=212705	勝利はしたものの10万人以上の戦死者を出していた
-ja_11.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=267375	センターレフト
-ja_12.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=319481	言ったろヒーローよりもてめぇを信じる
-ja_13.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=269188	高校生200人に聞きました
-ja_14.wav	lang=ja	detected=Some("ja")	tier=rz	err=31250	rtf=200487	さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信
-ja_15.wav	lang=ja	detected=Some("ja")	tier=rz	err=52631	rtf=212190	模擬裁判に参加した大学一年生の本音とは
-en_01.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=1823135	He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.
-en_02.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=169150	he would have to pay her the money which she would now regularly demand, or there would be trouble. It did not matter what he did.
-en_03.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=250055	Hurstwood walked the floor, mentally arranging the chief points of his situation.
-en_04.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=298066	Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.
-en_05.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=253715	He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.
-en_06.wav	lang=en	detected=Some("en")	tier=v3	err=86956	rtf=261062	He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.
-en_07.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=305843	For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.
-en_08.wav	lang=en	detected=Some("en")	tier=v3	err=50000	rtf=224606	While the danger had not lessened, it had not as yet materialized, and with him no news was good news.
-en_09.wav	lang=en	detected=Some("en")	tier=v3	err=52631	rtf=265036	so little did he consider Drua that it never once occurred to him to worry about his finding out.
-en_10.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=227458	He grew restless as he ruminated, and then decided that perhaps it was nothing.
-en_11.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=220621	he would get one to day. It would probably be on his desk when he got back. He would look for it at once.
-en_12.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=199892	After a time he gave up waiting and drearily headed for the Madison car,
-en_13.wav	lang=en	detected=Some("en")	tier=v3	err=76923	rtf=313938	He went in and examined his letters, but there was nothing from Carey.
-en_14.wav	lang=en	detected=Some("en")	tier=v3	err=100000	rtf=196431	At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.
-en_15.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=220139	His first impulse was to write but four words in reply. Go to the devil.
-zh_01.wav	lang=zh	detected=Some("zh")	tier=pz	err=114285	rtf=105884	因为远离大陆哺乳动物无法长途发射而来使得巨龟成为克隆群岛主主要的食草动物
-zh_02.wav	lang=zh	detected=Some("zh")	tier=pz	err=76923	rtf=113861	亚马逊河也是地球上最宽的河流有些河道的宽度可达六英里
-zh_03.wav	lang=zh	detected=Some("zh")	tier=pz	err=142857	rtf=114160	他称他制作了一个 w i i 门铃
-zh_04.wav	lang=zh	detected=Some("zh")	tier=pz	err=241379	rtf=117632	新国王时期的古埃及人惊叹于其前辈的已有1000多年的历史的纪念碑
-zh_05.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=115887	两小时内政府大楼附近又发生了三起炸弹爆炸事件
-zh_06.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=160845	一般来说卫星电话不能取代移动电话因为只有在卫星信号畅通的室外才能进行通话
-zh_07.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=140990	西班牙人开始了长达三个世纪的殖民时期
-zh_08.wav	lang=zh	detected=Some("zh")	tier=pz	err=50000	rtf=120761	内陆水稻可以作为假期游玩的一个不错的主题
-zh_09.wav	lang=zh	detected=Some("zh")	tier=pz	err=214285	rtf=145154	然后拉卡辛格带头唱了半唱歌
-zh_10.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=108792	西班牙人开始了长达三个世纪的殖民时期
-zh_11.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=132477	绘图分析的结果将发布在公网上
-zh_12.wav	lang=zh	detected=Some("zh")	tier=pz	err=47619	rtf=99508	有些音乐节会为带小孩子的家庭设立特别的露营区
-ko_01.wav	lang=ko	detected=Some("ko")	tier=sv	err=30303	rtf=105975	염소사육은 대략 1만 년 전에 이란의 자그로스 산맥에서 시작한 것으로 보입니다.
-ko_02.wav	lang=ko	detected=Some("ko")	tier=sv	err=25641	rtf=88942	그래도 관계자의 조언을 듣고고 모든 표지판을 지키고 안전경고에 세심한 주의를 기울여야 합니다.
-ko_03.wav	lang=ko	detected=Some("ko")	tier=sv	err=80000	rtf=98076	교전이 발한 직후 영국은 독일에 대한 해상봉세를 시작한다.
-ko_04.wav	lang=ko	detected=Some("ko")	tier=sv	err=242424	rtf=89152	사건 발생 이후깁씨는 병원으로 이송되었으나 얼마 후 숨을 거뒀다.
-ko_05.wav	lang=ko	detected=Some("ko")	tier=sv	err=115384	rtf=96286	어느 날 날개를 접을 수 없는 곤충은 잠자리야 파리밖에 없습니다.
-ko_06.wav	lang=ko	detected=Some("ko")	tier=sv	err=0	rtf=74925	파리 사람들은 자기중심적이고 무례하고 오만하다는 평판이 있습니다.
-ko_07.wav	lang=ko	detected=Some("ko")	tier=sv	err=40000	rtf=105043	하지만 여전히 새해에는 공룡처럼 보이게 하는 것들이 많습니다.
-ko_08.wav	lang=ko	detected=Some("ko")	tier=sv	err=0	rtf=80890	사자는 무리  지어 사는 가장 사회적인 고양이과 동물입니다.
-ko_09.wav	lang=ko	detected=Some("ko")	tier=sv	err=52631	rtf=79484	스프링 복수의 경우 다섯 경기 연패를 기록했다.
-ko_10.wav	lang=ko	detected=Some("ko")	tier=sv	err=200000	rtf=103195	이곳은 남아프리카의 명소 중 하나로 남아프리카 국립공원의 플래그십 입니다.
-ko_11.wav	lang=ko	detected=Some("ko")	tier=sv	err=111111	rtf=94869	미국 공병대 시간당 6인치의 강훈량이 기 파손된 제방을 무너뜨릴 수 있다고 주장했다.
-ko_12.wav	lang=ko	detected=Some("ko")	tier=sv	err=52631	rtf=77063	19백40년8월 15일 연합군은 프랑스 남부를 침략했고 이 침략은 드래곤 작전이라 불렸다.
-yue_01.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=82144	如果你在冬季造访北极或南极地区你会经历永夜亦即太阳不会升到地平线以上。
-yue_02.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=73745	这些理论认为人们有一些需求或渴望在长大成人的过程中内化了。
-yue_03.wav	lang=yue	detected=Some("yue")	tier=sv	err=117647	rtf=82358	咖喱依据液体含量多寡而有肝或湿之分。
-yue_04.wav	lang=yue	detected=Some("yue")	tier=sv	err=307692	rtf=112705	然后由拉卡新领盒大唱败赞歌。
-yue_05.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=93125	值得在这座迷人村庄漫步半小时。
-yue_06.wav	lang=yue	detected=Some("yue")	tier=sv	err=47619	rtf=80471	他们仍在试着判断撞击的规模以及对地球的影响。
-yue_07.wav	lang=yue	detected=Some("yue")	tier=sv	err=111111	rtf=79214	一旦你脱离了洋楼游回岸并不比平时困难。
-yue_08.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=72344	对我来说这似乎不合理这肯定不公平。
-yue_09.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=69410	其无所不在的能力影响所有人上至国王下至平民。
-yue_10.wav	lang=yue	detected=Some("yue")	tier=sv	err=52631	rtf=102947	他也没有权力撤销州与州之间的税法和关税。
-yue_11.wav	lang=yue	detected=Some("yue")	tier=sv	err=125000	rtf=80257	针对有幼童的家庭有些节庆会场入会场会安排专属的露营区域。
-yue_12.wav	lang=yue	detected=Some("yue")	tier=sv	err=80000	rtf=72073	阿妈逊河也是地球上最宽的河流有些河段能达到六英里宽。
-ja	15	rz+pz	75147	875812
-en	15	v3	22606	348609
-zh	12	pz	69933	122995
-ko	12	sv	79278	91158
-yue	12	sv	68161	83399
+ja_01.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=2815637	大橋さんはやっぱり大変でしたか
+ja_02.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=113128	ピカピカブピカピカブ
+ja_03.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=66920	そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを
+ja_04.wav	lang=ja	detected=Some("ja")	tier=rz	err=384615	rtf=83681	百M のターンを迎える
+ja_05.wav	lang=ja	detected=Some("ja")	tier=rz	err=86956	rtf=55385	でも駿河さん91歳力強い走りに変わっていきます
+ja_06.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=52313	住民によると過去にも似たような訪問があったといいます
+ja_07.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=127537	しっかり打ち切れるかです
+ja_08.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=82236	けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん
+ja_09.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=67850	そしてもう一つ大きな勢力があります
+ja_10.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=55580	勝利はしたものの10万人以上の戦死者を出していた
+ja_11.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=82763	センターレフト
+ja_12.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=110293	言ったろヒーローよりもてめぇを信じる
+ja_13.wav	lang=ja	detected=Some("ja")	tier=rz	err=0	rtf=73292	高校生200人に聞きました
+ja_14.wav	lang=ja	detected=Some("ja")	tier=rz	err=31250	rtf=71997	さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信
+ja_15.wav	lang=ja	detected=Some("ja")	tier=rz	err=52631	rtf=60632	模擬裁判に参加した大学一年生の本音とは
+en_01.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=1820708	He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.
+en_02.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=89694	he would have to pay her the money which she would now regularly demand, or there would be trouble. It did not matter what he did.
+en_03.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=100845	Hurstwood walked the floor, mentally arranging the chief points of his situation.
+en_04.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=100884	Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.
+en_05.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=110298	He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.
+en_06.wav	lang=en	detected=Some("en")	tier=v3	err=86956	rtf=93428	He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.
+en_07.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=85121	For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.
+en_08.wav	lang=en	detected=Some("en")	tier=v3	err=50000	rtf=135804	While the danger had not lessened, it had not as yet materialized, and with him no news was good news.
+en_09.wav	lang=en	detected=Some("en")	tier=v3	err=52631	rtf=192772	so little did he consider Drua that it never once occurred to him to worry about his finding out.
+en_10.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=112413	He grew restless as he ruminated, and then decided that perhaps it was nothing.
+en_11.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=95106	he would get one to day. It would probably be on his desk when he got back. He would look for it at once.
+en_12.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=119360	After a time he gave up waiting and drearily headed for the Madison car,
+en_13.wav	lang=en	detected=Some("en")	tier=v3	err=76923	rtf=152461	He went in and examined his letters, but there was nothing from Carey.
+en_14.wav	lang=en	detected=Some("en")	tier=v3	err=100000	rtf=152646	At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.
+en_15.wav	lang=en	detected=Some("en")	tier=v3	err=0	rtf=100493	His first impulse was to write but four words in reply. Go to the devil.
+zh_01.wav	lang=zh	detected=Some("zh")	tier=pz	err=114285	rtf=987606	因为远离大陆哺乳动物无法长途发射而来使得巨龟成为克隆群岛主主要的食草动物
+zh_02.wav	lang=zh	detected=Some("zh")	tier=pz	err=76923	rtf=105767	亚马逊河也是地球上最宽的河流有些河道的宽度可达六英里
+zh_03.wav	lang=zh	detected=Some("zh")	tier=pz	err=142857	rtf=176532	他称他制作了一个 w i i 门铃
+zh_04.wav	lang=zh	detected=Some("zh")	tier=pz	err=241379	rtf=129167	新国王时期的古埃及人惊叹于其前辈的已有1000多年的历史的纪念碑
+zh_05.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=102556	两小时内政府大楼附近又发生了三起炸弹爆炸事件
+zh_06.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=73647	一般来说卫星电话不能取代移动电话因为只有在卫星信号畅通的室外才能进行通话
+zh_07.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=98379	西班牙人开始了长达三个世纪的殖民时期
+zh_08.wav	lang=zh	detected=Some("zh")	tier=pz	err=50000	rtf=100897	内陆水稻可以作为假期游玩的一个不错的主题
+zh_09.wav	lang=zh	detected=Some("zh")	tier=pz	err=214285	rtf=91669	然后拉卡辛格带头唱了半唱歌
+zh_10.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=82777	西班牙人开始了长达三个世纪的殖民时期
+zh_11.wav	lang=zh	detected=Some("zh")	tier=pz	err=0	rtf=77753	绘图分析的结果将发布在公网上
+zh_12.wav	lang=zh	detected=Some("zh")	tier=pz	err=47619	rtf=86679	有些音乐节会为带小孩子的家庭设立特别的露营区
+ko_01.wav	lang=ko	detected=Some("ko")	tier=sv	err=30303	rtf=52533	염소사육은 대략 1만 년 전에 이란의 자그로스 산맥에서 시작한 것으로 보입니다.
+ko_02.wav	lang=ko	detected=Some("ko")	tier=sv	err=25641	rtf=56839	그래도 관계자의 조언을 듣고고 모든 표지판을 지키고 안전경고에 세심한 주의를 기울여야 합니다.
+ko_03.wav	lang=ko	detected=Some("ko")	tier=sv	err=80000	rtf=85273	교전이 발한 직후 영국은 독일에 대한 해상봉세를 시작한다.
+ko_04.wav	lang=ko	detected=Some("ko")	tier=sv	err=242424	rtf=86024	사건 발생 이후깁씨는 병원으로 이송되었으나 얼마 후 숨을 거뒀다.
+ko_05.wav	lang=ko	detected=Some("ko")	tier=sv	err=115384	rtf=98394	어느 날 날개를 접을 수 없는 곤충은 잠자리야 파리밖에 없습니다.
+ko_06.wav	lang=ko	detected=Some("ko")	tier=sv	err=0	rtf=63418	파리 사람들은 자기중심적이고 무례하고 오만하다는 평판이 있습니다.
+ko_07.wav	lang=ko	detected=Some("ko")	tier=sv	err=40000	rtf=99122	하지만 여전히 새해에는 공룡처럼 보이게 하는 것들이 많습니다.
+ko_08.wav	lang=ko	detected=Some("ko")	tier=sv	err=0	rtf=71234	사자는 무리  지어 사는 가장 사회적인 고양이과 동물입니다.
+ko_09.wav	lang=ko	detected=Some("ko")	tier=sv	err=52631	rtf=70943	스프링 복수의 경우 다섯 경기 연패를 기록했다.
+ko_10.wav	lang=ko	detected=Some("ko")	tier=sv	err=200000	rtf=59441	이곳은 남아프리카의 명소 중 하나로 남아프리카 국립공원의 플래그십 입니다.
+ko_11.wav	lang=ko	detected=Some("ko")	tier=sv	err=111111	rtf=50669	미국 공병대 시간당 6인치의 강훈량이 기 파손된 제방을 무너뜨릴 수 있다고 주장했다.
+ko_12.wav	lang=ko	detected=Some("ko")	tier=sv	err=52631	rtf=64419	19백40년8월 15일 연합군은 프랑스 남부를 침략했고 이 침략은 드래곤 작전이라 불렸다.
+yue_01.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=55629	如果你在冬季造访北极或南极地区你会经历永夜亦即太阳不会升到地平线以上。
+yue_02.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=77845	这些理论认为人们有一些需求或渴望在长大成人的过程中内化了。
+yue_03.wav	lang=yue	detected=Some("yue")	tier=sv	err=117647	rtf=74674	咖喱依据液体含量多寡而有肝或湿之分。
+yue_04.wav	lang=yue	detected=Some("yue")	tier=sv	err=307692	rtf=60933	然后由拉卡新领盒大唱败赞歌。
+yue_05.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=63809	值得在这座迷人村庄漫步半小时。
+yue_06.wav	lang=yue	detected=Some("yue")	tier=sv	err=47619	rtf=46253	他们仍在试着判断撞击的规模以及对地球的影响。
+yue_07.wav	lang=yue	detected=Some("yue")	tier=sv	err=111111	rtf=67914	一旦你脱离了洋楼游回岸并不比平时困难。
+yue_08.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=57611	对我来说这似乎不合理这肯定不公平。
+yue_09.wav	lang=yue	detected=Some("yue")	tier=sv	err=0	rtf=50540	其无所不在的能力影响所有人上至国王下至平民。
+yue_10.wav	lang=yue	detected=Some("yue")	tier=sv	err=52631	rtf=61553	他也没有权力撤销州与州之间的税法和关税。
+yue_11.wav	lang=yue	detected=Some("yue")	tier=sv	err=125000	rtf=145364	针对有幼童的家庭有些节庆会场入会场会安排专属的露营区域。
+yue_12.wav	lang=yue	detected=Some("yue")	tier=sv	err=80000	rtf=71036	阿妈逊河也是地球上最宽的河流有些河段能达到六英里宽。
+ja	15	rz	37512	261282
+en	15	v3	22606	230802
+zh	12	pz	69933	176119
+ko	12	sv	79278	71525
+yue	12	sv	68161	69430
