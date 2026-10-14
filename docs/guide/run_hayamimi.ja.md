@@ -180,6 +180,24 @@ Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
 
+## RP-3 の run を録る（R8e）
+
+認識、中継、訳の server を起こし、`hayamimi-eval stream` で `lat-ja.wav` を 5 回流します。
+訳の server は user unit `llama-artisan@CAT-Translate-3.3b-Q8_0.service`（port 8080、slot 4）です。
+
+```bash
+systemctl --user start 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+hayamimi --input ws --ws-port 8766 --serve 8833 --models <models> --min-silence 0.30
+hayamimi-relay live --events http://127.0.0.1:8833/events --llm http://127.0.0.1:8080 --serve 8835
+hayamimi-eval stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --relay-port 8835 --out docs/results/r8e/rp3_rust.jsonl
+```
+
+終えたら `hayamimi` と `hayamimi-relay` を起こした時の pid で止め、`systemctl --user stop` で server を止めます。
+`rp3_rust.jsonl` と `rp3_rust.events.jsonl` を、RP-5（`cargo test --release -p hayamimi-eval --test rp05 -- --ignored`）と RP-25（`--test rp25 -- --ignored`）が読みます。
+GPU の memory は、同じ間に `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits` を 1 秒ごとに読んで RP-22 に使います。
+H6 と `cache_prompt` は `cargo test --release -p hayamimi-relay --test r8e_server -- --ignored` です（server を起こしたまま打ちます）。
+結果は `docs/results/r8e/README.md` です。
+
 ## 戻し方
 
 `native/Cargo.toml` の `members` から `hayamimi` と `hayamimi-asr` を外し、2 つの directory を消すと、この slice の前の形に戻ります。

@@ -275,6 +275,14 @@ pub fn run_files(silence: &str) -> Result<Vec<(u32, PathBuf)>, Failure> {
     Ok(run_files_in(&base()?, silence))
 }
 
+/// A file of the recorded RP-3 run of the Rust relay (R8e), `docs/results/r8e/rp3_rust.<suffix>`:
+/// `jsonl` holds the samples, `events.jsonl` every event received.
+pub fn rp3_run(suffix: &str) -> PathBuf {
+    Path::new(RESULTS)
+        .join("r8e")
+        .join(format!("rp3_rust.{suffix}"))
+}
+
 /// Like [`run_files`], for the samples files in `dir`.
 pub fn run_files_in(dir: &Path, silence: &str) -> Vec<(u32, PathBuf)> {
     let prefix = format!("lat_ja_{silence}_");

@@ -21,13 +21,39 @@ pub enum Fault {
     NotBeforeTranslation { repeat: u32, utt: u32 },
 }
 
-/// `t_partial - t_start` of every utterance that had a `partial`, in
-/// microseconds.
+/// `t_partial - t_start` of every utterance that had a `final` and a
+/// `partial`, in microseconds. An utterance with no `final` is left out
+/// whether or not it had a `partial`.
 pub fn first_partial_delays_us(samples: &[Sample]) -> Vec<i64> {
     samples
         .iter()
+        .filter(|sample| sample.t_final_us.is_some())
         .filter_map(|sample| sample.t_partial_us.map(|t| t - sample.t_start_us))
         .collect()
+}
+
+/// How the utterances of a run split by what the recognizer sent for them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tally {
+    pub with_final: usize,
+    /// A `partial` and no `final`.
+    pub partial_only: usize,
+    /// Neither a `partial` nor a `final`.
+    pub neither: usize,
+}
+
+/// Counts the utterances of each kind; the three add up to the run's length.
+pub fn tally(samples: &[Sample]) -> Tally {
+    let with_final = samples.iter().filter(|s| s.t_final_us.is_some()).count();
+    let partial_only = samples
+        .iter()
+        .filter(|s| s.t_final_us.is_none() && s.t_partial_us.is_some())
+        .count();
+    Tally {
+        with_final,
+        partial_only,
+        neither: samples.len() - with_final - partial_only,
+    }
 }
 
 fn stat_of_first_partials(samples: &[Sample]) -> Result<Stat, Fault> {
@@ -86,9 +112,9 @@ mod tests {
             t_end_us: start + 1_000_000,
             t_partial_us: partial,
             t_partial_tr_us: None,
-            t_final_us: None,
+            t_final_us: Some(start + 2_000_000),
             t_tr_us: None,
-            finals: 0,
+            finals: 1,
             text: String::new(),
             translation: None,
             final_latency_ms: None,

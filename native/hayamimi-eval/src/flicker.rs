@@ -200,9 +200,81 @@ pub fn shown_from_wire(json: &str) -> Result<Option<Shown>, Fault> {
     }))
 }
 
+/// How many characters two texts share at their start.
+fn common_chars(left: &str, right: &str) -> usize {
+    left.chars()
+        .zip(right.chars())
+        .take_while(|(a, b)| a == b)
+        .count()
+}
+
+/// The `id` and text of a translation of the text in progress that has text
+/// to draw, or `None` for any other event.
+fn partial_row_of(event: &Value) -> Option<(&str, &str)> {
+    if event.get("type")?.as_str()? != "translation" || event.get("of")?.as_str()? != "partial" {
+        return None;
+    }
+    if event.get("status")?.as_str()? != "ok" {
+        return None;
+    }
+    Some((event.get("id")?.as_str()?, event.get("text")?.as_str()?))
+}
+
+/// How many translations of the text in progress drop characters that the
+/// screen drew in the settled form. The screen draws the prefix a text shares
+/// with the one before it (same `id`) as settled, so the next text has to keep
+/// it. A line that is not JSON is `Fault::Malformed`.
+pub fn count_vanished_partial_prefixes<'a>(
+    wire: impl IntoIterator<Item = &'a str>,
+) -> Result<usize, Fault> {
+    let mut last: std::collections::HashMap<String, (String, usize)> =
+        std::collections::HashMap::new();
+    let mut vanished = 0;
+    for json in wire {
+        let event: Value = serde_json::from_str(json).map_err(|_| Fault::Malformed)?;
+        let Some((id, text)) = partial_row_of(&event) else {
+            continue;
+        };
+        let mut confirmed = 0;
+        if let Some((before, kept)) = last.get(id) {
+            if !text.starts_with(first_chars(before, *kept)) {
+                vanished += 1;
+            }
+            confirmed = common_chars(before, text);
+        }
+        last.insert(id.to_owned(), (text.to_owned(), confirmed));
+    }
+    Ok(vanished)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn partial(id: &str, text: &str) -> String {
+        format!(
+            r#"{{"type":"translation","id":"{id}","of":"partial","status":"ok","settled":false,"text":"{text}"}}"#
+        )
+    }
+
+    fn vanished(texts: &[(&str, &str)]) -> Result<usize, Fault> {
+        let lines: Vec<String> = texts.iter().map(|(id, text)| partial(id, text)).collect();
+        count_vanished_partial_prefixes(lines.iter().map(String::as_str))
+    }
+
+    #[test]
+    fn a_partial_that_drops_a_drawn_prefix_is_counted() -> Result<(), Fault> {
+        // "abc" then "abd" draws "ab" as settled; "xyz" then loses it.
+        assert_eq!(vanished(&[("a", "abc"), ("a", "abd"), ("a", "xyz")])?, 1);
+        assert_eq!(vanished(&[("a", "abc"), ("a", "abd"), ("a", "abde")])?, 0);
+        // The same texts under two ids do not meet.
+        assert_eq!(vanished(&[("a", "abc"), ("a", "abd"), ("b", "xyz")])?, 0);
+        assert_eq!(
+            count_vanished_partial_prefixes(["nope"]),
+            Err(Fault::Malformed)
+        );
+        Ok(())
+    }
 
     #[test]
     fn an_empty_run_passes() {
