@@ -18,4 +18,5 @@ pub mod run;
 pub mod server;
 pub mod session;
 pub mod strings;
+pub mod ui;
 pub mod wire;
