@@ -178,7 +178,7 @@ font は端末に入っている物を使い、取得しない。
 | 部品 | 見た目 | 状態 |
 |---|---|---|
 | 言語の印 | 12 px、weight 600、mono、字間 .08em、padding 2 × 6、r-1、地は 3.1 の言語の色、字は ink。字は `lang` の値そのもの（`ja`、`en` ほか） | `lang` が空なら地は c-xx で字は `??` |
-| 話者の印 | 12 px、mono、padding 1 × 5、r-1、1 px の `--line` の枠、字は paper-dim、地は無し | `speaker` が空なら出さない |
+| 話者の印 | 12 px、mono、padding 1 × 5、r-1、1 px の `--line` の枠、字は paper-dim、地は無し | `final` の `speaker` が空なら出さない。後から同じ `id` の `speaker` の event が届いたら、言語の印の後ろに印を足す。印は行の 1 行目に収まるので、行の数と高さは変えない。fade も動きも付けない |
 | 遅れ | 12 px、mono、paper-dim。`round(latency_ms)` の後ろに `ms`。右端の列で右寄せ、幅は 5ch | `latency_ms` が `null` なら空（列は残す） |
 
 ### 4.2 訳の行（TranslationRow）
@@ -396,6 +396,7 @@ E が V に落ちた（stage t、settled 真） ── 同じ文字列のまま 
 | `translation`（`of` が `partial`） | 速報の訳の行 | 速報の帯の訳の行 | 使わない |
 | `translation`（`of` が `final`、`id`、`stage`、`settled`、`status`、`hold_reason`、`lang`、`text`、`annotations`） | 確定の訳の行（`held` と `unavailable` は出さない） | 確定の行の訳の行 | 使わない |
 | `translation`（`of` が `refine`、`id`） | 使わない | 清書の段落の訳の行 | 段落の訳の行 |
+| `speaker`（`id`、`speaker`） | 使わない | 同じ `id` の確定の行の話者の印（4.1） | 使わない |
 | `refine`（`text`、`lang`、`speaker`、`id`） | 使わない | 清書の列 | 清書の段落 |
 | `fallback`（`stage`、`reason`、`to`） | 右上の印 | fallback の帯 | 使わない |
 | `session_start`、`session_reset`、`session_summary`、`recluster`、`model_load`、`model_fallback`、`warning`、`error`、`ready` | 表示に使わない。届いたことだけが 6000 ms の timer を掛け直す | 表示に使わない | 表示に使わない |

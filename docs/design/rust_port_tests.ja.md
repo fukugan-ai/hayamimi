@@ -673,16 +673,18 @@ test：`native/hayamimi-eval/tests/rp15.rs`。
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-RP-15-001 | rust の平均 DER が python と同じ | 等号 | `Ok` | `Ok`（specified、RP-15 の「以下」） | 境界、陽性 | `equal_mean_der_passes` |
-| T-RP-15-002 | rust が python より 0.1 pt 大きい | 上側へ最小の桁 | `Err` | `Err`（specified、RP-15） | 境界、陰性 | `mean_der_one_tenth_worse_is_rejected` |
+| T-RP-15-002 | python の 3 run の幅が 0.05、rust が python の平均より 0.1 pt 大きい | 幅を超えて上側 | `Err` | `Err`（specified、RP-15。差 0.1 が幅 0.05 以上） | 境界、陰性 | `mean_der_one_tenth_worse_is_rejected` |
 | T-RP-15-003 | rust が 5 会議のうち 4 会議の結果 | 会議の数 | `Err` | `Err`（specified、RP-15 の「AMI 5 会議」） | 境界、陰性 | `four_meetings_are_rejected` |
 | T-RP-15-004 | 参照 話者 A が 0 から 10 秒、hyp 話者 A が 0 から 5 秒と話者 B が 5 から 10 秒、collar 0 | DER の関数の手計算 | 0.5 | DER = 0.5。式：混同 5 秒 ÷ 参照の発話 10 秒（derived、手計算。collar 0 では simpleder も同じ値になる見込みだが NOT VERIFIED） | 陽性 | `der_of_half_confused_speech_is_0_5` |
 | T-RP-15-005 | 参照と hyp が同じ | 完全一致 | 0 | DER = 0（derived） | 境界 | `der_of_identical_segments_is_zero` |
 | T-RP-15-006 | `<base>` の `der_eval.log` と `der_eval_run<n>.log` | 陽性対照 | 3 回以上 | `--method refine_diarize` の run が 3 回以上在り、同じ test が 3 回以上の平均 DER と幅（最大 − 最小）を出せる。`diarization.md` の値は比べない（specified、RP-15 の陽性対照。run の数と method の判別と平均と幅は RB-7 の 005、020、021 と同じ関数） | 陽性 | `python_der_runs_yield_mean_and_spread_from_three_or_more_refine_diarize_runs` |
 | T-RP-15-007 | fixture：清書の再分離を切った run の DER が python より悪い | 再分離を切った run | `Err` | `Err`（specified、RP-15 の陰性欄） | 陰性 | `rediarization_off_fixture_is_worse_than_python` |
-| T-RP-15-008 | 実走：`<ev> der --set testdata/eval_diar --collar 0.25` | 実走 | 実走 | 平均 DER が python の 3 回以上の run の平均以下で、python との差と幅を結果の file に書く（specified、RP-15） | 陽性 | `rust_mean_der_not_worse_than_python` |
+| T-RP-15-008 | 実走：`<ev> der --set testdata/eval_diar --collar 0.25` | 実走 | 実走 | 平均 DER から python の 3 回以上の run の平均を引いた差が、python の幅より小さい。差と幅を結果の file に書く（specified、RP-15） | 陽性 | `rust_mean_der_not_worse_than_python` |
 | T-RP-15-009 | fixture：python の DER の run が 2 つ | 幅を決められない側 | `Err` | `Err` で 2 回と言う。2 回では幅を決めない（specified、RP-15） | 境界、陰性 | `two_python_der_runs_cannot_fix_a_spread` |
-| T-RP-15-010 | fixture：python の 3 run が平均 13.3、13.1、13.5（平均 13.30、幅 0.4）。rust の平均が 13.69 | 平均より 0.39 pt 悪い（幅より小さい） | 合否は `Err`、読みは揺れの中 | 合否は `Err`（python の平均より大きい。002 と同じ）。結果の file に書く読みは「揺れの中」（specified、RP-15 の「差がこの幅より小さければ揺れの中と読む」） | 境界 | `worse_than_python_mean_by_less_than_the_spread_is_read_as_within_the_spread` |
-| T-RP-15-011 | 同じ fixture で rust の平均が 13.70 | 平均より 0.40 pt 悪い（幅と等しい） | 合否は `Err`、読みは揺れの外 | 合否は `Err`。読みは「揺れの外」（差が幅と等しいのは「幅より小さい」に入らない。specified、RP-15） | 境界、陰性 | `worse_than_python_mean_by_exactly_the_spread_is_read_as_outside_the_spread` |
+| T-RP-15-010 | fixture：python の 3 run が平均 13.3、13.1、13.5（平均 13.30、幅 0.4）。rust の平均が 13.69 | 平均より 0.39 pt 悪い（幅より小さい） | `Ok` | `Ok`。結果の file に差 0.39 と幅 0.4 を書く（specified、RP-15 の「差が幅より小さい」） | 境界、陽性 | `worse_than_python_mean_by_less_than_the_spread_passes` |
+| T-RP-15-011 | 同じ fixture で rust の平均が 13.70 | 平均より 0.40 pt 悪い（幅と等しい） | `Err` | `Err`（差が幅と等しいのは「幅より小さい」に入らない。specified、RP-15） | 境界、陰性 | `worse_than_python_mean_by_exactly_the_spread_is_rejected` |
+| T-RP-15-012 | 実走：`<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` を話者ありと話者なし（話者の model を外した directory）で 1 回ずつ | 確定文が話者を待たない | 実走 | 話者ありの run で、各 `final` の `speaker` が空で、同じ `id` の `speaker` の event がその `final` の後に 1 件。`asr.utterance.timed` の `l_dec_ms` の p50 の差（話者あり − 話者なし）が 5 ms 以下（specified、設計 8 の R4 の行。5 ms は仮の値で、持ち主は R4、R7 が 2 音源で測り直して置き直す） | 陽性 | `final_does_not_wait_for_the_speaker` |
+| T-RP-15-013 | fixture：埋め込みを待ってから `final` を出した run の log（`l_dec_ms` の p50 の差 70 ms、`final` の `speaker` が埋まっている） | 待つ形 | `Err` | `Err` で差と `speaker` の埋まった `final` を名指し（specified、同上） | 陰性 | `final_waiting_for_the_speaker_is_rejected` |
 
 ### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
