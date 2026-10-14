@@ -149,10 +149,10 @@ fn design_lists_equal_the_code_constants() -> TestResult {
 
 /// T-RP-30-002: the control that makes the `Ok` above a comparison of something.
 #[test]
-fn the_real_paragraph_yields_13_stages_and_10_reasons() -> TestResult {
+fn the_real_paragraph_yields_13_stages_and_11_reasons() -> TestResult {
     let design = real_design()?;
     assert_eq!(design_values(&design, STAGE_LEAD, "stage")?.len(), 13);
-    assert_eq!(design_values(&design, REASON_LEAD, "reason")?.len(), 10);
+    assert_eq!(design_values(&design, REASON_LEAD, "reason")?.len(), 11);
     Ok(())
 }
 
@@ -161,7 +161,7 @@ fn the_real_paragraph_yields_13_stages_and_10_reasons() -> TestResult {
 fn values_named_for_the_relay_are_not_read_as_hayamimi_values() -> TestResult {
     let design = real_design()?;
     let reasons = design_values(&design, REASON_LEAD, "reason")?;
-    for outside in ["memory_budget", "unreachable", "unsupported_target"] {
+    for outside in ["unreachable", "unsupported_target"] {
         assert!(!reasons.contains(outside), "{outside}");
     }
     let stages = design_values(&design, STAGE_LEAD, "stage")?;
@@ -169,6 +169,10 @@ fn values_named_for_the_relay_are_not_read_as_hayamimi_values() -> TestResult {
     assert!(
         stages.contains("translate"),
         "the control: `translate` is also a hayamimi stage"
+    );
+    assert!(
+        reasons.contains("memory_budget"),
+        "the control: `memory_budget` is a hayamimi reason"
     );
     Ok(())
 }

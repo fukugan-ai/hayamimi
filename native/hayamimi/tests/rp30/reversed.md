@@ -1,2 +1,2 @@
 `fallback` の event の `stage` の値は、`hayamimi` が `second_opinion`、`lid`、`translate`、`capture`、`ingest`、`speaker`、`replace`、`events`、`asr`、`vad`、`recognizer`、`punct`、`source` の 13 個、中継が `translate` と `sink` である。
-`reason` の値は、`hayamimi` が `provider_mismatch`、`device_missing`、`in_use`、`library_unavailable`、`unreadable`、`missing`、`session_failed`、`driver_unreadable`、`no_device`、`bad_value` の 10 個である（`memory_budget`、`unreachable`、`unsupported_target` は中継と GPU の memory の場面で使う）。
+`reason` の値は、`hayamimi` が `provider_mismatch`、`device_missing`、`in_use`、`library_unavailable`、`memory_budget`、`unreadable`、`missing`、`session_failed`、`driver_unreadable`、`no_device`、`bad_value` の 11 個である（`unreachable`、`unsupported_target` は中継の場面で使う）。

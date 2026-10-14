@@ -1094,8 +1094,8 @@ fixture の docs は、実物の段落を file に写して 1 語だけ直した
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-RP-30-001 | 実物の `rust_port.ja.md` と実物の `notice.rs` | 一致 | `Ok` | `Ok`（specified、RP-30 の「集合として code と一致する」） | 陽性 | `design_lists_equal_the_code_constants` |
-| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 10 個 | 13 と 10（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_10_reasons` |
-| T-RP-30-003 | 実物の段落。括弧の中の `memory_budget`、`unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 3 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 10 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 10 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
+| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 11 個 | 13 と 11（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_11_reasons` |
+| T-RP-30-003 | 実物の段落。括弧の中の `unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 2 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 11 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 11 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
 | T-RP-30-004 | fixture：`stage` の一覧から `lid` を消した docs | 一覧から 1 つ消す（stage） | `Err` | `Err` で `lid` を名指し（code にだけ在る。specified、RP-30 の陰性欄） | 陰性 | `a_stage_removed_from_the_design_is_named` |
 | T-RP-30-005 | fixture：`reason` の一覧から `bad_value` を消した docs | 一覧から 1 つ消す（reason） | `Err` | `Err` で `bad_value` を名指し（specified、RP-30） | 陰性 | `a_reason_removed_from_the_design_is_named` |
 | T-RP-30-006 | fixture：`stage` の一覧に code に無い `diarize` を足した docs | code に無い値を足す（stage） | `Err` | `Err` で `diarize` を名指し（docs にだけ在る。specified、RP-30） | 陰性 | `a_stage_added_to_the_design_only_is_named` |
