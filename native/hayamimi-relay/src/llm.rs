@@ -134,8 +134,14 @@ pub struct HttpLlm {
 impl HttpLlm {
     /// `base_url` is the server root, e.g. `http://127.0.0.1:8099`.
     pub fn new(base_url: &str) -> HttpLlm {
+        HttpLlm::with_timeout(base_url, REQUEST_TIMEOUT)
+    }
+
+    /// Like [`HttpLlm::new`] with another time limit for one request: a
+    /// measurement waits for a slow answer that a live subtitle does not.
+    pub fn with_timeout(base_url: &str, timeout: Duration) -> HttpLlm {
         let config = ureq::Agent::config_builder()
-            .timeout_global(Some(REQUEST_TIMEOUT))
+            .timeout_global(Some(timeout))
             .build();
         let root = base_url.trim_end_matches('/');
         HttpLlm {

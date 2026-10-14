@@ -72,10 +72,13 @@ label = "m²"
 "sink.fallback.cleared" = "送り先に届くようになりました"
 "srt.cue.skipped" = "この行は SRT に書きません"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
+"translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
+"translate.eval.written" = "1 つの言語の訳を書き出しました"
 
 [cli]
 usage = """使い方:
   hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"
@@ -90,3 +93,6 @@ port_moved = "頼んだ port が使えないので、訳を次の URL で配っ�
 sink_local = "字幕の送り先に届きません。訳は SRT と画面に残し、次の行から送り直します"
 sink_cleared = "字幕の送り先に届くようになりました"
 srt_not_opened = "SRT を開けませんでした。SRT なしで続けます"
+need_pairs_and_out = "eval には --pairs と --out が要ります"
+eval_target_skipped = "この言語は訳さず外しました:"
+eval_failed = "訳を書き出せませんでした"

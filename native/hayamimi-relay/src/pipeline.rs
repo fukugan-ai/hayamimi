@@ -27,11 +27,12 @@ use crate::lang::Lang;
 use crate::llm::{Completion, Llm};
 use crate::logging::{Level, LogEvent, LogSink};
 use crate::style::{Calques, JaStyle};
+use crate::target::Target;
 use crate::verify::{HoldReason, Verdict, Verifier, contains_eos};
 use crate::watched::Watched;
 
 /// Tokens a translation or an edit may use at most.
-const MAX_TOKENS: u32 = 256;
+pub const MAX_TOKENS: u32 = 256;
 
 /// Which event of the recognizer a line came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -155,11 +156,51 @@ fn language_name(lang: Lang) -> &'static str {
 
 /// The prompt for T, in the form the model card recommends.
 pub fn translate_prompt(src_lang: Lang, text: &str) -> String {
+    translate_prompt_between(language_name(src_lang), language_name(src_lang.other()), text)
+}
+
+/// The prompt for T into `target`, which may be any language of the table.
+pub fn translate_prompt_to(src_lang: Lang, target: &Target, text: &str) -> String {
+    translate_prompt_between(language_name(src_lang), target.name, text)
+}
+
+fn translate_prompt_between(from: &str, to: &str, text: &str) -> String {
+    format!("Translate the following {from} text into {to}.\n\n{text}")
+}
+
+/// The first part of the prompt for E: what to do, in which languages.
+fn edit_instruction(from: &str, to: &str) -> String {
     format!(
-        "Translate the following {} text into {}.\n\n{text}",
-        language_name(src_lang),
-        language_name(src_lang.other())
+        "Below is a {from} sentence from a live conversation and a draft {to} translation.\n\
+         Rewrite the draft so that it reads as natural spoken {to}: natural word order, \
+         connectives and tone. Do not change facts, numbers, proper names, negation or \
+         uncertainty. Output only the rewritten translation.\n"
     )
+}
+
+/// The last part of the prompt for E: the source, the draft, and where the
+/// answer goes.
+fn edit_material(from: &str, to: &str, text: &str, draft: &str) -> String {
+    format!("\n{from}:\n{text}\n\nDraft {to}:\n{draft}\n\nRewritten {to}:\n")
+}
+
+/// The prompt for E into `target`. The style notes exist for Japanese and
+/// English output only; into another language the instruction stands alone.
+pub fn edit_prompt_to(
+    src_lang: Lang,
+    target: &Target,
+    text: &str,
+    draft: &str,
+    calques: &Calques,
+    ja_style: &JaStyle,
+) -> String {
+    if target.lang() == Some(src_lang.other()) {
+        return edit_prompt(src_lang, text, draft, calques, ja_style);
+    }
+    let from = language_name(src_lang);
+    let mut prompt = edit_instruction(from, target.name);
+    prompt.push_str(&edit_material(from, target.name, text, draft));
+    prompt
 }
 
 /// The prompt for E. It carries the source and the draft, and for Japanese
@@ -172,12 +213,7 @@ pub fn edit_prompt(
     ja_style: &JaStyle,
 ) -> String {
     let (from, to) = (language_name(src_lang), language_name(src_lang.other()));
-    let mut prompt = format!(
-        "Below is a {from} sentence from a live conversation and a draft {to} translation.\n\
-         Rewrite the draft so that it reads as natural spoken {to}: natural word order, \
-         connectives and tone. Do not change facts, numbers, proper names, negation or \
-         uncertainty. Output only the rewritten translation.\n"
-    );
+    let mut prompt = edit_instruction(from, to);
     match src_lang.other() {
         Lang::Ja => {
             prompt.push_str(&format!("Style: {}\n", ja_style.note));
@@ -197,9 +233,7 @@ pub fn edit_prompt(
             }
         }
     }
-    prompt.push_str(&format!(
-        "\n{from}:\n{text}\n\nDraft {to}:\n{draft}\n\nRewritten {to}:\n"
-    ));
+    prompt.push_str(&edit_material(from, to, text, draft));
     prompt
 }
 

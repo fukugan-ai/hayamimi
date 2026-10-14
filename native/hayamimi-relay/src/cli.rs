@@ -1,13 +1,15 @@
-//! The command line: `run`, `fx-fetch` and `fx-schedule`.
+//! The command line: `live` (alias `run`), `eval`, `fx-fetch` and `fx-schedule`.
 
 use std::fs::File;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::calendar;
 use crate::deliver::{Outputs, Words};
+use crate::eval;
 use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
@@ -62,6 +64,12 @@ pub enum Command {
         out: Option<PathBuf>,
         source_url: Option<String>,
     },
+    /// Translate sentence pairs for a scorer.
+    Eval {
+        pairs: PathBuf,
+        out: PathBuf,
+        llm: String,
+    },
 }
 
 /// Why a command line was refused. Each variant names a key of the
@@ -73,6 +81,7 @@ pub enum CliError {
     UnknownOption,
     NeedInstallOrRemove,
     BadPort,
+    NeedPairsAndOut,
 }
 
 impl CliError {
@@ -84,6 +93,7 @@ impl CliError {
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
+            CliError::NeedPairsAndOut => "need_pairs_and_out",
         }
     }
 }
@@ -142,6 +152,28 @@ fn parse_run(args: &[String]) -> Result<Command, CliError> {
     })
 }
 
+fn parse_eval(args: &[String]) -> Result<Command, CliError> {
+    let (mut pairs, mut out) = (None, None);
+    let mut llm = DEFAULT_LLM.to_owned();
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let slot = match arg.as_str() {
+            "--pairs" => &mut pairs,
+            "--out" => &mut out,
+            "--llm" => {
+                llm.clone_from(rest.next().ok_or(CliError::MissingValue)?);
+                continue;
+            }
+            _ => return Err(CliError::UnknownOption),
+        };
+        *slot = Some(PathBuf::from(rest.next().ok_or(CliError::MissingValue)?));
+    }
+    match (pairs, out) {
+        (Some(pairs), Some(out)) => Ok(Command::Eval { pairs, out, llm }),
+        _ => Err(CliError::NeedPairsAndOut),
+    }
+}
+
 #[derive(Default)]
 struct Options {
     out: Option<PathBuf>,
@@ -181,6 +213,7 @@ pub fn parse_args(args: &[String]) -> Result<Command, CliError> {
     match name.as_str() {
         // `live` is the name in the design; `run` stays as an alias.
         "live" | "run" => parse_run(rest),
+        "eval" => parse_eval(rest),
         "fx-fetch" => {
             let options = parse_options(rest, false)?;
             Ok(Command::FxFetch {
@@ -375,6 +408,34 @@ fn run_relay(
     }
 }
 
+/// The time one request of `eval` may take: a measurement waits for a slow
+/// answer where a live subtitle does not.
+const EVAL_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Translates the pairs in `pairs` into `out`. A language that cannot be
+/// translated is said to be left out; any other failure stops the run.
+fn run_eval(
+    pairs: &Path,
+    out: &Path,
+    llm_url: &str,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) -> u8 {
+    let llm = HttpLlm::with_timeout(llm_url, EVAL_REQUEST_TIMEOUT);
+    match eval::run(&llm, &eval::EvalOptions { pairs, out }, sink) {
+        Ok(report) => {
+            for code in &report.skipped {
+                eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
+            }
+            0
+        }
+        Err(error) => {
+            eprintln!("{}: {error}", strings.cli_text("eval_failed"));
+            1
+        }
+    }
+}
+
 /// Runs a command line. Returns the process exit code: 0 done, 1 failed,
 /// 2 the command line was refused. `run` does not return.
 pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
@@ -412,6 +473,7 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
         } => run_schedule(
             action, task_name, out, source_url, now_epoch, &mut sink, &strings,
         ),
+        Command::Eval { pairs, out, llm } => run_eval(&pairs, &out, &llm, &mut sink, &strings),
     }
 }
 
@@ -653,10 +715,82 @@ mod tests {
                 "sink.fallback.cleared",
                 "srt.cue.skipped",
                 "srt.output.failed",
+                "translate.fallback.skipped",
+                "translate.eval.written",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }
         }
+    }
+
+    #[test]
+    fn every_command_line_text_of_eval_exists_in_both_locales() {
+        for lang in [Lang::Ja, Lang::En] {
+            let Ok(strings) = Strings::embedded(lang) else {
+                panic!("embedded table missing");
+            };
+            for key in [
+                CliError::NeedPairsAndOut.key(),
+                "eval_target_skipped",
+                "eval_failed",
+            ] {
+                assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
+            }
+            assert!(strings.cli_text("usage").contains("hayamimi-relay eval --pairs"));
+        }
+    }
+
+    #[test]
+    fn eval_takes_the_pairs_the_output_and_the_translator() {
+        let parsed = parse_args(&args(&[
+            "eval", "--pairs", "pairs", "--out", "hyps", "--llm", "http://x:1",
+        ]));
+        assert_eq!(
+            parsed,
+            Ok(Command::Eval {
+                pairs: PathBuf::from("pairs"),
+                out: PathBuf::from("hyps"),
+                llm: String::from("http://x:1"),
+            })
+        );
+    }
+
+    #[test]
+    fn eval_asks_the_default_translator_when_none_is_named() {
+        let parsed = parse_args(&args(&["eval", "--out", "hyps", "--pairs", "pairs"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Eval { ref llm, .. }) if llm == DEFAULT_LLM
+        ));
+    }
+
+    #[test]
+    fn eval_needs_both_directories() {
+        assert_eq!(
+            parse_args(&args(&["eval", "--pairs", "pairs"])),
+            Err(CliError::NeedPairsAndOut)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--out", "hyps"])),
+            Err(CliError::NeedPairsAndOut)
+        );
+        assert_eq!(parse_args(&args(&["eval"])), Err(CliError::NeedPairsAndOut));
+    }
+
+    #[test]
+    fn eval_refuses_an_unknown_option_and_a_missing_value() {
+        assert_eq!(
+            parse_args(&args(&["eval", "--serve", "1"])),
+            Err(CliError::UnknownOption)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--pairs"])),
+            Err(CliError::MissingValue)
+        );
+        assert_eq!(
+            parse_args(&args(&["eval", "--llm"])),
+            Err(CliError::MissingValue)
+        );
     }
 
     #[test]

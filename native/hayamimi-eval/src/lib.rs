@@ -5,6 +5,7 @@
 //! runtime binary does not link it.
 
 pub mod cer;
+pub mod chrf;
 pub mod cli;
 pub mod cli_stages;
 pub mod error;

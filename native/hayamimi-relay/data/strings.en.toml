@@ -77,10 +77,13 @@ label = "m²"
 "sink.fallback.cleared" = "The destinations are reachable again"
 "srt.cue.skipped" = "A line has no cue in the subtitle file"
 "srt.output.failed" = "The subtitle file could not be written; it is left out"
+"translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
+"translate.eval.written" = "The translations of one language were written"
 
 [cli]
 usage = """usage:
   hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""
 unknown_command = "unknown subcommand"
@@ -95,3 +98,6 @@ port_moved = "the requested port was taken; translations are served at"
 sink_local = "a destination of captions cannot be reached; translations stay in the subtitle file and on the screens, and each next line tries again"
 sink_cleared = "the destinations of captions are reachable again"
 srt_not_opened = "the subtitle file could not be opened; the run goes on without it"
+need_pairs_and_out = "eval needs --pairs and --out"
+eval_target_skipped = "this language is not translated and is left out:"
+eval_failed = "the translations could not be written"

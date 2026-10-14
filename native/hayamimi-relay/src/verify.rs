@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::lang::Lang;
 use crate::logging::LogSink;
 use crate::numbers;
+use crate::target::Target;
 use crate::watched::Watched;
 
 pub const DEFAULT_MARKERS: &str = include_str!("../data/verify_markers.toml");
@@ -176,6 +177,42 @@ pub fn verify_with(
     Verdict::Ok
 }
 
+/// Verifies a translation into `target`. Into the other language of the live
+/// pair this is [`verify_with`]. Into any other language only what holds in
+/// every language is checked: the form, the numbers, and the Latin names a
+/// Japanese source carries. No table of negation or hedging markers exists for
+/// those languages, so those two checks are not made.
+pub fn verify_into(
+    markers: &Markers,
+    glossary: &Glossary,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+    target: &Target,
+) -> Verdict {
+    if target.lang() == Some(src_lang.other()) {
+        return verify_with(markers, glossary, src, translation, src_lang);
+    }
+    if !form_into(markers, src, translation, target) {
+        return Verdict::Held(HoldReason::Form);
+    }
+    if numbers::compared_values(src) != numbers::compared_values(translation) {
+        return Verdict::Held(HoldReason::Number);
+    }
+    if src_lang == Lang::Ja && !latin_names_kept(src, translation) {
+        return Verdict::Held(HoldReason::ProperNoun);
+    }
+    Verdict::Ok
+}
+
+/// Whether every Latin word of a Japanese source stands in its translation.
+fn latin_names_kept(src: &str, translation: &str) -> bool {
+    let translation_lower = translation.to_lowercase();
+    ascii_words(src)
+        .iter()
+        .all(|word| translation_lower.contains(&word.to_lowercase()))
+}
+
 /// Whether a model's text carries the end-of-sequence marker anywhere.
 pub fn contains_eos(text: &str) -> bool {
     text.contains(EOS_MARKER)
@@ -190,17 +227,32 @@ fn is_japanese_char(c: char) -> bool {
 /// The form check: non-empty, no end marker, not the source itself, in the
 /// target language's script, no preface, no quotes the source lacks.
 fn form_ok(markers: &Markers, src: &str, translation: &str, target: Lang) -> bool {
-    let text = translation.trim();
-    if text.is_empty() || contains_eos(text) || text == src.trim() {
-        return false;
-    }
-    let in_target_script = match target {
+    form_checks(markers, src, translation, |text| match target {
         Lang::Ja => text.chars().any(is_japanese_char),
         Lang::En => {
             text.chars().any(|c| c.is_ascii_alphabetic()) && !text.chars().any(is_japanese_char)
         }
-    };
-    if !in_target_script {
+    })
+}
+
+/// [`form_ok`] for a target that is not one of the live pair.
+fn form_into(markers: &Markers, src: &str, translation: &str, target: &Target) -> bool {
+    form_checks(markers, src, translation, |text| target.script.fits(text))
+}
+
+/// The form checks every target shares; `in_target_script` is the one that
+/// differs by language.
+fn form_checks(
+    markers: &Markers,
+    src: &str,
+    translation: &str,
+    in_target_script: impl Fn(&str) -> bool,
+) -> bool {
+    let text = translation.trim();
+    if text.is_empty() || contains_eos(text) || text == src.trim() {
+        return false;
+    }
+    if !in_target_script(text) {
         return false;
     }
     let lower = text.to_lowercase();
@@ -326,10 +378,7 @@ fn proper_nouns_ok(glossary: &Glossary, src: &str, translation: &str, src_lang: 
                     .any(|form| src_lower.contains(&form.to_lowercase()));
                 !present || translation_lower.contains(&term.en.to_lowercase())
             });
-            terms_ok
-                && ascii_words(src)
-                    .iter()
-                    .all(|word| translation_lower.contains(&word.to_lowercase()))
+            terms_ok && latin_names_kept(src, translation)
         }
         Lang::En => glossary.terms.iter().all(|term| {
             let present = find_word(&src_lower, &term.en.to_lowercase(), 0).is_some();
@@ -387,6 +436,28 @@ impl Verifier {
             src,
             translation,
             src_lang,
+        )
+    }
+
+    /// Verifies one line translated into `target`, first picking up any
+    /// table file that changed.
+    pub fn verify_into(
+        &mut self,
+        src: &str,
+        translation: &str,
+        src_lang: Lang,
+        target: &Target,
+        sink: &mut dyn LogSink,
+    ) -> Verdict {
+        self.markers.refresh(sink);
+        self.glossary.refresh(sink);
+        verify_into(
+            self.markers.current(),
+            self.glossary.current(),
+            src,
+            translation,
+            src_lang,
+            target,
         )
     }
 }
@@ -513,6 +584,96 @@ mod tests {
             Lang::Ja,
         );
         assert_eq!(said, Ok(Verdict::Ok));
+    }
+
+    fn check_into(
+        src: &str,
+        translation: &str,
+        code: &str,
+    ) -> Result<Verdict, Box<dyn std::error::Error>> {
+        let (markers, glossary) = tables()?;
+        let Some(target) = Target::from_code(code) else {
+            return Err(format!("no target {code}").into());
+        };
+        Ok(verify_into(
+            &markers,
+            &glossary,
+            src,
+            translation,
+            Lang::Ja,
+            &target,
+        ))
+    }
+
+    #[test]
+    fn a_translation_into_the_live_language_is_verified_as_before(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for (src, translation) in [
+            ("こんにちは。", "Hello."),
+            ("Zoomで共有します。", "I will share it."),
+            ("予算は五百万円を想定しています。", "The budget is 1,500,000 yen."),
+            ("こんにちは。", "Hello.</s>"),
+        ] {
+            assert_eq!(
+                check_into(src, translation, "en")?,
+                check(src, translation, Lang::Ja)?,
+                "{src}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_matching_translation_into_another_language_passes() -> Result<(), Box<dyn std::error::Error>>
+    {
+        assert_eq!(check_into("猫が寝ています。", "El gato duerme.", "es")?, Verdict::Ok);
+        assert_eq!(check_into("猫が寝ています。", "猫在睡觉。", "zh")?, Verdict::Ok);
+        assert_eq!(check_into("猫が寝ています。", "고양이가 잔다.", "ko")?, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn a_changed_amount_is_held_for_number_in_another_language(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let said = check_into(
+            "予算は五百万円です。",
+            "El presupuesto es de 7 millones de yenes.",
+            "es",
+        )?;
+        assert_eq!(said, Verdict::Held(HoldReason::Number));
+        Ok(())
+    }
+
+    #[test]
+    fn the_wrong_script_is_held_for_form_in_another_language(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let kana_in_chinese = check_into("こんにちは。", "こんにちは、猫です。", "zh")?;
+        assert_eq!(kana_in_chinese, Verdict::Held(HoldReason::Form));
+        let han_in_spanish = check_into("こんにちは。", "Hola 猫", "es")?;
+        assert_eq!(han_in_spanish, Verdict::Held(HoldReason::Form));
+        let marker = check_into("こんにちは。", "Hola.</s>", "es")?;
+        assert_eq!(marker, Verdict::Held(HoldReason::Form));
+        Ok(())
+    }
+
+    #[test]
+    fn a_dropped_latin_name_is_held_in_another_language() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let said = check_into("Zoomで共有します。", "Lo compartiré.", "es")?;
+        assert_eq!(said, Verdict::Held(HoldReason::ProperNoun));
+        let kept = check_into("Zoomで共有します。", "Lo compartiré por Zoom.", "es")?;
+        assert_eq!(kept, Verdict::Ok);
+        Ok(())
+    }
+
+    /// There is no marker table for Spanish, so a lost negation passes: the
+    /// limit of the check, pinned so that it is not mistaken for a guarantee.
+    #[test]
+    fn negation_is_not_checked_into_a_language_without_a_marker_table(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let said = check_into("そこにいませんでした。", "Yo estaba allí.", "es")?;
+        assert_eq!(said, Verdict::Ok);
+        Ok(())
     }
 
     #[test]
