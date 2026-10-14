@@ -76,15 +76,18 @@ fn judge(rust_logs: &[&str], python_logs: &[&str]) -> Result<Judgement, Failure>
     })
 }
 
-/// The pass: the Rust mean is not above the Python mean.
+/// The pass: the Rust mean minus the Python mean is below the spread of the
+/// Python runs (a Rust mean at or under the Python mean always passes).
 fn check_not_worse(judgement: &Judgement) -> Result<(), Failure> {
-    if judgement.rust_mean <= judgement.python_mean {
+    if judgement.reading != Reading::OutsideSpread {
         return Ok(());
     }
     Err(format!(
-        "the Rust mean DER {} is above the Python mean {}",
+        "the Rust mean DER {} is above the Python mean {} by {}, not below the spread {}",
         points(judgement.rust_mean),
-        points(judgement.python_mean)
+        points(judgement.python_mean),
+        points(judgement.rust_mean - judgement.python_mean),
+        points(judgement.python_spread)
     ))
 }
 
@@ -180,7 +183,9 @@ fn equal_mean_der_passes() -> TestResult {
 /// T-RP-15-002
 #[test]
 fn mean_der_one_tenth_worse_is_rejected() -> TestResult {
-    let judgement = judge_means("13.4", &PYTHON_13_3)?;
+    // Python runs 13.275, 13.3, 13.325: mean 13.30, spread 0.05.
+    let judgement = judge_means("13.4", &["13.275", "13.3", "13.325"])?;
+    assert_eq!(judgement.python_spread, 50_000);
     assert!(check_not_worse(&judgement).is_err());
     Ok(())
 }
@@ -272,18 +277,18 @@ fn two_python_der_runs_cannot_fix_a_spread() {
 
 /// T-RP-15-010
 #[test]
-fn worse_than_python_mean_by_less_than_the_spread_is_read_as_within_the_spread() -> TestResult {
+fn worse_than_python_mean_by_less_than_the_spread_passes() -> TestResult {
     let judgement = judge_means("13.69", &PYTHON_13_3)?;
     assert_eq!(judgement.python_mean, 13_300_000);
     assert_eq!(judgement.python_spread, 400_000);
-    assert!(check_not_worse(&judgement).is_err());
+    check_not_worse(&judgement)?;
     assert_eq!(judgement.reading, Reading::WithinSpread);
     Ok(())
 }
 
 /// T-RP-15-011
 #[test]
-fn worse_than_python_mean_by_exactly_the_spread_is_read_as_outside_the_spread() -> TestResult {
+fn worse_than_python_mean_by_exactly_the_spread_is_rejected() -> TestResult {
     let judgement = judge_means("13.70", &PYTHON_13_3)?;
     assert!(check_not_worse(&judgement).is_err());
     assert_eq!(judgement.reading, Reading::OutsideSpread);
