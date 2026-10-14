@@ -5,22 +5,47 @@
 //! The negative control sends the same sentences to the old `/completion`
 //! endpoint with the raw prompt; some of those answers differ from `curl`.
 //!
-//! These tests need a llama-server with a CAT-Translate model on
-//! 127.0.0.1:8099 and the probe files, so they run with `--ignored`.
+//! The tests that ask a server need a llama-server with a CAT-Translate model
+//! on the design's port 8080 (or the URL in `testdata/chat_probe_server.txt`)
+//! and the probe files, so they run with `--ignored`. One slot is enough.
+//! The test of the request body needs neither.
 
 mod support;
 
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 
 use hayamimi_relay::lang::Lang;
-use hayamimi_relay::llm::{Completion, HttpLlm, Llm};
+use hayamimi_relay::llm::{Completion, HttpLlm, Llm, request_body};
 use hayamimi_relay::pipeline::translate_prompt;
 use serde_json::{Value, json};
 use support::TestResult;
 
-const SERVER: &str = "http://127.0.0.1:8099";
+/// The design's address of the translation server (`rust_port.ja.md` 3.6).
+const DEFAULT_SERVER: &str = "http://127.0.0.1:8080";
 const MAX_TOKENS: u32 = 256;
+
+/// The server to ask: the URL in `testdata/chat_probe_server.txt` when that
+/// file is there (a server started on another port), the design's address
+/// when it is not.
+fn server() -> Result<String, Box<dyn std::error::Error>> {
+    let file = testdata()?.join("chat_probe_server.txt");
+    if file.is_file() {
+        Ok(std::fs::read_to_string(file)?.trim().to_owned())
+    } else {
+        Ok(String::from(DEFAULT_SERVER))
+    }
+}
+
+/// The body `curl` sends for the request of the model card.
+fn curl_body(prompt: &str) -> String {
+    json!({
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0, "max_tokens": MAX_TOKENS, "stop": ["</s>"], "cache_prompt": true,
+    })
+    .to_string()
+}
 
 /// One sentence of the probe: its id, language and text.
 struct Sentence {
@@ -63,11 +88,7 @@ fn sentences() -> Result<Vec<Sentence>, Box<dyn std::error::Error>> {
 
 /// What `curl` gets back for the request of the model card.
 fn curl_answer(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let body = json!({
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0, "max_tokens": MAX_TOKENS, "stop": ["</s>"], "cache_prompt": true,
-    })
-    .to_string();
+    let body = curl_body(prompt);
     let out = Command::new("curl")
         .args([
             "-s",
@@ -76,7 +97,7 @@ fn curl_answer(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
             "-H",
             "Content-Type: application/json",
         ])
-        .args(["-d", &body, &format!("{SERVER}/v1/chat/completions")])
+        .args(["-d", &body, &format!("{}/v1/chat/completions", server()?)])
         .output()?;
     let value: Value = serde_json::from_slice(&out.stdout)?;
     value["choices"][0]["message"]["content"]
@@ -99,7 +120,7 @@ fn completion_answer(prompt: &str) -> Result<String, Box<dyn std::error::Error>>
             "-H",
             "Content-Type: application/json",
         ])
-        .args(["-d", &body, &format!("{SERVER}/completion")])
+        .args(["-d", &body, &format!("{}/completion", server()?)])
         .output()?;
     let value: Value = serde_json::from_slice(&out.stdout)?;
     value["content"]
@@ -128,11 +149,11 @@ fn differing(
 }
 
 #[test]
-#[ignore = "needs a llama-server with CAT-Translate on 127.0.0.1:8099"]
+#[ignore = "needs a llama-server with CAT-Translate on port 8080"]
 fn chat_t_matches_curl_on_every_probe_sentence() -> TestResult {
     let all = sentences()?;
     assert_eq!(all.len(), 40);
-    let relay = HttpLlm::new(SERVER);
+    let relay = HttpLlm::new(&server()?);
     let ask = |prompt: &str| {
         relay
             .complete(&Completion::new(prompt, MAX_TOKENS))
@@ -150,7 +171,7 @@ fn chat_t_matches_curl_on_every_probe_sentence() -> TestResult {
 }
 
 #[test]
-#[ignore = "needs a llama-server with CAT-Translate on 127.0.0.1:8099"]
+#[ignore = "needs a llama-server with CAT-Translate on port 8080"]
 fn the_old_completion_form_differs_from_curl_on_some_probe_sentence() -> TestResult {
     let all = sentences()?;
     let different = differing(&all, completion_answer)?;
@@ -166,11 +187,11 @@ fn the_old_completion_form_differs_from_curl_on_some_probe_sentence() -> TestRes
 /// The answers of the probe log, kept as a record: how many of the 40 the
 /// relay's T reproduces. Nothing is asserted about the count.
 #[test]
-#[ignore = "needs a llama-server with CAT-Translate on 127.0.0.1:8099"]
+#[ignore = "needs a llama-server with CAT-Translate on port 8080"]
 fn record_agreement_with_the_probe_log() -> TestResult {
     let all = sentences()?;
     let log = std::fs::read_to_string(testdata()?.join("probe1_cat-translate-3.3b.log"))?;
-    let relay = HttpLlm::new(SERVER);
+    let relay = HttpLlm::new(&server()?);
     let mut same = 0;
     for sentence in &all {
         let wanted = log
@@ -188,6 +209,41 @@ fn record_agreement_with_the_probe_log() -> TestResult {
             same += 1;
         }
     }
-    eprintln!("probe1 log: {same} of {} equal", all.len());
+    // Written to the stderr of the process, which the test harness does not
+    // capture, so that the count is in the output of a passing run too.
+    writeln!(
+        std::io::stderr(),
+        "probe1 log: {same} of {} equal",
+        all.len()
+    )?;
+    Ok(())
+}
+
+/// No server: the body the relay sends is the body `curl` sends.
+#[test]
+fn the_relay_sends_the_body_curl_sends() -> TestResult {
+    let sentences = [
+        translate_prompt(Lang::Ja, "こんにちは。"),
+        translate_prompt(Lang::En, "I paid $100."),
+    ];
+    for prompt in &sentences {
+        let relay: Value =
+            serde_json::from_str(&request_body(&Completion::new(prompt, MAX_TOKENS))?)?;
+        let curl: Value = serde_json::from_str(&curl_body(prompt))?;
+        assert_eq!(relay, curl, "{prompt}");
+    }
+    Ok(())
+}
+
+/// The negative control of the test above: a body that differs in one item
+/// is not the body `curl` sends.
+#[test]
+fn a_body_with_another_temperature_is_not_the_body_curl_sends() -> TestResult {
+    let prompt = translate_prompt(Lang::Ja, "こんにちは。");
+    let mut relay: Value =
+        serde_json::from_str(&request_body(&Completion::new(&prompt, MAX_TOKENS))?)?;
+    relay["temperature"] = json!(0.7);
+    let curl: Value = serde_json::from_str(&curl_body(&prompt))?;
+    assert_ne!(relay, curl);
     Ok(())
 }
