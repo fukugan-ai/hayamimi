@@ -8,7 +8,7 @@
 # the same address to `--llm-other`.
 #
 # Install: mkdir -p ~/.config/systemd/user
-#          cp native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
+#          install -m 0644 native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
 #          systemctl --user daemon-reload
 # Start  : systemctl --user start hayamimi-llama-other.service
 # Check  : curl -s http://127.0.0.1:18081/health      (loading: 503, ready: {"status":"ok"})
@@ -20,7 +20,7 @@
 # One slot is enough: the relay asks one line at a time per language and the
 # translation is T only, with no E step. When this server is not running the
 # relay does not stop: the line of such a language is held (an empty line) and
-# the run says so (event `translate.fallback.held`).
+# the run says so (event `translate.request.failed`, once per line).
 [Unit]
 Description=llama-server for hayamimi-relay, languages outside ja and en (TranslateGemma-4B-it, 127.0.0.1:18081)
 StartLimitIntervalSec=60
