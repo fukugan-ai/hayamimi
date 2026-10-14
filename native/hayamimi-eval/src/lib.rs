@@ -7,6 +7,8 @@
 pub mod cer;
 pub mod cli;
 pub mod cli_stages;
+pub mod descendants;
+pub mod doc_links;
 pub mod error;
 pub mod fleurs;
 pub mod flicker;

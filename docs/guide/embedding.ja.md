@@ -52,8 +52,10 @@ publishのたびに生のイベントdictを渡して同期的に呼び出すコ
 |---|---|---|
 | `session_start` | `{"type":"session_start"}` | セッション開始時に1回 |
 | `partial` | `{"type":"partial","text":str}` | 発話中のドラフトが更新されたとき（約0.5秒おき） |
-| `final` | `{"type":"final","text":str,"lang":str,"speaker":str,"latency_ms":float\|null,"tier":str,"audio_s":float,"lid_ms":float\|null,"decode_ms":float\|null,"switched":bool}` | VADのセグメントが確定したとき。`switched`は直前の確定文と`lang`が異なる場合だけtrue（セッション最初の確定文ではfalse） |
-| `translation` | `{"type":"translation","lang":str,"text":str}` | `--translate`のターゲット言語が日本語の確定文・清書行の翻訳を終えたとき |
+| `final` | `{"type":"final","id":str,"source":str,"t0_s":float,"t1_s":float,"end_wall_ms":int,"text":str,"lang":str,"speaker":str,"latency_ms":float\|null,"tier":str,"audio_s":float,"lid_ms":float\|null,"decode_ms":float\|null,"switched":bool}` | VADのセグメントが確定したとき。`switched`は直前の確定文と`lang`が異なる場合だけtrue（セッション最初の確定文ではfalse） |
+| `translation` | 下の「訳の`translation`」の形 | 訳の中継が、確定文・清書行・発話中の速報の訳を出したとき。`hayamimi`の`/events`には流れず、中継の別のportに流れる |
+| `speaker` | `{"type":"speaker","id":str,"speaker":str}` | 確定文の話者があとから決まったとき。下の「`speaker`イベント」を参照 |
+| `fallback` | `{"type":"fallback","stage":str,"reason":str,"to":str\|null}` | 段が設計どおりに動かず別の道へ移ったとき。`to`が`null`なら元の道へ戻っていて、`reason`は付かない。中継が外の送り先に届かないときは、`stage`が`sink` |
 | `refine` | `{"type":"refine","text":str,"lang":str,"speaker":str,"audio_s":float}` | 発話群の二段目再デコード（清書）が出たとき |
 | `model_load` | `{"type":"model_load","model":str,"phase":"start"\|"done","ms":float\|null}` | 認識器/LID/句読点/翻訳モデルの読み込みが始まった・終わったとき。`model`はエンジン内部の短縮名（`rz`/`pz`/`sv`/`v3`/`omni`/`pja`/`lid`/`punct`、または`translator:<言語コード>`）。`punct_model=`の値に関わらず`model`は常に`"punct"`のまま -- bert/4classのどちらが読まれたかは`punct_model_unavailable`警告の有無で判別する（無ければ要求どおりのモデルが読み込まれている） |
 | `model_fallback` | `{"type":"model_fallback","requested":str,"used":str,"reason":str}` | 要求されたモデルが無く（`--minimal`インストールなど）別のティアに振り替えたとき。同じセッション内で同じ要求モデルについては1回だけ発行 |
@@ -61,6 +63,51 @@ publishのたびに生のイベントdictを渡して同期的に呼び出すコ
 | `session_summary` | `{"type":"session_summary","stats":{...},"speakers":{...}\|null}` | プロセス終了時、およびセッションリセット直前。`stats`はコンソールの`=== session summary: ... ===`行と同じ数値、`speakers`は`--speakers`使用時のみ話者診断行と同じ内容（それ以外は`null`） |
 | `recluster` | `{"type":"recluster","time_s":float,"n_entries":int,"n_clusters":int,"mapping":{...}}` | `--speaker-global-recluster`のセッション末診断が実際に走ったとき |
 | `session_reset` | `{"type":"session_reset"}` | `POST /reset`（または`reset_live_session()`の直接呼び出し）が完了したとき |
+
+**行と訳を結ぶ項目。**
+Rustの`hayamimi`が出す`final`には、上の形のとおり次の5項目が付きます。
+既存の項目は変わりません。
+
+| 項目 | 型 | 意味 |
+|---|---|---|
+| `id` | string | `<source>-<連番>`。プロセスの起動ごとに1から数えます |
+| `source` | `"mic"`\|`"loopback"`\|`"file"` | どの音源の確定文か。`--input`から決まり、`--source`で上書きできます |
+| `t0_s` | float | 流れの先頭からの発話の始まり（秒） |
+| `t1_s` | float | 発話の終わり（秒） |
+| `end_wall_ms` | integer | VADが発話の終わりを決めた時刻（epoch ms） |
+
+訳の中継（`hayamimi-relay`）は、この`id`で確定文と訳を結びます。
+`id`で結ぶのは、直前の行に貼る形だと、訳が遅れて次の確定文が先に着いたときに、訳を別の行に貼ってしまうからです。
+
+**訳の`translation`。**
+中継は、`hayamimi`とは別のportに次の形の`translation`を出します。
+
+```json
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
+ "status":"ok"|"held","hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
+ "text":str,"annotations":[{"start":int,"end":int,"text":str}],
+ "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
+```
+
+- `settled`は、その訳が行の確定した訳かどうかです。偽の`translation`は草稿で、同じ`id`の後続の`translation`に置き換わることがあります。
+- `of`が`final`の行には、多くて2件が付きます。草稿（`stage`が`t`、`settled`が偽）の後に、確定（`settled`が真）が1件続きます。`of`が`refine`の行は、確定の1件だけです。
+- `of`が`partial`の訳は、発話中の速報の訳です。`stage`は`t`、`settled`は偽、`status`は`ok`で、`id`はその発話の確定文が取る`id`です。外の送り先（OBS、Zoom、Teams）には渡りません。
+- `status`が`held`の訳は、`text`と`annotations`と`skipped`が空です。止めた訳の文字列はwireに載せません。
+- `annotations`の`start`と`end`は、`text`の中の文字（Unicodeのscalar value）の位置で、0から数えます。画面とSRTは、各要素の`text`を`end`の位置に差し込んで描きます。
+- `src_sha256`は、訳の元にした原文の文字列のsha256を小文字のhexで書いた値です。
+
+**`speaker`イベント。**
+確定文は話者の埋め込みを待たずに出るので、`final`の`speaker`は空文字です。
+話者が決まった発話には、あとから`{"type":"speaker","id":<確定文のid>,"speaker":<印>}`が同じ`id`で1回出ます。
+印の決まらない発話には出ません。
+話者の識別を持たないbuildは、`speaker`を空文字のままにし、このイベントも出しません。
+
+**採らない形。**
+次の2つは、設計で検討して採りませんでした。
+
+- **`hayamimi`の`/events`に`translation`を流すこと**：訳の中継が2つの認識プロセスのイベントを1か所で受け、`id`で結んで配るためです。`hayamimi`側の形は変えません。
+- **確定文を話者の埋め込みの完了まで待たせること**：字幕を出すスレッドに埋め込みの約70msを載せることになるためです。
 
 **HTTP経由の実行時制御（`--serve`時のみ）。** 前述の`/replacements`・`/itn_overrides`に加えて
 3つのエンドポイントがあります。

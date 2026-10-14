@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_stages, fleurs, log, manifest, record, stream};
+use crate::{cli_stages, doc_links, fleurs, log, manifest, record, stream};
 
 #[derive(Parser)]
 #[command(
@@ -37,6 +37,17 @@ enum Command {
     NsysTransfers(cli_stages::NsysTransfersArgs),
     /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
     OrtPlaced(cli_stages::OrtPlacedArgs),
+    /// Check that every Markdown link of a repository points at a file that exists.
+    DocLinks(DocLinksArgs),
+}
+
+#[derive(Args)]
+struct DocLinksArgs {
+    /// The repository root, against which absolute and `blob/main/` links resolve.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// A subtree to check instead of the whole repository.
+    subtree: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -214,6 +225,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::StagesReport(args) => cli_stages::stages_report(args),
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
+        Command::DocLinks(args) => doc_links_command(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {
@@ -222,6 +234,23 @@ fn execute(command: Command) -> Result<(), EvalError> {
             })
         }
     }
+}
+
+/// Prints the broken links and fails when there are any.
+fn doc_links_command(args: DocLinksArgs) -> Result<(), EvalError> {
+    let scan = match &args.subtree {
+        Some(subtree) => subtree,
+        None => &args.repo,
+    };
+    let broken = doc_links::check(&args.repo, scan)?;
+    print!("{}", doc_links::report(&broken));
+    if broken.is_empty() {
+        return Ok(());
+    }
+    Err(EvalError::Invalid(format!(
+        "{} broken Markdown link(s)",
+        broken.len()
+    )))
 }
 
 fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {

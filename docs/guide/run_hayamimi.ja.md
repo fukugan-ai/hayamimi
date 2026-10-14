@@ -36,6 +36,34 @@ cargo build --release --target x86_64-pc-windows-msvc -p hayamimi
 ORT と sherpa-onnx の共有ライブラリは、実行物の隣に置かれます。
 Windows の test の実行物は `target/<profile>/deps/` に出るので、1 つ上の directory からライブラリを先読みします（`hayamimi_gpu::runtime::preload_near_executable`）。
 
+## model を取得する
+
+認識、言語判定、VAD、句読点の model は、`hayamimi models fetch` が取得します。
+Python も別の script も要りません。
+
+```bash
+hayamimi models fetch --minimal --dir models   # 日本語と英語の核の 4 組だけ
+hayamimi models fetch --dir models             # 他の言語の認識器と話者の model も
+```
+
+| option | 意味 |
+|---|---|
+| `--minimal` | 認識（ReazonSpeech の int8）、言語判定（whisper-tiny）、VAD（Silero）、句読点（BERT）の 4 組 |
+| `--en-parakeet-v2` | 英語専用の Parakeet v2 の認識器も取得する（`--minimal` と併せられる） |
+| `--punct-4class` | 4 クラスの日本語句読点 model も取得する（`--minimal` と併せられる） |
+| `--dir` | model を置く directory。既定は `models` |
+
+組ごとに、sherpa-onnx の release から先に、Hugging Face から後に取得します。
+1 組の file が全部揃うまで、`models/` には何も置きません（隣の一時 directory に書き、揃ってから 1 file ずつ rename します）。
+揃っている組は取得し直しません。
+`--dir` の下の `manifest.json` に、file ごとの段、sha256、bytes を書きます。内容が変わらなければ書き直しません。
+
+どの取得先からも得られない組があっても、既に在る file はそのまま残し、`models.fallback.previous` を 1 件出して、終了 code は 0 のままです。
+その組の段は、`hayamimi` を動かすときに外れます（`model.fallback.disabled`）。
+取得先の address を替える `--release-url` と `--hf-url` は、取得先を壊した test のために在ります。
+
+Silero の VAD は、release の file と Hugging Face の file の bytes が違います。2 つが同じ model かどうかは確かめていません（NOT VERIFIED）。
+
 ## 動かす
 
 ```bash
@@ -173,6 +201,8 @@ cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
 |---|---|
 | 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release`（上の file があれば指定は要らない） |
 | 実走の test | `cargo test --release -p hayamimi --test rp06 --test rp16 --test rp26 --test rp29 -- --ignored` |
+| RP-21（`models fetch`。実際に取得するので network を使う） | `cargo test --release -p hayamimi --test rp21 -- --include-ignored` |
+| 文書の link（RP-19） | `cargo run --release -p hayamimi-eval -- doc-links --repo <repo>` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |
 
 GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にします。
