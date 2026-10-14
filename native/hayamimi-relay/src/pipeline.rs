@@ -12,6 +12,11 @@
 //! sent outside (`deliver`). A `refine` line has no screen that shows a draft,
 //! so it is published once, settled.
 //!
+//! The two halves of a line of the live pair can run on different pipelines
+//! in different threads: [`Pipeline::draft_staged`] asks T, and
+//! [`Pipeline::finish_staged`] asks E, so that the next line's T need not wait
+//! for this line's E.
+//!
 //! The text of an utterance still in progress (`partial`) goes through T and
 //! V only ([`Pipeline::translate_partial`]). It is never settled, and it is
 //! dropped when a newer one makes it useless.
@@ -327,6 +332,23 @@ struct Draft {
     ms: [u128; 3],
 }
 
+/// A line T has translated and V has judged, with E still to be asked. It
+/// can be handed to another thread.
+pub struct Drafted {
+    draft: Draft,
+    /// When the line's first request was made, for the time a failure reports.
+    started: Instant,
+}
+
+/// How far a line got before E.
+pub enum Staged {
+    /// The line is decided without E: T could not be asked, or its answer
+    /// carried the end marker, or the line goes to a language that has no E.
+    Settled(Translation),
+    /// E is next ([`Pipeline::finish_staged`]).
+    Drafted(Drafted),
+}
+
 impl Draft {
     fn passed(&self) -> bool {
         self.verdict == Verdict::Ok
@@ -424,6 +446,41 @@ impl<L: Llm> Pipeline<L> {
         self.run_to(&ctx, &mut NoObserver, early, sink)
     }
 
+    /// Runs the first half of a line of the live pair: T, V on its
+    /// translation, and the draft event of a `final` line that passed V. The
+    /// second half, E, is [`Pipeline::finish_staged`]; it may run on another
+    /// pipeline in another thread, so that the next line's T does not wait
+    /// for this line's E.
+    pub fn draft_staged(
+        &mut self,
+        request: &LineRequest<'_>,
+        observer: &mut dyn Observer,
+        early: &mut dyn FnMut(Translation),
+        sink: &mut dyn LogSink,
+    ) -> Staged {
+        let ctx = Ctx {
+            request,
+            dest: Dest::Pair,
+        };
+        self.stage_to(&ctx, observer, early, sink)
+    }
+
+    /// Runs the second half of a line [`Pipeline::draft_staged`] left to E.
+    /// `request` is the line it was drafted from.
+    pub fn finish_staged(
+        &mut self,
+        request: &LineRequest<'_>,
+        drafted: Drafted,
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        let ctx = Ctx {
+            request,
+            dest: Dest::Pair,
+        };
+        self.edit_drafted(&ctx, drafted, observer, sink)
+    }
+
     fn run_to(
         &mut self,
         request: &Ctx<'_>,
@@ -431,20 +488,47 @@ impl<L: Llm> Pipeline<L> {
         early: &mut dyn FnMut(Translation),
         sink: &mut dyn LogSink,
     ) -> Translation {
-        self.calques.refresh(sink);
-        self.ja_style.refresh(sink);
+        match self.stage_to(request, observer, early, sink) {
+            Staged::Settled(done) => done,
+            Staged::Drafted(drafted) => self.edit_drafted(request, drafted, observer, sink),
+        }
+    }
+
+    /// T and the first V, and the draft event; E is left to
+    /// [`Pipeline::edit_drafted`].
+    fn stage_to(
+        &mut self,
+        request: &Ctx<'_>,
+        observer: &mut dyn Observer,
+        early: &mut dyn FnMut(Translation),
+        sink: &mut dyn LogSink,
+    ) -> Staged {
         let started = Instant::now();
         let draft = match self.draft(request, observer, started, sink) {
             ControlFlow::Continue(draft) => draft,
-            ControlFlow::Break(done) => return done,
+            ControlFlow::Break(done) => return Staged::Settled(done),
         };
         if matches!(request.dest, Dest::Other(_)) {
-            return self.settle_draft(request, draft, observer, sink);
+            return Staged::Settled(self.settle_draft(request, draft, observer, sink));
         }
         if draft.passed() && request.of == LineKind::Final {
             early(self.draft_event(request, &draft.text));
         }
-        self.edit(request, draft, observer, started, sink)
+        Staged::Drafted(Drafted { draft, started })
+    }
+
+    /// E, the second V and the settled translation of a drafted line. The
+    /// tables E's prompt reads are read again first if they changed.
+    fn edit_drafted(
+        &mut self,
+        request: &Ctx<'_>,
+        drafted: Drafted,
+        observer: &mut dyn Observer,
+        sink: &mut dyn LogSink,
+    ) -> Translation {
+        self.calques.refresh(sink);
+        self.ja_style.refresh(sink);
+        self.edit(request, drafted.draft, observer, drafted.started, sink)
     }
 
     /// A language outside the live pair has no E: the model that writes it
@@ -1084,6 +1168,57 @@ mod tests {
             Stage::Annotate,
         ];
         assert_eq!(trace.stages, order);
+        Ok(())
+    }
+
+    /// T is asked on one pipeline and E on another, as two threads of a lane
+    /// do; the settled translation is the one a single pipeline makes.
+    #[test]
+    fn a_line_drafted_on_one_pipeline_is_edited_on_another()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (for_t, for_e) = (
+            Scripted::new(vec![Ok(String::from("Hello."))]),
+            Scripted::new(vec![Ok(String::from("Hi there."))]),
+        );
+        let mut sink = MemorySink::default();
+        let mut first = Pipeline::open(&for_t, &PipelineConfig::default(), &mut sink)?;
+        let mut second = Pipeline::open(&for_e, &PipelineConfig::default(), &mut sink)?;
+        let line = request("こんにちは。");
+        let mut early = Vec::new();
+        let staged = first.draft_staged(&line, &mut NoObserver, &mut |d| early.push(d), &mut sink);
+        let Staged::Drafted(drafted) = staged else {
+            return Err("T's translation passed V but the line was settled".into());
+        };
+        assert_eq!(early.len(), 1);
+        assert!(
+            for_e.prompts.borrow().is_empty(),
+            "E was asked before the hand-over"
+        );
+        let settled = second.finish_staged(&line, drafted, &mut NoObserver, &mut sink);
+        assert_eq!((settled.stage, settled.settled), (Pass::E, true));
+        assert_eq!(settled.text, "Hi there.");
+        assert_eq!(for_t.prompts.borrow().len(), 1);
+        assert_eq!(for_e.prompts.borrow().len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn a_line_whose_t_cannot_be_asked_is_settled_without_e()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(Vec::new());
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        let staged = pipeline.draft_staged(
+            &request("こんにちは。"),
+            &mut NoObserver,
+            &mut |_| {},
+            &mut sink,
+        );
+        let Staged::Settled(held) = staged else {
+            return Err("a line T could not translate was left to E".into());
+        };
+        assert_eq!(held.hold_reason, Some(HoldReason::Unavailable));
+        assert_eq!(script.prompts.borrow().len(), 1);
         Ok(())
     }
 

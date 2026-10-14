@@ -2,11 +2,17 @@
 //! each line through the three stages in a lane of its own source, and
 //! publishes every translation under the `id` of the line it belongs to.
 //!
-//! Lines of one source are translated in the order they arrive. Lines of
+//! Lines of one source are settled in the order they arrive. Lines of
 //! different sources do not wait for each other, so a slow line of the
 //! microphone never holds back the loopback. A translation carries the `id`
 //! of its own line, so one that arrives late cannot be read as another
 //! line's.
+//!
+//! A lane of the live pair has two threads: one asks T, the other asks E.
+//! T of a line is asked while E of the line before it is still being
+//! answered, so a draft is never queued behind an edit. Both ask the server
+//! only while they hold one of its slots (`slots`), so no request is sent to
+//! wait in the server's queue.
 //!
 //! A `final` line is published twice at most: its draft as soon as T's
 //! translation passed V, and its settled translation at the end. Only the
@@ -32,8 +38,11 @@ use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
 use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
-use crate::pipeline::{LineRequest, NoObserver, Observer, PartialOutcome, Pipeline, Translation};
+use crate::pipeline::{
+    Drafted, NoObserver, Observer, PartialOutcome, Pipeline, Staged, Translation,
+};
 use crate::reach::{Change, Watch};
+use crate::slots::{Held, LLAMA_SLOTS, ServerSlots};
 use crate::strings::Strings;
 use crate::target::Target;
 use crate::verify_dump::VerifyDump;
@@ -204,68 +213,217 @@ fn publish(hub: &Hub, translation: &Translation, sink: &mut dyn LogSink) {
     }
 }
 
-/// What a lane works with besides its jobs.
+/// What the threads of a lane work with besides their jobs.
 struct LaneParts<L: Llm> {
     make: MakePipeline<L>,
     hub: Hub,
     delivery: Delivery,
     clock: RunClock,
     verify_dump: Option<VerifyDump>,
+    /// The slots of the server the live pair is translated on; `None` for a
+    /// lane of another language, which has a server of its own.
+    slots: Option<Arc<ServerSlots>>,
 }
 
-/// Translates the jobs of one lane, one after another, until the router ends.
-fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedSink) {
-    let mut pipeline = match (parts.make)(&mut sink) {
-        Ok(pipeline) => pipeline,
+/// A line that has been through T, on its way to the thread that asks E.
+struct Pending {
+    job: Job,
+    now_epoch: i64,
+    staged: Staged,
+}
+
+/// Opens the pipeline of a thread, and says so when it cannot be opened.
+fn open_pipeline<L: Llm>(make: &MakePipeline<L>, sink: &mut SharedSink) -> Option<Pipeline<L>> {
+    match make(sink) {
+        Ok(pipeline) => Some(pipeline),
         Err(_) => {
             sink.emit(
                 LogEvent::new(Level::Error, "translate.lane.failed", "worker").with_error("OPEN"),
             );
-            return;
-        }
-    };
-    let mut drafts = sink.clone();
-    for job in jobs {
-        let request = job.line.request(job.src_lang, parts.clock.now_epoch());
-        let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
-        let mut dump = parts
-            .verify_dump
-            .as_ref()
-            .map(|dump| dump.observer(&job.line.id));
-        let mut none = NoObserver;
-        let observer: &mut dyn Observer = match dump.as_mut() {
-            Some(dump) => dump,
-            None => &mut none,
-        };
-        let translation = translate(
-            &mut pipeline,
-            &request,
-            job.route,
-            observer,
-            &mut show_draft,
-            &mut sink,
-        );
-        publish(&parts.hub, &translation, &mut sink);
-        // The subtitle file and the outside destinations carry the live pair
-        // only; another language is for the screens.
-        if job.route == Route::Pair {
-            parts.delivery.submit(&job.line, &translation);
+            None
         }
     }
 }
 
-/// Runs one line along its route.
-fn translate<L: Llm>(
-    pipeline: &mut Pipeline<L>,
-    request: &LineRequest<'_>,
-    route: Route,
-    observer: &mut dyn Observer,
-    early: &mut dyn FnMut(Translation),
+/// How long a request waits for a slot before the log says so.
+const SLOT_WAIT_NOTED: Duration = Duration::from_millis(1);
+
+/// Takes a slot of the server, and notes in the log when that took a wait.
+fn take_slot<'a>(
+    slots: &'a ServerSlots,
+    id: &str,
+    stage: &'static str,
     sink: &mut dyn LogSink,
+) -> Held<'a> {
+    let (held, waited) = slots.take();
+    if waited >= SLOT_WAIT_NOTED {
+        sink.emit(
+            LogEvent::new(Level::Debug, "translate.slot.waited", "worker")
+                .with("id", id)
+                .with("stage", stage)
+                .with("duration_ms", u64::try_from(waited.as_millis()).ok()),
+        );
+    }
+    held
+}
+
+/// Runs `run` with the observer of the line `id`: the developer's file when
+/// the run was asked to write one, otherwise one that sees nothing.
+fn with_observer<L: Llm, R>(
+    parts: &LaneParts<L>,
+    id: &str,
+    run: impl FnOnce(&mut dyn Observer) -> R,
+) -> R {
+    match parts.verify_dump.as_ref() {
+        Some(dump) => run(&mut dump.observer(id)),
+        None => run(&mut NoObserver),
+    }
+}
+
+/// Asks T for the line of `job`, along its route, and publishes the draft
+/// when there is one.
+fn draft_line<L: Llm>(
+    pipeline: &mut Pipeline<L>,
+    parts: &LaneParts<L>,
+    job: &Job,
+    now_epoch: i64,
+    sink: &mut SharedSink,
+) -> Staged {
+    let request = job.line.request(job.src_lang, now_epoch);
+    let mut drafts = sink.clone();
+    let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
+    let _slot = parts
+        .slots
+        .as_deref()
+        .map(|slots| take_slot(slots, &job.line.id, "t", sink));
+    with_observer(parts, &job.line.id, |observer| match job.route {
+        Route::Pair => pipeline.draft_staged(&request, observer, &mut show_draft, sink),
+        Route::Other(target) => {
+            Staged::Settled(pipeline.run_into(&request, &target, &mut show_draft, sink))
+        }
+    })
+}
+
+/// Asks E for a line T drafted and returns the settled translation.
+fn edit_line<L: Llm>(
+    pipeline: &mut Pipeline<L>,
+    parts: &LaneParts<L>,
+    job: &Job,
+    now_epoch: i64,
+    drafted: Drafted,
+    sink: &mut SharedSink,
 ) -> Translation {
-    match route {
-        Route::Pair => pipeline.run_staged(request, observer, early, sink),
-        Route::Other(target) => pipeline.run_into(request, &target, early, sink),
+    let request = job.line.request(job.src_lang, now_epoch);
+    let _slot = parts
+        .slots
+        .as_deref()
+        .map(|slots| take_slot(slots, &job.line.id, "e", sink));
+    with_observer(parts, &job.line.id, |observer| {
+        pipeline.finish_staged(&request, drafted, observer, sink)
+    })
+}
+
+/// Settles a line (asking E if T left it to E), publishes the settled
+/// translation and hands it to the outputs.
+fn settle_line<L: Llm>(
+    pipeline: &mut Pipeline<L>,
+    parts: &LaneParts<L>,
+    pending: Pending,
+    sink: &mut SharedSink,
+) {
+    let Pending {
+        job,
+        now_epoch,
+        staged,
+    } = pending;
+    let translation = match staged {
+        Staged::Settled(done) => done,
+        Staged::Drafted(drafted) => edit_line(pipeline, parts, &job, now_epoch, drafted, sink),
+    };
+    publish(&parts.hub, &translation, sink);
+    // The subtitle file and the outside destinations carry the live pair
+    // only; another language is for the screens.
+    if job.route == Route::Pair {
+        parts.delivery.submit(&job.line, &translation);
+    }
+}
+
+/// Settles the lines the thread of T hands over, one after another, until
+/// that thread ends. Every line of the lane passes through here, so the
+/// settled translations of a lane come in the order its lines arrived.
+fn run_edits<L: Llm>(pending: Receiver<Pending>, parts: &LaneParts<L>, mut sink: SharedSink) {
+    let Some(mut pipeline) = open_pipeline(&parts.make, &mut sink) else {
+        return;
+    };
+    for line in pending {
+        settle_line(&mut pipeline, parts, line, &mut sink);
+    }
+}
+
+/// Starts the thread that asks E for the lane. `None` when it cannot be
+/// started; the lane then asks E itself.
+fn spawn_editor<L: Llm + 'static>(
+    parts: &Arc<LaneParts<L>>,
+    sink: &mut SharedSink,
+) -> Option<Sender<Pending>> {
+    let (hand_over, pending) = mpsc::channel();
+    let (parts, thread_sink) = (Arc::clone(parts), sink.clone());
+    let started = std::thread::Builder::new()
+        .name(String::from("relay-edit"))
+        .spawn(move || run_edits(pending, &parts, thread_sink));
+    if started.is_err() {
+        sink.emit(
+            LogEvent::new(Level::Error, "translate.lane.failed", "worker").with_error("SPAWN"),
+        );
+        return None;
+    }
+    Some(hand_over)
+}
+
+/// Hands a line to the thread that asks E. A line that cannot be handed over
+/// (the lane has no such thread, or it has ended) is settled here.
+fn pass_on<L: Llm>(
+    pending: Pending,
+    editor: Option<&Sender<Pending>>,
+    pipeline: &mut Pipeline<L>,
+    parts: &LaneParts<L>,
+    sink: &mut SharedSink,
+) {
+    let unsent = match editor {
+        Some(editor) => match editor.send(pending) {
+            Ok(()) => return,
+            Err(refused) => refused.0,
+        },
+        None => pending,
+    };
+    settle_line(pipeline, parts, unsent, sink);
+}
+
+/// Asks T for the jobs of one lane, one after another, until the router
+/// ends. A lane of the live pair hands each line on to a thread of its own
+/// that asks E, so that the next line's T is not queued behind this line's E.
+fn run_lane<L: Llm + 'static>(
+    jobs: Receiver<Job>,
+    parts: Arc<LaneParts<L>>,
+    route: Route,
+    mut sink: SharedSink,
+) {
+    let Some(mut pipeline) = open_pipeline(&parts.make, &mut sink) else {
+        return;
+    };
+    let editor = match route {
+        Route::Pair => spawn_editor(&parts, &mut sink),
+        Route::Other(_) => None,
+    };
+    for job in jobs {
+        let now_epoch = parts.clock.now_epoch();
+        let staged = draft_line(&mut pipeline, &parts, &job, now_epoch, &mut sink);
+        let pending = Pending {
+            job,
+            now_epoch,
+            staged,
+        };
+        pass_on(pending, editor.as_ref(), &mut pipeline, &parts, &mut sink);
     }
 }
 
@@ -281,21 +439,17 @@ fn run_partials<L: Llm>(
     mailbox: &Mailbox,
     hub: &Hub,
     make: &MakePipeline<L>,
+    slots: &ServerSlots,
     clock: RunClock,
     mut sink: SharedSink,
 ) {
-    let mut pipeline = match make(&mut sink) {
-        Ok(pipeline) => pipeline,
-        Err(_) => {
-            sink.emit(
-                LogEvent::new(Level::Error, "translate.lane.failed", "worker").with_error("OPEN"),
-            );
-            return;
-        }
+    let Some(mut pipeline) = open_pipeline(make, &mut sink) else {
+        return;
     };
     loop {
         let (job, wanted) = mailbox.take();
         let request = job.request(clock.now_epoch());
+        let _slot = take_slot(slots, request.id, "partial", &mut sink);
         let outcome = pipeline.translate_partial(&request, &wanted, &mut sink);
         if let PartialOutcome::Shown(translation) = outcome
             && wanted.still()
@@ -330,12 +484,13 @@ fn spawn_partials<L: Llm + 'static>(
     mailbox: Arc<Mailbox>,
     hub: Hub,
     make: MakePipeline<L>,
+    llama: Arc<ServerSlots>,
     clock: RunClock,
     sink: SharedSink,
 ) -> io::Result<()> {
     std::thread::Builder::new()
         .name(String::from("relay-partial"))
-        .spawn(move || run_partials(&mailbox, &hub, &make, clock, sink))?;
+        .spawn(move || run_partials(&mailbox, &hub, &make, &llama, clock, sink))?;
     Ok(())
 }
 
@@ -348,21 +503,25 @@ struct Router<L: Llm + 'static> {
     delivery: Delivery,
     clock: RunClock,
     verify_dump: Option<VerifyDump>,
+    /// The slots of the live pair's server, shared by its lanes and the
+    /// translation of the text in progress.
+    llama: Arc<ServerSlots>,
     sink: SharedSink,
 }
 
 impl<L: Llm + 'static> Router<L> {
     fn open_lane(&self, route: Route) -> Sender<Job> {
         let (jobs, receiver) = mpsc::channel();
-        let parts = LaneParts {
+        let parts = Arc::new(LaneParts {
             make: self.makers.for_route(route),
             hub: self.hub.clone(),
             delivery: self.delivery.clone(),
             clock: self.clock,
             verify_dump: self.verify_dump.clone(),
-        };
+            slots: matches!(route, Route::Pair).then(|| Arc::clone(&self.llama)),
+        });
         let sink = self.sink.clone();
-        std::thread::spawn(move || run_lane(receiver, &parts, sink));
+        std::thread::spawn(move || run_lane(receiver, parts, route, sink));
         jobs
     }
 
@@ -623,6 +782,7 @@ fn open_partials<L: Llm + 'static>(
     partials: PartialTranslation,
     hub: &Hub,
     make: &MakePipeline<L>,
+    llama: &Arc<ServerSlots>,
     clock: RunClock,
     sink: &SharedSink,
 ) -> io::Result<Option<Arc<Mailbox>>> {
@@ -634,6 +794,7 @@ fn open_partials<L: Llm + 'static>(
         Arc::clone(&mailbox),
         hub.clone(),
         Arc::clone(make),
+        Arc::clone(llama),
         clock,
         sink.clone(),
     )?;
@@ -672,7 +833,8 @@ pub fn start_handle<L: Llm + 'static>(
     let address = hub::serve_while(listener, hub.clone(), Arc::clone(&running))?;
     let delivery = Delivery::start(outputs, hub.clone(), sink.clone())?;
     let clock = RunClock::new(config.started_epoch);
-    let mailbox = open_partials(partials, &hub, &makers.pair, clock, &sink)?;
+    let llama = Arc::new(ServerSlots::new(LLAMA_SLOTS));
+    let mailbox = open_partials(partials, &hub, &makers.pair, &llama, clock, &sink)?;
     let (lines, incoming) = mpsc::channel();
     let router = Router {
         slots: Default::default(),
@@ -683,6 +845,7 @@ pub fn start_handle<L: Llm + 'static>(
         delivery,
         clock,
         verify_dump: config.verify_dump,
+        llama,
         sink: sink.clone(),
     };
     std::thread::Builder::new()
@@ -709,6 +872,7 @@ pub fn start_handle<L: Llm + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logging::MemorySink;
 
     #[test]
     fn each_source_has_its_own_lane_unless_there_is_one_lane() {
@@ -773,6 +937,51 @@ mod tests {
     #[test]
     fn a_translate_with_nothing_the_table_has_routes_a_japanese_line_nowhere() {
         assert!(routes(Lang::Ja, Some(&[])).is_empty());
+    }
+
+    #[test]
+    fn a_free_slot_is_taken_without_a_note() {
+        let slots = ServerSlots::new(1);
+        let mut sink = MemorySink::default();
+        drop(take_slot(&slots, "mic-1", "t", &mut sink));
+        assert!(sink.events.is_empty());
+    }
+
+    #[test]
+    fn a_wait_for_a_slot_is_noted_with_the_line_and_the_stage() -> Result<(), String> {
+        let slots = Arc::new(ServerSlots::new(1));
+        let (held, _) = slots.take();
+        let waiter = {
+            let slots = Arc::clone(&slots);
+            std::thread::spawn(move || {
+                let mut sink = MemorySink::default();
+                drop(take_slot(&slots, "mic-2", "e", &mut sink));
+                sink.events
+            })
+        };
+        std::thread::sleep(Duration::from_millis(50));
+        drop(held);
+        let events = waiter
+            .join()
+            .map_err(|_| String::from("the waiter panicked"))?;
+        let [event] = events.as_slice() else {
+            return Err(format!("{} events, not 1", events.len()));
+        };
+        assert_eq!(event.event, "translate.slot.waited");
+        assert_eq!(event.fields.get("id"), Some(&serde_json::json!("mic-2")));
+        assert_eq!(event.fields.get("stage"), Some(&serde_json::json!("e")));
+        assert!(event.fields.contains_key("duration_ms"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_slot_wait_is_worded_in_both_locales() -> Result<(), String> {
+        for lang in [Lang::Ja, Lang::En] {
+            let strings = Strings::embedded(lang)?;
+            let said = strings.message_for("translate.slot.waited");
+            assert_ne!(said, "translate.slot.waited", "{lang:?}");
+        }
+        Ok(())
     }
 
     #[test]

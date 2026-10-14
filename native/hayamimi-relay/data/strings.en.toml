@@ -95,6 +95,7 @@ label = "m²"
 "translate.partial.failed" = "The translator could not be reached for the text in progress"
 "translate.partial.skipped" = "The text in progress is not translated"
 "translate.partial.kept" = "The translation would take away characters already drawn in the settled form; the screen keeps the earlier one"
+"translate.slot.waited" = "Every slot of the translator was busy; the request waited for one to be free"
 
 [cli]
 usage = """usage:
