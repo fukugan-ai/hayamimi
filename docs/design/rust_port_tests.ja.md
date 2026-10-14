@@ -381,7 +381,7 @@ fixture の python は ja 0.038、en 0.023、zh 0.066、ko 0.081、yue 0.061、L
 | T-RP-1-010 | 参照が空白と句読点だけ、hyp `x` | 参照の語が 0 個 | 0 | WER = 0。0 で割らない（derived、`wer_en` が語数 0 で 0.0） | 境界 | `wer_of_empty_reference_is_0` |
 | T-RP-1-011 | 参照 `學習`、hyp `学习`（yue） | 繁体と簡体 | 0 | CER = 0（derived、yue は OpenCC の t2s を両側に掛けて採点する。Rust の t2s の道具は設計に無い） | 陽性 | `yue_cer_normalises_traditional_to_simplified` |
 | T-RP-1-012 | `<ev> scorecard --engine hayamimi --sets …` の結果 `rp01.json` | 実走 | 実走 | 言語ごとの平均の誤り率が Python 以下、LID も以上（specified、RP-1）。`rp01.json` に `model.fallback.*` の event が 1 件でも在れば、既定の経路を測っていないので `Err` でその event を名指しする（specified、設計 8 の「07:00 の計画」の R3 の着手の 4） | 陽性 | `hayamimi_scorecard_not_worse_than_python` |
-| T-RP-1-013 | 句読点の段を外した設定の `rp01.json`（口は実装の席が置く） | 実走の陰性 | 実走 | ja が Python より悪く、`check_scorecard` が `Err` で ja を名指し（specified、RP-1 の陰性対照） | 陰性 | `punctuation_off_run_is_worse_than_python_in_ja` |
+| T-RP-1-013 | 振り分けで ja の clip を SenseVoice の tier へ送る build の `rp01.json`（口は実装の席が置く。振り分けの出力を ja の clip だけ SenseVoice の tier に差し替える。ja の clip は 15 本、LID は ja の clip ごとに数える） | 実走の陰性。ja の clip の tier だけを替え、ほかの言語の経路は T-RP-1-012 の run と同じ | 実走 | `check_scorecard` が `Err` で ja を名指しする。ja の平均の CER を小数 3 桁へ丸めた値が 0.038 を超え、ja の LID の正解の数が 15 を割る（specified、RP-1 の陰性対照）。参考値は R3b の検証の席の申告で、clip ごとに session を戻すと ja_02 が zh と読まれた時の ja の誤り率 75147（百万分率、0.075）と LID 14（転記。この build で打ち直すまで NOT VERIFIED。合否には使わず、`Err` と上の 2 つの不等号で決める） | 陰性（T-RP-1-012 の同じ組が通ることが対。ja の名指しは、ja 以外の 4 言語の平均が T-RP-1-012 の run と同じで `Err` に入らないことで確かめる）、陽性（T-RP-1-005 が LID 14 を、T-RP-1-002 が ja の 0.039 を、同じ `check_scorecard` で落とす） | `sensevoice_routed_ja_run_is_worse_than_python_in_ja` |
 
 ### 4.12 RP-2（ja の golden 8 本）
 
