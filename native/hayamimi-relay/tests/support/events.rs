@@ -18,12 +18,15 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use hayamimi_relay::deliver::{Caption, Destination, Outputs, SendError, Words};
 use hayamimi_relay::follow::{Backoff, follow};
 use hayamimi_relay::hub;
+use hayamimi_relay::lang::Lang;
 use hayamimi_relay::llm::{Completion, Llm, LlmError};
 use hayamimi_relay::logging::{LogEvent, LogSink, SharedSink};
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig, sha256_hex};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
+use hayamimi_relay::strings::Strings;
 use serde_json::{Value, json};
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -410,6 +413,12 @@ impl Logs {
     }
 }
 
+/// Whether `value` is a translation event, and whether it is the settled one
+/// of its line (the other is a draft).
+fn is_translation(value: &Value, settled: bool) -> bool {
+    value["type"] == "translation" && value["settled"] == settled
+}
+
 /// What the relay published, with the time each event arrived.
 #[derive(Clone, Default)]
 pub struct Collected(Arc<Mutex<Vec<(Instant, Value)>>>);
@@ -419,10 +428,31 @@ impl Collected {
         locked(&self.0).clone()
     }
 
-    /// Waits for `count` events, or for `timeout`, and returns what arrived.
+    fn settled_count(&self) -> usize {
+        locked(&self.0)
+            .iter()
+            .filter(|(_, value)| is_translation(value, true))
+            .count()
+    }
+
+    /// Waits for `count` settled translations, or for `timeout`, and returns
+    /// everything that arrived, drafts included.
     pub fn wait_for(&self, count: usize, timeout: Duration) -> Vec<(Instant, Value)> {
         let deadline = Instant::now() + timeout;
-        while locked(&self.0).len() < count && Instant::now() < deadline {
+        while self.settled_count() < count && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        self.snapshot()
+    }
+
+    /// Waits until `done` is true of what arrived, or for `timeout`.
+    pub fn wait_until(
+        &self,
+        done: impl Fn(&[(Instant, Value)]) -> bool,
+        timeout: Duration,
+    ) -> Vec<(Instant, Value)> {
+        let deadline = Instant::now() + timeout;
+        while !done(&self.snapshot()) && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(5));
         }
         self.snapshot()
@@ -476,13 +506,12 @@ pub struct Running {
 }
 
 /// Starts a relay that follows `events`, translates with `llm` in `lanes`, and
-/// whose stream is already being collected.
+/// whose stream is already being collected. Nothing leaves it but the stream.
 pub fn run_relay(
     events: Vec<String>,
     lanes: Lanes,
     llm: Arc<FakeLlm>,
 ) -> Result<Running, io::Error> {
-    let logs = Logs::default();
     let make: MakePipeline<SharedLlm> = Arc::new(move |sink: &mut dyn LogSink| {
         Pipeline::open(
             SharedLlm(Arc::clone(&llm)),
@@ -490,6 +519,18 @@ pub fn run_relay(
             sink,
         )
     });
+    run_relay_with(events, lanes, make, outputs(Vec::new(), None)?)
+}
+
+/// Starts a relay like [`run_relay`] with the translator and the outputs the
+/// test gives.
+pub fn run_relay_with<L: Llm + 'static>(
+    events: Vec<String>,
+    lanes: Lanes,
+    make: MakePipeline<L>,
+    outputs: Outputs,
+) -> Result<Running, io::Error> {
+    let logs = Logs::default();
     let config = RelayConfig {
         events,
         lanes,
@@ -499,7 +540,8 @@ pub fn run_relay(
         },
         started_epoch: 1_790_000_000,
     };
-    let address = relay::start(hub::bind(0)?, config, make, SharedSink::new(logs.clone()))?;
+    let sink = SharedSink::new(logs.clone());
+    let address = relay::start_with(hub::bind(0)?, config, make, sink, outputs)?;
     Ok(Running {
         translations: collect_from(address)?,
         logs,
@@ -512,11 +554,96 @@ pub fn unused_port() -> io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-/// The translations among the events of a stream, with their arrival times.
+/// The settled translations among the events of a stream, with their arrival
+/// times.
 pub fn translations_of(got: &[(Instant, Value)]) -> Vec<&(Instant, Value)> {
     got.iter()
-        .filter(|(_, value)| value["type"] == "translation")
+        .filter(|(_, value)| is_translation(value, true))
         .collect()
+}
+
+/// The drafts among the events of a stream: translations not yet settled.
+pub fn drafts_of(got: &[(Instant, Value)]) -> Vec<&(Instant, Value)> {
+    got.iter()
+        .filter(|(_, value)| is_translation(value, false))
+        .collect()
+}
+
+// ---- outputs -----------------------------------------------------------------
+
+/// A written-to buffer the test can read back.
+#[derive(Clone, Default)]
+pub struct Buffer(Arc<Mutex<Vec<u8>>>);
+
+impl Write for Buffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        locked(&self.0).extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Buffer {
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&locked(&self.0)).into_owned()
+    }
+}
+
+/// A destination that records every caption it is sent, and can be told to be
+/// down.
+#[derive(Clone)]
+pub struct Recording {
+    sent: Arc<Mutex<Vec<Caption>>>,
+    up: Arc<AtomicBool>,
+}
+
+impl Recording {
+    pub fn new(up: bool) -> Recording {
+        Recording {
+            sent: Arc::default(),
+            up: Arc::new(AtomicBool::new(up)),
+        }
+    }
+
+    pub fn set_up(&self, up: bool) {
+        self.up.store(up, Ordering::SeqCst);
+    }
+
+    /// The captions it took.
+    pub fn sent(&self) -> Vec<Caption> {
+        locked(&self.sent).clone()
+    }
+}
+
+impl Destination for Recording {
+    fn name(&self) -> &'static str {
+        "recording"
+    }
+
+    fn send(&mut self, caption: &Caption) -> Result<(), SendError> {
+        if !self.up.load(Ordering::SeqCst) {
+            return Err(SendError::Unreachable);
+        }
+        locked(&self.sent).push(caption.clone());
+        Ok(())
+    }
+}
+
+/// The outputs of a run: the destinations, the subtitle file when there is
+/// one, and the English words.
+pub fn outputs(
+    destinations: Vec<Box<dyn Destination>>,
+    srt: Option<Box<dyn Write + Send>>,
+) -> Result<Outputs, io::Error> {
+    let strings = Strings::embedded(Lang::En).map_err(io::Error::other)?;
+    Ok(Outputs {
+        destinations,
+        srt,
+        words: Words::from_strings(&strings),
+    })
 }
 
 /// The one translation of `line` among `translations`.

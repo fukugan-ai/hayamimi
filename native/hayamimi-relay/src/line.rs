@@ -75,7 +75,7 @@ impl Skip {
 }
 
 /// One line to translate.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Line {
     pub kind: LineKind,
     pub id: String,
@@ -83,6 +83,14 @@ pub struct Line {
     /// `None` for a language the relay does not translate.
     pub lang: Option<Lang>,
     pub text: String,
+    /// Start and end of the utterance in seconds, when the event carries both.
+    pub span: Option<(f64, f64)>,
+}
+
+fn span_of(event: &Value) -> Option<(f64, f64)> {
+    let start = event.get("t0_s")?.as_f64()?;
+    let end = event.get("t1_s")?.as_f64()?;
+    Some((start, end))
 }
 
 fn string_of<'a>(event: &'a Value, key: &str) -> Option<&'a str> {
@@ -120,6 +128,7 @@ pub fn parse_line(json: &str) -> Result<Option<Line>, Skip> {
         source,
         lang: Lang::from_code(lang),
         text: text.to_owned(),
+        span: span_of(&event),
     }))
 }
 
@@ -173,8 +182,21 @@ mod tests {
                 source: Source::Mic,
                 lang: Some(Lang::Ja),
                 text: String::from("こんにちは。"),
+                span: Some((0.5, 1.5)),
             })
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_line_without_both_times_has_no_span() -> Result<(), Skip> {
+        let without_end =
+            r#"{"type":"final","id":"mic-2","source":"mic","lang":"ja","text":"あ","t0_s":0.5}"#;
+        let parsed = parse_line(without_end)?;
+        assert!(parsed.is_some_and(|found| found.span.is_none()));
+        let not_numbers = r#"{"type":"final","id":"mic-3","source":"mic","lang":"ja","text":"あ","t0_s":"0","t1_s":"1"}"#;
+        let parsed = parse_line(not_numbers)?;
+        assert!(parsed.is_some_and(|found| found.span.is_none()));
         Ok(())
     }
 
