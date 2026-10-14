@@ -73,11 +73,12 @@ label = "m²"
 "srt.cue.skipped" = "この行は SRT に書きません"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
 "translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
-"translate.eval.written" = "1 つの言語の訳を書き出しました"
+"translate.eval.held" = "この文の訳はどちらも採りませんでした"
+"translate.eval.written" ="1 つの言語の訳を書き出しました"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""

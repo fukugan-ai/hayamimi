@@ -109,6 +109,7 @@ fn r8a_the_relay_translates_a_final_event_served_by_this_programs_server() -> Te
         lanes: Lanes::PerSource,
         backoff: Backoff::STANDARD,
         started_epoch: 1_790_000_000,
+        translate: None,
     };
     let sink = SharedSink::new(OpenedFlag(Arc::clone(&opened)));
     let served = relay::start(relay_hub::bind(0)?, config, make, sink)?;

@@ -218,6 +218,60 @@ fn an_unlisted_language_is_left_out_with_an_event_and_the_others_go_on() -> Test
     Ok(())
 }
 
+/// The pair of the test above: when every language of the directory is in the
+/// table, nothing is said to be left out. The written event is counted too,
+/// so that a count of none is not a misspelt event name.
+#[test]
+fn pairs_of_listed_languages_only_emit_no_skipped_event() -> TestResult {
+    let rows = [
+        ("en", "こんにちは。", "Hello.", "Hello there."),
+        ("zh", "猫が寝ています。", "猫在睡觉。", "猫在睡觉。"),
+        ("ko", "犬が走ります。", "개가 달려요.", "개가 달려요."),
+        (
+            "es",
+            "鳥が飛びます。",
+            "El pájaro vuela.",
+            "El pájaro vuela.",
+        ),
+    ];
+    let server = scripted_server(
+        rows.iter()
+            .map(|(_, source, translation, edit)| Row {
+                source,
+                translation,
+                edit,
+            })
+            .collect(),
+    )?;
+    let files: Vec<(String, String)> = rows
+        .iter()
+        .map(|(code, source, _, _)| (format!("{code}.ja.txt"), format!("{source}\n")))
+        .collect();
+    let named: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    let pairs = pairs_dir(&named)?;
+    let out = TempDir::new("r8f-out")?;
+    let mut sink = MemorySink::default();
+    let report = run_eval(&server, &pairs, &out, &mut sink)?;
+    assert!(report.skipped.is_empty(), "{:?}", report.skipped);
+    let count = |name: &str| {
+        sink.events
+            .iter()
+            .filter(|event| event.event == name)
+            .count()
+    };
+    assert_eq!(count(eval::SKIPPED_EVENT), 0);
+    assert_eq!(count(eval::WRITTEN_EVENT), 4);
+    for (code, ..) in &rows {
+        assert!(out.join(&format!("{code}.hyp.txt")).exists(), "{code}");
+    }
+    // T and E for each of the four languages.
+    assert_eq!(server.requests().len(), 8);
+    Ok(())
+}
+
 /// A translator that does not answer stops the run: no file is written, so a
 /// score cannot be taken over empty answers.
 #[test]

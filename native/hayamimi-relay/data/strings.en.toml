@@ -78,11 +78,12 @@ label = "m²"
 "srt.cue.skipped" = "A line has no cue in the subtitle file"
 "srt.output.failed" = "The subtitle file could not be written; it is left out"
 "translate.fallback.skipped" = "The translator does not write this language; it is left out and the others go on"
-"translate.eval.written" = "The translations of one language were written"
+"translate.eval.held" = "No translation of this sentence was kept"
+"translate.eval.written" ="The translations of one language were written"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>]
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--translate <codes>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <name>] [--out <file>] [--source-url <url>]"""

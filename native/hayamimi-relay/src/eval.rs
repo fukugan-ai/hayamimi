@@ -26,6 +26,8 @@ use crate::verify::{Verdict, Verifier, contains_eos};
 
 /// The log event of a language that is left out.
 pub const SKIPPED_EVENT: &str = "translate.fallback.skipped";
+/// The log event of a sentence whose translations were both withheld.
+pub const HELD_EVENT: &str = "translate.eval.held";
 /// The log event of one language's file written.
 pub const WRITTEN_EVENT: &str = "translate.eval.written";
 /// The reason of the skipped event.
@@ -180,29 +182,50 @@ impl<'a, L: Llm> Translator<'a, L> {
         self.llm.complete(&Completion::new(prompt, MAX_TOKENS))
     }
 
-    fn passes(&mut self, src: &str, text: &str, target: &Target, sink: &mut dyn LogSink) -> bool {
-        self.verifier.verify_into(src, text, Lang::Ja, target, sink) == Verdict::Ok
+    fn verdict(
+        &mut self,
+        src: &str,
+        text: &str,
+        target: &Target,
+        sink: &mut dyn LogSink,
+    ) -> Verdict {
+        self.verifier.verify_into(src, text, Lang::Ja, target, sink)
     }
 
-    /// The settled translation of one Japanese sentence, or `None` when it
-    /// is withheld.
+    /// The settled translation of one Japanese sentence (line `line` of its
+    /// file, counted from 1), or `None` when it is withheld.
     fn settle(
         &mut self,
         target: &Target,
+        line: usize,
         src: &str,
         sink: &mut dyn LogSink,
     ) -> Result<Option<String>, LlmError> {
         let first = self.ask(&translate_prompt_to(Lang::Ja, target, src))?;
         if contains_eos(&first) {
+            sink.emit(held_event(target, line, ["form", "-"]));
             return Ok(None);
         }
         let draft = first.trim();
-        let draft_ok = self.passes(src, draft, target, sink);
+        let draft_verdict = self.verdict(src, draft, target, sink);
         let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
         let second = self.ask(&prompt)?;
         let edited = second.trim();
-        let edited_ok = self.passes(src, edited, target, sink);
-        Ok(settled_text(draft, draft_ok, edited, edited_ok))
+        let edited_verdict = self.verdict(src, edited, target, sink);
+        let settled = settled_text(
+            draft,
+            draft_verdict == Verdict::Ok,
+            edited,
+            edited_verdict == Verdict::Ok,
+        );
+        if settled.is_none() {
+            sink.emit(held_event(
+                target,
+                line,
+                [reason_of(draft_verdict), reason_of(edited_verdict)],
+            ));
+        }
+        Ok(settled)
     }
 
     /// The settled translations of every line of one pairs file.
@@ -216,7 +239,7 @@ impl<'a, L: Llm> Translator<'a, L> {
         let mut lines = Vec::new();
         for (index, src) in text.lines().enumerate() {
             let line = self
-                .settle(target, src, sink)
+                .settle(target, index + 1, src, sink)
                 .map_err(|source| EvalError::Llm {
                     code: target.code,
                     line: index + 1,
@@ -228,13 +251,32 @@ impl<'a, L: Llm> Translator<'a, L> {
     }
 }
 
-fn skipped_event(code: &str) -> LogEvent {
+/// The warning that `code` is a language the translator does not write.
+pub fn skipped_event(code: &str) -> LogEvent {
     let mut event = LogEvent::new(Level::Warn, SKIPPED_EVENT, "service")
         .with("stage", STAGE)
         .with("reason", UNSUPPORTED)
         .with("target", code);
     event.error_code = Some(ERROR_CODE.to_owned());
     event
+}
+
+/// The wire name of a verdict: the hold reason, or `ok`.
+fn reason_of(verdict: Verdict) -> &'static str {
+    match verdict {
+        Verdict::Ok => "ok",
+        Verdict::Held(reason) => reason.as_str(),
+    }
+}
+
+/// A sentence that no translation of was kept: the verdicts of T and E, in
+/// that order, and no text.
+fn held_event(target: &Target, line: usize, reasons: [&str; 2]) -> LogEvent {
+    LogEvent::new(Level::Info, HELD_EVENT, "service")
+        .with("target", target.code)
+        .with("line", line)
+        .with("draft", reasons[0])
+        .with("edit", reasons[1])
 }
 
 fn written_event(written: &Written) -> LogEvent {
@@ -336,6 +378,23 @@ mod tests {
             Some(&serde_json::json!("unsupported_target"))
         );
         assert_eq!(event.fields.get("target"), Some(&serde_json::json!("xx")));
+    }
+
+    #[test]
+    fn the_held_event_names_the_line_and_both_verdicts_and_no_text() {
+        let Some(target) = Target::from_code("ko") else {
+            panic!("ko is not in the table");
+        };
+        let event = held_event(&target, 7, [reason_of(Verdict::Ok), "form"]);
+        assert_eq!(event.event, HELD_EVENT);
+        assert_eq!(event.fields.get("target"), Some(&serde_json::json!("ko")));
+        assert_eq!(event.fields.get("line"), Some(&serde_json::json!(7)));
+        assert_eq!(event.fields.get("draft"), Some(&serde_json::json!("ok")));
+        assert_eq!(event.fields.get("edit"), Some(&serde_json::json!("form")));
+        assert_eq!(
+            reason_of(Verdict::Held(crate::verify::HoldReason::Negation)),
+            "negation"
+        );
     }
 
     #[test]

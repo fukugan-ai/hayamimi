@@ -76,40 +76,84 @@ pub struct FormRules {
     pub prefixes: Vec<String>,
 }
 
+/// How the markers of a language are looked for in a text.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Scan {
+    /// Anywhere in the text: languages written without spaces between words,
+    /// or with endings glued to the stem.
+    Substring,
+    /// As whole words of the lower-cased text.
+    Words,
+}
+
+impl Scan {
+    fn of(lang: Lang) -> Scan {
+        match lang {
+            Lang::Ja => Scan::Substring,
+            Lang::En => Scan::Words,
+        }
+    }
+}
+
 /// `verify_markers.toml`.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Markers {
     pub form: FormRules,
     pub ja: LangMarkers,
     pub en: LangMarkers,
+    /// The languages of `--translate` that have a table of their own. A
+    /// language without one is not checked for negation and uncertainty.
+    #[serde(default)]
+    pub zh: Option<LangMarkers>,
+    #[serde(default)]
+    pub ko: Option<LangMarkers>,
+    #[serde(default)]
+    pub es: Option<LangMarkers>,
 }
 
 impl Markers {
-    /// Parses the table. English entries are lower-cased and every exclude
-    /// list is ordered longest first, so the longest phrase is removed first.
+    /// Parses the table. The entries of the word-matched languages are
+    /// lower-cased and every exclude list is ordered longest first, so the
+    /// longest phrase is removed first.
     pub fn parse(bytes: &[u8]) -> Result<Markers, String> {
         let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
         let mut markers: Markers = toml::from_str(text).map_err(|error| error.to_string())?;
-        for set in [&mut markers.en.negation, &mut markers.en.uncertainty] {
-            for list in [&mut set.markers, &mut set.suffixes, &mut set.exclude] {
-                for entry in list.iter_mut() {
-                    *entry = entry.to_lowercase();
-                }
-            }
-        }
         for prefix in &mut markers.form.prefixes {
             *prefix = prefix.to_lowercase();
         }
-        for set in [
-            &mut markers.ja.negation,
-            &mut markers.ja.uncertainty,
-            &mut markers.en.negation,
-            &mut markers.en.uncertainty,
-        ] {
-            set.exclude
-                .sort_by_key(|entry| std::cmp::Reverse(entry.chars().count()));
+        let mut word_matched = vec![&mut markers.en];
+        word_matched.extend(markers.es.as_mut());
+        for table in word_matched {
+            for set in [&mut table.negation, &mut table.uncertainty] {
+                for list in [&mut set.markers, &mut set.suffixes, &mut set.exclude] {
+                    for entry in list.iter_mut() {
+                        *entry = entry.to_lowercase();
+                    }
+                }
+            }
+        }
+        let mut tables = vec![&mut markers.ja, &mut markers.en];
+        tables.extend(markers.zh.as_mut());
+        tables.extend(markers.ko.as_mut());
+        tables.extend(markers.es.as_mut());
+        for table in tables {
+            for set in [&mut table.negation, &mut table.uncertainty] {
+                set.exclude
+                    .sort_by_key(|entry| std::cmp::Reverse(entry.chars().count()));
+            }
         }
         Ok(markers)
+    }
+
+    /// The table of a language of `--translate` and how it is scanned; `None`
+    /// for a language without one.
+    fn table_for(&self, code: &str) -> Option<(&LangMarkers, Scan)> {
+        match code {
+            "zh" => self.zh.as_ref().map(|table| (table, Scan::Substring)),
+            "ko" => self.ko.as_ref().map(|table| (table, Scan::Substring)),
+            "es" => self.es.as_ref().map(|table| (table, Scan::Words)),
+            _ => None,
+        }
     }
 
     fn embedded() -> Result<Markers, String> {
@@ -160,16 +204,12 @@ pub fn verify_with(
         Lang::Ja => (&markers.ja, &markers.en),
         Lang::En => (&markers.en, &markers.ja),
     };
-    let flag = |set: &MarkerSet, lang: Lang, text: &str| has_marker(set, lang, text);
-    if flag(&src_markers.negation, src_lang, src)
-        != flag(&dst_markers.negation, src_lang.other(), translation)
-    {
-        return Verdict::Held(HoldReason::Negation);
-    }
-    if flag(&src_markers.uncertainty, src_lang, src)
-        != flag(&dst_markers.uncertainty, src_lang.other(), translation)
-    {
-        return Verdict::Held(HoldReason::Uncertainty);
+    let (src_side, dst_side) = (
+        (src_markers, Scan::of(src_lang)),
+        (dst_markers, Scan::of(src_lang.other())),
+    );
+    if let Some(reason) = marker_mismatch(src_side, dst_side, src, translation) {
+        return Verdict::Held(reason);
     }
     if !proper_nouns_ok(glossary, src, translation, src_lang) {
         return Verdict::Held(HoldReason::ProperNoun);
@@ -177,11 +217,31 @@ pub fn verify_with(
     Verdict::Ok
 }
 
+/// The first of negation and uncertainty on which the source and the
+/// translation disagree, each side read with its own table and scan.
+fn marker_mismatch(
+    (src_table, src_scan): (&LangMarkers, Scan),
+    (dst_table, dst_scan): (&LangMarkers, Scan),
+    src: &str,
+    translation: &str,
+) -> Option<HoldReason> {
+    let negation = has_marker(&src_table.negation, src_scan, src)
+        != has_marker(&dst_table.negation, dst_scan, translation);
+    if negation {
+        return Some(HoldReason::Negation);
+    }
+    let uncertainty = has_marker(&src_table.uncertainty, src_scan, src)
+        != has_marker(&dst_table.uncertainty, dst_scan, translation);
+    uncertainty.then_some(HoldReason::Uncertainty)
+}
+
 /// Verifies a translation into `target`. Into the other language of the live
 /// pair this is [`verify_with`]. Into any other language only what holds in
 /// every language is checked: the form, the numbers, and the Latin names a
 /// Japanese source carries. No table of negation or hedging markers exists for
-/// those languages, so those two checks are not made.
+/// those languages, so those two checks are not made. A language that has a
+/// table in `verify_markers.toml` (Chinese, Korean, Spanish) is also checked
+/// for negation and uncertainty against the table of the source language.
 pub fn verify_into(
     markers: &Markers,
     glossary: &Glossary,
@@ -199,10 +259,30 @@ pub fn verify_into(
     if numbers::compared_values(src) != numbers::compared_values(translation) {
         return Verdict::Held(HoldReason::Number);
     }
+    if let Some(reason) = marker_mismatch_into(markers, src, translation, src_lang, target) {
+        return Verdict::Held(reason);
+    }
     if src_lang == Lang::Ja && !latin_names_kept(src, translation) {
         return Verdict::Held(HoldReason::ProperNoun);
     }
     Verdict::Ok
+}
+
+/// [`marker_mismatch`] for a translation into `target`; `None` when the target
+/// has no table, which leaves negation and uncertainty unchecked.
+fn marker_mismatch_into(
+    markers: &Markers,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+    target: &Target,
+) -> Option<HoldReason> {
+    let dst_side = markers.table_for(target.code)?;
+    let src_table = match src_lang {
+        Lang::Ja => &markers.ja,
+        Lang::En => &markers.en,
+    };
+    marker_mismatch((src_table, Scan::of(src_lang)), dst_side, src, translation)
 }
 
 /// Whether every Latin word of a Japanese source stands in its translation.
@@ -285,15 +365,15 @@ fn wrapped_in_foreign_quotes(src: &str, text: &str) -> bool {
     })
 }
 
-fn has_marker(set: &MarkerSet, lang: Lang, text: &str) -> bool {
-    match lang {
-        Lang::Ja => {
+fn has_marker(set: &MarkerSet, scan: Scan, text: &str) -> bool {
+    match scan {
+        Scan::Substring => {
             let cleaned = remove_substrings(text, &set.exclude);
             set.markers
                 .iter()
                 .any(|marker| cleaned.contains(marker.as_str()))
         }
-        Lang::En => {
+        Scan::Words => {
             let lower = text.to_lowercase().replace('’', "'");
             let cleaned = remove_phrases(&lower, &set.exclude);
             set.suffixes
@@ -678,13 +758,130 @@ mod tests {
         Ok(())
     }
 
-    /// There is no marker table for Spanish, so a lost negation passes: the
+    /// There is no marker table for French, so a lost negation passes: the
     /// limit of the check, pinned so that it is not mistaken for a guarantee.
     #[test]
     fn negation_is_not_checked_into_a_language_without_a_marker_table()
     -> Result<(), Box<dyn std::error::Error>> {
-        let said = check_into("そこにいませんでした。", "Yo estaba allí.", "es")?;
+        let said = check_into("そこにいませんでした。", "J'étais là.", "fr")?;
         assert_eq!(said, Verdict::Ok);
+        Ok(())
+    }
+
+    /// The pairs of H36: a Japanese sentence, a translation that keeps its
+    /// negation or hedge, and one that drops it.
+    const NEGATION_CASES: [(&str, &str, &str, &str); 3] = [
+        (
+            "zh",
+            "そこにいませんでした。",
+            "我没有在那里。",
+            "我在那里。",
+        ),
+        (
+            "ko",
+            "そこにいませんでした。",
+            "저는 거기에 없었어요.",
+            "저는 거기에 있었어요.",
+        ),
+        (
+            "es",
+            "そこにいませんでした。",
+            "No estaba allí.",
+            "Estaba allí.",
+        ),
+    ];
+    const UNCERTAINTY_CASES: [(&str, &str, &str, &str); 3] = [
+        (
+            "zh",
+            "明日は雨かもしれません。",
+            "明天可能会下雨。",
+            "明天会下雨。",
+        ),
+        (
+            "ko",
+            "明日は雨かもしれません。",
+            "내일은 비가 올 수도 있어요.",
+            "내일은 비가 와요.",
+        ),
+        (
+            "es",
+            "明日は雨かもしれません。",
+            "Quizás llueva mañana.",
+            "Lloverá mañana.",
+        ),
+    ];
+
+    #[test]
+    fn a_translation_that_dropped_the_negation_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, src, kept, dropped) in NEGATION_CASES {
+            assert_eq!(check_into(src, kept, code)?, Verdict::Ok, "{code} kept");
+            assert_eq!(
+                check_into(src, dropped, code)?,
+                Verdict::Held(HoldReason::Negation),
+                "{code} dropped"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_translation_that_dropped_the_hedge_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, src, kept, dropped) in UNCERTAINTY_CASES {
+            assert_eq!(check_into(src, kept, code)?, Verdict::Ok, "{code} kept");
+            assert_eq!(
+                check_into(src, dropped, code)?,
+                Verdict::Held(HoldReason::Uncertainty),
+                "{code} dropped"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_negation_the_source_lacks_is_held_in_zh_ko_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (code, _, negated, plain) in NEGATION_CASES {
+            let said = check_into("そこにいました。", negated, code)?;
+            assert_eq!(said, Verdict::Held(HoldReason::Negation), "{code}");
+            assert_eq!(check_into("そこにいました。", plain, code)?, Verdict::Ok);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn words_that_only_look_like_negation_are_not_counted_in_zh_and_es()
+    -> Result<(), Box<dyn std::error::Error>> {
+        // "非常" (very), "不过" (however) and "sin embargo" are not negations.
+        let zh = check_into(
+            "とても大きいです。しかし高いです。",
+            "非常大。不过很贵。",
+            "zh",
+        )?;
+        assert_eq!(zh, Verdict::Ok);
+        let es = check_into("しかし大きいです。", "Sin embargo, es grande.", "es")?;
+        assert_eq!(es, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn spanish_markers_are_whole_words() -> Result<(), Box<dyn std::error::Error>> {
+        // "nota" holds "no" and "creó" is not "creo": neither is a marker.
+        let said = check_into("メモを書きました。", "Escribí una nota.", "es")?;
+        assert_eq!(said, Verdict::Ok);
+        let said = check_into("彼が作りました。", "Él lo creó.", "es")?;
+        assert_eq!(said, Verdict::Ok);
+        Ok(())
+    }
+
+    #[test]
+    fn the_embedded_table_has_zh_ko_and_es() -> Result<(), String> {
+        let markers = Markers::embedded()?;
+        for code in ["zh", "ko", "es"] {
+            assert!(markers.table_for(code).is_some(), "{code}");
+        }
+        assert!(markers.table_for("fr").is_none());
         Ok(())
     }
 

@@ -17,7 +17,7 @@ use crate::lang::Lang;
 use crate::llm::HttpLlm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
 use crate::pipeline::{Pipeline, PipelineConfig};
-use crate::relay::{self, Lanes, MakePipeline, RelayConfig};
+use crate::relay::{self, Lanes, MakePipeline, Relay, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::strings::Strings;
 
@@ -43,17 +43,23 @@ pub enum ScheduleAction {
     Remove,
 }
 
+/// What `live` was asked to do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Live {
+    pub events: Vec<String>,
+    pub llm: String,
+    pub serve: u16,
+    /// Where to write the settled translations as SRT cues.
+    pub srt: Option<PathBuf>,
+    /// The `--translate` codes, when the option is given.
+    pub translate: Option<Vec<String>>,
+}
+
 /// A parsed command line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     /// Follow the recognizers' events and serve the translations.
-    Run {
-        events: Vec<String>,
-        llm: String,
-        serve: u16,
-        /// Where to write the settled translations as SRT cues.
-        srt: Option<PathBuf>,
-    },
+    Run(Live),
     FxFetch {
         out: Option<PathBuf>,
         source_url: Option<String>,
@@ -98,32 +104,34 @@ impl CliError {
     }
 }
 
+/// The codes of a `--translate` value: comma separated, blanks around a code
+/// dropped, empty codes dropped.
+fn translate_codes(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|code| !code.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// What `live` was given. `llm` and `serve` start at the design's defaults;
 /// `events` stays empty until named and then falls to [`DEFAULT_EVENTS`].
-struct RunOptions {
-    events: Vec<String>,
-    llm: String,
-    serve: u16,
-    srt: Option<PathBuf>,
-}
-
-impl Default for RunOptions {
-    fn default() -> Self {
-        Self {
-            events: Vec::new(),
-            llm: DEFAULT_LLM.to_owned(),
-            serve: DEFAULT_SERVE,
-            srt: None,
-        }
-    }
-}
-
-fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
-    let mut options = RunOptions::default();
+fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
+    let mut options = Live {
+        events: Vec::new(),
+        llm: DEFAULT_LLM.to_owned(),
+        serve: DEFAULT_SERVE,
+        srt: None,
+        translate: None,
+    };
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
-        if !matches!(option, "--events" | "--llm" | "--serve" | "--srt") {
+        if !matches!(
+            option,
+            "--events" | "--llm" | "--serve" | "--srt" | "--translate"
+        ) {
             return Err(CliError::UnknownOption);
         }
         let value = rest.next().ok_or(CliError::MissingValue)?;
@@ -131,6 +139,13 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
             "--srt" => options.srt = Some(PathBuf::from(value)),
+            "--translate" => {
+                let codes = translate_codes(value);
+                if codes.is_empty() {
+                    return Err(CliError::MissingValue);
+                }
+                options.translate.get_or_insert_with(Vec::new).extend(codes);
+            }
             _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
@@ -138,18 +153,11 @@ fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
 }
 
 fn parse_run(args: &[String]) -> Result<Command, CliError> {
-    let options = parse_run_options(args)?;
-    let events = if options.events.is_empty() {
-        DEFAULT_EVENTS.map(str::to_owned).to_vec()
-    } else {
-        options.events
-    };
-    Ok(Command::Run {
-        events,
-        llm: options.llm,
-        serve: options.serve,
-        srt: options.srt,
-    })
+    let mut live = parse_run_options(args)?;
+    if live.events.is_empty() {
+        live.events = DEFAULT_EVENTS.map(str::to_owned).to_vec();
+    }
+    Ok(Command::Run(live))
 }
 
 fn parse_eval(args: &[String]) -> Result<Command, CliError> {
@@ -366,42 +374,51 @@ fn open_srt(
     }
 }
 
-fn run_relay(
-    events: Vec<String>,
-    llm: String,
-    serve: u16,
-    srt: Option<PathBuf>,
+/// Starts the relay `live` asks for and returns its handle. The relay works
+/// in threads of its own; the caller keeps the handle, and stops the relay
+/// with it or lets it end with the process.
+pub fn start_live(
+    live: &Live,
     now: i64,
     strings: &Strings,
-) -> u8 {
-    let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
-    let Ok(listener) = hub::bind(serve) else {
-        print_error(strings, "cannot_serve");
-        return 1;
-    };
+    sink: &SharedSink,
+) -> std::io::Result<Relay> {
+    let mut log = sink.clone();
+    let listener = hub::bind(live.serve)?;
     let config = RelayConfig {
-        events,
+        events: live.events.clone(),
         lanes: Lanes::PerSource,
         backoff: Backoff::STANDARD,
         started_epoch: now,
+        translate: live.translate.clone(),
     };
     let outputs = Outputs {
         destinations: Vec::new(),
-        srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
+        srt: live
+            .srt
+            .as_deref()
+            .and_then(|path| open_srt(path, &mut log, strings)),
         words: Words::from_strings(strings),
     };
-    let started = relay::start_with(
+    relay::start_handle(
         listener,
         config,
-        pipeline_factory(llm),
-        sink.clone(),
+        pipeline_factory(live.llm.clone()),
+        log,
         outputs,
-    );
-    let Ok(address) = started else {
+    )
+}
+
+fn run_relay(live: &Live, now: i64, strings: &Strings) -> u8 {
+    let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
+    let Ok(started) = start_live(live, now, strings, &sink) else {
         print_error(strings, "cannot_serve");
         return 1;
     };
-    announce_serving(serve, address, &mut sink, strings);
+    for code in started.skipped() {
+        eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
+    }
+    announce_serving(live.serve, started.address(), &mut sink, strings);
     // The relay works in threads of its own and ends with the process.
     loop {
         std::thread::park();
@@ -456,12 +473,7 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
     };
     let mut sink = StdoutSink::new(strings.clone());
     match command {
-        Command::Run {
-            events,
-            llm,
-            serve,
-            srt,
-        } => run_relay(events, llm, serve, srt, now_epoch, &strings),
+        Command::Run(live) => run_relay(&live, now_epoch, &strings),
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
         }
@@ -558,15 +570,16 @@ mod tests {
         ]));
         assert_eq!(
             parsed,
-            Ok(Command::Run {
+            Ok(Command::Run(Live {
                 events: vec![
                     String::from("http://a/events"),
                     String::from("http://b/events")
                 ],
                 llm: String::from("http://x:1"),
                 serve: 9100,
-                srt: None
-            })
+                srt: None,
+                translate: None,
+            }))
         );
     }
 
@@ -577,7 +590,7 @@ mod tests {
         ]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run { srt: Some(ref path), .. }) if path == Path::new("live.srt")
+            Ok(Command::Run(Live { srt: Some(ref path), .. })) if path == Path::new("live.srt")
         ));
         assert_eq!(
             parse_args(&args(&["run", "--llm", "u", "--serve", "0", "--srt"])),
@@ -610,27 +623,28 @@ mod tests {
             line.extend(rest);
             parse_args(&args(&line))
         };
-        assert!(matches!(with("live"), Ok(Command::Run { .. })));
+        assert!(matches!(with("live"), Ok(Command::Run(_))));
         assert_eq!(with("live"), with("run"));
     }
 
     #[test]
     fn run_without_streams_follows_the_two_recognizer_ports() {
         let parsed = parse_args(&args(&["run", "--serve", "0", "--llm", "http://x:1"]));
-        let Ok(Command::Run { events, .. }) = parsed else {
+        let Ok(Command::Run(live)) = parsed else {
             panic!("run was refused: {parsed:?}");
         };
-        assert_eq!(events, DEFAULT_EVENTS);
+        assert_eq!(live.events, DEFAULT_EVENTS);
     }
 
     #[test]
     fn live_without_options_uses_the_designed_defaults() {
-        let expected = Command::Run {
+        let expected = Command::Run(Live {
             events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
             llm: String::from("http://127.0.0.1:8080"),
             serve: 8835,
             srt: None,
-        };
+            translate: None,
+        });
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
     }
 
@@ -639,16 +653,49 @@ mod tests {
         let parsed = parse_args(&args(&["live", "--serve", "9100"]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run { ref llm, serve: 9100, .. }) if llm == DEFAULT_LLM
+            Ok(Command::Run(Live { ref llm, serve: 9100, .. })) if llm == DEFAULT_LLM
         ));
         let parsed = parse_args(&args(&["live", "--llm", "http://x:1"]));
         assert!(matches!(
             parsed,
-            Ok(Command::Run {
+            Ok(Command::Run(Live {
                 serve: DEFAULT_SERVE,
                 ..
-            })
+            }))
         ));
+    }
+
+    fn translate_of(list: &[&str]) -> Result<Option<Vec<String>>, CliError> {
+        match parse_args(&args(list))? {
+            Command::Run(live) => Ok(live.translate),
+            _ => Err(CliError::UnknownCommand),
+        }
+    }
+
+    #[test]
+    fn translate_takes_comma_separated_codes_and_may_repeat() {
+        let codes = |list: &[&str]| list.iter().map(|c| (*c).to_owned()).collect::<Vec<_>>();
+        assert_eq!(
+            translate_of(&["live", "--translate", "en,zh"]),
+            Ok(Some(codes(&["en", "zh"])))
+        );
+        assert_eq!(
+            translate_of(&["live", "--translate", " zh , ko ,", "--translate", "es"]),
+            Ok(Some(codes(&["zh", "ko", "es"])))
+        );
+        assert_eq!(translate_of(&["live"]), Ok(None));
+    }
+
+    #[test]
+    fn translate_without_a_code_is_refused() {
+        assert_eq!(
+            translate_of(&["live", "--translate"]),
+            Err(CliError::MissingValue)
+        );
+        assert_eq!(
+            translate_of(&["live", "--translate", " , "]),
+            Err(CliError::MissingValue)
+        );
     }
 
     #[test]
@@ -717,6 +764,7 @@ mod tests {
                 "srt.output.failed",
                 "translate.fallback.skipped",
                 "translate.eval.written",
+                "translate.eval.held",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }
