@@ -36,6 +36,34 @@ cargo build --release --target x86_64-pc-windows-msvc -p hayamimi
 ORT と sherpa-onnx の共有ライブラリは、実行物の隣に置かれます。
 Windows の test の実行物は `target/<profile>/deps/` に出るので、1 つ上の directory からライブラリを先読みします（`hayamimi_gpu::runtime::preload_near_executable`）。
 
+## model を取得する
+
+認識、言語判定、VAD、句読点の model は、`hayamimi models fetch` が取得します。
+Python も別の script も要りません。
+
+```bash
+hayamimi models fetch --minimal --dir models   # 日本語と英語の核の 4 組だけ
+hayamimi models fetch --dir models             # 他の言語の認識器と話者の model も
+```
+
+| option | 意味 |
+|---|---|
+| `--minimal` | 認識（ReazonSpeech の int8）、言語判定（whisper-tiny）、VAD（Silero）、句読点（BERT）の 4 組 |
+| `--en-parakeet-v2` | 英語専用の Parakeet v2 の認識器も取得する（`--minimal` と併せられる） |
+| `--punct-4class` | 4 クラスの日本語句読点 model も取得する（`--minimal` と併せられる） |
+| `--dir` | model を置く directory。既定は `models` |
+
+組ごとに、sherpa-onnx の release から先に、Hugging Face から後に取得します。
+1 組の file が全部揃うまで、`models/` には何も置きません（隣の一時 directory に書き、揃ってから 1 file ずつ rename します）。
+揃っている組は取得し直しません。
+`--dir` の下の `manifest.json` に、file ごとの段、sha256、bytes を書きます。内容が変わらなければ書き直しません。
+
+どの取得先からも得られない組があっても、既に在る file はそのまま残し、`models.fallback.previous` を 1 件出して、終了 code は 0 のままです。
+その組の段は、`hayamimi` を動かすときに外れます（`model.fallback.disabled`）。
+取得先の address を替える `--release-url` と `--hf-url` は、取得先を壊した test のために在ります。
+
+Silero の VAD は、release の file と Hugging Face の file の bytes が違います。2 つが同じ model かどうかは確かめていません（NOT VERIFIED）。
+
 ## 動かす
 
 ```bash
@@ -219,12 +247,64 @@ cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
 |---|---|
 | 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release`（上の file があれば指定は要らない） |
 | 実走の test | `cargo test --release -p hayamimi --test rp06 --test rp16 --test rp26 --test rp29 -- --ignored` |
+| RP-21（`models fetch`。実際に取得するので network を使う） | `cargo test --release -p hayamimi --test rp21 -- --include-ignored` |
+| 文書の link（RP-19） | `cargo run --release -p hayamimi-eval -- doc-links --repo <repo>` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |
 
 GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にします。
 Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
+
+## RP-3 の run を録る（R8e）
+
+認識、中継、訳の server を起こし、`hayamimi-eval stream` で `lat-ja.wav` を 5 回流します。
+訳の server は user unit `llama-artisan@CAT-Translate-3.3b-Q8_0.service`（port 8080、slot 4）です。
+
+```bash
+systemctl --user start 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+hayamimi --input ws --ws-port 8766 --serve 8833 --models <models> --min-silence 0.30
+hayamimi-relay live --events http://127.0.0.1:8833/events --llm http://127.0.0.1:8080 --serve 8835
+hayamimi-eval stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --relay-port 8835 --out docs/results/r8e/rp3_rust.jsonl
+```
+
+終えたら `hayamimi` と `hayamimi-relay` を起こした時の pid で止め、`systemctl --user stop` で server を止めます。
+`rp3_rust.jsonl` と `rp3_rust.events.jsonl` を、RP-5（`cargo test --release -p hayamimi-eval --test rp05 -- --ignored`）と RP-25（`--test rp25 -- --ignored`）が読みます。
+GPU の memory は、同じ間に `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits` を 1 秒ごとに読んで RP-22 に使います。
+H6 と `cache_prompt` は `cargo test --release -p hayamimi-relay --test r8e_server -- --ignored` です（server を起こしたまま打ちます）。
+結果は `docs/results/r8e/README.md` です。
+
+## WSL の llama.cpp を戻す
+
+WSL の llama.cpp を b11577 から b11628 へ上げた時、前の build を tar に控えました。
+`<backup>` は、作業 directory と別の木に置いた backup の directory です。
+`<llama.cpp>` は WSL の llama.cpp の checkout です。
+
+| 物 | 置き場 |
+|---|---|
+| 前の build | `<backup>/llama-cpp-b11577-build-cuda120-20261014.tar`（tar の中は `build-cuda120/`。symlink を含むので、symlink を作れない file system には展開しません） |
+| 前の checkout の commit | `<backup>/llama-cpp-b11577-build-cuda120-20261014.HEAD`（`ec483d3f3`） |
+
+戻す前に、translation server の unit を止めます。
+
+```bash
+systemctl --user stop 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+cd <llama.cpp>
+mv build-cuda120 build-cuda120.b11628
+tar -xf <backup>/llama-cpp-b11577-build-cuda120-20261014.tar
+git checkout "$(cat <backup>/llama-cpp-b11577-build-cuda120-20261014.HEAD)"
+```
+
+確かめます。`/props` の `build_info` が `b11578-ec483d3f3` なら戻っています（`b11578` で始まり、commit が `ec483d3f3`）。
+tar の名前の `b11577` は、上げる前に `git describe` が示した最も近い tag で、その checkout の build number は 11578 でした。
+
+```bash
+systemctl --user start 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+curl -s http://127.0.0.1:8080/props | jq -r .build_info
+```
+
+戻したら、`build-cuda120.b11628` は不要になった時に消します。
+上げ直すには `git pull --rebase` の後に `cmake --build build-cuda120 --config Release` を打ちます。
 
 ## 戻し方
 

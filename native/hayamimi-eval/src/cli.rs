@@ -6,7 +6,10 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
-use crate::{cli_der, cli_stages, fleurs, log, manifest, record, scorecard, scorecard_run, stream};
+use crate::{
+    chrf, cli_der, cli_stages, doc_links, fleurs, log, manifest, record, scorecard, scorecard_run,
+    stream,
+};
 
 #[derive(Parser)]
 #[command(
@@ -29,6 +32,8 @@ enum Command {
     FetchSet(FetchSetArgs),
     /// Write Japanese/target sentence pairs from FLEURS.
     FleursPairs(FleursArgs),
+    /// Score translations against their references with chrF.
+    Chrf(ChrfArgs),
     /// Time every stage of the Rust port on one provider and write a run file.
     Stages(cli_stages::StagesArgs),
     /// Write the result document of the stage measurement from run files.
@@ -45,6 +50,17 @@ enum Command {
     R7Report(cli_stages::R7ReportArgs),
     /// Score the speaker labels of the Rust route against an RTTM reference set.
     Der(cli_der::DerArgs),
+    /// Check that every Markdown link of a repository points at a file that exists.
+    DocLinks(DocLinksArgs),
+}
+
+#[derive(Args)]
+struct DocLinksArgs {
+    /// The repository root, against which absolute and `blob/main/` links resolve.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// A subtree to check instead of the whole repository.
+    subtree: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -180,6 +196,16 @@ struct FleursArgs {
     degrade: bool,
 }
 
+#[derive(Args)]
+struct ChrfArgs {
+    /// The directory of `<lang>.ref.txt`, as `fleurs-pairs` wrote it.
+    #[arg(long)]
+    pairs: PathBuf,
+    /// The directory of `<lang>.hyp.txt`, one translation per reference line.
+    #[arg(long)]
+    hyps: PathBuf,
+}
+
 /// `manifests/<stem>.json` beside the wav.
 fn default_manifest(wav: &Path) -> Result<PathBuf, EvalError> {
     let Some(stem) = wav.file_stem() else {
@@ -242,9 +268,15 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
         Command::Scorecard(args) => scorecard(args),
+        Command::Chrf(args) => chrf::score_directories(&args.pairs, &args.hyps).map(|scores| {
+            for (lang, corpus) in scores {
+                println!("{lang}\t{:.4}\t{}", corpus.score, corpus.pairs);
+            }
+        }),
         Command::StagesPeer(args) => cli_stages::stages_peer(args),
         Command::R7Report(args) => cli_stages::r7_report(args),
         Command::Der(args) => cli_der::der(args),
+        Command::DocLinks(args) => doc_links_command(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
                 for one in written {
@@ -287,6 +319,23 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
         );
     }
     Ok(())
+}
+
+/// Prints the broken links and fails when there are any.
+fn doc_links_command(args: DocLinksArgs) -> Result<(), EvalError> {
+    let scan = match &args.subtree {
+        Some(subtree) => subtree,
+        None => &args.repo,
+    };
+    let broken = doc_links::check(&args.repo, scan)?;
+    print!("{}", doc_links::report(&broken));
+    if broken.is_empty() {
+        return Ok(());
+    }
+    Err(EvalError::Invalid(format!(
+        "{} broken Markdown link(s)",
+        broken.len()
+    )))
 }
 
 fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {

@@ -72,6 +72,9 @@ label = "m²"
 "sink.fallback.cleared" = "送り先に届くようになりました"
 "srt.cue.skipped" = "この行は SRT に書きません"
 "srt.output.failed" = "SRT を書けなくなったので、書き出しをやめます"
+"translate.fallback.skipped" = "この言語は訳せないので外し、ほかの言語を続けます"
+"translate.eval.held" = "この文の訳はどちらも採りませんでした"
+"translate.eval.written" ="1 つの言語の訳を書き出しました"
 "srt.output.exists" = "この動画の SRT が既にあるので、何もしません"
 "srt.extract.started" = "動画から音声を取り出します"
 "srt.extract.failed" = "動画から音声を取り出せませんでした"
@@ -88,7 +91,8 @@ label = "m²"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--no-partial-translation]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation]
+  hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <動画> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
@@ -104,6 +108,9 @@ port_moved = "頼んだ port が使えないので、訳を次の URL で配っ�
 sink_local = "字幕の送り先に届きません。訳は SRT と画面に残し、次の行から送り直します"
 sink_cleared = "字幕の送り先に届くようになりました"
 srt_not_opened = "SRT を開けませんでした。SRT なしで続けます"
+need_pairs_and_out = "eval には --pairs と --out が要ります"
+eval_target_skipped = "この言語は訳さず外しました:"
+eval_failed = "訳を書き出せませんでした"
 send_not_opened = "送り先を書いた file を準備できなかったので、起動しませんでした"
 need_video = "srt には最初の引数に動画の file が要ります"
 srt_written = "SRT を書き出しました。cue の数:"

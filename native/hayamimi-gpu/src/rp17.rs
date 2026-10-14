@@ -475,12 +475,12 @@ mod tests {
     fn ort_version_differing_from_build_json_is_rejected() {
         let modules = windows();
         let observed = Observed {
-            ort_version: "1.28.2",
+            ort_version: "1.28.3",
             ..observe(&modules)
         };
         assert!(matches!(
             check(&observed, BUILT, &WINDOWS),
-            Err(Rp17Error::OrtVersion { built, opened }) if built == "1.31.0" && opened == "1.28.2"
+            Err(Rp17Error::OrtVersion { built, opened }) if built == "1.31.0" && opened == "1.28.3"
         ));
     }
 

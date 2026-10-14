@@ -17,21 +17,24 @@
 //! translations are published to the screens and never handed to the outputs.
 
 use std::io;
-use std::net::{SocketAddr, TcpListener};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
 use crate::deliver::{Delivery, Outputs, Words};
-use crate::follow::{Backoff, follow};
+use crate::eval::skipped_event;
+use crate::follow::{Backoff, follow_while};
 use crate::hub::{self, Hub};
 use crate::lang::Lang;
 use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
-use crate::partial::{Mailbox, PartialTranslation, Route};
-use crate::pipeline::{NoObserver, PartialOutcome, Pipeline, Translation};
+use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
+use crate::pipeline::{LineRequest, NoObserver, PartialOutcome, Pipeline, Translation};
 use crate::strings::Strings;
+use crate::target::Target;
 
 /// How lines are shared out to translators.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,11 +61,83 @@ pub struct RelayConfig {
     pub backoff: Backoff,
     /// Unix seconds at the start of the run; later times count from it.
     pub started_epoch: i64,
+    /// The `--translate` codes. `None` translates by the rule of each source
+    /// (a Japanese line into English, an English line into Japanese). `Some`
+    /// replaces the languages a Japanese line is translated into by these.
+    /// A code outside the table is left out and said so.
+    pub translate: Option<Vec<String>>,
+}
+
+/// Where a line of a source goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Route {
+    /// The other side of the live pair, with unit notes.
+    Pair,
+    /// A language of `--translate` outside the live pair.
+    Other(Target),
+}
+
+/// The routes of a line read in `src_lang`. An English line always goes to
+/// the pair. A Japanese line goes to each language of `translate`, or to the
+/// pair when there is no `--translate`.
+fn routes(src_lang: Lang, translate: Option<&[Target]>) -> Vec<Route> {
+    let (Lang::Ja, Some(targets)) = (src_lang, translate) else {
+        return vec![Route::Pair];
+    };
+    targets
+        .iter()
+        .map(|target| match target.lang() {
+            Some(_) => Route::Pair,
+            None => Route::Other(*target),
+        })
+        .collect()
+}
+
+/// The languages of `codes` that the table has, once each and in the order
+/// given, and the codes it has not.
+fn split_codes(codes: &[String]) -> (Vec<Target>, Vec<String>) {
+    let mut known: Vec<Target> = Vec::new();
+    let mut unknown: Vec<String> = Vec::new();
+    for code in codes {
+        match Target::from_code(code) {
+            Some(target) if known.contains(&target) => {}
+            Some(target) => known.push(target),
+            None if unknown.contains(code) => {}
+            None => unknown.push(code.clone()),
+        }
+    }
+    (known, unknown)
 }
 
 /// Builds the pipeline of one lane. It runs in the lane's own thread.
 pub type MakePipeline<L> =
     Arc<dyn Fn(&mut dyn LogSink) -> Result<Pipeline<L>, String> + Send + Sync>;
+
+/// How the lanes build their pipelines: the live pair against one translator
+/// and every other language against another.
+pub struct Makers<L: Llm> {
+    pub pair: MakePipeline<L>,
+    pub other: MakePipeline<L>,
+}
+
+/// One translator for every language.
+impl<L: Llm> From<MakePipeline<L>> for Makers<L> {
+    fn from(make: MakePipeline<L>) -> Makers<L> {
+        Makers {
+            pair: Arc::clone(&make),
+            other: make,
+        }
+    }
+}
+
+impl<L: Llm> Makers<L> {
+    fn for_route(&self, route: Route) -> MakePipeline<L> {
+        match route {
+            Route::Pair => Arc::clone(&self.pair),
+            Route::Other(_) => Arc::clone(&self.other),
+        }
+    }
+}
 
 /// The time of day, counted from the start of the run so that it cannot step
 /// backwards or fail while lines are being translated.
@@ -90,6 +165,7 @@ impl RunClock {
 struct Job {
     line: Line,
     src_lang: Lang,
+    route: Route,
 }
 
 fn line_event(level: Level, name: &str, component: &'static str, line: &Line) -> LogEvent {
@@ -135,12 +211,40 @@ fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedS
     for job in jobs {
         let request = job.line.request(job.src_lang, parts.clock.now_epoch());
         let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
-        let translation =
-            pipeline.run_staged(&request, &mut NoObserver, &mut show_draft, &mut sink);
+        let translation = translate(
+            &mut pipeline,
+            &request,
+            job.route,
+            &mut show_draft,
+            &mut sink,
+        );
         publish(&parts.hub, &translation, &mut sink);
-        parts.delivery.submit(&job.line, &translation);
+        // The subtitle file and the outside destinations carry the live pair
+        // only; another language is for the screens.
+        if job.route == Route::Pair {
+            parts.delivery.submit(&job.line, &translation);
+        }
     }
 }
+
+/// Runs one line along its route.
+fn translate<L: Llm>(
+    pipeline: &mut Pipeline<L>,
+    request: &LineRequest<'_>,
+    route: Route,
+    early: &mut dyn FnMut(Translation),
+    sink: &mut dyn LogSink,
+) -> Translation {
+    match route {
+        Route::Pair => pipeline.run_staged(request, &mut NoObserver, early, sink),
+        Route::Other(target) => pipeline.run_into(request, &target, early, sink),
+    }
+}
+
+/// The lanes: one for each source (or one in all) for the live pair, and the
+/// same again for the other languages, so that a slow Chinese translation
+/// never holds back the English one.
+const LANE_SLOTS: usize = SOURCES * 2;
 
 /// Translates the text in progress, the oldest left first, until the process
 /// ends. A translation is published only if its text is still the newest of
@@ -208,9 +312,10 @@ fn spawn_partials<L: Llm + 'static>(
 }
 
 struct Router<L: Llm + 'static> {
-    slots: [Option<Sender<Job>>; SOURCES],
+    slots: [Option<Sender<Job>>; LANE_SLOTS],
     lanes: Lanes,
-    make: MakePipeline<L>,
+    translate: Option<Vec<Target>>,
+    makers: Makers<L>,
     hub: Hub,
     delivery: Delivery,
     clock: RunClock,
@@ -218,10 +323,10 @@ struct Router<L: Llm + 'static> {
 }
 
 impl<L: Llm + 'static> Router<L> {
-    fn open_lane(&self) -> Sender<Job> {
+    fn open_lane(&self, route: Route) -> Sender<Job> {
         let (jobs, receiver) = mpsc::channel();
         let parts = LaneParts {
-            make: Arc::clone(&self.make),
+            make: self.makers.for_route(route),
             hub: self.hub.clone(),
             delivery: self.delivery.clone(),
             clock: self.clock,
@@ -241,12 +346,28 @@ impl<L: Llm + 'static> Router<L> {
             );
             return;
         };
-        let slot = self.lanes.slot(line.source);
+        for route in routes(src_lang, self.translate.as_deref()) {
+            let job = Job {
+                line: line.clone(),
+                src_lang,
+                route,
+            };
+            self.hand_over(job);
+        }
+    }
+
+    /// Hands a job to the lane of its source and route.
+    fn hand_over(&mut self, job: Job) {
+        let slot = self.lanes.slot(job.line.source)
+            + match job.route {
+                Route::Pair => 0,
+                Route::Other(_) => SOURCES,
+            };
         let lane = match self.slots[slot].take() {
             Some(lane) => lane,
-            None => self.open_lane(),
+            None => self.open_lane(job.route),
         };
-        if let Err(refused) = lane.send(Job { line, src_lang }) {
+        if let Err(refused) = lane.send(job) {
             // The lane's pipeline could not be opened and its thread ended; the
             // next line opens the lane again.
             self.sink.emit(
@@ -276,7 +397,7 @@ fn forward(
     data: &str,
     endpoint: usize,
     lines: &Sender<Line>,
-    route: &mut Route,
+    route: &mut StreamRoute,
     sink: &mut dyn LogSink,
 ) {
     match hear(data) {
@@ -296,30 +417,85 @@ fn forward(
     }
 }
 
-fn spawn_follower(
+/// What a follower thread works with.
+struct Follower {
     endpoint: usize,
     url: String,
     lines: Sender<Line>,
-    mut route: Route,
+    route: StreamRoute,
     backoff: Backoff,
-    mut sink: SharedSink,
-) -> io::Result<()> {
+    running: Arc<AtomicBool>,
+}
+
+fn spawn_follower(follower: Follower, mut sink: SharedSink) -> io::Result<()> {
     std::thread::Builder::new()
-        .name(format!("relay-follow-{endpoint}"))
+        .name(format!("relay-follow-{}", follower.endpoint))
         .spawn(move || {
+            let mut route = follower.route;
             let mut on_event = |data: &str, sink: &mut dyn LogSink| {
-                forward(data, endpoint, &lines, &mut route, sink)
+                if follower.running.load(Ordering::SeqCst) {
+                    forward(data, follower.endpoint, &follower.lines, &mut route, sink);
+                }
             };
-            match follow((endpoint, &url), backoff, &mut sink, &mut on_event) {}
+            follow_while(
+                &follower.running,
+                (follower.endpoint, &follower.url),
+                follower.backoff,
+                &mut sink,
+                &mut on_event,
+            );
         })?;
     Ok(())
+}
+
+/// A relay that is running. Dropping it leaves the relay running, as the
+/// process is what ends it; [`Relay::stop`] ends it earlier.
+pub struct Relay {
+    address: SocketAddr,
+    running: Arc<AtomicBool>,
+    skipped: Vec<String>,
+}
+
+impl Relay {
+    /// The address the translations are served on.
+    pub fn address(&self) -> SocketAddr {
+        self.address
+    }
+
+    /// The `--translate` codes that the table has not and so are left out.
+    pub fn skipped(&self) -> &[String] {
+        &self.skipped
+    }
+
+    /// Stops the relay: the port is given up, no new line is read, and the
+    /// lanes end once the lines they hold are translated. A stream that is
+    /// open and silent is let go when it next ends.
+    pub fn stop(self) {
+        self.running.store(false, Ordering::SeqCst);
+        // The accepting thread waits for a connection; this one is its last.
+        // A refused connection means it has already gone.
+        let _ = TcpStream::connect(self.address);
+    }
+}
+
+/// The `fallback` message of a `--translate` code the table has not.
+const SKIPPED_WIRE: &str =
+    r#"{"type":"fallback","stage":"translate","reason":"unsupported_target","to":"skipped"}"#;
+
+/// Says that `code` is left out: in the log, and on the stream as a
+/// `fallback` that is kept for the clients that connect later. The kept
+/// message is keyed by the code, so that each language is kept on its own and
+/// none replaces the translator's own `translate` fallback.
+fn say_skipped(code: &str, hub: &Hub, sink: &mut SharedSink) {
+    sink.emit(skipped_event(code));
+    hub.publish_fallback(&format!("translate:{code}"), true, SKIPPED_WIRE);
 }
 
 /// Starts the relay with no subtitle file and no outside destination.
 pub fn start<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
+    make: impl Into<Makers<L>>,
     sink: SharedSink,
 ) -> io::Result<SocketAddr> {
     let strings = Strings::embedded(Lang::En).map_err(io::Error::other)?;
@@ -336,7 +512,7 @@ pub fn start<L: Llm + 'static>(
 pub fn start_with<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
+    make: impl Into<Makers<L>>,
     sink: SharedSink,
     outputs: Outputs,
 ) -> io::Result<SocketAddr> {
@@ -348,6 +524,18 @@ pub fn start_with<L: Llm + 'static>(
         outputs,
         PartialTranslation::Off,
     )
+}
+
+/// Starts the relay like [`start_handle`] and returns only the address.
+pub fn start_partials<L: Llm + 'static>(
+    listener: TcpListener,
+    config: RelayConfig,
+    make: impl Into<Makers<L>>,
+    sink: SharedSink,
+    outputs: Outputs,
+    partials: PartialTranslation,
+) -> io::Result<SocketAddr> {
+    start_handle(listener, config, make, sink, outputs, partials).map(|relay| relay.address)
 }
 
 /// The mailbox the followers leave the text in progress in, and the worker
@@ -377,25 +565,35 @@ fn open_partials<L: Llm + 'static>(
 /// stream of `config.events`, all from threads of their own. The settled
 /// translations also go to `outputs`; the translations of the text in
 /// progress, when `partials` is on, go to the screens only. Returns the
-/// address the translations are served on.
-pub fn start_partials<L: Llm + 'static>(
+/// handle of the running relay.
+pub fn start_handle<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
-    make: MakePipeline<L>,
-    sink: SharedSink,
+    makers: impl Into<Makers<L>>,
+    mut sink: SharedSink,
     outputs: Outputs,
     partials: PartialTranslation,
-) -> io::Result<SocketAddr> {
+) -> io::Result<Relay> {
+    let running = Arc::new(AtomicBool::new(true));
+    let makers = makers.into();
     let hub = Hub::new();
-    let address = hub::serve(listener, hub.clone())?;
+    let (translate, skipped) = match config.translate.as_deref().map(split_codes) {
+        Some((known, unknown)) => (Some(known), unknown),
+        None => (None, Vec::new()),
+    };
+    for code in &skipped {
+        say_skipped(code, &hub, &mut sink);
+    }
+    let address = hub::serve_while(listener, hub.clone(), Arc::clone(&running))?;
     let delivery = Delivery::start(outputs, hub.clone(), sink.clone())?;
     let clock = RunClock::new(config.started_epoch);
-    let mailbox = open_partials(partials, &hub, &make, clock, &sink)?;
+    let mailbox = open_partials(partials, &hub, &makers.pair, clock, &sink)?;
     let (lines, incoming) = mpsc::channel();
     let router = Router {
-        slots: [None, None, None],
+        slots: Default::default(),
         lanes: config.lanes,
-        make,
+        translate,
+        makers,
         hub,
         delivery,
         clock,
@@ -405,17 +603,21 @@ pub fn start_partials<L: Llm + 'static>(
         .name(String::from("relay-router"))
         .spawn(move || router.run(incoming))?;
     for (endpoint, url) in config.events.into_iter().enumerate() {
-        let route = Route::new(mailbox.clone());
-        spawn_follower(
+        let follower = Follower {
             endpoint,
             url,
-            lines.clone(),
-            route,
-            config.backoff,
-            sink.clone(),
-        )?;
+            lines: lines.clone(),
+            route: StreamRoute::new(mailbox.clone()),
+            backoff: config.backoff,
+            running: Arc::clone(&running),
+        };
+        spawn_follower(follower, sink.clone())?;
     }
-    Ok(address)
+    Ok(Relay {
+        address,
+        running,
+        skipped,
+    })
 }
 
 #[cfg(test)]
@@ -436,6 +638,55 @@ mod tests {
         for source in [Source::Mic, Source::Loopback, Source::File] {
             assert!(Lanes::PerSource.slot(source) < SOURCES);
         }
+    }
+
+    fn codes(list: &[&str]) -> Vec<String> {
+        list.iter().map(|code| (*code).to_owned()).collect()
+    }
+
+    fn targets(list: &[&str]) -> Vec<Target> {
+        split_codes(&codes(list)).0
+    }
+
+    #[test]
+    fn the_table_splits_the_codes_and_keeps_each_once_in_order() {
+        let (known, unknown) = split_codes(&codes(&["zh", "xx", "ko", "zh", "ja", "xx"]));
+        let known_codes: Vec<&str> = known.iter().map(|target| target.code).collect();
+        assert_eq!(known_codes, ["zh", "ko"]);
+        // Japanese is the source of a translation, never its target.
+        assert_eq!(unknown, ["xx", "ja"]);
+        assert_eq!(split_codes(&[]), (Vec::new(), Vec::new()));
+    }
+
+    #[test]
+    fn without_translate_a_line_goes_to_the_pair() {
+        assert_eq!(routes(Lang::Ja, None), [Route::Pair]);
+        assert_eq!(routes(Lang::En, None), [Route::Pair]);
+    }
+
+    #[test]
+    fn translate_replaces_the_targets_of_a_japanese_line() {
+        let zh = targets(&["zh"]);
+        let [Route::Other(only)] = routes(Lang::Ja, Some(&zh))[..] else {
+            panic!("zh alone did not make one route to zh");
+        };
+        assert_eq!(only.code, "zh");
+        let both = targets(&["en", "ko"]);
+        let routed = routes(Lang::Ja, Some(&both));
+        assert_eq!(routed.len(), 2);
+        assert_eq!(routed[0], Route::Pair);
+        assert!(matches!(routed[1], Route::Other(target) if target.code == "ko"));
+    }
+
+    #[test]
+    fn an_english_line_is_not_moved_by_translate() {
+        let zh = targets(&["zh"]);
+        assert_eq!(routes(Lang::En, Some(&zh)), [Route::Pair]);
+    }
+
+    #[test]
+    fn a_translate_with_nothing_the_table_has_routes_a_japanese_line_nowhere() {
+        assert!(routes(Lang::Ja, Some(&[])).is_empty());
     }
 
     #[test]

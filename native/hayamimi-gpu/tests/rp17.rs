@@ -240,7 +240,7 @@ fn fixture_dir(name: &str) -> Result<PathBuf, Box<dyn Error>> {
         std::fs::remove_dir_all(&directory)?;
     }
     std::fs::create_dir_all(&directory)?;
-    std::fs::write(directory.join("build.json"), r#"{"ort_version":"1.28.2"}"#)?;
+    std::fs::write(directory.join("build.json"), r#"{"ort_version":"1.28.3"}"#)?;
     Ok(directory)
 }
 
@@ -253,7 +253,7 @@ fn fixture_probe(extra_module: Option<&str>) -> String {
         .collect();
     serde_json::json!({
         "os": "windows", "requested_provider": "cuda", "cuda_devices": 1,
-        "loaded_provider": "cuda", "ort_version": "1.28.2", "onnxruntime_libraries": 1,
+        "loaded_provider": "cuda", "ort_version": "1.28.3", "onnxruntime_libraries": 1,
         "audio_ms": 9600, "decode_ms": 650, "decoded_chars": 44, "modules": rows,
     })
     .to_string()
@@ -266,14 +266,14 @@ fn passing_probe_writes_rp17_passed_json_with_the_build_json_sha256() -> Result<
     rp17::judge_and_record(&directory, &fixture_probe(None), &rp17::WINDOWS)?;
     let record: Value =
         serde_json::from_slice(&std::fs::read(directory.join("rp17_passed.json"))?)?;
-    // The digest of the 24-byte fixture `{"ort_version":"1.28.2"}`, taken with `sha256sum`.
+    // The digest of the 24-byte fixture `{"ort_version":"1.28.3"}`, taken with `sha256sum`.
     assert_eq!(
         record.get("build_json_sha256").and_then(Value::as_str),
-        Some("ad42b37ce87832cf383680198e5fbd0f0d80a46cf520bc92cfb20cbdbbbc5d2d")
+        Some("3326dda32b1322a85501d24f265df9ce1b07ae10f4731941fe52622218eb0b9f")
     );
     assert_eq!(
         record.pointer("/probe/ort_version").and_then(Value::as_str),
-        Some("1.28.2")
+        Some("1.28.3")
     );
     Ok(())
 }

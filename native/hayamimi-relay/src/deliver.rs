@@ -183,7 +183,7 @@ impl Parcel {
     /// that was not withheld.
     pub fn caption(&self) -> Option<Caption> {
         let translation = &self.translation;
-        let wanted = translation.status == Status::Ok && translation.lang == Lang::En;
+        let wanted = translation.status == Status::Ok && translation.lang == Lang::En.code();
         wanted.then(|| Caption {
             id: translation.id.clone(),
             text: with_annotations(&translation.text, &translation.annotations),
@@ -439,7 +439,7 @@ mod tests {
             of,
             source: String::from("mic"),
             src_lang: lang.other(),
-            lang,
+            lang: lang.code(),
             src_sha256: String::new(),
             status,
             hold_reason: (status == Status::Held).then_some(HoldReason::Number),

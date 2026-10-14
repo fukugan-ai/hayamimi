@@ -33,6 +33,11 @@
 "translate.server.running" = "A translation server already answers; none was started"
 "translate.server.failed" = "One way of starting the translation server did not come up"
 "translate.server.unavailable" = "The translation server could not be started; lines are held and the original text goes on"
+"models.group.fetched" = "A model group was fetched"
+"models.group.present" = "A model group was already there and was not fetched"
+"models.source.failed" = "One source did not give a model group"
+"models.fetch.finished" = "The model fetch ended"
+"models.fallback.previous" = "Some model groups came from no source; the files already there are kept and the run goes on"
 
 [cli]
 help = """hayamimi: real-time Japanese speech recognition (runs on the CPU when there is no GPU)
@@ -123,3 +128,28 @@ llama_model_missing = "The model file is not there:"
 llama_started = "The translation server answers at:"
 llama_running = "A translation server already answers at:"
 llama_unavailable = "The translation server could not be started. Lines are held and the original text goes on. See the log events above."
+models_help = """hayamimi models: get the model files the stages read
+
+usage: hayamimi models fetch [options]
+
+Each group of files is fetched from the sherpa-onnx release first and from Hugging Face after it.
+A group that is already complete is not fetched again. When no source gives a group, the files
+already there are kept and the exit code is still 0.
+
+options:
+  --minimal          only the core of Japanese and English (recognizer, language ID, VAD, punctuation)
+  --en-parakeet-v2   also the English-only Parakeet v2 recognizer
+  --punct-4class     also the four-class Japanese punctuation model
+  --dir <dir>        the models directory (default: models)
+  --release-url <u>  base address of the sherpa-onnx release downloads
+  --hf-url <u>       base address of Hugging Face
+  --help             show this text"""
+models_unknown_command = "Unknown command. Use: hayamimi models fetch"
+models_present = "Already there:"
+models_fetched = "Fetched:"
+models_source_failed = "A source gave no files for:"
+models_group_failed = "No source gave the files; what is there is kept:"
+models_previous_kept = "No source could be reached or gave the files for some groups. The files already there are kept."
+models_done ="The model fetch ended."
+models_manifest_failed = "The manifest could not be written:"
+models_dir_failed = "The models directory could not be made:"

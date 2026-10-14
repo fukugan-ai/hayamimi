@@ -5,7 +5,10 @@
 
 mod support;
 
-use hayamimi_eval::flicker::{Event, Fault, Sent, Shown, check_flicker, count_replaced};
+use hayamimi_eval::flicker::{
+    Event, Fault, Sent, Shown, check_flicker, count_replaced, count_vanished_partial_prefixes,
+    shown_from_wire,
+};
 use support::TestResult;
 
 fn shown(id: &str, text: &str, settled: bool, committed: usize) -> Event {
@@ -121,10 +124,52 @@ fn held_e_keeps_the_early_translation_as_final() {
     assert_eq!(count_replaced(&run), 0);
 }
 
-/// The run of RP-3 is made by the final slice that wires the real models
-/// (R8e); until then no recorded run exists to read.
+/// The wire events of the recorded RP-3 run, each as the JSON text the relay sent.
+fn wire_events_of_the_run() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let text = support::read(&support::rp3_run("events.jsonl"))?;
+    let mut wire = Vec::new();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let row: serde_json::Value = serde_json::from_str(line)?;
+        let Some(event) = row.get("event") else {
+            return Err("a line of the events file has no `event`".into());
+        };
+        wire.push(event.to_string());
+    }
+    Ok(wire)
+}
+
+/// T-RP-25-010: the real run passes the judgements of 001 to 009, and no
+/// prefix drawn in the settled form vanished from a translation in progress.
+/// The destinations outside (Zoom, Teams, SRT) are not part of this run, so
+/// the `Sent` events are none.
 #[test]
-#[ignore = "needs the RP-3 run of the Rust relay (R8e)"]
+#[ignore = "reads the recorded RP-3 run of the Rust relay"]
 fn rp25_translation_flicker_is_bounded() -> TestResult {
-    Err("the RP-3 run of the Rust relay is not recorded yet".into())
+    let wire = wire_events_of_the_run()?;
+    let mut run = Vec::new();
+    for json in &wire {
+        if let Some(item) = shown_from_wire(json).map_err(|fault| format!("{fault:?}"))? {
+            run.push(Event::Shown(item));
+        }
+    }
+    // The controls: the run did show lines, and it did translate text in progress.
+    assert!(!run.is_empty(), "no translation of a line in the run");
+    let vanished = count_vanished_partial_prefixes(wire.iter().map(String::as_str))
+        .map_err(|f| format!("{f:?}"))?;
+    let partials = wire
+        .iter()
+        .filter(|json| json.contains(r#""of":"partial""#))
+        .count();
+    assert!(
+        partials > 0,
+        "no translation of the text in progress in the run"
+    );
+    eprintln!(
+        "rp25: {} lines shown, {} replaced draft to settled, {partials} partial translations, {vanished} vanished prefixes",
+        run.len(),
+        count_replaced(&run)
+    );
+    assert_eq!(check_flicker(&run), Ok(()));
+    assert_eq!(vanished, 0);
+    Ok(())
 }
