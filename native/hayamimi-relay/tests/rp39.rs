@@ -45,6 +45,15 @@ fn value_of(code: &str, text: &str) -> Vec<u128> {
 }
 
 fn run_line(code: &str, said: &str) -> Result<Translation, Box<dyn std::error::Error>> {
+    run_source(BUDGET, code, said)
+}
+
+/// The Japanese line `src` into `code` against a server that answers `said`.
+fn run_source(
+    src: &str,
+    code: &str,
+    said: &str,
+) -> Result<Translation, Box<dyn std::error::Error>> {
     let Some(target) = Target::from_code(code) else {
         return Err(format!("no target {code}").into());
     };
@@ -61,7 +70,7 @@ fn run_line(code: &str, said: &str) -> Result<Translation, Box<dyn std::error::E
         of: LineKind::Final,
         source: "file",
         src_lang: Lang::Ja,
-        text: BUDGET,
+        text: src,
         now_epoch: support::epoch(support::DEFAULT_NOW)?,
     };
     Ok(pipeline.run_into(&request, &target, &mut |_| {}, &mut sink))
@@ -114,6 +123,37 @@ fn rp39_japanese_and_english_keep_their_reading() {
     assert_eq!(value_of("ja", BUDGET), [5_000_000]);
     assert_eq!(value_of("en", "It costs 5 million yen."), [5_000_000]);
     assert_eq!(value_of("en", "It costs 5 thousand yen."), [5_000]);
+}
+
+/// T-RP-39-005: a Japanese source with digits and a han unit and its Chinese
+/// translation name the same amount, so the line goes out.
+#[test]
+fn rp39_japanese_digits_with_a_han_unit_match_the_chinese_translation() -> TestResult {
+    assert_eq!(value_of("ja", "予算は5千円です。"), [5_000]);
+    assert_eq!(value_of("ja", "3百円です。"), [300]);
+    let rows = [
+        ("予算は5千円です。", "预算是5千日元。"),
+        ("3百円です。", "3百日元。"),
+    ];
+    for (src, said) in rows {
+        let line = run_source(src, "zh", said)?;
+        assert_eq!(
+            line.status,
+            Status::Ok,
+            "{src}: held for {:?}",
+            line.hold_reason
+        );
+    }
+    let line = run_source("予算は5千円です。", "zh", "预算是6千日元。")?;
+    assert_eq!(line.hold_reason, Some(HoldReason::Number));
+    Ok(())
+}
+
+/// T-RP-39-006: the 百 of `百分点` is not a factor of the digit before it.
+#[test]
+fn rp39_the_hundred_of_a_percentage_word_is_not_a_factor() {
+    assert_eq!(value_of("zh", "上升5百分点。"), [5, 100]);
+    assert_eq!(value_of("ja", "5百分点上がった。"), [5, 100]);
 }
 
 /// T-RP-39-004: a word that only begins like a scale word is not one.

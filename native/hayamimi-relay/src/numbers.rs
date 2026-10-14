@@ -274,14 +274,22 @@ impl<'a> Scan<'a> {
 
     /// The product of the run of scale words right after digits, in the
     /// tongue of the text (`5百万`, `5백만`, `3 mil millones`), and where the
-    /// run ends. `None` when no scale word follows.
+    /// run ends. `None` when no scale word follows. Chinese and Japanese
+    /// (`Other`) read the same units, so a Japanese source and its Chinese
+    /// translation of `5千円` name the same amount.
     fn digit_scales(&self, j: usize) -> Option<(u128, usize)> {
         match self.tongue {
-            Tongue::Chinese => self.unit_run(j, |c| small_unit(c).or_else(|| big_unit(c))),
+            Tongue::Chinese | Tongue::Other => self.unit_run(j, han_unit),
             Tongue::Korean => self.unit_run(j, korean_unit),
             Tongue::Spanish => self.spanish_scales(j),
-            Tongue::English | Tongue::Other => None,
+            Tongue::English => None,
         }
+    }
+
+    /// Whether the 百 at `i` begins `百分` (`百分点`, `百分之`, `百分比`), a
+    /// percentage and not a hundred.
+    fn begins_percent(&self, i: usize) -> bool {
+        self.ch(i) == Some('百') && self.ch(i + 1) == Some('分')
     }
 
     /// A run of one-character scale units starting at `j`, multiplied.
@@ -289,7 +297,7 @@ impl<'a> Scan<'a> {
         let mut scale: u128 = 1;
         let mut end = j;
         while let Some(value) = self.ch(end).and_then(unit)
-            && !self.is_percent_prefix(end)
+            && !self.begins_percent(end)
         {
             scale = scale.checked_mul(value)?;
             end += 1;
@@ -645,6 +653,11 @@ fn small_unit(c: char) -> Option<u128> {
     }
 }
 
+/// Han scale units after digits: `十百千` and `万億亿兆`.
+fn han_unit(c: char) -> Option<u128> {
+    small_unit(c).or_else(|| big_unit(c))
+}
+
 /// Korean scale units: `십백천` and `만억조`.
 fn korean_unit(c: char) -> Option<u128> {
     match c {
@@ -750,6 +763,17 @@ mod tests {
     fn a_word_that_only_begins_like_a_scale_word_is_not_one() {
         assert_eq!(counted("5 milímetros", Tongue::Spanish), [5]);
         assert_eq!(counted("5百分之", Tongue::Chinese), [5]);
+        // The 百 of a percentage is read alone, as before, never as a factor.
+        assert_eq!(counted("5百分点", Tongue::Chinese), [5, 100]);
+        assert_eq!(counted("5百分点", Tongue::Other), [5, 100]);
+    }
+
+    #[test]
+    fn japanese_digits_and_han_units_read_as_in_chinese() {
+        assert_eq!(counted("5千円", Tongue::Other), [5_000]);
+        assert_eq!(counted("3百円", Tongue::Other), [300]);
+        assert_eq!(counted("5百万円", Tongue::Other), [5_000_000]);
+        assert_eq!(counted("5千日元", Tongue::Chinese), [5_000]);
     }
 
     #[test]
