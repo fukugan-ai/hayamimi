@@ -25,7 +25,7 @@ use hayamimi_eval::wav::{SAMPLE_RATE, write_wav};
 use hayamimi_eval::ws::{FrameReader, Incoming, OP_CLOSE, OP_TEXT, encode_frame};
 use serde_json::Value;
 use sha1::{Digest, Sha1};
-use support::{BASE, FIXTURES, Failure, RESULTS, TestResult, read, read_json, section};
+use support::{FIXTURES, Failure, RESULTS, TestResult, base, read, read_json, section};
 
 /// The event types the Python server sends.
 const KNOWN_TYPES: [&str; 13] = [
@@ -73,8 +73,8 @@ const WS_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 /// How many events of each type were recorded.
 type Tally = BTreeMap<String, usize>;
 
-fn wire(name: &str) -> std::path::PathBuf {
-    Path::new(BASE).join("wire").join(name)
+fn wire(name: &str) -> Result<std::path::PathBuf, Failure> {
+    Ok(base()?.join("wire").join(name))
 }
 
 fn tally(events_jsonl: &str) -> Result<Tally, Failure> {
@@ -192,7 +192,7 @@ fn check_summary(summary: &str) -> Result<(), Failure> {
 }
 
 fn recorded_tally() -> Result<Tally, Failure> {
-    tally(&read(&wire("events.jsonl"))?)
+    tally(&read(&wire("events.jsonl")?)?)
 }
 
 fn recorded_types() -> Result<BTreeSet<String>, Failure> {
@@ -432,7 +432,7 @@ fn rb08_wire_recording_and_baseline_summary_exist_extra_type_in_baseline_list_is
 #[test]
 fn rb08_wire_recording_and_baseline_summary_exist_eight_routes_are_recorded_with_status_and_keys()
 -> TestResult {
-    check_routes(&read_json(&wire("routes.json"))?)?;
+    check_routes(&read_json(&wire("routes.json")?)?)?;
     Ok(())
 }
 
@@ -455,7 +455,7 @@ fn rb08_wire_recording_and_baseline_summary_exist_accept_key_matches_the_rfc_645
 #[test]
 fn rb08_wire_recording_and_baseline_summary_exist_recorded_ingest_handshake_has_a_valid_accept()
 -> TestResult {
-    check_handshake(&read_json(&wire("ingest_handshake.json"))?)?;
+    check_handshake(&read_json(&wire("ingest_handshake.json")?)?)?;
     Ok(())
 }
 
