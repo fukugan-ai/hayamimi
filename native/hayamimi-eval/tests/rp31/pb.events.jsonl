@@ -1,0 +1,19 @@
+{"event":{"audio_s":3.492,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":93001498}
+{"event":{"text":"かな","type":"partial"},"t_us":98509787}
+{"event":{"text":"はい","type":"partial"},"t_us":99008564}
+{"event":{"text":"丸太","type":"partial"},"t_us":99506266}
+{"event":{"text":"丸太を","type":"partial"},"t_us":100087448}
+{"event":{"text":"丸太を","type":"partial"},"t_us":100493982}
+{"event":{"text":"丸太を組んでいく","type":"partial"},"t_us":100999866}
+{"event":{"text":"丸太を組んでいかだに","type":"partial"},"t_us":101607740}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":102074375}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":102568488}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":103124678}
+{"event":{"text":"丸太を組んでいかだにしてどんどん","type":"partial"},"t_us":103675320}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したの","type":"partial"},"t_us":104202924}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":104716226}
+{"event":{"text":"いかだにしてどんどん流したんですこれを","type":"partial"},"t_us":105183693}
+{"event":{"audio_s":8.228,"decode_ms":209.27389999997104,"lang":"ja","latency_ms":324.91289999961737,"lid_ms":110.49849999835716,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。","tier":"rz","type":"final"},"t_us":105523712}
+{"event":{"lang":"en","text":"From the upstream there from which he had made a row of logs, and turned it into rafts to floated down through them.","type":"translation"},"t_us":105663271}
+{"event":{"text":"それ","type":"partial"},"t_us":106854696}
+{"event":{"text":"百M","type":"partial"},"t_us":107336190}

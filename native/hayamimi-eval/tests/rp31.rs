@@ -4,35 +4,32 @@
 //! empty), and a `final` belongs to the utterance it ended (`t1_s`) and to the
 //! translation with its `id` and the sha256 of its text.
 //!
-//! The slices are cut from the recorded runs when the test runs, with the
-//! filters the design's table names, so no copy of a run is kept here:
+//! The slices are files in `tests/rp31/`, cut once from the recorded runs
+//! (`<name>.events.jsonl` and `<name>.windows.jsonl`) with these filters:
 //!
 //! ```text
-//! A   rp3_rust.events.jsonl  .t_us <= 29000000                      windows: repeat 1, utt 1..=3
-//! B   rp3_rust.events.jsonl  301500000 <= .t_us <= 330000000        windows: repeat 2, utt 12..=14
-//! PL  lat_ja_0.35_2.events   952265000 <= .t_us <= 977300000        windows: repeat 5, utt 20..=23
-//! PO  lat_ja_0.35_1.events   the same range                         windows: the same
-//! PB  lat_ja_0.35_2.events   91886063 <= .t_us <= 107500000         windows: repeat 1, utt 10..=11
-//! PC  lat_ja_0.35_2.events   112873709 <= .t_us <= 134500000        windows: repeat 1, utt 13..=14
+//! a   rp3_rust.events.jsonl  .t_us <= 29000000                      windows: repeat 1, utt 1..=3
+//! b   rp3_rust.events.jsonl  301500000 <= .t_us <= 330000000        windows: repeat 2, utt 12..=14
+//! pl  lat_ja_0.35_2.events   952265000 <= .t_us <= 977300000        windows: repeat 5, utt 20..=23
+//! po  lat_ja_0.35_1.events   the same range                         windows: the same
+//! pb  lat_ja_0.35_2.events   91886063 <= .t_us <= 107500000         windows: repeat 1, utt 10..=11
+//! pc  lat_ja_0.35_2.events   112873709 <= .t_us <= 134500000        windows: repeat 1, utt 13..=14
 //! ```
 //!
-//! A and B are in `docs/results/r8e/`; the Python runs are under `testdata/baseline/`,
-//! which git does not carry. A missing file is an `Err` that names its path.
+//! The whole-record tests read `docs/results/r8e/`, which git carries. A
+//! missing file is an `Err` that names its path; nothing is skipped.
 
-mod support;
-
-use std::ops::RangeInclusive;
 use std::path::Path;
 
 use hayamimi_eval::latency::{
     Event, Sample, Stat, Summary, Window, build_samples, parse_event, summarize_run,
 };
 use serde_json::{Value, json};
-use support::base;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 const R8E: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/results/r8e");
+const SLICES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rp31");
 /// More references than any slice has utterances; the texts are not what these tests read.
 const REFERENCES: usize = 64;
 /// sha256 of the closing final of utterance 2 of slice A (`mic-2`).
@@ -67,20 +64,6 @@ fn events_between(rows: &[Value], low: i64, high: i64) -> Result<Vec<Value>, Str
     Ok(kept)
 }
 
-fn windows_of(
-    rows: &[Value],
-    repeat: i64,
-    utts: RangeInclusive<i64>,
-) -> Result<Vec<Value>, String> {
-    let mut kept = Vec::new();
-    for row in rows {
-        if int_of(row, "repeat")? == repeat && utts.contains(&int_of(row, "utt")?) {
-            kept.push(row.clone());
-        }
-    }
-    Ok(kept)
-}
-
 /// A slice: the window rows, then the event rows.
 type Slice = (Vec<Value>, Vec<Value>);
 
@@ -90,38 +73,23 @@ fn r8e_rows() -> Result<Slice, String> {
     Ok((windows, events))
 }
 
+/// The committed slice `name` (`a`, `b`, `pl`, `po`, `pb` or `pc`).
+fn slice(name: &str) -> Result<Slice, String> {
+    let windows = read_lines(&Path::new(SLICES).join(format!("{name}.windows.jsonl")))?;
+    let events = read_lines(&Path::new(SLICES).join(format!("{name}.events.jsonl")))?;
+    Ok((windows, events))
+}
+
 fn slice_a() -> Result<Slice, String> {
-    let (windows, events) = r8e_rows()?;
-    Ok((
-        windows_of(&windows, 1, 1..=3)?,
-        events_between(&events, i64::MIN, 29_000_000)?,
-    ))
+    slice("a")
 }
 
 fn slice_b() -> Result<Slice, String> {
-    let (windows, events) = r8e_rows()?;
-    Ok((
-        windows_of(&windows, 2, 12..=14)?,
-        events_between(&events, 301_500_000, 330_000_000)?,
-    ))
-}
-
-fn python_slice(
-    run: &str,
-    (repeat, utts): (i64, RangeInclusive<i64>),
-    (low, high): (i64, i64),
-) -> Result<Slice, String> {
-    let dir = base()?;
-    let windows = read_lines(&dir.join(format!("{run}.jsonl")))?;
-    let events = read_lines(&dir.join(format!("{run}.events.jsonl")))?;
-    Ok((
-        windows_of(&windows, repeat, utts)?,
-        events_between(&events, low, high)?,
-    ))
+    slice("b")
 }
 
 fn slice_pl() -> Result<Slice, String> {
-    python_slice("lat_ja_0.35_2", (5, 20..=23), (952_265_000, 977_300_000))
+    slice("pl")
 }
 
 /// Utterance 1 of slice A alone: its window, and the events before the next window starts.
@@ -543,8 +511,7 @@ fn a_python_late_final_is_counted_in_its_own_column() -> TestResult {
 
 #[test]
 fn a_python_run_with_on_time_finals_counts_no_suspect() -> TestResult {
-    let slice = python_slice("lat_ja_0.35_1", (5, 20..=23), (952_265_000, 977_300_000))?;
-    let po = measure(&slice)?;
+    let po = measure(&slice("po")?)?;
     assert_eq!(finals_of(&po), [1, 1, 1, 1]);
     assert_eq!(po.summary.late_final_suspects, Some(0));
     Ok(())
@@ -552,8 +519,7 @@ fn a_python_run_with_on_time_finals_counts_no_suspect() -> TestResult {
 
 #[test]
 fn one_final_in_the_next_window_is_not_a_suspect() -> TestResult {
-    let slice = python_slice("lat_ja_0.35_2", (1, 10..=11), (91_886_063, 107_500_000))?;
-    let pb = measure(&slice)?;
+    let pb = measure(&slice("pb")?)?;
     assert_eq!(finals_of(&pb), [0, 1]);
     assert_eq!(pb.summary.late_final_suspects, Some(0));
     Ok(())
@@ -561,8 +527,7 @@ fn one_final_in_the_next_window_is_not_a_suspect() -> TestResult {
 
 #[test]
 fn a_previous_window_with_a_final_is_not_a_suspect() -> TestResult {
-    let slice = python_slice("lat_ja_0.35_2", (1, 13..=14), (112_873_709, 134_500_000))?;
-    let pc = measure(&slice)?;
+    let pc = measure(&slice("pc")?)?;
     assert_eq!(finals_of(&pc), [1, 3]);
     assert_eq!(pc.summary.late_final_suspects, Some(0));
     Ok(())
@@ -600,13 +565,18 @@ fn the_suspect_column_is_not_counted_for_a_rust_run() -> TestResult {
     let b = measure(&slice_b()?)?;
     assert_eq!(b.summary.late_final_suspects, None);
     // Control: a Python run counts it, and a count of 0 is not "not counted".
-    let po = measure(&python_slice(
-        "lat_ja_0.35_1",
-        (5, 20..=23),
-        (952_265_000, 977_300_000),
-    )?)?;
+    let po = measure(&slice("po")?)?;
     assert_eq!(po.summary.late_final_suspects, Some(0));
     Ok(())
+}
+
+#[test]
+fn a_missing_slice_file_fails_by_its_path() {
+    let said = slice("no-such-slice");
+    assert!(
+        matches!(&said, Err(m) if m.contains("no-such-slice.windows.jsonl")),
+        "{said:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------

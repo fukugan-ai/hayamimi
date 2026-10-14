@@ -164,6 +164,10 @@ run の前と後に `nvidia-smi --query-gpu=utilization.gpu,memory.used --format
 
 Python と Rust の対は、run の前の読みのどちらかの `utilization.gpu` が 5 % を超えるか、`memory.used` の差が 256 MiB を超えれば無効です（`hayamimi_eval::gpu_load::pair_is_valid`。2 つの幅は仮の値）。
 
+訳の取れた割合は `hayamimi_eval::compare::check_translated_share` が数えます。
+分母は RP-3 と同じ有効の判定（`is_valid_l_asr`）に入る標本で、`held` だけの標本も入り、`t_tr` が取れなければ分子に入りません。
+20 / 23 に届かない run は `L` が小さくても落ちます。
+
 `<run>.summary.json` の `late_final_suspects` は、`final` が `t1_s` を持たない Python の run でだけ数を持ちます。
 前の窓が `final` なしで、次の窓に `final` が 2 件以上在る回の数です。
 Rust の run は `null` で、数えていないことを表します。
