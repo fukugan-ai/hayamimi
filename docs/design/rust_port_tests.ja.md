@@ -532,6 +532,12 @@ test：`native/hayamimi-eval/tests/rp07.rs`。
 | T-RP-7-006 | fixture：統計に encoder の kernel の行を含む | 同じ式の陽性対照 | kernel の時間が出る | encoder の kernel の時間が 0 より大きい値で読める（specified、RP-7 の陽性対照） | 陽性 | `encoder_kernel_time_is_read_by_the_same_function` |
 | T-RP-7-007 | fixture：int8 の model の run と fp32 の run の転送の回数 | 検知の道具が差を見ること | int8 が多い | 比べる関数が「int8 の回数 > fp32 の回数」を返す（specified、RP-7 の陰性欄） | 陰性 | `int8_run_shows_more_transfers_than_fp32_run` |
 | T-RP-7-008 | `docs/results/gpu_stages.md` の実物（R1 の計測で `nsys profile --stats=true` の統計を取り込み済み。docs だけを読む。testdata も GPU も要らない） | 実物の読み取り（`--ignored` 無し） | 全行 | 転送の時間の p95 が `decode_ms` の p95 の 20% 以下（specified、RP-7）。Nsight Systems が Windows で動かなければ WSL の同じ build で数え、そのことを結果の file に書く（3.5） | 陽性 | `measured_transfers_stay_under_the_budget` |
+| T-RP-7-009 | fixture：同じ peers の GPU の認識全体の p50 = 1000 µs と CPU の p50 = 1000 µs | 置き場の判定の等号 | CPU が GPU より遅くない | `CpuKept`（specified、設計の R7 の行「CPU の側が GPU より遅くなれば評議へ戻す」） | 境界、陽性 | `a_cpu_no_slower_than_the_gpu_keeps_the_placement` |
+| T-RP-7-010 | fixture：GPU の p50 = 1000 µs、CPU の p50 = 1001 µs | 置き場の判定の外側 | CPU が GPU より遅い | `ReturnToCouncil`（specified、同上） | 境界、陰性 | `a_cpu_one_microsecond_slower_returns_the_placement_to_the_council` |
+| T-RP-7-011 | fixture：provider と peers が同じ 2 つの run file（認識と encoder 単独）、および同じ段と variant を持つ 2 つの run file | run file の統合 | 統合する、重なれば拒む | 前者は 1 本の run に標本が足され、`peer_decodes` は和になる。後者は `Err`（derived、CUDA で 2 段が 1 process に並ばないための分割） | 陽性、陰性 | `runs_of_one_provider_and_peer_count_are_joined`、`a_stage_in_two_files_of_one_kind_is_refused` |
+| T-RP-7-012 | fixture：frame 200、token 50、joiner 1 回 300 µs、decoder 1 回 100 µs。残りは範囲の下限、上限、上限を超える値、下限に満たない値 | 探索の見積りの下と上、残りの置き場 | 下 65000、上 80000 | 下 = 200 × 300 + 50 × 100 µs、上 = 200 × 300 + 200 × 100 µs。残りは両端を含めて内側、上限を超えれば `Above`、下限に満たなければ `Below`（derived。`Above` のときは差の原因を未特定と書く） | 境界、陽性、陰性 | `the_bracket_runs_from_a_decoder_call_per_token_to_one_per_frame`、`a_remainder_is_placed_against_the_bracket` |
+
+T-RP-7-009 から 012 の test は `native/hayamimi-eval/src/r7_report.rs` の単体 test で、`cargo test --release -p hayamimi-eval --lib r7_report` で走る。
 
 ### 4.18 RP-8（CPU に残した段の根拠）
 

@@ -37,6 +37,10 @@ enum Command {
     NsysTransfers(cli_stages::NsysTransfersArgs),
     /// Count the nodes ONNX Runtime puts on the CUDA and the CPU provider for one model.
     OrtPlaced(cli_stages::OrtPlacedArgs),
+    /// Run as another audio source for `stages --peers`: decode until standard input closes.
+    StagesPeer(cli_stages::PeerArgs),
+    /// Write the R7 document (two sources, placement, search) from run files.
+    R7Report(cli_stages::R7ReportArgs),
     /// Score the speaker labels of the Rust route against an RTTM reference set.
     Der(cli_der::DerArgs),
 }
@@ -216,6 +220,8 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::StagesReport(args) => cli_stages::stages_report(args),
         Command::NsysTransfers(args) => cli_stages::nsys_transfers(args),
         Command::OrtPlaced(args) => cli_stages::ort_placed(args),
+        Command::StagesPeer(args) => cli_stages::stages_peer(args),
+        Command::R7Report(args) => cli_stages::r7_report(args),
         Command::Der(args) => cli_der::der(args),
         Command::FleursPairs(args) => {
             fleurs::run(&args.targets, args.n, args.seed, &args.out, args.degrade).map(|written| {
