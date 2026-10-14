@@ -1,0 +1,82 @@
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:33:50+09:00","level":"info","event":"eval.stream.started","component":"worker","message":"playing the recording","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","chunks":19548,"repeat":2,"utterances":23}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:33:50+09:00","level":"info","event":"eval.ingest.connected","component":"transport","message":"connection upgraded","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","path":"/ingest"}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:33:50+09:00","level":"info","event":"eval.ingest.ready","component":"transport","message":"server is ready","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0"}
+{
+  "samples": 46,
+  "with_final": 40,
+  "with_translation": 38,
+  "untranslated": 8,
+  "finals_total": 50,
+  "late_final_suspects": 0,
+  "l": {
+    "n": 38,
+    "p50_ms": 1438,
+    "p95_ms": 1963
+  },
+  "l_asr": {
+    "n": 40,
+    "p50_ms": 1175,
+    "p95_ms": 1745
+  },
+  "l_tr": {
+    "n": 38,
+    "p50_ms": 183,
+    "p95_ms": 954
+  },
+  "l_tr_negative": 0,
+  "final_latency_mean_ms": 286.81374749794486,
+  "per_utt_median_l_ms": [
+    1779,
+    1805,
+    1539,
+    1191,
+    null,
+    1469,
+    1915,
+    1228,
+    1197,
+    null,
+    1726,
+    1333,
+    1372,
+    994,
+    1481,
+    1502,
+    1544,
+    null,
+    null,
+    1223,
+    1385,
+    1408,
+    1081
+  ],
+  "per_utt_median_l_asr_ms": [
+    741,
+    1653,
+    1423,
+    1102,
+    1308,
+    894,
+    1745,
+    865,
+    936,
+    null,
+    961,
+    1170,
+    1011,
+    841,
+    1301,
+    1326,
+    1320,
+    null,
+    null,
+    961,
+    1316,
+    1249,
+    959
+  ],
+  "cer_dist": 150,
+  "cer_denom": 1180,
+  "cer_micros": 127118
+}
+{"schema_version":"observability-log/v1","project_slug":"hayamimi","timestamp":"2026-10-15T05:40:29+09:00","level":"info","event":"eval.stream.finished","component":"worker","message":"stream finished","error_code":null,"request_id":null,"build_revision":"hayamimi-eval-0.1.0","closed_by_server":true,"events":542,"events_unparsed":0,"samples":46,"with_final":40,"with_translation":38}
