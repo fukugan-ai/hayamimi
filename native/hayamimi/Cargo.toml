@@ -19,7 +19,9 @@ name = "hayamimi_app"
 path = "src/lib.rs"
 
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws"] }
+# Ends a live run cleanly on Ctrl-C and on a termination signal, so that the exit code is 0.
+ctrlc = { version = "3", features = ["termination"] }
 dirs = "7"
 hayamimi-asr = { path = "../hayamimi-asr" }
 hayamimi-gpu = { path = "../hayamimi-gpu" }
@@ -27,15 +29,21 @@ hayamimi-relay = { path = "../hayamimi-relay" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sys-locale = "0.3"
-tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 toml = "1.1"
 
+# The microphone on Linux. Building it needs the ALSA development files (libasound2-dev).
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = "0.18"
+
+# The microphone and the speaker loopback on Windows.
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.26"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
+
 [dev-dependencies]
 hayamimi-eval = { path = "../hayamimi-eval" }
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
 
 # Unsafe code is confined to llama/handles.rs (one Win32 call, with SAFETY comments).
 [lints.rust]

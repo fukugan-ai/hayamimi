@@ -32,6 +32,8 @@ pub enum EvalError {
     Manifest(String),
     /// A value on the command line or in a result file is out of range.
     Invalid(String),
+    /// The machine has no output device to play the recording to.
+    NoOutputDevice,
 }
 
 impl fmt::Display for EvalError {
@@ -48,6 +50,7 @@ impl fmt::Display for EvalError {
             EvalError::Http { url, message } => write!(f, "{url}: {message}"),
             EvalError::Manifest(message) => write!(f, "manifest: {message}"),
             EvalError::Invalid(message) => write!(f, "{message}"),
+            EvalError::NoOutputDevice => write!(f, "no output device is available"),
         }
     }
 }

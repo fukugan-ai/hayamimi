@@ -110,6 +110,26 @@ impl History {
         }
     }
 
+    /// The absolute index the next pushed sample gets: the samples pushed so far.
+    pub fn end(&self) -> usize {
+        self.offset + self.buffer.len()
+    }
+
+    /// The audio of the utterance in progress, for a draft: from up to a
+    /// second before `start` to now, at most the last `max_len` samples.
+    /// Like [`History::with_preroll`] it never reaches back into the previous
+    /// segment, and unlike it nothing is moved: the final that follows still
+    /// gets its own pre-roll.
+    pub fn draft(&self, start: usize, max_len: usize) -> Vec<f32> {
+        let wanted = start
+            .saturating_sub(self.preroll)
+            .max(self.last_segment_end)
+            .max(self.offset);
+        let from = (wanted - self.offset).min(self.buffer.len());
+        let from = from.max(self.buffer.len().saturating_sub(max_len));
+        self.buffer.range(from..).copied().collect()
+    }
+
     /// The segment with up to a second of real audio in front of it, clamped
     /// by the previous segment's end and by what the history still holds.
     pub fn with_preroll(&mut self, start: usize, segment: &[f32]) -> Vec<f32> {
@@ -194,6 +214,60 @@ mod tests {
         let mut history = History::new();
         history.push(&ramp(0, 1_000));
         assert_eq!(history.with_preroll(0, &[5.0; 3]), [5.0; 3]);
+    }
+
+    #[test]
+    fn the_end_counts_every_pushed_sample() {
+        let mut history = History::new();
+        assert_eq!(history.end(), 0);
+        history.push(&ramp(0, 1_000));
+        history.push(&ramp(0, 24));
+        assert_eq!(history.end(), 1_024);
+    }
+
+    #[test]
+    fn a_draft_runs_from_a_second_before_the_start_to_now() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let out = history.draft(30_000, usize::MAX);
+        assert_eq!(out.len(), 40_000 - 14_000);
+        assert_eq!(out[0], 14_000.0);
+        assert_eq!(out.last().copied(), Some(39_999.0));
+    }
+
+    #[test]
+    fn a_draft_does_not_reach_into_the_previous_segment() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        history.with_preroll(10_000, &[1.0; 2_000]);
+        // The previous segment ended at 12_000, which is later than 15_000 - 16_000.
+        let out = history.draft(15_000, usize::MAX);
+        assert_eq!(out[0], 12_000.0);
+    }
+
+    #[test]
+    fn a_draft_is_cut_to_its_last_samples() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let out = history.draft(30_000, 100);
+        assert_eq!(out.len(), 100);
+        assert_eq!(out[0], 39_900.0);
+    }
+
+    #[test]
+    fn a_draft_leaves_the_pre_roll_of_the_final_alone() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let _ = history.draft(30_000, usize::MAX);
+        let out = history.with_preroll(30_000, &[7.0; 4]);
+        assert_eq!(out.len(), 16_000 + 4);
+        assert_eq!(out[0], 14_000.0);
+    }
+
+    #[test]
+    fn a_draft_of_nothing_is_empty() {
+        let history = History::new();
+        assert!(history.draft(5_000, 100).is_empty());
     }
 
     #[test]
