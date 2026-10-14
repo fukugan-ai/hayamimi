@@ -720,6 +720,7 @@ test は会話字幕の設計 7.1 と同じ規則で書く（`Result` を返し�
 
 ## 8. slice の順
 
+各 slice の状態（済み、作業中、未着手）と merge の commit は `status.md`（日本語版は `status.ja.md`）に在る。
 会話字幕の slice 1（`native/hayamimi-relay`、順 1〜13）は済んでいる。
 R10 までの各 slice は Python の file を消さないので、slice の commit を revert すれば前の状態に戻る。
 Python を消すのは R11 だけで、R11 の commit を revert すれば 78 本が戻る。
