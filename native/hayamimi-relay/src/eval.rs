@@ -15,10 +15,11 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::edit_answer::translation_of;
 use crate::lang::Lang;
 use crate::llm::{Completion, Llm, LlmError};
 use crate::logging::{Level, LogEvent, LogSink};
-use crate::pipeline::{MAX_TOKENS, edit_prompt_to, translate_prompt_to};
+use crate::pipeline::{MAX_TOKENS, edit_prompt_to, language_name, translate_prompt_to};
 use crate::reach::{ERROR_CODE, STAGE};
 use crate::style::{Calques, JaStyle};
 use crate::target::Target;
@@ -260,7 +261,7 @@ impl<'a, L: Llm> Translator<'a, L> {
         let draft_verdict = self.verdict(line, src, draft, target, sink);
         let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
         let second = self.ask(&prompt)?;
-        let edited = second.trim();
+        let edited = translation_of(&second, language_name(Lang::Ja));
         let edited_verdict = self.verdict(line, src, edited, target, sink);
         let settled = settled_text(
             draft,
