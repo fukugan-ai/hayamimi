@@ -35,7 +35,6 @@ use report::Tally;
 use stage::Stage;
 
 use crate::log;
-use crate::notice::Notice;
 use crate::strings::{self, Strings};
 
 /// Every group wanted is there, or the files already there were kept.
@@ -177,11 +176,8 @@ fn fetch_all(net: &dyn Net, strings: &Strings, options: &Options) -> Result<Tall
 /// Says how the run ended and returns the exit code.
 fn finish(strings: &Strings, tally: &Tally) -> u8 {
     if tally.unavailable > 0 {
-        let notice = Notice::models_previous();
-        log::print(&report::previous_line(strings, &notice, tally));
-        for key in notice.stderr_keys() {
-            eprintln!("{}", strings.cli_text(&key));
-        }
+        log::print(&report::previous_line(strings, tally));
+        eprintln!("{}", strings.cli_text(keys::PREVIOUS_KEPT));
     }
     log::print(&report::finished_line(strings, tally));
     eprintln!("{}", strings.cli_text(keys::DONE));
@@ -439,6 +435,12 @@ mod tests {
         assert!(!net.asked_for(V2_TAR));
         assert!(!net.asked_for(CLASS4));
         Ok(())
+    }
+
+    #[test]
+    fn fetch_help_prints_the_text_and_exits_zero() {
+        let args = vec![String::from("fetch"), String::from("--help")];
+        assert_eq!(run(&args, None), EXIT_OK);
     }
 
     #[test]

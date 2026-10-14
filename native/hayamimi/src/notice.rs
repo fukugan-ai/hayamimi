@@ -8,7 +8,6 @@ use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
 pub const STAGES: [&str; 13] = [
-    "models",
     "source",
     "punct",
     "recognizer",
@@ -16,6 +15,7 @@ pub const STAGES: [&str; 13] = [
     "asr",
     "events",
     "replace",
+    "speaker",
     "ingest",
     "capture",
     "translate",
@@ -23,8 +23,7 @@ pub const STAGES: [&str; 13] = [
     "second_opinion",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 11] = [
-    "unreachable",
+pub const REASONS: [&str; 10] = [
     "bad_value",
     "no_device",
     "driver_unreadable",
@@ -37,15 +36,7 @@ pub const REASONS: [&str; 11] = [
     "provider_mismatch",
 ];
 /// Every destination a notice can carry.
-pub const DESTINATIONS: [&str; 7] = [
-    "cpu",
-    "disabled",
-    "next_port",
-    "default",
-    "single",
-    "none",
-    "previous",
-];
+pub const DESTINATIONS: [&str; 6] = ["cpu", "disabled", "next_port", "default", "single", "none"];
 
 /// The log event of a stage that moved to the CPU.
 pub const GPU_FALLBACK: &str = "gpu.fallback.cpu";
@@ -61,8 +52,6 @@ pub const CONFIG_DEFAULT: &str = "config.fallback.default";
 pub const CAPTURE_SINGLE: &str = "capture.fallback.single";
 /// The log event of a run that has none of the audio devices it asked for.
 pub const CAPTURE_NONE: &str = "capture.fallback.none";
-/// The log event of a model fetch that left the files already there.
-pub const MODELS_PREVIOUS: &str = "models.fallback.previous";
 /// The log event of an audio device that came back.
 pub const CAPTURE_CLEARED: &str = "capture.fallback.cleared";
 
@@ -163,18 +152,6 @@ impl Notice {
             stage: "capture",
             reason: "device_missing",
             to,
-            url: None,
-        }
-    }
-
-    /// No source gave some model group; the files already there stay as they were.
-    pub fn models_previous() -> Notice {
-        Notice {
-            event: MODELS_PREVIOUS,
-            error_code: "HAYAMIMI_MODELS_FALLBACK",
-            stage: "models",
-            reason: "unreachable",
-            to: "previous",
             url: None,
         }
     }

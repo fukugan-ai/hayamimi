@@ -3,16 +3,17 @@
 //! present.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::checks::{check_port_move, check_resource_fallback, check_resource_present, port_of};
+use serde_json::Value;
+
 #[cfg(unix)]
 use crate::scenes::{CAPTURE_NONE, INGEST_PORT};
-use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT};
+use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT, SPEAKER, text_of};
 #[cfg(unix)]
 use crate::support::{BINARY, interrupt, serve_driven};
 use crate::support::{
-    Failure, Served, clip, events, free_port, models_dir, named, serve, serve_from,
+    Failure, Served, clip, events, free_port, models_dir, models_without, named, serve, serve_from,
 };
 
 pub fn base_args<'a>(wav: &'a str, models: &'a str) -> Vec<&'a str> {
@@ -43,49 +44,65 @@ fn run_with(models: &Path, extra_args: &[&str]) -> Result<Served, Failure> {
     serve(&args, Some("C.UTF-8"), &[])
 }
 
-#[cfg(unix)]
-fn link(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(from, to)
-}
-
-#[cfg(windows)]
-fn link(from: &Path, to: &Path) -> std::io::Result<()> {
-    if from.is_dir() {
-        std::os::windows::fs::symlink_dir(from, to)
-    } else {
-        std::os::windows::fs::symlink_file(from, to)
-    }
-}
-
-static NEXT_DIRECTORY: AtomicU32 = AtomicU32::new(0);
-
-/// A models directory that holds everything the real one does except the entry `without`.
-fn models_without(without: &str) -> Result<PathBuf, Failure> {
-    let real = models_dir()?;
-    // Tests run on several threads of one process; each call gets a directory of its own.
-    let number = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-    let name = format!("rp29-models-without-{without}-{number}");
-    let target = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    if target.exists() {
-        std::fs::remove_dir_all(&target).map_err(|error| error.to_string())?;
-    }
-    std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
-    let entries = std::fs::read_dir(&real).map_err(|error| error.to_string())?;
-    for entry in entries {
-        let entry = entry.map_err(|error| error.to_string())?;
-        if entry.file_name() == without {
-            continue;
-        }
-        link(&entry.path(), &target.join(entry.file_name())).map_err(|error| error.to_string())?;
-    }
-    Ok(target)
-}
-
 /// The punctuation model is taken away: that stage is left out and subtitles still come.
 pub fn model_scene() -> Result<(), Failure> {
     let without = models_without("mojicast-punct-onnx")?;
     check_resource_fallback(&MODEL_DISABLED, &run_with(&without, &[])?, true)?;
     check_resource_present(&MODEL_DISABLED, &run_with(&models_dir()?, &[])?)
+}
+
+/// How many `final` events on the wire were followed by a `speaker` event of
+/// the same id with a mark, and how many finals there are.
+fn marked_finals(served: &Served) -> (usize, usize) {
+    let finals: Vec<&Value> = served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .collect();
+    let marked = finals
+        .iter()
+        .filter(|done| {
+            served.wire.iter().any(|event| {
+                text_of(event, "type") == Some("speaker")
+                    && text_of(event, "id") == text_of(done, "id")
+                    && text_of(event, "speaker").is_some_and(|mark| !mark.is_empty())
+            })
+        })
+        .count();
+    (marked, finals.len())
+}
+
+/// How many `speaker` events were on the wire.
+fn speaker_events(served: &Served) -> usize {
+    served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("speaker"))
+        .count()
+}
+
+/// The speaker model is taken away: the stage is left out, subtitles come
+/// without a mark, and with the model present every utterance has one.
+pub fn speaker_scene() -> Result<(), Failure> {
+    let without = models_without("campplus_sv.onnx")?;
+    let bare = run_with(&without, &[])?;
+    check_resource_fallback(&SPEAKER, &bare, true)?;
+    let (marked, total) = marked_finals(&bare);
+    let sent = speaker_events(&bare);
+    if total == 0 || marked != 0 || sent != 0 {
+        return Err(format!(
+            "speaker: without the model, {marked} of {total} finals have a mark and {sent} speaker events were sent"
+        ));
+    }
+    let whole = run_with(&models_dir()?, &[])?;
+    check_resource_present(&SPEAKER, &whole)?;
+    let (marked, total) = marked_finals(&whole);
+    if total == 0 || marked != total || speaker_events(&whole) == 0 {
+        return Err(format!(
+            "speaker: {marked} of {total} finals have a mark with the model"
+        ));
+    }
+    Ok(())
 }
 
 /// The requested port is held: the server moves to one of the next ten.
@@ -222,6 +239,7 @@ pub fn ingest_port_scene() -> Result<(), Failure> {
 /// play audio into `/ingest` and end the run with an interrupt are for Unix.
 pub fn all_scenes() -> Result<(), Failure> {
     model_scene()?;
+    speaker_scene()?;
     port_scene()?;
     config_scene()?;
     #[cfg(unix)]

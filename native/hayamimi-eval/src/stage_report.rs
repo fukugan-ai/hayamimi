@@ -186,8 +186,8 @@ const STAGE_MAP: [StageMap; 19] = [
     ),
     map(
         "清書の clustering",
-        &[],
-        "sherpa-onnx の中で再分離と同じ呼び出しに含まれ、分けて測る口が無い",
+        &["cluster"],
+        "FastClustering と同じ算法（cosine 距離、完全連結、閾値 0.5）の Rust の実装を、発話 12 個の埋め込みに掛け、cluster ごとの平均を重心 8 個へ全体の対応づけで当てるまで。sherpa-onnx の中の呼び出しは分けて測る口が無いので、同じ算法の代理を測っている",
         false,
     ),
     map(
@@ -887,6 +887,8 @@ mod tests {
                 repeat: 1,
                 utterances: 1,
                 os: String::from("windows"),
+                peers: 0,
+                peer_decodes: 0,
             },
             samples,
         }

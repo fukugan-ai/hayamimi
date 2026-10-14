@@ -19,6 +19,8 @@ pub enum Stage {
     SecondOpinion,
     /// The voice detector.
     Vad,
+    /// The speaker mark of an utterance.
+    Speaker,
 }
 
 impl Stage {
@@ -30,6 +32,7 @@ impl Stage {
             Stage::Recognizer => "recognizer",
             Stage::SecondOpinion => "second_opinion",
             Stage::Vad => "vad",
+            Stage::Speaker => "speaker",
         }
     }
 }
@@ -139,6 +142,7 @@ mod tests {
     #[test]
     fn the_names_are_the_words_of_the_events() {
         assert_eq!(Stage::Punct.name(), "punct");
+        assert_eq!(Stage::Speaker.name(), "speaker");
         assert_eq!(Stage::Lid.name(), "lid");
         assert_eq!(Stage::SecondOpinion.name(), "second_opinion");
         assert_eq!(Reason::ProviderMismatch.name(), "provider_mismatch");

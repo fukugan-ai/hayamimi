@@ -212,16 +212,45 @@ pub fn forward_bert(session: &mut Session, ids: &[i64]) -> Result<u64, EvalError
     u64::try_from(elapsed.as_nanos()).map_err(|_| invalid("a duration does not fit u64"))
 }
 
+/// The two inputs of an encoder forward: the features `[1, frames, MEL_BINS]` and their length.
+fn encoder_inputs(
+    features: &[f32],
+    frames: usize,
+) -> Result<(Tensor<f32>, Tensor<i64>), EvalError> {
+    let x =
+        Tensor::from_array(([1_usize, frames, MEL_BINS], features.to_vec())).map_err(ort_error)?;
+    let lens = Tensor::from_array(([1_usize], vec![i64::try_from(frames).map_err(ort_error)?]))
+        .map_err(ort_error)?;
+    Ok((x, lens))
+}
+
+/// How many frames the encoder hands to the search for `frames` frames of `features`.
+pub fn encoder_output_frames(
+    session: &mut Session,
+    features: &[f32],
+    frames: usize,
+) -> Result<usize, EvalError> {
+    let (x, lens) = encoder_inputs(features, frames)?;
+    let outputs = session
+        .run(ort::inputs!["x" => x, "x_lens" => lens])
+        .map_err(ort_error)?;
+    let (shape, _) = outputs[0].try_extract_tensor::<f32>().map_err(ort_error)?;
+    match shape.as_ref() {
+        [_, out_frames, _] => usize::try_from(*out_frames).map_err(ort_error),
+        other => Err(invalid(format!(
+            "the encoder output has rank {}, not 3",
+            other.len()
+        ))),
+    }
+}
+
 /// One encoder forward on `frames` frames of `features` (`frames * MEL_BINS` floats). Returns the nanoseconds.
 pub fn forward_encoder(
     session: &mut Session,
     features: &[f32],
     frames: usize,
 ) -> Result<u64, EvalError> {
-    let x =
-        Tensor::from_array(([1_usize, frames, MEL_BINS], features.to_vec())).map_err(ort_error)?;
-    let lens = Tensor::from_array(([1_usize], vec![i64::try_from(frames).map_err(ort_error)?]))
-        .map_err(ort_error)?;
+    let (x, lens) = encoder_inputs(features, frames)?;
     let started = std::time::Instant::now();
     let outputs = session
         .run(ort::inputs!["x" => x, "x_lens" => lens])

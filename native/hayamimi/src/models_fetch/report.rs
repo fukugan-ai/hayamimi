@@ -9,13 +9,14 @@ use super::error::FetchError;
 use super::items::{Item, Source};
 use super::keys;
 use crate::log::event_line;
-use crate::notice::Notice;
 use crate::strings::Strings;
 
 /// The component of every event of the command.
 const COMPONENT: &str = "models";
 /// The error code of a source that did not give a group.
 const SOURCE_FAILED_CODE: &str = "HAYAMIMI_MODELS_SOURCE_FAILED";
+/// The error code of a run that left some groups as they were.
+const PREVIOUS_CODE: &str = "HAYAMIMI_MODELS_FALLBACK";
 
 /// How a run ended, group by group.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -97,16 +98,14 @@ pub fn finished_line(strings: &Strings, tally: &Tally) -> String {
 
 /// `models.fallback.previous`: some groups came from no source, so the files
 /// already there stay. One event for the whole run.
-pub fn previous_line(strings: &Strings, notice: &Notice, tally: &Tally) -> String {
+pub fn previous_line(strings: &Strings, tally: &Tally) -> String {
     event_line(
         strings,
         Level::Warn,
-        notice.event,
+        keys::EVENT_PREVIOUS,
         COMPONENT,
-        Some(notice.error_code),
+        Some(PREVIOUS_CODE),
         &[
-            ("stage", Value::from(notice.stage)),
-            ("reason", Value::from(notice.reason)),
             ("groups", Value::from(tally.unavailable)),
             ("empty", Value::from(tally.empty)),
         ],
@@ -151,14 +150,10 @@ mod tests {
             empty: 1,
             ..Tally::default()
         };
-        let notice = Notice::models_previous();
-        let event = parsed(&previous_line(&strings, &notice, &tally))?;
+        let event = parsed(&previous_line(&strings, &tally))?;
         assert_eq!(event["event"], "models.fallback.previous");
         assert_eq!(event["error_code"], "HAYAMIMI_MODELS_FALLBACK");
-        assert_eq!(
-            (event["stage"].as_str(), event["reason"].as_str()),
-            (Some("models"), Some("unreachable"))
-        );
+        assert_eq!(event["level"], "warn");
         assert_eq!(
             (event["groups"].as_u64(), event["empty"].as_u64()),
             (Some(4), Some(1))

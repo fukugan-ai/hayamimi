@@ -175,6 +175,8 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 ### 3.4 翻訳の 3 段
 
 訳は次の 3 段を、この順に 1 回ずつ通す。
+ja と en の外の言語（`--translate` の zh、ko、es ほか）の訳は T と V だけで、E を掛けず、V で外れた行は `held` にする（`rust_port.ja.md` の 3.6）。
+E がそれらの言語の chrF に効く量は測っていない（NOT VERIFIED）。
 
 ```mermaid
 flowchart LR
@@ -353,6 +355,28 @@ token と link は会議ごとに変わるので、`%APPDATA%\hayamimi\send.toml
 この file の権限は、今の利用者と SYSTEM と Administrators だけが読める形にする。
 中継は読み直しのたびに ACL を見て、ほかの主体が読めるなら送信を止め、`send.config.too_open` を error で出す（CS-28）。
 
+`send.toml` は、使う送り先の表だけを書く。
+
+```toml
+[zoom]
+token = "https://…"   # host が渡す caption API token の URL
+[teams]
+link = "https://…"    # 主催者が作る CART の link
+```
+
+中継は `hayamimi-relay live --send <send.toml>` で file を指す。
+`--send` が無ければ外へは送らない。
+file が無い間、または送り先の表が無い間は、その送り先を黙って飛ばす。
+会議の token は起動の後に渡されるためである。
+Zoom へは token の URL の query に `seq`（送るたびに 1 ずつ増やす）と `lang=en-US` を足して、訳の文字列を `text/plain` の本文に入れて POST する。
+Teams へは link へ同じ本文を POST する。
+2xx が返れば送れた印で、それ以外の status、答えのない相手、3 秒の上限の超過は、送れなかった印にする（`translate.send.failed`、`sink.fallback.local`）。
+redirect は辿らない。token を別の宛先へ運ばないためである。
+ACL は caption を送るたびに確かめる。
+確かめられないときも、読めるものとして止める。
+読めない内容に書き換えられた file は、前の内容を使い続けて `table.load.failed` を 1 回出す。
+token と link の値は、log にも error の文にも出さない。
+
 ### 3.11 単位の換算
 
 **順番**：換算は V を通った後に行い、V の比べる対象に入れない。
@@ -507,6 +531,26 @@ SRT に書くのは確定の訳（3.4）だけで、先に出す T の訳と速�
 したがって日本語だけの動画では `.ja.srt` だけができる。
 cue の時刻は清書の `t0_s` と `t1_s` から作り、文字コードは BOM 無しの UTF-8 とする。
 書き終えるまでは一時 file に書き、最後に rename で置く。
+
+`hayamimi-relay srt <動画> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]` は、次の順に進む。
+
+1. 2 つの file の有無を見る。在れば `srt.output.exists` を出して止まり、音声は取り出さない（CS-15）。
+2. `srt.extract.started` を出し、ffmpeg で 16 kHz、mono、16 bit の wav を利用者の cache directory の作業 file に取り出す。
+3. `hayamimi --input ws --source file --ws-port <空き port>` を起こし、`/ingest` に繋いで config を送り、`ready` を受けてから作業 file の音声を実時間の速さで送る。
+   音声の後に 2 秒の無音を送り、同じ接続で返る event から `final` を集める。
+   接続が 8 秒 静かになったら集め終えたものとする。まだ 1 つも event が来ていないときは、model を開く時間として 60 秒 まで待つ。
+   `--source file` により、英語の行も日本語の行も file の行として扱われる。
+4. 英語の行だけを T、E、V、換算に通す。日本語の行と第三の言語の行は訳さない。
+5. 行の言語ごとに上の表のとおり cue を作り、2 つの file を一時 file から rename で置く。
+
+作業 file は終わると消し、起こした process は必ず止めて待つ。
+`/events` に繋ぐ形は採らない。
+`/events` は遅れて繋いだ client に過去の `final` を送り直さないので、繋ぐ前に出た行が落ちるためである。
+動画は音声の長さと同じ時間がかかる。
+`/ingest` の待ち行列は約 4 分半で溢れ、溢れた窓は捨てられるので、実時間より速くは送らない。
+話し声が 1 行も無い動画は、file を書かずに `srt.output.empty` を出して止まる。
+cue は `final` の行から作り、`refine` の行は使わない。
+`t0_s` と `t1_s` が無い行は cue を作らず、`srt.cue.skipped` を出す。
 
 ## 4. 採らない手段
 
@@ -1091,6 +1135,14 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。
 - **H14** 坪の係数 400/121（1 尺 = 10/33 m）は、二次の解説 2 本（https://qiita.com/sen-ltd/items/f67d8e4707ab3b59e233 、https://www.livable.co.jp/l-note/?p=11424 、取得日 2026-10-13）で一致し、どちらも計量法施行法を根拠に挙げる。e-Gov の条文は取得できず、一次の出所は確かめていない（NOT VERIFIED）。S8 の畳の 1.62 m² も用語集の転記である。test-designer が CX-9 を書く前に条文を取り、違えば表を直す。条文が取れないまま CX-9 を書くなら、坪と畳の行を CX-9 の合否から外して記録だけにする。
+- **H16** Teams の CART の送り方は、Zoom と同じ形（POST、`text/plain`）で置いた物で、確かめていない（NOT VERIFIED）。Zoom の `seq` と `lang` の値と、本文の末尾の改行の要否も同じく確かめていない。CS-17 と CS-18 を打つ時に確かめる。偽の受け手の test（`cs17_fake_receiver_gets_the_zoom_wire_shape`、`cs18_fake_receiver_gets_the_teams_wire_shape`）が固定するのは、置いた形だけである。
+- **H17** Windows の ACL は、`icacls` の出力の主体名を `NT AUTHORITY\SYSTEM`、`BUILTIN\Administrators`、`whoami` の値と大小を無視して比べる。英語以外の Windows でこれらの名前が違えば、正しい file も `send.config.too_open` で止まる（安全側）。`icacls` を実際に動かした run は無く、出力の読みは記録した形の文字列で test している（NOT VERIFIED）。
+- **H18** `srt` の実物（ffmpeg と `hayamimi --input ws`）は、日本語の 9 秒の動画 1 本を CPU で通し、確定文 3 行が 3 cue になったところまでを確かめた。
+  英語の行、翻訳器、GPU、長い動画は通していない。
+  集め終えの判断（接続が 8 秒 静かになる）は、1 つの発話の認識が 8 秒を超える機械では行を落とし、落ちた行は検知されない（NOT VERIFIED）。
+  `/ingest` に繋いだ client へ `session_start` が届くかも、実物では確かめていない。
+  届かなければ、話し声の無い動画は 60 秒 待ってから `srt.output.empty` になる。
+  CS-14 と CS-15 の実機の run で、`hayamimi` の log の `final` の数と cue の数を比べて数える。
 - **H15** 閉じた。為替の file と 8 の表の file の読み直しは CX-11（6.2、7 の順 13）で測る。読み手を作る CX-4 と CX-5 と同じ slice に置くのは、起動したときにだけ読む形が先に固まると、取得が正しくても 7 日たつと通貨の換算が黙って消えるからである。
 
 この文書の外で、実装の commit と同じ手番で直す物：

@@ -73,11 +73,12 @@ fn value_of(rest: &mut Rest<'_>) -> Result<String, OptionError> {
     rest.next().cloned().ok_or(OptionError::MissingValue)
 }
 
-fn parse_fetch(args: &[String]) -> Result<Options, OptionError> {
+fn parse_fetch(args: &[String]) -> Result<Parsed, OptionError> {
     let mut options = Options::new();
     let mut rest = args.iter();
     while let Some(option) = rest.next() {
         match option.as_str() {
+            "--help" => return Ok(Parsed::Help),
             "--minimal" => options.minimal = true,
             "--en-parakeet-v2" => options.en_parakeet_v2 = true,
             "--punct-4class" => options.punct_4class = true,
@@ -87,13 +88,13 @@ fn parse_fetch(args: &[String]) -> Result<Options, OptionError> {
             _ => return Err(OptionError::UnknownOption),
         }
     }
-    Ok(options)
+    Ok(Parsed::Fetch(options))
 }
 
 /// Parses the arguments after `models`.
 pub fn parse(args: &[String]) -> Result<Parsed, OptionError> {
     match args.split_first() {
-        Some((command, rest)) if command == "fetch" => parse_fetch(rest).map(Parsed::Fetch),
+        Some((command, rest)) if command == "fetch" => parse_fetch(rest),
         Some((flag, _)) if flag == "--help" => Ok(Parsed::Help),
         _ => Err(OptionError::UnknownCommand),
     }
@@ -154,6 +155,24 @@ mod tests {
     #[test]
     fn help_is_asked_for_with_the_flag() {
         assert_eq!(parse(&words("--help")), Ok(Parsed::Help));
+    }
+
+    #[test]
+    fn help_after_fetch_asks_for_the_text_wherever_it_stands() {
+        for line in [
+            "fetch --help",
+            "fetch --minimal --help",
+            "fetch --help --minimal",
+        ] {
+            assert_eq!(parse(&words(line)), Ok(Parsed::Help), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_value_that_looks_like_help_is_a_value() -> Result<(), OptionError> {
+        let options = fetch("fetch --dir --help")?;
+        assert_eq!(options.dir, PathBuf::from("--help"));
+        Ok(())
     }
 
     #[test]

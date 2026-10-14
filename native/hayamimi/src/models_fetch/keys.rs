@@ -10,10 +10,12 @@ pub const GROUP_FAILED: &str = "models_group_failed";
 pub const DONE: &str = "models_done";
 pub const MANIFEST_FAILED: &str = "models_manifest_failed";
 pub const DIR_FAILED: &str = "models_dir_failed";
+pub const PREVIOUS_KEPT: &str = "models_previous_kept";
 
 /// Every `[cli]` key above, for the check that both tables hold them all.
 #[cfg(test)]
-pub const ALL: [&str; 9] = [
+pub const ALL: [&str; 10] = [
+    PREVIOUS_KEPT,
     HELP,
     UNKNOWN_COMMAND,
     PRESENT,
@@ -34,9 +36,15 @@ pub const EVENT_SOURCE_FAILED: &str = "models.source.failed";
 /// The log event of the end of a run.
 pub const EVENT_FINISHED: &str = "models.fetch.finished";
 
-/// Every log event above that is not a fallback notice, for the same check.
+/// The log event of a run that left some groups as they were. It is a log
+/// event of this command only, not a `fallback` message of `/events`, so
+/// its words are not in the `stage` and `reason` lists of the notices.
+pub const EVENT_PREVIOUS: &str = "models.fallback.previous";
+
+/// Every log event above, for the same check.
 #[cfg(test)]
-pub const EVENTS: [&str; 4] = [
+pub const EVENTS: [&str; 5] = [
+    EVENT_PREVIOUS,
     EVENT_FETCHED,
     EVENT_PRESENT,
     EVENT_SOURCE_FAILED,

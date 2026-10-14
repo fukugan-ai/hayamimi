@@ -88,10 +88,25 @@ fn missing(what: &str, precision: Precision, provider: &str) -> EvalError {
     ))
 }
 
+/// One of the three model files of the Japanese and English transducer.
+fn transducer_file(models: &Path, kind: &str, precision: Precision) -> Result<PathBuf, EvalError> {
+    let name = format!("{kind}-epoch-35-avg-1{}.onnx", precision.infix());
+    existing(models, &[RECOGNIZER_DIR, &name]).map(PathBuf::from)
+}
+
 /// The encoder file of the Japanese and English transducer.
 pub fn encoder_file(models: &Path, precision: Precision) -> Result<PathBuf, EvalError> {
-    let name = format!("encoder-epoch-35-avg-1{}.onnx", precision.infix());
-    existing(models, &[RECOGNIZER_DIR, &name]).map(PathBuf::from)
+    transducer_file(models, "encoder", precision)
+}
+
+/// The decoder (prediction network) file of the same transducer.
+pub fn decoder_file(models: &Path, precision: Precision) -> Result<PathBuf, EvalError> {
+    transducer_file(models, "decoder", precision)
+}
+
+/// The joiner file of the same transducer.
+pub fn joiner_file(models: &Path, precision: Precision) -> Result<PathBuf, EvalError> {
+    transducer_file(models, "joiner", precision)
 }
 
 /// The punctuation BERT (fp32).
