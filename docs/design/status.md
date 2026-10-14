@@ -7,10 +7,11 @@ One row per slice gives its state, merge commit, where the verification comes fr
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
 Commit hashes were checked with `git log --oneline`; main was at `f0aeaf4` when they were checked.
 
-The four states:
+The five states:
 
 - **Done**: merged, and a seat that did not write it has verified it.
 - **In progress**: being built on a branch or in a worktree.
+- **Implemented, awaiting verification**: the implementation and its acceptance tests pass on a branch. A seat that did not write it has not yet passed it, and it is not merged.
 - **Planned**: not begun, but placed in a wave of the 07:00 plan ("07:00 の計画" in section 8 of `rust_port.ja.md`). W1 runs 14:00–20:00 JST on 2026-10-14, W2 21:00–01:00, W3 01:45–04:15 and W4 04:45–05:45 on 2026-10-15.
 - **Not started**: not begun and not placed in a wave.
 
@@ -26,7 +27,8 @@ The four states:
 | R5 (capture, partials and every server route) | Planned (W1) | none | none | RP-10, RP-11, RP-12 and the R5 rows of RP-29 not run | H34 |
 | R6 (three Dioxus pages) | Planned (W2; the designer's boards during W1) | none | none | Page rows of RP-12 not run | The designer's boards come first |
 | R7 (tightening recognition delay) | Planned (W2) | none | none | RP-4, RP-7 not run | H9 (0.25), H10, H31 |
-| R8a–R8f (relay on the Rust `hayamimi`, translation speed) | Planned (R8a in W1; R8b, R8c, R8d in W2; R8e, R8f in W3) | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-20 to CS-22, CS-25 not run | H6, H17, H32, H8b |
+| R8a, R8c–R8f (relay on the Rust `hayamimi`, translation speed) | Planned (R8a in W1; R8c, R8d in W2; R8e, R8f in W3) | none | none | RP-3, RP-5, RP-13, RP-25, RP-28 and conversation-subtitles CS-21, CS-22, CS-25 not run | H6, H17, H32, H8b |
+| R8b (llama-server on Windows, GPU check, fallback to the CPU) | Implemented, awaiting verification (branch `feat/r8b-llama`) | none | none | The four cases of conversation-subtitles CS-20 and the translate rows of RP-16 (T-RP-16-018 to 030) pass under `cargo test --release`. Three runs on the Windows machine (GPU present, GPU hidden, no CUDA build) exit with code 0 (`docs/results/r8b/`) | CS-20 after `wsl --shutdown` not run. T-RP-16-031 not run on a machine with a GPU. The translate `fallback` on `/events` waits for the link to the subtitle server |
 | R10 (fetching, documents, English versions) | Planned (W3) | none | none | RP-14, the spec row of RP-19, RP-21 not run | H16 |
 | R11 (removing Python) | Planned (W4) | none | none | RP-9, RP-19 not run | The three conditions in 3.2 |
 | End-to-end acceptance (E2E-1 mic ja→en, E2E-2 loopback en→ja) | Planned (after W4, 05:45–06:45) | none | none | E2E-1, E2E-2 not run | A Japanese utterance spoken into the real microphone cannot be checked by machine |

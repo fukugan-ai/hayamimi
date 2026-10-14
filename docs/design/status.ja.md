@@ -6,10 +6,11 @@ slice ごとに、状態、merge の commit、検証の出所、受入の通過�
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
 commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `f0aeaf4` である。
 
-状態の語は 4 つである。
+状態の語は 5 つである。
 
 - **済み**：merge され、書いていない席の検証が可を出した。
 - **作業中**：branch か worktree で作っている。
+- **実装済み・検証待ち**：branch で実装と受入の test が通った。書いていない席の検証はまだ可を出しておらず、merge もしていない。
 - **計画済み**：まだ作り始めていないが、07:00 の計画（`rust_port.ja.md` の 8 の「07:00 の計画」）の波に入っている。W1 は 2026-10-14 の 14:00〜20:00 JST、W2 は 21:00〜01:00、W3 は 2026-10-15 の 01:45〜04:15、W4 は 04:45〜05:45 である。
 - **未着手**：まだ作り始めておらず、波にも入っていない。
 
@@ -25,7 +26,8 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 | R5（取り込み、速報、server の全 route） | 計画済み（W1） | なし | なし | RP-10、RP-11、RP-12、RP-29 の R5 の行は未実行 | H34 |
 | R6（Dioxus の 3 頁） | 計画済み（W2。designer の板は W1 の間） | なし | なし | RP-12 の頁の行は未実行 | designer の板が先 |
 | R7（認識の遅れの詰め） | 計画済み（W2） | なし | なし | RP-4、RP-7 は未実行 | H9（0.25）、H10、H31 |
-| R8a〜R8f（訳の中継の Rust の `hayamimi` への接続と訳の速度） | 計画済み（R8a は W1、R8b、R8c、R8d は W2、R8e、R8f は W3） | なし | なし | RP-3、RP-5、RP-13、RP-25、RP-28、会話字幕の CS-20〜CS-22、CS-25 は未実行 | H6、H17、H32、H8b |
+| R8a、R8c〜R8f（訳の中継の Rust の `hayamimi` への接続と訳の速度） | 計画済み（R8a は W1、R8c、R8d は W2、R8e、R8f は W3） | なし | なし | RP-3、RP-5、RP-13、RP-25、RP-28、会話字幕の CS-21、CS-22、CS-25 は未実行 | H6、H17、H32、H8b |
+| R8b（Windows の llama-server、GPU の確認、CPU への fallback） | 実装済み・検証待ち（branch `feat/r8b-llama`） | なし | なし | 会話字幕の CS-20 の case 4 本と RP-16 の訳の行（T-RP-16-018〜030）が `cargo test --release` で pass。Windows の実機で 3 場面（GPU 在り、GPU を隠す、CUDA build 無し）が終了 code 0（`docs/results/r8b/`） | CS-20 の `wsl --shutdown` の後は未実行。T-RP-16-031 は GPU の在る機械で未実行。訳の段の `/events` の `fallback` は字幕の server との接続待ち |
 | R10（取得、文書、英語版） | 計画済み（W3） | なし | なし | RP-14、RP-19 の spec の行、RP-21 は未実行 | H16 |
 | R11（Python を消す） | 計画済み（W4） | なし | なし | RP-9、RP-19 は未実行 | 3.2 の 3 つの条件 |
 | 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 計画済み（W4 の後、05:45〜06:45） | なし | なし | E2E-1、E2E-2 は未実行 | 実機のマイクに人が話した ja は機械では確かめられない |

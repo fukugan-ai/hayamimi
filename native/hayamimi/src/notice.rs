@@ -3,11 +3,19 @@
 //! reads on stderr. All three come from the same fields, so they cannot
 //! disagree about which stage fell back or why.
 
-use hayamimi_asr::{Fallback, To};
+use hayamimi_asr::{Fallback, Reason, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 6] = ["punct", "recognizer", "vad", "asr", "events", "replace"];
+pub const STAGES: [&str; 7] = [
+    "punct",
+    "recognizer",
+    "vad",
+    "asr",
+    "events",
+    "replace",
+    "translate",
+];
 /// Every reason a notice can carry.
 pub const REASONS: [&str; 7] = [
     "no_device",
@@ -57,6 +65,18 @@ impl Notice {
             stage: fallback.stage.name(),
             reason: fallback.reason.name(),
             to: fallback.to.name(),
+            url: None,
+        }
+    }
+
+    /// The translation server runs on the CPU, with no layer on the GPU.
+    pub fn translate_on_cpu(reason: Reason) -> Notice {
+        Notice {
+            event: GPU_FALLBACK,
+            error_code: "HAYAMIMI_GPU_FALLBACK",
+            stage: "translate",
+            reason: reason.name(),
+            to: "cpu",
             url: None,
         }
     }
@@ -139,7 +159,7 @@ impl Notice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hayamimi_asr::{Reason, Stage};
+    use hayamimi_asr::Stage;
 
     fn punct_on_cpu() -> Notice {
         Notice::from_fallback(&Fallback {
@@ -158,6 +178,22 @@ mod tests {
         assert_eq!(
             (notice.stage, notice.reason, notice.to),
             ("punct", "no_device", "cpu")
+        );
+    }
+
+    #[test]
+    fn the_translation_server_on_the_cpu_is_a_gpu_fallback_of_the_translate_stage() {
+        let notice = Notice::translate_on_cpu(Reason::SessionFailed);
+        assert_eq!(notice.event, GPU_FALLBACK);
+        assert!(notice.is_gpu());
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("translate", "session_failed", "cpu")
+        );
+        let wire = notice.wire();
+        assert_eq!(
+            (wire["stage"].as_str(), wire["to"].as_str()),
+            (Some("translate"), Some("cpu"))
         );
     }
 
@@ -197,6 +233,9 @@ mod tests {
             Notice::port_in_use(None),
             Notice::port_in_use(Some(String::new())),
             Notice::config_unreadable(),
+            Notice::translate_on_cpu(Reason::NoDevice),
+            Notice::translate_on_cpu(Reason::DriverUnreadable),
+            Notice::translate_on_cpu(Reason::SessionFailed),
         ];
         for notice in notices {
             assert!(STAGES.contains(&notice.stage), "{}", notice.stage);

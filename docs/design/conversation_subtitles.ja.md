@@ -638,7 +638,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 31 | CS-15 | `cs15_existing_srt_stops_before_extraction` | `native/hayamimi-relay/tests/cs15.rs` | file を消した run |
 | 32 | CS-16 | `cs16_virtual_camera_frame_carries_the_subtitle_band` | `native/hayamimi-relay/tests/cs16.rs` | 字幕の無い frame |
 | 33 | CS-19 | `cs19_translator_outage_keeps_subtitles_flowing` | `native/hayamimi-relay/tests/cs19.rs` | 戻さない run |
-| 34 | CS-20 | `cs20_windows_translator_survives_wsl_shutdown` | `native/hayamimi-relay/tests/cs20.rs` | llama-server の process を止めた後 |
+| 34 | CS-20 | `cs20_windows_translator_survives_wsl_shutdown` | `native/hayamimi/tests/cs20.rs` | llama-server の process を止めた後 |
 | 35 | CS-21 | `cs21_every_line_gets_exactly_one_translation` | `native/hayamimi-relay/tests/cs21.rs` | 列を 1 にした設定 |
 | 36 | CS-22 | `cs22_late_translation_attaches_to_its_own_line` | `native/hayamimi-relay/tests/cs22.rs` | 直前の行に貼る作り |
 | 37 | CS-28 | `cs28_send_config_is_private_and_never_logged` | `native/hayamimi-relay/tests/cs28.rs` | Users に読みを足した ACL |
@@ -960,6 +960,24 @@ BEGIN{print r3(100*177.33/1.1181),r3(100*180/1.2),r3(5000000/180*1.2),r3(100*154
 | T-CX-11-011 | 010 の読み手を開いたまま、上書きの `local_units.toml`（`1.609344` を `1.6` にした物）を置き、同じ src と E の応答の次の行 | 表の書き替え | 新しい係数 | 注釈 = `（約 8.00 km）`。式：5 × 1.6 = 8.0、3 桁で 8.00（pseudo）（specified、6.2） | 陽性 | `rewritten_unit_table_is_used_from_the_next_line` |
 | T-CX-11-012 | 010 の読み手を開いたまま、壊れた表（fixture `cx11_broken.toml`：`[[[`）を置き、同じ src と E の応答の次の行 | 壊れた内容（表） | 前の内容 | 注釈 = `（約 8.05 km）`（既定のまま）。`level` = `warn` の行が 1 行（specified、6.2） | 陰性 | `broken_unit_table_keeps_the_previous_values_and_warns_once` |
 | T-CX-11-013 | 011 の手順を、開いたときにだけ表を読む偽の読み手で打った結果 | 起動したときにだけ読む build（表） | `Err` | 偽の読み手の注釈は `（約 8.05 km）` で、期待の `（約 8.00 km）` と違い、`check_annotation_equals` が `Err`（specified、6.2） | 陰性 | `startup_only_reader_misses_the_table_rewrite` |
+
+#### 7.13.2 CS-20（Windows の llama-server に、端末を閉じ WSL を止めた後も届く）
+
+command：`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test cs20`
+test：`native/hayamimi/tests/cs20.rs`。llama-server を起こす command（`hayamimi llama start`）は hayamimi の crate に在る。
+case の server は test の代役（`fake_llama_server`。`/health` に `{"status":"ok"}` を返す）で、起こす道具立て（子として持たない、端末の出力の pipe を握らない、別の process group）を確かめる。
+WSL の停止そのものは、打つと test を動かしている session も止まるので、case には入れず、実走の受入 `cs20_windows_translator_survives_wsl_shutdown`（`--ignored`）に置く。
+実走は Windows で `hayamimi llama start --model <file>` を打った後に、手で端末をすべて閉じ、`wsl --shutdown` を打ち、10 分待ってから `cargo test --release --test cs20 -- --ignored` を Windows 側で打つ。
+手順書は `docs/guide/llama_windows.ja.md`。
+NOT VERIFIED：`wsl --shutdown` の後の実走は、この slice では打っていない。打つのは利用者が session を止めてよい時である。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-CS-20-001 | 代役を入れた install に `hayamimi llama start --model ok.gguf --port <空き> --dir <install> --wait 20` を打ち、command が終わった後に `GET /health` | 起こした command が終わった後 | `status` が `ok` | command の終了 code 0、`translate.server.started` の `pid` の process が生きていて、`/health` の応答の `status` が `ok`（specified、CS-20 の期待値） | 陽性 | `server_answers_after_the_start_command_ended` |
+| T-CS-20-002 | 001 の後に `pid` の process を止め、同じ `GET /health` | server を止めた後（CS-20 の陰性） | 接続できない | 接続が拒まれる（specified、CS-20 の対照。001 の応答が server に由来することを示す） | 陰性 | `killed_server_does_not_answer` |
+| T-CS-20-003 | 001 の command を、出力を pipe で受ける形で打つ | server が command の出力の pipe を握らない | 終わる | command が `--wait` の秒数より前に終わる。握ると pipe が閉じず、端末を閉じた後に server が残る代わりに、command の呼び手が server の生きる間 待たされる（derived、Windows の継承の仕様） | 境界 | `start_command_returns_while_the_server_keeps_running` |
+| T-CS-20-004 | 001 の server の process group（Linux の `/proc/<pid>/stat` の 5 番目）と、test の process group | 別の group | 違う | server の group は server の pid と等しく、test の group と違う。端末の hangup と Ctrl+C が group に届くので、別 group の server には届かない（specified、3.7。Windows は `CREATE_NEW_PROCESS_GROUP` を unit test が確かめる） | 陰性 | `server_is_in_a_process_group_of_its_own` |
+| T-CS-20-005 | 実走（Windows、`--ignored`）：手順書の手順で端末を閉じ `wsl --shutdown` を打ち 10 分待った後、PowerShell で `Invoke-RestMethod http://127.0.0.1:8099/health` | 実走 | `status` が `ok` | `status` が `ok`（specified、CS-20）。対照は起こした直後の同じ command | 陽性 | （受入の名前そのもの） |
 
 #### 7.14 対象の在り処、確かめた式、残る穴、実装がやること
 
