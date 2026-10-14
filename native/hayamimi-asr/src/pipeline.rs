@@ -7,7 +7,7 @@
 //! order. Nothing here chooses a language: the route is Japanese only.
 
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, windows};
 use crate::error::AsrError;
@@ -107,11 +107,20 @@ pub struct Final {
     pub text: String,
     /// Seconds of audio decoded, the pre-roll included.
     pub audio_seconds: f64,
+    /// Where the utterance starts, in seconds from the start of the audio fed
+    /// to the engine; the pre-roll is not counted.
+    pub t0_s: f64,
+    /// Where the utterance ends, in the same seconds.
+    pub t1_s: f64,
+    /// When the detector decided the utterance had ended, in milliseconds
+    /// since the Unix epoch.
+    pub end_wall_ms: u64,
     pub timings: Timings,
     /// Set when punctuation failed and the text went on without it.
     pub punct_error: Option<String>,
-    /// Who spoke; empty label when the speaker stage is out.
-    pub speaker: Mark,
+    /// The 16 kHz samples of the utterance, kept only while the speaker stage
+    /// is on, for [`Engine::mark_speaker`]. The `final` does not wait for the mark.
+    pub speaker_audio: Vec<f32>,
 }
 
 /// The detector and the recognizer, which only work together.
@@ -139,6 +148,22 @@ pub struct Engine {
 
 fn millis(since: Instant) -> f64 {
     since.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Milliseconds since the Unix epoch.
+fn epoch_ms() -> Result<u64, AsrError> {
+    let since = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| AsrError::Clock)?;
+    u64::try_from(since.as_millis()).map_err(|_| AsrError::Overflow("the epoch milliseconds"))
+}
+
+/// Where a segment starts and ends, in seconds from the start of the audio fed
+/// to the engine.
+fn span_seconds(segment: &Segment) -> (f64, f64) {
+    let rate = f64::from(SAMPLE_RATE);
+    let start = segment.start as f64 / rate;
+    (start, start + segment.samples.len() as f64 / rate)
 }
 
 fn cpu_report(model: String) -> SessionReport {
@@ -404,9 +429,14 @@ impl Engine {
     }
 
     fn finish_segments(&mut self, segments: Vec<Segment>) -> Result<Vec<Final>, AsrError> {
+        if segments.is_empty() {
+            return Ok(Vec::new());
+        }
+        // The detector handed these segments over just now.
+        let ended_wall_ms = epoch_ms()?;
         let mut finals = Vec::new();
         for segment in segments {
-            if let Some(done) = self.process(&segment)? {
+            if let Some(done) = self.process(segment, ended_wall_ms)? {
                 finals.push(done);
             }
         }
@@ -415,12 +445,12 @@ impl Engine {
 
     /// Decodes the whole text of one segment: recognition, retry, ITN,
     /// punctuation, dictionary. A segment with no speech makes no final.
-    fn process(&mut self, segment: &Segment) -> Result<Option<Final>, AsrError> {
+    fn process(&mut self, segment: Segment, ended_wall_ms: u64) -> Result<Option<Final>, AsrError> {
         let started = Instant::now();
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
-        let decoded = decode_segment(route, segment)?;
+        let decoded = decode_segment(route, &segment)?;
         let vad_ms = route.vad_ms;
         if decoded.text.trim().is_empty() {
             return Ok(None);
@@ -437,13 +467,20 @@ impl Engine {
         }
         let id = self.next_id;
         self.next_id += 1;
-        // The text is finished here; the mark is timed apart and not counted in `l_dec_ms`.
         let l_dec_ms = millis(started);
-        let speaker = self.mark_speaker(&segment.samples);
+        let (t0_s, t1_s) = span_seconds(&segment);
+        let speaker_audio = if self.speakers.is_some() {
+            segment.samples
+        } else {
+            Vec::new()
+        };
         Ok(Some(Final {
             id,
             text,
             audio_seconds: decoded.seconds,
+            t0_s,
+            t1_s,
+            end_wall_ms: ended_wall_ms,
             timings: Timings {
                 vad_ms,
                 lid_ms: 0.0,
@@ -453,16 +490,15 @@ impl Engine {
                 l_dec_ms,
             },
             punct_error,
-            speaker,
+            speaker_audio,
         }))
     }
 
-    /// The speaker mark of one utterance; no mark when the stage is out.
-    fn mark_speaker(&mut self, samples: &[f32]) -> Mark {
-        match self.speakers.as_mut() {
-            Some(stage) => stage.mark(samples),
-            None => Mark::none(),
-        }
+    /// The speaker mark of a finished utterance, to be sent after its `final`;
+    /// `None` when the stage is out. Takes `done.speaker_audio` as it is.
+    pub fn mark_speaker(&mut self, done: &Final) -> Option<Mark> {
+        let stage = self.speakers.as_mut()?;
+        Some(stage.mark(&done.speaker_audio))
     }
 
     /// Inverse text normalisation, when the stage is on, and the time it took.
@@ -629,6 +665,31 @@ mod tests {
             .map(|f| (f.stage.name(), f.reason.name(), f.to.name()))
             .collect();
         assert_eq!(left_out, [("speaker", "missing", "disabled")]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_segment_spans_from_its_start_sample_to_its_last() {
+        let segment = Segment {
+            start: 8_000,
+            samples: vec![0.0; 16_000],
+        };
+        assert_eq!(span_seconds(&segment), (0.5, 1.5));
+    }
+
+    #[test]
+    fn an_empty_segment_at_the_start_spans_nothing() {
+        let segment = Segment {
+            start: 0,
+            samples: Vec::new(),
+        };
+        assert_eq!(span_seconds(&segment), (0.0, 0.0));
+    }
+
+    #[test]
+    fn the_clock_reads_a_time_after_2026() -> Result<(), AsrError> {
+        // 2026-01-01T00:00:00Z
+        assert!(epoch_ms()? > 1_767_225_600_000);
         Ok(())
     }
 

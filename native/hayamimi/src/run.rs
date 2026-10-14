@@ -60,14 +60,25 @@ fn report_failure(strings: &Strings, error: &RunError) {
     eprintln!("  {detail}");
 }
 
-/// The wire form of a finished utterance.
-fn final_event(done: &Final) -> Value {
+/// The source of the audio of every utterance of this run: its one input is a
+/// wav file.
+const SOURCE: &str = "file";
+
+/// The wire form of a finished utterance. `id`, `source`, `t0_s`, `t1_s` and
+/// `end_wall_ms` let the relay join a translation to this line and measure it.
+pub fn final_event(done: &Final, source: &str) -> Value {
     let t = &done.timings;
     json!({
         "type": "final",
+        "id": format!("{source}-{}", done.id),
+        "source": source,
+        "t0_s": done.t0_s,
+        "t1_s": done.t1_s,
+        "end_wall_ms": done.end_wall_ms,
         "text": done.text,
         "lang": "ja",
-        "speaker": done.speaker.label,
+        // The mark follows in a `speaker` event of the same id; the final does not wait for it.
+        "speaker": "",
         "latency_ms": t.l_dec_ms,
         "tier": "rz",
         "audio_s": done.audio_seconds,
@@ -77,18 +88,40 @@ fn final_event(done: &Final) -> Value {
     })
 }
 
-/// Logs and publishes what an utterance made.
-fn announce(strings: &Strings, hub: &Hub, finals: &[Final]) {
+/// The wire form of the speaker of an utterance already sent as a `final`.
+pub fn speaker_event(done: &Final, source: &str, label: &str) -> Value {
+    json!({
+        "type": "speaker",
+        "id": format!("{source}-{}", done.id),
+        "speaker": label,
+    })
+}
+
+/// Logs and publishes what an utterance made. Every `final` goes out before
+/// the first speaker mark is computed, so the mark never delays a subtitle.
+fn announce(strings: &Strings, hub: &Hub, engine: &mut Engine, finals: &[Final]) {
     for done in finals {
         log::print(&log::utterance_timed_line(strings, done));
         if done.punct_error.is_some() {
             log::print(&log::punct_failed_line(strings, done));
         }
-        if done.speaker.error.is_some() {
-            log::print(&log::speaker_failed_line(strings, done));
-        }
-        hub.publish(&final_event(done));
+        hub.publish(&final_event(done, SOURCE));
     }
+    for done in finals {
+        announce_speaker(strings, hub, engine, done);
+    }
+}
+
+/// Sends the speaker of one utterance as its own event, once; says so in the log when the mark failed.
+fn announce_speaker(strings: &Strings, hub: &Hub, engine: &mut Engine, done: &Final) {
+    let Some(mark) = engine.mark_speaker(done) else {
+        return;
+    };
+    if mark.error.is_some() {
+        log::print(&log::speaker_failed_line(strings, done));
+        return;
+    }
+    hub.publish(&speaker_event(done, SOURCE, &mark.label));
 }
 
 /// Says one fallback on the three channels: the log, the screen and the user.
@@ -216,11 +249,13 @@ fn play(
             pace(start, index);
         }
         if let Some(running) = engine.as_mut() {
-            announce(strings, hub, &running.feed(&window)?);
+            let finals = running.feed(&window)?;
+            announce(strings, hub, running, &finals);
         }
     }
     if let Some(running) = engine.as_mut() {
-        announce(strings, hub, &running.finish()?);
+        let finals = running.finish()?;
+        announce(strings, hub, running, &finals);
     }
     Ok(())
 }
@@ -269,7 +304,6 @@ pub fn run(raw: &[String], locale_tag: Option<&str>) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hayamimi_asr::speaker_stage::Mark;
     use hayamimi_asr::{Reason, Timings};
 
     fn finished() -> Final {
@@ -277,6 +311,9 @@ mod tests {
             id: 1,
             text: String::from("テスト"),
             audio_seconds: 1.5,
+            t0_s: 0.25,
+            t1_s: 1.75,
+            end_wall_ms: 1_790_000_000_123,
             timings: Timings {
                 vad_ms: 1.0,
                 lid_ms: 0.0,
@@ -286,8 +323,18 @@ mod tests {
                 l_dec_ms: 120.0,
             },
             punct_error: None,
-            speaker: Mark::none(),
+            speaker_audio: Vec::new(),
         }
+    }
+
+    #[test]
+    fn the_final_leaves_the_speaker_empty_and_the_speaker_event_names_the_same_id() {
+        let done = finished();
+        assert_eq!(final_event(&done, SOURCE)["speaker"], "");
+        let event = speaker_event(&done, SOURCE, "S2");
+        assert_eq!(event["type"], "speaker");
+        assert_eq!(event["id"], final_event(&done, SOURCE)["id"]);
+        assert_eq!(event["speaker"], "S2");
     }
 
     fn args_with_replace(path: Option<&str>) -> Args {
@@ -305,7 +352,7 @@ mod tests {
 
     #[test]
     fn the_wire_form_has_the_keys_of_the_existing_final_event() {
-        let event = final_event(&finished());
+        let event = final_event(&finished(), SOURCE);
         for key in [
             "type",
             "text",
@@ -323,6 +370,23 @@ mod tests {
         assert_eq!(event["type"], "final");
         assert_eq!(event["latency_ms"], 120.0);
         assert_eq!(event["decode_ms"], 111.0);
+    }
+
+    #[test]
+    fn the_final_event_carries_the_five_items_the_relay_joins_on() {
+        let event = final_event(&finished(), "mic");
+        assert_eq!(event["id"], "mic-1");
+        assert_eq!(event["source"], "mic");
+        assert_eq!(event["t0_s"], 0.25);
+        assert_eq!(event["t1_s"], 1.75);
+        assert_eq!(event["end_wall_ms"], 1_790_000_000_123_u64);
+    }
+
+    #[test]
+    fn a_wav_run_names_its_utterances_after_the_file_source() {
+        let event = final_event(&finished(), SOURCE);
+        assert_eq!(event["source"], "file");
+        assert_eq!(event["id"], "file-1");
     }
 
     #[test]

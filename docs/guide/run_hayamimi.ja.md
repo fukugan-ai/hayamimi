@@ -143,6 +143,20 @@ cargo test --release -p hayamimi-eval --test rp15 -- --ignored
 Rust の run は `docs/results/r4/der_rust_run<n>.log` に置きます。
 test は、Rust の run の平均と、`testdata/baseline/` の Python の run（3 回以上）の平均と幅を比べ、結果を `docs/results/r4/rp15_der.md` に書きます。
 
+## 話者の印を wire で受ける
+
+`final` の `speaker` は常に空です。
+埋め込みが済むと、同じ `id` の `{"type":"speaker","id":"file-0","speaker":"S1"}` が `final` の後に 1 回だけ届きます。
+`S1?` のように `?` が付く印は、まだ 1 回しか一致していない話者です。
+話者の model が無いか、埋め込みに失敗した発話には `speaker` の event が出ません。
+
+字幕の遅れに印が入らないことは、話者の model を外した directory との比較で確かめます。
+差は `asr.utterance.timed` の `l_dec_ms` の p50（話者あり − 話者なし）で、上限は 5 ms です。
+
+```bash
+cargo test --release -p hayamimi --test rp15_speaker -- --include-ignored
+```
+
 ## worktree で test を打つ
 
 worktree には、GPU 版の sherpa-onnx の build（`native/target/sherpa-gpu`）がありません。

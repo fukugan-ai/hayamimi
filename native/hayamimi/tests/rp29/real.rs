@@ -3,14 +3,13 @@
 //! present.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::checks::{check_port_move, check_resource_fallback, check_resource_present, port_of};
 use serde_json::Value;
 
 use crate::scenes::{CONFIG, MODEL_DISABLED, NEXT_PORTS, PORT, SPEAKER, text_of};
 use crate::support::{
-    Failure, Served, clip, events, free_port, models_dir, named, serve, serve_from,
+    Failure, Served, clip, events, free_port, models_dir, models_without, named, serve, serve_from,
 };
 
 pub fn base_args<'a>(wav: &'a str, models: &'a str) -> Vec<&'a str> {
@@ -41,44 +40,6 @@ fn run_with(models: &Path, extra_args: &[&str]) -> Result<Served, Failure> {
     serve(&args, Some("C.UTF-8"), &[])
 }
 
-#[cfg(unix)]
-fn link(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::os::unix::fs::symlink(from, to)
-}
-
-#[cfg(windows)]
-fn link(from: &Path, to: &Path) -> std::io::Result<()> {
-    if from.is_dir() {
-        std::os::windows::fs::symlink_dir(from, to)
-    } else {
-        std::os::windows::fs::symlink_file(from, to)
-    }
-}
-
-static NEXT_DIRECTORY: AtomicU32 = AtomicU32::new(0);
-
-/// A models directory that holds everything the real one does except the entry `without`.
-fn models_without(without: &str) -> Result<PathBuf, Failure> {
-    let real = models_dir()?;
-    // Tests run on several threads of one process; each call gets a directory of its own.
-    let number = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
-    let name = format!("rp29-models-without-{without}-{number}");
-    let target = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    if target.exists() {
-        std::fs::remove_dir_all(&target).map_err(|error| error.to_string())?;
-    }
-    std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
-    let entries = std::fs::read_dir(&real).map_err(|error| error.to_string())?;
-    for entry in entries {
-        let entry = entry.map_err(|error| error.to_string())?;
-        if entry.file_name() == without {
-            continue;
-        }
-        link(&entry.path(), &target.join(entry.file_name())).map_err(|error| error.to_string())?;
-    }
-    Ok(target)
-}
-
 /// The punctuation model is taken away: that stage is left out and subtitles still come.
 pub fn model_scene() -> Result<(), Failure> {
     let without = models_without("mojicast-punct-onnx")?;
@@ -86,7 +47,8 @@ pub fn model_scene() -> Result<(), Failure> {
     check_resource_present(&MODEL_DISABLED, &run_with(&models_dir()?, &[])?)
 }
 
-/// How many `final` events on the wire carry a speaker mark, and how many there are.
+/// How many `final` events on the wire were followed by a `speaker` event of
+/// the same id with a mark, and how many finals there are.
 fn marked_finals(served: &Served) -> (usize, usize) {
     let finals: Vec<&Value> = served
         .wire
@@ -95,7 +57,13 @@ fn marked_finals(served: &Served) -> (usize, usize) {
         .collect();
     let marked = finals
         .iter()
-        .filter(|event| text_of(event, "speaker").is_some_and(|mark| !mark.is_empty()))
+        .filter(|done| {
+            served.wire.iter().any(|event| {
+                text_of(event, "type") == Some("speaker")
+                    && text_of(event, "id") == text_of(done, "id")
+                    && text_of(event, "speaker").is_some_and(|mark| !mark.is_empty())
+            })
+        })
         .count();
     (marked, finals.len())
 }

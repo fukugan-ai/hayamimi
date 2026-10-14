@@ -277,3 +277,41 @@ pub fn read(path: &Path) -> Result<String, Failure> {
     std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))
 }
+
+#[cfg(unix)]
+fn link(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(from, to)
+}
+
+#[cfg(windows)]
+fn link(from: &Path, to: &Path) -> std::io::Result<()> {
+    if from.is_dir() {
+        std::os::windows::fs::symlink_dir(from, to)
+    } else {
+        std::os::windows::fs::symlink_file(from, to)
+    }
+}
+
+static NEXT_DIRECTORY: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// A models directory that holds everything the real one does except the entry `without`.
+pub fn models_without(without: &str) -> Result<PathBuf, Failure> {
+    let real = models_dir()?;
+    // Tests run on several threads of one process; each call gets a directory of its own.
+    let number = NEXT_DIRECTORY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let name = format!("models-without-{without}-{number}");
+    let target = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    if target.exists() {
+        std::fs::remove_dir_all(&target).map_err(|error| error.to_string())?;
+    }
+    std::fs::create_dir_all(&target).map_err(|error| error.to_string())?;
+    let entries = std::fs::read_dir(&real).map_err(|error| error.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if entry.file_name() == without {
+            continue;
+        }
+        link(&entry.path(), &target.join(entry.file_name())).map_err(|error| error.to_string())?;
+    }
+    Ok(target)
+}

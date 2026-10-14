@@ -129,7 +129,6 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
             ("punct_ms", millis(t.punct_ms)),
             ("itn_ms", millis(t.itn_ms)),
             ("l_dec_ms", millis(t.l_dec_ms)),
-            ("speaker_ms", millis(done.speaker.ms)),
         ],
     )
 }
@@ -182,7 +181,6 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::Timings;
     use hayamimi_asr::ort_runtime::NodeCounts;
-    use hayamimi_asr::speaker_stage::Mark;
     use hayamimi_relay::lang::Lang;
 
     fn strings() -> Result<Strings, String> {
@@ -207,6 +205,9 @@ mod tests {
             id: 3,
             text: String::from("本文"),
             audio_seconds: 2.0,
+            t0_s: 0.5,
+            t1_s: 2.0,
+            end_wall_ms: 1_790_000_000_000,
             timings: Timings {
                 vad_ms: 1.0,
                 lid_ms: 0.0,
@@ -216,7 +217,7 @@ mod tests {
                 l_dec_ms: 130.0,
             },
             punct_error: None,
-            speaker: Mark::none(),
+            speaker_audio: Vec::new(),
         }
     }
 
@@ -293,7 +294,6 @@ mod tests {
             "punct_ms",
             "itn_ms",
             "l_dec_ms",
-            "speaker_ms",
         ] {
             assert!(event.get(key).is_some(), "{key} is missing");
         }
