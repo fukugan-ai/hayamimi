@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -124,6 +125,31 @@ impl LogSink for StdoutSink {
     }
 }
 
+/// A sink that several threads write to. Each clone writes to the same sink.
+#[derive(Clone)]
+pub struct SharedSink {
+    inner: Arc<Mutex<Box<dyn LogSink + Send>>>,
+}
+
+impl SharedSink {
+    pub fn new(sink: impl LogSink + Send + 'static) -> SharedSink {
+        SharedSink {
+            inner: Arc::new(Mutex::new(Box::new(sink))),
+        }
+    }
+}
+
+impl LogSink for SharedSink {
+    fn emit(&mut self, event: LogEvent) {
+        // A thread that panicked while writing left a sink that is still usable.
+        let mut sink = match self.inner.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        sink.emit(event);
+    }
+}
+
 /// Keeps events in memory.
 #[derive(Default)]
 pub struct MemorySink {
@@ -185,5 +211,33 @@ mod tests {
     #[test]
     fn the_null_sink_accepts_events() {
         NullSink.emit(LogEvent::new(Level::Info, "a", "core"));
+    }
+
+    struct Counting(Arc<std::sync::atomic::AtomicUsize>);
+
+    impl LogSink for Counting {
+        fn emit(&mut self, _event: LogEvent) {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn clones_of_a_shared_sink_write_to_one_sink_from_many_threads() {
+        let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let shared = SharedSink::new(Counting(Arc::clone(&count)));
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                let mut sink = shared.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..25 {
+                        sink.emit(LogEvent::new(Level::Info, "a", "core"));
+                    }
+                })
+            })
+            .collect();
+        for thread in threads {
+            assert!(thread.join().is_ok());
+        }
+        assert_eq!(count.load(std::sync::atomic::Ordering::SeqCst), 100);
     }
 }

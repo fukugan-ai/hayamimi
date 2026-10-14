@@ -26,6 +26,8 @@ use hayamimi_relay::pipeline::{
     LineKind, LineRequest, NoObserver, Observer, Pipeline, PipelineConfig, Stage, Translation,
 };
 
+pub mod events;
+
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// The tuning sentences: id, src_lang, src, ref.

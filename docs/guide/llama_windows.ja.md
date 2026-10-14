@@ -1,7 +1,7 @@
 # 翻訳 server（llama-server）を Windows で起こす
 
 `hayamimi llama start --model <gguf の名前>` は、llama.cpp の `llama-server` を Windows の独立した process として起こします。
-端末を閉じても、`wsl --shutdown` を打っても、server は生きて `http://127.0.0.1:8099` で答え続けます。
+端末を閉じても、`wsl --shutdown` を打っても、server は生きて `http://127.0.0.1:8080` で答え続けます。
 GPU が無い機械、または GPU で立ち上がらない機械では、同じ model を CPU で動かし、そのことを 1 回だけ言います。
 どちらでも止まりません。
 
@@ -42,7 +42,7 @@ hayamimi llama start --model CAT-Translate-3.3b-Q8_0.gguf
 | option | 意味 | 既定 |
 |---|---|---|
 | `--model` | `models\llm` の file 名、または path。必須 | なし |
-| `--port` | server の port | 8099 |
+| `--port` | server の port | 8080 |
 | `--wait` | 答えるまで待つ秒数 | 180 |
 | `--dir` | install の root | `%LOCALAPPDATA%\hayamimi` |
 
@@ -53,7 +53,7 @@ server の引数は `-m <model> --host 127.0.0.1 --port <port> -np 4 -c 8192 -ng
 確かめます。
 
 ```powershell
-(Invoke-RestMethod http://127.0.0.1:8099/health).status
+(Invoke-RestMethod http://127.0.0.1:8080/health).status
 ```
 
 出力は `ok` です。
@@ -138,14 +138,14 @@ stop の command はありません（未実装）。
 port を持つ process を探して止めます。
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8099 -State Listen | Select-Object -ExpandProperty OwningProcess
+Get-NetTCPConnection -LocalPort 8080 -State Listen | Select-Object -ExpandProperty OwningProcess
 Stop-Process -Id <出た id>
 ```
 
 確かめます。止めた後は `Invoke-RestMethod` が接続できないと言って失敗します。
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8099/health
+Invoke-RestMethod http://127.0.0.1:8080/health
 ```
 
 入れた物を戻すには、`%LOCALAPPDATA%\hayamimi\llama` と `models\llm` と `log` を消します。

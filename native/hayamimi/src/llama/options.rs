@@ -6,7 +6,7 @@ use super::keys;
 
 /// The port the server listens on when `--port` is not given. The relay and
 /// the measuring tools reach it on the same address.
-pub const DEFAULT_PORT: u16 = 8099;
+pub const DEFAULT_PORT: u16 = 8080;
 /// How long a start waits for the model to load and the server to answer,
 /// before it counts the way it tried as failed. A 3.5 GB model read from a
 /// cold disk takes tens of seconds.

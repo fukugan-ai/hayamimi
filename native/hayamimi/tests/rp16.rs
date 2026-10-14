@@ -24,6 +24,9 @@ type GpuStage = (&'static str, &'static str);
 
 /// The GPU stages the Japanese route loads: the punctuation model.
 const LOADED: [GpuStage; 1] = [("punct", "punct_bert.onnx")];
+/// The GPU stages a run that routes by language loads: the punctuation model
+/// and the language identifier (the encoder session stands for the pair).
+const LOADED_ROUTED: [GpuStage; 2] = [("punct", "punct_bert.onnx"), ("lid", "tiny-encoder.onnx")];
 
 /// A run, and the GPU stages it loaded.
 struct Run {
@@ -391,6 +394,75 @@ fn unloaded_gpu_stage_needs_no_fallback_event() -> TestResult {
     Ok(())
 }
 
+// ---- the language identifier ----
+
+/// The same run, read as one that also loaded the language identifier.
+fn routed(run: Run) -> Run {
+    Run {
+        loaded: LOADED_ROUTED.to_vec(),
+        ..run
+    }
+}
+
+fn routed_hidden_stdout() -> String {
+    hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu") + &fallback_line("lid")
+}
+
+fn routed_hidden_wire() -> Vec<Value> {
+    vec![wire_final(), wire_fallback("punct"), wire_fallback("lid")]
+}
+
+/// T-RP-16-018
+#[test]
+fn no_gpu_run_that_also_loads_the_identifier_passes() -> TestResult {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        routed_hidden_wire(),
+    ));
+    check_no_gpu_run(&run)?;
+    Ok(())
+}
+
+/// T-RP-16-019
+#[test]
+fn missing_identifier_fallback_log_event_is_named() {
+    let stdout = hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(run_of(0, &stdout, "nvidia-smi\n", routed_hidden_wire()));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-020
+#[test]
+fn missing_identifier_events_fallback_is_named() {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        hidden_wire(),
+    ));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-021
+#[test]
+fn gpu_present_run_with_the_identifier_on_cuda_passes() -> TestResult {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cuda");
+    check_gpu_run(&routed(visible_run(&stdout, vec![wire_final()])))?;
+    Ok(())
+}
+
+/// T-RP-16-022
+#[test]
+fn gpu_present_run_with_the_identifier_on_cpu_is_rejected() {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(visible_run(&stdout, vec![wire_final()]));
+    assert!(names(check_gpu_run(&run), "lid"));
+}
+
 // ---- real runs ----
 
 fn real_run(locale: &str, extra: &[(&str, &str)]) -> Result<Run, Failure> {
@@ -646,14 +718,14 @@ fn gpu_run(stdout: &str, args: &str) -> TranslateRun {
 
 // ---- cases of the translation server ----
 
-/// T-RP-16-018
+/// T-RP-16-038
 #[test]
 fn no_gpu_translate_run_with_all_required_signals_passes() -> TestResult {
     check_translate_on_cpu(&cpu_run(), "no_device")?;
     Ok(())
 }
 
-/// T-RP-16-019
+/// T-RP-16-039
 #[test]
 fn translate_run_without_the_device_event_is_rejected() {
     let stdout = translate_fallback_line("no_device") + &started_line("cuda", 0);
@@ -664,7 +736,7 @@ fn translate_run_without_the_device_event_is_rejected() {
     ));
 }
 
-/// T-RP-16-020
+/// T-RP-16-040
 #[test]
 fn translate_run_without_the_fallback_event_is_rejected() {
     let stdout = unavailable_line() + &started_line("cuda", 0);
@@ -672,7 +744,7 @@ fn translate_run_without_the_fallback_event_is_rejected() {
     assert!(names(check_translate_on_cpu(&run, "no_device"), TRANSLATE));
 }
 
-/// T-RP-16-021
+/// T-RP-16-041
 #[test]
 fn duplicate_translate_fallback_event_is_rejected() {
     let stdout = cpu_stdout() + &translate_fallback_line("no_device");
@@ -680,7 +752,7 @@ fn duplicate_translate_fallback_event_is_rejected() {
     assert!(names(check_translate_on_cpu(&run, "no_device"), TRANSLATE));
 }
 
-/// T-RP-16-022
+/// T-RP-16-042
 #[test]
 fn gpu_layers_after_missing_gpu_are_rejected() {
     let stdout =
@@ -692,21 +764,21 @@ fn gpu_layers_after_missing_gpu_are_rejected() {
     ));
 }
 
-/// T-RP-16-023
+/// T-RP-16-043
 #[test]
 fn server_arguments_with_gpu_layers_after_missing_gpu_are_rejected() {
     let run = translate_run(0, &cpu_stdout(), "nvidia-smi\n", Some(ARGS_ON_GPU));
     assert!(names(check_translate_on_cpu(&run, "no_device"), "-ngl"));
 }
 
-/// T-RP-16-024
+/// T-RP-16-044
 #[test]
 fn failed_translate_start_is_rejected_as_a_cpu_fallback() {
     let run = translate_run(1, &cpu_stdout(), "nvidia-smi\n", Some(ARGS_ON_CPU));
     assert!(names(check_translate_on_cpu(&run, "no_device"), "want 0"));
 }
 
-/// T-RP-16-025
+/// T-RP-16-045
 #[test]
 fn translate_stderr_without_nvidia_smi_is_rejected() {
     let run = translate_run(0, &cpu_stdout(), "no device\n", Some(ARGS_ON_CPU));
@@ -716,14 +788,14 @@ fn translate_stderr_without_nvidia_smi_is_rejected() {
     ));
 }
 
-/// T-RP-16-026
+/// T-RP-16-046
 #[test]
 fn gpu_present_translate_run_has_no_fallback_events() -> TestResult {
     check_gpu_translate_run(&gpu_run(&started_line("cuda", 99), ARGS_ON_GPU))?;
     Ok(())
 }
 
-/// T-RP-16-027
+/// T-RP-16-047
 #[test]
 fn gpu_present_translate_run_that_falls_back_is_rejected() {
     let stdout = translate_fallback_line(SESSION_FAILED) + &started_line("cpu", 0);
@@ -731,7 +803,7 @@ fn gpu_present_translate_run_that_falls_back_is_rejected() {
     assert!(names(check_gpu_translate_run(&run), FALLBACK));
 }
 
-/// T-RP-16-028
+/// T-RP-16-048
 #[test]
 fn session_failed_run_needs_the_fallback_but_no_device_event() -> TestResult {
     let stdout = failed_line("cuda", "exited")
@@ -753,7 +825,7 @@ fn hidden_translate(name: &str, locale: &str, builds: &[Build]) -> Result<Sessio
     Session::start(name, builds, "ok.gguf", Some(locale), &[HIDE_GPU])
 }
 
-/// T-RP-16-029
+/// T-RP-16-049
 #[test]
 fn hidden_gpu_translate_server_starts_on_cpu_with_a_reason() -> TestResult {
     let session = hidden_translate("hidden", "C.UTF-8", &[Build::Cuda, Build::Cpu])?;
@@ -762,7 +834,7 @@ fn hidden_gpu_translate_server_starts_on_cpu_with_a_reason() -> TestResult {
     Ok(())
 }
 
-/// T-RP-16-030
+/// T-RP-16-050
 #[test]
 fn missing_cuda_build_falls_through_to_the_cpu_build() -> TestResult {
     let session = hidden_translate("nocuda", "C.UTF-8", &[Build::Cpu])?;
@@ -773,7 +845,7 @@ fn missing_cuda_build_falls_through_to_the_cpu_build() -> TestResult {
     Ok(())
 }
 
-/// T-RP-16-031
+/// T-RP-16-051
 #[test]
 #[ignore = "needs a machine with a CUDA device"]
 fn visible_gpu_translate_server_does_not_fall_back() -> TestResult {

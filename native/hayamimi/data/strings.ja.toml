@@ -50,6 +50,8 @@ stage_asr = "落ちた段: 認識"
 stage_events = "落ちた段: 字幕の server"
 stage_replace = "落ちた段: 置換辞書"
 stage_translate = "落ちた段: 翻訳 server"
+stage_lid = "落ちた段: 言語の判定"
+stage_second_opinion = "落ちた段: 日本語の二度読み"
 reason_no_device = "理由: CUDA の device が見つかりません。"
 reason_driver_unreadable = "理由: NVIDIA の driver か CUDA の runtime を読み込めません。"
 reason_session_failed = "理由: CUDA の session を作れませんでした。"
@@ -57,6 +59,7 @@ reason_missing = "理由: model の file がありません。"
 reason_unreadable = "理由: file を読めません。"
 reason_library_unavailable = "理由: 推論の library を開けません。"
 reason_in_use = "理由: port が使われています。"
+reason_provider_mismatch = "理由: CUDA 用に作った session が CUDA で動いていません。"
 to_cpu = "落ち先: CPU で同じ model を動かします。"
 to_disabled = "落ち先: この段を外して続けます。"
 to_next_port = "落ち先: 次の空いた port を使います。"
@@ -70,7 +73,7 @@ server は、GPU が在れば GPU で、無ければ CPU で動く。
 
 options:
   --model <file>   install の models/llm の中の model の file 名、または path
-  --port <n>       待ち受ける port。127.0.0.1 だけで待つ（既定は 8099）
+  --port <n>       待ち受ける port。127.0.0.1 だけで待つ（既定は 8080）
   --wait <sec>     model の読み込みを待つ秒数（既定は 180）
   --dir <dir>      install の directory（既定は利用者の local data directory の hayamimi）
   --help           この文を出す"""

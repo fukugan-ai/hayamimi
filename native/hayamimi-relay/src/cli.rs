@@ -1,13 +1,35 @@
-//! The command line: `fx-fetch` and `fx-schedule`.
+//! The command line: `run`, `fx-fetch` and `fx-schedule`.
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::calendar;
+use crate::follow::Backoff;
 use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
+use crate::hub;
 use crate::lang::Lang;
-use crate::logging::{LogSink, StdoutSink};
+use crate::llm::HttpLlm;
+use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
+use crate::pipeline::{Pipeline, PipelineConfig};
+use crate::relay::{self, Lanes, MakePipeline, RelayConfig};
 use crate::schedule::{self, DEFAULT_TASK_NAME, TaskSpec};
 use crate::strings::Strings;
+
+/// The streams `run` follows when none is named: the microphone's recognizer
+/// and the loopback's recognizer, on the ports the recognizers serve on.
+pub const DEFAULT_EVENTS: [&str; 2] = [
+    "http://127.0.0.1:8833/events",
+    "http://127.0.0.1:8834/events",
+];
+
+/// The translator `live` calls when `--llm` is not given: llama-server on its
+/// default port.
+pub const DEFAULT_LLM: &str = "http://127.0.0.1:8080";
+
+/// The port `live` serves on when `--serve` is not given: the one after the
+/// two recognizers' subtitle ports. A taken port moves to the next free one.
+pub const DEFAULT_SERVE: u16 = 8835;
 
 /// What `fx-schedule` was asked to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,6 +41,12 @@ pub enum ScheduleAction {
 /// A parsed command line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Follow the recognizers' events and serve the translations.
+    Run {
+        events: Vec<String>,
+        llm: String,
+        serve: u16,
+    },
     FxFetch {
         out: Option<PathBuf>,
         source_url: Option<String>,
@@ -39,6 +67,7 @@ pub enum CliError {
     MissingValue,
     UnknownOption,
     NeedInstallOrRemove,
+    BadPort,
 }
 
 impl CliError {
@@ -49,8 +78,59 @@ impl CliError {
             CliError::MissingValue => "missing_value",
             CliError::UnknownOption => "unknown_option",
             CliError::NeedInstallOrRemove => "need_install_or_remove",
+            CliError::BadPort => "bad_port",
         }
     }
+}
+
+/// What `live` was given. `llm` and `serve` start at the design's defaults;
+/// `events` stays empty until named and then falls to [`DEFAULT_EVENTS`].
+struct RunOptions {
+    events: Vec<String>,
+    llm: String,
+    serve: u16,
+}
+
+impl Default for RunOptions {
+    fn default() -> Self {
+        Self {
+            events: Vec::new(),
+            llm: DEFAULT_LLM.to_owned(),
+            serve: DEFAULT_SERVE,
+        }
+    }
+}
+
+fn parse_run_options(args: &[String]) -> Result<RunOptions, CliError> {
+    let mut options = RunOptions::default();
+    let mut rest = args.iter();
+    while let Some(arg) = rest.next() {
+        let option = arg.as_str();
+        if !matches!(option, "--events" | "--llm" | "--serve") {
+            return Err(CliError::UnknownOption);
+        }
+        let value = rest.next().ok_or(CliError::MissingValue)?;
+        match option {
+            "--events" => options.events.push(value.clone()),
+            "--llm" => options.llm.clone_from(value),
+            _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
+        }
+    }
+    Ok(options)
+}
+
+fn parse_run(args: &[String]) -> Result<Command, CliError> {
+    let options = parse_run_options(args)?;
+    let events = if options.events.is_empty() {
+        DEFAULT_EVENTS.map(str::to_owned).to_vec()
+    } else {
+        options.events
+    };
+    Ok(Command::Run {
+        events,
+        llm: options.llm,
+        serve: options.serve,
+    })
 }
 
 #[derive(Default)]
@@ -90,6 +170,8 @@ pub fn parse_args(args: &[String]) -> Result<Command, CliError> {
         return Err(CliError::UnknownCommand);
     };
     match name.as_str() {
+        // `live` is the name in the design; `run` stays as an alias.
+        "live" | "run" => parse_run(rest),
         "fx-fetch" => {
             let options = parse_options(rest, false)?;
             Ok(Command::FxFetch {
@@ -183,8 +265,71 @@ fn run_schedule(
     u8::from(result.is_err())
 }
 
+/// The per-user directory of table files that override the built-in ones.
+fn default_tables_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|dir| dir.join("hayamimi"))
+}
+
+/// Builds the pipeline of one lane against the llama-server at `llm_url`.
+fn pipeline_factory(llm_url: String) -> MakePipeline<HttpLlm> {
+    Arc::new(move |sink: &mut dyn LogSink| {
+        let config = PipelineConfig {
+            rates_path: default_rates_path(),
+            tables_dir: default_tables_dir(),
+        };
+        Pipeline::open(HttpLlm::new(&llm_url), &config, sink)
+    })
+}
+
+/// Says where the translations are served, and that the port moved when it did.
+fn announce_serving(
+    requested: u16,
+    address: SocketAddr,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) {
+    let moved = requested != 0 && address.port() != requested;
+    let (event, key) = if moved {
+        (
+            LogEvent::new(Level::Warn, "server.fallback.port", "transport")
+                .with("reason", "in_use"),
+            "port_moved",
+        )
+    } else {
+        (
+            LogEvent::new(Level::Info, "relay.serve.started", "transport"),
+            "serving_at",
+        )
+    };
+    sink.emit(event.with("port", address.port()));
+    eprintln!("{} http://{address}/events", strings.cli_text(key));
+}
+
+fn run_relay(events: Vec<String>, llm: String, serve: u16, now: i64, strings: &Strings) -> u8 {
+    let mut sink = SharedSink::new(StdoutSink::new(strings.clone()));
+    let Ok(listener) = hub::bind(serve) else {
+        print_error(strings, "cannot_serve");
+        return 1;
+    };
+    let config = RelayConfig {
+        events,
+        lanes: Lanes::PerSource,
+        backoff: Backoff::STANDARD,
+        started_epoch: now,
+    };
+    let Ok(address) = relay::start(listener, config, pipeline_factory(llm), sink.clone()) else {
+        print_error(strings, "cannot_serve");
+        return 1;
+    };
+    announce_serving(serve, address, &mut sink, strings);
+    // The relay works in threads of its own and ends with the process.
+    loop {
+        std::thread::park();
+    }
+}
+
 /// Runs a command line. Returns the process exit code: 0 done, 1 failed,
-/// 2 the command line was refused.
+/// 2 the command line was refused. `run` does not return.
 pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
     // A machine that reports no locale is read as English, the documented default.
     let lang = match locale_tag {
@@ -203,6 +348,7 @@ pub fn run(args: &[String], now_epoch: i64, locale_tag: Option<&str>) -> u8 {
     };
     let mut sink = StdoutSink::new(strings.clone());
     match command {
+        Command::Run { events, llm, serve } => run_relay(events, llm, serve, now_epoch, &strings),
         Command::FxFetch { out, source_url } => {
             run_fetch(out, source_url, now_epoch, &mut sink, &strings)
         }
@@ -265,7 +411,7 @@ mod tests {
     #[test]
     fn bad_command_lines_are_refused_with_a_key() {
         assert_eq!(parse_args(&[]), Err(CliError::UnknownCommand));
-        assert_eq!(parse_args(&args(&["live"])), Err(CliError::UnknownCommand));
+        assert_eq!(parse_args(&args(&["nope"])), Err(CliError::UnknownCommand));
         assert_eq!(
             parse_args(&args(&["fx-fetch", "--out"])),
             Err(CliError::MissingValue)
@@ -281,6 +427,139 @@ mod tests {
     fn a_refused_command_line_exits_with_two() {
         assert_eq!(run(&args(&["nope"]), 0, Some("en")), 2);
         assert_eq!(run(&args(&["nope"]), 0, None), 2);
+    }
+
+    #[test]
+    fn run_takes_the_translator_the_port_and_any_number_of_streams() {
+        let parsed = parse_args(&args(&[
+            "run",
+            "--llm",
+            "http://x:1",
+            "--serve",
+            "9100",
+            "--events",
+            "http://a/events",
+            "--events",
+            "http://b/events",
+        ]));
+        assert_eq!(
+            parsed,
+            Ok(Command::Run {
+                events: vec![
+                    String::from("http://a/events"),
+                    String::from("http://b/events")
+                ],
+                llm: String::from("http://x:1"),
+                serve: 9100
+            })
+        );
+    }
+
+    #[test]
+    fn live_is_the_name_and_run_is_its_alias() {
+        let rest = ["--serve", "9100", "--llm", "http://x:1"];
+        let with = |name: &'static str| {
+            let mut line = vec![name];
+            line.extend(rest);
+            parse_args(&args(&line))
+        };
+        assert!(matches!(with("live"), Ok(Command::Run { .. })));
+        assert_eq!(with("live"), with("run"));
+    }
+
+    #[test]
+    fn run_without_streams_follows_the_two_recognizer_ports() {
+        let parsed = parse_args(&args(&["run", "--serve", "0", "--llm", "http://x:1"]));
+        let Ok(Command::Run { events, .. }) = parsed else {
+            panic!("run was refused: {parsed:?}");
+        };
+        assert_eq!(events, DEFAULT_EVENTS);
+    }
+
+    #[test]
+    fn live_without_options_uses_the_designed_defaults() {
+        let expected = Command::Run {
+            events: DEFAULT_EVENTS.map(str::to_owned).to_vec(),
+            llm: String::from("http://127.0.0.1:8080"),
+            serve: 8835,
+        };
+        assert_eq!(parse_args(&args(&["live"])), Ok(expected));
+    }
+
+    #[test]
+    fn one_named_option_leaves_the_other_defaults() {
+        let parsed = parse_args(&args(&["live", "--serve", "9100"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run { ref llm, serve: 9100, .. }) if llm == DEFAULT_LLM
+        ));
+        let parsed = parse_args(&args(&["live", "--llm", "http://x:1"]));
+        assert!(matches!(
+            parsed,
+            Ok(Command::Run {
+                serve: DEFAULT_SERVE,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn run_refuses_a_port_that_is_not_a_port_number() {
+        for port in ["abc", "-1", "65536", ""] {
+            let parsed = parse_args(&args(&["run", "--llm", "u", "--serve", port]));
+            assert_eq!(parsed, Err(CliError::BadPort), "{port:?}");
+        }
+        assert!(parse_args(&args(&["run", "--llm", "u", "--serve", "65535"])).is_ok());
+    }
+
+    #[test]
+    fn run_refuses_an_unknown_option_and_a_missing_value() {
+        assert_eq!(
+            parse_args(&args(&["run", "--llm", "u", "--serve", "1", "--install"])),
+            Err(CliError::UnknownOption)
+        );
+        assert_eq!(
+            parse_args(&args(&["run", "--llm"])),
+            Err(CliError::MissingValue)
+        );
+    }
+
+    #[test]
+    fn the_run_refusals_have_text_in_both_locales() {
+        for lang in [Lang::Ja, Lang::En] {
+            let Ok(strings) = Strings::embedded(lang) else {
+                panic!("embedded table missing");
+            };
+            for key in [
+                CliError::BadPort.key(),
+                "cannot_serve",
+                "serving_at",
+                "port_moved",
+            ] {
+                assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
+            }
+        }
+    }
+
+    #[test]
+    fn serving_events_are_worded_in_both_locales() {
+        for lang in [Lang::Ja, Lang::En] {
+            let Ok(strings) = Strings::embedded(lang) else {
+                panic!("embedded table missing");
+            };
+            for event in [
+                "events.subscribe.opened",
+                "events.subscribe.lost",
+                "events.line.skipped",
+                "translate.line.skipped",
+                "translate.lane.failed",
+                "translate.publish.failed",
+                "relay.serve.started",
+                "server.fallback.port",
+            ] {
+                assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
+            }
+        }
     }
 
     #[test]

@@ -299,7 +299,7 @@ WSL に置くと、Windows の端末を閉じたときに VM が止まり訳も�
 model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置く。
 正本は WSL の `/mnt/h3-models` に在り、そこは ext4 の image で Windows から直には読めないので、使う model を Windows の上の置き場へ写し、写した file の sha256 を `%LOCALAPPDATA%\hayamimi\models\llm\manifest.json` に記録する（記録で、起動の条件にしない）。
 llama.cpp の版は使う前に最新の release を確かめて入れ替える。
-中継は `http://127.0.0.1:<port>` で届く。
+llama-server は `--port 8080`（llama-server の既定）で起こし、中継は既定で `http://127.0.0.1:8080` に届く。中継の既定（`--llm`、`--serve` 8835、`--events`）と持ち主は `rust_port.ja.md` の 8 の「07:00 の計画」の端から端の受入の表のそばに在る。
 slot は 4 とし（`-np 4`。mic の確定、loopback の確定、速報、E）、中継は音源ごとに先入れ先出しの列を持つ（`rust_port.ja.md` 3.6）。
 
 hooks の `guard_commands.rs` は、command に `llama-` で始まる実行 file の名前が在ると、WSL の build（`~/source/llama.cpp/build-cuda120`）が source より古いときに refuse する。
@@ -977,7 +977,7 @@ NOT VERIFIED：`wsl --shutdown` の後の実走は、この slice では打っ�
 | T-CS-20-002 | 001 の後に `pid` の process を止め、同じ `GET /health` | server を止めた後（CS-20 の陰性） | 接続できない | 接続が拒まれる（specified、CS-20 の対照。001 の応答が server に由来することを示す） | 陰性 | `killed_server_does_not_answer` |
 | T-CS-20-003 | 001 の command を、出力を pipe で受ける形で打つ | server が command の出力の pipe を握らない | 終わる | command が `--wait` の秒数より前に終わる。握ると pipe が閉じず、端末を閉じた後に server が残る代わりに、command の呼び手が server の生きる間 待たされる（derived、Windows の継承の仕様） | 境界 | `start_command_returns_while_the_server_keeps_running` |
 | T-CS-20-004 | 001 の server の process group（Linux の `/proc/<pid>/stat` の 5 番目）と、test の process group | 別の group | 違う | server の group は server の pid と等しく、test の group と違う。端末の hangup と Ctrl+C が group に届くので、別 group の server には届かない（specified、3.7。Windows は `CREATE_NEW_PROCESS_GROUP` を unit test が確かめる） | 陰性 | `server_is_in_a_process_group_of_its_own` |
-| T-CS-20-005 | 実走（Windows、`--ignored`）：手順書の手順で端末を閉じ `wsl --shutdown` を打ち 10 分待った後、PowerShell で `Invoke-RestMethod http://127.0.0.1:8099/health` | 実走 | `status` が `ok` | `status` が `ok`（specified、CS-20）。対照は起こした直後の同じ command | 陽性 | （受入の名前そのもの） |
+| T-CS-20-005 | 実走（Windows、`--ignored`）：手順書の手順で端末を閉じ `wsl --shutdown` を打ち 10 分待った後、PowerShell で `Invoke-RestMethod http://127.0.0.1:8080/health` | 実走 | `status` が `ok` | `status` が `ok`（specified、CS-20）。対照は起こした直後の同じ command | 陽性 | （受入の名前そのもの） |
 
 #### 7.14 対象の在り処、確かめた式、残る穴、実装がやること
 

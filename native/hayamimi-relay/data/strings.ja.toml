@@ -56,9 +56,18 @@ label = "m²"
 "schedule.task.installed" = "毎朝の取得を登録しました"
 "schedule.task.removed" = "毎朝の取得を消しました"
 "schedule.task.failed" = "予定の操作に失敗しました"
+"events.subscribe.opened" = "認識側の event を読み始めました"
+"events.subscribe.lost" = "認識側の event が止まりました。つなぎ直します"
+"events.line.skipped" = "行に見える event を使えませんでした"
+"translate.line.skipped" = "この行は訳さず、原文を出します"
+"translate.lane.failed" = "訳の列が行を受けられませんでした"
+"translate.publish.failed" = "訳を書き出せませんでした"
+"relay.serve.started" = "訳を配り始めました"
+"server.fallback.port" = "頼んだ port が使えないので、別の port を使います"
 
 [cli]
 usage = """使い方:
+  hayamimi-relay live [--llm <url>] [--serve <port>] [--events <url>]...
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
   hayamimi-relay fx-schedule --install|--remove [--task-name <名前>] [--out <file>] [--source-url <url>]"""
 unknown_command = "知らない subcommand です"
@@ -66,3 +75,7 @@ missing_value = "値が足りない option があります"
 unknown_option = "知らない option です"
 need_install_or_remove = "--install か --remove のどちらかが要ります"
 no_default_dir = "既定の保存先を決められません。--out を渡してください"
+bad_port = "--serve には 0 から 65535 までの port の番号が要ります"
+cannot_serve = "訳を配れません。開ける port がありません"
+serving_at = "訳を次の URL で配っています"
+port_moved = "頼んだ port が使えないので、訳を次の URL で配っています"
