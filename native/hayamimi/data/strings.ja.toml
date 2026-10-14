@@ -7,6 +7,7 @@
 "asr.utterance.timed" = "発話を確定しました"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
 "asr.engine.failed" = "認識の経路が失敗しました"
+"asr.partial.failed" = "進行中の発話の速報に失敗したので、飛ばしました"
 "gpu.fallback.cpu" = "段を GPU から CPU へ落として続けます"
 "model.fallback.disabled" = "model が使えないので、その段を外して続けます"
 "asr.fallback.disabled" = "推論の library を開けないので、認識を外して続けます"
@@ -18,6 +19,13 @@
 "gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
 "model.fallback.substitute" = "認識器が使えないので、別の認識器が代わりに答えます"
 "model.fallback.chunks" = "発話の検出器が使えないので、長い音声を一定の長さで切って続けます"
+"capture.fallback.single" = "音声の device が 1 つ無いので、在る方だけで続けます"
+"capture.fallback.none" = "使える音声の device が無いので、/ingest と wav の file を待って続けます"
+"capture.fallback.cleared" = "音声の device が戻ったので、また使います"
+"capture.device.opened" = "音声の device を開きました"
+"ingest.client.connected" = "音声の client が /ingest に繋がりました"
+"ingest.client.closed" = "/ingest の音声の client が離れました"
+"ingest.client.rejected" = "2 つ目の音声の client を断りました。同時に受けるのは 1 つだけです"
 "translate.server.started" = "翻訳 server が応答しています"
 "translate.server.running" = "翻訳 server がすでに応答しているので、起こしませんでした"
 "translate.server.failed" = "翻訳 server の起こし方の 1 つが立ち上がりませんでした"
@@ -26,11 +34,17 @@
 [cli]
 help = """hayamimi: 日本語の実時間音声認識（GPU が無ければ CPU で動く）
 
-使い方: hayamimi --wav <file> [options]
+使い方: hayamimi (--wav <file> | --input <kind>) [options]
 
 options:
   --wav <file>         この 16 bit の wav を文字に起こす
   --no-realtime        file を音声の速さに合わせず、続けて流す
+  --input <kind>       音声の入り口。wav、mic、speaker、mix、ws のどれか（既定は wav）
+  --mic-device <name>  開くマイク。名前の一部で選ぶ（既定は system のもの）
+  --speaker-device <name>  取り込む出力の device。名前の一部で選ぶ（既定は system のもの）
+  --ws-port <port>     この port で /ingest の音声の client を待つ（--input ws の既定は 8766）
+  --ws-host <address>  /ingest が待つ address（既定は 127.0.0.1）
+  --no-partial         発話の途中の速報を出さない
   --mode <mode>        balanced（既定）、fast、single。発話ごとの言語の決め方
   --lang <code>        この言語で全部読み、言語判定をしない（ja、en、zh、ko、yue など）
   --models <dir>       model の directory を置いた directory（既定は models）
@@ -48,7 +62,9 @@ missing_value = "option に値がありません。"
 bad_number = "option には正の数が要ります。"
 mode_unsupported = "--mode は balanced、fast、single のどれかです。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
-need_wav = "入力が要ります。--wav <file> を渡してください。"
+need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
+unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"
+bad_address = "--ws-host には IP address が要ります。"
 no_gpu_check = "GPU と driver は次の command で確かめられます: nvidia-smi"
 run_failed = "実行に失敗しました:"
 stage_punct = "落ちた段: 句読点"
@@ -57,6 +73,9 @@ stage_vad = "落ちた段: 発話の検出"
 stage_asr = "落ちた段: 認識"
 stage_events = "落ちた段: 字幕の server"
 stage_replace = "落ちた段: 置換辞書"
+stage_ingest = "落ちた段: 音声の client の server（/ingest）"
+stage_capture = "落ちた段: 音声の取り込み"
+reason_device_missing = "理由: 音声の device がありません。"
 stage_translate = "落ちた段: 翻訳 server"
 stage_lid = "落ちた段: 言語の判定"
 stage_second_opinion = "落ちた段: 日本語の二度読み"
@@ -75,6 +94,8 @@ to_substitute = "落ち先: 別の認識器が代わりに答えます。"
 to_chunks = "落ち先: 長い音声を一定の長さで切ります。"
 to_next_port = "落ち先: 次の空いた port を使います。"
 to_default = "落ち先: 既定の設定で動かします。"
+to_single = "落ち先: 在る方の音声だけで動かします。"
+to_none = "落ち先: /ingest と wav の file を待ちます。"
 llama_help = """hayamimi llama: 翻訳の model の server（llama.cpp の llama-server）を起こす
 
 使い方: hayamimi llama start --model <file> [options]

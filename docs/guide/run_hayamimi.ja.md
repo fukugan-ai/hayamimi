@@ -53,6 +53,38 @@ log は JSONL で stdout に出ます。
 字幕の文字と file の path は入りません。
 終了 code が 0 以外になるのは、入力の wav が読めないなど、代わりの道が無い失敗だけです。
 
+## 画面（Dioxus の 3 頁）を配る
+
+`--serve` の server は、`/`、`/dashboard`、`/transcript` に `native/hayamimi-ui/web/index.html` を返します（実行物に組み込み済み）。
+`/ui/*` は、実行物の隣の `ui/` directory の file（wasm-bindgen の出力）を返します。
+`ui/` に無い名前、directory、`..` で外へ出る名前は 404 です。
+`ui/` が無いと、頁の殻は返りますが wasm と js が 404 になり、画面は空のままです。
+
+`ui/` は次の 2 つの command で作ります。
+`wasm32-unknown-unknown` の target と、`wasm-bindgen` の CLI（crate の `wasm-bindgen` と同じ版）が要ります。
+
+```bash
+cd native
+cargo build --release --target wasm32-unknown-unknown -p hayamimi-ui --features web
+wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name hayamimi-ui \
+    target/wasm32-unknown-unknown/release/hayamimi-ui.wasm
+```
+
+`target/release/ui` は `target/release/hayamimi` の隣です。
+持ち出すときは、実行物と `ui/` を同じ directory に置きます。
+頁は同じ origin の `/events` を読みます。
+
+受入は `cargo test --release -p hayamimi --test r6` です。
+この test は上の 2 つを自分で打ち、本物の `hayamimi --wav ja_014.wav --serve` を起こします。
+確かめるのは、3 頁が `web/index.html` と同じ bytes であること、index とその script が読む `/ui/` の file が全部 200 で bytes も同じであること、無い名前と `..` が 404 であることです。
+Linux の build には ALSA の開発 file（`libasound2-dev`）が要ります。
+
+**採らない手段**：
+
+- wasm を実行物に組み込む。`hayamimi` の build が wasm の build を待つことになるので採りません。
+- 配る directory を option や環境変数で変える。置き場が 2 つ以上になって指し間違えるので採りません。
+- 旧来の `data/pages/*.html` を、`ui/` が無いときの代わりに返す。どの route からも返さない形にしました。file は残してあります。
+
 ## 落ちるときの形
 
 起動の時に、GPU を 2 段で確かめます。

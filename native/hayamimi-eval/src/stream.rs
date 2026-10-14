@@ -18,11 +18,25 @@ use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event,
 use crate::log;
 use crate::manifest::{read_rows, write_text};
 use crate::relay_events::{Watch, in_time_order};
+use crate::speaker;
 use crate::wav::{SAMPLE_RATE, read_wav};
+
+/// Where the recording goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sink {
+    /// Into the server's `/ingest`, chunk by chunk.
+    Ingest,
+    /// Out of the default output device, for the server's loopback capture to hear.
+    Loopback,
+}
 
 pub struct Options {
     pub host: String,
+    /// The server's `/ingest` port for the ingest sink, its `/events` port for the loopback sink.
     pub port: u16,
+    pub sink: Sink,
+    /// The `/ingest` port the loopback sink falls back to when the machine has no output device.
+    pub ingest_port: u16,
     /// The relay's `/events` port, when its translations are read too.
     pub relay_port: Option<u16>,
     pub wav: PathBuf,
@@ -160,6 +174,61 @@ pub fn open_ingest(host: &str, port: u16, origin: Instant) -> Result<ingest::Ing
     ingest::open(host, port, origin)
 }
 
+/// Plays the plan into `/ingest`: the send time of each chunk, and what came back.
+fn through_ingest(
+    options: &Options,
+    port: u16,
+    (plan, samples): (&Plan, &[i16]),
+    origin: Instant,
+) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+    let mut connection = open_ingest(&options.host, port, origin)?;
+    connection.start()?;
+    let sent_us = connection.play(plan, samples)?;
+    let received = connection.finish(Duration::from_secs(u64::from(options.drain_s)))?;
+    Ok((sent_us, received))
+}
+
+/// Plays the plan out of the output device while listening on `/events`.
+fn through_speaker(
+    options: &Options,
+    (plan, samples): (&Plan, &[i16]),
+    origin: Instant,
+) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+    let mut listener = ingest::listen(&options.host, options.port, origin)?;
+    listener.start()?;
+    let sent_us = match speaker::play(plan, samples, origin) {
+        Ok(sent_us) => sent_us,
+        Err(error) => {
+            // The run ends here or moves to /ingest; the listener has nothing to wait for.
+            let _ = listener.finish(Duration::ZERO);
+            return Err(error);
+        }
+    };
+    let received = listener.finish(Duration::from_secs(u64::from(options.drain_s)))?;
+    Ok((sent_us, received))
+}
+
+/// Sends the plan by the sink asked for. A loopback run on a machine with no
+/// output device does not stop: it says so and sends to `/ingest` instead.
+fn deliver(
+    options: &Options,
+    audio: (&Plan, &[i16]),
+    origin: Instant,
+) -> Result<(Vec<i64>, ingest::Received), EvalError> {
+    if options.sink == Sink::Ingest {
+        return through_ingest(options, options.port, audio, origin);
+    }
+    match through_speaker(options, audio, origin) {
+        Err(EvalError::NoOutputDevice) => {
+            let message = "no output device: sending to /ingest instead";
+            log::warn("eval.stream.sink_fallback", "worker", message, &[]);
+            eprintln!("warning: {message}");
+            through_ingest(options, options.ingest_port, audio, origin)
+        }
+        other => other,
+    }
+}
+
 /// Plays the recording and measures it.
 pub fn run(options: &Options) -> Result<Report, EvalError> {
     let audio = read_wav(&options.wav)?;
@@ -180,12 +249,10 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     let plan = ingest::plan(audio.samples.len(), &marks, options.repeat, gap);
 
     let origin = Instant::now();
-    let mut connection = open_ingest(&options.host, options.port, origin)?;
     let relay = match options.relay_port {
         Some(port) => Some(Watch::open(&options.host, port, origin)?),
         None => None,
     };
-    connection.start()?;
     log::info(
         "eval.stream.started",
         "worker",
@@ -196,8 +263,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
             ("chunks", plan.chunks.len().into()),
         ],
     );
-    let sent_us = connection.play(&plan, &audio.samples)?;
-    let received = connection.finish(Duration::from_secs(u64::from(options.drain_s)))?;
+    let (sent_us, received) = deliver(options, (&plan, &audio.samples), origin)?;
     let heard = match &relay {
         Some(watch) => in_time_order(received.events, watch.events()),
         None => received.events,

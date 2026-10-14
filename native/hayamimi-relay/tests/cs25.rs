@@ -75,10 +75,16 @@ fn check_requests(prompts: &[String], draft: &str) -> Result<(), Fault> {
 
 fn prompt_of(raw: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
     let body: Value = serde_json::from_slice(request_body(raw))?;
-    body["prompt"]
+    let messages = body["messages"]
+        .as_array()
+        .ok_or("a request without messages")?;
+    let [message] = messages.as_slice() else {
+        return Err(format!("{} messages, not one", messages.len()).into());
+    };
+    message["content"]
         .as_str()
         .map(str::to_owned)
-        .ok_or_else(|| "a request without a prompt".into())
+        .ok_or_else(|| "a message without content".into())
 }
 
 /// Everything one run left behind.
@@ -91,8 +97,7 @@ struct Run {
 }
 
 fn run() -> Result<Run, Box<dyn std::error::Error>> {
-    let script =
-        [DRAFT, EDITED].map(|content| serde_json::json!({ "content": content }).to_string());
+    let script = [DRAFT, EDITED].map(support::chat_reply);
     let server = FakeServer::start(move |index, _| match script.get(index) {
         Some(body) => Reply::json(body),
         None => Reply::status(500),

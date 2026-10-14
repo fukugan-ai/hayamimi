@@ -30,6 +30,7 @@ pub mod score;
 pub mod scorecard;
 pub mod scorecard_run;
 pub mod sha;
+pub mod speaker;
 pub mod stage_load;
 pub mod stage_models;
 pub mod stage_report;

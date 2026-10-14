@@ -127,5 +127,4 @@ The full reasons are in the source sections.
 | The GPU memory thresholds in RP-6 (256 MiB and 64 MiB) | H8c in D 10 |
 | Whether to adopt 0.25 for `--min-silence` | H9 in D 10; R7 |
 | Whether C's CS-15 (stop before extraction when an SRT already exists) should follow D 3.15's never-stop form | A council for the owner of C |
-| Whether a kept `fallback` event is removed when the resource comes back | H34 in D 10; R5 and R8b |
 | The English version `rust_port.md` | D opening; R10 |

@@ -8,19 +8,21 @@ use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 9] = [
+pub const STAGES: [&str; 11] = [
     "punct",
     "recognizer",
     "vad",
     "asr",
     "events",
     "replace",
+    "ingest",
+    "capture",
     "translate",
     "lid",
     "second_opinion",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 9] = [
+pub const REASONS: [&str; 10] = [
     "no_device",
     "driver_unreadable",
     "session_failed",
@@ -29,16 +31,19 @@ pub const REASONS: [&str; 9] = [
     "memory_budget",
     "library_unavailable",
     "in_use",
+    "device_missing",
     "provider_mismatch",
 ];
 /// Every destination a notice can carry.
-pub const DESTINATIONS: [&str; 6] = [
+pub const DESTINATIONS: [&str; 8] = [
     "cpu",
     "disabled",
     "substitute",
     "chunks",
     "next_port",
     "default",
+    "single",
+    "none",
 ];
 
 /// The log event of a stage that moved to the CPU.
@@ -55,6 +60,12 @@ pub const ASR_DISABLED: &str = "asr.fallback.disabled";
 pub const SERVER_PORT: &str = "server.fallback.port";
 /// The log event of a settings file that was not used.
 pub const CONFIG_DEFAULT: &str = "config.fallback.default";
+/// The log event of a run that has one audio device of the two it asked for.
+pub const CAPTURE_SINGLE: &str = "capture.fallback.single";
+/// The log event of a run that has none of the audio devices it asked for.
+pub const CAPTURE_NONE: &str = "capture.fallback.none";
+/// The log event of an audio device that came back.
+pub const CAPTURE_CLEARED: &str = "capture.fallback.cleared";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
@@ -175,6 +186,15 @@ impl Notice {
     /// The requested port was taken: the server is on the port of `url`, or,
     /// when none of the ports tried was free, is not running.
     pub fn port_in_use(url: Option<String>) -> Notice {
+        Notice::port_taken("events", url)
+    }
+
+    /// The same for the port of `/ingest`.
+    pub fn ingest_port_in_use(url: Option<String>) -> Notice {
+        Notice::port_taken("ingest", url)
+    }
+
+    fn port_taken(stage: &'static str, url: Option<String>) -> Notice {
         let to = if url.is_some() {
             "next_port"
         } else {
@@ -183,10 +203,32 @@ impl Notice {
         Notice {
             event: SERVER_PORT,
             error_code: "HAYAMIMI_SERVER_FALLBACK",
-            stage: "events",
+            stage,
             reason: "in_use",
             to,
             url,
+            tiers: None,
+        }
+    }
+
+    /// One of the two audio devices the input asked for is missing; the other one carries on.
+    pub fn capture_single() -> Notice {
+        Notice::capture(CAPTURE_SINGLE, "single")
+    }
+
+    /// No audio device the input asked for is usable; the run waits for `/ingest` and the wav file.
+    pub fn capture_none() -> Notice {
+        Notice::capture(CAPTURE_NONE, "none")
+    }
+
+    fn capture(event: &'static str, to: &'static str) -> Notice {
+        Notice {
+            event,
+            error_code: "HAYAMIMI_CAPTURE_FALLBACK",
+            stage: "capture",
+            reason: "device_missing",
+            to,
+            url: None,
             tiers: None,
         }
     }
@@ -237,10 +279,76 @@ impl Notice {
     }
 }
 
+/// A resource that came back, so that the stage returns to its first road.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cleared {
+    /// The log event, `<domain>.fallback.cleared`.
+    pub event: &'static str,
+    pub stage: &'static str,
+}
+
+impl Cleared {
+    /// An audio device is back.
+    pub fn capture() -> Cleared {
+        Cleared {
+            event: CAPTURE_CLEARED,
+            stage: "capture",
+        }
+    }
+
+    /// The domain of the log event, the part before the first dot.
+    pub fn domain(&self) -> &'static str {
+        match self.event.split_once('.') {
+            Some((domain, _)) => domain,
+            None => self.event,
+        }
+    }
+
+    /// The message `/events` sends to the screen: the stage is no longer fallen back.
+    pub fn wire(&self) -> Value {
+        json!({"type": "fallback", "stage": self.stage, "to": null})
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use hayamimi_asr::{Stage, Tier};
+
+    #[test]
+    fn a_missing_device_is_a_capture_notice_with_the_event_of_its_destination() {
+        let single = Notice::capture_single();
+        let none = Notice::capture_none();
+        assert_eq!(
+            (single.event, single.to),
+            ("capture.fallback.single", "single")
+        );
+        assert_eq!((none.event, none.to), ("capture.fallback.none", "none"));
+        for notice in [&single, &none] {
+            assert_eq!(notice.domain(), "capture");
+            assert_eq!((notice.stage, notice.reason), ("capture", "device_missing"));
+            assert!(!notice.is_gpu());
+        }
+    }
+
+    #[test]
+    fn the_ingest_port_notice_names_its_own_stage() {
+        let moved = Notice::ingest_port_in_use(Some(String::from("ws://127.0.0.1:8767/ingest")));
+        assert_eq!((moved.stage, moved.to), ("ingest", "next_port"));
+        assert_eq!(Notice::ingest_port_in_use(None).to, "disabled");
+        assert_eq!(Notice::port_in_use(None).stage, "events");
+    }
+
+    #[test]
+    fn a_cleared_device_tells_the_screen_with_a_null_destination() {
+        let cleared = Cleared::capture();
+        assert_eq!(cleared.domain(), "capture");
+        let wire = cleared.wire();
+        assert_eq!(wire["type"], "fallback");
+        assert_eq!(wire["stage"], "capture");
+        assert!(wire["to"].is_null());
+        assert!(wire.get("to").is_some(), "the key is there, with null");
+    }
 
     fn punct_on_cpu() -> Notice {
         Notice::from_fallback(&Fallback {

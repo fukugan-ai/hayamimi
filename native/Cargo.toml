@@ -5,6 +5,7 @@ members = [
     "hayamimi-relay",
     "hayamimi-eval",
     "hayamimi-gpu",
+    "hayamimi-ui",
     "xtask",
 ]
 resolver = "3"

@@ -17,6 +17,8 @@ path = "src/main.rs"
 base64 = "0.23"
 # ERROR POLICY: clap is confined to the CLI boundary; its errors are printed and turned into an exit code.
 clap = { version = "4", features = ["derive"] }
+# The loopback sink plays to the default output device (WASAPI on Windows, ALSA on Linux).
+cpal = "0.18"
 # ERROR POLICY: ferrous-opencc errors are mapped to EvalError::Invalid at the scoring boundary.
 ferrous-opencc = "0.4"
 hayamimi-asr = { path = "../hayamimi-asr" }

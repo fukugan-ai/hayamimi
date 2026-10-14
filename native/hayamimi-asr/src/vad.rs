@@ -1,6 +1,6 @@
 //! Voice activity detection: Silero through sherpa-onnx, on the CPU.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use hayamimi_gpu::session_lock::lock_for_session;
 use sherpa_onnx::{SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
@@ -46,8 +46,20 @@ pub struct Segment {
     pub samples: Vec<f32>,
 }
 
+/// Silero's speech-probability cutoff when the user has not chosen one.
+pub const DEFAULT_THRESHOLD: f32 = THRESHOLD;
+
 /// The configuration of a Silero detector on the CPU.
 pub fn silero_config(models: &Path, settings: VadSettings) -> Result<VadModelConfig, AsrError> {
+    silero_config_with(models, settings, THRESHOLD)
+}
+
+/// [`silero_config`] with a speech-probability cutoff of the caller's choice.
+pub fn silero_config_with(
+    models: &Path,
+    settings: VadSettings,
+    threshold: f32,
+) -> Result<VadModelConfig, AsrError> {
     let model = models.join(VAD_FILE);
     if !model.is_file() {
         return Err(AsrError::MissingModel(model));
@@ -62,7 +74,7 @@ pub fn silero_config(models: &Path, settings: VadSettings) -> Result<VadModelCon
     Ok(VadModelConfig {
         silero_vad: SileroVadModelConfig {
             model: Some(model),
-            threshold: THRESHOLD,
+            threshold,
             min_silence_duration: settings.min_silence,
             min_speech_duration: MIN_SPEECH_SECONDS,
             window_size: window,
@@ -93,25 +105,67 @@ pub fn take_segments(detector: &VoiceActivityDetector) -> Result<Vec<Segment>, A
     Ok(found)
 }
 
+/// What a live detector is set to: the two knobs and Silero's cutoff.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Sensitivity {
+    pub threshold: f32,
+    pub min_silence: f32,
+    pub max_speech: f32,
+}
+
+impl Sensitivity {
+    /// The settings a run starts with.
+    pub fn starting(settings: VadSettings) -> Sensitivity {
+        Sensitivity {
+            threshold: DEFAULT_THRESHOLD,
+            min_silence: settings.min_silence,
+            max_speech: settings.max_speech,
+        }
+    }
+
+    fn settings(self) -> VadSettings {
+        VadSettings {
+            min_silence: self.min_silence,
+            max_speech: self.max_speech,
+        }
+    }
+}
+
 /// The live detector that cuts the input into utterances.
+///
+/// A detector cannot be reconfigured; a change builds a new one, which counts
+/// its samples from zero. `offset` is the number of samples fed before the
+/// current detector was built, so that segment positions stay on the timeline
+/// of the whole input.
 pub struct Vad {
     detector: VoiceActivityDetector,
+    models: PathBuf,
+    sensitivity: Sensitivity,
+    offset: usize,
+    fed: usize,
 }
 
 impl Vad {
     pub fn open(models: &Path, settings: VadSettings) -> Result<Self, AsrError> {
-        let config = silero_config(models, settings)?;
-        let detector = {
-            let _building = lock_for_session();
-            VoiceActivityDetector::create(&config, BUFFER_SECONDS)
-        }
-        .ok_or(AsrError::Create("VAD"))?;
-        Ok(Vad { detector })
+        let sensitivity = Sensitivity::starting(settings);
+        Ok(Vad {
+            detector: build(models, sensitivity)?,
+            models: models.to_path_buf(),
+            sensitivity,
+            offset: 0,
+            fed: 0,
+        })
     }
 
     /// Feeds one window of `WINDOW` samples.
-    pub fn accept(&self, window: &[f32]) {
+    pub fn accept(&mut self, window: &[f32]) {
         self.detector.accept_waveform(window);
+        self.fed += window.len();
+    }
+
+    /// Whether the detector is inside speech that has not been cut yet.
+    pub fn detected(&self) -> bool {
+        self.detector.detected()
     }
 
     /// Ends the speech in progress, so that it is queued as a segment.
@@ -119,10 +173,41 @@ impl Vad {
         self.detector.flush();
     }
 
-    /// The segments finished since the last call.
+    /// The segments finished since the last call, positioned on the timeline of the whole input.
     pub fn take_segments(&self) -> Result<Vec<Segment>, AsrError> {
-        take_segments(&self.detector)
+        let mut found = take_segments(&self.detector)?;
+        for segment in &mut found {
+            segment.start += self.offset;
+        }
+        Ok(found)
     }
+
+    /// What the detector is set to now.
+    pub fn sensitivity(&self) -> Sensitivity {
+        self.sensitivity
+    }
+
+    /// Whether a new detector can replace this one without losing audio: no
+    /// speech in progress and no finished segment waiting to be taken.
+    pub fn is_idle(&self) -> bool {
+        !self.detector.detected() && self.detector.is_empty()
+    }
+
+    /// Replaces the detector with one built for `sensitivity`. The caller
+    /// checks [`Vad::is_idle`] first; the old detector is kept when the new
+    /// one cannot be built.
+    pub fn rebuild(&mut self, sensitivity: Sensitivity) -> Result<(), AsrError> {
+        self.detector = build(&self.models, sensitivity)?;
+        self.sensitivity = sensitivity;
+        self.offset = self.fed;
+        Ok(())
+    }
+}
+
+fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetector, AsrError> {
+    let config = silero_config_with(models, sensitivity.settings(), sensitivity.threshold)?;
+    let _building = lock_for_session();
+    VoiceActivityDetector::create(&config, BUFFER_SECONDS).ok_or(AsrError::Create("VAD"))
 }
 
 #[cfg(test)]

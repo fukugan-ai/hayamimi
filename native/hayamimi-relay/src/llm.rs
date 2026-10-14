@@ -32,14 +32,49 @@ impl std::fmt::Display for LlmError {
 
 impl std::error::Error for LlmError {}
 
-/// The body of a llama-server `/completion` request.
-#[derive(Debug, Serialize)]
+/// One request to the translator: the text of the single user message, how
+/// many tokens the answer may take, and the sampling the relay always uses.
+#[derive(Debug)]
 pub struct Completion<'a> {
+    /// The text of the one user message. The server applies the model's chat
+    /// template to it.
     pub prompt: &'a str,
     pub n_predict: u32,
     pub temperature: f32,
     /// Always the end-of-sequence marker, so it never reaches a subtitle.
     pub stop: [&'static str; 1],
+}
+
+/// The body of a llama-server `/v1/chat/completions` request.
+#[derive(Serialize)]
+struct ChatBody<'a> {
+    messages: [ChatMessage<'a>; 1],
+    max_tokens: u32,
+    temperature: f32,
+    stop: [&'static str; 1],
+    /// Reuses the computed part of a prompt that begins as the last one did.
+    cache_prompt: bool,
+}
+
+#[derive(Serialize)]
+struct ChatMessage<'a> {
+    role: &'static str,
+    content: &'a str,
+}
+
+impl<'a> From<&Completion<'a>> for ChatBody<'a> {
+    fn from(request: &Completion<'a>) -> ChatBody<'a> {
+        ChatBody {
+            messages: [ChatMessage {
+                role: "user",
+                content: request.prompt,
+            }],
+            max_tokens: request.n_predict,
+            temperature: request.temperature,
+            stop: request.stop,
+            cache_prompt: true,
+        }
+    }
 }
 
 impl<'a> Completion<'a> {
@@ -55,8 +90,23 @@ impl<'a> Completion<'a> {
 }
 
 #[derive(Deserialize)]
-struct CompletionAnswer {
+struct ChatAnswer {
+    choices: Vec<ChatChoice>,
+}
+
+#[derive(Deserialize)]
+struct ChatChoice {
+    message: ChatReply,
+}
+
+#[derive(Deserialize)]
+struct ChatReply {
     content: String,
+}
+
+/// The JSON body that goes to the server for `request`.
+pub fn request_body(request: &Completion<'_>) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&ChatBody::from(request))
 }
 
 /// Something that completes a prompt.
@@ -94,7 +144,7 @@ impl HttpLlm {
             .build();
         let root = base_url.trim_end_matches('/');
         HttpLlm {
-            endpoint: format!("{root}/completion"),
+            endpoint: format!("{root}/v1/chat/completions"),
             health: format!("{root}/health"),
             agent: ureq::Agent::new_with_config(config),
         }
@@ -121,8 +171,7 @@ impl HttpLlm {
 
 impl Llm for HttpLlm {
     fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError> {
-        let body =
-            serde_json::to_string(request).map_err(|error| LlmError::Body(error.to_string()))?;
+        let body = request_body(request).map_err(|error| LlmError::Body(error.to_string()))?;
         let mut response = self
             .agent
             .post(&self.endpoint)
@@ -133,9 +182,14 @@ impl Llm for HttpLlm {
             .body_mut()
             .read_to_string()
             .map_err(|error| LlmError::Transport(error.to_string()))?;
-        let answer: CompletionAnswer =
+        let answer: ChatAnswer =
             serde_json::from_str(&text).map_err(|error| LlmError::Body(error.to_string()))?;
-        Ok(answer.content)
+        let choice = answer
+            .choices
+            .into_iter()
+            .next()
+            .ok_or_else(|| LlmError::Body(String::from("no choices")))?;
+        Ok(choice.message.content)
     }
 }
 
@@ -144,18 +198,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_request_always_carries_the_stop_marker() -> Result<(), serde_json::Error> {
-        let body = serde_json::to_value(Completion::new("hello", 64))?;
+    fn a_request_is_one_user_message_with_the_stop_marker() -> Result<(), serde_json::Error> {
+        let body = serde_json::to_value(ChatBody::from(&Completion::new("hello", 64)))?;
         assert_eq!(body["stop"], serde_json::json!(["</s>"]));
-        assert_eq!(body["prompt"], "hello");
-        assert_eq!(body["n_predict"], 64);
+        assert_eq!(
+            body["messages"],
+            serde_json::json!([{"role": "user", "content": "hello"}])
+        );
+        assert_eq!(body["max_tokens"], 64);
+        assert_eq!(body["temperature"], 0.0);
+        assert_eq!(body["cache_prompt"], true);
         Ok(())
     }
 
     #[test]
     fn the_endpoint_joins_the_base_without_a_double_slash() {
         let llm = HttpLlm::new("http://127.0.0.1:8099/");
-        assert_eq!(llm.endpoint, "http://127.0.0.1:8099/completion");
+        assert_eq!(llm.endpoint, "http://127.0.0.1:8099/v1/chat/completions");
+    }
+
+    #[test]
+    fn the_answer_is_the_content_of_the_first_choice() -> Result<(), serde_json::Error> {
+        let answer: ChatAnswer = serde_json::from_str(
+            r#"{"choices":[{"message":{"role":"assistant","content":"Hello."}}]}"#,
+        )?;
+        assert_eq!(answer.choices[0].message.content, "Hello.");
+        Ok(())
     }
 
     #[test]

@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use hayamimi_asr::DEFAULT_MAX_RESIDENT;
 use hayamimi_asr::route::{Policy, is_routable};
 
+use crate::inputs::{Input, IoArgs};
 use crate::strings::keys;
 
 /// The port the subtitle events are served on when `--serve` has no value.
@@ -50,6 +51,8 @@ pub struct Args {
     pub max_resident: Option<NonZeroUsize>,
     /// The GPU memory in use, in MiB, at which a GPU stage moves to the CPU.
     pub gpu_budget_mib: u64,
+    /// Where the audio comes from besides the wav file.
+    pub io: IoArgs,
 }
 
 /// What the command line asks for.
@@ -68,6 +71,8 @@ pub enum ArgError {
     ModeUnsupported,
     LangUnsupported,
     NeedWav,
+    UnknownInput,
+    BadAddress,
 }
 
 impl ArgError {
@@ -80,6 +85,8 @@ impl ArgError {
             ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
+            ArgError::UnknownInput => keys::UNKNOWN_INPUT,
+            ArgError::BadAddress => keys::BAD_ADDRESS,
         }
     }
 }
@@ -173,6 +180,7 @@ impl Args {
             diagnose: false,
             max_resident: DEFAULT_MAX_RESIDENT,
             gpu_budget_mib: DEFAULT_GPU_BUDGET_MIB,
+            io: IoArgs::default(),
         }
     }
 
@@ -191,9 +199,14 @@ impl Args {
             "--gpu-diagnose" => self.diagnose = true,
             "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
             "--gpu-budget" => self.gpu_budget_mib = positive_mib(value_of(rest)?)?,
-            _ => return Err(ArgError::UnknownOption),
+            _ => return self.io.apply(option, rest),
         }
         Ok(())
+    }
+
+    /// The input of the run.
+    pub fn input(&self) -> Input {
+        self.io.kind()
     }
 }
 
@@ -209,7 +222,7 @@ pub fn parse(args: &[String]) -> Result<Parsed, ArgError> {
         seen_wav |= arg == "--wav";
         parsed.apply(arg, &mut rest)?;
     }
-    if seen_wav {
+    if parsed.io.is_complete(seen_wav) {
         Ok(Parsed::Run(parsed))
     } else {
         Err(ArgError::NeedWav)
