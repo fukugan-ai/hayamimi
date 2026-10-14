@@ -218,7 +218,12 @@ fn read_events(ports: &[u16]) -> String {
                 // Bytes are kept as read: a reset in the middle of a multi-byte
                 // character must not drop everything read before it.
                 let mut bytes = Vec::new();
-                let _ = stream.read_to_end(&mut bytes);
+                let read = stream.read_to_end(&mut bytes);
+                // A connection reset before the response head arrived never
+                // subscribed, so nothing is lost by connecting again.
+                if read.is_err() && bytes.is_empty() {
+                    continue;
+                }
                 text.push_str(&String::from_utf8_lossy(&bytes));
                 return text;
             }
