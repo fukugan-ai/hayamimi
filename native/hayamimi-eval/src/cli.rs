@@ -237,8 +237,8 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
     scorecard::write_json(&args.out, &outcome.card)?;
     for clip in &outcome.clips {
         println!(
-            "{}\ttier={}\terr={}\trtf={}\t{}",
-            clip.name, clip.tier, clip.err_micros, clip.rtf_micros, clip.text
+            "{}\tlang={}\tdetected={:?}\ttier={}\terr={}\trtf={}\t{}",
+            clip.name, clip.lang, clip.detected, clip.tier, clip.err_micros, clip.rtf_micros, clip.text
         );
     }
     for row in &outcome.card.rows {
