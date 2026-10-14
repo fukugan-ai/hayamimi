@@ -78,13 +78,14 @@ pub fn fallback_reason(gpu: Gpu, used: Plan) -> Option<Reason> {
     }
 }
 
-/// The command-line arguments of the server for `plan`.
-pub fn server_args(plan: Plan, model: &Path, port: u16) -> Vec<OsString> {
+/// The command-line arguments of the server for `plan`, with `slots`
+/// parallel requests.
+pub fn server_args(plan: Plan, model: &Path, port: u16, slots: u32) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec![OsString::from("-m"), model.as_os_str().to_owned()];
     for (name, value) in [
         ("--host", HOST.to_owned()),
         ("--port", port.to_string()),
-        ("-np", SLOTS.to_string()),
+        ("-np", slots.to_string()),
         ("-c", CONTEXT_TOKENS.to_string()),
         ("-ngl", plan.gpu_layers.to_string()),
     ] {
@@ -156,7 +157,7 @@ mod tests {
 
     #[test]
     fn the_arguments_carry_the_model_the_port_four_slots_and_the_gpu_layers() {
-        let args = server_args(CUDA_ALL, Path::new("m.gguf"), 8099);
+        let args = server_args(CUDA_ALL, Path::new("m.gguf"), 8099, SLOTS);
         assert_eq!(
             text(&args),
             [
@@ -178,9 +179,16 @@ mod tests {
 
     #[test]
     fn the_cpu_arguments_keep_every_layer_off_the_gpu() {
-        let args = text(&server_args(CPU, Path::new("m.gguf"), 8099));
+        let args = text(&server_args(CPU, Path::new("m.gguf"), 8099, SLOTS));
         let at = args.iter().position(|arg| arg == "-ngl");
         assert_eq!(at.map(|index| args[index + 1].as_str()), Some("0"));
+    }
+
+    #[test]
+    fn the_slot_count_is_the_one_asked_for() {
+        let args = text(&server_args(CUDA_ALL, Path::new("m.gguf"), 8081, 1));
+        let at = args.iter().position(|arg| arg == "-np");
+        assert_eq!(at.map(|index| args[index + 1].as_str()), Some("1"));
     }
 
     #[test]

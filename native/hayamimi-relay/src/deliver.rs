@@ -65,6 +65,15 @@ pub trait Destination: Send {
     /// A stable name for the log, such as `zoom`.
     fn name(&self) -> &'static str;
 
+    /// Whether the destination is set up to take captions right now. One that
+    /// is not (a meeting has not given its token yet) is passed over without a
+    /// word, as if it were not there. The courier asks just before each
+    /// [`Destination::send`], so a destination whose setup changes while the
+    /// relay runs is asked again for every caption.
+    fn ready(&mut self) -> bool {
+        true
+    }
+
     /// Sends one caption and returns when it is taken or has failed. It gives
     /// up after a time limit of its own, because the courier waits for it.
     fn send(&mut self, caption: &Caption) -> Result<(), SendError>;
@@ -174,7 +183,7 @@ impl Parcel {
     /// that was not withheld.
     pub fn caption(&self) -> Option<Caption> {
         let translation = &self.translation;
-        let wanted = translation.status == Status::Ok && translation.lang == Lang::En;
+        let wanted = translation.status == Status::Ok && translation.lang == Lang::En.code();
         wanted.then(|| Caption {
             id: translation.id.clone(),
             text: with_annotations(&translation.text, &translation.annotations),
@@ -264,6 +273,11 @@ impl Courier {
     }
 
     fn send_to(&mut self, index: usize, caption: &Caption) {
+        if !self.slots[index].destination.ready() {
+            // A destination that is not set up is not failing.
+            self.mark_up(index);
+            return;
+        }
         let result = self.slots[index].destination.send(caption);
         let name = self.slots[index].destination.name();
         match result {
@@ -425,7 +439,7 @@ mod tests {
             of,
             source: String::from("mic"),
             src_lang: lang.other(),
-            lang,
+            lang: lang.code(),
             src_sha256: String::new(),
             status,
             hold_reason: (status == Status::Held).then_some(HoldReason::Number),

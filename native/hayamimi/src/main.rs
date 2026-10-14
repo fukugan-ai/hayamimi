@@ -7,6 +7,9 @@ fn main() -> ExitCode {
         Some((command, rest)) if command == "llama" => {
             hayamimi_app::llama::run(rest, locale.as_deref())
         }
+        Some((command, rest)) if command == "models" => {
+            hayamimi_app::models_fetch::run(rest, locale.as_deref())
+        }
         _ => hayamimi_app::run::run(&args, locale.as_deref()),
     };
     ExitCode::from(code)

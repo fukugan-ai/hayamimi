@@ -27,6 +27,13 @@ pub const MODEL_DISABLED: Scene = Scene {
     reason: "missing",
     to: "disabled",
 };
+pub const SPEAKER: Scene = Scene {
+    name: "speaker",
+    event: "model.fallback.disabled",
+    stage: "speaker",
+    reason: "missing",
+    to: "disabled",
+};
 /// A recognizer tier that is not installed, read by the next tier that is.
 pub const MODEL_SUBSTITUTE: Scene = Scene {
     name: "recognizer substitute",

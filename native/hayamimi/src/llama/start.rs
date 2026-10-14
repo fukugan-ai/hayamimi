@@ -124,6 +124,7 @@ pub struct Installed {
     pub layout: Layout,
     pub model: PathBuf,
     pub port: u16,
+    pub slots: u32,
     pub wait: Duration,
 }
 
@@ -133,7 +134,7 @@ impl Launcher for Installed {
         if !exe.is_file() {
             return Err(AttemptError::MissingBuild);
         }
-        let args = server_args(plan, &self.model, self.port);
+        let args = server_args(plan, &self.model, self.port, self.slots);
         let mut child = spawn_detached(&exe, &args, &self.layout.log())
             .map_err(|error| AttemptError::SpawnFailed(error.kind()))?;
         match wait_until_it_answers(&mut child, self.port, self.wait) {
@@ -259,6 +260,7 @@ mod tests {
             layout: Layout::new(PathBuf::from(root)),
             model: PathBuf::from("m.gguf"),
             port: 1,
+            slots: 1,
             wait,
         }
     }

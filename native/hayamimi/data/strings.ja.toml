@@ -6,6 +6,9 @@
 "gpu.session.placed" = "model の node を置きました"
 "asr.utterance.timed" = "発話を確定しました"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
+"asr.speaker.failed" = "話者の印をつけられなかったので、印なしの文で続けました"
+"asr.final.published" = "確定文を字幕の event へ出し終えました"
+"speaker.embedding.started" = "発話の話者の埋め込みを始めました"
 "asr.engine.failed" = "認識の経路が失敗しました"
 "asr.partial.failed" = "進行中の発話の速報に失敗したので、飛ばしました"
 "gpu.fallback.cpu" = "段を GPU から CPU へ落として続けます"
@@ -24,6 +27,11 @@
 "translate.server.running" = "翻訳 server がすでに応答しているので、起こしませんでした"
 "translate.server.failed" = "翻訳 server の起こし方の 1 つが立ち上がりませんでした"
 "translate.server.unavailable" = "翻訳 server を起こせなかったので、訳を保留して原文の字幕を出し続けます"
+"models.group.fetched" = "model の一組を取得しました"
+"models.group.present" = "model の一組は既に在るので取得しませんでした"
+"models.source.failed" = "取得先の一つから model の一組を得られませんでした"
+"models.fetch.finished" = "model の取得を終えました"
+"models.fallback.previous" = "取得先から得られなかった model の組があります。既に在る file を残して続けます"
 
 [cli]
 help = """hayamimi: 日本語の実時間音声認識（GPU が無ければ CPU で動く）
@@ -66,6 +74,7 @@ stage_vad = "落ちた段: 発話の検出"
 stage_asr = "落ちた段: 認識"
 stage_events = "落ちた段: 字幕の server"
 stage_replace = "落ちた段: 置換辞書"
+stage_speaker = "落ちた段: 話者の印"
 stage_source = "落ちた段: 字幕の source（--source）"
 reason_bad_value = "理由: 値が mic、loopback、file のどれでもありません。"
 stage_ingest = "落ちた段: 音声の client の server（/ingest）"
@@ -108,3 +117,28 @@ llama_model_missing = "model の file がありません:"
 llama_started = "翻訳 server は次の address で応答しています:"
 llama_running = "翻訳 server はすでに次の address で応答しています:"
 llama_unavailable = "翻訳 server を起こせませんでした。訳を保留して原文の字幕を出し続けます。上の log の event を見てください。"
+models_help = """hayamimi models: 各段が読む model の file を取得します
+
+usage: hayamimi models fetch [options]
+
+file の組ごとに、まず sherpa-onnx の release から、次に Hugging Face から取得します。
+既に揃っている組は取得し直しません。どの取得先からも得られない組があっても、
+既に在る file を残して終了 code は 0 のままです。
+
+options:
+  --minimal          日本語と英語の核だけ（認識器、言語判定、VAD、句読点）
+  --en-parakeet-v2   英語専用の Parakeet v2 認識器も取得します
+  --punct-4class     4 クラスの日本語句読点 model も取得します
+  --dir <dir>        model の directory（既定: models）
+  --release-url <u>  sherpa-onnx の release の取得元の base address
+  --hf-url <u>       Hugging Face の base address
+  --help             この文を表示します"""
+models_unknown_command = "不明な command です。次の形で使います: hayamimi models fetch"
+models_present = "既に在ります:"
+models_fetched = "取得しました:"
+models_source_failed = "取得先から file を得られませんでした:"
+models_group_failed = "どの取得先からも得られませんでした。在る物は残します:"
+models_previous_kept = "どの取得先にも届かないか、file を得られなかった組があります。既に在る file はそのまま残します。"
+models_done ="model の取得を終えました。"
+models_manifest_failed = "manifest を書けませんでした:"
+models_dir_failed = "model の directory を作れませんでした:"

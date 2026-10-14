@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-29）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-35）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -532,6 +532,12 @@ test：`native/hayamimi-eval/tests/rp07.rs`。
 | T-RP-7-006 | fixture：統計に encoder の kernel の行を含む | 同じ式の陽性対照 | kernel の時間が出る | encoder の kernel の時間が 0 より大きい値で読める（specified、RP-7 の陽性対照） | 陽性 | `encoder_kernel_time_is_read_by_the_same_function` |
 | T-RP-7-007 | fixture：int8 の model の run と fp32 の run の転送の回数 | 検知の道具が差を見ること | int8 が多い | 比べる関数が「int8 の回数 > fp32 の回数」を返す（specified、RP-7 の陰性欄） | 陰性 | `int8_run_shows_more_transfers_than_fp32_run` |
 | T-RP-7-008 | `docs/results/gpu_stages.md` の実物（R1 の計測で `nsys profile --stats=true` の統計を取り込み済み。docs だけを読む。testdata も GPU も要らない） | 実物の読み取り（`--ignored` 無し） | 全行 | 転送の時間の p95 が `decode_ms` の p95 の 20% 以下（specified、RP-7）。Nsight Systems が Windows で動かなければ WSL の同じ build で数え、そのことを結果の file に書く（3.5） | 陽性 | `measured_transfers_stay_under_the_budget` |
+| T-RP-7-009 | fixture：同じ peers の GPU の認識全体の p50 = 1000 µs と CPU の p50 = 1000 µs | 置き場の判定の等号 | CPU が GPU より遅くない | `CpuKept`（specified、設計の R7 の行「CPU の側が GPU より遅くなれば評議へ戻す」） | 境界、陽性 | `a_cpu_no_slower_than_the_gpu_keeps_the_placement` |
+| T-RP-7-010 | fixture：GPU の p50 = 1000 µs、CPU の p50 = 1001 µs | 置き場の判定の外側 | CPU が GPU より遅い | `ReturnToCouncil`（specified、同上） | 境界、陰性 | `a_cpu_one_microsecond_slower_returns_the_placement_to_the_council` |
+| T-RP-7-011 | fixture：provider と peers が同じ 2 つの run file（認識と encoder 単独）、および同じ段と variant を持つ 2 つの run file | run file の統合 | 統合する、重なれば拒む | 前者は 1 本の run に標本が足され、`peer_decodes` は和になる。後者は `Err`（derived、CUDA で 2 段が 1 process に並ばないための分割） | 陽性、陰性 | `runs_of_one_provider_and_peer_count_are_joined`、`a_stage_in_two_files_of_one_kind_is_refused` |
+| T-RP-7-012 | fixture：frame 200、token 50、joiner 1 回 300 µs、decoder 1 回 100 µs。残りは範囲の下限、上限、上限を超える値、下限に満たない値 | 探索の見積りの下と上、残りの置き場 | 下 65000、上 80000 | 下 = 200 × 300 + 50 × 100 µs、上 = 200 × 300 + 200 × 100 µs。残りは両端を含めて内側、上限を超えれば `Above`、下限に満たなければ `Below`（derived。`Above` のときは差の原因を未特定と書く） | 境界、陽性、陰性 | `the_bracket_runs_from_a_decoder_call_per_token_to_one_per_frame`、`a_remainder_is_placed_against_the_bracket` |
+
+T-RP-7-009 から 012 の test は `native/hayamimi-eval/src/r7_report.rs` の単体 test で、`cargo test --release -p hayamimi-eval --lib r7_report` で走る。
 
 ### 4.18 RP-8（CPU に残した段の根拠）
 
@@ -655,6 +661,16 @@ test：`native/hayamimi-eval/tests/rp13.rs`。
 | T-RP-13-007 | 参照訳を hyp に渡す | 陽性対照 | 100 | 4 言語とも 100.0（specified、RP-13 の陽性対照） | 陽性 | `reference_as_hypothesis_scores_100` |
 | T-RP-13-008 | 原文を hyp に渡す | 陰性対照 | 記録未満 | 4 言語とも記録を割る（specified、RP-13 の陰性欄）。zh は漢字を共有するので、割らない可能性は R0 の実測で確かめる（RB-7 の 017 と同じ式） | 陰性 | `source_as_hypothesis_stays_below_record` |
 | T-RP-13-009 | 実走：`hayamimi-relay eval --pairs pairs/ --out hyps/` の後に `<ev> chrf` | 実走 | 実走 | 4 言語とも記録を超える（specified、RP-13。llama-server が要る。`eval` は R8f で足す） | 陽性 | `translation_chrf_beats_current_models` |
+| T-RP-13-010 | 測っていない言語が 1 つある測定値 | 言語の欠け | `Err` | `Err` で欠けた言語を名指し（implicit） | 陰性 | `a_language_that_was_not_measured_is_named` |
+| T-RP-13-011 | 劣化させた hyp、原文、参照訳の 3 通りを 4 言語で採点 | 採点器が sacrebleu 2.6.0 と同じ値を出すこと | 差 ≤ 0.01（4 桁の記録の丸め以内） | 文ごとの 200 値と corpus の 12 値が `<base>/chrf_scores/` と一致（derived。RP-14 の材料と同じ） | 陽性 | `the_scorer_gives_the_recorded_sacrebleu_scores` |
+| T-RP-13-012 | `hayamimi-relay eval` を偽の llama-server に流す（`native/hayamimi-relay/tests/r8f_eval.rs`）。(1) `en.ja.txt` の 3 文（E が V を通る文、E が V に落ちて T が通る文、T と E の両方が V に落ちる文）。(2) `es.ja.txt` の 2 文（訳の数字が原文と合う文、合わない文）。server は、user message が `Translate the following` で始まる依頼に T の答え、それ以外に E の答え、`chat_template_kwargs` を持つ依頼に es の答えを返す | 1 文の確定の訳。ja と en の組（en）は E、T、空のどれか。組の外（es）は T と V だけで、T、空のどちらか | en は 3 文、es は 2 文 | en：E が V を通れば E、通らず T が通れば T、両方外れれば空行。要求は 6 本（文ごとに T と E）。es：T が V を通れば T、外れれば空行（`held`）。要求は 2 本（文ごとに T だけで、E を掛けない）。どちらも行数は原文と同じで、`Written` の `held` は en が 1、es が 1（derived、RP-13 の「V が止めた行は空の hyp」と、設計 3.6 の「ja と en の外の言語の訳は T と V だけ」） | 陽性、境界 | `each_sentence_settles_on_the_edit_then_the_draft_then_an_empty_line`、`a_language_outside_the_pair_settles_on_t_alone_or_an_empty_line` |
+| T-RP-13-013 | 同じ偽の server に 1 文ずつ流し、要求の body を読む。(1) `en.ja.txt` の 1 文。(2) `zh.ja.txt` の 1 文（`猫が寝ています。`） | 依頼の形。組の中（en）と組の外（zh） | en は user message 1 つ、zh は user message 1 つと言語の code | en：「Translate the following Japanese text into English.」で始まる message が 1 つ、2 本目は「Rewritten English:」を含む E の依頼、`stop` が `["</s>"]`、`temperature` が 0、`cache_prompt` が真。zh：要求は 1 本で、`messages` が `[{"role":"user","content":"猫が寝ています。"}]`（指示の文を付けない原文だけ）、`chat_template_kwargs` が `{"source_lang_code":"ja","target_lang_code":"zh"}`、`stop`、`temperature`、`cache_prompt` は en と同じ（specified、設計 3.6 の「訳の依頼の形」と、組の外の言語の依頼） | 陽性（en と zh で形が違うこと。zh の message に指示の文が入ると落ちる） | `a_request_names_the_language_in_one_user_message`、`a_request_outside_the_pair_carries_the_language_codes` |
+| T-RP-13-014 | pairs に表に無い言語（`xx`）が混ざる | 訳せない言語 | 1 言語 | その言語を訳さず `translate.fallback.skipped`（warn、`HAYAMIMI_TRANSLATE_FALLBACK`、`reason` が `unsupported_target`）を 1 件出し、ほかの言語は続く（specified、設計 3.15 の止めない形） | 陰性 | `an_unlisted_language_is_left_out_with_an_event_and_the_others_go_on` |
+| T-RP-13-015 | llama-server に届かない、または要求が 4xx | 測定を止める場合 | 1 行目、2 行目 | `Err` で言語と行番号を名指しし、hyp の file を書かない（derived。空の答えの採点が測定に見えるのを防ぐ） | 陰性 | `an_unreachable_translator_stops_the_run_without_writing`、`a_refused_request_names_the_language_and_the_line` |
+| T-RP-13-016 | `native/hayamimi-relay/tests/r8f_eval.rs`。014 と同じ偽の server に、`en.ja.txt`、`zh.ja.txt`、`ko.ja.txt`、`es.ja.txt` の 4 file（各 1 行。原文は数字とラテン文字の名前を持たない。server の答えは、en と es がラテン文字、zh が漢字、ko がハングルの文で、V を通る形）だけを置いた pairs を流す。`xx.ja.txt` は置かない | 表に在る言語だけの pairs（014 は表に無い `xx` が混ざる pairs）。RP-13 の 4 言語で、live の組に在る en と、組の外の zh、ko、es を両側に含める | `translate.fallback.skipped` が 0 件 | `report.skipped` が空、`translate.fallback.skipped` の件数が 0、`<code>.hyp.txt` が 4 本、server が受けた要求が 5 本（en は T と E の 2 本、組の外の zh、ko、es は T だけの各 1 本）（specified、設計 3.15 の表の「表に無い言語が在る」ときだけ出す。要求の数は derived、012 の式） | 陰性（014 の対）、陽性（同じ sink が `translate.eval.written` を 4 件持つ。0 件が event の名前の違いではないことを示す。014 の同じ絞り込みは `xx` を足した pairs で 1 件を数える） | `pairs_of_listed_languages_only_emit_no_skipped_event` |
+| T-RP-13-017 | `native/hayamimi-relay/tests/r8f_live.rs`。偽の recognizer が `/events` に ja の `final` を 1 件（`id` 付き。原文は `猫が寝ています。`）流す。偽の llama-server は、`chat_template_kwargs` の `target_lang_code` が `zh` の依頼に `猫在睡觉。`、それ以外の依頼に英語の文を返す。引数は `live --events <偽の recognizer> --llm <偽の server> --llm-other <偽の server> --serve 0 --translate zh` で、`parse_args` が返した設定を、`cli::run` が使うのと同じ「中継を起こして handle を返す関数」（`start_live`）に渡して起こし、bind した port の `/events` を読み、handle で止める（走り続ける `cli::run` を test から直に起こさない） | `--translate` の言語が、表に在り、live の組（ja と en）の外に在る（zh）。流す行は 1 件（0 件でも 2 件でもない境界） | `lang` が `zh` の確定の訳（`settled` が真）が 1 件、`lang` が `en` の `translation` が 0 件、server が受けた要求が 1 本 | `/events` の `translation` のうち、`settled` が真で `lang` が `zh` の物がちょうど 1 件で、`lang` が `en` の `translation`（先の訳を含む）は 0 件（`--translate` は訳の先の組を置き換える。設計 3.6）。zh の event の `id` が流した `final` の `id`、`src_sha256` が原文の sha256、`status` が `ok`、`text` が server の答え。server が受けた要求は 1 本で、user message が原文だけ、`target_lang_code` が `zh`（T だけで E を掛けない。設計 3.6）（specified、R8f の受入。会話字幕の設計 3.3 の `translation` の項目） | 陽性（要求が `target_lang_code` が `zh` の 1 本であること。event が組の外の言語の経路を通って作られたことの対照）、陰性（`--translate` を付けない同じ入力では、`lang` が `zh` の `translation` が 0 件で、確定の訳が 1 件あり `lang` が `en`。`zh` の 0 件が collector の空ではないことの対照も兼ねる。設計 3.6 の既定の規則：mic の ja は en へ）、陽性（`--translate en,zh` では `en` と `zh` の確定の訳が 1 件ずつ。en の 0 件が en を落とす癖ではなく置き換えの結果であることの対照） | `a_translate_option_outside_the_live_pair_publishes_a_translation_in_that_language`、`without_the_translate_option_no_translation_in_that_language_is_published`、`translate_en_and_zh_publishes_both` |
+| T-RP-13-018 | `native/hayamimi-relay/tests/r8f_live.rs`。017 と同じ偽の recognizer と偽の server、同じ起こし方で、引数は `live --events <偽の recognizer> --llm <偽の server> --llm-other <偽の server> --serve 0 --translate xx,zh`。ja の `final` を 1 件流した後に、`/events` へもう 1 本 client を繋ぐ（遅れて繋いだ client） | 表に在る言語（zh）と表に無い言語（`xx`）が混ざる。表に無い言語は 1 つ（0 個は 017 の入力、2 個以上は設計に値が無いので数えない）。client は流す前から繋いだ物と、流した後に繋いだ物の 2 本 | `xx` について log の `translate.fallback.skipped` が 1 件、`/events` の `fallback` が 1 件 | log：`translate.fallback.skipped`（warn、`reason` が `unsupported_target`、`error_code` が `HAYAMIMI_TRANSLATE_FALLBACK`）が `target` が `xx` で 1 件。中継の起動の後の `skipped()` が `["xx"]`。`/events`：`{"type":"fallback","stage":"translate","reason":"unsupported_target","to":"skipped"}` が最初の client に 1 件、遅れて繋いだ client にも 1 件（取っておいた event として最初にまとめて届く）。zh の確定の訳は 1 件出る。server が受けた要求は 1 本で、`target_lang_code` が `zh`（`xx` の依頼は 0 本。specified、設計 3.15 の表の `live` の行と、R8f の受入） | 陽性（zh の確定の訳が 1 件出ること。ほかの言語が続く対照）、陰性（`--translate zh` だけの起動では `fallback` が 0 件で log の `translate.fallback.skipped` も 0 件。`fallback` の 1 件が数え違いではないことの対照。遅れて繋いだ client が `fallback` を受けないと落ちる） | `an_unlisted_translate_language_is_skipped_with_a_kept_fallback_event_and_zh_goes_on`、`a_run_that_names_only_zh_has_no_fallback_event` |
+| T-RP-13-019 | `native/hayamimi-relay/tests/chat_probe_gemma.rs`。会話字幕の probe の 40 文（`testdata/conv20.tsv`）を、中継の組の外の言語向けの依頼（原文だけの user message と言語の code）で 2 本目の llama-server（port 8081、または `testdata/rp13_other_server.txt` の URL）に流した訳と、同じ body を `curl` で打った訳を比べる。body だけの 2 本は server を要らない | 中継の依頼の body が `curl` の body と同じであること。server に打つ 3 本は実走 | 実走（3 本）。body の 2 本は server 無し | server 無し：中継の body と `curl` の body が JSON として等しい（原文が ja の文と en の文の 2 通り）。実走：中継の訳が 40 文の全てで `curl` の訳と同じ。`curl` の訳が probe の log の訳と同じ行の数を記録し、合否は中継と `curl` の一致で決める（specified、設計 3.6 の「訳の依頼の形」の受入と同じ形） | 陽性（`curl` の訳が probe の log の `j01` の答え「Hello.」と同じ）、陰性（言語の code を付けず、組の中の言語の prompt を user message にした同じ 40 文では、`curl` と違う行が 1 行以上。code の向きを入れ替えた body は `curl` の body と等しくない） | `the_relay_sends_the_body_curl_sends`、`a_body_with_the_codes_swapped_is_not_the_body_curl_sends`、`coded_t_matches_curl_on_every_probe_sentence`、`curl_matches_the_probe_log`、`the_form_without_codes_differs_from_curl_on_some_probe_sentence` |
 
 ### 4.24 RP-14（Rust の chrF が sacrebleu と同じ値を出す）
 
@@ -781,7 +797,7 @@ link 引数の検査は、`cargo metadata` で `hayamimi-gpu` 自身と、`hayam
 | T-RP-17-001 | fixture（Windows）：`cuda_devices` 1、provider `cuda`、ORT の版 1.31.0（`build.json` の ORT の版も 1.31.0）、library 1、`onnxruntime` の origin が `exe_directory`、`modules` に `cublas64_13` と `cublasLt64_13` が各 1 で `cudart64_12` と `cublas64_12` と `cublasLt64_12` が 0 | 期待どおり | `Ok` | `Ok`（specified、RP-17） | 陽性 | `probe_output_with_all_expected_values_passes` |
 | T-RP-17-002 | fixture：`cuda_devices` 0 | device 数 | `Err` | `Err`（specified、RP-17） | 陰性 | `zero_cuda_devices_is_rejected` |
 | T-RP-17-003 | fixture：provider `cpu` | 配布の CPU 版に繋いだ build | `Err` | `Err`（specified、RP-17 の陰性欄） | 陰性 | `cpu_provider_is_rejected` |
-| T-RP-17-004 | fixture：`build.json` の ORT の版が 1.31.0 で、`ort` が開いた ORT の版が退路の 1.28.2 | 版が違う | `Err` | `Err` で版を名指し（specified、RP-17 の「sherpa-onnx の build の ORT と同じ」。比べる相手は `build.json` の ORT の版） | 境界、陰性 | `ort_version_differing_from_build_json_is_rejected` |
+| T-RP-17-004 | fixture：`build.json` の ORT の版が 1.31.0 で、`ort` が開いた ORT の版が退路の 1.28.3 | 版が違う | `Err` | `Err` で版を名指し（specified、RP-17 の「sherpa-onnx の build の ORT と同じ」。比べる相手は `build.json` の ORT の版） | 境界、陰性 | `ort_version_differing_from_build_json_is_rejected` |
 | T-RP-17-005 | fixture：library の数 2 | 1 の上側 | `Err` | `Err`（specified、RP-17 の「1 つ」） | 境界、陰性 | `two_onnxruntime_libraries_are_rejected` |
 | T-RP-17-006 | fixture：library の数 0 | 1 の下側 | `Err` | `Err`。0 を「重複なし」と読まない（implicit） | 境界、陰性 | `zero_onnxruntime_libraries_is_rejected` |
 | T-RP-17-007 | fixture：Windows と WSL の出力 | 出力の形 | key の集合が同じ | 2 つの出力の key の集合が同じ（specified、RP-17 の陽性対照） | 陽性 | `windows_and_wsl_outputs_have_the_same_keys` |
@@ -944,7 +960,7 @@ test：`native/xtask/tests/rp24.rs`。
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-RP-24-001 | fixture：5 項目が同じ 2 つの `build.json` | 一致 | `Ok` | `Ok`（specified、RP-24） | 陽性 | `identical_five_fields_pass` |
-| T-RP-24-002 | fixture：ORT の版だけ 1.31.0 と退路の 1.28.2 | ORT の版 | `Err` | `Err` で ORT の版を名指し（specified、RP-24 の陰性欄） | 陰性 | `ort_version_difference_is_named` |
+| T-RP-24-002 | fixture：ORT の版だけ 1.31.0 と退路の 1.28.3 | ORT の版 | `Err` | `Err` で ORT の版を名指し（specified、RP-24 の陰性欄） | 陰性 | `ort_version_difference_is_named` |
 | T-RP-24-003 | fixture：sherpa-onnx の commit だけ違う | commit | `Err` | `Err` で commit を名指し（specified、RP-24） | 陰性 | `sherpa_commit_difference_is_named` |
 | T-RP-24-004 | fixture：CUDA の主版が 12 と 13 | CUDA の主版 | `Err` | `Err`（specified、RP-24） | 陰性 | `cuda_major_difference_is_named` |
 | T-RP-24-005 | fixture：cuDNN の主版が 9 と 8 | cuDNN の主版 | `Err` | `Err`（specified、RP-24） | 陰性 | `cudnn_major_difference_is_named` |
@@ -1067,6 +1083,52 @@ test：`native/hayamimi/tests/rp29.rs`。受入 test の名前は `rp29_missing_
 | T-RP-29-026 | fixture：023 と同じ外した run で、`model.fallback.disabled` が 0 件 | 外したのに言わない build（言語判定） | `Err` | `Err` で `lid` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_identifier_fallback_is_rejected` |
 | T-RP-29-027 | 実走（`native/hayamimi/tests/rp29/real.rs` の `speaker_scene`）：話者の model（`campplus_sv.onnx`）を外した directory と、全部在る directory で 1 回ずつ | R4 の場面：話者を外す | 実走 | 外した run は終了 code 0、`final` が 1 件以上、`model.fallback.disabled`（`stage` = `speaker`、`reason` = `missing`）が 1 件、`/events` の `fallback`（`to` = `disabled`）が 1 件、印の付いた `final` と `speaker` の event が 0 件。在る run は同じ場面の fallback の event が 0 件で、`speaker` の event が 1 件以上（specified、RP-29、3.15 の「話者は印なし」） | 陰性、陽性 | `speaker_scene` |
 | T-RP-29-028 | fixture：027 の外した run で `model.fallback.disabled` が 0 件の log | 外したのに言わない build（話者） | `Err` | `Err` で `speaker` の場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_speaker_fallback_is_rejected` |
+
+### 4.40 RP-30（`fallback` の `stage` と `reason` の値の一覧が code と同じ）
+
+test：`native/hayamimi/tests/rp30.rs`。受入 test の名前は `rp30_fallback_stage_and_reason_lists_match_the_code`。`#[ignore]` を持たない。
+`check_fallback_lists(design, code)` は、`docs/design/rust_port.ja.md` の 3.15 の「`fallback` の event の `stage` の値は」の段落の 2 つの一覧と、`native/hayamimi/src/notice.rs` の `STAGES` と `REASONS` を集合として比べ、どちらかにだけ在る値を名指しして `Err` を返す。
+fixture の docs は、実物の段落を file に写して 1 語だけ直した物を `native/hayamimi/tests/rp30/` に置く（反例を command や test の本文の文字列で運ばない）。
+実物の読みは、`docs/design/rust_port.ja.md` と `native/hayamimi/src/notice.rs` をそのまま渡す。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-30-001 | 実物の `rust_port.ja.md` と実物の `notice.rs` | 一致 | `Ok` | `Ok`（specified、RP-30 の「集合として code と一致する」） | 陽性 | `design_lists_equal_the_code_constants` |
+| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 10 個 | 13 と 10（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_10_reasons` |
+| T-RP-30-003 | 実物の段落。括弧の中の `memory_budget`、`unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 3 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 10 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 10 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
+| T-RP-30-004 | fixture：`stage` の一覧から `lid` を消した docs | 一覧から 1 つ消す（stage） | `Err` | `Err` で `lid` を名指し（code にだけ在る。specified、RP-30 の陰性欄） | 陰性 | `a_stage_removed_from_the_design_is_named` |
+| T-RP-30-005 | fixture：`reason` の一覧から `bad_value` を消した docs | 一覧から 1 つ消す（reason） | `Err` | `Err` で `bad_value` を名指し（specified、RP-30） | 陰性 | `a_reason_removed_from_the_design_is_named` |
+| T-RP-30-006 | fixture：`stage` の一覧に code に無い `diarize` を足した docs | code に無い値を足す（stage） | `Err` | `Err` で `diarize` を名指し（docs にだけ在る。specified、RP-30） | 陰性 | `a_stage_added_to_the_design_only_is_named` |
+| T-RP-30-007 | fixture：`reason` の一覧に code に無い `timeout` を足した docs | code に無い値を足す（reason） | `Err` | `Err` で `timeout` を名指し（specified、RP-30） | 陰性 | `a_reason_added_to_the_design_only_is_named` |
+| T-RP-30-008 | fixture：実物の docs と、`STAGES` に docs に無い `extra_stage` を足した `notice.rs` の写し | code にだけ在る値（逆向き） | `Err` | `Err` で `extra_stage` を名指し（specified、RP-30 の「どちらかにだけ在る値」） | 陰性 | `a_stage_added_to_the_code_only_is_named` |
+| T-RP-30-009 | fixture：2 つの一覧を並べ替えた docs（`stage` を逆順、`reason` を逆順） | 順 | `Ok` | `Ok`（specified、RP-30 の「順を問わず」） | 境界 | `list_order_does_not_matter` |
+| T-RP-30-010 | fixture：「`fallback` の event の `stage` の値は」の段落を消した docs | 段落が無い（空と空の一致を通さない） | `Err` | `Err` で段落が無いことを名指し（implicit。値が 0 個と 0 個を一致として通すと 001 の `Ok` が何も測らない） | 陰性、境界 | `a_design_without_the_paragraph_is_rejected` |
+
+### 4.41 RP-31（`L` の数え方）
+
+test：`native/hayamimi-eval/tests/rp31.rs`。受入 test の名前は `rp31_latency_counts_only_shown_translations_of_their_own_utterance`。`#[ignore]` を持たない。
+fixture の event の列は `native/hayamimi-eval/tests/rp31/` に file で置く。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-31 の行と 3.1 の `t_tr` の条件から）。
+
+### 4.42 RP-32（同じ負荷で交互に測った `L`）
+
+test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。`#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-32 の行と 3.16 の 4 から）。
+
+### 4.43 RP-33（T が V に落ちた行の最初の訳）
+
+test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。`#[ignore]` を持ち、RP-32 の Rust の run と中継の stdout を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-33 の行と 3.16 の 2 から）。
+
+### 4.44 RP-34（確定の復号の前の待ち）
+
+test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_wait_before_final_decode_not_longer_than_python`。`#[ignore]` を持ち、RP-32 の run と、待ちの log と、各 run の前後の `nvidia-smi` の記録を読む。合否の列は `L_asr − decode_ms` である。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-34 の行と 3.16 の 3 から）。
+
+### 4.45 RP-35（`L` の詰めで品質を下げない）
+
+test：`native/hayamimi-eval/tests/rp35.rs`。受入 test の名前は `rp35_latency_work_keeps_chrf_and_verify`。`#[ignore]` を持ち、前の main と R8h の branch の `eval` の結果と、RP-32 の Rust の run の中継の stdout を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-35 の行と 3.16 の品質の条件から）。
 
 ## 5. RP-19 の対応表
 

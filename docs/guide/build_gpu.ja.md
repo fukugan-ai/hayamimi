@@ -282,6 +282,7 @@ provider の GPU 向け機械語は、`cuobjdump --list-elf` で次のとおり�
 | Windows、ORT 1.31.0 | 279 | 0 | 38 |
 | WSL、ORT 1.31.0 | 317 | 0 | 0 |
 | Windows、ORT 1.28.2 | 203 | 0 | 235 |
+| WSL、ORT 1.28.3（退路） | 203 | 0 | 235 |
 
 PTX は実行時に GPU 向けへ変換される中間表現です。
 RTX 5060 Ti（compute capability 12.0）で `sm_120a` の機械語が実際に使われているかは、確かめていません（ASSUMPTION）。
@@ -292,7 +293,28 @@ RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（現行の bui
 同じ OS の 2 回目の build は `native/target/sherpa-gpu-repeat/<os>/` に作り、`two_builds_on_one_os_match` が現行と比べます。
 実走の 2 つは `cargo test --release -p xtask --test rp24 -- --ignored` で打ちます。どちらも通りました（Windows と WSL）。
 
-### ORT 1.28.2（退路）
+### ORT 1.28.3（退路）
+
+退路の ORT は 1.28.3 です。両 OS とも Microsoft の asset（`onnxruntime-win-x64-gpu_cuda13-1.28.3.zip`、`onnxruntime-linux-x64-gpu_cuda13-1.28.3.tgz`）を使います。
+WSL では、現行と同じ手順に `--ort-version 1.28.3` と別の `--out-dir` を足して build しました。
+
+```bash
+OUT=~/.local/share/hayamimi/build/ort1283
+cd <repo>/native
+cargo run --release -p xtask -- sherpa-gpu --cuda-dir /usr/local/cuda-13.4.3 --cudnn-dir /usr/local/cudnn-9.27.0.42-cuda13 --ort-version 1.28.3 --out-dir $OUT
+mkdir -p target/sherpa-gpu-ort1283 && ln -s $OUT/linux target/sherpa-gpu-ort1283/linux
+SHERPA_ONNX_LIB_DIR=$OUT/linux/install/lib cargo test --release -p hayamimi-gpu --test rp17
+```
+
+`build.json` の ORT の版は 1.28.3、ORT の archive の sha256 は `33e91f819324449bede2d1e853c8d46bb6253fa8890bac98ae676f041c8f73a6` で、GitHub の release が書く digest と一致しました。
+RP-17 は 6 本とも通りました。`rp17_passed.json` の `loaded_provider` は `cuda`、ORT は `1.28.3`、`onnxruntime_libraries` は 1、`decoded_chars` は 44、`build_json_sha256` は `build.json` の `sha256sum` と一致します。
+`decode_ms` は、build の直後の 1 回目が 2430、2 回目が 1160 でした。2 回では分布は分からず、遅れた理由（初期化か、PTX の変換か）も分けていません。
+退路の build は現行の `native/target/sherpa-gpu` とは別の directory に在り、現行の記録と混ざりません。
+
+Windows の退路は、まだ 1.28.3 では作っていません（NOT VERIFIED）。
+次に `native/target/sherpa-gpu-ort1282` が在りますが、それは ORT 1.28.2 の build で、RP-24 が WSL の 1.28.3 と比べれば ORT の版の不一致で落ちます。
+
+### Windows の ORT 1.28.2 の build
 
 ORT 1.28.2 の build は `native/target/sherpa-gpu-ort1282` に残してあり、消していません。`build.json` と `rp17_passed.json` もそこに在ります（別の dir なので、現行の記録とは混ざりません）。
 Windows で同じ音声を 4 回開いた結果は、`loaded_provider` が `cuda`、ORT が `1.28.2`、`onnxruntime_libraries` が 1、`decoded_chars` が 44、`decode_ms` が 660、707、658、630 でした。
@@ -370,7 +392,7 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 次の手段は、理由とともに採りません。
 
 - **CUDA 12 版の build を主にすること**：sherpa-onnx の既定は CUDA 12 版の ORT ですが、CUDA 13.4 の環境があるので使いません。CUDA 13 版が動かないときの退避先としてだけ残してあり、手順は設計の 3.12 にあります。
-- **ORT を 1.28.2 のまま測定へ進むこと**：`ort` crate の既定の API 版が 1.31 で、1.28.2 では api-28 を指定する外れ道を通ることになり、測定を後で測り直す羽目になるため、1.31.0 に上げました。1.28.2 の build は退路として残してあります。`hayamimi-gpu` 自身は `ort` crate に依存していません。
+- **ORT を退路の 1.28 系のまま測定へ進むこと**：`ort` crate の既定の API 版が 1.31 で、1.28 系では api-28 を指定する外れ道を通ることになり、測定を後で測り直す羽目になるため、1.31.0 に上げました。退路の 1.28.3 の build は残してあります。`hayamimi-gpu` 自身は `ort` crate に依存していません。
 - **公開済みの CUDA 版を取ること**：`sherpa-onnx-sys` の build script は CUDA 版を自分では取りません。版と option を固定して再現するために、自分で build します。
 - **cloud の認識 API と実行時の Python**：速度を最優先にするため使いません。
 - **provider の library の文字列で CUDA の版を判別すること**：両方の主版の文字列が在るため、判別できません。
@@ -385,8 +407,9 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 Remove-Item -Recurse -Force "<repo>\native\target\sherpa-gpu"
 ```
 
-現行（ORT 1.31.0）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.2）の build は `native\target\sherpa-gpu-ort1282` に在り、どれも同じ方法で消せます。
-退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1282\windows\install\lib` にして build します（build.json の ORT の版が 1.28.2 になるので、RP-17 はその版で判定します）。
+現行（ORT 1.31.0）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
+Windows の `native\target\sherpa-gpu-ort1282` は ORT 1.28.2 の build で、退路ではありません。
+退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1283\<os>\install\lib` にして build します（build.json の ORT の版が 1.28.3 になるので、RP-17 はその版で判定します）。
 WSL に入れた CUDA と cuDNN の戻し方は、「手順（WSL）」の「0. 入れる前の戻し方」にあります。
 
 Rust 側を CPU 版に戻すには、`SHERPA_ONNX_LIB_DIR` を設定せずに build します。
@@ -458,13 +481,40 @@ hayamimi-eval stages-report --runs <run file...> --design docs\design\rust_port.
 負荷の下の run は、計測の間の CPU と GPU の使用率を 20 秒ごとに 1 行、`native/target/measure/log/load.log` へ追記して確かめました。
 計測の間、ほかの重い仕事は並べません。
 
+## 2 音源同時の認識を測る（R7）
+
+2 つ目の音源は、`stages --peers 1` が別 process の `stages-peer` を起こし、run の間ずっと decode させます。
+1 つの process に session を並べて開くと abort する既知の問題があるので、thread ではなく process で分けます。
+`stages-peer` は標準入力が閉じるまで decode を続け、標準出力に `ready` と `decodes <回数>` を書きます。
+
+CUDA では、`recognize` の後に同じ process で `encoder_only` を開くと、ort が DefaultLogger の error で落ちます。
+`recognize` と `encoder_only,search_replay` は process を分けて取ります。
+`r7-report` は、provider と peers が同じ run file を 1 本にまとめます。
+CPU は分ける必要がありません。
+
+```powershell
+# peers は 0 と 1 を provider ごとに取る（CUDA は 2 本に分ける）
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --only recognize --out <cuda_p1_recognize>.jsonl
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --only encoder_only,search_replay --out <cuda_p1_search>.jsonl
+hayamimi-eval stages --provider cpu --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --out <cpu_p1>.jsonl
+# 結果の文書
+hayamimi-eval r7-report --runs <run file...> --conditions docs\results\r7\conditions.md --out docs\results\r7_recognition.md
+```
+
+`--conditions` の file は手で書いた測定時の条件で、文書の末尾へそのまま写されます。
+文書を作り直しても、条件の節は消えません。
+元にした run file は `docs/results/r7/` に置いてあります。
+
+GPU の run の前後に `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` を打ち、ほかの process の GPU 利用を記録します。
+`stages-report` は peers が 0 でない run を受け付けません。2 音源の run は `r7-report` だけが読みます。
+
 ## 未検証
 
 - 認識結果の文字数が 44 で、golden の期待値（45 文字）と 1 文字違います。文字そのものは比べていません。
 - System32 の DLL に結びつく条件。上の遅延読み込みと事前読み込みは、probe の実行で防げたことだけを確かめています。
 - 1 回目の `decode_ms` が遅い理由（初期化か、PTX の変換か）と、`sm_120a` の機械語が実際に使われているか。
 - 認識を test の process の中で走らせるときの「実行物の隣」の解き方（上記）。
-- 退路（ORT 1.28.2）の build を、この run path 付きの WSL で打つこと。WSL の退路は作っていません（Windows の退路だけ在ります）。
+- 退路（ORT 1.28.3）の build を Windows で作ること。WSL の退路は作って RP-17 を通しましたが、Windows の 1.28.3 は作っていません。
 - JIT の cache が空の run は、Windows で 1 回だけです。空の run と温かい run の 1 回目の `decode_ms`（529 ms と、358 から 381 ms）の差には、PTX の JIT と、file が冷たいことの両方が入っていて、分けていません。
 - 段の計測の WSL 側は、CUDA の無負荷を 2 回だけ測りました。認識の p50 は 175 ms と 144 ms で、RP-23 の 10% に収まらず、結果の文書には入れていません。
 - 段の計測の llama-server は WSL の CUDA 12.0 の build で、本番の形（Windows の native、CUDA 13）ではありません。

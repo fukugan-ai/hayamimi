@@ -27,6 +27,10 @@ use hayamimi_relay::pipeline::{
 };
 
 pub mod events;
+#[cfg(unix)]
+pub mod private;
+pub mod sinks;
+pub mod video;
 
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -179,6 +183,8 @@ pub struct Reply {
     pub status: u16,
     pub content_type: &'static str,
     pub body: Vec<u8>,
+    /// The `Location` header, for an answer that sends the client elsewhere.
+    pub location: Option<String>,
 }
 
 impl Reply {
@@ -187,6 +193,7 @@ impl Reply {
             status: 200,
             content_type: "application/json",
             body: body.as_bytes().to_vec(),
+            location: None,
         }
     }
 
@@ -195,6 +202,7 @@ impl Reply {
             status: 200,
             content_type: "application/xml",
             body: body.as_bytes().to_vec(),
+            location: None,
         }
     }
 
@@ -203,6 +211,15 @@ impl Reply {
             status: code,
             content_type: "text/plain",
             body: Vec::new(),
+            location: None,
+        }
+    }
+
+    /// A 302 that sends the client to `to`.
+    pub fn redirect(to: &str) -> Reply {
+        Reply {
+            location: Some(to.to_owned()),
+            ..Reply::status(302)
         }
     }
 }
@@ -278,8 +295,14 @@ fn serve_one(stream: &mut TcpStream, requests: &Mutex<Vec<Vec<u8>>>, responder: 
         Err(poisoned) => poisoned.into_inner().len(),
     };
     let reply = responder(index, &raw);
+    let location = reply
+        .location
+        .as_ref()
+        .map(|to| format!("Location: {to}\r\n"))
+        .into_iter()
+        .collect::<String>();
     let head = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\n{location}Content-Length: {}\r\nConnection: close\r\n\r\n",
         reply.status,
         reason_phrase(reply.status),
         reply.content_type,
@@ -328,6 +351,7 @@ impl FakeServer {
             status,
             content_type: "application/xml",
             body: body.as_bytes().to_vec(),
+            location: None,
         })
     }
 
