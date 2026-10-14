@@ -405,7 +405,7 @@ TranslateGemma の chat template は原文と訳の先の言語の code を temp
 受入は 3.6 の「訳の依頼の形」と同じ形で、`native/hayamimi-relay/tests/chat_probe_gemma.rs` に在る。`curl` の答えが probe1 の log の 40 行と同じ（陽性対照）、中継の答えと `curl` の答えが同じ、code を置かない形が `curl` と違う行を持つ（陰性対照）である。
 2 本目の address は `live` と `eval` の `--llm-other`（既定は `http://127.0.0.1:18081`）で渡す。
 起こす側は `native/hayamimi-relay/units/hayamimi-llama-other.service`（systemd の user unit）で、WSL 以外の機械では `hayamimi llama start --model <file> --port 18081 --slots 1` を打つ。
-2 本目が立たないとき中継は止まらず、組の外の言語の行は `held`（訳の無い行）になり、行ごとに `translate.request.failed` が出る。
+2 本目が立たないとき中継は止まらず、組の外の言語の行は `held`（訳の無い行）になり、行ごとに `translate.request.failed` が出て、最初の失敗で `translate.fallback.held` が 1 回出る。
 どの候補も RP-13 の記録を超えなければ、その言語は評議へ出す（CPU の翻訳器は 1.3 のとおり移さない）。
 持ち主は R8f である。
 ja と en の外の言語の訳は T と V だけで、E を掛けない。V で外れた行は `held` にする。E を掛けないのは、TranslateGemma の chat template が指示の message を受けず、E の依頼の形を作れないからである（評議の判定、GO）。E が chrF に効く量は測っていない（NOT VERIFIED）。

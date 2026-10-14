@@ -44,6 +44,8 @@ port 8081 は、同じ機械の別の process が使っているので避けて�
 
 2 本目が立っていなくても、中継は止まりません。
 組の外の言語の行は `held`（訳の無い行）になり、log に `translate.request.failed`（翻訳器に届かなかった）が行ごとに出ます。
+あわせて、最初の失敗で `translate.fallback.held` が 1 回だけ出て、`/events` にも `fallback`（`stage` が `translate`、`reason` が `unreachable`）が 1 件出ます。
+届くようになると `translate.fallback.cleared` が 1 回出ます。
 ja と en の訳は変わりません。
 
 ## 確かめる

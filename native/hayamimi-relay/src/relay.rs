@@ -21,7 +21,7 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::deliver::{Delivery, Outputs, Words};
 use crate::eval::skipped_event;
@@ -33,6 +33,7 @@ use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
 use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
 use crate::pipeline::{LineRequest, NoObserver, PartialOutcome, Pipeline, Translation};
+use crate::reach::{Change, Watch};
 use crate::strings::Strings;
 use crate::target::Target;
 
@@ -118,6 +119,16 @@ pub type MakePipeline<L> =
 pub struct Makers<L: Llm> {
     pub pair: MakePipeline<L>,
     pub other: MakePipeline<L>,
+    /// What notices whether each translator can be reached, when the
+    /// pipelines were built with translators wrapped through it.
+    pub watches: Watches,
+}
+
+/// The watches on the two translators; a translator with none is not watched.
+#[derive(Default)]
+pub struct Watches {
+    pub pair: Option<Watch>,
+    pub other: Option<Watch>,
 }
 
 /// One translator for every language.
@@ -126,6 +137,7 @@ impl<L: Llm> From<MakePipeline<L>> for Makers<L> {
         Makers {
             pair: Arc::clone(&make),
             other: make,
+            watches: Watches::default(),
         }
     }
 }
@@ -491,6 +503,55 @@ fn say_skipped(code: &str, hub: &Hub, sink: &mut SharedSink) {
     hub.publish_fallback(&format!("translate:{code}"), true, SKIPPED_WIRE);
 }
 
+/// The key under which the live pair's translator fallback is kept for the
+/// clients that connect later, and the key of the other languages' translator.
+const PAIR_FALLBACK_KEY: &str = "translate";
+const OTHER_FALLBACK_KEY: &str = "translate:other";
+
+/// How often the watches are read for a change.
+const REACH_INTERVAL: Duration = Duration::from_millis(50);
+
+/// Says that a translator became unreachable or reachable again: in the log,
+/// and on the stream as a `fallback` that is kept while it is in effect.
+fn say_reach(change: Change, key: &str, hub: &Hub, sink: &mut SharedSink) {
+    sink.emit(change.event());
+    hub.publish_fallback(key, change == Change::Held, &change.wire().to_string());
+}
+
+/// Reads the watches until the relay stops and says each change once. The
+/// lanes of one translator share a watch, so an outage is said once however
+/// many lanes meet it.
+fn spawn_reach_notices(
+    watches: Watches,
+    hub: Hub,
+    running: Arc<AtomicBool>,
+    mut sink: SharedSink,
+) -> io::Result<()> {
+    let keyed: Vec<(&'static str, Watch)> = [
+        (PAIR_FALLBACK_KEY, watches.pair),
+        (OTHER_FALLBACK_KEY, watches.other),
+    ]
+    .into_iter()
+    .filter_map(|(key, watch)| watch.map(|watch| (key, watch)))
+    .collect();
+    if keyed.is_empty() {
+        return Ok(());
+    }
+    std::thread::Builder::new()
+        .name(String::from("relay-reach"))
+        .spawn(move || {
+            while running.load(Ordering::SeqCst) {
+                for (key, watch) in &keyed {
+                    for change in watch.drain() {
+                        say_reach(change, key, &hub, &mut sink);
+                    }
+                }
+                std::thread::sleep(REACH_INTERVAL);
+            }
+        })?;
+    Ok(())
+}
+
 /// Starts the relay with no subtitle file and no outside destination.
 pub fn start<L: Llm + 'static>(
     listener: TcpListener,
@@ -575,8 +636,14 @@ pub fn start_handle<L: Llm + 'static>(
     partials: PartialTranslation,
 ) -> io::Result<Relay> {
     let running = Arc::new(AtomicBool::new(true));
-    let makers = makers.into();
+    let mut makers = makers.into();
     let hub = Hub::new();
+    spawn_reach_notices(
+        std::mem::take(&mut makers.watches),
+        hub.clone(),
+        Arc::clone(&running),
+        sink.clone(),
+    )?;
     let (translate, skipped) = match config.translate.as_deref().map(split_codes) {
         Some((known, unknown)) => (Some(known), unknown),
         None => (None, Vec::new()),

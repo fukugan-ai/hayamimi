@@ -20,7 +20,8 @@
 # One slot is enough: the relay asks one line at a time per language and the
 # translation is T only, with no E step. When this server is not running the
 # relay does not stop: the line of such a language is held (an empty line) and
-# the run says so (event `translate.request.failed`, once per line).
+# the run says so (event `translate.request.failed` for each line, and
+# `translate.fallback.held` once).
 [Unit]
 Description=llama-server for hayamimi-relay, languages outside ja and en (TranslateGemma-4B-it, 127.0.0.1:18081)
 StartLimitIntervalSec=60

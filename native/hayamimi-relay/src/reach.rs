@@ -111,20 +111,55 @@ pub struct Watch {
 impl<L: Llm> Reach<L> {
     /// Wraps `inner`, which is taken to be reachable until it fails.
     pub fn new(inner: L) -> (Reach<L>, Watch) {
-        let (sender, receiver) = channel();
-        let shared = Arc::new(Shared {
-            held: AtomicBool::new(false),
-            changes: sender,
-        });
-        let watch = Watch {
-            shared: Arc::clone(&shared),
-            changes: receiver,
-        };
-        (Reach { inner, shared }, watch)
+        let watch = Watch::new();
+        (watch.link().wrap(inner), watch)
+    }
+}
+
+/// What the lanes of one server hold in common with its [`Watch`]: a
+/// translator wrapped through it is noticed together with the others, so that
+/// an outage is held once however many lanes meet it.
+#[derive(Clone)]
+pub struct Link {
+    shared: Arc<Shared>,
+}
+
+impl Link {
+    /// Wraps a translator that shares the state of the [`Watch`] this came from.
+    pub fn wrap<L: Llm>(&self, inner: L) -> Reach<L> {
+        Reach {
+            inner,
+            shared: Arc::clone(&self.shared),
+        }
+    }
+}
+
+impl Default for Watch {
+    fn default() -> Watch {
+        Watch::new()
     }
 }
 
 impl Watch {
+    /// A watch on a translator that is taken to be reachable until it fails.
+    pub fn new() -> Watch {
+        let (sender, receiver) = channel();
+        Watch {
+            shared: Arc::new(Shared {
+                held: AtomicBool::new(false),
+                changes: sender,
+            }),
+            changes: receiver,
+        }
+    }
+
+    /// The handle the lanes wrap their translators with.
+    pub fn link(&self) -> Link {
+        Link {
+            shared: Arc::clone(&self.shared),
+        }
+    }
+
     /// Reports the result of a health check made outside the requests.
     pub fn note(&self, reachable: bool) {
         self.shared.note(reachable);
@@ -193,6 +228,16 @@ mod tests {
     fn the_first_failure_is_held_once_however_many_lines_fail() {
         let (reach, watch) = reach_of(vec![up(), down(), down(), down()]);
         ask(&reach, 4);
+        assert_eq!(watch.drain(), vec![Change::Held]);
+    }
+
+    #[test]
+    fn lanes_that_share_a_watch_hold_an_outage_once() {
+        let (first, watch) = reach_of(vec![down()]);
+        let second = watch.link().wrap(Scripted(RefCell::new(vec![down()])));
+        ask(&first, 1);
+        // Only the change is looked at; the answer is the script's.
+        let _ = second.complete(&Completion::new("x", 1));
         assert_eq!(watch.drain(), vec![Change::Held]);
     }
 
