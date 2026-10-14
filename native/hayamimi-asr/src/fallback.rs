@@ -4,6 +4,8 @@
 //! the CPU instead, or it is left out. Each such step is one [`Fallback`], so
 //! that the caller can say it in the log, on the screen and to the user.
 
+use hayamimi_gpu::error::GpuError;
+
 /// A stage that can fall back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -97,6 +99,37 @@ pub enum Gpu {
     Try,
     /// No usable device: stages placed on the GPU are built on the CPU.
     Absent(Reason),
+}
+
+/// The status `cuInit` answers when the driver is there and no device is
+/// visible to the process (`CUDA_ERROR_NO_DEVICE`).
+const CUDA_ERROR_NO_DEVICE: i32 = 100;
+
+impl Gpu {
+    /// Maps the driver's answer about the device count to the state the
+    /// stages are built under.
+    pub fn from_count(count: Result<u32, GpuError>) -> Gpu {
+        match count {
+            Ok(0) => Gpu::Absent(Reason::NoDevice),
+            Ok(_) => Gpu::Try,
+            Err(GpuError::Cuda {
+                status: CUDA_ERROR_NO_DEVICE,
+                ..
+            }) => Gpu::Absent(Reason::NoDevice),
+            Err(_) => Gpu::Absent(Reason::DriverUnreadable),
+        }
+    }
+
+    /// Asks the driver again before a CUDA session is built. A `Try` that no
+    /// longer holds becomes `Absent`: building a CUDA session with no device
+    /// behind it ends the process inside the inference library, so the count
+    /// is taken first and the stage goes to the CPU instead.
+    pub fn confirmed(self) -> Gpu {
+        match self {
+            Gpu::Try => Gpu::from_count(hayamimi_gpu::cuda::device_count()),
+            absent @ Gpu::Absent(_) => absent,
+        }
+    }
 }
 
 #[cfg(test)]

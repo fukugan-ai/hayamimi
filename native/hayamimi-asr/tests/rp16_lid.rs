@@ -3,12 +3,11 @@
 //! step reported, when its model is not there. It names the Japanese golden
 //! clip as Japanese in each case it runs.
 //!
-//! The real-model cases are `#[ignore]`d. `Gpu::Try` is what the start passes
-//! only after it counted a device, so `lid_placed_on_the_gpu_runs_where_it_says`
-//! needs one; with the device hidden (`CUDA_VISIBLE_DEVICES` empty) the start
-//! passes `Gpu::Absent`, which `lid_without_a_device_runs_on_the_cpu_and_says_so`
-//! runs. The ONNX Runtime CUDA provider throws, and the process aborts, when
-//! it is asked for a session with no device behind it.
+//! The real-model cases are `#[ignore]`d. With the device hidden
+//! (`CUDA_VISIBLE_DEVICES` empty) `lid::open` still goes to the CPU for a
+//! `Gpu::Try`, because the driver is asked again before a CUDA session is
+//! built; `gpu_guard.rs` runs that case in a child process and shows what
+//! happens without the check.
 
 mod support;
 

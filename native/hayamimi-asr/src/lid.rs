@@ -263,7 +263,16 @@ fn left_out(error: AsrError) -> Result<Opened, AsrError> {
 /// Opens the identifier under `models`. `gpu` is what the start found: with a
 /// device the stage tries CUDA first, without one it is built on the CPU and
 /// the step is reported. A missing or unreadable model leaves the stage out.
+///
+/// A `Gpu::Try` is confirmed against the driver first ([`Gpu::confirmed`]):
+/// a CUDA session asked for with no device behind it ends the process.
 pub fn open(models: &Path, gpu: Gpu) -> Result<Opened, AsrError> {
+    open_as_told(models, gpu.confirmed())
+}
+
+/// [`open`] without the driver check: `gpu` is believed. It exists so that a
+/// test can show what the check prevents; a caller has no use for it.
+pub fn open_as_told(models: &Path, gpu: Gpu) -> Result<Opened, AsrError> {
     let files = model_files(models);
     let (attempt, ran_on, fallback) = match gpu {
         Gpu::Try => open_cuda(&files),
