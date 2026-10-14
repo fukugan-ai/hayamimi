@@ -736,14 +736,24 @@ mod tests {
             ] {
                 assert_ne!(strings.cli_text(key), key, "{lang:?} {key}");
             }
-            assert!(strings.cli_text("usage").contains("hayamimi-relay eval --pairs"));
+            assert!(
+                strings
+                    .cli_text("usage")
+                    .contains("hayamimi-relay eval --pairs")
+            );
         }
     }
 
     #[test]
     fn eval_takes_the_pairs_the_output_and_the_translator() {
         let parsed = parse_args(&args(&[
-            "eval", "--pairs", "pairs", "--out", "hyps", "--llm", "http://x:1",
+            "eval",
+            "--pairs",
+            "pairs",
+            "--out",
+            "hyps",
+            "--llm",
+            "http://x:1",
         ]));
         assert_eq!(
             parsed,

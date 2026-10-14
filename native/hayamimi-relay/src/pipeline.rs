@@ -156,7 +156,11 @@ fn language_name(lang: Lang) -> &'static str {
 
 /// The prompt for T, in the form the model card recommends.
 pub fn translate_prompt(src_lang: Lang, text: &str) -> String {
-    translate_prompt_between(language_name(src_lang), language_name(src_lang.other()), text)
+    translate_prompt_between(
+        language_name(src_lang),
+        language_name(src_lang.other()),
+        text,
+    )
 }
 
 /// The prompt for T into `target`, which may be any language of the table.

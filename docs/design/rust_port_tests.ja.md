@@ -648,6 +648,12 @@ test：`native/hayamimi-eval/tests/rp13.rs`。
 | T-RP-13-007 | 参照訳を hyp に渡す | 陽性対照 | 100 | 4 言語とも 100.0（specified、RP-13 の陽性対照） | 陽性 | `reference_as_hypothesis_scores_100` |
 | T-RP-13-008 | 原文を hyp に渡す | 陰性対照 | 記録未満 | 4 言語とも記録を割る（specified、RP-13 の陰性欄）。zh は漢字を共有するので、割らない可能性は R0 の実測で確かめる（RB-7 の 017 と同じ式） | 陰性 | `source_as_hypothesis_stays_below_record` |
 | T-RP-13-009 | 実走：`hayamimi-relay eval --pairs pairs/ --out hyps/` の後に `<ev> chrf` | 実走 | 実走 | 4 言語とも記録を超える（specified、RP-13。llama-server が要る。`eval` は R8f で足す） | 陽性 | `translation_chrf_beats_current_models` |
+| T-RP-13-010 | 測っていない言語が 1 つある測定値 | 言語の欠け | `Err` | `Err` で欠けた言語を名指し（implicit） | 陰性 | `a_language_that_was_not_measured_is_named` |
+| T-RP-13-011 | 劣化させた hyp、原文、参照訳の 3 通りを 4 言語で採点 | 採点器が sacrebleu 2.6.0 と同じ値を出すこと | 差 ≤ 0.01（4 桁の記録の丸め以内） | 文ごとの 200 値と corpus の 12 値が `<base>/chrf_scores/` と一致（derived。RP-14 の材料と同じ） | 陽性 | `the_scorer_gives_the_recorded_sacrebleu_scores` |
+| T-RP-13-012 | `hayamimi-relay eval` を偽の llama-server に流す（`native/hayamimi-relay/tests/r8f_eval.rs`） | 1 文の確定の訳が E、T、空のどれか | 3 文 | E が V を通れば E、通らず T が通れば T、両方外れれば空行。行数は原文と同じ（derived、RP-13 の「V が両方の訳を止めた行は空の hyp」） | 陽性、境界 | `each_sentence_settles_on_the_edit_then_the_draft_then_an_empty_line` |
+| T-RP-13-013 | 同じ偽の server に 1 文を流し、要求の body を読む | 依頼の形 | user message 1 つ | 「Translate the following Japanese text into Chinese.」で始まる message が 1 つ、`stop` が `["</s>"]`、`temperature` が 0、`cache_prompt` が真（specified、設計 3.6 の「訳の依頼の形」） | 陽性 | `a_request_names_the_language_in_one_user_message` |
+| T-RP-13-014 | pairs に表に無い言語（`xx`）が混ざる | 訳せない言語 | 1 言語 | その言語を訳さず `translate.fallback.skipped`（warn、`HAYAMIMI_TRANSLATE_FALLBACK`、`reason` が `unsupported_target`）を 1 件出し、ほかの言語は続く（specified、設計 3.15 の止めない形） | 陰性 | `an_unlisted_language_is_left_out_with_an_event_and_the_others_go_on` |
+| T-RP-13-015 | llama-server に届かない、または要求が 4xx | 測定を止める場合 | 1 行目、2 行目 | `Err` で言語と行番号を名指しし、hyp の file を書かない（derived。空の答えの採点が測定に見えるのを防ぐ） | 陰性 | `an_unreachable_translator_stops_the_run_without_writing`、`a_refused_request_names_the_language_and_the_line` |
 
 ### 4.24 RP-14（Rust の chrF が sacrebleu と同じ値を出す）
 

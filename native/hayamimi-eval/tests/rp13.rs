@@ -47,7 +47,9 @@ fn check_chrf(record: &[(&str, i64)], measured: &[(&str, i64)]) -> Result<(), Fa
             return Err(format!("{lang} was not measured"));
         };
         if got <= floor {
-            return Err(format!("{lang}: chrF {got} does not beat the record {floor}"));
+            return Err(format!(
+                "{lang}: chrF {got} does not beat the record {floor}"
+            ));
         }
     }
     Ok(())
@@ -95,7 +97,10 @@ fn value_equal_to_record_is_rejected() {
     let mut measured = all_languages(&CHRF_RECORD, HUNDREDTH);
     measured[0] = ("en", 47_570_000);
     let said = check_chrf(&CHRF_RECORD, &measured);
-    assert!(matches!(said, Err(ref text) if text.starts_with("en:")), "{said:?}");
+    assert!(
+        matches!(said, Err(ref text) if text.starts_with("en:")),
+        "{said:?}"
+    );
 }
 
 /// T-RP-13-003.
@@ -104,14 +109,20 @@ fn value_below_record_is_rejected() {
     let mut measured = all_languages(&CHRF_RECORD, HUNDREDTH);
     measured[1] = ("zh", 20_180_000);
     let said = check_chrf(&CHRF_RECORD, &measured);
-    assert!(matches!(said, Err(ref text) if text.starts_with("zh:")), "{said:?}");
+    assert!(
+        matches!(said, Err(ref text) if text.starts_with("zh:")),
+        "{said:?}"
+    );
 }
 
 #[test]
 fn a_language_that_was_not_measured_is_named() {
     let measured = all_languages(&CHRF_RECORD, HUNDREDTH);
     let said = check_chrf(&CHRF_RECORD, &measured[..3]);
-    assert!(matches!(said, Err(ref text) if text.starts_with("es ")), "{said:?}");
+    assert!(
+        matches!(said, Err(ref text) if text.starts_with("es ")),
+        "{said:?}"
+    );
 }
 
 /// T-RP-13-004: three sentences that verification withheld in both of their
@@ -154,7 +165,11 @@ fn all_empty_hypotheses_score_zero() -> TestResult {
 #[test]
 fn hypothesis_line_count_mismatch_is_rejected() -> TestResult {
     let references = pair_file("en", "ref")?;
-    let short: String = references.lines().take(49).map(|line| format!("{line}\n")).collect();
+    let short: String = references
+        .lines()
+        .take(49)
+        .map(|line| format!("{line}\n"))
+        .collect();
     let said = score_text(&references, &short);
     assert!(
         matches!(said, Err(ref text) if text.contains("49") && text.contains("50")),
@@ -170,7 +185,11 @@ fn reference_as_hypothesis_scores_100() -> TestResult {
         let references = pair_file(lang, "ref")?;
         let corpus = score_text(&references, &references)?;
         assert_eq!(corpus.pairs, 50, "{lang}");
-        assert!((corpus.score - 100.0).abs() < 1e-9, "{lang}: {}", corpus.score);
+        assert!(
+            (corpus.score - 100.0).abs() < 1e-9,
+            "{lang}: {}",
+            corpus.score
+        );
     }
     Ok(())
 }
@@ -200,7 +219,10 @@ fn the_scorer_gives_the_recorded_sacrebleu_scores() -> TestResult {
         let mut compared = 0;
         for ((reference, hypothesis), want) in pairs.zip(recorded.lines()) {
             let got = micro(sentence_chrf(reference, hypothesis));
-            assert!((got - micros(want)?).abs() <= 100, "{lang}: {got} against {want}");
+            assert!(
+                (got - micros(want)?).abs() <= 100,
+                "{lang}: {got} against {want}"
+            );
             compared += 1;
         }
         assert_eq!(compared, 50, "{lang}");
@@ -211,7 +233,10 @@ fn the_scorer_gives_the_recorded_sacrebleu_scores() -> TestResult {
         ] {
             let want = micros(&read(&scores.join(format!("{lang}.{name}.corpus.txt")))?)?;
             let got = micro(score_text(&references, &hypotheses)?.score);
-            assert!((got - want).abs() <= 100, "{lang} {name}: {got} against {want}");
+            assert!(
+                (got - want).abs() <= 100,
+                "{lang} {name}: {got} against {want}"
+            );
         }
     }
     Ok(())

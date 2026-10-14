@@ -606,12 +606,15 @@ mod tests {
     }
 
     #[test]
-    fn a_translation_into_the_live_language_is_verified_as_before(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn a_translation_into_the_live_language_is_verified_as_before()
+    -> Result<(), Box<dyn std::error::Error>> {
         for (src, translation) in [
             ("こんにちは。", "Hello."),
             ("Zoomで共有します。", "I will share it."),
-            ("予算は五百万円を想定しています。", "The budget is 1,500,000 yen."),
+            (
+                "予算は五百万円を想定しています。",
+                "The budget is 1,500,000 yen.",
+            ),
             ("こんにちは。", "Hello.</s>"),
         ] {
             assert_eq!(
@@ -624,17 +627,26 @@ mod tests {
     }
 
     #[test]
-    fn a_matching_translation_into_another_language_passes() -> Result<(), Box<dyn std::error::Error>>
-    {
-        assert_eq!(check_into("猫が寝ています。", "El gato duerme.", "es")?, Verdict::Ok);
-        assert_eq!(check_into("猫が寝ています。", "猫在睡觉。", "zh")?, Verdict::Ok);
-        assert_eq!(check_into("猫が寝ています。", "고양이가 잔다.", "ko")?, Verdict::Ok);
+    fn a_matching_translation_into_another_language_passes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(
+            check_into("猫が寝ています。", "El gato duerme.", "es")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("猫が寝ています。", "猫在睡觉。", "zh")?,
+            Verdict::Ok
+        );
+        assert_eq!(
+            check_into("猫が寝ています。", "고양이가 잔다.", "ko")?,
+            Verdict::Ok
+        );
         Ok(())
     }
 
     #[test]
-    fn a_changed_amount_is_held_for_number_in_another_language(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn a_changed_amount_is_held_for_number_in_another_language()
+    -> Result<(), Box<dyn std::error::Error>> {
         let said = check_into(
             "予算は五百万円です。",
             "El presupuesto es de 7 millones de yenes.",
@@ -645,8 +657,8 @@ mod tests {
     }
 
     #[test]
-    fn the_wrong_script_is_held_for_form_in_another_language(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn the_wrong_script_is_held_for_form_in_another_language()
+    -> Result<(), Box<dyn std::error::Error>> {
         let kana_in_chinese = check_into("こんにちは。", "こんにちは、猫です。", "zh")?;
         assert_eq!(kana_in_chinese, Verdict::Held(HoldReason::Form));
         let han_in_spanish = check_into("こんにちは。", "Hola 猫", "es")?;
@@ -669,8 +681,8 @@ mod tests {
     /// There is no marker table for Spanish, so a lost negation passes: the
     /// limit of the check, pinned so that it is not mistaken for a guarantee.
     #[test]
-    fn negation_is_not_checked_into_a_language_without_a_marker_table(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn negation_is_not_checked_into_a_language_without_a_marker_table()
+    -> Result<(), Box<dyn std::error::Error>> {
         let said = check_into("そこにいませんでした。", "Yo estaba allí.", "es")?;
         assert_eq!(said, Verdict::Ok);
         Ok(())

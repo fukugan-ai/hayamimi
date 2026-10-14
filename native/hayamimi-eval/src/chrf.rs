@@ -186,7 +186,10 @@ mod tests {
     #[test]
     fn identical_sentences_score_100() {
         assert!(close(sentence_chrf("The cat sat.", "The cat sat."), 100.0));
-        assert!(close(sentence_chrf("猫が寝ている。", "猫が寝ている。"), 100.0));
+        assert!(close(
+            sentence_chrf("猫が寝ている。", "猫が寝ている。"),
+            100.0
+        ));
     }
 
     #[test]
@@ -241,8 +244,9 @@ mod tests {
 
     #[test]
     fn the_corpus_score_is_taken_over_summed_statistics() -> Result<(), EvalError> {
-        let references = ["abcdef", "uvwxyz"];
-        let hypotheses = ["abcdef", "pqrstu"];
+        // The second pair is longer and worse, so that the sum and the mean differ.
+        let references = ["abcdef", "uvwxyzuvwxyz0123"];
+        let hypotheses = ["abcdef", "uvwxyz"];
         let corpus = corpus_chrf(&references, &hypotheses)?;
         let mut sum = Stats::of(references[0], hypotheses[0]);
         sum.add(&Stats::of(references[1], hypotheses[1]));
@@ -267,7 +271,9 @@ mod tests {
 
     #[test]
     fn a_different_line_count_is_refused_with_both_numbers() {
-        let said = corpus_chrf(&["a", "b"], &["a"]).err().map(|e| e.to_string());
+        let said = corpus_chrf(&["a", "b"], &["a"])
+            .err()
+            .map(|e| e.to_string());
         assert!(
             said.as_deref()
                 .is_some_and(|text| text.contains('1') && text.contains('2')),

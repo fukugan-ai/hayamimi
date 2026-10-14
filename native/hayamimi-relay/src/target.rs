@@ -127,7 +127,10 @@ mod tests {
 
     #[test]
     fn english_is_the_live_language_and_the_others_are_not() {
-        assert_eq!(Target::from_code("en").and_then(|one| one.lang()), Some(Lang::En));
+        assert_eq!(
+            Target::from_code("en").and_then(|one| one.lang()),
+            Some(Lang::En)
+        );
         assert_eq!(Target::from_code("zh").and_then(|one| one.lang()), None);
     }
 

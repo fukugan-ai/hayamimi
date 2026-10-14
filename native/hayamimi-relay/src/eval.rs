@@ -180,13 +180,7 @@ impl<'a, L: Llm> Translator<'a, L> {
         self.llm.complete(&Completion::new(prompt, MAX_TOKENS))
     }
 
-    fn passes(
-        &mut self,
-        src: &str,
-        text: &str,
-        target: &Target,
-        sink: &mut dyn LogSink,
-    ) -> bool {
+    fn passes(&mut self, src: &str, text: &str, target: &Target, sink: &mut dyn LogSink) -> bool {
         self.verifier.verify_into(src, text, Lang::Ja, target, sink) == Verdict::Ok
     }
 
@@ -204,14 +198,7 @@ impl<'a, L: Llm> Translator<'a, L> {
         }
         let draft = first.trim();
         let draft_ok = self.passes(src, draft, target, sink);
-        let prompt = edit_prompt_to(
-            Lang::Ja,
-            target,
-            src,
-            draft,
-            &self.calques,
-            &self.ja_style,
-        );
+        let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
         let second = self.ask(&prompt)?;
         let edited = second.trim();
         let edited_ok = self.passes(src, edited, target, sink);
@@ -340,8 +327,14 @@ mod tests {
         let event = skipped_event("xx");
         assert_eq!(event.event, SKIPPED_EVENT);
         assert_eq!(event.level, Level::Warn);
-        assert_eq!(event.error_code.as_deref(), Some("HAYAMIMI_TRANSLATE_FALLBACK"));
-        assert_eq!(event.fields.get("reason"), Some(&serde_json::json!("unsupported_target")));
+        assert_eq!(
+            event.error_code.as_deref(),
+            Some("HAYAMIMI_TRANSLATE_FALLBACK")
+        );
+        assert_eq!(
+            event.fields.get("reason"),
+            Some(&serde_json::json!("unsupported_target"))
+        );
         assert_eq!(event.fields.get("target"), Some(&serde_json::json!("xx")));
     }
 
