@@ -1,10 +1,12 @@
 //! R8g: the real steps of a video job against stand-in programs (`examples/`
 //! `fake_ffmpeg` and `fake_recognizer`): the child processes are started,
-//! read and waited for, and the `srt` command makes its files from them.
+//! the audio is sent to the recognizer's `/ingest` over a real WebSocket, the
+//! lines come back on that connection, and no process is left behind.
 //!
 //! `ffmpeg`, `hayamimi` and the translator server are fake, so this pins the
-//! plumbing (arguments, the stream, the exit codes, no process left behind),
-//! not the recognition. The run on a real video is not done here.
+//! plumbing (arguments, the stream, the pace, the exit codes, no process
+//! left behind), not the recognition. The run on a real video is not done
+//! here.
 #![cfg(unix)]
 
 mod support;
@@ -14,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hayamimi_relay::cli;
-use hayamimi_relay::logging::MemorySink;
+use hayamimi_relay::logging::{Level, MemorySink};
 use hayamimi_relay::media::Recognizer;
 use hayamimi_relay::video::{Recognize, StepFailed};
 use support::{FakeServer, Reply, TempDir, TestResult, chat_reply};
@@ -25,6 +27,32 @@ const EVENTS: &str = concat!(
     "{\"type\":\"final\",\"id\":\"file-1\",\"source\":\"file\",\"lang\":\"en\",\"text\":\"Hello there.\",\"t0_s\":0.5,\"t1_s\":2.0}\n",
     "{\"type\":\"final\",\"id\":\"file-2\",\"source\":\"file\",\"lang\":\"ja\",\"text\":\"こんにちは。\",\"t0_s\":2.5,\"t1_s\":4.0}\n",
 );
+
+/// A wav file (16 kHz, mono, 16-bit) whose samples are `text`, which the
+/// stand-in recognizer reads back as the events to answer with. Spaces pad it
+/// to `at_least` bytes, so that a test can give the audio a length.
+fn wav_of(text: &str, at_least: usize) -> Vec<u8> {
+    let mut data = text.as_bytes().to_vec();
+    while data.len() < at_least || data.len() % 2 == 1 {
+        data.push(b' ');
+    }
+    let mut out = b"RIFF".to_vec();
+    out.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16_u32.to_le_bytes());
+    for field in [1_u16, 1] {
+        out.extend_from_slice(&field.to_le_bytes());
+    }
+    out.extend_from_slice(&16_000_u32.to_le_bytes());
+    out.extend_from_slice(&32_000_u32.to_le_bytes());
+    for field in [2_u16, 16] {
+        out.extend_from_slice(&field.to_le_bytes());
+    }
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(&data);
+    out
+}
 
 /// A program built from `examples/`, next to the test binaries.
 fn example(name: &str) -> Result<PathBuf, String> {
@@ -42,48 +70,65 @@ fn example(name: &str) -> Result<PathBuf, String> {
     }
 }
 
-fn recognizer(name: &str) -> Result<Recognizer, String> {
-    Ok(Recognizer {
-        program: example(name)?,
-        models: None,
-    })
+/// The stand-in recognizer, told to be quiet for a short time only, and to
+/// leave its process id in `scratch`.
+fn recognizer(scratch: &Path) -> Result<Recognizer, String> {
+    let mut made = Recognizer::new(example("fake_recognizer")?, Some(scratch.to_path_buf()));
+    made.tail = Duration::from_millis(100);
+    made.idle = Duration::from_millis(300);
+    Ok(made)
 }
 
-/// Whether the process whose id the stand-in wrote beside `events` is still
-/// in the process table: a zombie is, and so is a process left running.
-fn still_listed(events: &Path) -> Result<bool, Box<dyn std::error::Error>> {
-    let pid = fs::read_to_string(format!("{}.pid", events.display()))?;
+/// Whether the process whose id the stand-in wrote in `scratch` is still in
+/// the process table: a zombie is, and so is a process left running.
+fn still_listed(scratch: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    let pid = fs::read_to_string(scratch.join("fake.pid"))?;
     Ok(Path::new("/proc").join(pid.trim()).exists())
 }
 
 #[test]
-fn the_recognizer_is_started_read_to_the_end_and_waited_for() -> TestResult {
+fn the_recognizer_is_fed_through_ingest_and_its_lines_come_back() -> TestResult {
     let dir = TempDir::new("media-ok")?;
-    let events = dir.join("a.events");
-    fs::write(&events, EVENTS)?;
+    let wav = dir.join("a.wav");
+    fs::write(&wav, wav_of(EVENTS, 0))?;
     let mut sink = MemorySink::default();
-    let lines = recognizer("fake_recognizer")?
-        .recognize(&events, &mut sink)
+    let lines = recognizer(&dir.join(""))?
+        .recognize(&wav, &mut sink)
         .map_err(|_| "the step failed")?;
     let ids: Vec<&str> = lines.iter().map(|line| line.id.as_str()).collect();
     assert_eq!(ids, ["file-1", "file-2"]);
     // The partial and the session start are not lines.
-    assert!(
-        sink.events
-            .iter()
-            .all(|e| e.level != hayamimi_relay::logging::Level::Error)
-    );
-    assert!(!still_listed(&events)?);
+    assert!(sink.events.iter().all(|e| e.level != Level::Error));
+    assert!(!still_listed(&dir.join(""))?);
     Ok(())
 }
 
 #[test]
-fn a_recognizer_that_ends_badly_fails_the_step_and_is_waited_for() -> TestResult {
+fn the_audio_is_sent_at_the_speed_of_speech() -> TestResult {
+    let dir = TempDir::new("media-pace")?;
+    let wav = dir.join("a.wav");
+    // Half a second of samples: the stand-in answers only when the audio ends.
+    fs::write(&wav, wav_of(EVENTS, 16_000))?;
+    let (mut sink, started) = (MemorySink::default(), Instant::now());
+    let lines = recognizer(&dir.join(""))?
+        .recognize(&wav, &mut sink)
+        .map_err(|_| "the step failed")?;
+    assert_eq!(lines.len(), 2);
+    assert!(
+        started.elapsed() >= Duration::from_millis(500),
+        "the audio was sent in {:?}",
+        started.elapsed()
+    );
+    Ok(())
+}
+
+#[test]
+fn a_recognizer_that_goes_down_mid_stream_fails_the_step_and_is_waited_for() -> TestResult {
     let dir = TempDir::new("media-bad-exit")?;
-    let events = dir.join("a.events");
-    fs::write(&events, format!("#exit=1\n{EVENTS}"))?;
+    let wav = dir.join("a.wav");
+    fs::write(&wav, wav_of(&format!("#exit=1\n{EVENTS}"), 0))?;
     let mut sink = MemorySink::default();
-    let done = recognizer("fake_recognizer")?.recognize(&events, &mut sink);
+    let done = recognizer(&dir.join(""))?.recognize(&wav, &mut sink);
     assert_eq!(done, Err(StepFailed));
     let failed: Vec<_> = sink
         .events
@@ -91,24 +136,35 @@ fn a_recognizer_that_ends_badly_fails_the_step_and_is_waited_for() -> TestResult
         .filter(|e| e.event == "srt.recognize.failed")
         .collect();
     assert_eq!(failed.len(), 1);
-    assert_eq!(failed[0].fields["reason"], "exit");
-    assert!(!still_listed(&events)?);
+    assert_eq!(failed[0].fields["reason"], "lost");
+    assert!(!still_listed(&dir.join(""))?);
     Ok(())
 }
 
 #[test]
 fn a_recognizer_that_ends_before_it_serves_fails_the_step_at_once() -> TestResult {
     let dir = TempDir::new("media-no-stream")?;
-    let events = dir.join("a.events");
-    fs::write(&events, EVENTS)?;
-    let quits = Recognizer {
-        program: PathBuf::from("true"),
-        models: None,
-    };
+    let wav = dir.join("a.wav");
+    fs::write(&wav, wav_of(EVENTS, 0))?;
+    let quits = Recognizer::new(PathBuf::from("true"), None);
     let (mut sink, started) = (MemorySink::default(), Instant::now());
-    assert_eq!(quits.recognize(&events, &mut sink), Err(StepFailed));
+    assert_eq!(quits.recognize(&wav, &mut sink), Err(StepFailed));
     assert!(started.elapsed() < Duration::from_secs(10));
     assert_eq!(sink.events[0].fields["reason"], "no_stream");
+    Ok(())
+}
+
+#[test]
+fn audio_that_is_not_a_wav_is_refused_before_a_program_is_started() -> TestResult {
+    let dir = TempDir::new("media-not-wav")?;
+    let wav = dir.join("a.wav");
+    fs::write(&wav, EVENTS)?;
+    let mut sink = MemorySink::default();
+    let done = recognizer(&dir.join(""))?.recognize(&wav, &mut sink);
+    assert_eq!(done, Err(StepFailed));
+    assert_eq!(sink.events[0].fields["reason"], "audio");
+    // No program was started, so none wrote its process id.
+    assert!(!dir.join("fake.pid").exists());
     Ok(())
 }
 
@@ -131,9 +187,9 @@ fn the_srt_command_makes_both_files_from_the_stand_in_programs() -> TestResult {
     let llm = FakeServer::start(|_, _| Reply::json(&chat_reply("こんにちは。")))?;
     let dir = TempDir::new("media-srt")?;
     // The stand-in ffmpeg hands the video's bytes on as the audio, and the
-    // stand-in recognizer serves them as events.
+    // stand-in recognizer answers with the events they hold.
     let video = dir.join("talk.mp4");
-    fs::write(&video, EVENTS)?;
+    fs::write(&video, wav_of(EVENTS, 0))?;
     let args = srt_args(&video, &llm.base_url())?;
     assert_eq!(cli::run(&args, 1_790_000_000, Some("en")), 0);
     let ja = fs::read_to_string(dir.join("talk.ja.srt"))?;

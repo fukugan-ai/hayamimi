@@ -181,17 +181,6 @@ fn session(
     (true, pump(reader, sink, on_event))
 }
 
-/// Opens the stream at `url` once and reads it to its end, without a second
-/// attempt: the caller decides what an end means. Returns whether the stream
-/// was ever open and how it ended.
-pub fn follow_once(
-    (endpoint, url): (usize, &str),
-    sink: &mut dyn LogSink,
-    on_event: &mut OnEvent<'_>,
-) -> (bool, Cause) {
-    session(&agent(), (endpoint, url), sink, on_event)
-}
-
 /// Follows the stream at `url` for ever. `endpoint` is the number the log
 /// events name this stream by. A connection that ended is logged once, then
 /// opened again after a wait that grows while attempts fail and starts over

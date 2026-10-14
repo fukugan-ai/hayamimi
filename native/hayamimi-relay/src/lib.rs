@@ -17,7 +17,8 @@
 //! The text of an utterance still in progress is translated again each time
 //! it grows (`partial`); that translation is for the screens only.
 //! The same translation makes the subtitle files of a video (`video`, with
-//! `ffmpeg` and the recognizer run by `media`).
+//! `ffmpeg` and the recognizer run by `media`, which feeds the recognizer's
+//! `/ingest` through `ws_client` and reads the samples with `pcm`).
 //! The crate also holds the daily exchange-rate fetch and its scheduler
 //! registration. Table and rate files are re-read when they change.
 
@@ -37,6 +38,7 @@ pub mod logging;
 pub mod media;
 pub mod numbers;
 pub mod partial;
+pub mod pcm;
 pub mod pipeline;
 pub mod reach;
 pub mod relay;
@@ -50,3 +52,4 @@ pub mod units;
 pub mod verify;
 pub mod video;
 pub mod watched;
+pub mod ws_client;

@@ -534,11 +534,18 @@ cue の時刻は清書の `t0_s` と `t1_s` から作り、文字コードは BO
 
 1. 2 つの file の有無を見る。在れば `srt.output.exists` を出して止まり、音声は取り出さない（CS-15）。
 2. `srt.extract.started` を出し、ffmpeg で 16 kHz、mono、16 bit の wav を利用者の cache directory の作業 file に取り出す。
-3. `hayamimi --wav <作業 file> --no-realtime --serve <空き port>` を起こし、`/events` の `final` を終わりまで集める。
+3. `hayamimi --input ws --source file --ws-port <空き port>` を起こし、`/ingest` に繋いで config を送り、`ready` を受けてから作業 file の音声を実時間の速さで送る。
+   音声の後に 2 秒の無音を送り、同じ接続で返る event から `final` を集める。
+   接続が 8 秒 静かになったら集め終えたものとする。まだ 1 つも event が来ていないときは、model を開く時間として 60 秒 まで待つ。
+   `--source file` により、英語の行も日本語の行も file の行として扱われる。
 4. 英語の行だけを T、E、V、換算に通す。日本語の行と第三の言語の行は訳さない。
 5. 行の言語ごとに上の表のとおり cue を作り、2 つの file を一時 file から rename で置く。
 
-作業 file は終わると消し、起こした process は終わりまで待つ。
+作業 file は終わると消し、起こした process は必ず止めて待つ。
+`/events` に繋ぐ形は採らない。
+`/events` は遅れて繋いだ client に過去の `final` を送り直さないので、繋ぐ前に出た行が落ちるためである。
+動画は音声の長さと同じ時間がかかる。
+`/ingest` の待ち行列は約 4 分半で溢れ、溢れた窓は捨てられるので、実時間より速くは送らない。
 話し声が 1 行も無い動画は、file を書かずに `srt.output.empty` を出して止まる。
 cue は `final` の行から作り、`refine` の行は使わない。
 `t0_s` と `t1_s` が無い行は cue を作らず、`srt.cue.skipped` を出す。
@@ -1128,7 +1135,12 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H14** 坪の係数 400/121（1 尺 = 10/33 m）は、二次の解説 2 本（https://qiita.com/sen-ltd/items/f67d8e4707ab3b59e233 、https://www.livable.co.jp/l-note/?p=11424 、取得日 2026-10-13）で一致し、どちらも計量法施行法を根拠に挙げる。e-Gov の条文は取得できず、一次の出所は確かめていない（NOT VERIFIED）。S8 の畳の 1.62 m² も用語集の転記である。test-designer が CX-9 を書く前に条文を取り、違えば表を直す。条文が取れないまま CX-9 を書くなら、坪と畳の行を CX-9 の合否から外して記録だけにする。
 - **H16** Teams の CART の送り方は、Zoom と同じ形（POST、`text/plain`）で置いた物で、確かめていない（NOT VERIFIED）。Zoom の `seq` と `lang` の値と、本文の末尾の改行の要否も同じく確かめていない。CS-17 と CS-18 を打つ時に確かめる。偽の受け手の test（`cs17_fake_receiver_gets_the_zoom_wire_shape`、`cs18_fake_receiver_gets_the_teams_wire_shape`）が固定するのは、置いた形だけである。
 - **H17** Windows の ACL は、`icacls` の出力の主体名を `NT AUTHORITY\SYSTEM`、`BUILTIN\Administrators`、`whoami` の値と大小を無視して比べる。英語以外の Windows でこれらの名前が違えば、正しい file も `send.config.too_open` で止まる（安全側）。`icacls` を実際に動かした run は無く、出力の読みは記録した形の文字列で test している（NOT VERIFIED）。
-- **H18** 実動画の `srt`（ffmpeg と `hayamimi` の実物）と、`hayamimi` の `/events` に最初の 1 行までに接続できるかは未実行である。`hayamimi` の `/events` は遅れて接続した client に過去の `final` を再送しないので、接続が起動に遅れた分の行は落ちる。CS-14 と CS-15 の実機の run で数える。
+- **H18** `srt` の実物（ffmpeg と `hayamimi --input ws`）は、日本語の 9 秒の動画 1 本を CPU で通し、確定文 3 行が 3 cue になったところまでを確かめた。
+  英語の行、翻訳器、GPU、長い動画は通していない。
+  集め終えの判断（接続が 8 秒 静かになる）は、1 つの発話の認識が 8 秒を超える機械では行を落とし、落ちた行は検知されない（NOT VERIFIED）。
+  `/ingest` に繋いだ client へ `session_start` が届くかも、実物では確かめていない。
+  届かなければ、話し声の無い動画は 60 秒 待ってから `srt.output.empty` になる。
+  CS-14 と CS-15 の実機の run で、`hayamimi` の log の `final` の数と cue の数を比べて数える。
 - **H15** 閉じた。為替の file と 8 の表の file の読み直しは CX-11（6.2、7 の順 13）で測る。読み手を作る CX-4 と CX-5 と同じ slice に置くのは、起動したときにだけ読む形が先に固まると、取得が正しくても 7 日たつと通貨の換算が黙って消えるからである。
 
 この文書の外で、実装の commit と同じ手番で直す物：

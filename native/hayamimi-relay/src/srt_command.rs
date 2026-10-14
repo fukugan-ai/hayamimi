@@ -122,10 +122,7 @@ pub fn run(plan: SrtPlan, now_epoch: i64, strings: &Strings) -> u8 {
     let ffmpeg = Ffmpeg {
         program: plan.ffmpeg,
     };
-    let recognizer = Recognizer {
-        program: plan.hayamimi,
-        models: plan.models,
-    };
+    let recognizer = Recognizer::new(plan.hayamimi, plan.models);
     let job = Job {
         video: &plan.video,
         wav: &work.0,
