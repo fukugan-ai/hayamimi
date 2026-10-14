@@ -8,6 +8,7 @@
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.speaker.failed" = "The speaker mark failed; the text went on without it"
 "asr.final.published" = "The final subtitle was sent to the event stream"
+"asr.feed.waited" = "A window waited on the queue before its feed started"
 "speaker.embedding.started" = "The speaker embedding of an utterance started"
 "asr.engine.failed" = "The recognition route failed"
 "asr.partial.failed" = "A draft of the utterance in progress failed and was skipped"

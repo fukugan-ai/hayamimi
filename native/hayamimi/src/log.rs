@@ -4,7 +4,7 @@
 
 use std::io::Write;
 use std::sync::OnceLock;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hayamimi_asr::{Final, Reason, ResidentEvent, SessionReport};
 use hayamimi_relay::logging::{Level, LogEvent};
@@ -25,6 +25,7 @@ pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
+pub const FEED_WAITED: &str = "asr.feed.waited";
 pub const EMBEDDING_STARTED: &str = "speaker.embedding.started";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
 pub const MODEL_LOADED: &str = "asr.model.loaded";
@@ -209,6 +210,24 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
             ("punct_ms", millis(t.punct_ms)),
             ("itn_ms", millis(t.itn_ms)),
             ("l_dec_ms", millis(t.l_dec_ms)),
+        ],
+    )
+}
+
+/// `asr.feed.waited`: the window whose feed made utterance `id` had waited
+/// `wait` on the queue before the loop took it, with `backlog` windows still
+/// queued behind it.
+pub fn feed_waited_line(strings: &Strings, id: u64, wait: Duration, backlog: usize) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        FEED_WAITED,
+        "asr",
+        None,
+        &[
+            ("id", Value::from(id)),
+            ("wait_ms", millis(wait.as_secs_f64() * 1000.0)),
+            ("backlog", Value::from(backlog)),
         ],
     )
 }
@@ -477,6 +496,21 @@ mod tests {
     }
 
     #[test]
+    fn a_feed_wait_event_has_the_id_the_wait_and_the_backlog()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = feed_waited_line(&strings()?, 7, Duration::from_micros(12_345), 3);
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.feed.waited");
+        assert_eq!(event["level"], "info");
+        assert_eq!(event["id"], 7);
+        assert_eq!(event["wait_ms"], 12.345);
+        assert_eq!(event["backlog"], 3);
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    #[test]
     fn every_event_the_code_emits_has_a_message_in_both_tables() -> Result<(), String> {
         for lang in [Lang::En, Lang::Ja] {
             let table = Strings::embedded(lang)?;
@@ -488,6 +522,7 @@ mod tests {
                 PUNCT_FAILED,
                 SPEAKER_FAILED,
                 FINAL_PUBLISHED,
+                FEED_WAITED,
                 EMBEDDING_STARTED,
                 ENGINE_FAILED,
                 MODEL_LOADED,
