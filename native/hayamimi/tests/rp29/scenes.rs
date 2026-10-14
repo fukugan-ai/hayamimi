@@ -55,6 +55,13 @@ pub const PORT: Scene = Scene {
     reason: "in_use",
     to: "next_port",
 };
+pub const INGEST_PORT: Scene = Scene {
+    name: "ingest port",
+    event: "server.fallback.port",
+    stage: "ingest",
+    reason: "in_use",
+    to: "next_port",
+};
 pub const CAPTURE_SINGLE: Scene = Scene {
     name: "capture single",
     event: "capture.fallback.single",

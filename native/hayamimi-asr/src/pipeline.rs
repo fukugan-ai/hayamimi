@@ -14,11 +14,12 @@ use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To};
 use crate::itn::{self, Overrides};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
+use crate::partial::{self, DraftClock};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
 use crate::recognizer::{Recognizer, model_files};
 use crate::replace::Replacements;
 use crate::retry::{Splitter, looks_truncated};
-use crate::vad::{Segment, Vad, VadSettings};
+use crate::vad::{Segment, Sensitivity, Vad, VadSettings};
 
 /// The language of the route.
 const LANGUAGE: &str = "ja";
@@ -113,6 +114,7 @@ struct Route {
     splitter: Splitter,
     history: History,
     vad_ms: f64,
+    draft: DraftClock,
 }
 
 pub struct Engine {
@@ -218,6 +220,7 @@ fn open_route(
         splitter: Splitter::new(&settings.models),
         history: History::new(),
         vad_ms: 0.0,
+        draft: DraftClock::new(),
     }))
 }
 
@@ -341,11 +344,76 @@ impl Engine {
             return Ok(Vec::new());
         };
         route.history.push(window);
+        let window_start = route.history.end() - window.len();
         let started = Instant::now();
         route.vad.accept(window);
         let segments = route.vad.take_segments()?;
         route.vad_ms += millis(started);
-        self.finish_segments(segments)
+        let finals = self.finish_segments(segments)?;
+        if let Some(route) = self.route.as_mut() {
+            route.draft.observe(route.vad.detected(), window_start);
+        }
+        Ok(finals)
+    }
+
+    /// A draft of the utterance in progress, when one is due: the recognizer
+    /// and the replacement dictionary only, with no ITN and no punctuation.
+    /// Nothing the final needs is touched. `None` when nothing is due, when
+    /// the draft says nothing, and when there is no route.
+    pub fn partial(&mut self) -> Result<Option<String>, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        let Some(start) = route.draft.due(route.history.end()) else {
+            return Ok(None);
+        };
+        let samples = route.history.draft(start, partial::MAX_SAMPLES);
+        let text = self.replacements.apply(&route.recognizer.decode(&samples)?);
+        Ok((!text.trim().is_empty()).then_some(text))
+    }
+
+    /// Replaces the user's replacement dictionary; the next utterance uses it.
+    pub fn set_replacements(&mut self, replacements: Replacements) {
+        self.replacements = replacements;
+    }
+
+    /// Replaces the user's ITN overrides; the next utterance uses them.
+    pub fn set_itn_overrides(&mut self, overrides: Overrides) {
+        self.itn_overrides = overrides;
+    }
+
+    /// Turns punctuation on or off for the next utterance. The model stays
+    /// loaded when it is turned off. Turning it on does nothing when the run
+    /// started without the model, which [`Engine::can_punctuate`] tells.
+    pub fn set_punctuate(&mut self, on: bool) {
+        self.stages.punctuate = on;
+    }
+
+    /// Whether the punctuation model is loaded, so that [`Engine::set_punctuate`] can take effect.
+    pub fn can_punctuate(&self) -> bool {
+        self.punctuator.is_some()
+    }
+
+    /// What the detector is set to, or `None` without a route.
+    pub fn sensitivity(&self) -> Option<Sensitivity> {
+        self.route.as_ref().map(|route| route.vad.sensitivity())
+    }
+
+    /// Moves the detector to `wanted` when that loses no audio, which is
+    /// when it is idle. Returns whether it was moved; a `false` is asked
+    /// again at the next window.
+    pub fn retune_vad(&mut self, wanted: Sensitivity) -> Result<bool, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(false);
+        };
+        if route.vad.sensitivity() == wanted {
+            return Ok(true);
+        }
+        if !route.vad.is_idle() {
+            return Ok(false);
+        }
+        route.vad.rebuild(wanted)?;
+        Ok(true)
     }
 
     /// Ends the speech in progress and returns what it made.
@@ -432,7 +500,7 @@ impl Engine {
     /// transcription: the text goes on without marks and the failure is
     /// handed to the caller.
     fn punctuate(&mut self, text: String) -> (String, Option<String>) {
-        let Some(punctuator) = self.punctuator.as_mut() else {
+        let Some(punctuator) = self.punctuator.as_mut().filter(|_| self.stages.punctuate) else {
             return (text, None);
         };
         match punctuator.restore(&text) {

@@ -22,11 +22,13 @@ pub mod keys {
     pub const NEED_WAV: &str = "need_wav";
     pub const NO_GPU_CHECK: &str = "no_gpu_check";
     pub const RUN_FAILED: &str = "run_failed";
+    pub const UNKNOWN_INPUT: &str = "unknown_input";
+    pub const BAD_ADDRESS: &str = "bad_address";
 
     /// Every fixed key above, for the check that both tables hold them all.
     /// The keys of a fallback notice are derived from its fields (`stage_*`,
     /// `reason_*`, `to_*`) and are checked against the lists in `notice`.
-    pub const ALL: [&str; 10] = [
+    pub const ALL: [&str; 12] = [
         HELP,
         USAGE_HINT,
         UNKNOWN_OPTION,
@@ -37,6 +39,8 @@ pub mod keys {
         NEED_WAV,
         NO_GPU_CHECK,
         RUN_FAILED,
+        UNKNOWN_INPUT,
+        BAD_ADDRESS,
     ];
 }
 

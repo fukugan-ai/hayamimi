@@ -10,6 +10,7 @@ pub mod error;
 pub mod fallback;
 pub mod itn;
 pub mod ort_runtime;
+pub mod partial;
 pub mod pipeline;
 pub mod punct;
 pub mod recognizer;

@@ -25,6 +25,7 @@ pub mod ort_stages;
 pub mod percentile;
 pub mod record;
 pub mod sha;
+pub mod speaker;
 pub mod stage_load;
 pub mod stage_models;
 pub mod stage_report;

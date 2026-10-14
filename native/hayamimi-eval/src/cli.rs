@@ -55,14 +55,36 @@ struct StreamArgs {
     out: PathBuf,
     #[arg(long, default_value = "127.0.0.1")]
     host: String,
+    /// The server's /ingest port; with `--sink loopback`, its /events port.
     #[arg(long, default_value_t = 8766)]
     port: u16,
+    /// Where the recording goes: into /ingest, or out of the default output device.
+    #[arg(long, value_enum, default_value_t = SinkArg::Ingest)]
+    sink: SinkArg,
+    /// With `--sink loopback` on a machine with no output device: the /ingest port to send to instead.
+    #[arg(long, default_value_t = 8766)]
+    ingest_port: u16,
     /// Silence after each copy, in milliseconds.
     #[arg(long, default_value_t = 1500)]
     gap_ms: u32,
     /// Seconds to keep listening after the last sample is sent.
     #[arg(long, default_value_t = 8)]
     drain_s: u32,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum SinkArg {
+    Ingest,
+    Loopback,
+}
+
+impl From<SinkArg> for stream::Sink {
+    fn from(arg: SinkArg) -> stream::Sink {
+        match arg {
+            SinkArg::Ingest => stream::Sink::Ingest,
+            SinkArg::Loopback => stream::Sink::Loopback,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -157,6 +179,8 @@ fn execute(command: Command) -> Result<(), EvalError> {
             stream::run(&stream::Options {
                 host: args.host,
                 port: args.port,
+                sink: args.sink.into(),
+                ingest_port: args.ingest_port,
                 wav: args.wav,
                 manifest,
                 repeat: args.repeat,
