@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-27）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-29）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -589,9 +589,12 @@ test：`native/hayamimi/tests/rp10.rs`。
 | T-RP-10-003 | fixture：`final` が 0 件 | 件数の下側 | `Err` | `Err`（specified、RP-10 の「1 件以上」） | 境界、陰性 | `no_final_is_rejected` |
 | T-RP-10-004 | fixture：`partial` が 0 件 | 件数の下側 | `Err` | `Err`（specified、RP-10） | 境界、陰性 | `no_partial_is_rejected` |
 | T-RP-10-005 | fixture：`final` の `lang` が `ja` | 言語 | `Err` | `Err`（specified、RP-10 の `lang` が `en`） | 陰性 | `non_english_final_is_rejected` |
-| T-RP-10-006 | fixture：`error` の event で止まり、`final` が無い列 | 出力の装置を止めた run | `Err` | `Err` で `error` の event を名指し（specified、RP-10 の陰性欄） | 陰性 | `error_event_without_final_is_reported` |
+| T-RP-10-006 | fixture：出力の装置が無い run。終了 code 0、`capture.fallback.single` が 1 件（`reason` が `device_missing`）、`/events` の `fallback` が 1 件、マイクの `final` が 1 件以上、`error` の event が 0 件 | 出力の装置を止めた run（落ちた形） | `Ok` | `Ok`。止まらず、落ちた event が段ごとに 1 件出る（specified、RP-10 の陰性欄と 3.15 の「取り込みの装置が無い」）。検査は `check_capture_fallback(run)` | 陰性 | `missing_output_device_falls_back_to_the_microphone` |
 | T-RP-10-007 | 実走：Windows 11、loopback へ英語の wav を鳴らし `/events` を読む | 実走 | 実走 | 001 の形（specified、RP-10）。マイクは入力の装置が在るときだけ同じ形 | 陽性 | `windows_loopback_reaches_events` |
 | T-RP-10-008 | 実走：WSL で `--wav` の同じ test | 陽性対照 | 実走 | 001 の形（specified、RP-10 の陽性対照） | 陽性 | `wsl_wav_run_passes_the_same_check` |
+| T-RP-10-009 | fixture：出力の装置もマイクも在る run。`final` が 1 件以上、`capture.fallback.single` と `capture.fallback.none` が 0 件、`/events` の `fallback` が 0 件 | 在るのに落ちない（006 の対） | `Ok` | `Ok`。装置が在るのに落ちた event が 0 件（specified、RP-10 の対照と 3.15） | 陽性 | `present_devices_emit_no_capture_fallback` |
+| T-RP-10-010 | fixture：006 と同じ run で `capture.fallback.single` が 0 件 | 落ちたのに言わない | `Err` | `Err` で `capture.fallback.single` を名指し（specified、3.15 の「段ごとに出す」） | 陰性 | `silent_capture_fallback_is_rejected` |
+| T-RP-10-011 | fixture：`error` の event があり、`final` が無い列 | 止まる build | `Err` | `Err` で `error` の event を名指し。止まって `error` を出す形は通さない（specified、RP-10 の「止まらず」） | 陰性 | `error_event_without_final_is_reported` |
 
 ### 4.21 RP-11（WSL で動く）
 
@@ -624,6 +627,8 @@ test：`native/hayamimi/tests/rp12.rs`。
 | T-RP-12-009 | python が録った型の全部の rust の出力 | 型の網羅 | 全部に rust の例 | rust の出力に無い型があれば `Err` でその型を名指し（specified、RP-12 の「録れた event の型ごとに」）。fixture は `refine` を欠く | 陰性 | `type_without_a_rust_sample_is_named` |
 | T-RP-12-010 | 8 本の route と `/ingest` の handshake の応答 | route の比べ | 同じ status と key | 同じ（specified、RP-12）。fixture の 1 本だけ status が違う物は `Err` でその route を名指し | 陽性、陰性 | `routes_and_handshake_match_status_and_keys` |
 | T-RP-12-011 | 実走：mobile の `remote_event_test.dart` の fixture を rust の出力で置き換えて `dart test` | 実走 | 実走 | 全 test が通る（specified、RP-12。外部の道具の判定） | 陽性 | `mobile_dart_tests_pass_with_rust_fixtures` |
+| T-RP-12-012 | rust の出力に `{"type": "fallback", "stage": …, "reason": …, "to": …}` の event が在り、python の録りに `fallback` の型は無い | 3.15 の型は差から除く | `Ok` | `Ok`。型の網羅（009）と key の比べの対象に入れない（specified、RP-12 の「3.15 の `fallback` の event の型は差から除く」） | 境界、陽性 | `fallback_event_type_is_excluded_from_the_difference` |
+| T-RP-12-013 | 012 の出力で、`final` から `lang` を落とした形 | `fallback` の除外が他の差を隠さない | `Err` | `Err` で `lang` を名指し（specified、RP-12 の陰性欄。005 と同じ差が、`fallback` の event が在っても落ちる） | 陰性 | `fallback_exclusion_does_not_hide_a_missing_key` |
 
 ### 4.23 RP-13（訳の品質）
 
@@ -677,23 +682,31 @@ test：`native/hayamimi-eval/tests/rp15.rs`。
 | T-RP-15-010 | fixture：python の 3 run が平均 13.3、13.1、13.5（平均 13.30、幅 0.4）。rust の平均が 13.69 | 平均より 0.39 pt 悪い（幅より小さい） | 合否は `Err`、読みは揺れの中 | 合否は `Err`（python の平均より大きい。002 と同じ）。結果の file に書く読みは「揺れの中」（specified、RP-15 の「差がこの幅より小さければ揺れの中と読む」） | 境界 | `worse_than_python_mean_by_less_than_the_spread_is_read_as_within_the_spread` |
 | T-RP-15-011 | 同じ fixture で rust の平均が 13.70 | 平均より 0.40 pt 悪い（幅と等しい） | 合否は `Err`、読みは揺れの外 | 合否は `Err`。読みは「揺れの外」（差が幅と等しいのは「幅より小さい」に入らない。specified、RP-15） | 境界、陰性 | `worse_than_python_mean_by_exactly_the_spread_is_read_as_outside_the_spread` |
 
-### 4.26 RP-16（GPU の無い機械では理由を出して止まる）
+### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
-test：`native/hayamimi/tests/rp16.rs`。
-`check_no_gpu_run(run)` は、終了 code、stdout の JSONL の event、stderr の文を確かめる。
+test：`native/hayamimi/tests/rp16.rs`。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`。
+`check_no_gpu_run(run)` は、終了 code、stdout の JSONL の event、`/events` の `fallback` の event、stderr の文を確かめる。
+run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja の run では句読点、R3 以降は言語判定も）を持つ。落ちた event はこの一覧の段ごとに 1 件を求め、読み込んでいない段には求めない。
+`check_gpu_run(run)` は GPU の在る run を確かめる。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-RP-16-001 | fixture：終了 code 2、`gpu.device.unavailable` 1 件（`error_code` = `HAYAMIMI_GPU_DEVICE_UNAVAILABLE`）、`gpu.session.created` 0 件、stderr に `nvidia-smi` | 期待どおり | `Ok` | `Ok`（specified、RP-16） | 陽性 | `no_gpu_run_with_all_required_signals_passes` |
+| T-RP-16-001 | fixture：終了 code 0、`final` 1 件以上、`gpu.device.unavailable` 1 件（`error_code` = `HAYAMIMI_GPU_DEVICE_UNAVAILABLE`、`reason` = `no_device`）、読み込んだ GPU の段は句読点だけで `gpu.fallback.cpu` 1 件と `/events` の `fallback`（`to` = `cpu`）1 件、`gpu.session.created` の実際の provider が全件 `cpu`、stderr に `nvidia-smi` | 落ちた形が揃う（落ちた形の対の片方） | `Ok` | `Ok`（specified、RP-16） | 陽性 | `no_gpu_run_with_all_required_signals_passes` |
 | T-RP-16-002 | fixture：`gpu.device.unavailable` が 0 件 | 件数の下側 | `Err` | `Err`（specified、RP-16 の「1 件」） | 境界、陰性 | `zero_unavailable_events_is_rejected` |
 | T-RP-16-003 | fixture：`gpu.device.unavailable` が 2 件 | 件数の上側 | `Err` | `Err`（specified、RP-16 の「1 件」） | 境界、陰性 | `two_unavailable_events_is_rejected` |
-| T-RP-16-004 | fixture：`gpu.session.created` が 1 件 | model を読んだ | `Err` | `Err`。model を 1 つも読まない（specified、RP-16 の「0 件」） | 陰性 | `session_created_after_missing_gpu_is_rejected` |
-| T-RP-16-005 | fixture：終了 code 0 | CPU に落ちて動き続けた build | `Err` | `Err`（specified、RP-16 の陰性欄） | 陰性 | `exit_code_zero_is_rejected` |
+| T-RP-16-004 | fixture：001 と同じで、`gpu.session.created` の実際の provider が 1 件 `cuda` | GPU が無いのに cuda の session | `Err` | `Err` でその model を名指し。全件 `cpu` でなければならない（specified、RP-16 の「全件 `cpu`」） | 陰性 | `cuda_session_after_missing_gpu_is_rejected` |
+| T-RP-16-005 | fixture：001 と同じで、終了 code が 2 | 止まった build | `Err` | `Err`。終了 code は 0 でなければならない（specified、RP-16） | 境界、陰性 | `nonzero_exit_code_is_rejected` |
 | T-RP-16-006 | fixture：stderr に `nvidia-smi` が無い | 確かめる command | `Err` | `Err`（specified、RP-16） | 陰性 | `stderr_without_nvidia_smi_is_rejected` |
 | T-RP-16-007 | fixture：`LANG=ja_JP.UTF-8` の stderr と `LANG=C.UTF-8` の stderr | 言語が別 | `Ok` | 日本語の stderr は非 ASCII の文字を 1 つ以上含み、C.UTF-8 の stderr は ASCII だけ（specified、RP-16 の「別の言語」を、この席が文字の種類で読んだ） | 陽性 | `stderr_language_follows_the_locale` |
 | T-RP-16-008 | fixture：2 つの locale で同じ stderr | 切り替わらない | `Err` | `Err`（specified、RP-16） | 陰性 | `identical_stderr_across_locales_is_rejected` |
-| T-RP-16-009 | fixture：GPU の在る run（`gpu.device.unavailable` 0 件、`final` 1 件以上） | 陽性対照 | `Ok` | 別の関数 `check_gpu_run` が `Ok`（specified、RP-16 の陽性対照） | 陽性 | `gpu_present_run_has_no_unavailable_event` |
-| T-RP-16-010 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav` | 実走 | 実走 | 001 の形（specified、RP-16） | 陽性 | `hidden_gpu_stops_with_a_reason` |
+| T-RP-16-009 | fixture：GPU の在る run（終了 code 0、`final` 1 件以上、`gpu.device.unavailable` と `gpu.fallback.cpu` と `/events` の `fallback` が各 0 件、GPU の段の provider が `cuda`） | 在るのに落ちない（001 の対） | `Ok` | 別の関数 `check_gpu_run` が `Ok`（specified、RP-16 の対照） | 陽性 | `gpu_present_run_has_no_fallback_events` |
+| T-RP-16-010 | fixture：009 と同じ GPU の在る run で、句読点の `gpu.fallback.cpu` が 1 件、provider が `cpu` | GPU が在るのに CPU へ落ちる build | `Err` | `check_gpu_run` が `Err` でその段を名指し（specified、RP-16 の陰性欄） | 陰性 | `gpu_present_run_that_falls_back_is_rejected` |
+| T-RP-16-011 | fixture：001 と同じで、句読点の `gpu.fallback.cpu` が 0 件 | 落ちたのに log の event を出さない build | `Err` | `Err` で句読点を名指し（specified、RP-16 の陰性欄。読み込んだ段ごとに 1 件） | 陰性 | `missing_fallback_log_event_for_a_loaded_stage_is_named` |
+| T-RP-16-012 | fixture：001 と同じで、`/events` の `fallback` が 0 件 | 画面へ送らない build | `Err` | `Err` で句読点を名指し（specified、RP-16、3.15 の「段ごとに出す」） | 陰性 | `missing_events_fallback_for_a_loaded_stage_is_named` |
+| T-RP-16-013 | fixture：001 と同じで、句読点の `gpu.fallback.cpu` が 2 件 | 件数の上側 | `Err` | `Err` で句読点を名指し。段ごとに 1 件（specified、RP-16） | 境界、陰性 | `duplicate_fallback_event_for_a_stage_is_rejected` |
+| T-RP-16-014 | fixture：001 と同じで、読み込んだ GPU の段が句読点だけ（言語判定は読み込んでいない）。言語判定の `gpu.fallback.cpu` は 0 件 | 読み込まない段 | `Ok` | `Ok`。読み込んでいない段には落ちた event を求めない（specified、RP-16 の「その run が読み込む 3.5 の GPU の段」） | 境界、陽性 | `unloaded_gpu_stage_needs_no_fallback_event` |
+| T-RP-16-015 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` | 実走 | 実走 | 001 の形（specified、RP-16） | 陰性 | `hidden_gpu_falls_back_to_cpu_with_a_reason` |
+| T-RP-16-016 | 実走：GPU の在る機械で 015 と同じ command（`CUDA_VISIBLE_DEVICES` を空にしない） | 実走の対照 | 実走 | 009 の形（specified、RP-16 の対照） | 陽性 | `visible_gpu_run_does_not_fall_back` |
 
 ### 4.27 RP-17（自分で build した library が開け、ORT が 1 つである）
 
@@ -793,7 +806,7 @@ test：`native/hayamimi-eval/tests/rp20.rs`。
 
 ### 4.31 RP-21（model の取得に Python が要らない）
 
-test：`native/hayamimi/tests/rp21.rs`。001、005、006、007 は実走で、R10 が置く。007 が使う RP-9 の `check_descendants` も R10 が作る。
+test：`native/hayamimi/tests/rp21.rs`。001、005、006、007、012、013 は実走で、R10 が置く。007 が使う RP-9 の `check_descendants` も R10 が作る。
 `<tmp>` は `native/target/` の下に test が作る一時の directory（`/tmp` は使わない）。
 取る版は 3.5 の置き場で決まる（3.10）。3.5 の表で CPU とした認識（ReazonSpeech）は int8、GPU とした言語判定（whisper-tiny）と句読点の BERT は fp32 か fp16 である（3.4）。
 版は file 名で見分ける。int8 は `.int8.onnx` で終わり、fp32 は suffix を持たず、fp16 は `.fp16.onnx` で終わる（`models/sherpa-onnx-whisper-tiny/` の `tiny-encoder.int8.onnx` と `tiny-encoder.onnx`、`gpu_stages.md` の node の表の `.fp16.onnx` による。ReazonSpeech の tarball の file 名は NOT VERIFIED。実機の tarball の一覧で確かめる）。
@@ -806,12 +819,14 @@ case は 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）の存在と
 | T-RP-21-003 | fixture：sha256 が 63 桁の項目 | 桁の下側 | `Err` | `Err` でその file を名指し（derived、64 桁でない） | 境界、陰性 | `sha256_of_63_hex_digits_is_rejected` |
 | T-RP-21-004 | fixture：bytes が 0 の項目 | bytes の境界 | `Err` | `Err`（derived、0 より大きい） | 境界、陰性 | `zero_bytes_entry_is_rejected` |
 | T-RP-21-005 | 実走：002 の directory で同じ command をもう一度 | 取り直さない | 実走 | 各 file の更新時刻が変わらない（specified、RP-21 の陽性対照） | 陽性 | `second_fetch_does_not_refetch` |
-| T-RP-21-006 | 実走：取得先を壊した 2 回目の取得（取得先を指す口は実装の席が置く） | 取得の失敗 | 実走 | 終了 code が 0 以外で、既に在る file の bytes が前と同じで、directory に増えた file が 0（specified、RP-21 の陰性欄と 3.10 の「前の file を残し、一時 file に書いてから rename」） | 陰性 | `broken_source_keeps_the_previous_files` |
+| T-RP-21-006 | 実走：取得先を 2 つとも壊した 2 回目の取得（取得先を指す口は実装の席が置く） | 取得の失敗 | 実走 | 終了 code が 0 で、既に在る file の bytes が前と同じで、directory に増えた file が 0、`models.fallback.previous` が 1 件（specified、RP-21 の陰性欄と 3.10 の「前の file を残し、一時 file に書いてから rename」） | 陰性 | `broken_sources_keep_the_previous_files_and_say_so` |
 | T-RP-21-007 | 実走：実行中の子孫の process | Python が要らない | 実走 | 取得中の子孫に `python` を含む名前が 0（specified、RP-21 の題。RP-9 の `check_descendants` を使う） | 陽性 | `fetch_runs_without_python` |
 | T-RP-21-008 | fixture：manifest の項目が 認識の encoder `recognizer-encoder.int8.onnx`、言語判定 `tiny-encoder.onnx` と `tiny-decoder.onnx`、句読点 `punct_bert.onnx`、Silero `silero_vad.onnx`（file 名は fixture の仮の名前）。3.5 の表は認識が CPU（int8）、言語判定と句読点が GPU | 版が置き場に合う | `Ok` | `Ok`（specified、RP-21 の「3.5 の置き場に合った版」。認識は int8、GPU の段は int8 でない） | 陽性 | `manifest_versions_match_the_stage_placements` |
 | T-RP-21-009 | fixture：008 の認識の encoder の項目を `recognizer-encoder.onnx`（fp32）に替えた物 | 認識が int8 でない | `Err` | `Err` で認識の encoder を名指し（specified、RP-21 と 3.10 の「認識は int8」） | 陰性 | `fp32_recognizer_in_the_manifest_is_rejected` |
 | T-RP-21-010 | fixture：008 の言語判定の項目を `tiny-encoder.int8.onnx` に替えた物 | GPU の段が int8 | `Err` | `Err` で言語判定の encoder を名指し。int8 の op は CUDA に無い（specified、3.4 と RP-21。S6） | 陰性 | `int8_model_for_a_gpu_stage_is_rejected` |
 | T-RP-21-011 | fixture：008 の句読点の項目を `punct_bert.fp16.onnx` に替えた物 | GPU の段の fp16 | `Ok` | `Ok`（specified、3.4 の「fp32 か fp16」。008 は fp32 の側、これは fp16 の側） | 境界、陽性 | `fp16_model_for_a_gpu_stage_passes` |
+| T-RP-21-012 | 実走：空の directory で、取得先の 1 つ（sherpa-onnx の release）だけを壊して `<hy> models fetch --minimal --dir <tmp>` | 取得先の片方の失敗 | 実走 | 終了 code が 0 で、4 組が揃い、`models/manifest.json` が在り、もう 1 つの取得先から取れた file の sha256 が manifest の項目と一致する（specified、RP-21 の陰性欄） | 陰性 | `one_broken_source_falls_back_to_the_other_source` |
+| T-RP-21-013 | 実走：002 の directory で、取得先が両方在る 2 回目の取得 | 在るのに落ちない（006 の対） | 実走 | `models.fallback.previous` が 0 件で、終了 code が 0（specified、RP-21 の対照） | 陽性 | `healthy_sources_emit_no_previous_files_event` |
 
 ### 4.32 RP-22（GPU の memory の上限）
 
@@ -827,6 +842,8 @@ test：`native/hayamimi-eval/tests/rp22.rs`。
 | T-RP-22-005 | fixture：`MiB` の単位が付いた行と付かない行 | 単位の読み | 数が読める | `1161 MiB` から 1161 が読める。単位の無い行は `Err`（implicit） | 境界 | `unit_suffix_is_parsed_and_missing_unit_is_rejected` |
 | T-RP-22-006 | fixture：上限なしの run の最大 16000 MiB | 上限なしで 5 言語 | `Err` | `Err`（specified、RP-22 の陰性欄） | 陰性 | `unlimited_residency_fixture_exceeds_the_budget` |
 | T-RP-22-007 | 実走：RP-3 の run の間の読み | 実走 | 実走 | 最大が 14,000 MiB 以下。5 言語を流して退避の event が 1 件以上（specified、RP-22。`--max-resident` の既定は 3 で、5 言語は常駐の上限を超える。退避の event の名前は実装の席が置く） | 陽性 | `vram_stays_under_budget_during_rp03_run` |
+| T-RP-22-008 | 実走：007 の run で測った最大より 1 MiB 低い値を上限に置いて、同じ run を起こす | 上限に届いた run（落ちた形） | 実走 | `hayamimi` が止まらず（終了 code 0、`final` が出る）、`gpu.fallback.cpu`（`reason` = `memory_budget`）が 1 件以上、`/events` の `fallback` が同じ数。`check_vram` は上限を超えた読みを名指しして `Err`（specified、RP-22 の陰性欄と 3.15 の memory の行） | 陰性 | `budget_reached_falls_back_instead_of_stopping` |
+| T-RP-22-009 | 実走：007 と同じ run（上限 14,000 MiB） | 届かない run（007 と 008 の対） | 実走 | `gpu.fallback.cpu`（`reason` = `memory_budget`）が 0 件（specified、RP-22。上限に届かなければ落ちない） | 陽性 | `budget_not_reached_emits_no_memory_fallback` |
 
 ### 4.33 RP-23（段ごとの GPU と CPU の計測）
 
@@ -904,7 +921,7 @@ test：`native/hayamimi-eval/tests/rp25.rs`。
 ### 4.36 RP-26（言語の切り替え）
 
 test：`native/hayamimi/tests/rp26.rs`。
-`check_locale_output(en, ja, tables)` は、`--help` と起動失敗の stderr を、2 つの locale で読んだ結果を確かめる。
+`check_locale_output(en, ja, tables)` は、`--help` と fallback の時の stderr（3.15）を、2 つの locale で読んだ結果を確かめる。
 locale の決め方は、`ja_JP.UTF-8` を ja、`C.UTF-8` と未知の値を en とする（3.14 の「既定は英語」）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
@@ -917,7 +934,9 @@ locale の決め方は、`ja_JP.UTF-8` を ja、`C.UTF-8` と未知の値を en 
 | T-RP-26-006 | fixture：en の出力は ASCII だけ、ja の出力は非 ASCII を含む | 言語が別 | `Ok` | `Ok`（specified、RP-26 の「別の言語」を、この席が文字の種類で読んだ） | 陽性 | `en_is_ascii_and_ja_has_non_ascii_text` |
 | T-RP-26-007 | fixture：2 つの locale で同じ出力 | 切り替わらない | `Err` | `Err`（specified、RP-26） | 陰性 | `identical_output_for_both_locales_is_rejected` |
 | T-RP-26-008 | locale の値 `ja_JP.UTF-8`、`C.UTF-8`、`fr_FR.UTF-8` | locale の決め方 | ja、en、en | 決める関数が ja、en、en を返す（specified、3.14 の「既定は英語」） | 境界 | `locale_resolution_defaults_to_english` |
-| T-RP-26-009 | 実走：`<hy> --help` と起動の失敗を `LANG` を en と ja にして起こす | 実走 | 実走 | 001、004、006 の形（specified、RP-26）。`LANG` は test が子の process に渡す値で、test の code は読まない | 陽性 | `messages_follow_the_locale` |
+| T-RP-26-009 | 実走：`<hy> --help` と、`CUDA_VISIBLE_DEVICES` を空にして fallback の stderr を出す run を `LANG` を en と ja にして起こす | 実走 | 実走 | 001、004、006 の形（specified、RP-26）。`LANG` は test が子の process に渡す値で、test の code は読まない | 陽性 | `messages_follow_the_locale` |
+| T-RP-26-010 | fixture：GPU を隠した run の fallback の stderr。en と ja の全行が表の値から組まれている | fallback の文の出所 | `Ok` | `Ok`（specified、RP-26 と 3.15 の「利用者の locale の文で 1 回」） | 陽性 | `fallback_stderr_built_only_from_table_values_passes` |
+| T-RP-26-011 | fixture：en の fallback の stderr に表に無い 1 行 | fallback の文言の直書き | `Err` | `Err` でその行を名指し（specified、RP-26 の陰性欄） | 陰性 | `hardcoded_fallback_line_is_named` |
 
 ### 4.37 RP-27（GPU の経路が無い文字列の段が ORT と CUDA を呼ばない）
 
@@ -934,6 +953,52 @@ fixture の木は `native/target/` の下に test が作る一時の directory �
 | T-RP-27-004 | fixture：`punct/rules.rs` が無い木 | file の欠け | rc 2 | `Err`。rc 2 を 0 件と読まない（specified、RP-27 の「file が無いときの rc 2 は落ちる」） | 境界、陰性 | `missing_string_stage_file_is_an_error_not_zero_hits` |
 | T-RP-27-005 | 実走：`native/hayamimi-gpu/src/` に同じ式 | 数える式の陽性対照 | rc 0 | 当たりが 1 件以上（specified、RP-27 の陽性対照） | 陽性 | `import_counter_finds_ort_and_cuda_in_the_gpu_crate` |
 | T-RP-27-006 | 実走（R2 の後）：`native/hayamimi-asr/src/itn.rs` と `native/hayamimi-asr/src/punct/rules.rs` | 実物 | rc 1 | 2 file が在り、rc が 1 で当たりが 0 件（specified、RP-27） | 陽性 | `string_stage_modules_import_neither_ort_nor_cuda` |
+
+### 4.38 RP-28（CPU に落ちた時の主指標 `L`）
+
+test：`native/hayamimi-eval/tests/rp28.rs`。受入 test の名前は `rp28_cpu_fallback_latency_is_recorded_apart`。
+`check_cpu_run_latency(report, run)` は、CPU に落ちた run の `L`、`L_asr`、`L_tr` の p50 と p95 が GPU の run の行（RP-3）とは別の行に在ることと、仮の上限（`L` の p50 が 4500 ms、p95 が 7000 ms）以下であることを確かめる。run は `gpu.fallback.cpu` の件数を持つ。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-28-001 | fixture：`gpu.fallback.cpu` が 1 件以上の run。別の行に `L` の p50 が 4500 ms、p95 が 7000 ms、`L_asr` と `L_tr` の p50 と p95 | 仮の上限の等号 | `Ok` | `Ok`。式：4500 ≤ 4500、7000 ≤ 7000（specified、RP-28。上限は仮の値で R8e が置き直す） | 境界、陽性 | `cpu_run_at_the_provisional_limits_passes` |
+| T-RP-28-002 | fixture：001 で `L` の p50 が 4501 ms | p50 の外側 | `Err` | `Err` で `L` の p50 を名指し（specified、RP-28） | 境界、陰性 | `cpu_run_p50_over_the_limit_is_rejected` |
+| T-RP-28-003 | fixture：001 で `L` の p95 が 7001 ms | p95 の外側 | `Err` | `Err` で `L` の p95 を名指し（specified、RP-28） | 境界、陰性 | `cpu_run_p95_over_the_limit_is_rejected` |
+| T-RP-28-004 | fixture：001 で `L_asr` の行が無い | 列の欠け | `Err` | `Err` で `L_asr` を名指し（specified、RP-28 の「`L`、`L_asr`、`L_tr`」） | 陰性 | `cpu_run_without_l_asr_is_rejected` |
+| T-RP-28-005 | fixture：CPU の run の値が GPU の run の行（RP-3）に混ざり、別の行が無い | 別の行ではない | `Err` | `Err`。GPU の合否の行に CPU の値を入れない（specified、RP-28 の「別の行に」） | 境界、陰性 | `cpu_values_mixed_into_the_gpu_row_are_rejected` |
+| T-RP-28-006 | fixture：`gpu.fallback.cpu` が 0 件の GPU の run を CPU の run として渡した | 在るのに落ちていない | `Err` | `Err`。CPU の run として受け付けない（specified、RP-28 の陰性欄） | 陰性 | `gpu_run_passed_as_cpu_run_is_rejected` |
+| T-RP-28-007 | fixture：GPU の run の同じ列 | 同じ test が GPU の run からも読める | `Ok` | 同じ関数が GPU の run から同じ列を出せる（specified、RP-28 の陽性対照） | 陽性 | `same_columns_are_read_from_a_gpu_run` |
+| T-RP-28-008 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<ev> stream --wav lat-ja.wav --repeat 5` | 実走 | 実走 | 001 の形（specified、RP-28）。R8e が実測で上限を置き直す | 陽性 | `cpu_fallback_run_records_l_apart` |
+
+### 4.39 RP-29（GPU 以外の資源が無くても止まらない）
+
+test：`native/hayamimi/tests/rp29.rs`。受入 test の名前は `rp29_missing_resources_fall_back_and_say_so`。各場面の実走の行は、3.15 の表の持ち主の slice が足す。
+`check_resource_fallback(scene, run)` は、場面ごとに資源を外した run と在る run を対で読む。場面と落ちた event の名前は 3.15 の表による（model の file、推論の library、llama-server、外の送り先、port、取り込みの装置、設定の file）。
+外した run は、終了 code が 0、`final`（推論の library を外した場面では server の `ready`）が出て、その場面の `<domain>.fallback.<落ち先>` の log の event と `/events` の `fallback` が 1 件ずつ出る。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-29-001 | fixture：model の file を外した run。終了 code 0、`final` 1 件以上、`model.fallback.smaller` 1 件（`reason` = `missing`）、`/events` の `fallback` 1 件 | 外した run（落ちた形） | `Ok` | `Ok`（specified、RP-29、3.15 の model の行） | 陰性 | `missing_model_falls_back_and_says_so` |
+| T-RP-29-002 | fixture：model の file が在る run。同じ場面の fallback の event が log と `/events` で 0 件 | 在るのに落ちない（001 の対） | `Ok` | `Ok`（specified、RP-29 の陽性対照） | 陽性 | `present_model_emits_no_fallback_event` |
+| T-RP-29-003 | fixture：推論の library を外した run。終了 code 0、server の `ready` が出て `final` は 0 件、`asr.fallback.disabled` 1 件（`reason` = `library_unavailable`）、`/events` の `fallback` 1 件 | `final` を求めない場面 | `Ok` | `Ok`（specified、RP-29 の「推論の library を外した行では server の `ready`」） | 境界、陰性 | `missing_library_keeps_the_server_and_says_so` |
+| T-RP-29-004 | fixture：001 と同じ外した run で、`model.fallback.smaller` が 0 件 | 落ちたのに言わない | `Err` | `Err` でその場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `silent_fallback_is_rejected` |
+| T-RP-29-005 | fixture：002 と同じ在る run で、`model.fallback.smaller` が 1 件 | 在るのに落ちる build | `Err` | `Err` でその場面を名指し（specified、RP-29 の陰性欄） | 陰性 | `fallback_with_the_resource_present_is_rejected` |
+| T-RP-29-006 | fixture：001 と同じで、終了 code が 1 | 止まった build | `Err` | `Err`。終了 code は 0（specified、RP-29） | 境界、陰性 | `nonzero_exit_code_in_a_missing_resource_run_is_rejected` |
+| T-RP-29-007 | fixture：001 と同じで、log の event は 1 件、`/events` の `fallback` が 0 件 | 画面へ送らない | `Err` | `Err` で `/events` を名指し（specified、3.15 の「段ごとに出す」） | 陰性 | `fallback_not_sent_to_events_is_rejected` |
+| T-RP-29-008 | fixture：001 と同じで、`model.fallback.smaller` が 2 件 | 件数の上側 | `Err` | `Err`。1 件ずつ（specified、RP-29） | 境界、陰性 | `two_fallback_events_for_one_scene_are_rejected` |
+| T-RP-29-009 | fixture：llama-server に届かない run。終了 code 0、原文の `final` が出る、`translate.fallback.held` 1 件（`reason` = `unreachable`） | 訳の保留 | `Ok` | `Ok`（specified、RP-29、3.15 の llama-server の行） | 陰性 | `unreachable_llama_server_holds_translation_and_says_so` |
+| T-RP-29-010 | fixture：外の送り先に届かない run。`sink.fallback.local` 1 件、SRT に確定の訳が残る | 送り先の失敗 | `Ok` | `Ok`（specified、RP-29、3.15 の送り先の行） | 陰性 | `unreachable_sink_keeps_translations_locally` |
+| T-RP-29-011 | fixture：port 8833 を塞いだ run で、実際の port が 8843、`server.fallback.port` 1 件（`reason` = `in_use`）、出した URL が実際の port | 次の番号から 10 個の内側（最後） | `Ok` | `Ok`。8834 から 8843 の 10 個（derived、3.15 の「次の番号から 10 個まで」を数えた値） | 境界、陰性 | `blocked_port_uses_the_tenth_next_port` |
+| T-RP-29-012 | fixture：011 で実際の port が 8844 | 10 個の外側 | `Err` | `Err`（derived、8844 は 11 個目） | 境界、陰性 | `blocked_port_beyond_ten_next_ports_is_rejected` |
+| T-RP-29-013 | fixture：出力の装置が無く、マイクだけが在る run。`capture.fallback.single` 1 件（`reason` = `device_missing`）。もう 1 つは両方無い run で `capture.fallback.none` 1 件 | 取り込みの装置 | `Ok` | `Ok`（specified、3.15 の取り込みの行。RP-10 の 006 と同じ型） | 陰性 | `missing_capture_devices_fall_back_to_single_or_none` |
+| T-RP-29-014 | fixture：設定の file が壊れ、前の内容も無い run。`config.fallback.default` 1 件、効いている設定の値が `hayamimi config dump` の値と全部同じ | 既定の設定 | `Ok` | `Ok`（specified、3.15 の設定の行と RP-19 の dump） | 陰性 | `broken_config_without_previous_uses_the_dump_defaults` |
+| T-RP-29-015 | fixture：014 で効いている設定の値が 1 つ dump と違う | 既定の値の食い違い | `Err` | `Err` でその key を名指し（specified、3.15） | 境界、陰性 | `default_config_differing_from_the_dump_is_rejected` |
+| T-RP-29-016 | fixture：送り先が戻った run。`sink.fallback.cleared` 1 件と `/events` の `{"type": "fallback", "to": null}` 1 件 | 資源が戻った | `Ok` | `Ok`（specified、3.15 の「戻ったとき」） | 陽性 | `recovered_sink_emits_cleared_events` |
+| T-RP-29-017 | fixture：016 で `sink.fallback.cleared` が 0 件 | 戻ったのに言わない | `Err` | `Err`（specified、3.15） | 陰性 | `recovery_without_cleared_event_is_rejected` |
+| T-RP-29-018 | fixture：GPU を隠して起こし、実行中に device が戻った run。`gpu.fallback.cleared` が 0 件、段の provider は `cpu` のまま | GPU の段は戻さない | `Ok` | `Ok`（specified、3.15 の「GPU の段は起動時に置き場を決めるので、実行中には戻さない」） | 境界 | `gpu_stage_stays_on_cpu_when_the_device_returns` |
+| T-RP-29-019 | fixture：fallback が 2 つ効いている間に client が接続し直した列。最初の 2 件が効いている fallback の 2 つ | 接続し直し | `Ok` | `Ok`（specified、3.15 の「最初にまとめて送る」） | 陽性 | `reconnected_client_receives_active_fallbacks_first` |
+| T-RP-29-020 | fixture：019 で効いている fallback の 1 つが最初に来ない | まとめの欠け | `Err` | `Err` でその stage を名指し（specified、3.15） | 陰性 | `reconnected_client_missing_an_active_fallback_is_named` |
+| T-RP-29-021 | 実走：場面ごとに資源を外した run と在る run の対（持ち主の slice が場面ごとに足す） | 実走 | 実走 | 001 または 003 と 002 の形（specified、RP-29） | 陰性、陽性 | `missing_resources_fall_back_in_real_runs` |
 
 ## 5. RP-19 の対応表
 
