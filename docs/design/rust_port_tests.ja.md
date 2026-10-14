@@ -69,8 +69,10 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 ### 4.1 case 行の読み方
 
 case は `T-<ID>-nnn` で呼ぶ。
-test 関数の名前は、2 の表と `rust_port.ja.md` の 7 の「受入 test の名前」の後ろに `_` と各行の「関数の末尾」を続けた物にする（例：`rb01_scoring_and_eval_packages_are_installed_all_five_versions_match`）。
-実装の test の名前はこの名前と一致させる。
+受入 test の名前（2 の表と `rust_port.ja.md` の 7）は、その名前の test 関数が 1 本在る。
+case 行の test 関数の名前は、各行の「関数の末尾」の前に、何も付けないか、`<id>_`（`rp36_` のように）か、受入 test の名前と `_`（`rb01_scoring_and_eval_packages_are_installed_all_five_versions_match` のように）を付けた物にする。
+3 つの形のどれかは file ごとに 1 つにそろえる。
+実装の test の名前が在るかは、`rg -n 'fn ([a-z0-9_]+_)?<関数の末尾>\(' native/<crate>/tests/<id>.rs` で 1 件であることで確かめる。
 
 - 置き場は 2 の表と `rust_port.ja.md` の 7 のとおり `native/<crate>/tests/<id>.rs`。
   cargo の command は `native/` で打ち、`flock -w 1800 target/release/.cargo-lock true && cargo test --release --test <id>` の形にする。
