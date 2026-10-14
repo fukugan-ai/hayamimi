@@ -97,11 +97,7 @@ fn two_sends_for_one_id_are_rejected() {
 
 #[test]
 fn early_translation_sent_outside_is_rejected() {
-    let run = [
-        draft("a", "T"),
-        sent("a", "zoom", "T"),
-        settled("a", "E"),
-    ];
+    let run = [draft("a", "T"), sent("a", "zoom", "T"), settled("a", "E")];
     assert_eq!(check_flicker(&run), Err(Fault::SentNotSettled(named("a"))));
 }
 
@@ -120,11 +116,7 @@ fn counter_reads_two_utterances_with_different_early_and_final() {
 
 #[test]
 fn held_e_keeps_the_early_translation_as_final() {
-    let run = [
-        draft("a", "T"),
-        settled("a", "T"),
-        sent("a", "zoom", "T"),
-    ];
+    let run = [draft("a", "T"), settled("a", "T"), sent("a", "zoom", "T")];
     assert_eq!(check_flicker(&run), Ok(()));
     assert_eq!(count_replaced(&run), 0);
 }

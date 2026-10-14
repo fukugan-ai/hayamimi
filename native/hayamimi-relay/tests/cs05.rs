@@ -63,7 +63,10 @@ enum Fault {
 /// No caption may be sent for a held line, and one must be sent for each line
 /// that passed.
 fn check_sent(sent: &[Caption], held: &[&str], passed: &[&str]) -> Result<(), Fault> {
-    if let Some(caption) = sent.iter().find(|caption| held.contains(&caption.id.as_str())) {
+    if let Some(caption) = sent
+        .iter()
+        .find(|caption| held.contains(&caption.id.as_str()))
+    {
         return Err(Fault::SentForAHeldLine(caption.id.clone()));
     }
     for id in passed {
@@ -86,7 +89,8 @@ fn run() -> Result<Run, Box<dyn std::error::Error>> {
         Pipeline::open(ChangesTheAmount, &PipelineConfig::default(), sink)
     });
     let (recording, file) = (Recording::new(true), Buffer::default());
-    let destinations = vec![Box::new(recording.clone()) as Box<dyn hayamimi_relay::deliver::Destination>];
+    let destinations =
+        vec![Box::new(recording.clone()) as Box<dyn hayamimi_relay::deliver::Destination>];
     let outputs = outputs(destinations, Some(Box::new(file.clone())))?;
     let running = run_relay_with(vec![recognizer.url()], Lanes::PerSource, make, outputs)?;
     recognizer.send(&final_event(1, BUDGET));
@@ -123,7 +127,11 @@ fn cs05_held_line_shows_marked_source_and_sends_nothing() -> TestResult {
     assert_eq!(held["text"], "");
     assert_eq!(held["annotations"], json!([]));
     // Neither translation passed, so no draft was shown for it.
-    assert!(drafts_of(&run.arrived).iter().all(|(_, d)| d["id"] != "mic-1"));
+    assert!(
+        drafts_of(&run.arrived)
+            .iter()
+            .all(|(_, d)| d["id"] != "mic-1")
+    );
     // Nothing was sent for it; the line that passed was sent once.
     assert_eq!(check_sent(&run.sent, &["mic-1"], &["mic-2"]), Ok(()));
     assert_eq!(run.sent.len(), 1);
@@ -146,7 +154,11 @@ fn cs05_sending_a_held_line_or_dropping_a_good_one_is_refused() {
         text: String::from("x"),
     };
     assert_eq!(
-        check_sent(&[caption("mic-1"), caption("mic-2")], &["mic-1"], &["mic-2"]),
+        check_sent(
+            &[caption("mic-1"), caption("mic-2")],
+            &["mic-1"],
+            &["mic-2"]
+        ),
         Err(Fault::SentForAHeldLine(String::from("mic-1")))
     );
     assert_eq!(

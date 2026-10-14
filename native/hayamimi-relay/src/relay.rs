@@ -99,13 +99,8 @@ fn publish(hub: &Hub, translation: &Translation, line: &Line, sink: &mut dyn Log
     match serde_json::to_string(translation) {
         Ok(json) => hub.publish(&json),
         Err(_) => sink.emit(
-            line_event(
-                Level::Error,
-                "translate.publish.failed",
-                "service",
-                line,
-            )
-            .with_error("PUBLISH"),
+            line_event(Level::Error, "translate.publish.failed", "service", line)
+                .with_error("PUBLISH"),
         ),
     }
 }
@@ -134,7 +129,8 @@ fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedS
         let request = job.line.request(job.src_lang, parts.clock.now_epoch());
         let mut show_draft =
             |draft: Translation| publish(&parts.hub, &draft, &job.line, &mut drafts);
-        let translation = pipeline.run_staged(&request, &mut NoObserver, &mut show_draft, &mut sink);
+        let translation =
+            pipeline.run_staged(&request, &mut NoObserver, &mut show_draft, &mut sink);
         publish(&parts.hub, &translation, &job.line, &mut sink);
         parts.delivery.submit(&job.line, &translation);
     }

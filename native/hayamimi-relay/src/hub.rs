@@ -311,7 +311,8 @@ mod tests {
         assert_eq!(get_path(b"GET"), None);
     }
 
-    const SINK_DOWN: &str = r#"{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}"#;
+    const SINK_DOWN: &str =
+        r#"{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}"#;
     const SINK_UP: &str = r#"{"type":"fallback","stage":"sink","to":null}"#;
 
     #[test]
@@ -348,7 +349,11 @@ mod tests {
         let address = serve(bind(0)?, hub.clone())?;
         hub.publish_fallback("sink", true, SINK_DOWN);
         hub.publish_fallback("sink", true, SINK_DOWN);
-        hub.publish_fallback("other", true, r#"{"type":"fallback","stage":"other","to":"cpu"}"#);
+        hub.publish_fallback(
+            "other",
+            true,
+            r#"{"type":"fallback","stage":"other","to":"cpu"}"#,
+        );
         let mut stream = request(address, "/events")?;
         wait_until_subscribed(&hub)?;
         hub.publish("after");

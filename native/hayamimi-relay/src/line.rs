@@ -190,7 +190,8 @@ mod tests {
 
     #[test]
     fn a_line_without_both_times_has_no_span() -> Result<(), Skip> {
-        let without_end = r#"{"type":"final","id":"mic-2","source":"mic","lang":"ja","text":"あ","t0_s":0.5}"#;
+        let without_end =
+            r#"{"type":"final","id":"mic-2","source":"mic","lang":"ja","text":"あ","t0_s":0.5}"#;
         let parsed = parse_line(without_end)?;
         assert!(parsed.is_some_and(|found| found.span.is_none()));
         let not_numbers = r#"{"type":"final","id":"mic-3","source":"mic","lang":"ja","text":"あ","t0_s":"0","t1_s":"1"}"#;

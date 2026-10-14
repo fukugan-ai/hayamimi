@@ -19,7 +19,8 @@ impl Cue {
     /// with text that is not blank. `None` for any other input. Blank lines
     /// inside the text are dropped, because a blank line ends a cue.
     pub fn new(start_s: f64, end_s: f64, text: &str) -> Option<Cue> {
-        let forward = start_s.is_finite() && end_s.is_finite() && start_s >= 0.0 && end_s >= start_s;
+        let forward =
+            start_s.is_finite() && end_s.is_finite() && start_s >= 0.0 && end_s >= start_s;
         let lines: Vec<&str> = text
             .lines()
             .map(str::trim)

@@ -316,7 +316,11 @@ fn announce_serving(
 
 /// Opens the subtitle file. A file that cannot be opened is left out and the
 /// run goes on without it.
-fn open_srt(path: &Path, sink: &mut dyn LogSink, strings: &Strings) -> Option<Box<dyn Write + Send>> {
+fn open_srt(
+    path: &Path,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) -> Option<Box<dyn Write + Send>> {
     match File::create(path) {
         Ok(file) => Some(Box::new(file)),
         Err(_) => {
@@ -353,7 +357,13 @@ fn run_relay(
         srt: srt.and_then(|path| open_srt(&path, &mut sink, strings)),
         words: Words::from_strings(strings),
     };
-    let started = relay::start_with(listener, config, pipeline_factory(llm), sink.clone(), outputs);
+    let started = relay::start_with(
+        listener,
+        config,
+        pipeline_factory(llm),
+        sink.clone(),
+        outputs,
+    );
     let Ok(address) = started else {
         print_error(strings, "cannot_serve");
         return 1;
@@ -522,7 +532,10 @@ mod tests {
         let missing = Path::new("/no/such/directory/live.srt");
         assert!(open_srt(missing, &mut sink, &strings).is_none());
         assert_eq!(
-            sink.events.iter().map(|e| e.event.as_str()).collect::<Vec<_>>(),
+            sink.events
+                .iter()
+                .map(|e| e.event.as_str())
+                .collect::<Vec<_>>(),
             ["srt.output.failed"]
         );
     }

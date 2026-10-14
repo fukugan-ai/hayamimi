@@ -365,7 +365,14 @@ impl<L: Llm> Pipeline<L> {
         let edited = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
             Ok(text) => text,
             Err(error) => {
-                return self.edit_failed(request, draft, &error.to_string(), observer, started, sink);
+                return self.edit_failed(
+                    request,
+                    draft,
+                    &error.to_string(),
+                    observer,
+                    started,
+                    sink,
+                );
             }
         };
         let e_ms = edit_started.elapsed().as_millis();
@@ -762,7 +769,10 @@ mod tests {
         assert_eq!((draft.stage, draft.settled), (Pass::T, false));
         assert_eq!((draft.status, draft.text.as_str()), (Status::Ok, "Hello."));
         assert!(draft.annotations.is_empty());
-        assert_eq!((trace.settled.stage, trace.settled.settled), (Pass::E, true));
+        assert_eq!(
+            (trace.settled.stage, trace.settled.settled),
+            (Pass::E, true)
+        );
         assert_eq!(trace.settled.text, "Hi there.");
         // The draft left before the edit stage began.
         let order = [
@@ -802,7 +812,10 @@ mod tests {
         let trace = run_traced(&script, &request("予算は500円です。"))?;
         assert_eq!(trace.early.len(), 1);
         let settled = &trace.settled;
-        assert_eq!((settled.status, settled.stage, settled.settled), (Status::Ok, Pass::T, true));
+        assert_eq!(
+            (settled.status, settled.stage, settled.settled),
+            (Status::Ok, Pass::T, true)
+        );
         assert_eq!(settled.text, trace.early[0].text);
         Ok(())
     }
@@ -813,7 +826,10 @@ mod tests {
         let script = Scripted::saying("The budget is 900 yen.", "The budget is 500 yen.");
         let trace = run_traced(&script, &request("予算は500円です。"))?;
         assert!(trace.early.is_empty());
-        assert_eq!((trace.settled.status, trace.settled.stage), (Status::Ok, Pass::E));
+        assert_eq!(
+            (trace.settled.status, trace.settled.stage),
+            (Status::Ok, Pass::E)
+        );
         assert_eq!(trace.settled.text, "The budget is 500 yen.");
         Ok(())
     }
@@ -832,7 +848,8 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_edit_request_leaves_a_draft_that_passed() -> Result<(), Box<dyn std::error::Error>> {
+    fn a_failed_edit_request_leaves_a_draft_that_passed() -> Result<(), Box<dyn std::error::Error>>
+    {
         let script = Scripted::new(vec![
             Ok(String::from("Hello.")),
             Err(LlmError::Transport(String::from("down"))),
@@ -840,7 +857,10 @@ mod tests {
         let trace = run_traced(&script, &request("こんにちは。"))?;
         assert_eq!(trace.early.len(), 1);
         let settled = &trace.settled;
-        assert_eq!((settled.status, settled.stage, settled.settled), (Status::Ok, Pass::T, true));
+        assert_eq!(
+            (settled.status, settled.stage, settled.settled),
+            (Status::Ok, Pass::T, true)
+        );
         assert_eq!(settled.text, "Hello.");
         Ok(())
     }
@@ -865,7 +885,10 @@ mod tests {
         line.of = LineKind::Refine;
         let trace = run_traced(&script, &line)?;
         assert!(trace.early.is_empty());
-        assert_eq!((trace.settled.of, trace.settled.settled), (LineKind::Refine, true));
+        assert_eq!(
+            (trace.settled.of, trace.settled.settled),
+            (LineKind::Refine, true)
+        );
         Ok(())
     }
 

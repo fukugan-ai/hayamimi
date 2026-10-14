@@ -408,7 +408,10 @@ mod tests {
 
     #[test]
     fn the_index_counts_characters_and_not_bytes() {
-        assert_eq!(insert_notes("私は100ドル", &[(5, "（約）")]), "私は100（約）ドル");
+        assert_eq!(
+            insert_notes("私は100ドル", &[(5, "（約）")]),
+            "私は100（約）ドル"
+        );
         assert_eq!(
             with_annotations("私は100ドル払った。", &[note(7, "（約 15,900 円）")]),
             "私は100ドル（約 15,900 円）払った。"
@@ -492,10 +495,12 @@ mod tests {
     #[test]
     fn a_cue_holds_the_translation_or_the_marked_source() {
         let cue = |status, lang| parcel_of(status, lang).map(|parcel| parcel.cue(&words()));
-        let text = |found: Option<Result<Cue, NoCue>>| {
-            found.and_then(Result::ok).map(|cue| cue.text)
-        };
-        assert_eq!(text(cue(Status::Ok, Lang::En)), Some(String::from("Hello.")));
+        let text =
+            |found: Option<Result<Cue, NoCue>>| found.and_then(Result::ok).map(|cue| cue.text);
+        assert_eq!(
+            text(cue(Status::Ok, Lang::En)),
+            Some(String::from("Hello."))
+        );
         assert_eq!(
             text(cue(Status::Held, Lang::En)),
             Some(String::from("〔訳を控えました〕 こんにちは。"))
@@ -506,12 +511,18 @@ mod tests {
     fn a_line_without_a_span_or_without_a_translation_has_no_cue() {
         let found = translation(LineKind::Final, Status::Ok, Lang::En, true);
         let no_time = Parcel::new(&line(None), &found).map(|parcel| parcel.cue(&words()));
-        assert_eq!(no_time.map(|result| result.err()), Some(Some(NoCue::NoTime)));
+        assert_eq!(
+            no_time.map(|result| result.err()),
+            Some(Some(NoCue::NoTime))
+        );
         let mut unavailable = translation(LineKind::Final, Status::Held, Lang::En, true);
         unavailable.hold_reason = Some(HoldReason::Unavailable);
-        let none = Parcel::new(&line(Some((0.0, 1.0))), &unavailable)
-            .map(|parcel| parcel.cue(&words()));
-        assert_eq!(none.map(|result| result.err()), Some(Some(NoCue::Unavailable)));
+        let none =
+            Parcel::new(&line(Some((0.0, 1.0))), &unavailable).map(|parcel| parcel.cue(&words()));
+        assert_eq!(
+            none.map(|result| result.err()),
+            Some(Some(NoCue::Unavailable))
+        );
     }
 
     // ---- the courier ----------------------------------------------------------
@@ -679,14 +690,20 @@ mod tests {
             Ok(events) => events.clone(),
             Err(poisoned) => poisoned.into_inner().clone(),
         };
-        let sent = events.iter().find(|event| event.event == "translate.send.ok");
+        let sent = events
+            .iter()
+            .find(|event| event.event == "translate.send.ok");
         assert_eq!(sent.map(|event| event.level), Some(LogLevel::Info));
         assert_eq!(
-            sent.and_then(|event| event.fields.get("text_sha256")).cloned(),
+            sent.and_then(|event| event.fields.get("text_sha256"))
+                .cloned(),
             Some(serde_json::Value::from(sha256_hex("Hello.")))
         );
         let lines: Vec<String> = events.iter().map(LogEvent::to_json_line).collect();
-        assert!(lines.iter().all(|line| !line.contains("Hello.")), "{lines:?}");
+        assert!(
+            lines.iter().all(|line| !line.contains("Hello.")),
+            "{lines:?}"
+        );
     }
 
     #[test]
