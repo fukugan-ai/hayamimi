@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-35）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-37）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1402,6 +1402,16 @@ V の記録は、translation の `id`、`stage`、V に掛けた文字列の sha
 - 待ちの log を入れた build と分かる印（020）。
 - held-out の chrF の出所（結果の file の欄か、test が計算か）。held-out の参照訳は repo の外にあり、test の席が読めるのは `eval` の結果だけである。
 - LLM の出力が run ごとに揺れる場合の扱い。「前の main 以上」は 1 回ずつの比較で、同じ入力でも揺れれば落ちたり通ったりする。揺れの幅は未測定である。
+
+### 4.46 RP-36（RP-1 の ko の R11 の入口の上限）
+
+test：`native/hayamimi-eval/tests/rp36.rs`。受入 test の名前は `rp36_ko_error_within_the_shipped_build_cap`。`#[ignore]` を持ち、RP-1 の `rp01.json` を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-36 の行と 3.2 の 2 から）。
+
+### 4.47 RP-37（zh、ko、es の V の推量を log にだけ残す）
+
+test：`native/hayamimi-relay/tests/rp37.rs`。受入 test の名前は `rp37_hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en`。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-37 の行と 3.6 の R8i から）。
 
 ## 5. RP-19 の対応表
 
