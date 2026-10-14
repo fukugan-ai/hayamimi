@@ -7,6 +7,10 @@
 //! microphone never holds back the loopback. A translation carries the `id`
 //! of its own line, so one that arrives late cannot be read as another
 //! line's.
+//!
+//! A `final` line is published twice at most: its draft as soon as T's
+//! translation passed V, and its settled translation at the end. Only the
+//! settled one is handed to the outputs (`deliver`).
 
 use std::io;
 use std::net::{SocketAddr, TcpListener};
@@ -14,13 +18,15 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
+use crate::deliver::{Delivery, Outputs, Words};
 use crate::follow::{Backoff, follow};
 use crate::hub::{self, Hub};
 use crate::lang::Lang;
 use crate::line::{Line, SOURCES, Source, parse_line};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
-use crate::pipeline::{NoObserver, Pipeline};
+use crate::pipeline::{NoObserver, Pipeline, Translation};
+use crate::strings::Strings;
 
 /// How lines are shared out to translators.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,15 +93,29 @@ fn line_event(level: Level, name: &str, component: &'static str, line: &Line) ->
         .with("source", line.source.as_str())
 }
 
-/// Translates the jobs of one lane, one after another, until the router ends.
-fn run_lane<L: Llm>(
-    jobs: Receiver<Job>,
-    make: &MakePipeline<L>,
-    hub: &Hub,
+/// Publishes one translation under the `id` of its line, and says so when it
+/// cannot be written.
+fn publish(hub: &Hub, translation: &Translation, line: &Line, sink: &mut dyn LogSink) {
+    match serde_json::to_string(translation) {
+        Ok(json) => hub.publish(&json),
+        Err(_) => sink.emit(
+            line_event(Level::Error, "translate.publish.failed", "service", line)
+                .with_error("PUBLISH"),
+        ),
+    }
+}
+
+/// What a lane works with besides its jobs.
+struct LaneParts<L: Llm> {
+    make: MakePipeline<L>,
+    hub: Hub,
+    delivery: Delivery,
     clock: RunClock,
-    mut sink: SharedSink,
-) {
-    let mut pipeline = match make(&mut sink) {
+}
+
+/// Translates the jobs of one lane, one after another, until the router ends.
+fn run_lane<L: Llm>(jobs: Receiver<Job>, parts: &LaneParts<L>, mut sink: SharedSink) {
+    let mut pipeline = match (parts.make)(&mut sink) {
         Ok(pipeline) => pipeline,
         Err(_) => {
             sink.emit(
@@ -104,21 +124,15 @@ fn run_lane<L: Llm>(
             return;
         }
     };
+    let mut drafts = sink.clone();
     for job in jobs {
-        let request = job.line.request(job.src_lang, clock.now_epoch());
-        let translation = pipeline.run(&request, &mut NoObserver, &mut sink);
-        match serde_json::to_string(&translation) {
-            Ok(json) => hub.publish(&json),
-            Err(_) => sink.emit(
-                line_event(
-                    Level::Error,
-                    "translate.publish.failed",
-                    "service",
-                    &job.line,
-                )
-                .with_error("PUBLISH"),
-            ),
-        }
+        let request = job.line.request(job.src_lang, parts.clock.now_epoch());
+        let mut show_draft =
+            |draft: Translation| publish(&parts.hub, &draft, &job.line, &mut drafts);
+        let translation =
+            pipeline.run_staged(&request, &mut NoObserver, &mut show_draft, &mut sink);
+        publish(&parts.hub, &translation, &job.line, &mut sink);
+        parts.delivery.submit(&job.line, &translation);
     }
 }
 
@@ -127,6 +141,7 @@ struct Router<L: Llm + 'static> {
     lanes: Lanes,
     make: MakePipeline<L>,
     hub: Hub,
+    delivery: Delivery,
     clock: RunClock,
     sink: SharedSink,
 }
@@ -134,13 +149,14 @@ struct Router<L: Llm + 'static> {
 impl<L: Llm + 'static> Router<L> {
     fn open_lane(&self) -> Sender<Job> {
         let (jobs, receiver) = mpsc::channel();
-        let (make, hub, clock, sink) = (
-            Arc::clone(&self.make),
-            self.hub.clone(),
-            self.clock,
-            self.sink.clone(),
-        );
-        std::thread::spawn(move || run_lane(receiver, &make, &hub, clock, sink));
+        let parts = LaneParts {
+            make: Arc::clone(&self.make),
+            hub: self.hub.clone(),
+            delivery: self.delivery.clone(),
+            clock: self.clock,
+        };
+        let sink = self.sink.clone();
+        std::thread::spawn(move || run_lane(receiver, &parts, sink));
         jobs
     }
 
@@ -217,23 +233,43 @@ fn spawn_follower(
     Ok(())
 }
 
-/// Starts the relay: serves the translations on `listener` and follows every
-/// stream of `config.events`, all from threads of their own. Returns the
-/// address the translations are served on.
+/// Starts the relay with no subtitle file and no outside destination.
 pub fn start<L: Llm + 'static>(
     listener: TcpListener,
     config: RelayConfig,
     make: MakePipeline<L>,
     sink: SharedSink,
 ) -> io::Result<SocketAddr> {
+    let strings = Strings::embedded(Lang::En).map_err(io::Error::other)?;
+    let outputs = Outputs {
+        destinations: Vec::new(),
+        srt: None,
+        words: Words::from_strings(&strings),
+    };
+    start_with(listener, config, make, sink, outputs)
+}
+
+/// Starts the relay: serves the translations on `listener` and follows every
+/// stream of `config.events`, all from threads of their own. The settled
+/// translations also go to `outputs`. Returns the address the translations
+/// are served on.
+pub fn start_with<L: Llm + 'static>(
+    listener: TcpListener,
+    config: RelayConfig,
+    make: MakePipeline<L>,
+    sink: SharedSink,
+    outputs: Outputs,
+) -> io::Result<SocketAddr> {
     let hub = Hub::new();
     let address = hub::serve(listener, hub.clone())?;
+    let delivery = Delivery::start(outputs, hub.clone(), sink.clone())?;
     let (lines, incoming) = mpsc::channel();
     let router = Router {
         slots: [None, None, None],
         lanes: config.lanes,
         make,
         hub,
+        delivery,
         clock: RunClock::new(config.started_epoch),
         sink: sink.clone(),
     };

@@ -8,13 +8,16 @@
 //!
 //! The relay follows the `/events` streams of the recognizers (`follow`),
 //! translates each line in a lane of its own source (`relay`) and serves the
-//! translations (`hub`). The crate also holds the daily exchange-rate fetch and
-//! its scheduler registration. Table and rate files are re-read when they
-//! change.
+//! translations (`hub`). A translation of T that passed verification is served
+//! at once as a draft and replaced by the settled one; only the settled one is
+//! sent to a subtitle file and to the outside destinations (`deliver`, `srt`).
+//! The crate also holds the daily exchange-rate fetch and its scheduler
+//! registration. Table and rate files are re-read when they change.
 
 pub mod annotate;
 pub mod calendar;
 pub mod cli;
+pub mod deliver;
 pub mod follow;
 pub mod fx;
 pub mod hub;
@@ -27,6 +30,7 @@ pub mod pipeline;
 pub mod reach;
 pub mod relay;
 pub mod schedule;
+pub mod srt;
 pub mod strings;
 pub mod style;
 pub mod units;
