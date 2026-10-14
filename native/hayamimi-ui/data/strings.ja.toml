@@ -1,0 +1,36 @@
+# Words the pages show to a Japanese reader.
+# The values of `final`, `lang` and `speaker` are the wire's and are not here.
+
+[ui.dashboard]
+listening = "いま聞き取り中"
+waiting = "音声を待っています"
+feed = "確定フィード"
+refined = "清書"
+chip_finals = "確定"
+chip_latency = "平均応答"
+chip_langs = "言語"
+empty_feed = "まだ確定した行はありません"
+
+[ui.common]
+empty_refined = "まだ清書はありません"
+jump_latest = "最新へ"
+dropped = "古い {n} 行は表示から外しました"
+connecting = "接続中…"
+reconnecting = "再接続中…"
+connected = "接続済み"
+
+[ui.tr]
+first = "先出し"
+held = "訳を控えました"
+unavailable = "訳なし"
+
+[ui.tr.reason]
+number = "数の不一致"
+negation = "否定の不一致"
+uncertainty = "推量の不一致"
+proper_noun = "固有名の不一致"
+form = "形の不一致"
+unavailable = "翻訳器に届かない"
+
+[ui.fallback]
+badge = "代替で動作中"

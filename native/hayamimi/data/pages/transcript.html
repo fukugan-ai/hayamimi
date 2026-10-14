@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Transcript</title>
+<style>
+  body { margin: 0; padding: 2rem; background: #111; color: #eee;
+         font-family: "Yu Gothic UI", "Meiryo", sans-serif; font-size: 1.1rem; line-height: 1.8; }
+  #lines p { margin: 0.2rem 0; }
+  .lang { color: #888; font-size: 0.8em; margin-right: 0.6em; }
+</style>
+<div id="lines"></div>
+<script>
+  const box = document.getElementById("lines");
+  const es = new EventSource("/events");
+  es.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.type !== "final") return;
+    const p = document.createElement("p");
+    p.innerHTML = '<span class="lang">[' + (ev.lang || "?") + ']</span>';
+    p.appendChild(document.createTextNode(ev.text));
+    box.appendChild(p);
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+</script>

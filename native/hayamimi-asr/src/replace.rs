@@ -39,6 +39,22 @@ impl Replacements {
         Replacements { pairs }
     }
 
+    /// The dictionary of `pairs`, applied in the order given. A pair whose
+    /// wrong form is empty is left out, as when reading a file.
+    pub fn from_pairs(pairs: Vec<(String, String)>) -> Replacements {
+        Replacements {
+            pairs: pairs
+                .into_iter()
+                .filter(|(wrong, _)| !wrong.is_empty())
+                .collect(),
+        }
+    }
+
+    /// The pairs, in the order they are applied.
+    pub fn pairs(&self) -> &[(String, String)] {
+        &self.pairs
+    }
+
     pub fn load(path: &Path) -> Result<Replacements, AsrError> {
         let text = std::fs::read_to_string(path)
             .map_err(|error| AsrError::Io(format!("{}: {error}", path.display())))?;
@@ -114,6 +130,18 @@ mod tests {
     fn whitespace_around_the_forms_is_trimmed() {
         let replacements = Replacements::parse("  a  =  b  \n");
         assert_eq!(replacements.apply("a"), "b");
+    }
+
+    #[test]
+    fn pairs_given_directly_keep_their_order_and_drop_an_empty_wrong_form() {
+        let replacements = Replacements::from_pairs(vec![
+            (String::from("a"), String::from("b")),
+            (String::new(), String::from("x")),
+            (String::from("b"), String::from("c")),
+        ]);
+        assert_eq!(replacements.len(), 2);
+        assert_eq!(replacements.apply("a"), "c");
+        assert_eq!(replacements.pairs()[1].0, "b");
     }
 
     #[test]

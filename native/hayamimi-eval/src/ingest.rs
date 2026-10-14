@@ -20,6 +20,7 @@ use crate::wav::SAMPLE_RATE;
 use crate::ws::{self, FrameReader, Handshake, Incoming, OP_CLOSE, OP_TEXT};
 
 pub const INGEST_PATH: &str = "/ingest";
+pub const EVENTS_PATH: &str = "/events";
 /// Samples per network frame: 20 ms.
 pub const CHUNK_SAMPLES: usize = 320;
 /// The first message of an ingest connection.
@@ -121,6 +122,8 @@ struct Collected {
 
 /// An open ingest connection and the thread reading its events.
 pub struct Ingest {
+    /// Whether this connection carries audio to the server (`/ingest`) or only listens (`/events`).
+    sends_audio: bool,
     stream: TcpStream,
     handshake: Handshake,
     origin: Instant,
@@ -139,10 +142,10 @@ pub struct Received {
     pub closed_by_server: bool,
 }
 
-/// True for the `ready` event the server sends once it has the config.
-fn is_ready(text: &str) -> bool {
+/// True when `text` is an event of type `kind`.
+fn is_type(text: &str, kind: &str) -> bool {
     serde_json::from_str::<serde_json::Value>(text)
-        .is_ok_and(|v| v.get("type").and_then(serde_json::Value::as_str) == Some("ready"))
+        .is_ok_and(|v| v.get("type").and_then(serde_json::Value::as_str) == Some(kind))
 }
 
 fn read_events(
@@ -150,7 +153,7 @@ fn read_events(
     leftover: Vec<u8>,
     origin: Instant,
     stop: Arc<AtomicBool>,
-    ready: Arc<AtomicBool>,
+    (ready, awaited): (Arc<AtomicBool>, &'static str),
 ) -> Result<Collected, EvalError> {
     let mut reader = FrameReader::new(stream, leftover);
     let mut events = Vec::new();
@@ -159,7 +162,7 @@ fn read_events(
         match reader.next_frame()? {
             Incoming::Frame(frame) if frame.opcode == OP_TEXT => {
                 let text = String::from_utf8_lossy(&frame.payload).into_owned();
-                if is_ready(&text) {
+                if is_type(&text, awaited) {
                     ready.store(true, Ordering::Relaxed);
                 }
                 events.push((micros_since(origin), text));
@@ -184,12 +187,30 @@ fn read_events(
 /// Connects to `/ingest` and starts reading events. Times are measured from
 /// `origin`.
 pub fn open(host: &str, port: u16, origin: Instant) -> Result<Ingest, EvalError> {
-    let connection = ws::connect(host, port, INGEST_PATH, CONNECT_TIMEOUT)?;
+    connect_at(host, port, (INGEST_PATH, "ready"), origin)
+}
+
+/// Connects to `/events` and starts reading events, sending no audio: the
+/// audio reaches the server some other way (the loopback sink). The
+/// connection is up once the server's kept `session_start` has arrived.
+pub fn listen(host: &str, port: u16, origin: Instant) -> Result<Ingest, EvalError> {
+    connect_at(host, port, (EVENTS_PATH, "session_start"), origin)
+}
+
+/// `route` is the path and the event type that says the server is ready.
+fn connect_at(
+    host: &str,
+    port: u16,
+    route: (&'static str, &'static str),
+    origin: Instant,
+) -> Result<Ingest, EvalError> {
+    let (path, awaited) = route;
+    let connection = ws::connect(host, port, path, CONNECT_TIMEOUT)?;
     log::info(
         "eval.ingest.connected",
         "transport",
-        "ingest connection upgraded",
-        &[],
+        "connection upgraded",
+        &[("path", path.into())],
     );
     let stream = connection.stream;
     stream
@@ -202,9 +223,11 @@ pub fn open(host: &str, port: u16, origin: Instant) -> Result<Ingest, EvalError>
     let ready = Arc::new(AtomicBool::new(false));
     let reader = {
         let (stop, ready) = (Arc::clone(&stop), Arc::clone(&ready));
-        std::thread::spawn(move || read_events(reading, connection.leftover, origin, stop, ready))
+        let flag = (Arc::clone(&ready), awaited);
+        std::thread::spawn(move || read_events(reading, connection.leftover, origin, stop, flag))
     };
     Ok(Ingest {
+        sends_audio: path == INGEST_PATH,
         stream,
         handshake: connection.handshake,
         origin,
@@ -219,11 +242,14 @@ fn send_error(error: std::io::Error) -> EvalError {
 }
 
 impl Ingest {
-    /// Sends the config message and waits for the server's `ready`.
+    /// Sends the config message (on `/ingest`) and waits for the server's
+    /// `ready` (`session_start` on `/events`).
     pub fn start(&mut self) -> Result<(), EvalError> {
-        self.stream
-            .write_all(&ws::client_frame(OP_TEXT, CONFIG_JSON.as_bytes()))
-            .map_err(send_error)?;
+        if self.sends_audio {
+            self.stream
+                .write_all(&ws::client_frame(OP_TEXT, CONFIG_JSON.as_bytes()))
+                .map_err(send_error)?;
+        }
         let deadline = Instant::now() + READY_TIMEOUT;
         while !self.ready.load(Ordering::Relaxed) {
             if Instant::now() >= deadline || self.reader.is_finished() {
@@ -348,10 +374,12 @@ mod tests {
     }
 
     #[test]
-    fn the_ready_event_is_recognised() {
-        assert!(is_ready(r#"{"type":"ready","sr":16000}"#));
-        assert!(!is_ready(r#"{"type":"final","text":"a"}"#));
-        assert!(!is_ready("not json"));
+    fn the_awaited_event_is_recognised() {
+        assert!(is_type(r#"{"type":"ready","sr":16000}"#, "ready"));
+        assert!(!is_type(r#"{"type":"final","text":"a"}"#, "ready"));
+        assert!(!is_type("not json", "ready"));
+        assert!(is_type(r#"{"type":"session_start"}"#, "session_start"));
+        assert!(!is_type(r#"{"type":"session_start"}"#, "ready"));
     }
 
     /// Accepts one connection, answers the upgrade, sends `ready` after the
