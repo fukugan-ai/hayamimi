@@ -316,3 +316,55 @@ fn a_new_session_makes_the_relay_forget_the_numbering() -> TestResult {
     assert!(in_progress(&setup.running.translations.snapshot()).is_empty());
     Ok(())
 }
+
+/// The texts shown for the utterance in progress, in the order they arrived.
+fn shown_texts(arrived: &[(Instant, Value)]) -> Vec<String> {
+    in_progress(arrived)
+        .iter()
+        .filter_map(|found| found["text"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// Sends `text` as the text in progress and waits until the relay has dealt
+/// with it: either shown (`shown` texts so far) or kept back (`kept` logs).
+fn send_and_settle(setup: &Setup, mic: &FakeRecognizer, text: &str, shown: usize, kept: usize) {
+    mic.send(&partial_event(text));
+    let deadline = Instant::now() + WAIT;
+    while Instant::now() < deadline {
+        let done = shown_texts(&setup.running.translations.snapshot()).len() >= shown
+            && setup.running.logs.named("translate.partial.kept").len() >= kept;
+        if done {
+            return;
+        }
+        sleep(Duration::from_millis(5));
+    }
+}
+
+/// RP-25: characters drawn in the settled form never vanish. The screen draws
+/// the common prefix of the last two translations that way, so a translation
+/// that does not begin with it is not shown, and the next one that does is.
+#[test]
+fn a_translation_in_progress_does_not_take_away_the_committed_prefix() -> TestResult {
+    let (first, second, other, fourth) = ("あい", "あいう", "いう", "あいうえ");
+    // The control for the setup: the other text really diverges.
+    assert!(!english_of(other).starts_with(&english_of(first)));
+    let mic = FakeRecognizer::start()?;
+    let setup = setup(&[&mic], Duration::ZERO, PartialTranslation::On)?;
+    first_line_settled(&setup, &mic);
+    send_and_settle(&setup, &mic, first, 1, 0);
+    send_and_settle(&setup, &mic, second, 2, 0);
+    send_and_settle(&setup, &mic, other, 2, 1);
+    send_and_settle(&setup, &mic, fourth, 3, 1);
+    let shown = shown_texts(&setup.running.translations.snapshot());
+    assert_eq!(
+        shown,
+        [english_of(first), english_of(second), english_of(fourth)]
+    );
+    let committed = &shown[0];
+    assert!(
+        shown
+            .iter()
+            .all(|text| text.starts_with(committed.as_str()))
+    );
+    Ok(())
+}

@@ -723,6 +723,7 @@ mod tests {
                 "translate.partial.aborted",
                 "translate.partial.failed",
                 "translate.partial.skipped",
+                "translate.partial.kept",
             ] {
                 assert_ne!(strings.message_for(event), event, "{lang:?} {event}");
             }

@@ -168,9 +168,30 @@ fn run_partials<L: Llm>(
         if let PartialOutcome::Shown(translation) = outcome
             && wanted.still()
         {
-            publish(hub, &translation, &mut sink);
+            show_partial(mailbox, hub, &job, &translation, &mut sink);
         }
     }
+}
+
+/// Publishes the translation of a text in progress unless it would take away
+/// characters the screen already drew in the settled form; then the screen
+/// keeps the translation it has.
+fn show_partial(
+    mailbox: &Mailbox,
+    hub: &Hub,
+    job: &crate::partial::Job,
+    translation: &Translation,
+    sink: &mut dyn LogSink,
+) {
+    if mailbox.admit(job.source, &translation.id, &translation.text) {
+        publish(hub, translation, sink);
+        return;
+    }
+    sink.emit(
+        LogEvent::new(Level::Debug, "translate.partial.kept", "service")
+            .with("id", translation.id.as_str())
+            .with("source", translation.source.as_str()),
+    );
 }
 
 fn spawn_partials<L: Llm + 'static>(

@@ -82,6 +82,7 @@ label = "m²"
 "translate.partial.aborted" = "A newer text took its place; the translation of the older one was dropped"
 "translate.partial.failed" = "The translator could not be reached for the text in progress"
 "translate.partial.skipped" = "The text in progress is not translated"
+"translate.partial.kept" = "The translation would take away characters already drawn in the settled form; the screen keeps the earlier one"
 
 [cli]
 usage = """usage:

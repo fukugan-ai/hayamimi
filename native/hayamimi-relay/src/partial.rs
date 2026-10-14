@@ -58,8 +58,50 @@ struct Pending {
     generation: u64,
 }
 
+/// What the screen has drawn of one source's translated text in progress. The
+/// screen draws the longest common prefix of the last two texts in the settled
+/// form, so a text that does not begin with that prefix would make drawn
+/// characters vanish.
+#[derive(Default)]
+struct Drawn {
+    id: String,
+    text: String,
+    /// The longest common prefix of the last two texts drawn for `id`.
+    committed: String,
+}
+
+impl Drawn {
+    /// Records `text` of `id` as drawn, and tells whether it may be: a text
+    /// that keeps the committed prefix of the same `id`, or the first of an `id`.
+    fn admit(&mut self, id: &str, text: &str) -> bool {
+        if self.id != id {
+            self.id = id.to_owned();
+            self.committed.clear();
+        } else if !text.starts_with(&self.committed) {
+            return false;
+        } else {
+            self.committed = common_prefix(&self.text, text).to_owned();
+        }
+        self.text = text.to_owned();
+        true
+    }
+}
+
+/// The longest common prefix of two texts, cut at a character boundary.
+fn common_prefix<'a>(left: &'a str, right: &str) -> &'a str {
+    let mut end = 0;
+    for ((at, a), b) in left.char_indices().zip(right.chars()) {
+        if a != b {
+            break;
+        }
+        end = at + a.len_utf8();
+    }
+    &left[..end]
+}
+
 #[derive(Default)]
 struct State {
+    drawn: [Drawn; SOURCES],
     pending: [Option<Pending>; SOURCES],
     /// The last text left for each source, so that the same text twice asks nothing new.
     last: [Option<String>; SOURCES],
@@ -122,6 +164,14 @@ impl Mailbox {
         self.generations[slot].fetch_add(1, Ordering::AcqRel);
         state.pending[slot] = None;
         state.last[slot] = None;
+        state.drawn[slot] = Drawn::default();
+    }
+
+    /// Whether the translation `text` of `id` may be shown for `source`
+    /// without taking away characters already drawn in the settled form.
+    /// A text that may be shown counts as drawn.
+    pub fn admit(&self, source: Source, id: &str, text: &str) -> bool {
+        locked(&self.state).drawn[source.index()].admit(id, text)
     }
 
     /// Waits for a text and takes the one that was left first, with the means
@@ -292,6 +342,72 @@ mod tests {
             src_lang: Lang::Ja,
             text: text.to_owned(),
         }
+    }
+
+    #[test]
+    fn the_common_prefix_is_cut_at_a_character() {
+        assert_eq!(
+            common_prefix("予算は五百万", "予算は五百万円"),
+            "予算は五百万"
+        );
+        assert_eq!(common_prefix("予算は五", "予算が五"), "予算");
+        assert_eq!(common_prefix("abc", "xyz"), "");
+        assert_eq!(common_prefix("", "abc"), "");
+        assert_eq!(common_prefix("ab", "a"), "a");
+    }
+
+    #[test]
+    fn a_text_that_keeps_the_committed_prefix_is_admitted() {
+        let mut drawn = Drawn::default();
+        assert!(drawn.admit("mic-2", "The budget is"));
+        assert!(drawn.admit("mic-2", "The budget is five"));
+        assert_eq!(drawn.committed, "The budget is");
+        assert!(drawn.admit("mic-2", "The budget is five million"));
+    }
+
+    #[test]
+    fn a_text_that_drops_the_committed_prefix_is_refused_and_changes_nothing() {
+        let mut drawn = Drawn::default();
+        assert!(drawn.admit("mic-2", "The budget is"));
+        assert!(drawn.admit("mic-2", "The budget is five"));
+        assert!(!drawn.admit("mic-2", "A budget of five"));
+        assert_eq!(drawn.text, "The budget is five");
+        assert!(drawn.admit("mic-2", "The budget is five yen"));
+    }
+
+    #[test]
+    fn before_a_second_text_nothing_is_committed_so_any_text_is_admitted() {
+        let mut drawn = Drawn::default();
+        assert!(drawn.admit("mic-2", "The budget"));
+        assert!(drawn.admit("mic-2", "A plan"));
+        assert_eq!(drawn.committed, "");
+    }
+
+    #[test]
+    fn a_new_id_starts_over() {
+        let mut drawn = Drawn::default();
+        assert!(drawn.admit("mic-2", "The budget"));
+        assert!(drawn.admit("mic-2", "The budget is"));
+        assert!(drawn.admit("mic-3", "Next"));
+        assert_eq!(drawn.committed, "");
+    }
+
+    #[test]
+    fn retiring_a_source_forgets_what_was_drawn() {
+        let mailbox = Mailbox::new();
+        assert!(mailbox.admit(Source::Mic, "mic-2", "The budget"));
+        assert!(mailbox.admit(Source::Mic, "mic-2", "The budget is"));
+        assert!(!mailbox.admit(Source::Mic, "mic-2", "A plan"));
+        mailbox.retire(Source::Mic);
+        assert!(mailbox.admit(Source::Mic, "mic-2", "A plan"));
+    }
+
+    #[test]
+    fn sources_do_not_share_what_was_drawn() {
+        let mailbox = Mailbox::new();
+        assert!(mailbox.admit(Source::Mic, "mic-2", "The budget"));
+        assert!(mailbox.admit(Source::Mic, "mic-2", "The budget is"));
+        assert!(mailbox.admit(Source::Loopback, "loopback-2", "A plan"));
     }
 
     fn line(kind: LineKind, id: &str, source: Source) -> Line {

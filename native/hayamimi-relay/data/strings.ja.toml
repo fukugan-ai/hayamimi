@@ -77,6 +77,7 @@ label = "m²"
 "translate.partial.aborted" = "新しい文が来たので、前の文の訳をやめました"
 "translate.partial.failed" = "話している途中の文を訳す翻訳器に届きませんでした"
 "translate.partial.skipped" = "話している途中の文は訳しません"
+"translate.partial.kept" = "確定した字形で描いた文字が消える訳なので出さず、前の訳を残します"
 
 [cli]
 usage = """使い方:
