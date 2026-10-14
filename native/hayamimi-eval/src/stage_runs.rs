@@ -27,13 +27,17 @@ use crate::manifest::read_rows;
 use crate::ort_stages::{self, Device, OrtRuntime};
 use crate::stage_load::Load;
 use crate::stage_models::{self as models, LID_SECONDS, Precision, SAMPLE_RATE, VAD_WINDOW};
+use crate::stage_peer::{self, PeerArgs, Peers};
+use crate::stage_search::{
+    DECODER_TOTAL, FRAMES_COUNT, JOINER_TOTAL, Replay, SearchModels, TOKENS_COUNT,
+};
 use crate::stages::{Meta, RunFile, Sample};
 use crate::stream::{Utterances, utterances_of};
 use crate::translate_call::{ChatClient, translate_body};
 use crate::wav::read_wav;
 
 /// The stage identifiers, in the order a full run measures them.
-pub const STAGES: [&str; 16] = [
+pub const STAGES: [&str; 17] = [
     "resample",
     "ring",
     "vad",
@@ -50,7 +54,11 @@ pub const STAGES: [&str; 16] = [
     "encoder_only",
     "itn",
     "punct_rules",
+    "search_replay",
 ];
+
+/// Stages a run measures only when `--only` names them.
+const NAMED_ONLY: [&str; 1] = ["search_replay"];
 
 /// The variant label of the encoder timed alone through `ort`.
 pub const ENCODER_ONLY: &str = "ort-encoder fp32";
@@ -120,11 +128,14 @@ pub struct Options {
     pub profile_ranges: bool,
     /// `punct_ja_parity.json`, whose `input_ids` the punctuation BERT is run on.
     pub punct_cases: Option<PathBuf>,
+    /// Other sources decoding the whole time, one process each; none for a run alone.
+    pub peers: u32,
 }
 
-struct Clip {
-    samples: Vec<f32>,
-    reference: String,
+/// One utterance of the recording and the text it was read from.
+pub(crate) struct Clip {
+    pub(crate) samples: Vec<f32>,
+    pub(crate) reference: String,
 }
 
 struct Run<'a> {
@@ -192,6 +203,32 @@ fn to_pcm(samples: &[f32]) -> Vec<i16> {
         .collect()
 }
 
+/// A `cuda` run must have the CUDA provider library loaded while a model is alive; sherpa-onnx
+/// falls back to the CPU without a word, and the run would measure the wrong thing.
+pub(crate) fn assert_provider_loaded(provider: Provider) -> Result<(), EvalError> {
+    if provider != Provider::Cuda {
+        return Ok(());
+    }
+    let loaded = modules::loaded_modules().map_err(|e| invalid(e.to_string()))?;
+    if probe::provider_of(&loaded) == "cuda" {
+        return Ok(());
+    }
+    Err(invalid(
+        "the CUDA provider library is not loaded: this run would have measured the CPU",
+    ))
+}
+
+/// The utterances of a recording, cut at the spans its manifest gives.
+pub(crate) fn load_clips(
+    wav: &std::path::Path,
+    manifest: &std::path::Path,
+) -> Result<Vec<Clip>, EvalError> {
+    let wav = read_wav(wav)?;
+    let rows = read_rows(manifest)?;
+    let utterances = utterances_of(&rows, wav.samples.len())?;
+    Ok(clips_of(&wav.samples, &utterances))
+}
+
 fn clips_of(pcm: &[i16], utterances: &Utterances) -> Vec<Clip> {
     utterances
         .spans
@@ -223,6 +260,9 @@ fn precisions(provider: Provider, stage: &str, int8_on_cuda: bool) -> Vec<Precis
 impl Run<'_> {
     fn wants(&self, stage: &str) -> bool {
         if self.options.only.is_empty() {
+            if NAMED_ONLY.contains(&stage) {
+                return false;
+            }
             // The BERT needs its fixture; a full run without one leaves that stage out.
             return stage != "punct_bert" || self.options.punct_cases.is_some();
         }
@@ -251,19 +291,8 @@ impl Run<'_> {
         self.options.provider.name()
     }
 
-    /// A `cuda` run must have the CUDA provider library loaded while a model is alive; sherpa-onnx
-    /// falls back to the CPU without a word, and the run would measure the wrong thing.
     fn assert_provider(&self) -> Result<(), EvalError> {
-        if self.options.provider != Provider::Cuda {
-            return Ok(());
-        }
-        let loaded = modules::loaded_modules().map_err(|e| invalid(e.to_string()))?;
-        if probe::provider_of(&loaded) == "cuda" {
-            return Ok(());
-        }
-        Err(invalid(
-            "the CUDA provider library is not loaded: this run would have measured the CPU",
-        ))
+        assert_provider_loaded(self.options.provider)
     }
 
     fn calls(&self) -> impl Iterator<Item = (u32, usize)> + use<> {
@@ -482,6 +511,10 @@ impl Run<'_> {
     }
 
     fn measure_recognize(&mut self) -> Result<(), EvalError> {
+        // The first environment of a process holds the default logger the CUDA provider asks for,
+        // and the one sherpa-onnx makes dies with its last recognizer. Opening the `ort`
+        // environment first keeps it alive for the stages that open sessions after the recognizers.
+        self.ort()?;
         let provider = self.provider();
         let profile = self.options.profile_ranges;
         if profile {
@@ -830,6 +863,58 @@ impl Run<'_> {
         Ok(())
     }
 
+    /// The search of the recognizer (decoder and joiner calls) replayed through `ort`, per utterance.
+    /// The frame count comes from the fp32 encoder on the same provider; the token count is the
+    /// number of characters of the reference text, which a character-unit vocabulary makes
+    /// the number of tokens the search emits.
+    fn measure_search_replay(&mut self) -> Result<(), EvalError> {
+        let device = self.device();
+        let threads = usize::try_from(models::RECOGNIZER_THREADS)
+            .map_err(|_| invalid("the thread count does not fit usize"))?;
+        let encoder = models::encoder_file(&self.options.models, Precision::Fp32)?;
+        let mut session = self.ort()?.session(&encoder, device, threads, false)?;
+        let mut frames = Vec::with_capacity(self.clips.len());
+        for clip in &self.clips {
+            let (values, count) = ort_stages::log_mel(&clip.samples);
+            frames.push(ort_stages::encoder_output_frames(
+                &mut session,
+                &values,
+                count,
+            )?);
+        }
+        drop(session);
+        let options = self.options;
+        for precision in precisions(options.provider, "search_replay", false) {
+            let mut search =
+                SearchModels::open(self.ort()?, &options.models, precision, device, threads)?;
+            self.assert_provider()?;
+            for (clip, frames) in self.clips.iter().zip(&frames) {
+                search.replay(*frames, clip.reference.chars().count())?;
+            }
+            let calls: Vec<(u32, usize)> = self.calls().collect();
+            for call in calls {
+                let clip = &self.clips[call.1];
+                let replay = search.replay(frames[call.1], clip.reference.chars().count())?;
+                self.record_replay(precision.name(), call, &replay)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The four samples of one replay; two of them are counts and carry no duration.
+    fn record_replay(
+        &mut self,
+        variant: &str,
+        call: (u32, usize),
+        replay: &Replay,
+    ) -> Result<(), EvalError> {
+        let count = |n: usize| u64::try_from(n).map_err(|_| invalid("a count does not fit u64"));
+        self.record(JOINER_TOTAL, variant, call, replay.joiner_ns)?;
+        self.record(DECODER_TOTAL, variant, call, replay.decoder_ns)?;
+        self.record(FRAMES_COUNT, variant, call, count(replay.frames)?)?;
+        self.record(TOKENS_COUNT, variant, call, count(replay.tokens)?)
+    }
+
     fn measure(&mut self, stage: &str) -> Result<(), EvalError> {
         log::info(
             "eval.stage.started",
@@ -854,6 +939,7 @@ impl Run<'_> {
             "encoder_only" => self.measure_encoder_only(),
             "itn" => self.measure_itn(),
             "punct_rules" => self.measure_punct_rules(),
+            "search_replay" => self.measure_search_replay(),
             other => Err(invalid(format!("unknown stage `{other}`"))),
         };
         let level = if outcome.is_ok() {
@@ -875,8 +961,7 @@ impl Run<'_> {
     }
 }
 
-/// Runs every wanted stage and returns the samples.
-pub fn run(options: &Options) -> Result<RunFile, EvalError> {
+fn check_options(options: &Options) -> Result<(), EvalError> {
     if options.repeat == 0 {
         return Err(invalid("--repeat must be at least 1"));
     }
@@ -887,10 +972,58 @@ pub fn run(options: &Options) -> Result<RunFile, EvalError> {
     {
         return Err(invalid(format!("unknown stage `{unknown}`")));
     }
-    let wav = read_wav(&options.wav)?;
-    let rows = read_rows(&options.manifest)?;
-    let utterances = utterances_of(&rows, wav.samples.len())?;
-    let clips = clips_of(&wav.samples, &utterances);
+    Ok(())
+}
+
+/// Starts the other sources the run measures beside; none when `peers` is 0.
+fn start_peers(options: &Options) -> Result<Peers, EvalError> {
+    if options.peers == 0 {
+        return Ok(Peers::none());
+    }
+    let exe = stage_peer::current_exe()?;
+    let args = PeerArgs {
+        provider: options.provider,
+        wav: options.wav.clone(),
+        manifest: options.manifest.clone(),
+        models: options.models.clone(),
+        precision: stage_peer::source_precision(options.provider),
+    };
+    let commands = (0..options.peers)
+        .map(|_| stage_peer::peer_command(&exe, &args))
+        .collect();
+    let peers = Peers::start(commands)?;
+    log::info(
+        "eval.peers.started",
+        "worker",
+        "the other sources are decoding",
+        &[("peers", Value::from(options.peers))],
+    );
+    Ok(peers)
+}
+
+/// Stops the peers and returns the decodes they finished. Peers that decoded
+/// nothing were not a second source, and a run beside them measured nothing.
+fn stop_peers(peers: Peers, wanted: u32) -> Result<u64, EvalError> {
+    let decodes = peers.stop()?;
+    if wanted > 0 && decodes == 0 {
+        return Err(invalid(
+            "the peers finished no decode while the run measured",
+        ));
+    }
+    log::info(
+        "eval.peers.finished",
+        "worker",
+        "the other sources stopped",
+        &[("decodes", Value::from(decodes))],
+    );
+    Ok(decodes)
+}
+
+/// Runs every wanted stage and returns the samples.
+pub fn run(options: &Options) -> Result<RunFile, EvalError> {
+    check_options(options)?;
+    let clips = load_clips(&options.wav, &options.manifest)?;
+    let peers = start_peers(options)?;
     let mut state = Run {
         options,
         clips,
@@ -917,6 +1050,7 @@ pub fn run(options: &Options) -> Result<RunFile, EvalError> {
             }
         }
     }
+    let peer_decodes = stop_peers(peers, options.peers);
     if let Some(load) = load {
         let count = load.stop()?;
         log::info(
@@ -938,6 +1072,8 @@ pub fn run(options: &Options) -> Result<RunFile, EvalError> {
         repeat: options.repeat,
         utterances: state.clips.len(),
         os: std::env::consts::OS.to_owned(),
+        peers: options.peers,
+        peer_decodes: peer_decodes?,
     };
     Ok(RunFile {
         meta,
@@ -1005,6 +1141,7 @@ mod tests {
             int8_on_cuda: false,
             profile_ranges: false,
             punct_cases: None,
+            peers: 0,
         }
     }
 

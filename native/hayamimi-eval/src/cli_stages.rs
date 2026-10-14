@@ -11,6 +11,8 @@ use crate::log;
 use crate::manifest::write_text;
 use crate::nsys::{self, MemoryStats};
 use crate::ort_stages::{self, Device, OrtRuntime, PlacedRow};
+use crate::stage_models::Precision;
+use crate::stage_peer;
 use crate::stage_report::{self, Inputs, PythonSample};
 use crate::stage_runs::{self, Options, Provider};
 use crate::stages::{aggregate, write_run};
@@ -73,6 +75,45 @@ pub struct StagesArgs {
     /// `punct_ja_parity.json`: the `input_ids` the punctuation BERT is run on (the stage is left out without it).
     #[arg(long)]
     pub punct_cases: Option<PathBuf>,
+    /// Other sources decoding in processes of their own for the whole run (0 measures a source alone).
+    #[arg(long, default_value_t = 0)]
+    pub peers: u32,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum PrecisionArg {
+    Fp32,
+    Fp16,
+    Int8,
+}
+
+#[derive(Args)]
+pub struct PeerArgs {
+    /// The provider the recognizer runs on.
+    #[arg(long, value_enum)]
+    pub provider: ProviderArg,
+    /// The recording (16 kHz mono 16-bit wav).
+    #[arg(long)]
+    pub wav: PathBuf,
+    /// Its manifest.
+    #[arg(long)]
+    pub manifest: PathBuf,
+    /// The directory that holds the model directories.
+    #[arg(long)]
+    pub models: PathBuf,
+    /// The model variant the recognizer loads.
+    #[arg(long, value_enum)]
+    pub precision: PrecisionArg,
+}
+
+#[derive(Args)]
+pub struct R7ReportArgs {
+    /// Run files written by `stages`.
+    #[arg(long, required = true, num_args = 1..)]
+    pub runs: Vec<PathBuf>,
+    /// The document to write.
+    #[arg(long)]
+    pub out: PathBuf,
 }
 
 #[derive(Args)]
@@ -175,6 +216,7 @@ pub fn stages(args: StagesArgs) -> Result<(), EvalError> {
         int8_on_cuda: args.int8_on_cuda,
         profile_ranges: args.profile_ranges,
         punct_cases: args.punct_cases,
+        peers: args.peers,
     };
     let run = stage_runs::run(&options)?;
     write_run(&args.out, &run)?;
@@ -195,6 +237,46 @@ pub fn stages(args: StagesArgs) -> Result<(), EvalError> {
         "stage run written",
         &[("samples", Value::from(run.samples.len()))],
     );
+    Ok(())
+}
+
+fn provider_of(arg: ProviderArg) -> Provider {
+    match arg {
+        ProviderArg::Cuda => Provider::Cuda,
+        ProviderArg::Cpu => Provider::Cpu,
+    }
+}
+
+/// Runs as another source: decodes the recording until standard input closes.
+pub fn stages_peer(args: PeerArgs) -> Result<(), EvalError> {
+    // The C library is delay-loaded; the copy beside the executable must be the first ONNX Runtime in the process.
+    #[cfg(windows)]
+    hayamimi_gpu::runtime::preload_beside_executable("onnxruntime.dll")
+        .map_err(|e| EvalError::Invalid(e.to_string()))?;
+    let precision = match args.precision {
+        PrecisionArg::Fp32 => Precision::Fp32,
+        PrecisionArg::Fp16 => Precision::Fp16,
+        PrecisionArg::Int8 => Precision::Int8,
+    };
+    stage_peer::run_peer(&stage_peer::PeerArgs {
+        provider: provider_of(args.provider),
+        wav: args.wav,
+        manifest: args.manifest,
+        models: args.models,
+        precision,
+    })
+}
+
+/// Writes the R7 document from run files.
+pub fn r7_report(args: R7ReportArgs) -> Result<(), EvalError> {
+    let runs = args
+        .runs
+        .iter()
+        .map(|path| crate::stages::read_run(path))
+        .collect::<Result<Vec<_>, _>>()?;
+    let document = crate::r7_report::render_document(&runs)?;
+    write_text(&args.out, &document)?;
+    println!("{}", args.out.display());
     Ok(())
 }
 
@@ -247,6 +329,12 @@ pub fn stages_report(args: StagesReportArgs) -> Result<(), EvalError> {
         .iter()
         .map(|path| crate::stages::read_run(path))
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(beside_peers) = runs.iter().find(|run| run.meta.peers != 0) {
+        return Err(EvalError::Invalid(format!(
+            "a {} run with {} peers belongs to r7-report, not to this document",
+            beside_peers.meta.provider, beside_peers.meta.peers
+        )));
+    }
     let design = read_text(&args.design)?;
     let build_json = read_text(&args.build_json)?;
     let transfers = read_transfers(&args.transfers)?;

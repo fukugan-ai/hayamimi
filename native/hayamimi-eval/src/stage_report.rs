@@ -887,6 +887,8 @@ mod tests {
                 repeat: 1,
                 utterances: 1,
                 os: String::from("windows"),
+                peers: 0,
+                peer_decodes: 0,
             },
             samples,
         }

@@ -458,6 +458,29 @@ hayamimi-eval stages-report --runs <run file...> --design docs\design\rust_port.
 負荷の下の run は、計測の間の CPU と GPU の使用率を 20 秒ごとに 1 行、`native/target/measure/log/load.log` へ追記して確かめました。
 計測の間、ほかの重い仕事は並べません。
 
+## 2 音源同時の認識を測る（R7）
+
+2 つ目の音源は、`stages --peers 1` が別 process の `stages-peer` を起こし、run の間ずっと decode させます。
+1 つの process に session を並べて開くと abort する既知の問題があるので、thread ではなく process で分けます。
+`stages-peer` は標準入力が閉じるまで decode を続け、標準出力に `ready` と `decodes <回数>` を書きます。
+
+CUDA では、`recognize` の後に同じ process で `encoder_only` を開くと、ort が DefaultLogger の error で落ちます。
+`recognize` と `encoder_only,search_replay` は process を分けて取ります。
+`r7-report` は、provider と peers が同じ run file を 1 本にまとめます。
+CPU は分ける必要がありません。
+
+```powershell
+# peers は 0 と 1 を provider ごとに取る（CUDA は 2 本に分ける）
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --only recognize --out <cuda_p1_recognize>.jsonl
+hayamimi-eval stages --provider cuda --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --only encoder_only,search_replay --out <cuda_p1_search>.jsonl
+hayamimi-eval stages --provider cpu --wav testdata\lat-ja.wav --models models --repeat 5 --peers 1 --out <cpu_p1>.jsonl
+# 結果の文書
+hayamimi-eval r7-report --runs <run file...> --out docs\results\r7_recognition.md
+```
+
+GPU の run の前後に `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` を打ち、ほかの process の GPU 利用を記録します。
+`stages-report` は peers が 0 でない run を受け付けません。2 音源の run は `r7-report` だけが読みます。
+
 ## 未検証
 
 - 認識結果の文字数が 44 で、golden の期待値（45 文字）と 1 文字違います。文字そのものは比べていません。
