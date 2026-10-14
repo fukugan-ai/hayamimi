@@ -117,7 +117,9 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 ## LAN の端末から字幕を見る
 
 `hayamimi` の `--serve` と `hayamimi-relay live` の `--serve` は、既定では 127.0.0.1 だけで待ちます。
-`hayamimi` の `/ingest` と `/config` は認証なしで音声と設定を受けるので、LAN へ開くのは利用者が選んだ時だけにします。
+`--serve-host` が LAN へ開くのは `--serve` の router（頁、`/events`、`/config`、`/reset` ほか）だけです。
+`/config` と `/reset` は認証なしで設定と状態を変えるので、LAN へ開くのは利用者が選んだ時だけにします。
+`/ingest`（音声の入力）は `--ws-host` で別に決まり、既定は 127.0.0.1 のままです。`--serve-host` を付けても LAN には開きません。
 
 別の端末の browser で頁を開くときは、2 つの process に `--serve-host 0.0.0.0` を付けて起こします。
 端から端の受入（E2E）で別の機械の browser から頁を見るときも同じで、process A、process B、中継の command にそれぞれ足します。
@@ -155,7 +157,7 @@ stderr の URL の port に、LAN の address と 127.0.0.1 の両方から `GET
 
 **採らない手段**：
 
-- 既定を `0.0.0.0` にする。認証の無い `/ingest` と `/config` が LAN に開くので、利用者が選んだ時だけにします。
+- 既定を `0.0.0.0` にする。認証の無い `/config` と `/reset` が LAN に開くので、利用者が選んだ時だけにします。
 - 頁の中身を替える。この slice は待つ address だけを替えます。
 
 ## 落ちるときの形
