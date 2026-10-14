@@ -26,6 +26,7 @@ pub mod models_manifest;
 pub mod mt;
 pub mod nsys;
 pub mod ort_stages;
+pub mod partial;
 pub mod percentile;
 pub mod record;
 pub mod relay_events;
