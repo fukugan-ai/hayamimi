@@ -34,6 +34,9 @@ pub(super) struct Script {
     pub(super) calls: Vec<Tier>,
     pub(super) retries: Vec<Tier>,
     pub(super) prefetched: Vec<Tier>,
+    /// What successive calls of `take_load_ms` answer, first call first; 0
+    /// once the list is used up.
+    load_answers: Vec<f64>,
     pub(super) closed: u32,
     /// Dropped with the script; a test watches it to see the script is gone.
     pub(super) life: Rc<()>,
@@ -57,6 +60,13 @@ impl Script {
     /// A tier that is installed and fails when asked.
     pub(super) fn failing(mut self, tier: Tier) -> Script {
         self.failing.push(tier);
+        self
+    }
+
+    /// The milliseconds the script claims to have spent loading models, one
+    /// answer per call of `take_load_ms`.
+    pub(super) fn loading(mut self, answers: &[f64]) -> Script {
+        self.load_answers = answers.to_vec();
         self
     }
 
@@ -93,6 +103,13 @@ impl Decode for Script {
 
     fn prefetch(&mut self, tier: Tier) {
         self.prefetched.push(tier);
+    }
+
+    fn take_load_ms(&mut self) -> f64 {
+        if self.load_answers.is_empty() {
+            return 0.0;
+        }
+        self.load_answers.remove(0)
     }
 
     fn close(&mut self) {

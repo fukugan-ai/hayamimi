@@ -2,7 +2,8 @@
 //!
 //! The client sends one JSON text frame with the format of its audio, then
 //! binary frames of 16-bit little-endian PCM. The server answers the config
-//! with `ready` and mirrors the subtitle events onto the connection. One
+//! with `ready` once the session has started (the models are loaded) and
+//! mirrors the subtitle events onto the connection. One
 //! audio client is accepted at a time; a second one is told so and closed.
 //! When the client leaves, what the detector holds is cut, as no silence will
 //! follow it.
@@ -168,10 +169,14 @@ async fn refuse(mut socket: WebSocket, state: &IngestState) {
 }
 
 /// Handles the config frame: answers `ready`, or tells the client why not.
+/// `ready` waits for the session to start, which is after every model the
+/// session needs is loaded: a client that streams in real time on `ready`
+/// then meets a recognizer that is already there.
 /// Returns the stream to convert audio with, or `None` to end the connection.
 async fn configure(socket: &mut WebSocket, text: &str, state: &IngestState) -> Option<Stream> {
     match parse_handshake(text) {
         Ok(declared) => {
+            state.hub.session_started().await;
             if !send_json(socket, &wire::ready_event(SAMPLE_RATE)).await {
                 return None;
             }

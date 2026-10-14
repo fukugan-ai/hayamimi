@@ -16,7 +16,7 @@ use axum::response::IntoResponse;
 use axum::response::sse::{Event, Sse};
 use axum::routing::get;
 use serde_json::Value;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -45,6 +45,9 @@ pub struct Hub {
     /// Held under the lock that also guards sending, so a client sees each
     /// kept event exactly once.
     active: Arc<Mutex<Vec<Kept>>>,
+    /// Turns true when `session_start` is published: the models are open and
+    /// the loop is about to run.
+    started: Arc<watch::Sender<bool>>,
 }
 
 /// The guard of the list of kept events. A thread that panicked while
@@ -59,9 +62,11 @@ fn locked(active: &Mutex<Vec<Kept>>) -> MutexGuard<'_, Vec<Kept>> {
 impl Hub {
     pub fn new() -> Hub {
         let (sender, _) = broadcast::channel(BACKLOG);
+        let (started, _) = watch::channel(false);
         Hub {
             sender,
             active: Arc::new(Mutex::new(Vec::new())),
+            started: Arc::new(started),
         }
     }
 
@@ -92,6 +97,16 @@ impl Hub {
     pub fn publish_session_start(&self) {
         let event = serde_json::json!({"type": "session_start"});
         self.publish_kept(String::from(SESSION_START_KEY), &event);
+        self.started.send_replace(true);
+    }
+
+    /// Resolves once `session_start` has been published, at once if it was.
+    /// A client of `/ingest` is answered `ready` only then, so that the audio
+    /// it sends meets recognizers that are already loaded.
+    pub async fn session_started(&self) {
+        let mut started = self.started.subscribe();
+        // The hub holds the sender, so the wait ends only when the flag is true.
+        let _ = started.wait_for(|started| *started).await;
     }
 
     fn publish_kept(&self, key: String, event: &Value) {
@@ -402,6 +417,32 @@ mod tests {
         hub.publish_session_start();
         hub.publish_session_start();
         assert_eq!(hub.subscribe().0.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn the_start_of_the_session_is_awaited_and_then_known()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let hub = Hub::new();
+        let waiting = tokio::spawn({
+            let hub = hub.clone();
+            async move { hub.session_started().await }
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(!waiting.is_finished(), "it did not wait for the start");
+        hub.publish_session_start();
+        tokio::time::timeout(Duration::from_secs(5), waiting).await??;
+        // After the start, a new wait ends at once.
+        tokio::time::timeout(Duration::from_secs(5), hub.session_started()).await?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_fallback_alone_does_not_start_the_session() {
+        let hub = Hub::new();
+        hub.publish_fallback(&fallback("punct", Value::from("cpu")));
+        assert!(!*hub.started.borrow());
+        hub.publish_session_start();
+        assert!(*hub.started.borrow());
     }
 
     #[test]

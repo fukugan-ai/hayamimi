@@ -47,6 +47,13 @@ pub trait Decode {
     /// first segment in its language does not wait for it.
     fn prefetch(&mut self, tier: Tier);
 
+    /// The milliseconds spent loading models since the last call, so that the
+    /// router can keep a load out of the time it reports for a decode. A
+    /// backend that loads nothing lazily answers 0.
+    fn take_load_ms(&mut self) -> f64 {
+        0.0
+    }
+
     /// Ends any background work and releases every model. Called once.
     fn close(&mut self);
 }

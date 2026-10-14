@@ -35,6 +35,10 @@ impl Decode for Recognizers {
         let _ = self.load(tier);
     }
 
+    fn take_load_ms(&mut self) -> f64 {
+        Recognizers::take_load_ms(self)
+    }
+
     fn close(&mut self) {
         self.release_all();
     }

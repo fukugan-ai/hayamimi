@@ -122,6 +122,8 @@ impl<D: Decode, L: Identify> Router<D, L> {
         let (guess, lid_ms) = self.first_guess(request)?;
         let mut probe = Probe::default();
         let chosen = self.resolve_language(&guess, request, &mut probe)?;
+        // A load before this point is not the decode's: drop it from the count.
+        self.decoder.take_load_ms();
         let started = Instant::now();
         let mut read = self.read_segment(&chosen.lang, request.samples, &mut probe)?;
         self.generalist_for_blank(&mut read, request.samples, chosen.suppress_fallback)?;
@@ -131,12 +133,14 @@ impl<D: Decode, L: Identify> Router<D, L> {
         if request.live && !blank(&read.text) && !chosen.suppress_seed {
             self.session.last_lang = Some(read.lang.clone());
         }
+        // The recognizer's time: a model loaded by a tier's first use is not in it.
+        let decode_ms = (millis(started) - self.decoder.take_load_ms()).max(0.0);
         Ok(Transcript {
             text: read.text,
             lang: read.lang,
             tier: read.tier,
             lid_ms,
-            decode_ms: millis(started),
+            decode_ms,
             probe_ms: probe.ms,
         })
     }

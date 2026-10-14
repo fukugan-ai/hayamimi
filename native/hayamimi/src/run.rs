@@ -34,7 +34,7 @@ use crate::inputs::Input;
 use crate::log;
 use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
-use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter};
+use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter, tell_resident};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
 use crate::session::Session;
@@ -343,11 +343,16 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     if args.io.source_refused {
         notices.push(Notice::source_unknown());
     }
-    let engine = open_engine(settings, strings, &mut notices)?;
+    let mut engine = open_engine(settings, strings, &mut notices)?;
     controls
         .live()
         .engine_opened(engine.as_ref().is_some_and(Engine::can_punctuate));
     tell_notices(strings, &hub, &notices, gpu);
+    // The models loaded while opening are said before `session_start`, which
+    // is what a client of `/ingest` waits for before it is answered `ready`.
+    if let Some(opened) = engine.as_mut() {
+        tell_resident(strings, &hub, opened);
+    }
     let stop = install_stop()?;
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;
     hub.publish_session_start();

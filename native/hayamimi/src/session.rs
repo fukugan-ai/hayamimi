@@ -17,7 +17,7 @@ use crate::feed::{AudioItem, AudioRx};
 use crate::log;
 use crate::memory_guard::{Look, MemoryGuard};
 use crate::notice::Notice;
-use crate::report::{log_session, say_notice};
+use crate::report::{self, log_session, say_notice};
 use crate::server::Hub;
 use crate::strings::Strings;
 use crate::wire;
@@ -155,19 +155,8 @@ impl Session<'_> {
 
     /// Says what the recognizers and the route did since the last call.
     fn tell_resident(&mut self) {
-        let Some(engine) = self.engine.as_mut() else {
-            return;
-        };
-        for event in engine.take_resident_events() {
-            if let Some(line) = log::resident_line(self.strings, &event) {
-                log::print(&line);
-            }
-            if let Some(notice) = Notice::from_resident(&event) {
-                say_notice(self.strings, self.hub, &notice);
-            }
-        }
-        for step in engine.take_route_notices() {
-            say_notice(self.strings, self.hub, &Notice::from_route(&step));
+        if let Some(engine) = self.engine.as_mut() {
+            report::tell_resident(self.strings, self.hub, engine);
         }
     }
 
