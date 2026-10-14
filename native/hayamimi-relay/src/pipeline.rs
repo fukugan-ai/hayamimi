@@ -27,6 +27,7 @@ use sha2::{Digest, Sha256};
 use crate::annotate::{
     AnnotateRequest, Annotated, Annotation, Annotator, AnnotatorConfig, Skipped,
 };
+use crate::edit_answer::translation_of;
 use crate::lang::Lang;
 use crate::llm::{Completion, Llm, LlmError, Wanted};
 use crate::logging::{Level, LogEvent, LogSink};
@@ -200,7 +201,7 @@ pub fn sha256_hex(text: &str) -> String {
     hex
 }
 
-fn language_name(lang: Lang) -> &'static str {
+pub(crate) fn language_name(lang: Lang) -> &'static str {
     match lang {
         Lang::Ja => "Japanese",
         Lang::En => "English",
@@ -615,7 +616,7 @@ impl<L: Llm> Pipeline<L> {
             }
         };
         let e_ms = edit_started.elapsed().as_millis();
-        let text = edited.trim().to_owned();
+        let text = translation_of(&edited, language_name(request.src_lang)).to_owned();
         let verify_started = Instant::now();
         observer.stage(Stage::Verify);
         observer.verify_input(&text);
