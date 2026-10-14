@@ -926,7 +926,7 @@ test：`native/hayamimi-eval/tests/rp22.rs`。
 | T-RP-22-007 | 実走：R3b は llama-server を起こした機械で `<hy> --wav testdata/lat-multi.wav` を実時間で流す間の読み、R8e は RP-3 の run の間の読み | 実走 | 実走 | 最大が 14,000 MiB 以下（specified、RP-22。読む物は GPU 全体の `memory.used` で、llama-server を含む。設計 8 の「07:00 の計画」の R3 の着手の 2 と 3） | 陽性 | `vram_stays_under_budget_during_the_run` |
 | T-RP-22-010 | 実走：`<hy> --wav testdata/lat-multi.wav --max-resident 2` | CPU に常駐させる認識器の数の上限 | 実走 | ReazonSpeech の外に常駐した認識器の数が、どの時点でも 2 以下で、追い出しの event が 1 件以上（specified、設計 8 の「07:00 の計画」の R3 の着手の 3。5 言語で使う認識器は ReazonSpeech の外に 3 つなので、2 では追い出しが起きる。event の名前は実装の席が置く） | 陽性 | `least_recently_used_recognizer_is_dropped_at_the_cap` |
 | T-RP-22-011 | 実走：010 と同じ音声を `--max-resident 3`（既定）で | 上限に届かない数（010 の対） | 実走 | 追い出しの event が 0 件（specified、同上。3 つは上限の 3 に収まる） | 陽性 | `default_cap_drops_nothing_for_five_languages` |
-| T-RP-22-008 | 実走：007 の run で測った最大より 1 MiB 低い値を上限に置いて、同じ run を起こす | 上限に届いた run（落ちた形） | 実走 | `hayamimi` が止まらず（終了 code 0、`final` が出る）、`gpu.fallback.cpu`（`reason` = `memory_budget`）が 1 件以上、`/events` の `fallback` が同じ数。`check_vram` は上限を超えた読みを名指しして `Err`（specified、RP-22 の陰性欄と 3.15 の memory の行） | 陰性 | `budget_reached_falls_back_instead_of_stopping` |
+| T-RP-22-008 | 実走：起動前の読みを 3 回取り、その最大より 1 MiB 高い値を上限に置いて、`<hy> --wav testdata/lat-multi.wav` を実時間で起こす（007 の run の最大は使わない。読む物は GPU 全体で、他の process の使用量が run ごとに動くので、別の run の最大は、この run が届かない所に在りうる） | 上限に届いた run（落ちた形） | 実走 | `hayamimi` が止まらず（終了 code 0、`final` が出る）、`gpu.fallback.cpu`（`reason` = `memory_budget`）が 1 件以上、`/events` の `fallback` が同じ数。`check_vram` は上限を超えた読みを名指しして `Err`（specified、RP-22 の陰性欄と 3.15 の memory の行） | 陰性 | `budget_reached_falls_back_instead_of_stopping` |
 | T-RP-22-009 | 実走：007 と同じ run（上限 14,000 MiB） | 届かない run（007 と 008 の対） | 実走 | `gpu.fallback.cpu`（`reason` = `memory_budget`）が 0 件（specified、RP-22。上限に届かなければ落ちない） | 陽性 | `budget_not_reached_emits_no_memory_fallback` |
 
 ### 4.33 RP-23（段ごとの GPU と CPU の計測）
@@ -1101,8 +1101,8 @@ fixture の docs は、実物の段落を file に写して 1 語だけ直した
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-RP-30-001 | 実物の `rust_port.ja.md` と実物の `notice.rs` | 一致 | `Ok` | `Ok`（specified、RP-30 の「集合として code と一致する」） | 陽性 | `design_lists_equal_the_code_constants` |
-| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 10 個 | 13 と 10（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_10_reasons` |
-| T-RP-30-003 | 実物の段落。括弧の中の `memory_budget`、`unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 3 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 10 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 10 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
+| T-RP-30-002 | 実物の段落から読んだ値の数 | 読めていること | `stage` が 13 個、`reason` が 11 個 | 13 と 11（specified、RP-30 の陽性対照。001 の `Ok` が空と空の一致ではないことを示す） | 陽性 | `the_real_paragraph_yields_13_stages_and_11_reasons` |
+| T-RP-30-003 | 実物の段落。括弧の中の `unreachable`、`unsupported_target` と、中継の `sink` | `hayamimi` の一覧の外の値 | `reason` の集合にこの 2 つが無い。`stage` の集合に `sink` が無い | 無い（specified、3.15 の「`hayamimi` が 11 個」と括弧書き。段落の読み方が括弧の中まで拾うと 002 の 11 が 13 になって落ちる） | 境界、陰性 | `values_named_for_the_relay_are_not_read_as_hayamimi_values` |
 | T-RP-30-004 | fixture：`stage` の一覧から `lid` を消した docs | 一覧から 1 つ消す（stage） | `Err` | `Err` で `lid` を名指し（code にだけ在る。specified、RP-30 の陰性欄） | 陰性 | `a_stage_removed_from_the_design_is_named` |
 | T-RP-30-005 | fixture：`reason` の一覧から `bad_value` を消した docs | 一覧から 1 つ消す（reason） | `Err` | `Err` で `bad_value` を名指し（specified、RP-30） | 陰性 | `a_reason_removed_from_the_design_is_named` |
 | T-RP-30-006 | fixture：`stage` の一覧に code に無い `diarize` を足した docs | code に無い値を足す（stage） | `Err` | `Err` で `diarize` を名指し（docs にだけ在る。specified、RP-30） | 陰性 | `a_stage_added_to_the_design_only_is_named` |

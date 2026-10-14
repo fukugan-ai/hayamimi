@@ -141,6 +141,8 @@ fn finished() -> Final {
     Final {
         id: 1,
         text: String::from("警察のソランキ総監によれば被告人は顔を隠して出頭した。"),
+        lang: String::from("ja"),
+        tier: "rz",
         audio_seconds: 6.7,
         t0_s: 0.0,
         t1_s: 6.7,

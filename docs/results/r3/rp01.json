@@ -1,0 +1,47 @@
+{
+  "engine": "hayamimi",
+  "lid": "detected",
+  "rows": [
+    {
+      "lang": "ja",
+      "clips": 15,
+      "lid_correct": 15,
+      "tiers": "rz",
+      "mean_err_micros": 37512,
+      "mean_rtf_micros": 261282
+    },
+    {
+      "lang": "en",
+      "clips": 15,
+      "lid_correct": 15,
+      "tiers": "v3",
+      "mean_err_micros": 22606,
+      "mean_rtf_micros": 230802
+    },
+    {
+      "lang": "zh",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "pz",
+      "mean_err_micros": 69933,
+      "mean_rtf_micros": 176119
+    },
+    {
+      "lang": "ko",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "sv",
+      "mean_err_micros": 79278,
+      "mean_rtf_micros": 71525
+    },
+    {
+      "lang": "yue",
+      "clips": 12,
+      "lid_correct": 12,
+      "tiers": "sv",
+      "mean_err_micros": 68161,
+      "mean_rtf_micros": 69430
+    }
+  ],
+  "fallbacks": []
+}

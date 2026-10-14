@@ -36,6 +36,9 @@ pub mod percentile;
 pub mod r7_report;
 pub mod record;
 pub mod relay_events;
+pub mod score;
+pub mod scorecard;
+pub mod scorecard_run;
 pub mod sha;
 pub mod speaker;
 pub mod stage_load;
@@ -48,6 +51,7 @@ pub mod stage_table;
 pub mod stages;
 pub mod stream;
 pub mod translate_call;
+pub mod vram;
 pub mod wav;
 pub mod ws;
 

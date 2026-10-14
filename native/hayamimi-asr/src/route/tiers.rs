@@ -8,7 +8,7 @@
 use super::RouteError;
 
 /// A recognizer of the catalogue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
     /// ReazonSpeech zipformer: Japanese, and the draft model of every session.
     Rz,

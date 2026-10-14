@@ -11,6 +11,7 @@ pub mod ingest;
 pub mod inputs;
 pub mod llama;
 pub mod log;
+pub mod memory_guard;
 pub mod models_fetch;
 pub mod notice;
 pub mod report;

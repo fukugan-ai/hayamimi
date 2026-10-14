@@ -41,6 +41,8 @@ pub enum GpuError {
     Overflow(&'static str),
     Json(serde_json::Error),
     Io(io::Error),
+    /// The result of a recognition is not JSON.
+    ResultNotJson(serde_json::Error),
 }
 
 impl fmt::Display for GpuError {
@@ -68,6 +70,9 @@ impl fmt::Display for GpuError {
             GpuError::Overflow(what) => write!(f, "{what} does not fit its reported width"),
             GpuError::Json(source) => write!(f, "cannot write the probe output: {source}"),
             GpuError::Io(source) => write!(f, "cannot write the probe output: {source}"),
+            GpuError::ResultNotJson(source) => {
+                write!(f, "the recognition result is not JSON: {source}")
+            }
         }
     }
 }
@@ -78,7 +83,7 @@ impl std::error::Error for GpuError {
             GpuError::DriverLibrary(source)
             | GpuError::OnnxRuntime(source)
             | GpuError::Symbol { source, .. } => Some(source),
-            GpuError::Json(source) => Some(source),
+            GpuError::Json(source) | GpuError::ResultNotJson(source) => Some(source),
             GpuError::Io(source) => Some(source),
             _ => None,
         }

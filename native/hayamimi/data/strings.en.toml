@@ -17,6 +17,12 @@
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
 "server.fallback.port" = "The port is in use; the run goes on with another one"
 "config.fallback.default" = "A settings file could not be read; the run goes on with the defaults"
+"asr.model.loaded" = "A recognizer was loaded"
+"asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
+"asr.lang.unknown" = "The language tag of a SenseVoice result could not be read; the language is unknown"
+"gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"
+"model.fallback.substitute" = "A recognizer is not usable; another one answers in its place"
+"model.fallback.chunks" = "The voice detector is not usable; long audio is cut into fixed chunks"
 "capture.fallback.single" = "An audio device is missing; the run goes on with the other one"
 "capture.fallback.none" = "No audio device is usable; the run waits for /ingest and the wav file"
 "capture.fallback.cleared" = "An audio device is back and in use again"
@@ -49,21 +55,23 @@ options:
   --ws-host <address>  address /ingest listens on (default 127.0.0.1)
   --source <name>      source named in the subtitles: mic, loopback or file (default: that of the input)
   --no-partial         do not show drafts of the utterance in progress
-  --mode <mode>        language mode; only single is available (default single)
-  --lang <code>        language of the audio; only ja is available (default ja)
+  --mode <mode>        balanced (default), fast, or single: how the language of each utterance is chosen
+  --lang <code>        read everything in this language and identify none (ja, en, zh, ko, yue, ...)
   --models <dir>       directory that holds the model directories (default models)
   --min-silence <sec>  silence that ends an utterance (default 0.30)
   --max-speech <sec>   speech after which an utterance is finalised (default 12)
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
+  --max-resident <n>   recognizers kept in memory besides the Japanese one (default 3; 0 keeps all)
+  --gpu-budget <MiB>   GPU memory in use at which a stage moves to the CPU (default 14000)
   --gpu-diagnose       log where the nodes of each GPU model were placed
   --help               show this text"""
 usage_hint = "Run with --help for the options."
 unknown_option = "Unknown option."
 missing_value = "An option is missing its value."
 bad_number = "An option needs a positive number."
-mode_unsupported = "Only --mode single is available."
-lang_unsupported = "Only --lang ja is available."
+mode_unsupported = "--mode is one of balanced, fast, single."
+lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."
 bad_address = "--ws-host needs an IP address."
@@ -90,10 +98,13 @@ reason_session_failed = "Reason: the CUDA session could not be built."
 reason_missing = "Reason: a model file is missing."
 reason_unreadable = "Reason: a file could not be read."
 reason_library_unavailable = "Reason: the inference libraries could not be opened."
+reason_memory_budget = "Reason: the GPU memory in use reached the budget."
 reason_in_use = "Reason: the port is in use."
 reason_provider_mismatch = "Reason: the session was built for CUDA but did not run on it."
 to_cpu = "Now: the same model runs on the CPU."
 to_disabled = "Now: the stage is left out and the run goes on."
+to_substitute = "Now: another recognizer answers in its place."
+to_chunks = "Now: long audio is cut into fixed chunks."
 to_next_port = "Now: the next free port is used."
 to_default = "Now: the default settings are used."
 to_single = "Now: the other audio source is used alone."

@@ -17,6 +17,12 @@
 "asr.fallback.disabled" = "推論の library を開けないので、認識を外して続けます"
 "server.fallback.port" = "port が使えないので、別の port で続けます"
 "config.fallback.default" = "設定の file を読めないので、既定の設定で続けます"
+"asr.model.loaded" = "認識器を読み込みました"
+"asr.model.evicted" = "上限を守るため、最も使われていない認識器を手放しました"
+"asr.lang.unknown" = "SenseVoice の結果の言語の tag を読めないので、言語は不明として扱います"
+"gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
+"model.fallback.substitute" = "認識器が使えないので、別の認識器が代わりに答えます"
+"model.fallback.chunks" = "発話の検出器が使えないので、長い音声を一定の長さで切って続けます"
 "capture.fallback.single" = "音声の device が 1 つ無いので、在る方だけで続けます"
 "capture.fallback.none" = "使える音声の device が無いので、/ingest と wav の file を待って続けます"
 "capture.fallback.cleared" = "音声の device が戻ったので、また使います"
@@ -49,21 +55,23 @@ options:
   --ws-host <address>  /ingest が待つ address（既定は 127.0.0.1）
   --source <name>      字幕に書く source。mic、loopback、file のどれか（既定は入力のもの）
   --no-partial         発話の途中の速報を出さない
-  --mode <mode>        言語の mode。使えるのは single だけ（既定は single）
-  --lang <code>        音声の言語。使えるのは ja だけ（既定は ja）
+  --mode <mode>        balanced（既定）、fast、single。発話ごとの言語の決め方
+  --lang <code>        この言語で全部読み、言語判定をしない（ja、en、zh、ko、yue など）
   --models <dir>       model の directory を置いた directory（既定は models）
   --min-silence <sec>  発話の終わりにする無音の秒数（既定は 0.30）
   --max-speech <sec>   この秒数の発話が続いたら確定する（既定は 12）
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
+  --max-resident <n>   日本語の認識器のほかに memory へ置く認識器の数（既定は 3。0 なら全部）
+  --gpu-budget <MiB>   使用中の GPU memory がこの値になったら段を CPU へ移す（既定は 14000）
   --gpu-diagnose       GPU の model の node がどこへ置かれたかを log に出す
   --help               この文を出す"""
 usage_hint = "使える option は --help で見られます。"
 unknown_option = "知らない option です。"
 missing_value = "option に値がありません。"
 bad_number = "option には正の数が要ります。"
-mode_unsupported = "使える --mode は single だけです。"
-lang_unsupported = "使える --lang は ja だけです。"
+mode_unsupported = "--mode は balanced、fast、single のどれかです。"
+lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"
 bad_address = "--ws-host には IP address が要ります。"
@@ -90,10 +98,13 @@ reason_session_failed = "理由: CUDA の session を作れませんでした。
 reason_missing = "理由: model の file がありません。"
 reason_unreadable = "理由: file を読めません。"
 reason_library_unavailable = "理由: 推論の library を開けません。"
+reason_memory_budget = "理由: 使用中の GPU memory が予算に届きました。"
 reason_in_use = "理由: port が使われています。"
 reason_provider_mismatch = "理由: CUDA 用に作った session が CUDA で動いていません。"
 to_cpu = "落ち先: CPU で同じ model を動かします。"
 to_disabled = "落ち先: この段を外して続けます。"
+to_substitute = "落ち先: 別の認識器が代わりに答えます。"
+to_chunks = "落ち先: 長い音声を一定の長さで切ります。"
 to_next_port = "落ち先: 次の空いた port を使います。"
 to_default = "落ち先: 既定の設定で動かします。"
 to_single = "落ち先: 在る方の音声だけで動かします。"

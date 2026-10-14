@@ -6,6 +6,8 @@
 
 use hayamimi_gpu::error::GpuError;
 
+use crate::error::AsrError;
+
 /// A stage that can fall back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -52,6 +54,8 @@ pub enum Reason {
     Missing,
     /// A model file is there and cannot be read as a model.
     Unreadable,
+    /// The memory in use on the GPU reached the budget.
+    MemoryBudget,
 }
 
 impl Reason {
@@ -64,7 +68,20 @@ impl Reason {
             Reason::ProviderMismatch => "provider_mismatch",
             Reason::Missing => "missing",
             Reason::Unreadable => "unreadable",
+            Reason::MemoryBudget => "memory_budget",
         }
+    }
+}
+
+/// Why a model that failed to open leaves its stage out, or `None` when the
+/// failure is not about the model (and so must not be absorbed).
+pub fn reason_of(error: &AsrError) -> Option<Reason> {
+    match error {
+        AsrError::MissingModel(_) => Some(Reason::Missing),
+        AsrError::Create(_) | AsrError::Ort(_) | AsrError::Vocab(_) | AsrError::Io(_) => {
+            Some(Reason::Unreadable)
+        }
+        _ => None,
     }
 }
 
@@ -150,5 +167,22 @@ mod tests {
         assert_eq!(Reason::SessionFailed.name(), "session_failed");
         assert_eq!(To::Disabled.name(), "disabled");
         assert_eq!(To::Cpu.name(), "cpu");
+        assert_eq!(Reason::MemoryBudget.name(), "memory_budget");
+    }
+
+    #[test]
+    fn the_failures_that_are_about_a_model_have_a_reason_and_the_others_do_not() {
+        use std::path::PathBuf;
+        assert_eq!(
+            reason_of(&AsrError::MissingModel(PathBuf::from("m"))),
+            Some(Reason::Missing)
+        );
+        assert_eq!(
+            reason_of(&AsrError::Create("VAD")),
+            Some(Reason::Unreadable)
+        );
+        assert_eq!(reason_of(&AsrError::Wav(String::from("w"))), None);
+        assert_eq!(reason_of(&AsrError::Overflow("n")), None);
+        assert_eq!(reason_of(&AsrError::NoRecognizer), None);
     }
 }

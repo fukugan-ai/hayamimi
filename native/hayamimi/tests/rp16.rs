@@ -507,6 +507,47 @@ fn visible_gpu_run_does_not_fall_back() -> TestResult {
     Ok(())
 }
 
+/// The `final` events on `/events` that carry no language or no time spent
+/// in the identifier.
+fn finals_without_identification(wire: &[Value]) -> Vec<&Value> {
+    wire.iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .filter(|event| {
+            let said = text_of(event, "lang").is_some_and(|lang| !lang.is_empty());
+            let timed = event.get("lid_ms").and_then(Value::as_f64) > Some(0.0);
+            !(said && timed)
+        })
+        .collect()
+}
+
+/// T-RP-16-035: a run without `--lang` builds the identifier once and every
+/// final names a language and the time the identifier took.
+#[test]
+#[ignore = "runs the hayamimi binary"]
+fn binary_run_identifies_the_language() -> TestResult {
+    let models = models_dir()?;
+    let models = models.to_str().ok_or("the models path is not UTF-8")?;
+    let wav = clip();
+    let wav = wav.to_str().ok_or("the clip path is not UTF-8")?;
+    let args = ["--wav", wav, "--no-realtime", "--models", models];
+    let served = serve(&args, Some("C.UTF-8"), &[])?;
+    let all = events(&served.output.stdout)?;
+    let identifier: Vec<&Value> = named(&all, CREATED)
+        .into_iter()
+        .filter(|event| text_of(event, "model") == Some("tiny-encoder.onnx"))
+        .collect();
+    assert_eq!(identifier.len(), 1, "{}", served.output.stderr);
+    let finals = served
+        .wire
+        .iter()
+        .filter(|event| text_of(event, "type") == Some("final"))
+        .count();
+    assert!(finals > 0, "no final on /events");
+    let missing = finals_without_identification(&served.wire);
+    assert!(missing.is_empty(), "{missing:?}");
+    Ok(())
+}
+
 /// The acceptance test of RP-16: with the GPU hidden the run goes on and says
 /// so, in both languages; with the GPU visible it does not fall back.
 #[test]

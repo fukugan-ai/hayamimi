@@ -8,8 +8,11 @@
 pub mod cuda;
 pub mod error;
 pub mod link_args;
+pub mod memory;
 pub mod modules;
 pub mod probe;
 pub mod rp17;
 pub mod runtime;
+pub mod session_lock;
+pub mod stream_result;
 pub mod transfer;

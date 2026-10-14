@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use hayamimi_gpu::session_lock::lock_for_session;
 use sherpa_onnx::{SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
 
 use crate::audio::{SAMPLE_RATE, WINDOW};
@@ -205,6 +206,7 @@ impl Vad {
 
 fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetector, AsrError> {
     let config = silero_config_with(models, sensitivity.settings(), sensitivity.threshold)?;
+    let _building = lock_for_session();
     VoiceActivityDetector::create(&config, BUFFER_SECONDS).ok_or(AsrError::Create("VAD"))
 }
 

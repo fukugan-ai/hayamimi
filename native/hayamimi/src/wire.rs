@@ -22,11 +22,11 @@ pub fn final_event(done: &Final, source: &str) -> Value {
         "t1_s": done.t1_s,
         "end_wall_ms": done.end_wall_ms,
         "text": done.text,
-        "lang": "ja",
+        "lang": done.lang,
         // The mark follows in a `speaker` event of the same id; the final does not wait for it.
         "speaker": "",
         "latency_ms": t.l_dec_ms,
-        "tier": "rz",
+        "tier": done.tier,
         "audio_s": done.audio_seconds,
         "lid_ms": t.lid_ms,
         "decode_ms": t.decode_ms + t.itn_ms + t.punct_ms,
@@ -91,6 +91,8 @@ mod tests {
         Final {
             id: 1,
             text: String::from("テスト"),
+            lang: String::from("ja"),
+            tier: "rz",
             audio_seconds: 1.5,
             t0_s: 0.25,
             t1_s: 1.75,

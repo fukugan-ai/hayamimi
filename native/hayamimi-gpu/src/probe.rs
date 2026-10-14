@@ -16,6 +16,7 @@ use crate::cuda;
 use crate::error::GpuError;
 use crate::modules::{self, LoadedModule};
 use crate::runtime;
+use crate::session_lock::lock_for_session;
 
 /// The provider the recognizer is asked to run on.
 const REQUESTED_PROVIDER: &str = "cuda";
@@ -184,9 +185,11 @@ fn open_audio(args: &ProbeArgs) -> Result<Opened, GpuError> {
     let audio_ms = u64::try_from(i64::from(wave.num_samples()) * 1000 / rate)
         .map_err(|_| GpuError::Overflow("the audio length"))?;
 
+    let building = lock_for_session();
     let Some(recognizer) = OfflineRecognizer::create(&config) else {
         return Err(GpuError::Recognizer);
     };
+    drop(building);
     let started = Instant::now();
     let stream = recognizer.create_stream();
     stream.accept_waveform(wave.sample_rate(), wave.samples());

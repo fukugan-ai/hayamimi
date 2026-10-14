@@ -12,6 +12,8 @@ pub enum AsrError {
     Create(&'static str),
     /// The recognizer answered a decode with no result.
     NoResult,
+    /// No recognizer model of the chain is usable on this machine.
+    NoRecognizer,
     /// ONNX Runtime (through `ort`) failed.
     Ort(String),
     /// The vocabulary file lacks a token the tokenizer needs.
@@ -28,6 +30,8 @@ pub enum AsrError {
     Overflow(&'static str),
     /// The clock reads a time before 1970.
     Clock,
+    /// The language route refused the work (it is closed, or a setting is wrong).
+    Route(String),
 }
 
 impl fmt::Display for AsrError {
@@ -36,6 +40,7 @@ impl fmt::Display for AsrError {
             AsrError::MissingModel(path) => write!(f, "model file not found: {}", path.display()),
             AsrError::Create(what) => write!(f, "cannot create the {what}"),
             AsrError::NoResult => write!(f, "the recognizer returned no result"),
+            AsrError::NoRecognizer => write!(f, "no recognizer model is usable"),
             AsrError::Ort(message) => write!(f, "ort: {message}"),
             AsrError::Vocab(message) => write!(f, "vocab: {message}"),
             AsrError::Shape(message) => write!(f, "punctuation model output: {message}"),
@@ -44,6 +49,7 @@ impl fmt::Display for AsrError {
             AsrError::Gpu(error) => write!(f, "gpu: {error}"),
             AsrError::Overflow(what) => write!(f, "{what} does not fit the integer type"),
             AsrError::Clock => write!(f, "the clock reads a time before 1970"),
+            AsrError::Route(message) => write!(f, "language route: {message}"),
         }
     }
 }

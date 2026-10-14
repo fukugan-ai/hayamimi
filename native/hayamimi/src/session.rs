@@ -4,16 +4,20 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
 use hayamimi_asr::vad::Sensitivity;
 use hayamimi_asr::{AsrError, Engine, Final};
+use hayamimi_gpu::memory::MemoryMeter;
 use serde_json::Value;
 
 use crate::control::{Command, Controls};
 use crate::feed::{AudioItem, AudioRx};
 use crate::log;
+use crate::memory_guard::{Look, MemoryGuard};
+use crate::notice::Notice;
+use crate::report::{log_session, say_notice};
 use crate::server::Hub;
 use crate::strings::Strings;
 use crate::wire;
@@ -63,6 +67,8 @@ impl Stats {
 /// What the loop is run with.
 pub struct Session<'a> {
     pub engine: Option<Engine>,
+    /// Reads the GPU memory; none when there is no GPU or it cannot be read.
+    pub guard: Option<MemoryGuard<MemoryMeter>>,
     pub hub: &'a Hub,
     pub strings: &'a Strings,
     pub controls: &'a Controls,
@@ -93,6 +99,7 @@ impl Session<'_> {
             stats: Stats::default(),
             pending_vad: None,
         };
+        self.tell_resident();
         while !self.stop.load(Ordering::Relaxed) {
             self.apply_commands(&mut state)?;
             self.retune(&mut state)?;
@@ -110,6 +117,7 @@ impl Session<'_> {
 
     fn on_window(&mut self, state: &mut State, window: &[f32]) -> Result<(), AsrError> {
         state.stats.add_window(WINDOW);
+        self.keep_within_budget()?;
         // Read before the feed: the wait is the queue's, not the feed's own time.
         let (waited, backlog) = (self.audio.last_wait(), self.audio.backlog());
         let finals = match self.engine.as_mut() {
@@ -118,8 +126,49 @@ impl Session<'_> {
         };
         self.announce(state, &finals);
         self.say_feed_waits(&finals, waited, backlog);
+        self.tell_resident();
         self.draft();
         Ok(())
+    }
+
+    /// Reads the GPU memory when it is time to, and moves the next GPU stage
+    /// to the CPU if the budget is reached. Reaching the budget never stops the run.
+    fn keep_within_budget(&mut self) -> Result<(), AsrError> {
+        let (Some(watch), Some(engine)) = (self.guard.as_mut(), self.engine.as_mut()) else {
+            return Ok(());
+        };
+        match watch.look(Instant::now()) {
+            Look::Quiet => {}
+            Look::Blind => log::print(&log::memory_unreadable_line(self.strings)),
+            Look::Reached { .. } => {
+                if let Some(demotion) = engine.demote_for_memory()? {
+                    let notice = Notice::from_fallback(&demotion.fallback);
+                    say_notice(self.strings, self.hub, &notice);
+                    if let Some(report) = &demotion.report {
+                        log_session(self.strings, report);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Says what the recognizers and the route did since the last call.
+    fn tell_resident(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for event in engine.take_resident_events() {
+            if let Some(line) = log::resident_line(self.strings, &event) {
+                log::print(&line);
+            }
+            if let Some(notice) = Notice::from_resident(&event) {
+                say_notice(self.strings, self.hub, &notice);
+            }
+        }
+        for step in engine.take_route_notices() {
+            say_notice(self.strings, self.hub, &Notice::from_route(&step));
+        }
     }
 
     /// Says how long the window that made each of `finals` waited on the queue
@@ -190,6 +239,7 @@ impl Session<'_> {
             None => return Ok(()),
         };
         self.announce(state, &finals);
+        self.tell_resident();
         Ok(())
     }
 
@@ -284,6 +334,8 @@ mod tests {
         Final {
             id: 1,
             text: String::from("テスト"),
+            lang: String::from("ja"),
+            tier: "rz",
             audio_seconds: 1.0,
             t0_s: 0.0,
             t1_s: 1.0,

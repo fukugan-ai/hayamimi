@@ -123,6 +123,16 @@ impl<D: Decode, L: Identify> Router<D, L> {
         }
     }
 
+    /// The recognizers behind the router.
+    pub fn decoder(&self) -> &D {
+        &self.decoder
+    }
+
+    /// The recognizers behind the router, for what they report about themselves.
+    pub fn decoder_mut(&mut self) -> &mut D {
+        &mut self.decoder
+    }
+
     pub fn policy(&self) -> &Policy {
         &self.policy
     }

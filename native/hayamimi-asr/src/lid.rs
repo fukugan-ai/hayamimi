@@ -10,6 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
+use hayamimi_gpu::session_lock::lock_for_session;
 use hayamimi_gpu::{modules, probe};
 use sherpa_onnx::{
     SpokenLanguageIdentification, SpokenLanguageIdentificationConfig,
@@ -161,6 +162,7 @@ fn create(files: &[String; 2], provider: Device) -> Result<SpokenLanguageIdentif
         debug: false,
         provider: Some(provider.name().to_owned()),
     };
+    let _building = lock_for_session();
     SpokenLanguageIdentification::create(&config).ok_or(AsrError::Create("language identifier"))
 }
 

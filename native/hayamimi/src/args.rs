@@ -1,6 +1,10 @@
 //! The command line. Every refusal names a key of the locale's `[cli]` table.
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
+
+use hayamimi_asr::DEFAULT_MAX_RESIDENT;
+use hayamimi_asr::route::{Policy, is_routable};
 
 use crate::inputs::{Input, IoArgs};
 use crate::strings::keys;
@@ -10,10 +14,30 @@ pub const DEFAULT_PORT: u16 = 8833;
 const DEFAULT_MODELS: &str = "models";
 const DEFAULT_MIN_SILENCE: f32 = 0.30;
 const DEFAULT_MAX_SPEECH: f32 = 12.0;
+/// The memory in use on the GPU, in MiB, at which a GPU stage moves to the
+/// CPU. It counts every process of the GPU, the translator's included.
+pub const DEFAULT_GPU_BUDGET_MIB: u64 = 14_000;
+
+/// How the language of each utterance is chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// Identify the language, and switch when two identifiers agree (the default).
+    Balanced,
+    /// Identify the language, and switch at the first detection.
+    Fast,
+    /// Read everything in one language.
+    Single,
+}
+
+/// The language a `single` run reads when `--lang` does not name one.
+const DEFAULT_SINGLE_LANG: &str = "ja";
 
 /// A parsed command line that asks for a run.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Args {
+    pub mode: Mode,
+    /// A language to read everything in; it makes the run `single` whatever `--mode` says.
+    pub lang: Option<String>,
     pub wav: PathBuf,
     /// Pace the file at the speed of the audio.
     pub realtime: bool,
@@ -23,6 +47,10 @@ pub struct Args {
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     pub diagnose: bool,
+    /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
+    pub max_resident: Option<NonZeroUsize>,
+    /// The GPU memory in use, in MiB, at which a GPU stage moves to the CPU.
+    pub gpu_budget_mib: u64,
     /// Where the audio comes from besides the wav file.
     pub io: IoArgs,
 }
@@ -31,7 +59,7 @@ pub struct Args {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parsed {
     Help,
-    Run(Args),
+    Run(Box<Args>),
 }
 
 /// Why a command line was refused.
@@ -70,6 +98,28 @@ fn positive_seconds(text: &str) -> Result<f32, ArgError> {
     }
 }
 
+/// `--max-resident`: a number of recognizers, where zero or less keeps them all.
+fn resident_cap(text: &str) -> Result<Option<NonZeroUsize>, ArgError> {
+    let Ok(value) = text.parse::<i64>() else {
+        return Err(ArgError::BadNumber);
+    };
+    if value <= 0 {
+        return Ok(None);
+    }
+    let Ok(count) = usize::try_from(value) else {
+        return Err(ArgError::BadNumber);
+    };
+    Ok(NonZeroUsize::new(count))
+}
+
+/// `--gpu-budget`: a positive number of MiB.
+fn positive_mib(text: &str) -> Result<u64, ArgError> {
+    match text.parse::<u64>() {
+        Ok(value) if value > 0 => Ok(value),
+        _ => Err(ArgError::BadNumber),
+    }
+}
+
 /// The arguments not yet read.
 type Rest<'a> = std::iter::Peekable<std::slice::Iter<'a, String>>;
 
@@ -86,18 +136,40 @@ fn port_of(rest: &mut Rest<'_>) -> Result<u16, ArgError> {
     }
 }
 
-/// An option that only one value is accepted for.
-fn expect_value(rest: &mut Rest<'_>, only: &str, otherwise: ArgError) -> Result<(), ArgError> {
-    if value_of(rest)? == only {
-        Ok(())
+/// `--mode`: one of the three ways of choosing a language.
+fn mode_of(text: &str) -> Result<Mode, ArgError> {
+    match text {
+        "balanced" => Ok(Mode::Balanced),
+        "fast" => Ok(Mode::Fast),
+        "single" => Ok(Mode::Single),
+        _ => Err(ArgError::ModeUnsupported),
+    }
+}
+
+/// `--lang`: a language that has a recognizer of its own.
+fn lang_of(text: &str) -> Result<String, ArgError> {
+    if is_routable(text) {
+        Ok(text.to_owned())
     } else {
-        Err(otherwise)
+        Err(ArgError::LangUnsupported)
     }
 }
 
 impl Args {
+    /// The policy of the language route this command line asks for.
+    pub fn policy(&self) -> Policy {
+        match (&self.lang, self.mode) {
+            (Some(lang), _) => Policy::single(lang),
+            (None, Mode::Single) => Policy::single(DEFAULT_SINGLE_LANG),
+            (None, Mode::Balanced) => Policy::balanced(),
+            (None, Mode::Fast) => Policy::fast(),
+        }
+    }
+
     fn starting() -> Args {
         Args {
+            mode: Mode::Balanced,
+            lang: None,
             wav: PathBuf::new(),
             realtime: true,
             models: PathBuf::from(DEFAULT_MODELS),
@@ -106,6 +178,8 @@ impl Args {
             replace: None,
             serve: None,
             diagnose: false,
+            max_resident: DEFAULT_MAX_RESIDENT,
+            gpu_budget_mib: DEFAULT_GPU_BUDGET_MIB,
             io: IoArgs::default(),
         }
     }
@@ -115,14 +189,16 @@ impl Args {
         match option {
             "--wav" => self.wav = PathBuf::from(value_of(rest)?),
             "--no-realtime" => self.realtime = false,
-            "--mode" => expect_value(rest, "single", ArgError::ModeUnsupported)?,
-            "--lang" => expect_value(rest, "ja", ArgError::LangUnsupported)?,
+            "--mode" => self.mode = mode_of(value_of(rest)?)?,
+            "--lang" => self.lang = Some(lang_of(value_of(rest)?)?),
             "--models" => self.models = PathBuf::from(value_of(rest)?),
             "--min-silence" => self.min_silence = positive_seconds(value_of(rest)?)?,
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--gpu-diagnose" => self.diagnose = true,
+            "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
+            "--gpu-budget" => self.gpu_budget_mib = positive_mib(value_of(rest)?)?,
             _ => return self.io.apply(option, rest),
         }
         Ok(())
@@ -147,7 +223,7 @@ pub fn parse(args: &[String]) -> Result<Parsed, ArgError> {
         parsed.apply(arg, &mut rest)?;
     }
     if parsed.io.is_complete(seen_wav) {
-        Ok(Parsed::Run(parsed))
+        Ok(Parsed::Run(Box::new(parsed)))
     } else {
         Err(ArgError::NeedWav)
     }
@@ -163,7 +239,7 @@ mod tests {
 
     fn run(list: &[&str]) -> Result<Args, ArgError> {
         match parse(&args(list))? {
-            Parsed::Run(parsed) => Ok(parsed),
+            Parsed::Run(parsed) => Ok(*parsed),
             Parsed::Help => Err(ArgError::UnknownOption),
         }
     }
@@ -186,6 +262,41 @@ mod tests {
         assert_eq!(parsed.min_silence, 0.30);
         assert_eq!(parsed.max_speech, 12.0);
         assert_eq!(parsed.models, PathBuf::from("models"));
+        Ok(())
+    }
+
+    #[test]
+    fn three_recognizers_stay_in_memory_and_14000_mib_is_the_gpu_budget_unless_told_otherwise()
+    -> Result<(), ArgError> {
+        let parsed = run(&["--wav", "a.wav"])?;
+        assert_eq!(parsed.max_resident, NonZeroUsize::new(3));
+        assert_eq!(parsed.gpu_budget_mib, 14_000);
+        Ok(())
+    }
+
+    #[test]
+    fn the_resident_cap_is_a_count_and_zero_or_less_keeps_them_all() -> Result<(), ArgError> {
+        let cap = |text: &str| run(&["--wav", "a", "--max-resident", text]).map(|a| a.max_resident);
+        assert_eq!(cap("2")?, NonZeroUsize::new(2));
+        assert_eq!(cap("0")?, None);
+        assert_eq!(cap("-1")?, None);
+        assert_eq!(cap("x"), Err(ArgError::BadNumber));
+        assert_eq!(cap("1.5"), Err(ArgError::BadNumber));
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--max-resident"])),
+            Err(ArgError::MissingValue)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_gpu_budget_is_a_positive_number_of_mib() -> Result<(), ArgError> {
+        let budget =
+            |text: &str| run(&["--wav", "a", "--gpu-budget", text]).map(|a| a.gpu_budget_mib);
+        assert_eq!(budget("13999")?, 13_999);
+        for bad in ["0", "-5", "x", "1.5"] {
+            assert_eq!(budget(bad), Err(ArgError::BadNumber), "{bad}");
+        }
         Ok(())
     }
 
@@ -218,13 +329,33 @@ mod tests {
     }
 
     #[test]
-    fn only_the_single_mode_and_japanese_exist() {
+    fn a_run_identifies_languages_unless_told_to_read_one() -> Result<(), ArgError> {
+        let policy = |list: &[&str]| run(list).map(|parsed| parsed.policy());
+        assert_eq!(policy(&["--wav", "a"])?, Policy::balanced());
+        assert_eq!(policy(&["--wav", "a", "--mode", "fast"])?, Policy::fast());
         assert_eq!(
-            parse(&args(&["--wav", "a", "--mode", "balanced"])),
+            policy(&["--wav", "a", "--mode", "single"])?,
+            Policy::single("ja")
+        );
+        assert_eq!(
+            policy(&["--wav", "a", "--lang", "ko"])?,
+            Policy::single("ko")
+        );
+        assert_eq!(
+            policy(&["--wav", "a", "--mode", "single", "--lang", "ja"])?,
+            Policy::single("ja")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_mode_or_language_that_does_not_exist_is_refused() {
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--mode", "slow"])),
             Err(ArgError::ModeUnsupported)
         );
         assert_eq!(
-            parse(&args(&["--wav", "a", "--lang", "en"])),
+            parse(&args(&["--wav", "a", "--lang", "xx"])),
             Err(ArgError::LangUnsupported)
         );
     }

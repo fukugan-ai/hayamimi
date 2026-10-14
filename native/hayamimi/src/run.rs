@@ -12,13 +12,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 use axum::Router;
 use hayamimi_asr::audio::read_wav;
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::vad::{Sensitivity, VadSettings};
 use hayamimi_asr::{AsrError, Engine, Gpu, Settings, check_library};
+use hayamimi_gpu::memory::MemoryMeter;
 
+#[cfg(test)]
+use crate::args::Mode;
 use crate::args::{self, Args, Parsed};
 use crate::capture::SourceKind;
 use crate::capture::supervise::{self, Capture, Spec};
@@ -28,8 +32,9 @@ use crate::gpu_check;
 use crate::ingest::{self, IngestState};
 use crate::inputs::Input;
 use crate::log;
+use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
-use crate::report::{say, say_notice, spawn_capture_reporter};
+use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
 use crate::session::Session;
@@ -88,6 +93,8 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     };
     settings.diagnose = args.diagnose;
     settings.gpu = gpu;
+    settings.max_resident = args.max_resident;
+    settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
         match Replacements::load(path) {
@@ -197,12 +204,17 @@ fn check_gpu(strings: &Strings) -> Gpu {
     gpu
 }
 
-/// Logs the sessions an opened engine created.
-fn log_sessions(strings: &Strings, engine: &Engine) {
-    for report in engine.sessions() {
-        log::print(&log::session_created_line(strings, report));
-        if let Some(line) = log::session_placed_line(strings, report) {
-            log::print(&line);
+/// Opens the reader of the GPU memory when there is a GPU to read. A reader
+/// that cannot be opened is logged, and the run goes on without a budget.
+fn open_guard(args: &Args, strings: &Strings, gpu: Gpu) -> Option<MemoryGuard<MemoryMeter>> {
+    if !matches!(gpu, Gpu::Try) {
+        return None;
+    }
+    match MemoryGuard::open(args.gpu_budget_mib, Instant::now()) {
+        Ok(guard) => Some(guard),
+        Err(_) => {
+            log::print(&log::memory_unreadable_line(strings));
+            None
         }
     }
 }
@@ -341,6 +353,7 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     hub.publish_session_start();
     Session {
         engine,
+        guard: open_guard(args, strings, gpu),
         hub: &hub,
         strings,
         controls: &controls,
@@ -389,6 +402,8 @@ mod tests {
 
     fn args_with(input: Option<Input>, replace: Option<&str>) -> Args {
         Args {
+            mode: Mode::Single,
+            lang: None,
             wav: "a.wav".into(),
             realtime: false,
             models: "models".into(),
@@ -397,6 +412,8 @@ mod tests {
             replace: replace.map(Into::into),
             serve: None,
             diagnose: false,
+            max_resident: None,
+            gpu_budget_mib: 14_000,
             io: IoArgs {
                 input,
                 mic_device: Some(String::from("usb")),

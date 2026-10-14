@@ -47,6 +47,8 @@ fn utterance() -> Final {
     Final {
         id: 1,
         text: String::from("テスト"),
+        lang: String::from("ja"),
+        tier: "rz",
         audio_seconds: 1.5,
         t0_s: 0.25,
         t1_s: 1.75,

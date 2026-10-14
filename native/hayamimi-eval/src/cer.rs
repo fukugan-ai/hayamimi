@@ -32,7 +32,7 @@ impl Cer {
 }
 
 /// ASCII punctuation, and the CJK and full-width punctuation blocks.
-fn is_punctuation(c: char) -> bool {
+pub(crate) fn is_punctuation(c: char) -> bool {
     c.is_ascii_punctuation()
         || ('\u{3000}'..='\u{303f}').contains(&c)
         || ('\u{ff01}'..='\u{ff0f}').contains(&c)
@@ -48,8 +48,8 @@ pub fn normalize_ja(text: &str) -> Vec<char> {
         .collect()
 }
 
-/// Levenshtein distance over two code point sequences.
-fn levenshtein(a: &[char], b: &[char]) -> usize {
+/// Levenshtein distance over two sequences of symbols (code points or words).
+pub(crate) fn levenshtein<T: PartialEq>(a: &[T], b: &[T]) -> usize {
     let mut previous: Vec<usize> = (0..=b.len()).collect();
     let mut current = vec![0_usize; b.len() + 1];
     for (i, ca) in a.iter().enumerate() {
