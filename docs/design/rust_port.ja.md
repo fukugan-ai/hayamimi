@@ -626,6 +626,11 @@ GPU の段は起動時に置き場を決めるので、実行中には戻さな�
 | port（8833、8766）が使えない | bind の時 | 次の番号から 10 個までの空いた port を使い、実際の URL を出す | `server.fallback.port`（`in_use`） | R2（`/events`）、R5（全 route） |
 | 取り込みの装置が無い（loopback の出力の装置、マイク） | capture を始める時と、装置の抜けの通知 | 在る方の音源だけで動かす。両方無ければ `/ingest` と `--wav` を待つ形で動き続ける | `capture.fallback.single` か `capture.fallback.none`（`device_missing`） | R5 |
 
+`fallback` の event の `stage` の値は、`hayamimi` が `source`、`punct`、`recognizer`、`vad`、`asr`、`events`、`replace`、`speaker`、`ingest`、`capture`、`translate`、`lid`、`second_opinion` の 13 個、中継が `translate` と `sink` である。
+`reason` の値は、`hayamimi` が `bad_value`、`no_device`、`driver_unreadable`、`session_failed`、`missing`、`unreadable`、`library_unavailable`、`in_use`、`device_missing`、`provider_mismatch` の 10 個である（`memory_budget`、`unreachable`、`unsupported_target` は中継と GPU の memory の場面で使う）。
+値を足す slice は、この 2 つの一覧を同じ commit で直す。
+一覧と code（`native/hayamimi/src/notice.rs` の `STAGES` と `REASONS`）を突き合わせる test は R10 が作り（docs だけを読む rp08 と同じ形）、case 行は test-designer の席へ回す（セラが運ぶ）。
+
 hook と guard（`guard_commands.rs` ほか）は開発の安全の gate で、この節に入らない。
 設定の file（置換辞書、ITN の上書き、`/config`）が壊れていれば前の内容を使い、前の内容も無ければ既定の設定で動かして `config.fallback.default` を出す。
 既定の設定の値は `hayamimi config dump` の値と同じである（RP-19）。
