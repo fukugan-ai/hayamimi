@@ -26,7 +26,10 @@ use fixtures::{
     active_pair, cleared_run, fell, final_wire, log_line, names, scene_line, scene_wire, served_of,
     settings, whole,
 };
-use scenes::{CAPTURE_NONE, CAPTURE_SINGLE, CONFIG, LIBRARY, MODEL_SMALLER, SINK, TRANSLATE};
+use scenes::{
+    CAPTURE_NONE, CAPTURE_SINGLE, CONFIG, LIBRARY, LID_DISABLED, MODEL_SMALLER, MODEL_SUBSTITUTE,
+    SECOND_OPINION_DISABLED, SINK, TRANSLATE,
+};
 use support::TestResult;
 
 /// T-RP-29-001
@@ -215,6 +218,53 @@ fn reconnected_client_missing_an_active_fallback_is_named() {
         serde_json::json!({"type": "fallback", "stage": "punct", "to": "cpu"}),
     ];
     assert!(names(check_replay(&stream, &["punct", "vad"]), "vad"));
+}
+
+/// T-RP-29-022
+#[test]
+fn missing_recognizer_tier_is_substituted_and_says_so() -> TestResult {
+    check_resource_fallback(&MODEL_SUBSTITUTE, &fell(&MODEL_SUBSTITUTE), true)?;
+    Ok(())
+}
+
+/// T-RP-29-023
+#[test]
+fn missing_identifier_model_leaves_the_stage_out_and_says_so() -> TestResult {
+    check_resource_fallback(&LID_DISABLED, &fell(&LID_DISABLED), true)?;
+    Ok(())
+}
+
+/// T-RP-29-024
+#[test]
+fn missing_second_opinion_model_turns_it_off_and_says_so() -> TestResult {
+    check_resource_fallback(
+        &SECOND_OPINION_DISABLED,
+        &fell(&SECOND_OPINION_DISABLED),
+        true,
+    )?;
+    Ok(())
+}
+
+/// T-RP-29-025
+#[test]
+fn present_identifier_emits_no_fallback_event() -> TestResult {
+    check_resource_present(&LID_DISABLED, &whole(0))?;
+    check_resource_present(&MODEL_SUBSTITUTE, &whole(0))?;
+    Ok(())
+}
+
+/// T-RP-29-026
+#[test]
+fn silent_identifier_fallback_is_rejected() {
+    let served = served_of(
+        0,
+        String::new(),
+        vec![final_wire(), scene_wire(&LID_DISABLED)],
+    );
+    assert!(names(
+        check_resource_fallback(&LID_DISABLED, &served, true),
+        "lid"
+    ));
 }
 
 /// T-RP-29-021, for the scenes the Japanese route owns.

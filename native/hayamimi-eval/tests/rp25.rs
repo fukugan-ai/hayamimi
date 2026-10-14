@@ -125,6 +125,6 @@ fn held_e_keeps_the_early_translation_as_final() {
 /// (R8e); until then no recorded run exists to read.
 #[test]
 #[ignore = "needs the RP-3 run of the Rust relay (R8e)"]
-fn translation_flicker_is_bounded_in_the_real_run() -> TestResult {
+fn rp25_translation_flicker_is_bounded() -> TestResult {
     Err("the RP-3 run of the Rust relay is not recorded yet".into())
 }

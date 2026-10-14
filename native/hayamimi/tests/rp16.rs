@@ -22,6 +22,9 @@ type GpuStage = (&'static str, &'static str);
 
 /// The GPU stages the Japanese route loads: the punctuation model.
 const LOADED: [GpuStage; 1] = [("punct", "punct_bert.onnx")];
+/// The GPU stages a run that routes by language loads: the punctuation model
+/// and the language identifier (the encoder session stands for the pair).
+const LOADED_ROUTED: [GpuStage; 2] = [("punct", "punct_bert.onnx"), ("lid", "tiny-encoder.onnx")];
 
 /// A run, and the GPU stages it loaded.
 struct Run {
@@ -382,6 +385,75 @@ fn unloaded_gpu_stage_needs_no_fallback_event() -> TestResult {
     assert!(log_events_of(&all, FALLBACK, "lid").is_empty());
     check_no_gpu_run(&run)?;
     Ok(())
+}
+
+// ---- the language identifier ----
+
+/// The same run, read as one that also loaded the language identifier.
+fn routed(run: Run) -> Run {
+    Run {
+        loaded: LOADED_ROUTED.to_vec(),
+        ..run
+    }
+}
+
+fn routed_hidden_stdout() -> String {
+    hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu") + &fallback_line("lid")
+}
+
+fn routed_hidden_wire() -> Vec<Value> {
+    vec![wire_final(), wire_fallback("punct"), wire_fallback("lid")]
+}
+
+/// T-RP-16-018
+#[test]
+fn no_gpu_run_that_also_loads_the_identifier_passes() -> TestResult {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        routed_hidden_wire(),
+    ));
+    check_no_gpu_run(&run)?;
+    Ok(())
+}
+
+/// T-RP-16-019
+#[test]
+fn missing_identifier_fallback_log_event_is_named() {
+    let stdout = hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(run_of(0, &stdout, "nvidia-smi\n", routed_hidden_wire()));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-020
+#[test]
+fn missing_identifier_events_fallback_is_named() {
+    let run = routed(run_of(
+        0,
+        &routed_hidden_stdout(),
+        "nvidia-smi\n",
+        hidden_wire(),
+    ));
+    assert!(names(check_no_gpu_run(&run), "lid"));
+}
+
+/// T-RP-16-021
+#[test]
+fn gpu_present_run_with_the_identifier_on_cuda_passes() -> TestResult {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cuda");
+    check_gpu_run(&routed(visible_run(&stdout, vec![wire_final()])))?;
+    Ok(())
+}
+
+/// T-RP-16-022
+#[test]
+fn gpu_present_run_with_the_identifier_on_cpu_is_rejected() {
+    let stdout =
+        created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cpu");
+    let run = routed(visible_run(&stdout, vec![wire_final()]));
+    assert!(names(check_gpu_run(&run), "lid"));
 }
 
 // ---- real runs ----

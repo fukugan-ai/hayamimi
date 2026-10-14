@@ -144,15 +144,20 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 `hayamimi` の `translation` とは別の port に出し、`hayamimi` 側の形は変えない。
 
 ```
-{"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
  "status":"ok"|"held",
  "hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
  "text":str,"annotations":[{"start":int,"end":int,"text":str}],
  "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
 ```
 
-- `text` は E の応答そのままで、添え書きを差し込まない。
+- `src_sha256` は、訳の元にした原文の文字列の sha256 を小文字の hex で書いた物である（`rust_port.ja.md` 3.1 の `t_tr` が読む）。
+- `stage` は `text` を出した段（T か E）で、`settled` はその訳が確定の訳かどうかである（`rust_port.ja.md` 3.6 の 2）。
+- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は R8d が決める（`rust_port.ja.md` 3.6 の 3）。
+- 確定の `text` は、E の訳が V を通れば E の応答そのまま（`stage: "e"`）、E が V に落ちれば T の草稿と同じ文字列（`stage: "t"`、`settled: true`）である。どちらも添え書きを差し込まない。
   画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
+- `status` が `held` の event の `text` は空の文字列で、`annotations` と `skipped` も空である。止めた訳の文字列は wire に載せない。
 - `start` と `end` は `text` の中の Unicode の文字（scalar value）の位置で、0 から数える。
   `start` から `end` の手前までが、換算の元にした値と単位の表現である。
 - `skipped` は、換算の元になる表現を見つけたが添えなかった物を 1 つずつ持つ。
@@ -162,6 +167,10 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 
 訳は `id` で行に結ぶ。
 直前の行に貼る形では、訳が遅れて次の確定文が先に着くと、訳を別の行に貼るためである。
+
+中継は同じ port に、外の送り先の `fallback` の event も出す（`rust_port.ja.md` 3.15 の外の送り先の行）。
+送り先に届かなくなった時に `{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}` を、届くようになった時に `{"type":"fallback","stage":"sink","to":null}` を 1 回ずつ出す。
+効いている `fallback` は取っておき、遅れて接続した client に最初に送る。
 
 ### 3.4 翻訳の 3 段
 
@@ -580,7 +589,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CS-22 | 訳が遅れても別の行に付かない | 偽の翻訳器で 1 行目だけ 1200 ms 遅らせ `cargo test --release --test cs22` | 1 行目の訳が 1 行目の `id` に付く | 遅れの無い run | 直前の行に貼る作り |
 | CS-23 | 実マイクの経路（入力の装置が在るときだけ） | `Get-PnpDevice -Class AudioEndpoint` で入力が 1 個以上を確かめ、マイクで日本語を話して CS-2 の test を打つ | CS-2 と同じ | 入力の装置の数 | 0 個のときは test を打たず「前提なし」と出す |
 | CS-24 | V が正しい訳を誤って止めない | `<relay> eval --final --heldout <path> --verify-refs` | held-out の原文と参照訳の 80 組で STOP が 0。落ちたら行の id と件数だけを出す | 調整用 40 組でも 0 | CS-4a の 4 行は STOP する |
-| CS-25 | 3 段がこの順に 1 回ずつ走る | `cargo test --release --test cs25` | 偽の llama-server が受けた依頼が T、E の順に 1 本ずつで、E の依頼に T の訳が入る。V の呼び出しが 1 回で、渡された訳が E の応答と同じ。換算は V の後 | 正しい順の run | V を T の訳に掛ける作り、換算を V の前に置く作り |
+| CS-25 | 3 段がこの順に走る | `cargo test --release --test cs25` | 偽の llama-server が受けた依頼が T、E の順に 1 本ずつで、E の依頼に T の訳が入る。V は T の応答に 1 回、E の応答に 1 回の多くて 2 回で、同じ訳には 2 回掛けない（`rust_port.ja.md` の 3.6 の 1）。E の応答に掛けた V に渡された訳が E の応答と同じ。換算は確定の訳を決めた V の後 | 正しい順の run | V を T の訳に掛ける作り、換算を V の前に置く作り |
 | CS-26 | E が英訳を自然にする | `<relay> eval --final --heldout <path> --direction ja-en` | 直訳の型に当たる行の数が、E の訳で T の訳以下。形の欠けが 0 | 調整用で同じ数が出る | E を素通しにした build で、型の表を 1 語足した行が残る |
 | CS-27 | E が和訳を和文の型に合わせる | `<relay> eval --final --heldout <path> --direction en-ja` | E の訳で、敬体と常体が混ざる行が 0、和文の型の表に当たる行が 0 | 調整用で同じ数が出る | 常体の行を混ぜた偽の E の応答で落ちる |
 | CS-28 | token と link の file の権限と、log に出ないこと | `cargo test --release --test cs28 -- --ignored`（`icacls %APPDATA%\hayamimi\send.toml` を読む） | ACL が今の利用者、SYSTEM、Administrators だけ。試しの token の文字列が、中継の 10 分の log に 0 件 | 同じ test が `send.toml` に試しの token が在ることを数える | Users に読みを足すと `send.config.too_open` を出して送信を止める |
@@ -807,7 +816,7 @@ V に渡った文字列は、V の入口を見張る test の部品が控える�
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-CX-1-001 | src `I paid $100.`、E の応答 `私は100ドル払いました。` | ja の読み手の通貨 | 一致 | `status` = `ok`、`annotations` が 1 件、その注釈 = `（約 15,900 円、10/12 の値）`。式：100 × 177.33 / 1.1181 = 15859.94、3 桁で 15,900（pseudo、awk）（specified、6.2） | 陽性 | `ja_dollar_annotation_text` |
-| T-CX-1-002 | 001 の run で V に渡った文字列と呼び出しの順 | 照合の入力 | 一致 | V に渡った文字列 = `私は100ドル払いました。`（E の応答と同じ）。`（`、`(`、`約`、`15,900`、`10/12` を含まない。V の呼び出し 1 回で、換算はその後（specified、3.11 と 6.2） | 陽性 | `verify_receives_the_translation_without_annotation` |
+| T-CX-1-002 | src `I paid $100.`、偽の応答は T と E の 2 本。run A：T = `私は100ドルを払いました。`、E = `私は100ドル払いました。`（T の訳が V を通る）。run B：T = `私は200ドルを払いました。`、E = A と同じ（T の訳が数で V に外れる）。観測するのは、V に渡った文字列（T の応答は `draft_verify_input`、E の応答は `verify_input`）と stage の並び。陰性の入力は stage の並びの値 4 つ：`[Translate, VerifyDraft, Edit, Verify, Verify, Annotate]`、`[Translate, Edit, Verify, Annotate]`、`[Translate, VerifyDraft, Edit, Annotate, Verify]`、V に渡った文字列が同じ 2 本 | V に掛かる訳の数。run A（T も E も通る）と run B（T だけ外れる）を代表にする。どちらも V は T の応答と E の応答に掛かり、通ったかどうかで回数は変わらない。T の応答に `</s>` が在る run は CS-8、E が外れる run は 006 が持つので、この行に入れない | V の回数 2 回（上側の境界 = 3 回が `Err`、下側の境界 = 1 回も `Err`） | run A と run B のどちらでも、(1) V に渡った文字列が [T の応答, E の応答] の順で、A = [`私は100ドルを払いました。`, `私は100ドル払いました。`]、B = [`私は200ドルを払いました。`, `私は100ドル払いました。`]（specified、偽の応答に書いた文字列そのもの）。(2) 2 本とも `（`、`(`、`約`、`15,900`、`10/12` を含まず、2 本は違う文字列（同じ訳に 2 回は掛けない）。(3) `VerifyDraft` と `Verify` が 1 回ずつで V は計 2 回、`Annotate` は 2 回目の V の後で、確定の訳 = E の応答に `annotations` が 1 件（specified、3.4、3.11、6.2 の CX-1 と CS-25）。陰性：`check_v_calls_are_one_per_translation_and_before_annotation` が、run A の stage の並びで `Ok`、入力の 4 つ（3 回、T の V 無し、換算が V の前、同じ文字列の 2 回）で全部 `Err`（pseudo、規則を別に書いた検査） | 陽性と陰性 | 陽性：`verify_receives_each_translation_once_without_annotation`。陰性：`a_third_v_call_or_a_note_before_v_is_refused_by_the_check` |
 | T-CX-1-003 | fixture `cx01_verify_input_annotated.txt`：`私は100ドル（約 15,900 円、10/12 の値）払いました。` | 換算を V の前に置いた順 | `Err` | `check_verify_input_is_unannotated` が `Err`（`（` を含む）。002 の文字列では `Ok`（specified） | 陰性 | `annotation_before_verify_is_rejected_by_the_check` |
 | T-CX-1-004 | src `I paid $100.`、訳 003 の fixture の文字列を V へ | 換算を V の前に置くと V が止める | `held` | `held`。src の値 {100}、訳の値 {100, 15900, 10, 12} で多重集合が違う（derived、3.4 の数）。`hold_reason` は問わない | 陰性 | `annotated_text_would_make_verify_hold` |
 | T-CX-1-005 | src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | en の読み手の通貨、位置 | 一致 | 注釈 = `(about $31,500, rate of Oct 12)`、`end` = 30。式：5,000,000 / 177.33 × 1.1181 = 31525.97、3 桁で 31,500。`The budget is five million yen` は 30 文字（`printf '%s' … \| wc -c` = 30）（pseudo）（specified、3.11 の表） | 陽性 | `en_annotation_text_and_end` |
