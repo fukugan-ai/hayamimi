@@ -254,8 +254,10 @@ mod tests {
                 .contains("content-type: text/event-stream"),
             "{head}"
         );
+        wait_until_subscribed(&hub)?;
         hub.publish(r#"{"type":"translation","id":"mic-1"}"#);
-        let body = read_until(&mut stream, "mic-1")?;
+        // The frame may arrive in pieces; read to its blank-line end.
+        let body = read_until(&mut stream, "\n\n")?;
         assert!(
             body.contains("data: {\"type\":\"translation\",\"id\":\"mic-1\"}\n\n"),
             "{body}"
