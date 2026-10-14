@@ -180,7 +180,7 @@ fn partial_only_utterance_is_left_out_of_the_first_partial_p95() -> TestResult {
 /// T-RP-5-011
 #[test]
 fn partial_only_and_neither_utterances_are_counted_separately() -> TestResult {
-    let found = tally(&partial_without_final()?);
+    let found = tally(&partial_without_final()?).map_err(|fault| format!("{fault:?}"))?;
     assert_eq!(
         found,
         Tally {
@@ -201,11 +201,11 @@ fn counter_reads_zero_partial_only_utterances_when_there_are_none() -> TestResul
     assert_eq!(run.len(), 5);
     assert_eq!(
         tally(&run),
-        Tally {
+        Ok(Tally {
             with_final: 3,
             partial_only: 0,
             neither: 2
-        }
+        })
     );
     assert_eq!(check_first_partial(&run, &run), Ok(()));
     Ok(())

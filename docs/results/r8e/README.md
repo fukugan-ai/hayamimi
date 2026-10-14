@@ -32,7 +32,10 @@ Python 以下という RP-3 の合否は、どちらの run でも満たして�
 ## RP-5（速報）
 
 `rust_partials_arrive_no_later_than_python` は落ちる。
-最初の `partial` の遅れの p95 は Rust 4398 ms、Python 3776 ms。
+比べた Python の基準は `rp05.rs` が読む `--min-silence 0.35` の run（`lat_ja_0.35_1.jsonl`、`final` を持つ発話 103 件）で、Rust の run は 0.30 である。
+最初の `partial` の遅れの p95 は Rust 4398 ms（`jq` で数えた nearest-rank では 4397 ms）、Python 3776 ms（同 3775 ms）。
+`--min-silence 0.30` の Python の run（`lat_ja_0.30_1.jsonl`、101 件）の p95 は 3751 ms で、どちらの基準でも Rust は負ける。
+最初の `partial` の遅れは `--min-silence` に依らず、0.35 を基準にしても結論は変わらない。
 p50 は 1912 ms 対 1870 ms でほぼ同じで、遅い側の 5 件（発話 17 の 5 回）は両方に在る（Rust 4397〜4445 ms、Python 4471〜4573 ms）。
 p95 の位置が分かれるのは母数が違うからである。
 `final` を持つ発話が Rust 93、Python 103 で、Rust は発話 11、12、13、18、22 が `final` を持たない回が在る（Python は 10、18、19）。
@@ -67,7 +70,7 @@ p95 の位置が分かれるのは母数が違うからである。
 |---|---|
 | Windows の置き場（`%LOCALAPPDATA%\hayamimi\llama`） | 入っているのは b11609。GitHub の release の一覧（`/releases?per_page=1`）の先頭も b11609 で、3 つの zip の size と sha256 が release の digest と一致した。入れ替える物が無い |
 | WSL の llama.cpp | b11577 から b11628（`a1361c790`）へ上げた。`cmake --build build-cuda120 --config Release -j 4` |
-| 前の build | tar に控えた（`build-cuda120` と HEAD `ec483d3f3`）。戻すには build の directory を消して tar を展開し、`git checkout ec483d3f3` を打つ |
+| 前の build | tar に控えた（`build-cuda120` と HEAD `ec483d3f3`）。戻し方は `docs/guide/run_hayamimi.ja.md` の「WSL の llama.cpp を戻す」 |
 | 打ち直し | RP-16 の訳の行（`rp16` の translate 14 本と `visible_gpu` の 2 本）と CS-20 の 001〜004 が通る。CS-20 の 005 は `wsl --shutdown` を伴うので打っていない |
 
 ## RP-29 の port の場面

@@ -198,6 +198,37 @@ GPU の memory は、同じ間に `nvidia-smi --query-gpu=memory.used --format=c
 H6 と `cache_prompt` は `cargo test --release -p hayamimi-relay --test r8e_server -- --ignored` です（server を起こしたまま打ちます）。
 結果は `docs/results/r8e/README.md` です。
 
+## WSL の llama.cpp を戻す
+
+WSL の llama.cpp を b11577 から b11628 へ上げた時、前の build を tar に控えました。
+`<backup>` は、作業 directory と別の木に置いた backup の directory です。
+`<llama.cpp>` は WSL の llama.cpp の checkout です。
+
+| 物 | 置き場 |
+|---|---|
+| 前の build | `<backup>/llama-cpp-b11577-build-cuda120-20261014.tar`（tar の中は `build-cuda120/`。symlink を含むので、symlink を作れない file system には展開しません） |
+| 前の checkout の commit | `<backup>/llama-cpp-b11577-build-cuda120-20261014.HEAD`（`ec483d3f3`） |
+
+戻す前に、translation server の unit を止めます。
+
+```bash
+systemctl --user stop 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+cd <llama.cpp>
+mv build-cuda120 build-cuda120.b11628
+tar -xf <backup>/llama-cpp-b11577-build-cuda120-20261014.tar
+git checkout "$(cat <backup>/llama-cpp-b11577-build-cuda120-20261014.HEAD)"
+```
+
+確かめます。`/props` の `build_info` が `b11577` で始まれば戻っています。
+
+```bash
+systemctl --user start 'llama-artisan@CAT-Translate-3.3b-Q8_0.service'
+curl -s http://127.0.0.1:8080/props | jq -r .build_info
+```
+
+戻したら、`build-cuda120.b11628` は不要になった時に消します。
+上げ直すには `git pull --rebase` の後に `cmake --build build-cuda120 --config Release` を打ちます。
+
 ## 戻し方
 
 `native/Cargo.toml` の `members` から `hayamimi` と `hayamimi-asr` を外し、2 つの directory を消すと、この slice の前の形に戻ります。

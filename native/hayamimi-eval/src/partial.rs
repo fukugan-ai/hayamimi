@@ -19,6 +19,8 @@ pub enum Fault {
     /// An utterance's first translation of the text in progress came at or
     /// after the translation of its `final`.
     NotBeforeTranslation { repeat: u32, utt: u32 },
+    /// The counts of the kinds of utterance do not fit the run's length.
+    MiscountedUtterances,
 }
 
 /// `t_partial - t_start` of every utterance that had a `final` and a
@@ -42,18 +44,27 @@ pub struct Tally {
     pub neither: usize,
 }
 
+/// The utterances that are in neither of the two counted kinds, or `None`
+/// when the two counts exceed the run's length.
+fn neither_of(total: usize, with_final: usize, partial_only: usize) -> Option<usize> {
+    total.checked_sub(with_final)?.checked_sub(partial_only)
+}
+
 /// Counts the utterances of each kind; the three add up to the run's length.
-pub fn tally(samples: &[Sample]) -> Tally {
+/// Counts that do not fit the length are `Fault::MiscountedUtterances`.
+pub fn tally(samples: &[Sample]) -> Result<Tally, Fault> {
     let with_final = samples.iter().filter(|s| s.t_final_us.is_some()).count();
     let partial_only = samples
         .iter()
         .filter(|s| s.t_final_us.is_none() && s.t_partial_us.is_some())
         .count();
-    Tally {
+    let neither = neither_of(samples.len(), with_final, partial_only)
+        .ok_or(Fault::MiscountedUtterances)?;
+    Ok(Tally {
         with_final,
         partial_only,
-        neither: samples.len() - with_final - partial_only,
-    }
+        neither,
+    })
 }
 
 fn stat_of_first_partials(samples: &[Sample]) -> Result<Stat, Fault> {
@@ -121,6 +132,15 @@ mod tests {
             cer_dist: 0,
             cer_denom: 0,
         }
+    }
+
+    #[test]
+    fn counts_that_exceed_the_length_are_not_wrapped() {
+        assert_eq!(neither_of(5, 3, 2), Some(0));
+        assert_eq!(neither_of(5, 3, 1), Some(1));
+        assert_eq!(neither_of(5, 4, 2), None);
+        assert_eq!(neither_of(2, 3, 0), None);
+        assert_eq!(tally(&[]), Ok(Tally { with_final: 0, partial_only: 0, neither: 0 }));
     }
 
     #[test]
