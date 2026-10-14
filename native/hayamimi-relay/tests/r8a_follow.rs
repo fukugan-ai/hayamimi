@@ -133,7 +133,8 @@ fn r8a_a_line_that_is_not_translated_is_only_noted() -> TestResult {
 }
 
 /// What the relay publishes is JSON with the type `translation`, and it
-/// carries the digest of the text it translated.
+/// carries the digest of the text it translated, the pass its text comes from
+/// and whether it is the settled one. A `refine` line is published once.
 #[test]
 fn r8a_the_published_translation_has_the_wire_form_of_the_design() -> TestResult {
     let recognizer = FakeRecognizer::start()?;
@@ -153,6 +154,8 @@ fn r8a_the_published_translation_has_the_wire_form_of_the_design() -> TestResult
         "src_sha256": line.digest(),
         "status": "ok",
         "hold_reason": null,
+        "stage": "e",
+        "settled": true,
         "text": line.translated(),
         "annotations": [],
         "skipped": [],

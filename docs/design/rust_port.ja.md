@@ -99,7 +99,7 @@ Parakeet v3 と parakeet-ja（tdt_ctc 0.6b ja）は int8 版しか見つから�
 | md 以外（Dart、TS、Rust、yml、toml、json）の `scripts/*.py` | 52 件、38 file。大半は mobile の Dart が「どの Python から写したか」を書いた comment | 3.9 の表で仕分ける |
 | 字幕の event の wire 形式 | event の型 13 種（`grep -ohE '"type": *"[a-z_]+"' scripts/*.py`）。HTTP の route は `/events`、`/dashboard`、`/transcript`、`/replacements`、`/itn_overrides`、`/config`、`/reset`、`/` の 8 本。`/ingest` の WebSocket | Rust でも同じ形を出す（RP-12）。読む者は mobile の `remote_event.dart` ほか、`demo/remotion` の `timeline.ts`、`docs/guide/embedding*.md`、訳の中継 |
 | CI | `.github/workflows/test.yml` が `pip install` と `pytest tests` を打つ | R11 で cargo に替える |
-| 会話字幕の設計 `conversation_subtitles.ja.md` | 認識を Python に残す決め、chrF を Rust で書かない決め、V を 1 回とする決め、llama-server を WSL に置く決め、gnu の target、`<relay>` の path、CS-3 と CS-20 | この文書と同じ手番で書き替えた。残る 1 件（slice 1 の case 行 T-CX-1-002）は R8c で test-designer が書き替える（会話字幕の H16） |
+| 会話字幕の設計 `conversation_subtitles.ja.md` | 認識を Python に残す決め、chrF を Rust で書かない決め、V を 1 回とする決め、llama-server を WSL に置く決め、gnu の target、`<relay>` の path、CS-3 と CS-20 | 書き替えた。slice 1 の case 行 T-CX-1-002 も、V が T の訳と E の訳に 1 回ずつの形に書き替えてある（会話字幕の設計 7.8） |
 | `docs/design/goals.md` | 実行環境の行、GPU の名前、候補アプローチの見出し、残課題の GPU の行 | この文書と同じ手番で書き替えた |
 | `README.md` の 5 行目、`README.ja.md` の 5 行目と 15 行目（CPU だけで動くという売り） | 3 行 | R10 で `readme-writing.md` の工程で書き替える |
 | `state.json` の `constraints` の「Rust への移植は速度が足りないと測れたときだけ」 | 1 行 | この文書の目標と食い違う。state.json を書く席（セラ）が直す（10 の H22） |
@@ -374,6 +374,16 @@ T と E を直列に待つと、訳の遅れはその 2 倍になる。
 4. **揺れを数える**：1 つの発話について、字幕に出た訳の文字列が変わった回数と、一度確定した字形で描いた接頭辞が後で消えた回数を数える（RP-25）。速度のために先に出す形が、読む人に揺れとして見える量を測るためである。
 5. **並べて走らせる物**：llama-server の slot を 4 にする（mic の確定、loopback の確定、速報、E）。認識（ORT）と訳（llama.cpp）は同じ GPU を時間で分け合う。負荷の下での `L` は RP-3 で測る。
 6. **llama-server の置き場**：Windows の native の CUDA 版に置く（会話字幕の設計 3.7）。model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置き、正本の WSL の `/mnt/h3-models` から写す（2.3。Windows から直に読めないため）。写した file の sha256 を同じ directory の `manifest.json` に記録する（記録で、起動の条件にしない）。hooks の `guard_commands.rs` は、`llama-` で始まる実行 file の名前を含む command を WSL の build の鮮度で refuse する（`problems` の中の `LLAMA_EXECUTABLE` の検査）。Windows の llama-server は PowerShell から起こし、WSL の shell からは起こさない（10 の H20）。
+
+**訳の依頼の形**：中継は T と E を llama-server の `/v1/chat/completions` に、user の message 1 つ（T は model card の形「Translate the following {Japanese|English} text into {English|Japanese}.\n\n{原文}」）で頼み、`temperature` 0、`stop: ["</s>"]`、`cache_prompt: true` を付ける（S14）。
+chat template は llama-server が GGUF の metadata から当てる。
+`/completion` に平文の `prompt` を渡す形を採らないのは、model の chat template（`<|user|>`、`<|assistant|>` の語）が入らず、CAT-Translate を測った probe（`testdata/probe1_cat-translate-3.3b.log`、`/v1/chat/completions` で測った）と違う入力を model に渡すからである。
+中継が template を自分で組む形も採らない。model を替えるたびに template を写し直すことになり、写し違いを見つける手段が無いからである。
+template の token の数は 2 つの形で同じなので、1 行の訳の遅れは変わらない。
+`/v1/chat/completions` が `cache_prompt` と `stop` を受けることは README の `/completion` の節の記述からの読みで、確かめていない（NOT VERIFIED。T-CS-8-001 と 002 の body の検査と、R8d の速報の訳の `cache_prompt` の測りで確かめる）。
+持ち主は R8c の直しで、R8e が `L` を測る前に入れる。
+受入は同じ llama-server で、probe1 の 41 行の原文を中継の T に流した訳の文字列が、同じ server に `curl` で `/v1/chat/completions` を同じ body で打った訳と全行で同じであることとする（陽性対照は `curl` の側が probe1 の log の出力と同じであること。llama.cpp の版が probe の時と違うと、そこが割れることがあるので、割れた行は数を記録し、合否は中継と `curl` の一致で決める）。
+陰性対照は、今の形（`/completion` に平文の `prompt`）で同じ 41 行を流し、`curl` と違う行が 1 行以上出ることである（0 行なら、この受入は 2 つの形を見分けていないので、行を足して打ち直す）。
 
 `--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、同じ言語モデルの T で訳す。
 品質は FLEURS の chrF で、今の値（en 47.57、zh 20.19、ko 25.20、es 42.09）以上を RP-13 で測る。
@@ -744,11 +754,13 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R7 | 認識の遅れの詰め。R1 で遅いと分かった段を直す。3.5 の CPU の時間は 1 stream で測った値で、mic と loopback の 2 音源同時の CPU は未測定なので、2 音源を同時に流した CPU の段の p50 と p95 を測る。認識は 2 音源同時で GPU（fp32）と CPU（同じ fp32 と int8）を測り直し、CPU の側が GPU より遅くなれば 3.5 の置き場を評議へ戻す。認識全体の cuda の時間のうち encoder 以外の約 99 ms の内訳を調べる（10 の H31） | RP-4、RP-7 | 設定と commit を revert |
 | R8a | 中継が Rust の `hayamimi` の `/events` を購読する（3.3 の 5 項目と `src_sha256`）。5 項目を `hayamimi` の確定文の event に足す。`<ev> stream` が中継の SSE の訳も読む | 会話字幕の CS-21、CS-22 | 中継の購読先を戻す |
 | R8b | llama-server を Windows の native に置く（`%LOCALAPPDATA%\hayamimi\models\llm\`、slot 4）。起こす側が 3.11 の確かめを打ち、GPU が無ければ `-ngl 0` か CPU の build で起こし、`gpu.fallback.cpu`（`stage` が `translate`）を出す。llama-server に届かないときは訳を保留して原文を出し続ける（3.15） | 会話字幕の CS-20、RP-16 の訳の行、RP-29 の R8b の行。Windows の CUDA 13.4 の llama-server で T を測り直し、`gpu_stages.md` の T の行を置き換える（RP-23 の T の行の形） | WSL の llama-server に戻す |
-| R8c | T の訳を先に出し、E の訳で置き換え、確定の訳だけを外へ出す。外の送り先に届かないときは SRT と重ね窓に残す（3.15）。会話字幕の T-CX-1-002 を test-designer が書き替える | RP-25、会話字幕の CS-5、CS-25、RP-29 の R8c の行 | 中継の commit を revert |
+| R8c | T の訳を先に出し、E の訳で置き換え、確定の訳だけを外へ出す。外へ出す口は、確定の訳（`settled: true`）だけを受ける送り先の trait 1 つにし、Zoom、Teams、SRT の中身は R8g が作る。外の送り先に届かないときは SRT と重ね窓に残す（3.15）。会話字幕の T-CX-1-002 は test-designer（sonnet）の席を R8c と同じ時に出して書き替え、R8c の検証の前に入れる（V に渡る文字列は E の応答で、V は T の応答と E の応答に 1 回ずつ、多くて 2 回）。wire の文書（会話字幕の設計 3.3）と実装の差は、R8c が差の一覧を返し、設計の席が同じ波の検証の前に 3.3 を直す | RP-25、会話字幕の CS-5、CS-25、RP-29 の R8c の行 | 中継の commit を revert |
 | R8d | 速報の訳（re-translation、最長共通接頭辞、打ち切り、`cache_prompt`） | RP-5、RP-25 | 設定で速報の訳を切る |
 | R8e | 4 つの slot と負荷の下の `L`。CPU に落ちた run の `L` を測り、RP-28 の仮の上限を置き直す | RP-3、RP-28 | slot の数を戻す |
 | R8f | `--translate` の言語を llama-server の T で訳す | RP-13 | commit を revert |
-| R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-14、RP-19 の spec の行 | 文書の commit を revert |
+| R8g | 外の送り先の中身。R8c の送り先の trait に、Zoom の字幕 API、Teams の CART、SRT の書き出し（会話字幕の設計 3.10 と 3.13）を足す。指定は中継の `hayamimi-relay live --send <send.toml>`（Zoom の token と Teams の link）と `--srt <path>` で、どちらも無ければ送らずに動く。token か link が手元に無い機械では CS-17 と CS-18 を打たずに残る穴にする（state.json の `blocked_on` と同じ）。動画から SRT を作る `<relay> srt <mp4>`（会話字幕の設計 3.13）と、`send.toml` の権限の検査と token を log に出さないこと（CS-28）も R8g が作る。どれも E2E には要らない（E2E は mic と loopback の 2 本で、送り先と動画を使わない） | 会話字幕の CS-14、CS-15、CS-17、CS-18（token か link が在るときだけ）、CS-28、RP-29 の R8c の行（送り先に届かないとき） | commit を revert |
+| R0b | worktree に `testdata/` が無いとき、test の support が本体の `testdata/` を引く。`hayamimi-eval` の `tests/support/mod.rs` の `BASE` と `TESTDATA` を、まず `CARGO_MANIFEST_DIR` の 2 つ上の `testdata`、無ければ `git rev-parse --path-format=absolute --git-common-dir` の親の `testdata` の順で探す関数にする。両方に無ければ、探した 2 つの path を名指しして `Err` を返す（黙って通さない）。symlink は使わない（Windows から WSL の symlink を辿れない。RP-24 の os error 1920） | worktree の中で `cargo test -p hayamimi-eval --test rb01 … --test rb08` の FAILED が 0。陰性対照は、本体にも worktree にも `testdata/` が無い clone で、2 つの path を名指しした `Err` で落ちる | commit を revert |
+| R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。`docs/guide/embedding.md` と `embedding.ja.md` の wire の記述を、その時の実装（3.3 の項目、`settled`、`of: "partial"`、`speaker` の event）に合わせる。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-14、RP-19 の spec の行 | 文書の commit を revert |
 | R11 | 3.2 の 3 つの条件を確かめてから、Python の 78 本と `requirements*.txt` を消し、CI を cargo に替え、Dart の comment を書き替える | RP-9、RP-19 | R11 の commit を revert |
 
 R0 で Python を動かすのは、置き換える前の物の速さと誤り率を同じ機械で測るためで、Python の file は 1 行も書かない。
@@ -788,6 +800,8 @@ R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
 | R8d | R8a と R5 の速報の event | 8 の R8d の行 |
 | R8e | R5 の `/ingest`、R8a〜R8d、R8b | RP-3 の command（6）が `/ingest` と中継の訳を読む |
 | R8f | R8b の llama-server。中継の `eval` は R8f が足す | RP-13 の command（6） |
+| R8g | R8c の送り先の trait。E2E には要らない（E2E は中継の SSE と頁で字幕を読む） | 8 の R8c と R8g の行 |
+| R0b | 無し。worktree の席の rb01〜rb08 を通すので、空いた席ですぐ打つ | `native/hayamimi-eval/tests/support/mod.rs:23` と `:25` が `CARGO_MANIFEST_DIR` の 2 つ上の `testdata` だけを見る |
 | R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
 | R11 | RP-1（R3）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
 | 端から端 | R3（`--lang`）、R5（取り込み）、R8a〜R8c、R6 の頁 | この小節の E2E-1 と E2E-2 |
@@ -795,16 +809,18 @@ R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
 R3 は 2 席に分ける。R3a は振り分け（`hayamimi-asr::route` と `::lid`、RP-19 の `route.rs` 70 行と `lid.rs` 9 行）、R3b は認識器と常駐（`::decode` と `::resident`、`decode.rs` 24 行、`hayamimi-eval scorecard`、RP-22）である。
 R3a は R3b の `decode` を、言語の tier を受けて文字列を返す 1 つの関数として呼び、R3b が出来るまでは test の中の偽の関数で通す。
 
+実装の席は `docs/design/status.md` と `status.ja.md` を書かない。slice を main へ merge した時に、設計の席がその slice の行の 4 列（状態、merge の commit、検証の出所、受入の通過）を英語版と日本語版の両方で書く（branch と main の間で status がぶつかるのを避けるため）。
+
 **波**：
 
 | 波 | 時間（JST） | slice | 見積り |
 |---|---|---|---|
 | W0 | 13:30〜14:00 | 設計の席：`gpu_stages.md` の引用の打ち直し（済み）、この計画、R3 の着手の 4 件。designer の席を出す | 0.5 時間 |
-| W1 | 14:00〜20:00 | R3a、R3b、R4、R5、R8a | 各 4〜6 時間 |
+| W1 | 14:00〜20:00 | R3a、R3b、R4、R5、R8a。R3a の merge で空いた席に R0b（0.5 時間） | 各 4〜6 時間 |
 | V1 | 20:00〜21:00 | 検証と merge（順は R8a、R4、R3b、R3a、R5。`args.rs` を足す席が後ろ） | 1 時間 |
 | W2 | 21:00〜01:00 | R6、R7、R8b、R8c、R8d | 各 3〜4 時間 |
 | V2 | 01:00〜01:45 | 検証と merge | 0.75 時間 |
-| W3 | 01:45〜04:15 | R8e、R8f、R10 | 各 2.5 時間 |
+| W3 | 01:45〜04:15 | R8e、R8f、R8g、R10 | 各 2.5 時間 |
 | V3 | 04:15〜04:45 | 検証と merge | 0.5 時間 |
 | W4 | 04:45〜05:45 | R11 | 1 時間 |
 | E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95 | 1 時間 |
@@ -926,7 +942,7 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S11 | sherpa-onnx の C の API：`SherpaOnnxAcceptWaveformOffline(stream, sample_rate, const float *samples, n)`、`SherpaOnnxVoiceActivityDetectorAcceptWaveform(p, const float *samples, n)`、`SherpaOnnxOfflineModelConfig` の `provider`（`"cpu"` か `"cuda"`） | https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/sherpa-onnx/c-api/c-api.h |
 | S12 | sherpa-onnx の issue 878：TTS で CPU の方が速く、保守者は GPU の warmup と転送の手間を挙げた | 別の席の転記。https://github.com/k2-fsa/sherpa-onnx/issues/878 |
 | S13 | sherpa-onnx の GPU の build：`cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DSHERPA_ONNX_ENABLE_GPU=ON ..`、事前に入れた ORT は `SHERPA_ONNXRUNTIME_LIB_DIR` と `SHERPA_ONNXRUNTIME_INCLUDE_DIR` で渡す | https://k2-fsa.github.io/sherpa/onnx/install/linux.html |
-| S14 | llama-server の `/completion` は `prompt` に文字列か token の id を受け、`stop` を受ける | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
+| S14 | llama-server の `/v1/chat/completions` は、model の metadata の chat template を当てて message を model に渡す（`--chat-template` の既定は model の metadata、`--jinja` は既定で有効）。`/completion` は `prompt` に文字列か token の id を受け、`stop` と `cache_prompt` を受け、`/completion` に固有の項目は chat の endpoint でも受けると書かれている | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
 | S15 | 別の席の調べの転記：llama.cpp の release に win の CUDA 13 の build、`ort` の配布の binary は CUDA 13.2 以上と cuDNN 9.23 以上、TensorRT の初回は cache なしで 384 秒、end-to-end の model（Whisper translate、SeamlessStreaming、Canary、Parakeet、Riva）が使えない理由 | web-researcher の席の報告（2026-10-13、セラ経由の転送） |
 | S16 | sherpa-onnx v1.13.8 の cmake：`onnxruntime-win-x64-gpu.cmake` の 22 行目が「Requires cuda 12.x, cudnn 9.x」、23 行目が Microsoft の `onnxruntime-win-x64-gpu_cuda12-1.28.2.zip` を指す。`onnxruntime-linux-x86_64-gpu.cmake` の 22 行目が「Requires CUDA 12, cudnn 9」、23 行目が保守者の `onnxruntime-linux-x64-gpu_cuda12-1.28.2-patched.zip` を指す。`onnxruntime.cmake` の 156〜178 行目は、`SHERPA_ONNXRUNTIME_INCLUDE_DIR` と `SHERPA_ONNXRUNTIME_LIB_DIR` が在ればその `onnxruntime.dll` と `onnxruntime.lib` を使う。ORT v1.28.2 の Windows の GPU の asset は `onnxruntime-win-x64-gpu_cuda12-1.28.2.zip` と `onnxruntime-win-x64-gpu_cuda13-1.28.2.zip` の 2 つ。保守者の `csukuangfj/onnxruntime-libs` の v1.28.2 に `onnxruntime-linux-x64-gpu_cuda13-1.28.2-patched.zip` が在る | https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime-win-x64-gpu.cmake 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime-linux-x86_64-gpu.cmake 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/cmake/onnxruntime.cmake 、https://api.github.com/repos/microsoft/onnxruntime/releases/tags/v1.28.2 、https://api.github.com/repos/csukuangfj/onnxruntime-libs/releases/tags/v1.28.2 |
 | S17 | llama.cpp の release b11583（2026-10-13T09:34Z）の Windows の CUDA の build は `llama-b11583-bin-win-cuda-12.4-x64.zip`、`llama-b11583-bin-win-cuda-13.4-x64.zip`、`cudart-llama-bin-win-cuda-12.4-x64.zip`、`cudart-llama-bin-win-cuda-13.4-x64.zip` ほか。`sm_120` を持つ最初の CUDA が 12.8 であることは NVIDIA の CUDA 12.8 の release notes による（この席は原典を開いていない。転記） | https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=5 |

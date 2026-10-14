@@ -12,6 +12,7 @@ pub mod der;
 pub mod der_run;
 pub mod error;
 pub mod fleurs;
+pub mod flicker;
 pub mod gpu_memory;
 pub mod gpu_nodes;
 pub mod gpu_results;

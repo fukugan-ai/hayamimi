@@ -97,7 +97,7 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 | S2 | Zoom で外部の字幕を送るには、host が web の設定で caption API token を許し、会議中に host が token を写して渡す。token は会議が続く間だけ有効 | https://support.cmts.jhu.edu/hc/en-us/articles/40888716745997-Setting-Up-Closed-Captioning-in-Zoom-Using-a-Third-Party-Captioning-Service 、https://live.maestra.ai/help/zoom （第三者の手引き） |
 | S3 | Teams の CART 字幕は、主催者が会議の option で「Provide CART Captions」を入れて link を作り、字幕者へ渡す | https://support.microsoft.com/en-US/teams/meetings-events/use-cart-captions-in-a-microsoft-teams-meeting-human-generated-captions |
 | S4 | ECB のユーロ参照為替は、TARGET の休業日を除く毎営業日の 16:00 CET ごろに更新される。JPY、USD、GBP、CAD、AUD を含む。情報のための値で、取引への使用は勧めない。2026-10-12 の値は USD 1.1181、JPY 177.33。日次の file は `https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml` | https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html |
-| S5 | llama-server の `/completion` は `stop`（止める文字列の配列）を受け、止めた文字列を出力から除く。`-np` は slot の数 | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
+| S5 | llama-server の `/completion` は `stop`（止める文字列の配列）を受け、止めた文字列を出力から除く。`-np` は slot の数。中継は `/v1/chat/completions` で頼み、model の chat template を server に当てさせる（`rust_port.ja.md` 3.6 の「訳の依頼の形」） | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
 | S6 | 字形の file：cinecaption 2.28（`cinecaption2.28.ttf`）と UDEV Gothic v2.2.0（`UDEVGothic35-Regular.ttf` ほか）。配布条件は cinecaption が無料、改造禁止、再配布自由、UDEV Gothic が OFL 1.1 | `%USERPROFILE%\hayamimi_fonts\` の 2 つの zip（`unzip -l` で確かめた）。配布条件は `state.json` の `fonts` の転記 |
 | S7 | 換算の係数：mile 1609.344 m、ft 0.3048 m、in 0.0254 m、yd 0.9144 m、sq ft 0.09290304 m²、英ガロン 4.54609 L、°C = (°F − 32)/1.8 は厳密値。lb 0.4535924 kg、oz 28.34952 g、米ガロン 3.785412 L、米 fl oz 29.57353 mL、英 fl oz 28.41306 mL、acre 4046.873 m²（米測量 ft） | https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors/nist-guide-si-appendix-b9 |
 | S8 | 住宅の畳数の表示は 1 畳 = 1.62 m² 以上（不動産の表示に関する公正競争規約施行規則とされる） | https://smtrc.jp/useful/glossary/detail?n=3751 （用語集。規約の原文は確かめていない） |
@@ -144,15 +144,20 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 `hayamimi` の `translation` とは別の port に出し、`hayamimi` 側の形は変えない。
 
 ```
-{"type":"translation","id":str,"of":"final"|"refine","source":str,"src_lang":str,"lang":str,
+{"type":"translation","id":str,"of":"final"|"refine"|"partial","source":str,"src_lang":str,"lang":str,
+ "src_sha256":str,"stage":"t"|"e","settled":bool,
  "status":"ok"|"held",
  "hold_reason":null|"number"|"negation"|"uncertainty"|"proper_noun"|"form"|"unavailable",
  "text":str,"annotations":[{"start":int,"end":int,"text":str}],
  "skipped":[{"kind":str,"reason":"ambiguous"|"no_rate"|"stale_rate"|"unplaced"}]}
 ```
 
-- `text` は E の応答そのままで、添え書きを差し込まない。
+- `src_sha256` は、訳の元にした原文の文字列の sha256 を小文字の hex で書いた物である（`rust_port.ja.md` 3.1 の `t_tr` が読む）。
+- `stage` は `text` を出した段（T か E）で、`settled` はその訳が確定の訳かどうかである（`rust_port.ja.md` 3.6 の 2）。
+- 1 つの `id` に付く `translation` は、`of` が `final` の行では多くて 2 件である。T の訳が V を通れば先に草稿（`stage: "t"`、`settled: false`）を出し、続けて確定を 1 件出す。草稿を出すのは `of` が `final` の行だけで、`refine` の行は確定の 1 件だけを出す。`of` が `partial` の速報の訳は R8d が決める（`rust_port.ja.md` 3.6 の 3）。
+- 確定の `text` は、E の訳が V を通れば E の応答そのまま（`stage: "e"`）、E が V に落ちれば T の草稿と同じ文字列（`stage: "t"`、`settled: true`）である。どちらも添え書きを差し込まない。
   画面と SRT は、`annotations` の各要素の `text` を `end` の位置に差し込んで描く。
+- `status` が `held` の event の `text` は空の文字列で、`annotations` と `skipped` も空である。止めた訳の文字列は wire に載せない。
 - `start` と `end` は `text` の中の Unicode の文字（scalar value）の位置で、0 から数える。
   `start` から `end` の手前までが、換算の元にした値と単位の表現である。
 - `skipped` は、換算の元になる表現を見つけたが添えなかった物を 1 つずつ持つ。
@@ -162,6 +167,10 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 
 訳は `id` で行に結ぶ。
 直前の行に貼る形では、訳が遅れて次の確定文が先に着くと、訳を別の行に貼るためである。
+
+中継は同じ port に、外の送り先の `fallback` の event も出す（`rust_port.ja.md` 3.15 の外の送り先の行）。
+送り先に届かなくなった時に `{"type":"fallback","stage":"sink","reason":"unreachable","to":"local"}` を、届くようになった時に `{"type":"fallback","stage":"sink","to":null}` を 1 回ずつ出す。
+効いている `fallback` は取っておき、遅れて接続した client に最初に送る。
 
 ### 3.4 翻訳の 3 段
 
@@ -580,7 +589,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CS-22 | 訳が遅れても別の行に付かない | 偽の翻訳器で 1 行目だけ 1200 ms 遅らせ `cargo test --release --test cs22` | 1 行目の訳が 1 行目の `id` に付く | 遅れの無い run | 直前の行に貼る作り |
 | CS-23 | 実マイクの経路（入力の装置が在るときだけ） | `Get-PnpDevice -Class AudioEndpoint` で入力が 1 個以上を確かめ、マイクで日本語を話して CS-2 の test を打つ | CS-2 と同じ | 入力の装置の数 | 0 個のときは test を打たず「前提なし」と出す |
 | CS-24 | V が正しい訳を誤って止めない | `<relay> eval --final --heldout <path> --verify-refs` | held-out の原文と参照訳の 80 組で STOP が 0。落ちたら行の id と件数だけを出す | 調整用 40 組でも 0 | CS-4a の 4 行は STOP する |
-| CS-25 | 3 段がこの順に 1 回ずつ走る | `cargo test --release --test cs25` | 偽の llama-server が受けた依頼が T、E の順に 1 本ずつで、E の依頼に T の訳が入る。V の呼び出しが 1 回で、渡された訳が E の応答と同じ。換算は V の後 | 正しい順の run | V を T の訳に掛ける作り、換算を V の前に置く作り |
+| CS-25 | 3 段がこの順に走る | `cargo test --release --test cs25` | 偽の llama-server が受けた依頼が T、E の順に 1 本ずつで、E の依頼に T の訳が入る。V は T の応答に 1 回、E の応答に 1 回の多くて 2 回で、同じ訳には 2 回掛けない（`rust_port.ja.md` の 3.6 の 1）。E の応答に掛けた V に渡された訳が E の応答と同じ。換算は確定の訳を決めた V の後 | 正しい順の run | V を T の訳に掛ける作り、換算を V の前に置く作り |
 | CS-26 | E が英訳を自然にする | `<relay> eval --final --heldout <path> --direction ja-en` | 直訳の型に当たる行の数が、E の訳で T の訳以下。形の欠けが 0 | 調整用で同じ数が出る | E を素通しにした build で、型の表を 1 語足した行が残る |
 | CS-27 | E が和訳を和文の型に合わせる | `<relay> eval --final --heldout <path> --direction en-ja` | E の訳で、敬体と常体が混ざる行が 0、和文の型の表に当たる行が 0 | 調整用で同じ数が出る | 常体の行を混ぜた偽の E の応答で落ちる |
 | CS-28 | token と link の file の権限と、log に出ないこと | `cargo test --release --test cs28 -- --ignored`（`icacls %APPDATA%\hayamimi\send.toml` を読む） | ACL が今の利用者、SYSTEM、Administrators だけ。試しの token の文字列が、中継の 10 分の log に 0 件 | 同じ test が `send.toml` に試しの token が在ることを数える | Users に読みを足すと `send.config.too_open` を出して送信を止める |
@@ -807,11 +816,11 @@ V に渡った文字列は、V の入口を見張る test の部品が控える�
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-CX-1-001 | src `I paid $100.`、E の応答 `私は100ドル払いました。` | ja の読み手の通貨 | 一致 | `status` = `ok`、`annotations` が 1 件、その注釈 = `（約 15,900 円、10/12 の値）`。式：100 × 177.33 / 1.1181 = 15859.94、3 桁で 15,900（pseudo、awk）（specified、6.2） | 陽性 | `ja_dollar_annotation_text` |
-| T-CX-1-002 | 001 の run で V に渡った文字列と呼び出しの順 | 照合の入力 | 一致 | V に渡った文字列 = `私は100ドル払いました。`（E の応答と同じ）。`（`、`(`、`約`、`15,900`、`10/12` を含まない。V の呼び出し 1 回で、換算はその後（specified、3.11 と 6.2） | 陽性 | `verify_receives_the_translation_without_annotation` |
+| T-CX-1-002 | src `I paid $100.`、偽の応答は T と E の 2 本。run A：T = `私は100ドルを払いました。`、E = `私は100ドル払いました。`（T の訳が V を通る）。run B：T = `私は200ドルを払いました。`、E = A と同じ（T の訳が数で V に外れる）。観測するのは、V に渡った文字列（T の応答は `draft_verify_input`、E の応答は `verify_input`）と stage の並び。陰性の入力は stage の並びの値 4 つ：`[Translate, VerifyDraft, Edit, Verify, Verify, Annotate]`、`[Translate, Edit, Verify, Annotate]`、`[Translate, VerifyDraft, Edit, Annotate, Verify]`、V に渡った文字列が同じ 2 本 | V に掛かる訳の数。run A（T も E も通る）と run B（T だけ外れる）を代表にする。どちらも V は T の応答と E の応答に掛かり、通ったかどうかで回数は変わらない。T の応答に `</s>` が在る run は CS-8、E が外れる run は 006 が持つので、この行に入れない | V の回数 2 回（上側の境界 = 3 回が `Err`、下側の境界 = 1 回も `Err`） | run A と run B のどちらでも、(1) V に渡った文字列が [T の応答, E の応答] の順で、A = [`私は100ドルを払いました。`, `私は100ドル払いました。`]、B = [`私は200ドルを払いました。`, `私は100ドル払いました。`]（specified、偽の応答に書いた文字列そのもの）。(2) 2 本とも `（`、`(`、`約`、`15,900`、`10/12` を含まず、2 本は違う文字列（同じ訳に 2 回は掛けない）。(3) `VerifyDraft` と `Verify` が 1 回ずつで V は計 2 回、`Annotate` は 2 回目の V の後で、確定の訳 = E の応答に `annotations` が 1 件（specified、3.4、3.11、6.2 の CX-1 と CS-25）。陰性：`check_v_calls_are_one_per_translation_and_before_annotation` が、run A の stage の並びで `Ok`、入力の 4 つ（3 回、T の V 無し、換算が V の前、同じ文字列の 2 回）で全部 `Err`（pseudo、規則を別に書いた検査） | 陽性と陰性 | 陽性：`verify_receives_each_translation_once_without_annotation`。陰性：`a_third_v_call_or_a_note_before_v_is_refused_by_the_check` |
 | T-CX-1-003 | fixture `cx01_verify_input_annotated.txt`：`私は100ドル（約 15,900 円、10/12 の値）払いました。` | 換算を V の前に置いた順 | `Err` | `check_verify_input_is_unannotated` が `Err`（`（` を含む）。002 の文字列では `Ok`（specified） | 陰性 | `annotation_before_verify_is_rejected_by_the_check` |
 | T-CX-1-004 | src `I paid $100.`、訳 003 の fixture の文字列を V へ | 換算を V の前に置くと V が止める | `held` | `held`。src の値 {100}、訳の値 {100, 15900, 10, 12} で多重集合が違う（derived、3.4 の数）。`hold_reason` は問わない | 陰性 | `annotated_text_would_make_verify_hold` |
 | T-CX-1-005 | src `予算は五百万円です。`、E の応答 `The budget is five million yen.` | en の読み手の通貨、位置 | 一致 | 注釈 = `(about $31,500, rate of Oct 12)`、`end` = 30。式：5,000,000 / 177.33 × 1.1181 = 31525.97、3 桁で 31,500。`The budget is five million yen` は 30 文字（`printf '%s' … \| wc -c` = 30）（pseudo）（specified、3.11 の表） | 陽性 | `en_annotation_text_and_end` |
-| T-CX-1-006 | src `I paid $100.`、E の応答 `私は200ドル払いました。` | V が止める | `held` | `held`、`annotations` = []。src {100}、訳 {200}（specified、3.4 の「通った訳にだけ換算を添える」） | 陰性 | `held_line_gets_no_annotation` |
+| T-CX-1-006 | src `I paid $100.`、偽の応答は T と E の 2 本で、T = `私は200ドルを払いました。`、E = `私は200ドル払いました。`（T の訳も E の訳も数で V に外れるので、残る訳が無い） | V が止める | `held` | `held`、`annotations` = []。src {100}、訳 {200}（specified、3.4 の「通った訳にだけ換算を添える」） | 陰性 | `held_line_gets_no_annotation` |
 
 #### 7.9 CX-2（曖昧な物には添えない）
 
@@ -1060,7 +1069,6 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - **H8** cinecaption に無い字の数は数えていない（NOT VERIFIED）。CS-12 で数える。
 - **H9** 窓の影を切る tao の設定の名前と、WebView2 で `@font-face` に localhost の file を読ませる方法は確かめていない（NOT VERIFIED）。試し 2 の crate で、実装の席が CS-11 と CS-12 の前に確かめる。
 - **H10** 閉じた。llama-server は Windows の native に置く（3.7）ので、WSL の VM が止まっても訳は止まらない。CS-20 で確かめる。
-- **H16** slice 1 の case 行 T-CX-1-002（7.8）は、V の呼び出しを 1 回と書いている。3.4 の V が多くて 2 回の形は、`rust_port.ja.md` の slice R8c で中継に入れ、同じ手番で test-designer が T-CX-1-002 を「T の訳と E の訳に 1 回ずつ、換算はその後」に書き替える。それまで、実装と T-CX-1-002 は V が 1 回の形のまま一致している。
 - **H11** 頁そのものの透明は、OBS を使わずに CS-13 の前提（headless shell の画素の alpha）で測る。利用者の OBS には新しい測定を掛けない。OBS の browser source が透明に描くか、Windows に ffmpeg が在り `OBS Virtual Camera` を dshow で読めるかは試していない（NOT VERIFIED）。OBS の中での実測は CS-16 の手番に、portable の別の OBS で、利用者の OBS が仮想カメラを使っていないときだけ行う。
 - **H12** 試し 2 の `CopyFromScreen` が時々「ハンドルが無効です」で失敗した原因は未特定である。CS-11 と CS-16 の画素の比較では、失敗した回は数えずに打ち直し、打ち直した回数を test の出力に残す。
 - **H13** 認識の英語の出力が数を語で出すか数字で出すかは確かめていない。数の読み取りが両方を読むので換算は動くが、CS-1 の log で確かめる。
