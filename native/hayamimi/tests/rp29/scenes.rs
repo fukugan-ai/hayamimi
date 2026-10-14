@@ -34,6 +34,30 @@ pub const SPEAKER: Scene = Scene {
     reason: "missing",
     to: "disabled",
 };
+/// A recognizer tier that is not installed, read by the next tier that is.
+pub const MODEL_SUBSTITUTE: Scene = Scene {
+    name: "recognizer substitute",
+    event: "model.fallback.substitute",
+    stage: "recognizer",
+    reason: "missing",
+    to: "substitute",
+};
+/// The language identifier's model is not there: the language is fixed instead.
+pub const LID_DISABLED: Scene = Scene {
+    name: "lid",
+    event: "model.fallback.disabled",
+    stage: "lid",
+    reason: "missing",
+    to: "disabled",
+};
+/// The Japanese second opinion has no model: it is turned off.
+pub const SECOND_OPINION_DISABLED: Scene = Scene {
+    name: "second opinion",
+    event: "model.fallback.disabled",
+    stage: "second_opinion",
+    reason: "missing",
+    to: "disabled",
+};
 pub const LIBRARY: Scene = Scene {
     name: "library",
     event: "asr.fallback.disabled",

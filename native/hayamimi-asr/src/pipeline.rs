@@ -234,7 +234,7 @@ fn open_route(
 /// The device the punctuation model is tried on first. A start that found no
 /// GPU goes straight to the CPU and says so.
 fn first_device(gpu: Gpu, fallbacks: &mut Vec<Fallback>) -> Device {
-    match gpu {
+    match gpu.confirmed() {
         Gpu::Try => Device::Cuda,
         Gpu::Absent(reason) => {
             fallbacks.push(Fallback {

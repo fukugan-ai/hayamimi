@@ -7,7 +7,7 @@ use hayamimi_asr::{Fallback, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 7] = [
+pub const STAGES: [&str; 9] = [
     "punct",
     "recognizer",
     "vad",
@@ -15,9 +15,11 @@ pub const STAGES: [&str; 7] = [
     "events",
     "replace",
     "speaker",
+    "lid",
+    "second_opinion",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 7] = [
+pub const REASONS: [&str; 8] = [
     "no_device",
     "driver_unreadable",
     "session_failed",
@@ -25,6 +27,7 @@ pub const REASONS: [&str; 7] = [
     "unreadable",
     "library_unavailable",
     "in_use",
+    "provider_mismatch",
 ];
 /// Every destination a notice can carry.
 pub const DESTINATIONS: [&str; 4] = ["cpu", "disabled", "next_port", "default"];
@@ -179,6 +182,41 @@ mod tests {
         assert_eq!(notice.event, MODEL_DISABLED);
         assert_eq!(notice.domain(), "model");
         assert!(!notice.is_gpu());
+    }
+
+    #[test]
+    fn the_identifier_on_the_cpu_and_the_second_opinion_left_out_are_named_notices() {
+        let moved = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::ProviderMismatch,
+            to: To::Cpu,
+        });
+        assert_eq!(
+            (moved.event, moved.stage, moved.reason, moved.to),
+            (GPU_FALLBACK, "lid", "provider_mismatch", "cpu")
+        );
+        let left = Notice::from_fallback(&Fallback {
+            stage: Stage::SecondOpinion,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (left.event, left.stage, left.reason, left.to),
+            (MODEL_DISABLED, "second_opinion", "missing", "disabled")
+        );
+        let no_model = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (no_model.event, no_model.stage, no_model.to),
+            (MODEL_DISABLED, "lid", "disabled")
+        );
+        for notice in [moved, left, no_model] {
+            assert!(STAGES.contains(&notice.stage), "{}", notice.stage);
+            assert!(REASONS.contains(&notice.reason), "{}", notice.reason);
+        }
     }
 
     #[test]
