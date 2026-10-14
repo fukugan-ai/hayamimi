@@ -284,10 +284,7 @@ fn read_whole(response: &mut ureq::http::Response<ureq::Body>) -> Result<String,
 }
 
 impl HttpLlm {
-    fn post(
-        &self,
-        request: &Completion<'_>,
-    ) -> Result<ureq::http::Response<ureq::Body>, LlmError> {
+    fn post(&self, request: &Completion<'_>) -> Result<ureq::http::Response<ureq::Body>, LlmError> {
         let body = request_body(request).map_err(|error| LlmError::Body(error.to_string()))?;
         self.agent
             .post(&self.endpoint)
@@ -430,16 +427,48 @@ mod tests {
             Some(piece) => serde_json::json!({ "content": piece }),
             None => serde_json::json!({}),
         };
-        format!("data: {}\n\n", serde_json::json!({ "choices": [{ "delta": delta }] }))
+        format!(
+            "data: {}\n\n",
+            serde_json::json!({ "choices": [{ "delta": delta }] })
+        )
+    }
+
+    /// Reads the head and the whole body of one request, so that nothing is
+    /// left unread when the server answers and closes (an unread byte turns
+    /// the close into a reset that the client reads as a failure).
+    fn read_request(stream: &mut std::net::TcpStream) -> std::io::Result<()> {
+        use std::io::Read;
+        let mut received: Vec<u8> = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let got = stream.read(&mut chunk)?;
+            if got == 0 {
+                return Ok(());
+            }
+            received.extend_from_slice(&chunk[..got]);
+            let text = String::from_utf8_lossy(&received);
+            let Some((head, body)) = text.split_once("\r\n\r\n") else {
+                continue;
+            };
+            let length = head
+                .lines()
+                .filter_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .map(str::to_owned)
+                })
+                .find_map(|value| value.trim().parse::<usize>().ok());
+            if length.is_some_and(|length| body.len() >= length) {
+                return Ok(());
+            }
+        }
     }
 
     /// Answers one request with a stream: each `(wait, text)` is written after
     /// its wait. Returns the base URL and the number of pieces the server
     /// wrote before a write failed (the client had hung up) or all were written.
-    fn serve_stream(
-        pieces: Vec<(Duration, String)>,
-    ) -> std::io::Result<(String, Arc<AtomicU64>)> {
-        use std::io::{Read, Write};
+    fn serve_stream(pieces: Vec<(Duration, String)>) -> std::io::Result<(String, Arc<AtomicU64>)> {
+        use std::io::Write;
         let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
         let base = format!("http://{}", listener.local_addr()?);
         let written = counter_at(0);
@@ -448,11 +477,11 @@ mod tests {
             let Ok((mut stream, _)) = listener.accept() else {
                 return;
             };
-            let mut request = [0_u8; 4096];
-            if stream.read(&mut request).is_err() {
+            if read_request(&mut stream).is_err() {
                 return;
             }
-            let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n";
+            let head =
+                "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n";
             if stream.write_all(head.as_bytes()).is_err() {
                 return;
             }
@@ -559,8 +588,8 @@ mod tests {
     /// The connection is closed as soon as the answer is not wanted: the
     /// server's later writes fail, so it stops short of the end.
     #[test]
-    fn a_request_not_wanted_any_more_closes_the_connection() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn a_request_not_wanted_any_more_closes_the_connection()
+    -> Result<(), Box<dyn std::error::Error>> {
         const PIECES: u64 = 40;
         let pieces: Vec<(Duration, String)> = (0..PIECES)
             .map(|_| (Duration::from_millis(20), data_line(Some("a"))))

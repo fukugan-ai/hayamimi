@@ -554,7 +554,14 @@ mod tests {
             Some(PartialTranslation::Off)
         );
         assert_eq!(
-            on(&["live", "--serve", "0", "--no-partial-translation", "--srt", "a.srt"]),
+            on(&[
+                "live",
+                "--serve",
+                "0",
+                "--no-partial-translation",
+                "--srt",
+                "a.srt"
+            ]),
             Some(PartialTranslation::Off)
         );
     }

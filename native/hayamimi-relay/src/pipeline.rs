@@ -683,7 +683,10 @@ fn partial_failed(
     sink.emit(
         partial_log("translate.partial.failed", request, started)
             .with("dependency", "llama-server")
-            .with("detail", error.to_string().split(':').next().map(str::to_owned))
+            .with(
+                "detail",
+                error.to_string().split(':').next().map(str::to_owned),
+            )
             .with_error("LLM_UNAVAILABLE"),
     );
     PartialOutcome::Failed
@@ -1054,7 +1057,8 @@ mod tests {
     ) -> Result<(PartialOutcome, MemorySink), Box<dyn std::error::Error>> {
         let mut sink = MemorySink::default();
         let mut pipeline = Pipeline::open(script, &PipelineConfig::default(), &mut sink)?;
-        let outcome = pipeline.translate_partial(&partial_request(text), &still_wanted(), &mut sink);
+        let outcome =
+            pipeline.translate_partial(&partial_request(text), &still_wanted(), &mut sink);
         Ok((outcome, sink))
     }
 
@@ -1074,7 +1078,10 @@ mod tests {
             (shown.of, shown.stage, shown.settled, shown.status),
             (LineKind::Partial, Pass::T, false, Status::Ok)
         );
-        assert_eq!((shown.id.as_str(), shown.text.as_str()), ("mic-2", "Hello."));
+        assert_eq!(
+            (shown.id.as_str(), shown.text.as_str()),
+            ("mic-2", "Hello.")
+        );
         assert!(shown.annotations.is_empty() && shown.skipped.is_empty());
         assert_eq!(shown.src_sha256, sha256_hex("こんにちは。"));
         Ok(())
@@ -1167,8 +1174,8 @@ mod tests {
     }
 
     #[test]
-    fn a_request_the_translator_dropped_is_aborted_and_said() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn a_request_the_translator_dropped_is_aborted_and_said()
+    -> Result<(), Box<dyn std::error::Error>> {
         let script = Scripted::new(vec![Err(LlmError::Aborted)]);
         let (outcome, sink) = translated_in_progress(&script, "こんにちは。")?;
         assert_eq!(outcome, PartialOutcome::Aborted);
@@ -1205,7 +1212,10 @@ mod tests {
             .find(|event| event.event == "translate.partial.ok")
             .map(LogEvent::to_json_line)
             .ok_or("no ok event")?;
-        assert!(!line.contains("こんにちは") && !line.contains("Hello"), "{line}");
+        assert!(
+            !line.contains("こんにちは") && !line.contains("Hello"),
+            "{line}"
+        );
         assert!(line.contains("\"id\":\"mic-2\"") && line.contains("\"source\":\"mic\""));
         Ok(())
     }
