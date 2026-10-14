@@ -6,6 +6,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -20,11 +21,71 @@ pub type Failure = String;
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 pub const REPO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
-pub const BASE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/baseline");
 pub const RESULTS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/results");
-pub const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata");
 pub const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/golden/ja");
 pub const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+
+/// The `testdata/` of this checkout, which `git` does not carry.
+const OWN_TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata");
+
+/// The `testdata/` of the main checkout: the parent of git's common
+/// directory, which a worktree shares with the checkout it hangs from.
+fn main_checkout_testdata() -> Result<PathBuf, Failure> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .map_err(|error| format!("cannot run git: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git rev-parse failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let printed = String::from_utf8_lossy(&output.stdout);
+    let common = PathBuf::from(printed.trim());
+    match common.parent() {
+        Some(root) => Ok(root.join("testdata")),
+        None => Err(format!(
+            "git's common directory {} has no parent",
+            common.display()
+        )),
+    }
+}
+
+/// The first of the two places that is a directory; neither is an error that
+/// names both. The second is asked for only when the first is missing. No
+/// symlink stands in for either: Windows cannot follow one made in WSL.
+pub fn find_testdata(
+    own: &Path,
+    main: impl FnOnce() -> Result<PathBuf, Failure>,
+) -> Result<PathBuf, Failure> {
+    if own.is_dir() {
+        return Ok(own.to_path_buf());
+    }
+    match main() {
+        Ok(path) if path.is_dir() => Ok(path),
+        Ok(path) => Err(format!(
+            "no testdata/ at {} or at {}",
+            own.display(),
+            path.display()
+        )),
+        Err(why) => Err(format!(
+            "no testdata/ at {}, and the main checkout's could not be found: {why}",
+            own.display()
+        )),
+    }
+}
+
+/// The `testdata/` directory the tests read.
+pub fn testdata() -> Result<PathBuf, Failure> {
+    find_testdata(Path::new(OWN_TESTDATA), main_checkout_testdata)
+}
+
+/// The recorded baseline under `testdata/`.
+pub fn base() -> Result<PathBuf, Failure> {
+    Ok(testdata()?.join("baseline"))
+}
 
 /// Where the one place of the sample-file key spellings lives (the keys the
 /// `stream` sub command writes into each line of its samples file).
@@ -210,8 +271,8 @@ pub fn load_rows(path: &Path) -> Result<Vec<Row>, Failure> {
 
 /// The samples files `lat_ja_<s>_<n>.jsonl` of one `--min-silence` value,
 /// ordered by `n`.
-pub fn run_files(silence: &str) -> Vec<(u32, PathBuf)> {
-    run_files_in(Path::new(BASE), silence)
+pub fn run_files(silence: &str) -> Result<Vec<(u32, PathBuf)>, Failure> {
+    Ok(run_files_in(&base()?, silence))
 }
 
 /// Like [`run_files`], for the samples files in `dir`.
