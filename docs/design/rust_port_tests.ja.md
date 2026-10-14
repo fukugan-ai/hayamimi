@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-30）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-35）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1103,6 +1103,32 @@ fixture の docs は、実物の段落を file に写して 1 語だけ直した
 | T-RP-30-008 | fixture：実物の docs と、`STAGES` に docs に無い `extra_stage` を足した `notice.rs` の写し | code にだけ在る値（逆向き） | `Err` | `Err` で `extra_stage` を名指し（specified、RP-30 の「どちらかにだけ在る値」） | 陰性 | `a_stage_added_to_the_code_only_is_named` |
 | T-RP-30-009 | fixture：2 つの一覧を並べ替えた docs（`stage` を逆順、`reason` を逆順） | 順 | `Ok` | `Ok`（specified、RP-30 の「順を問わず」） | 境界 | `list_order_does_not_matter` |
 | T-RP-30-010 | fixture：「`fallback` の event の `stage` の値は」の段落を消した docs | 段落が無い（空と空の一致を通さない） | `Err` | `Err` で段落が無いことを名指し（implicit。値が 0 個と 0 個を一致として通すと 001 の `Ok` が何も測らない） | 陰性、境界 | `a_design_without_the_paragraph_is_rejected` |
+
+### 4.41 RP-31（`L` の数え方）
+
+test：`native/hayamimi-eval/tests/rp31.rs`。受入 test の名前は `rp31_latency_counts_only_shown_translations_of_their_own_utterance`。`#[ignore]` を持たない。
+fixture の event の列は `native/hayamimi-eval/tests/rp31/` に file で置く。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-31 の行と 3.1 の `t_tr` の条件から）。
+
+### 4.42 RP-32（同じ負荷で交互に測った `L`）
+
+test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。`#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-32 の行と 3.16 の 4 から）。
+
+### 4.43 RP-33（T が V に落ちた行の最初の訳）
+
+test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。`#[ignore]` を持ち、RP-32 の Rust の run と中継の stdout を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-33 の行と 3.16 の 2 から）。
+
+### 4.44 RP-34（確定の復号が速報の復号を待たない）
+
+test：`native/hayamimi-eval/tests/rp34.rs`。受入 test の名前は `rp34_final_decode_does_not_wait_for_partial_decode`。`#[ignore]` を持ち、RP-32 の run を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-34 の行と 3.16 の 3 から）。
+
+### 4.45 RP-35（`L` の詰めで品質を下げない）
+
+test：`native/hayamimi-eval/tests/rp35.rs`。受入 test の名前は `rp35_latency_work_keeps_chrf_and_verify`。`#[ignore]` を持ち、前の main と R8h の branch の `eval` の結果と、RP-32 の Rust の run の中継の stdout を読む。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-35 の行と 3.16 の品質の条件から）。
 
 ## 5. RP-19 の対応表
 

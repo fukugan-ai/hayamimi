@@ -126,13 +126,17 @@ VAD が発話の終わりを決めるまでの無音待ち（`--min-silence`。�
 |---|---|
 | `t_end` | 発話の最後の音声 sample を道具が送った時刻 |
 | `t_final` | その発話の `final` event を道具が受けた時刻 |
-| `t_tr` | その発話の訳の event のうち、訳の元にした原文の文字列がその発話の `final` の文字列と一致する物を、道具が初めて受けた時刻 |
+| `t_tr` | その発話の訳の event のうち、訳の元にした原文の文字列がその発話の `final` の文字列と一致し、`status` が `ok` で `text` が空でない物を、道具が初めて受けた時刻 |
 | `t_partial` | その発話の最初の `partial` event を道具が受けた時刻 |
 
 `L = t_tr − t_end`、`L_asr = t_final − t_end`、`L_tr = t_tr − t_final` とする。
 `t_tr` を「原文が `final` と一致した訳」に限るのは、速報の断片の訳で `L` が小さく、負にもなり、受入が中身の無いまま通るのを防ぐためである。
 中継は訳の event に、訳の元にした原文の文字列の sha256 を `src_sha256` として載せ、道具は `final` の文字列の sha256 と比べる。
 Python の `translation` event は `src_sha256` も `id` も持たないので、Python の run は「`final` の後、次の `final` までに最初に来た訳」で対応づけ、訳の取れない発話の数を別に記録する（`rust_port_tests.ja.md` の RB-5）。
+`status` が `held` か `unavailable` の訳と `text` が空の訳は、字幕に何も出ないので `t_tr` に入れない。
+Rust の run は、訳を `final` と同じ `id` で結び、`final` を発話へ `t1_s`（流れの先頭からの発話の終わり）で結ぶ。
+着いた時刻で窓に割ると、遅れて着いた `final` が次の発話の窓に入り、その発話が「final なし」として母数から落ち、遅い標本ほど p95 から消えるからである。
+Python の `final` は `t1_s` を持たないので着いた時刻で割り、前の窓が「final なし」で次の窓に `final` が 2 件以上在る標本の数を、遅れて着いた疑いとして別に数える（3.16）。
 速報の訳（原文が `final` と一致しない訳）の時刻は `L` に入れず、RP-5 で別に測る。
 速報の原文が最後の速報で `final` と同じ文字列になっていれば、その訳は `t_tr` に入り、`L_tr` が負になることがある。
 その発話の数は結果の file に別に数える。
@@ -191,7 +195,7 @@ lat-ja の 1 回の run の標本の枠は 23 発話 × 5 回で、各標本は�
 **消すのは R11 だけ**で、R11 に入る条件は次の 3 つである。
 
 1. R0 の基準の要約（遅れ、誤り率、chrF、DER の値と、測った条件）が、git 管理下の `docs/results/baseline_python.md` に在る。
-2. RP-1、RP-13、RP-14、RP-15 が `<base>` の値と照らして通っている。RP-13 は 10 の H36 の扱いで、通るまで R11 は始めない。RP-1 の ko だけは、R11 の入口では、配る形の build の記録値 0.0869 を上限にする（評議の判定。RP-1 の閾値の 0.081 は動かさず、ko の行は赤のまま 10 の H35 に残す）。陽性対照は、Python の wheel の ORT を読ませた Rust の run の 66 clip が Python の log と全部一致し、ko が 0.081 になること（R3c の実測）である。ORT か sherpa-onnx の版を上げるたびに ko を測り直し、0.0869 を超えたら評議へ出す。
+2. RP-1、RP-13、RP-14、RP-15 が `<base>` の値と照らして通っている。RP-13 は 10 の H36 の扱いで、通るまで R11 は始めない。RP-1 の ko の R11 の入口の上限は、配る形の build の記録値 86939（百万分率）で、Rust の平均を丸めずに整数のまま比べ、超えたら評議へ出す（小数 3 桁へ丸めるのは Python の表と比べる RP-1 の本体だけ）。RP-1 の閾値の 0.081 は動かさず、ko の行は赤のまま 10 の H35 に残す。陽性対照は、Python の wheel の ORT を読ませた Rust の run の 66 clip が Python の log と全部一致し、ko が 0.081 になること（R3c の実測）である。ORT か sherpa-onnx の版を上げるたびに ko を測り直し、86939 と比べる。
 3. RP-19 の対応表（Python の test の case → Rust の test の名前）が全行そろい、全部通っている。
 
 消した file の中身は git の履歴に残り、R11 の commit の 1 つ前を指せば読める。
@@ -642,6 +646,37 @@ hook と guard（`guard_commands.rs` ほか）は開発の安全の gate で、�
 設定の file（置換辞書、ITN の上書き、`/config`）が壊れていれば前の内容を使い、前の内容も無ければ既定の設定で動かして `config.fallback.default` を出す。
 既定の設定の値は `hayamimi config dump` の値と同じである（RP-19）。
 
+### 3.16 主指標 `L` の差の詰め（R8h）
+
+R8e の run では、Rust の `L` の p50 が Python より約 229 ms 遅く、差のほとんどは「訳」の段（`final` から最初の訳の event まで。Python の p50 212 ms と p95 1019 ms に対し、Rust は 439 ms と 1526 ms）に在る（原因の席の打ち直しで、設計の席は確かめていない。NOT VERIFIED）。
+T の訳が V を通った行の `L` の p50 は Python と同じで、遅いのは T の訳が V に落ちた行（93 行中 45 行）である。
+この行では、中継が E の応答とその V を待ってから最初の event を出すので（3.6 の 1。先の訳は T が V を通った時だけ出す）、E の 1 回の時間がそのまま `L` に載る。
+同じ run の測り方にも欠陥が 2 つ在り、差の大きさはまだ決まらない。
+93 行中 31 行で、`held` の空の訳を字幕が出たと数えていた（3.1 の `t_tr` の条件の前の形）。
+遅れて着いた `final` の 8 標本が次の発話の窓に入り、母数から落ちていた。
+どちらも Rust の `L` を実際より小さく見せる向きに効く。
+Python と Rust を別の日時に、負荷を記録せずに測ってもいる。
+
+R8h は次の 4 つを、この順に持つ。
+主指標は `L` の p50 と p95 で、受入は「同じ負荷で交互に測った Python 以下」（RP-32）である。
+
+1. **数え方を直す**（RP-31）：3.1 の `t_tr` の条件（`status` が `ok`、`text` が空でない）と、`id` と `t1_s` による結び方を `hayamimi-eval stream` の集計に入れる。設計を動かさない。差が見かけより大きく出る向きの直しなので、最初に入れる。
+2. **T が V に落ちた行の最初の訳を早める**（RP-33）：案を 2 つ置き、評議の判定で採る。
+   - **A（並べて投げる）**：T と同時に、原文だけを渡し E の指示で訳させる依頼（以下 E0）を 1 本投げる。T が V を通れば今の形（先の訳を出し、T の訳を入れた E で置き換える）で進み、E0 の接続を閉じる。T が V に落ちれば、E0 の応答に V を掛け、通れば確定の訳として出す。ただし、確定文 1 行の依頼が 2 本になり、slot 4 本（3.6 の 5）のうち E の slot を E0 が使う。2 音源が同時に話すと T 自身の待ちが延びる見込みがあり、その量は測っていない（10 の H43）。会話字幕の CS-25 の「E の依頼に T の訳が入る」が T が落ちた行で成り立たなくなるので、会話字幕の設計 3.4 と CS-25 を同じ手番で書き替える。V は 1 行につき多くて 2 回（T と E0、または T と E）のままである。
+   - **B（直列のまま、落ちる行を減らす）**：依頼の形は変えない。R8f の V の直し（branch `feat/r8f-verify`）を main に入れた後に、T の訳が V に落ちた行の理由を `hold_reason` ごとに数え、正しい訳を止めている理由（会話字幕の CS-24 の材料）だけを直す。ただし、V が正しく止めた行は E を待つままで、その行の `L` は縮まない。B で残る差の大きさは R8f の直しの後の run でしか分からない。
+3. **確定の復号を速報の復号に待たせない**（RP-34）：`hayamimi` は速報の復号と確定の復号を同じ loop で順に回すので、発話の終わりの直前に始まった速報の復号が確定の復号を待たせる。同じ run で 4〜7 秒の発話の `decode_ms` の p50 が Python の 183 ms に対し 275 ms、7 秒以上で 248 ms に対し 440 ms だった（原因の席の打ち直し。NOT VERIFIED）。負荷の差か engine の差かは分かっていないので、4 の run で差が残った時だけ作る。案を 2 つ置き、評議の判定で採る。
+   - **A（別の thread）**：速報の復号を別の thread と別の認識器の session に移し、確定の復号を待たせない。ただし、認識器は CPU に置くので（3.5）、2 本の復号が同じ core を取り合い、確定の復号が延びることがある。session が 1 本増え、memory（RP-22）と session の lock（3.4）を通る。
+   - **B（確定を先に回す）**：同じ loop のまま、VAD が発話の終わりを決めたら、まだ始まっていない速報の復号を捨て、確定の復号を先に回す。ただし、走り出した速報の復号は打ち切れないので、確定は多くて 1 本分を待つ。発話の終わりの近くの速報が 1 つ減る。
+4. **同じ負荷で交互に測る**（RP-32）：Python と Rust を同じ機械で、Python、Rust、Python、Rust … の順に 3 対流し、各 run の前と後の `/proc/loadavg` と、中継の stdout と、`hayamimi` と Python の log を run の file と同じ所に残す。run の間は他の席が cargo の build を打たず、各 run の前の 1 分の load が 2 未満であることを記録する（R7 の測り直しと同じ規則）。合否は 3 対を合わせた標本で、RP-3 の期待値の式で決める。
+
+**品質を下げない条件**（RP-35）：2 と 3 のどちらの案でも、字幕と外の送り先に出る訳は全部 V を通った物で、V の検査（形、数、名前、否定）を緩めない。ja→en と en→ja の held-out（会話字幕の設計 9）の chrF と、V が止めた行の数が、R8h の前の main の値から下がらず増えない（同じ server、同じ model）。FLEURS の ja→en の chrF（RP-13 の en の行）も R8h の前の値以上である。3 は RP-1 の ja の CER と RP-5 の速報の遅れを悪くしない。
+
+**R8f の V の直しとの関係**：2 の B は R8f の V の直しの上に乗り、A を採る時も、A の効き目は R8f の直しの後の run で測る。V の直しで T が V を通る行が増えれば、2 の対象の行は減るからである。R8h の 2 の席は `feat/r8f-verify` が main に入るまで、中継の `pipeline.rs` の V の呼び出しの所を書き替えない（同じ関数を 2 席が触ると衝突する）。
+
+**R7 と R7b との関係**：R7 は認識の段の時間と置き場を持ち、R8h の 3 は確定と速報の復号の順だけを持つ。R7 の H10（確定の解き直しを省く）は同じ loop を触るので、H10 と R8h の 3 は同じ席が続けて打つ。R7b は日本語の streaming の認識器を測るだけで、`hayamimi` の経路を替えない（10 の H38）。streaming の認識器を採ると、速報は解き直しでなくなり、3 の対象の loop が無くなる。採るかは E2E の後に評議が決めるので、R8h の 3 は今の非 streaming の認識器の上の直しとして作る。
+
+**順と置き場**：1 は W3 の空いた席がすぐ打ち、E2E-1 と E2E-2 も 1 の後の道具で測る。2 と 3 は評議の判定を得てから同じ波の空いた席が作り、判定が W3 の終わりに間に合わなければ 1 と 4 だけで E2E に入り、2 と 3 は E2E の後に入れる。4 の run は E2E の波で打ち、E2E-1 の `L` の判定も 4 の run で決める（仮の置き場。持ち主は R8h で、E2E の波の 1 時間に 3 対が収まらなければ 2 対にし、その数を記録する）。
+
 ## 4. 採らない手段
 
 - **Python を残して Rust から呼ぶ**：実行時の経路に Python が残り、置き換えにならない。
@@ -661,6 +696,11 @@ hook と guard（`guard_commands.rs` ほか）は開発の安全の gate で、�
 - **mobile/ を Dioxus に作り直す**：依頼の範囲の外で、wire 形式の互換で足りる。
 - **`hayamimi-relay` を `hayamimi` の process に入れる**：会話字幕の設計の 2 音源を 1 か所で結ぶ形が変わる。1 段の SSE の時間は `L_tr` に入れて測る。
 - **断片の訳の時刻を主指標に入れる**：原文が短いほど速く見え、`L` が負にもなる（3.1）。
+- **V を緩めて T の先の訳を増やす**：`L` は縮むが、V が止めるはずの訳が字幕と外の送り先に出る。品質の条件（3.16、RP-35）に反する。
+- **T が V に落ちた訳を E を待たずに出す**：V に落ちた訳は出さない（3.6 の 1）。相手の画面では置き換えられない。
+- **E を外して T と V だけにする**：ja と en の間では E が直訳の型を減らす（会話字幕の CS-26）。外すと訳が硬くなり、外した時の chrF の差は測っていない。
+- **別の日時の Python の記録と比べる**：負荷が揃わず、差が実装の差か機械の状態の差かを分けられない（3.16 の 4）。
+- **`held` の空の訳を字幕が出たと数え続ける**：字幕に何も出ない時刻で `L` を測ることになり、V が止めるほど `L` が小さく出る（3.1）。
 
 ## 5. 構造
 
@@ -726,6 +766,11 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-28 | CPU に落ちた時の主指標 `L` | RP-3 と同じ `<ev> stream --wav lat-ja.wav --repeat 5` を、`CUDA_VISIBLE_DEVICES` を空にした Rust の run で 1 回流し、`cargo test --release --test rp28 -- --ignored` が読む | GPU の run の合否（RP-3）とは別の行に、CPU に落ちた run の `L`、`L_asr`、`L_tr` の p50 と p95 を出す。仮の上限は `L` の p50 が 4500 ms、p95 が 7000 ms（R1 の「Rust 認識 cpu / 訳 cpu 無負荷」の見積り 4053 ms と 6194 ms、`gpu_stages.md` の「遅れ L の見積り」の同じ名の `L` の見積りの行、:304 に約 1 割を足した値。10 の H8）。R8e が測って置き直す | 同じ test が GPU の run からも同じ列を出せる | GPU の在る run を CPU の run として渡すと、`gpu.fallback.cpu` が 0 件なので CPU の run として受け付けない |
 | RP-29 | GPU 以外の資源が無くても止まらない（3.15 の表の場面） | 3.15 の表の場面ごとに、資源を外した run と在る run を対で起こす `cargo test --release --test rp29 -- --ignored`（model の file を外した directory、llama-server を起こさない、送り先を閉じた port、8833 を先に塞いだ port、出力の装置を止めた機械、sherpa-onnx の library を外した directory、壊した設定の file）。各行は持ち主の slice が足す | 資源を外した run は、終了 code が 0、`final`（推論の library を外した行では server の `ready`）が出て、その場面の `<domain>.fallback.<落ち先>` の log の event と `/events` の `fallback` が段ごとに 1 件ずつ出る | 資源の在る run では、同じ場面の fallback の event が 0 件（在るのに落ちない） | 資源を外したのに event を出さない build で落ちる。資源が在るのに落ちる build（常に小さい model を読む build など）で、在る run の event が 1 件以上になり落ちる |
 | RP-30 | `fallback` の `stage` と `reason` の値の一覧が code と同じ | `cargo test --release -p hayamimi --test rp30` が、3.15 の「`fallback` の event の `stage` の値は」の段落の 2 つの一覧と、`native/hayamimi/src/notice.rs` の `STAGES` と `REASONS` を突き合わせる（test は `#[ignore]` を持たない。docs と code の定数だけを読む） | `hayamimi` の `stage` の 13 個と `reason` の 10 個が、順を問わず集合として code と一致する。どちらかにだけ在る値は名指しして落ちる | 同じ test が、3.15 の段落から `stage` を 13 個、`reason` を 10 個読める | 一覧から 1 つ消した docs の fixture、code に無い値を 1 つ足した docs の fixture のどちらでも、その値を名指しして落ちる |
+| RP-31 | `L` の数え方（3.1 の `t_tr` の条件と結び方、3.16 の 1） | `cargo test --release -p hayamimi-eval --test rp31` が、`stream` の集計の関数に fixture の event の列を渡す（`#[ignore]` を持たない） | `status` が `held` か `unavailable` の訳と `text` が空の訳は `t_tr` に入らず、同じ `id` の後の `ok` の訳が `t_tr` になる。Rust の run では `final` が `t1_s` で発話に結ばれ、次の発話の窓の中に着いた `final` も自分の発話の標本に入る。Python の run では、前の窓が「final なし」で次の窓に `final` が 2 件以上在る標本の数が別の列に出る | 同じ関数が、`held` の無い fixture で今の数え方と同じ `L` を出す | `held` の空の訳を先に置いた fixture で、空の訳の時刻を `t_tr` にする数え方を落とす。遅れて着いた `final` を着いた時刻で割る数え方を、その発話が「final なし」になることで落とす |
+| RP-32 | 同じ負荷で交互に測った `L`（主指標、3.16 の 4） | 3.16 の 4 の順で `<ev> stream --wav lat-ja.wav --repeat 5 --out <run>.jsonl` を Python と Rust で交互に 3 対流し、`cargo test --release --test rp32 -- --ignored` が全 run と各 run の `/proc/loadavg` の記録を読む | 各 run の前の 1 分の load が 2 未満で、順が Python、Rust の交互。3 対を合わせた標本で、Rust の `L` の p50 と p95 が Python の p50 と p95 以下（RP-31 の数え方）。RP-3 の対の比較（17 発話以上）も同じ標本で数える。`L_asr` と `L_tr` と、「訳」の段（`final` から `t_tr` まで）の p50 と p95 を別の列に出す | 同じ test が Python 同士の 2 run の対から同じ列を出せる | load の記録が無い run、1 分の load が 2 以上の run、Python を続けて 2 回流した順のどれかが在れば、値を出さずに落ちる |
+| RP-33 | T が V に落ちた行の最初の訳（3.16 の 2） | RP-32 の Rust の run を `cargo test --release --test rp33 -- --ignored` が読み、中継の stdout の行ごとの記録で、T の訳が V に落ちた行と通った行に分ける | 「訳」の段の p50 と p95 が、全行で Python の「訳」の段の p50 と p95 以下。T が V に落ちた行だけの p50 と p95 と行の数を別の列に出す | 同じ test が、T が V を通った行だけの列も出せる | T が V に落ちた行の最初の訳を 600 ms 遅らせる偽の中継で落ちる |
+| RP-34 | 確定の復号が速報の復号を待たない（3.16 の 3） | RP-32 の Rust と Python の run を `cargo test --release --test rp34 -- --ignored` が読み、`final` の `decode_ms` を発話の長さ（4 秒未満、4〜7 秒、7 秒以上）で分ける | 3 つの長さの組のそれぞれで、Rust の `decode_ms` の p50 が Python 以下。速報は RP-5 を満たす | 同じ test が、速報を切った Rust の run からも同じ列を出せる | 確定の復号の前に速報の復号を 1 本必ず回す偽の engine の run で、7 秒以上の組が落ちる |
+| RP-35 | `L` の詰めで品質を下げない（3.16 の品質の条件） | R8h の前の main と R8h の branch で、同じ llama-server と model に `<relay> eval --final --heldout <path> --direction ja-en` と `--direction en-ja`、RP-13 の en の行を打ち、`cargo test --release --test rp35 -- --ignored` が 2 組の結果と RP-32 の Rust の run の中継の stdout を読む | held-out の chrF が両方の向きで前の main 以上、V が止めた行の数が前の main 以下（止める行が増えない）、RP-13 の en の chrF が前の main 以上。RP-32 の run で、`status` が `ok` の訳の全件に、その訳の文字列に掛けた V の `ok` の記録が在る。3 を入れた時は RP-1 の ja の CER が前の main 以下 | 同じ test が前の main 同士の 2 組から差 0 を出す | E0（または E）の応答に V を掛けずに出す偽の中継で、V の記録の無い `ok` の訳が 1 件以上になり落ちる。T の訳をそのまま確定にする偽の中継で held-out の chrF が下がり落ちる |
 
 ## 7. test の名前
 
@@ -763,6 +808,11 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-28 | `rp28_cpu_fallback_latency_is_recorded_apart` | `native/hayamimi-eval/tests/rp28.rs` | CPU の run として渡した GPU の run |
 | RP-29 | `rp29_missing_resources_fall_back_and_say_so` | `native/hayamimi/tests/rp29.rs` | 外したのに event を出さない build、在るのに落ちる build |
 | RP-30 | `rp30_fallback_stage_and_reason_lists_match_the_code` | `native/hayamimi/tests/rp30.rs` | 1 つ消した一覧、code に無い値を足した一覧 |
+| RP-31 | `rp31_latency_counts_only_shown_translations_of_their_own_utterance` | `native/hayamimi-eval/tests/rp31.rs` | `held` の空の訳を先に置いた列、遅れて着いた `final` |
+| RP-32 | `rp32_alternated_runs_under_the_same_load_beat_python` | `native/hayamimi-eval/tests/rp32.rs` | load の記録が無い run、load 2 以上の run、交互でない順 |
+| RP-33 | `rp33_first_translation_after_a_failed_draft_beats_python` | `native/hayamimi-eval/tests/rp33.rs` | 落ちた行を 600 ms 遅らせる偽の中継 |
+| RP-34 | `rp34_final_decode_does_not_wait_for_partial_decode` | `native/hayamimi-eval/tests/rp34.rs` | 確定の前に速報を必ず回す偽の engine |
+| RP-35 | `rp35_latency_work_keeps_chrf_and_verify` | `native/hayamimi-eval/tests/rp35.rs` | V を掛けずに出す偽の中継、T の訳をそのまま確定にする偽の中継 |
 
 test は会話字幕の設計 7.1 と同じ規則で書く（`Result` を返して `?`、`unwrap` と `expect` と `unwrap_or*` を書かない、実行時に環境変数を読まない）。
 `CUDA_VISIBLE_DEVICES`、`CUDA_CACHE_PATH`、`LANG` は test の code が読む値ではなく、test が子の process を起こすときに渡す値である。
@@ -792,6 +842,7 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R8e | 4 つの slot と負荷の下の `L`。CPU に落ちた run の `L` を測り、RP-28 の仮の上限を置き直す | RP-3、RP-28 | slot の数を戻す |
 | R8f | `--translate` の言語を llama-server の T で訳す。中継の `eval`、chrF の Rust の実装と `hayamimi-eval chrf`（sacrebleu 2.6.0 と同じ値）も R8f が持つ。`hayamimi-relay live --translate` に ja と en の外の言語（zh、ko、es ほか）を出す経路（`Translation.lang` を ja と en の 2 つに限らない形）も R8f の受入に入れ、W3 の終わりまでに入れる（E2E は ja と en だけなので止めない）。表に無い言語は 3.15 の `translate.fallback.skipped` で落とす。zh、ko、es の V は形、数、ラテン文字の名前だけを見る（10 の H36） | RP-13、RP-14。T の case 行は T-RP-13-010〜015 で足りる。加えて、R8f の検証の前に test-designer が 2 行を足す。1 行目は 014 の対で、表に在る言語だけの pairs では `translate.fallback.skipped` が 0 件。2 行目は live の経路で、偽の llama-server に `--translate zh` で 1 行流し、`lang` が `zh` の `translation` が 1 件。live の test は `parse_args` の返す設定を、`cli::run` が使うのと同じ「中継を起こして handle を返す関数」に渡して起こし、bind した port の `/events` を読み、handle で止める。`cli::run` はその関数を呼んで待つだけの薄い関数にし、走り続ける `cli::run` を test から直に起こさない。この形に合わせて、test-designer の席が T に 2 行を足す（セラが運ぶ）。017 に「`lang` が `en` の `translation` が 0 件」を足すことと、live で表に無い言語を渡す行（`--translate xx,zh` で `translate.fallback.skipped` が `xx` に 1 件、`/events` の `fallback`（`to` が `skipped`）が 1 件、zh の訳は出続ける）である | commit を revert |
 | R8g | 外の送り先の中身。R8c の送り先の trait に、Zoom の字幕 API、Teams の CART、SRT の書き出し（会話字幕の設計 3.10 と 3.13）を足す。指定は中継の `hayamimi-relay live --send <send.toml>`（Zoom の token と Teams の link）と `--srt <path>` で、どちらも無ければ送らずに動く。token か link が手元に無い機械では CS-17 と CS-18 を打たずに残る穴にする（state.json の `blocked_on` と同じ）。動画から SRT を作る `<relay> srt <mp4>`（会話字幕の設計 3.13）と、`send.toml` の権限の検査と token を log に出さないこと（CS-28）も R8g が作る。どれも E2E には要らない（E2E は mic と loopback の 2 本で、送り先と動画を使わない）。YouTube Live へは送らない（会話字幕の設計 1 の「作らない物」と 4。配信は OBS の字幕頁の焼き込みで足りる）。`send.toml` の形と送り方は会話字幕の設計 3.10、`srt` の手順は 3.13 に従う。`srt` は `hayamimi --input ws --source file --ws-port <空き port>` を起こし（`/ingest` の port は `--ws-port`。`--serve` は `/events` の HTTP の port で、`srt` は使わない）、`/ingest` に繋いでから作業 file の音声を送り、同じ接続で返る event から `final` を集める（3.1 の測りと同じ口）。`hayamimi --wav` を起こしてから `/events` に繋ぐ形を採らないのは、`/events` が過去の `final` を遅れた client に送り直さず、繋ぐ前の `final` が落ちるからである | 会話字幕の CS-14、CS-15、CS-17、CS-18（token か link が在るときだけ）、CS-28、RP-29 の R8c の行（送り先に届かないとき） | commit を revert |
+| R8h | 主指標 `L` の差の詰め（3.16）。1：`stream` の集計の数え方（`held` と空の訳を数えない、`id` と `t1_s` で結ぶ）。2：T が V に落ちた行の最初の訳（案 A と B、評議の判定で採る）。3：確定の復号を速報の復号に待たせない（案 A と B、評議の判定で採る。4 の run で差が残った時だけ）。4：同じ負荷で Python と Rust を交互に測る。2 の席は `feat/r8f-verify` が main に入るまで中継の V の呼び出しの所を書き替えない | RP-31、RP-32、RP-33、RP-34、RP-35 | commit を revert。1 を revert すると `L` の数え方が前の形に戻る |
 | R0b | worktree に `testdata/` が無いとき、test の support が本体の `testdata/` を引く。`hayamimi-eval` の `tests/support/mod.rs` の `BASE` と `TESTDATA` を、まず `CARGO_MANIFEST_DIR` の 2 つ上の `testdata`、無ければ `git rev-parse --path-format=absolute --git-common-dir` の親の `testdata` の順で探す関数にする。両方に無ければ、探した 2 つの path を名指しして `Err` を返す（黙って通さない）。symlink は使わない（Windows から WSL の symlink を辿れない。RP-24 の os error 1920） | worktree の中で `cargo test -p hayamimi-eval --test rb01 … --test rb08` の FAILED が 0。陰性対照は、本体にも worktree にも `testdata/` が無い clone で、2 つの path を名指しした `Err` で落ちる | commit を revert |
 | R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。`docs/guide/embedding.md` と `embedding.ja.md` の wire の記述を、その時の実装（3.3 の項目、`settled`、`of: "partial"`、`speaker` の event）に合わせる。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-19 の spec の行、RP-30 | 文書の commit を revert |
 | R11 | 3.2 の 3 つの条件を確かめてから、Python の 78 本と `requirements*.txt` を消し、CI を cargo に替え、Dart の comment を書き替える | RP-9、RP-19 | R11 の commit を revert |
@@ -834,6 +885,7 @@ R3〜R11 の全 slice を、2026-10-15 07:00 JST までに main へ入れる。
 | R8e | R5 の `/ingest`、R8a〜R8d、R8b | RP-3 の command（6）が `/ingest` と中継の訳を読む |
 | R8f | R8b の llama-server。中継の `eval` は R8f が足す | RP-13 の command（6） |
 | R8g | R8c の送り先の trait。E2E には要らない（E2E は中継の SSE と頁で字幕を読む） | 8 の R8c と R8g の行 |
+| R8h | 1 は R8e の `stream` の集計。2 は R8c の先の訳と、R8f の V の直し（`feat/r8f-verify`）。3 は R5 の速報の loop。4 は R8e の run の command | `native/hayamimi-eval/src/latency.rs` の訳の結び方は着いた順（`positional_translations`）で `status` を読まない。`native/hayamimi-relay/src/pipeline.rs` の先の訳は `draft.passed` の時だけ出る。`native/hayamimi/src/session.rs` の `on_window` が速報と確定を同じ loop で回す |
 | R0b | 無し。worktree の席の rb01〜rb08 を通すので、空いた席ですぐ打つ | `native/hayamimi-eval/tests/support/mod.rs:23` と `:25` が `CARGO_MANIFEST_DIR` の 2 つ上の `testdata` だけを見る |
 | R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
 | R11 | RP-1（R3）、RP-13（R8f）、RP-15（R4）、RP-19 の全行、R10 | 3.2 の R11 に入る 3 つの条件 |
@@ -853,10 +905,10 @@ R3a は R3b の `decode` を、言語の tier を受けて文字列を返す 1 �
 | V1 | 20:00〜21:00 | 検証と merge（順は R8a、R4、R3b、R3a、R5。`args.rs` を足す席が後ろ） | 1 時間 |
 | W2 | 21:00〜01:00 | R6、R7、R8b、R8c、R8d。R8c の merge で空いた席に R3c（RP-1 の zh と yue、10 の H35） | 各 3〜4 時間 |
 | V2 | 01:00〜01:45 | 検証と merge | 0.75 時間 |
-| W3 | 01:45〜04:15 | R8e、R8f、R8g、R10。空いた席に R7b（日本語の streaming の認識器を測るだけ。10 の H38） | 各 2.5 時間 |
+| W3 | 01:45〜04:15 | R8e、R8f、R8g、R10。空いた席に R7b（日本語の streaming の認識器を測るだけ。10 の H38）と R8h の 1。R8h の 2 と 3 は評議の判定の後に空いた席で（3.16 の「順と置き場」） | 各 2.5 時間 |
 | V3 | 04:15〜04:45 | 検証と merge | 0.5 時間 |
 | W4 | 04:45〜05:45 | R11 | 1 時間 |
-| E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95 | 1 時間 |
+| E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95。`L` は RP-32 の交互の run で取る | 1 時間 |
 
 cargo の並列は 2 に固定されている。
 5 席が同時に `cargo build --release` を打つと 10 job になり、この機械の 16 core に収まるが、1 席の build は単独の時より遅くなる。
@@ -894,7 +946,7 @@ Windows の実機の test（RP-10、RP-16 の訳の行、R8b、端から端）�
 
 | ID | command | 期待値 | 陽性対照 | 陰性対照 |
 |---|---|---|---|---|
-| E2E-1 | llama-server、中継、process A を起こし、`<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl`、`cargo test --release --test e2e1 -- --ignored` | 有効な標本（3.1）のうち訳の取れた割合が 20 / 23 以上。`L`、`L_asr`、`L_tr` の p50 と p95 を出す。`L` は RP-3 の期待値（Python の p50 と p95 以下）で判定する | 同じ test が `<base>` の Python の run から同じ列を出せる | llama-server を止めた run では訳が 0 件で test が落ち、`hayamimi` と中継は止まらず `translate.fallback.held` を出す |
+| E2E-1 | llama-server、中継、process A を起こし、`<ev> stream --wav testdata/lat-ja.wav --repeat 5 --port 8766 --out e2e1.jsonl`、`cargo test --release --test e2e1 -- --ignored` | 有効な標本（3.1）のうち訳の取れた割合が 20 / 23 以上。`L`、`L_asr`、`L_tr` の p50 と p95 を出す。`L` は RP-3 の期待値（Python の p50 と p95 以下）で、RP-32 の同じ負荷で交互に測った Python の run と比べて判定する | 同じ test が `<base>` の Python の run から同じ列を出せる | llama-server を止めた run では訳が 0 件で test が落ち、`hayamimi` と中継は止まらず `translate.fallback.held` を出す |
 | E2E-2 | llama-server、中継、process B を起こし、`<ev> stream --wav testdata/lat-en.wav --repeat 5 --sink loopback --out e2e2.jsonl`（既定の出力の装置へ鳴らし、送った sample の時刻を記録する口は R5 が足す）、`cargo test --release --test e2e2 -- --ignored` | `lang` が `en` の `final` と `lang` が `ja` の訳が出て、有効な標本のうち訳の取れた割合が 20 / 23 以上。`L` の p50 と p95 を出し、p95 が 2000 ms 以下（RP-3 の en→ja の値） | 同じ音声を `/ingest`（8767）へ送った run でも同じ列が出る | 出力の装置を止めた run では止まらず `capture.fallback.none` が 1 件 |
 
 マイクの実機（RDP の録音の転送を通る音声）は、process A を起こして `capture.fallback.none` が 0 件で、マイクの装置の名前が log に出ることまでを機械で確かめる。
@@ -952,7 +1004,7 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 - **H30** 認識の fp16 の GPU が fp32 の 2.7 倍遅い理由は未特定である（NOT VERIFIED）。`ort` の session で CUDA の時に CPU に置かれる node は fp32 が 1599、fp16 が 1611 で（`gpu_stages.md` の node の表の `encoder-epoch-35-avg-1.onnx` と `encoder-epoch-35-avg-1.fp16.onnx` の行、:246 と :245）、差の 12 node では説明できない。認識は CPU に置くので置き場には効かないが、GPU で fp16 を選ぶ段が他に出たときに同じ形で遅くなりうる。
 - **H31** 認識全体の cuda の時間（同じ fp32 の無負荷の p50 171414 µs）のうち、encoder だけの時間（66262 µs）と fbank（約 6 ms）を除いた約 99 ms が何に使われているか説明できない（NOT VERIFIED）。転送は 1 発話あたり host → device 1524 µs と device → host 935 µs で（`gpu_stages.md` の転送の表の fp32 の 2 行、:221-222）、この差を説明しない。node の置き場は `ort` の session の値で、sherpa-onnx の session の置き場は確かめていない。持ち主は R7 で、内訳を調べ、encoder と探索を別の provider に分けずに縮める手段が在るかを評議へ出す。
 - **H32** llama.cpp の CUDA の build が CUDA の device 0 の機械で起動し CPU で動くか、`-ngl 0` で cuDNN と cuBLAS を読まずに済むかは確かめていない（NOT VERIFIED）。R8b が `CUDA_VISIBLE_DEVICES` を空にして起こして確かめ、起動できなければ CPU の build（`llama-<tag>-bin-win-cpu-x64.zip`）を同じ置き場に並べる。sherpa-onnx が CUDA の実行 provider を作れないときに自分で CPU へ落とすかも確かめていないので、3.11 の 2 段目は `gpu.session.created` の実際の provider で判定する。
-- **H35** RP-1 の誤り率の差は、Rust の code ではなく ORT の build の違いから出ている（R3c の実測。Python の wheel の ORT 1.27.1 を Rust に読ませると 66 clip が Python の log と小数 3 桁で一致し、自分で build した ORT では 5 clip が違う）。Windows の値（ja、en、zh、ko、yue の百万分率）は、Python と同じ library で 37512、22606、65609、80572、61454、配る形の自分の build で 37512、22606、65609、86939、61454 である。RP-1 の小数 3 桁の比べ方（6 の RP-1）では、配る形の build の ko の 0.087 だけが Python の 0.081 を超える。ORT の版は古くしない（常に最新の版を使う）。RP-1 の閾値も緩めず、ko の行は赤のままこの穴に残す（評議の判定）。Rust の code は基準（`testdata/baseline/scorecard_run1.md` の ko の行）と同じ物を出す。Python の wheel の ORT を読ませた run（`win_python_libs.json`）で ko が 80572（0.081）、66 clip が一致したからである。R11 の入口では ko の上限を配る形の build の記録値 0.0869 にする（3.2 の 2）。SenseVoice を CPU の fp32 で読む形は採らない。`L` の延びが 1% 以内という条件を満たさないからである。fp32 の ko の 0.0937 と yue の 0.0912 は、VAD が欠けて長い音声を一定の長さで切る `model.fallback.chunks`（`decode.rs` の 416〜430 行）が入った値で、精度の効果とは読めないので引かない。R3b と R3c は ko をこの穴として残したまま merge してよく、E2E は ja と en だけを使うので止まらない。振り分けを通した Windows の配る形の build の run（`lid: detected`、記録は R3c の `docs/results/r3c/win_routed.json` と `h35_clips.md`）でも、ja 37512（LID 15/15、ja_02 は誤り率 0）、en 22606、zh 65609、ko 86939、yue 61454 で、正解の言語を渡した run と同じ値になり、言語判定の外れは 66 clip 中 0 である。zh と yue は Python と同じ値で、RP-1 を通る（実装の席の申告で、NOT VERIFIED。検証の席が可を返したら外す）。R3b の run の zh 0.0699 と yue 0.0682 は、この build では出ない。
+- **H35** RP-1 の誤り率の差は、Rust の code ではなく ORT の build の違いから出ている（R3c の実測。Python の wheel の ORT 1.27.1 を Rust に読ませると 66 clip が Python の log と小数 3 桁で一致し、自分で build した ORT では 5 clip が違う）。Windows の値（ja、en、zh、ko、yue の百万分率）は、Python と同じ library で 37512、22606、65609、80572、61454、配る形の自分の build で 37512、22606、65609、86939、61454 である。RP-1 の小数 3 桁の比べ方（6 の RP-1）では、配る形の build の ko の 0.087 だけが Python の 0.081 を超える。ORT の版は古くしない（常に最新の版を使う）。RP-1 の閾値も緩めず、ko の行は赤のままこの穴に残す（評議の判定）。Rust の code は基準（`testdata/baseline/scorecard_run1.md` の ko の行）と同じ物を出す。Python の wheel の ORT を読ませた run（`win_python_libs.json`）で ko が 80572（0.081）、66 clip が一致したからである。R11 の入口では ko の上限を配る形の build の記録値 86939（百万分率、丸めずに整数のまま比べる）にする（3.2 の 2）。SenseVoice を CPU の fp32 で読む形は採らない。`L` の延びが 1% 以内という条件を満たさないからである。fp32 の ko の 0.0937 と yue の 0.0912 は、VAD が欠けて長い音声を一定の長さで切る `model.fallback.chunks`（`decode.rs` の 416〜430 行）が入った値で、精度の効果とは読めないので引かない。R3b と R3c は ko をこの穴として残したまま merge してよく、E2E は ja と en だけを使うので止まらない。振り分けを通した Windows の配る形の build の run（`lid: detected`、記録は R3c の `docs/results/r3c/win_routed.json` と `h35_clips.md`）でも、ja 37512（LID 15/15、ja_02 は誤り率 0）、en 22606、zh 65609、ko 86939、yue 61454 で、正解の言語を渡した run と同じ値になり、言語判定の外れは 66 clip 中 0 である。zh と yue は Python と同じ値で、RP-1 を通る（実装の席の申告で、NOT VERIFIED。検証の席が可を返したら外す）。R3b の run の zh 0.0699 と yue 0.0682 は、この build では出ない。
 - **H37** `hayamimi-eval scorecard` は、clip の正解の言語を認識器に渡しているので、振り分けを通らず、LID の正解の数が空になる（T-RP-1-012 が `LidNotMeasured("ja")` で落ちる）。持ち主は R3b で、scorecard を `hayamimi-asr` の振り分けに通し（8 の「07:00 の計画」の R3 の着手の 1）、言語判定が選んだ言語と tier を clip ごとに記録して LID の正解の数を出す。R3b の branch（`3b21928`）で LID の数が出るようになったので、R3b の merge の時にこの穴を消す。
 - **H40** RP-1 の ja で、Rust の CER の平均が 0.0751（LID 14/15）で Python の 0.038 を超える。差は ja_02 の 1 clip で、whisper-tiny は ja と答え、SenseVoice（sherpa-onnx 1.13.8）は zh と答え、session の最初の clip は SenseVoice の答えを採る規則（Python の `asr_engine.py` の二重確認と同じ）なので zh として読む。原因は scorecard が session の状態を clip ごとに初めに戻していることで、ja_02 が毎回 session の最初の clip になる（R3b の branch の `3b21928` では、`reset_session()` が clip ごとに呼ばれる `score_clip` の中に在る）。8 の「07:00 の計画」の R3 の着手の 1 のとおり、reset は set ごとに 1 回にする。最初の clip の規則は変えない。規則は Python の意図を移した物で（8 の R3 の着手の 4）、変えると RP-19 の `route.rs` の case と食い違うからである。R3b の `8fe1f19` が reset を set ごとに移した。その run で ja_02 が ja と読まれ、ja の CER が 0.0375、LID が 15/15 になり、clip ごとに戻すと zh に戻るという値は、実装の席の申告で、検証の席はまだ打っていない（NOT VERIFIED）。検証の席が `8fe1f19` を打ち直して可を返したら、この穴を消す。R11 は RP-1 の ja が通るまで始めない。
 - **H38** 日本語の streaming の認識器が出ている（`docs/research/04-recheck-2026-10.ja.md` の「速度と品質に効きそうな変化」）。今の認識は非 streaming の認識器を VAD の区切りに掛け、`--min-silence` の無音を待ってから解くので、`L_asr` に無音の待ちと発話全体の解き直しが入る。streaming の認識器は、話している間に解き進めるので、`L` を縮められる見込みがある（NOT VERIFIED）。`goals.md` の 56 行目の「高精度な日本語の streaming model が出たら増分デコードを再評価する」の条件に当たる。候補は 3 つで、Rust の実行時の経路に載るかが違う。Nemotron 3.5 ASR Streaming 0.6B（ja-JP を含み、chunk は 80〜1120 ms、FLEURS の日本語 CER は 80 ms で 13.87、1.12 秒で 11.48）は sherpa-onnx が runtime を取り込んでおり、今の build の `OnlineRecognizer` で測れる見込みである（取り込みが v1.13.8 に入っているかは確かめていない）。Moonshine v0.1.5 の日本語 streaming と Voxtral Realtime（sub-200 ms から設定可）は、sherpa-onnx で動くかを確かめていない。Python や vLLM でしか動かない物は、実行時の Python を 0 本にする方針（1.3）なので採らない。持ち主は R7b（W3 の席。測るだけで、`hayamimi` の経路の code を替えない）で、Nemotron 3.5 の 560 ms の int8 の package を同じ build で読み、lat-ja の `L_asr` の p50 と p95（RP-4 の式）と、eval_real の ja の CER（RP-1 の ja）と golden の 8 本の CER（RP-2）を、今の ReazonSpeech と同じ表に並べて `docs/results/` に書く。Moonshine と Voxtral は、sherpa-onnx の docs と release に在るかだけを確かめて同じ表に書く。置き換えるかは、E2E が通った後に、その表を材料にして評議が決める。いまの W1〜W4 と E2E の経路は替えない。Nemotron 3.5 の license（OpenMDW-1.1）を配る物に入れてよいかは確かめていない（NOT VERIFIED。採る時に R10 が `THIRD_PARTY_NOTICES.md` の手番で確かめる）。
@@ -962,6 +1014,8 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 V は止めすぎてもいる（RP-13 の run で、正しい訳を止めた行が RP-13 の chrF を下げる）。止めすぎの直しも R8f が持ち、条件は 3 つである（評議の判定）。調整は seed 0 の 50 組とは別の組で行い、seed 0 の 50 組は判定にだけ使う。否定、数、推量を落とした訳が止まる対照の case 行は残す。閾値は緩めない。含意の否定（否定の語を持たない否定の言い方）と伝聞の「そうです」の扱いは、V の規則そのものを変えるので、その数（止めた行と止めなかった行）を添えて評議へ戻す。RP-13 は R11 に入る条件（3.2）に入る。
 T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛けず、V で外れた行を `held` にする形に合わせて書き替える。書き替えは test-designer の席へ回す（セラが運ぶ）。
 - **H33** CPU に落ちた段の誤り率は、同じ model を読むので GPU の run と同じと見込んでいる（ASSUMPTION）。fp32 の数値の差で字が変わりうるので、R2 が RP-18 の句読点の全件を CPU の provider でも掛け、`expected` と一致する件数を記録する。小さい model へ落ちた段の誤り率は測っていない（NOT VERIFIED）。
+- **H42** Python の `final` は `t1_s` を持たないので、Python の run の遅れて着いた `final` は、前の窓が「final なし」で次の窓に `final` が 2 件以上在る形からの推定でしか数えられない（3.1）。推定の数が Python の p95 を小さく見せている量は分からない（NOT VERIFIED）。持ち主は R8h で、RP-32 の Python の run でその数を記録し、Rust の同じ数（`t1_s` で結んだ時に次の窓に着いていた `final` の数）と並べる。
+- **H43** R8e の run の「訳」の段と `decode_ms` の差は、原因の席の打ち直しの値で、設計の席は確かめていない（NOT VERIFIED）。`decode_ms` の差が負荷の差か engine の差かも分かっていない。3.16 の 2 の A で、2 本並べた依頼が T の待ちを延ばす量も測っていない。持ち主は R8h で、RP-32 の run の段ごとの列で確かめ、2 と 3 の案を評議へ出す時の材料にする。
 
 ## 11. 出所
 
