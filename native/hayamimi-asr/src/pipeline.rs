@@ -262,6 +262,19 @@ fn open_identifier(
     Ok(opened.lid)
 }
 
+/// The English recognizer, when the session may read English: one forced to
+/// English, or one that identifies the language. Its model takes seconds to
+/// load, so it is built before the session starts and the first English
+/// utterance does not wait for it. A session forced to another language never
+/// reads English and loads nothing more.
+fn english_tier_to_preload(policy: &Policy) -> Option<Tier> {
+    let may_read_english = policy
+        .forced_lang
+        .as_deref()
+        .is_none_or(|lang| lang == "en");
+    may_read_english.then(|| requested_tier("en", policy.en_tier))
+}
+
 /// Opens the detector and the recognizer, which are of use only together: if
 /// either is out, there is no route. The sessions that were built are added to `reports`.
 fn open_route(
@@ -285,7 +298,13 @@ fn open_route(
     reports.push(cpu_report(String::from(VAD_MODEL)));
     reports.extend(recognizer_models(settings).into_iter().map(cpu_report));
     let identifier = open_identifier(settings, reports, fallbacks)?;
-    let router = Router::new(recognizers, identifier, settings.policy.clone());
+    let mut router = Router::new(recognizers, identifier, settings.policy.clone());
+    if let Some(tier) = english_tier_to_preload(&settings.policy) {
+        // A model that cannot be loaded is remembered as missing and the first
+        // utterance in English is read by the tier that answers for it, as it
+        // is said then; the session does not stop here.
+        router.prefetch(tier);
+    }
     Ok(Some(Route {
         router,
         vad,
@@ -776,6 +795,7 @@ fn timed<T>(work: impl FnOnce() -> T) -> (T, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::route::EnTier;
 
     #[test]
     fn every_stage_runs_by_default() {
@@ -890,6 +910,38 @@ mod tests {
             .collect();
         assert_eq!(left_out, [("speaker", "missing", "disabled")]);
         Ok(())
+    }
+
+    #[test]
+    fn a_session_forced_to_english_preloads_the_english_recognizer() {
+        assert_eq!(
+            english_tier_to_preload(&Policy::single("en")),
+            Some(Tier::V3)
+        );
+        let mut english_only = Policy::single("en");
+        english_only.en_tier = EnTier::V2;
+        assert_eq!(english_tier_to_preload(&english_only), Some(Tier::V2));
+    }
+
+    #[test]
+    fn a_session_that_identifies_the_language_preloads_the_english_recognizer() {
+        assert_eq!(english_tier_to_preload(&Policy::balanced()), Some(Tier::V3));
+        assert_eq!(english_tier_to_preload(&Policy::fast()), Some(Tier::V3));
+    }
+
+    #[test]
+    fn a_session_forced_to_another_language_preloads_nothing() {
+        for lang in ["ja", "zh", "ko", "yue", "de"] {
+            assert_eq!(
+                english_tier_to_preload(&Policy::single(lang)),
+                None,
+                "{lang}"
+            );
+        }
+        assert_eq!(
+            english_tier_to_preload(&Settings::new(PathBuf::new()).policy),
+            None
+        );
     }
 
     #[test]

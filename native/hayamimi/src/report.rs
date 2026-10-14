@@ -48,6 +48,22 @@ pub fn log_sessions(strings: &Strings, engine: &Engine) {
     }
 }
 
+/// Says what the recognizers and the route did since the last call: models
+/// loaded and dropped in the log, and tiers that gave way on the three channels.
+pub fn tell_resident(strings: &Strings, hub: &Hub, engine: &mut Engine) {
+    for event in engine.take_resident_events() {
+        if let Some(line) = log::resident_line(strings, &event) {
+            log::print(&line);
+        }
+        if let Some(notice) = Notice::from_resident(&event) {
+            say_notice(strings, hub, &notice);
+        }
+    }
+    for step in engine.take_route_notices() {
+        say_notice(strings, hub, &Notice::from_route(&step));
+    }
+}
+
 /// Says that a stage is back on its first road, on the three channels.
 pub fn say_cleared(strings: &Strings, hub: &Hub, cleared: &Cleared) {
     log::print(&log::cleared_line(strings, cleared));

@@ -285,6 +285,8 @@ pub struct Recognizers {
     /// An unreadable language tag has been reported.
     lang_unknown_reported: bool,
     events: Vec<ResidentEvent>,
+    /// Milliseconds spent building recognizers since [`Recognizers::take_load_ms`].
+    load_ms: f64,
 }
 
 fn millis(since: Instant) -> f64 {
@@ -305,6 +307,7 @@ impl Recognizers {
             chunked: false,
             lang_unknown_reported: false,
             events: Vec::new(),
+            load_ms: 0.0,
         }
     }
 
@@ -327,12 +330,12 @@ impl Recognizers {
             self.events.push(ResidentEvent::Evicted { tier: victim });
         }
         let started = Instant::now();
-        match Recognizer::open_tier(&self.models, tier, self.threads) {
+        let opened = Recognizer::open_tier(&self.models, tier, self.threads);
+        let ms = millis(started);
+        self.load_ms += ms;
+        match opened {
             Ok(recognizer) => {
-                self.events.push(ResidentEvent::Loaded {
-                    tier,
-                    ms: millis(started),
-                });
+                self.events.push(ResidentEvent::Loaded { tier, ms });
                 self.residents.insert(tier, recognizer);
                 Ok(None)
             }
@@ -489,15 +492,25 @@ impl Recognizers {
     /// Decodes `samples` in language `lang` with `tier`: the whole-buffer
     /// decode, then the split retry when the text looks cut short.
     pub fn decode(&mut self, tier: Tier, lang: &str, samples: &[f32]) -> Result<Decoded, AsrError> {
-        let started = Instant::now();
         let whole = self.decode_whole(tier, samples)?;
+        // The whole decode times itself after the tier is resident, so the
+        // sum is the recognizer's time and a model load is not in it.
+        let retrying = Instant::now();
         let text = self.retry_if_truncated(whole.tier, lang, &whole.text, samples)?;
         Ok(Decoded {
             text,
             lang: whole.lang,
             tier: whole.tier,
-            decode_ms: millis(started),
+            decode_ms: whole.decode_ms + millis(retrying),
         })
+    }
+
+    /// The milliseconds spent building recognizers since the last call. A
+    /// caller that times a decode asks before it starts, to drop what came
+    /// earlier, and after it ends, to take a load that happened inside it out
+    /// of the time.
+    pub fn take_load_ms(&mut self) -> f64 {
+        std::mem::take(&mut self.load_ms)
     }
 
     /// Drops every recognizer from memory.
@@ -799,6 +812,29 @@ mod tests {
         recognizers.pieces(&vec![0.0; 20 * 16_000])?;
         assert!(recognizers.take_events().is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn the_load_time_is_handed_over_once() {
+        let mut recognizers = nothing_installed();
+        recognizers.load_ms = 12.5;
+        assert_eq!(recognizers.take_load_ms(), 12.5);
+        assert_eq!(recognizers.take_load_ms(), 0.0);
+    }
+
+    #[test]
+    fn a_tier_that_is_not_installed_costs_no_load_time() {
+        let mut recognizers = nothing_installed();
+        assert_eq!(recognizers.load(Tier::V3).ok(), Some(Some(Reason::Missing)));
+        assert_eq!(recognizers.take_load_ms(), 0.0);
+    }
+
+    #[test]
+    fn a_tier_that_is_not_installed_gives_way_to_nothing_and_loads_nothing_when_decoded() {
+        let mut recognizers = nothing_installed();
+        let said = recognizers.decode(Tier::V3, "en", &vec![0.0; 16_000]).err();
+        assert!(matches!(said, Some(AsrError::NoRecognizer)), "{said:?}");
+        assert_eq!(recognizers.take_load_ms(), 0.0);
     }
 
     #[test]
