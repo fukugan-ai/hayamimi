@@ -694,6 +694,18 @@ test：`native/hayamimi/tests/rp16.rs`。受入 test の名前は `rp16_no_gpu_f
 run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja の run では句読点、R3 以降は言語判定も）を持つ。落ちた event はこの一覧の段ごとに 1 件を求め、読み込んでいない段には求めない。
 `check_gpu_run(run)` は GPU の在る run を確かめる。
 
+訳の行（R8b）は、llama-server を起こす command（`hayamimi llama start --model <file> --port <n> --dir <root>`）の run を同じ形で確かめる（T-RP-16-038 から 051）。
+受入 test の名前は `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`（GPU を隠した run を ja と C.UTF-8 の 2 つの言語で打ち、どちらも 038 の形で、stderr の言語が分かれる）。
+`check_translate_on_cpu(run, 理由)` は、終了 code、stdout の JSONL の event、起こした server の引数、stderr の文を確かめる。
+理由が `no_device` の run は `gpu.device.unavailable` を 1 件（`reason` = `no_device`）、`session_failed` の run は 0 件求める。
+`check_gpu_translate_run(run)` は GPU の在る run を確かめる。
+run は、command の出力と、起こした server が log の file の最初の行に出した引数を持つ。
+実走の server は test の代役（`fake_llama_server`）で、model の file の名前で動きが決まる（`exits.gguf` は終了 code 3、`silent.gguf` は待ち受けない、ほかは `/health` に `ok` を返す）。
+代役は GPU を使わないので、`-ngl 0` を受けたことは引数の行で確かめる。
+実物の llama-server の run は手で打ち、出力を `docs/results/r8b/` に置く（手順は `docs/guide/llama_windows.ja.md`）。
+`/events` の `fallback` は、起こす command が字幕の server を持たないので求めない。
+字幕の server と起こす command を繋ぐ slice が足す（NOT VERIFIED：それまで、訳の段の `/events` の `fallback` は 0 件）。
+
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-RP-16-001 | fixture：終了 code 0、`final` 1 件以上、`gpu.device.unavailable` 1 件（`error_code` = `HAYAMIMI_GPU_DEVICE_UNAVAILABLE`、`reason` = `no_device`）、読み込んだ GPU の段は句読点だけで `gpu.fallback.cpu` 1 件と `/events` の `fallback`（`to` = `cpu`）1 件、`gpu.session.created` の実際の provider が全件 `cpu`、stderr に `nvidia-smi` | 落ちた形が揃う（落ちた形の対の片方） | `Ok` | `Ok`（specified、RP-16） | 陽性 | `no_gpu_run_with_all_required_signals_passes` |
@@ -731,8 +743,22 @@ run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja 
 | T-RP-16-033 | 同上：8 本それぞれを、whisper の判定と SenseVoice の判定を持つ台本の認識器と言語判定に通す（`Router::transcribe`、`balanced`） | 二重確認と粘りの後の最終の言語 | `Ok` | 8 本とも `lang` が `ja`、session の言語が `ja`（specified、設計の二重確認：session の最初の segment は SenseVoice の言語で読む） | 陽性 | `the_language_left_after_the_dual_confirmation_is_japanese_for_all_eight` |
 | T-RP-16-034 | 同上：`ja` の session の次の segment で whisper が `ko` か `zh` と言い、SenseVoice は `ja` | 外れた判定が session を動かさない | `Ok` | 次の segment の `lang` が `ja` のまま（specified、二重確認：二つが一致しない切り替えは通さない） | 陰性 | `a_misnamed_clip_is_not_confirmed_as_a_switch_away_from_japanese` |
 | T-RP-16-035 | 実走：本物の `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime`（`--lang` を付けない） | 言語判定が実行 file に繋がっている | 実走 | 言語判定の session の `gpu.session.created` が 1 件で、確定文ごとに言語判定の結果（`final` の `lang` と、0 でない `lid_ms`）が出る（specified、設計 8 の R3 の行。持ち主は R3b） | 陽性 | `binary_run_identifies_the_language` |
-| T-RP-16-036 | 実走：言語判定、認識、句読点の session を同じ process で開く test を `--test-threads=2` で 20 回 | session を同時に作る形 | 0 回 | abort（`Rust cannot catch foreign exceptions`）が 0 回（specified、設計 3.4 の「session は 1 本ずつ作る」。持ち主は R3b） | 陽性 | `opening_sessions_in_parallel_never_aborts` |
-| T-RP-16-037 | 実走：036 と同じ test を、lock を外した build で 20 回 | lock なしの対照 | 1 回以上 | abort が 1 回以上（derived、並列 2 の 9 回で 2 回の実測。0 回なら 036 は lock を測っていないので、回数を増やして打ち直す） | 陰性 | `opening_sessions_without_the_lock_can_abort` |
+| T-RP-16-036 | 実走：言語判定、認識、句読点の session を同じ process で開く test（`rp16_sessions.rs`）を `--test-threads=2` で 20 回と、abort を見た形の `cargo test --release -p hayamimi-asr --test rp16_lid -- --ignored --test-threads=2` を 20 回 | session を同時に作る形 | 0 回 | どちらも abort（`Rust cannot catch foreign exceptions`）が 0 回（specified、設計 3.4 の「session は 1 本ずつ作る」。持ち主は R3b） | 陽性 | `opening_sessions_in_parallel_never_aborts` |
+| T-RP-16-037 | 実走：lock を外した build で、`rp16_lid -- --ignored --test-threads=2` を 20 回 | lock なしの対照 | 記録 | abort の回数を記録し、合否に使わない（derived。lock の根拠は、lock の無い形の 9 回で 2 回、lock を入れた後の同じ打ち方の 9 回で 0 回の実測である。abort は時刻の重なりで起きる稀な物で、lock を外した 3 つの構成の 20 回ずつでは 0 回だったので、再現しないことを lock が要らない証拠と読まない） | 記録 | `opening_sessions_without_the_lock_is_recorded` |
+| T-RP-16-038 | fixture：終了 code 0、`gpu.device.unavailable` 1 件（`reason` = `no_device`）、`gpu.fallback.cpu` 1 件（`stage` = `translate`、`reason` = `no_device`、`error_code` = `HAYAMIMI_GPU_FALLBACK`）、`translate.server.started` 1 件（`gpu_layers` = 0）、server の引数の行に `-ngl 0`、stderr に `nvidia-smi` | 落ちた形が揃う | `Ok` | `Ok`（specified、RP-16） | 陽性 | `no_gpu_translate_run_with_all_required_signals_passes` |
+| T-RP-16-039 | fixture：038 と同じで、`gpu.device.unavailable` が 0 件 | 件数の下側 | `Err` | `Err` で `gpu.device.unavailable` を名指し（specified、RP-16 の「1 件」） | 境界、陰性 | `translate_run_without_the_device_event_is_rejected` |
+| T-RP-16-040 | fixture：038 と同じで、`gpu.fallback.cpu` が 0 件 | 落ちたのに event を出さない build | `Err` | `Err` で `translate` を名指し（specified、RP-16、3.15） | 陰性 | `translate_run_without_the_fallback_event_is_rejected` |
+| T-RP-16-041 | fixture：038 と同じで、`gpu.fallback.cpu` が 2 件 | 件数の上側 | `Err` | `Err` で `translate` を名指し。段ごとに 1 件（specified、RP-16） | 境界、陰性 | `duplicate_translate_fallback_event_is_rejected` |
+| T-RP-16-042 | fixture：038 と同じで、`translate.server.started` の `gpu_layers` が 99 | 在りもしない GPU に層を載せた build | `Err` | `Err` で `gpu_layers` を名指し。GPU が無いときは 0（specified、3.11 の「CPU へ落とす」） | 陰性 | `gpu_layers_after_missing_gpu_are_rejected` |
+| T-RP-16-043 | fixture：038 と同じで、event は 0 のまま server の引数の行が `-ngl 99` | event と実際の引数が食い違う build | `Err` | `Err` で `-ngl` を名指し（specified。event は自己申告で、引数の行は server が受けた物） | 陰性 | `server_arguments_with_gpu_layers_after_missing_gpu_are_rejected` |
+| T-RP-16-044 | fixture：038 と同じで、終了 code が 1 | 止まった start | `Err` | `Err`。終了 code は 0 でなければならない（specified、RP-16） | 境界、陰性 | `failed_translate_start_is_rejected_as_a_cpu_fallback` |
+| T-RP-16-045 | fixture：038 と同じで、stderr に `nvidia-smi` が無い | 確かめる command | `Err` | `Err`（specified、RP-16） | 陰性 | `translate_stderr_without_nvidia_smi_is_rejected` |
+| T-RP-16-046 | fixture：GPU の在る run（終了 code 0、`gpu.device.unavailable` と `gpu.fallback.cpu` が各 0 件、`translate.server.started` の `build` = `cuda`、`gpu_layers` = 99、引数の行に `-ngl 99`） | 在るのに落ちない（038 の対） | `Ok` | 別の関数 `check_gpu_translate_run` が `Ok`（specified、RP-16 の対照） | 陽性 | `gpu_present_translate_run_has_no_fallback_events` |
+| T-RP-16-047 | fixture：046 と同じ GPU の在る run で、`gpu.fallback.cpu` が 1 件、`gpu_layers` が 0 | GPU が在るのに CPU へ落ちる build | `Err` | `check_gpu_translate_run` が `Err` で `gpu.fallback.cpu` を名指し（specified、RP-16 の陰性欄） | 陰性 | `gpu_present_translate_run_that_falls_back_is_rejected` |
+| T-RP-16-048 | fixture：GPU は在るが CUDA の起動が 1 つ失敗した run（`gpu.device.unavailable` が 0 件、`translate.server.failed` 1 件、`gpu.fallback.cpu` 1 件で `reason` = `session_failed`、`gpu_layers` = 0） | 段 2 の失敗（3.11） | 理由 `session_failed` で `Ok`、理由 `no_device` で `Err` | `check_translate_on_cpu(run, session_failed)` が `Ok`。同じ run を `no_device` で確かめると `Err`（specified、3.11 の 2 段） | 境界、陽性、陰性 | `session_failed_run_needs_the_fallback_but_no_device_event` |
+| T-RP-16-049 | 実走：GPU を隠し（`HIDE_GPU`）、代役の server を入れた install に `hayamimi llama start --model ok.gguf --port <空き> --dir <install> --wait 20`（`LANG` = `C.UTF-8`） | 実走 | 実走 | 038 の形。server は `/health` に `ok` を返す（specified、RP-16） | 陰性 | `hidden_gpu_translate_server_starts_on_cpu_with_a_reason` |
+| T-RP-16-050 | 実走：049 と同じで、install に CUDA の build が無い（`llama/cuda` を作らない） | 起動の失敗が次の手へ落ちる | 実走 | 038 の形に加えて `translate.server.failed` が 1 件（`build` = `cuda`、`reason` = `missing_build`）で、終了 code 0（specified、3.15「止めない」） | 境界、陰性 | `missing_cuda_build_falls_through_to_the_cpu_build` |
+| T-RP-16-051 | 実走、GPU の在る機械：GPU を隠さず 049 と同じ command | 実走の対照 | 実走 | 046 の形（specified、RP-16 の対照） | 陽性 | `visible_gpu_translate_server_does_not_fall_back` |
 
 ### 4.27 RP-17（自分で build した library が開け、ORT が 1 つである）
 

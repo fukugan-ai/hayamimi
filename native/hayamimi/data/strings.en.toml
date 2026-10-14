@@ -15,6 +15,10 @@
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
 "server.fallback.port" = "The port is in use; the run goes on with another one"
 "config.fallback.default" = "A settings file could not be read; the run goes on with the defaults"
+"translate.server.started" = "The translation server answers"
+"translate.server.running" = "A translation server already answers; none was started"
+"translate.server.failed" = "One way of starting the translation server did not come up"
+"translate.server.unavailable" = "The translation server could not be started; lines are held and the original text goes on"
 
 [cli]
 help = """hayamimi: real-time Japanese speech recognition (runs on the CPU when there is no GPU)
@@ -49,6 +53,7 @@ stage_asr = "Stage that fell back: recognition"
 stage_events = "Stage that fell back: subtitle server"
 stage_replace = "Stage that fell back: replacement dictionary"
 stage_speaker = "Stage that fell back: speaker mark"
+stage_translate = "Stage that fell back: translation server"
 stage_lid = "Stage that fell back: language identification"
 stage_second_opinion = "Stage that fell back: second reading of Japanese"
 reason_no_device = "Reason: no CUDA device was found."
@@ -63,3 +68,23 @@ to_cpu = "Now: the same model runs on the CPU."
 to_disabled = "Now: the stage is left out and the run goes on."
 to_next_port = "Now: the next free port is used."
 to_default = "Now: the default settings are used."
+llama_help = """hayamimi llama: start the translation model server (llama.cpp's llama-server)
+
+usage: hayamimi llama start --model <file> [options]
+
+The server runs on the GPU when there is one and on the CPU when there is not.
+It keeps running after this command and the terminal end; stop it from the task manager.
+
+options:
+  --model <file>   model file name in the install's models/llm directory, or a path
+  --port <n>       port to listen on, on 127.0.0.1 (default 8080)
+  --wait <sec>     how long to wait for the model to load (default 180)
+  --dir <dir>      the install directory (default: hayamimi in the user's local data directory)
+  --help           show this text"""
+llama_unknown_command = "Unknown command. Use: hayamimi llama start --model <file>"
+llama_need_model = "A model is required: pass --model <file>."
+llama_no_data_dir = "The local data directory is unknown: pass --dir <dir>."
+llama_model_missing = "The model file is not there:"
+llama_started = "The translation server answers at:"
+llama_running = "A translation server already answers at:"
+llama_unavailable = "The translation server could not be started. Lines are held and the original text goes on. See the log events above."

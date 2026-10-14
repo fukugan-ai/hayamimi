@@ -9,12 +9,18 @@ description = "hayamimi: real-time Japanese speech recognition with the GPU."
 name = "hayamimi"
 path = "src/main.rs"
 
+# A stand-in for the translation server, for the tests of `hayamimi llama start`. Not shipped.
+[[bin]]
+name = "fake_llama_server"
+path = "src/bin/fake_llama_server.rs"
+
 [lib]
 name = "hayamimi_app"
 path = "src/lib.rs"
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+dirs = "7"
 hayamimi-asr = { path = "../hayamimi-asr" }
 hayamimi-gpu = { path = "../hayamimi-gpu" }
 hayamimi-relay = { path = "../hayamimi-relay" }
@@ -28,10 +34,15 @@ toml = "1.1"
 [dev-dependencies]
 hayamimi-eval = { path = "../hayamimi-eval" }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
+
+# Unsafe code is confined to llama/handles.rs (one Win32 call, with SAFETY comments).
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
 unused_mut = "deny"
 
 [lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+undocumented_unsafe_blocks = "deny"
