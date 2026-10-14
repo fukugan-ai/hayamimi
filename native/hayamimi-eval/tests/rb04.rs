@@ -5,7 +5,7 @@ mod support;
 
 use std::path::Path;
 
-use support::{BASE, FIXTURES, Failure, GOLDEN, TestResult, read};
+use support::{FIXTURES, Failure, GOLDEN, TestResult, base, read};
 
 const CLIPS: [&str; 8] = [
     "ja_014", "ja_024", "ja_033", "ja_036", "ja_044", "ja_079", "ja_085", "ja_090",
@@ -67,7 +67,7 @@ fn check_golden_log(log: &str, exit_code: &str) -> Result<(), Failure> {
 }
 
 fn log() -> Result<String, Failure> {
-    read(&Path::new(BASE).join("golden_check.log"))
+    read(&base()?.join("golden_check.log"))
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn rb04_python_golden_reproduces_record_log_has_no_diff_lines() -> TestResult {
 
 #[test]
 fn rb04_python_golden_reproduces_record_check_exit_code_is_zero() -> TestResult {
-    let code = read(&Path::new(BASE).join("golden_check.rc"))?;
+    let code = read(&base()?.join("golden_check.rc"))?;
     check_golden_log(&log()?, &code)?;
     assert_eq!(code.trim(), "0");
     Ok(())

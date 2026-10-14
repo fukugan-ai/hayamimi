@@ -20,6 +20,10 @@
 "ingest.client.connected" = "An audio client connected to /ingest"
 "ingest.client.closed" = "The audio client of /ingest left"
 "ingest.client.rejected" = "A second audio client was refused: only one is accepted at a time"
+"translate.server.started" = "The translation server answers"
+"translate.server.running" = "A translation server already answers; none was started"
+"translate.server.failed" = "One way of starting the translation server did not come up"
+"translate.server.unavailable" = "The translation server could not be started; lines are held and the original text goes on"
 
 [cli]
 help = """hayamimi: real-time Japanese speech recognition (runs on the CPU when there is no GPU)
@@ -64,6 +68,9 @@ stage_replace = "Stage that fell back: replacement dictionary"
 stage_ingest = "Stage that fell back: audio client server (/ingest)"
 stage_capture = "Stage that fell back: audio capture"
 reason_device_missing = "Reason: an audio device is missing."
+stage_translate = "Stage that fell back: translation server"
+stage_lid = "Stage that fell back: language identification"
+stage_second_opinion = "Stage that fell back: second reading of Japanese"
 reason_no_device = "Reason: no CUDA device was found."
 reason_driver_unreadable = "Reason: the NVIDIA driver or the CUDA runtime could not be loaded."
 reason_session_failed = "Reason: the CUDA session could not be built."
@@ -71,9 +78,30 @@ reason_missing = "Reason: a model file is missing."
 reason_unreadable = "Reason: a file could not be read."
 reason_library_unavailable = "Reason: the inference libraries could not be opened."
 reason_in_use = "Reason: the port is in use."
+reason_provider_mismatch = "Reason: the session was built for CUDA but did not run on it."
 to_cpu = "Now: the same model runs on the CPU."
 to_disabled = "Now: the stage is left out and the run goes on."
 to_next_port = "Now: the next free port is used."
 to_default = "Now: the default settings are used."
 to_single = "Now: the other audio source is used alone."
 to_none = "Now: the run waits for /ingest and the wav file."
+llama_help = """hayamimi llama: start the translation model server (llama.cpp's llama-server)
+
+usage: hayamimi llama start --model <file> [options]
+
+The server runs on the GPU when there is one and on the CPU when there is not.
+It keeps running after this command and the terminal end; stop it from the task manager.
+
+options:
+  --model <file>   model file name in the install's models/llm directory, or a path
+  --port <n>       port to listen on, on 127.0.0.1 (default 8080)
+  --wait <sec>     how long to wait for the model to load (default 180)
+  --dir <dir>      the install directory (default: hayamimi in the user's local data directory)
+  --help           show this text"""
+llama_unknown_command = "Unknown command. Use: hayamimi llama start --model <file>"
+llama_need_model = "A model is required: pass --model <file>."
+llama_no_data_dir = "The local data directory is unknown: pass --dir <dir>."
+llama_model_missing = "The model file is not there:"
+llama_started = "The translation server answers at:"
+llama_running = "A translation server already answers at:"
+llama_unavailable = "The translation server could not be started. Lines are held and the original text goes on. See the log events above."

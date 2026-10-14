@@ -76,6 +76,8 @@ fn report_failure(strings: &Strings, error: &RunError) {
     eprintln!("  {detail}");
 }
 
+pub use crate::wire::final_event;
+
 /// The settings of the route. A replacement dictionary that cannot be read is
 /// not used, and the run says so.
 fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
@@ -344,6 +346,7 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
         stop: &stop,
         partial: args.io.partial,
         live: is_live(args),
+        source: args.input().source(),
     }
     .run()?;
     Ok(())

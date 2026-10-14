@@ -75,6 +75,8 @@ pub struct Session<'a> {
     /// Whether the audio arrives at the speed of real time (a device or a
     /// client), so that a queue that has grown means the loop is behind.
     pub live: bool,
+    /// The `source` of the utterances: `file`, `mic` or `loopback`.
+    pub source: &'static str,
 }
 
 /// The state of the loop that is not a setting of the run.
@@ -125,7 +127,7 @@ impl Session<'_> {
             if done.punct_error.is_some() {
                 log::print(&log::punct_failed_line(self.strings, done));
             }
-            self.hub.publish(&wire::final_event(done));
+            self.hub.publish(&wire::final_event(done, self.source));
         }
     }
 
@@ -231,6 +233,9 @@ mod tests {
             id: 1,
             text: String::from("テスト"),
             audio_seconds: 1.0,
+            t0_s: 0.0,
+            t1_s: 1.0,
+            end_wall_ms: 0,
             timings: Timings {
                 vad_ms: 0.0,
                 lid_ms: 0.0,

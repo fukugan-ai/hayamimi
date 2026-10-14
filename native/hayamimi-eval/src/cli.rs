@@ -64,6 +64,9 @@ struct StreamArgs {
     /// With `--sink loopback` on a machine with no output device: the /ingest port to send to instead.
     #[arg(long, default_value_t = 8766)]
     ingest_port: u16,
+    /// The port of the relay's `/events`, to read its translations too.
+    #[arg(long)]
+    relay_port: Option<u16>,
     /// Silence after each copy, in milliseconds.
     #[arg(long, default_value_t = 1500)]
     gap_ms: u32,
@@ -181,6 +184,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
                 port: args.port,
                 sink: args.sink.into(),
                 ingest_port: args.ingest_port,
+                relay_port: args.relay_port,
                 wav: args.wav,
                 manifest,
                 repeat: args.repeat,

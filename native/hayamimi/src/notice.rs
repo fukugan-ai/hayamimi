@@ -3,11 +3,11 @@
 //! reads on stderr. All three come from the same fields, so they cannot
 //! disagree about which stage fell back or why.
 
-use hayamimi_asr::{Fallback, To};
+use hayamimi_asr::{Fallback, Reason, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 8] = [
+pub const STAGES: [&str; 11] = [
     "punct",
     "recognizer",
     "vad",
@@ -16,9 +16,12 @@ pub const STAGES: [&str; 8] = [
     "replace",
     "ingest",
     "capture",
+    "translate",
+    "lid",
+    "second_opinion",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 8] = [
+pub const REASONS: [&str; 9] = [
     "no_device",
     "driver_unreadable",
     "session_failed",
@@ -27,6 +30,7 @@ pub const REASONS: [&str; 8] = [
     "library_unavailable",
     "in_use",
     "device_missing",
+    "provider_mismatch",
 ];
 /// Every destination a notice can carry.
 pub const DESTINATIONS: [&str; 6] = ["cpu", "disabled", "next_port", "default", "single", "none"];
@@ -73,6 +77,18 @@ impl Notice {
             stage: fallback.stage.name(),
             reason: fallback.reason.name(),
             to: fallback.to.name(),
+            url: None,
+        }
+    }
+
+    /// The translation server runs on the CPU, with no layer on the GPU.
+    pub fn translate_on_cpu(reason: Reason) -> Notice {
+        Notice {
+            event: GPU_FALLBACK,
+            error_code: "HAYAMIMI_GPU_FALLBACK",
+            stage: "translate",
+            reason: reason.name(),
+            to: "cpu",
             url: None,
         }
     }
@@ -216,7 +232,7 @@ impl Cleared {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hayamimi_asr::{Reason, Stage};
+    use hayamimi_asr::Stage;
 
     #[test]
     fn a_missing_device_is_a_capture_notice_with_the_event_of_its_destination() {
@@ -274,6 +290,22 @@ mod tests {
     }
 
     #[test]
+    fn the_translation_server_on_the_cpu_is_a_gpu_fallback_of_the_translate_stage() {
+        let notice = Notice::translate_on_cpu(Reason::SessionFailed);
+        assert_eq!(notice.event, GPU_FALLBACK);
+        assert!(notice.is_gpu());
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("translate", "session_failed", "cpu")
+        );
+        let wire = notice.wire();
+        assert_eq!(
+            (wire["stage"].as_str(), wire["to"].as_str()),
+            (Some("translate"), Some("cpu"))
+        );
+    }
+
+    #[test]
     fn a_stage_left_out_is_a_model_fallback() {
         let notice = Notice::from_fallback(&Fallback {
             stage: Stage::Recognizer,
@@ -283,6 +315,41 @@ mod tests {
         assert_eq!(notice.event, MODEL_DISABLED);
         assert_eq!(notice.domain(), "model");
         assert!(!notice.is_gpu());
+    }
+
+    #[test]
+    fn the_identifier_on_the_cpu_and_the_second_opinion_left_out_are_named_notices() {
+        let moved = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::ProviderMismatch,
+            to: To::Cpu,
+        });
+        assert_eq!(
+            (moved.event, moved.stage, moved.reason, moved.to),
+            (GPU_FALLBACK, "lid", "provider_mismatch", "cpu")
+        );
+        let left = Notice::from_fallback(&Fallback {
+            stage: Stage::SecondOpinion,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (left.event, left.stage, left.reason, left.to),
+            (MODEL_DISABLED, "second_opinion", "missing", "disabled")
+        );
+        let no_model = Notice::from_fallback(&Fallback {
+            stage: Stage::Lid,
+            reason: Reason::Missing,
+            to: To::Disabled,
+        });
+        assert_eq!(
+            (no_model.event, no_model.stage, no_model.to),
+            (MODEL_DISABLED, "lid", "disabled")
+        );
+        for notice in [moved, left, no_model] {
+            assert!(STAGES.contains(&notice.stage), "{}", notice.stage);
+            assert!(REASONS.contains(&notice.reason), "{}", notice.reason);
+        }
     }
 
     #[test]
@@ -309,6 +376,9 @@ mod tests {
             Notice::port_in_use(None),
             Notice::port_in_use(Some(String::new())),
             Notice::config_unreadable(),
+            Notice::translate_on_cpu(Reason::NoDevice),
+            Notice::translate_on_cpu(Reason::DriverUnreadable),
+            Notice::translate_on_cpu(Reason::SessionFailed),
         ];
         for notice in notices {
             assert!(STAGES.contains(&notice.stage), "{}", notice.stage);

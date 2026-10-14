@@ -26,6 +26,8 @@ use hayamimi_relay::pipeline::{
     LineKind, LineRequest, NoObserver, Observer, Pipeline, PipelineConfig, Stage, Translation,
 };
 
+pub mod events;
+
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// The tuning sentences: id, src_lang, src, ref.
@@ -387,12 +389,17 @@ impl Llm for ScriptedLlm {
 #[derive(Default)]
 pub struct Recorder {
     pub stages: Vec<Stage>,
+    pub draft_inputs: Vec<String>,
     pub verify_inputs: Vec<String>,
 }
 
 impl Observer for Recorder {
     fn stage(&mut self, stage: Stage) {
         self.stages.push(stage);
+    }
+
+    fn draft_verify_input(&mut self, translation: &str) {
+        self.draft_inputs.push(translation.to_owned());
     }
 
     fn verify_input(&mut self, translation: &str) {
@@ -447,11 +454,25 @@ impl Harness {
         now: i64,
         observer: &mut dyn Observer,
     ) -> Translation {
+        self.line_with_draft(src, lang, "draft", edited, now, observer)
+    }
+
+    /// One line whose translation step answers `draft` and whose edit step
+    /// answers `edited`.
+    pub fn line_with_draft(
+        &mut self,
+        src: &str,
+        lang: Lang,
+        draft: &str,
+        edited: &str,
+        now: i64,
+        observer: &mut dyn Observer,
+    ) -> Translation {
         self.next += 1;
         let id = format!("test-{}", self.next);
         {
             let mut replies = self.replies.borrow_mut();
-            replies.push_back(String::from("draft"));
+            replies.push_back(draft.to_owned());
             replies.push_back(edited.to_owned());
         }
         let request = LineRequest {

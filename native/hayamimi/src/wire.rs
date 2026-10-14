@@ -10,11 +10,17 @@ pub fn partial_event(text: &str) -> Value {
     json!({"type": "partial", "text": text})
 }
 
-/// A finished utterance.
-pub fn final_event(done: &Final) -> Value {
+/// A finished utterance. `id`, `source`, `t0_s`, `t1_s` and `end_wall_ms` let
+/// the relay join a translation to this line and measure it.
+pub fn final_event(done: &Final, source: &str) -> Value {
     let t = &done.timings;
     json!({
         "type": "final",
+        "id": format!("{source}-{}", done.id),
+        "source": source,
+        "t0_s": done.t0_s,
+        "t1_s": done.t1_s,
+        "end_wall_ms": done.end_wall_ms,
         "text": done.text,
         "lang": "ja",
         "speaker": "",
@@ -76,6 +82,9 @@ mod tests {
             id: 1,
             text: String::from("テスト"),
             audio_seconds: 1.5,
+            t0_s: 0.25,
+            t1_s: 1.75,
+            end_wall_ms: 1_790_000_000_123,
             timings: Timings {
                 vad_ms: 1.0,
                 lid_ms: 0.0,
@@ -90,7 +99,7 @@ mod tests {
 
     #[test]
     fn the_final_event_has_the_keys_of_the_existing_server() {
-        let event = final_event(&finished());
+        let event = final_event(&finished(), "file");
         for key in [
             "type",
             "text",
@@ -108,6 +117,16 @@ mod tests {
         assert_eq!(event["type"], "final");
         assert_eq!(event["latency_ms"], 120.0);
         assert_eq!(event["decode_ms"], 111.0);
+    }
+
+    #[test]
+    fn the_final_event_carries_the_five_items_the_relay_joins_on() {
+        let event = final_event(&finished(), "mic");
+        assert_eq!(event["id"], "mic-1");
+        assert_eq!(event["source"], "mic");
+        assert_eq!(event["t0_s"], 0.25);
+        assert_eq!(event["t1_s"], 1.75);
+        assert_eq!(event["end_wall_ms"], 1_790_000_000_123_u64);
     }
 
     #[test]

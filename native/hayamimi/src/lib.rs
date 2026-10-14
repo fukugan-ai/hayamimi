@@ -9,6 +9,7 @@ pub mod feed;
 pub mod gpu_check;
 pub mod ingest;
 pub mod inputs;
+pub mod llama;
 pub mod log;
 pub mod notice;
 pub mod report;

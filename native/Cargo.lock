@@ -720,6 +720,7 @@ dependencies = [
  "axum",
  "cpal",
  "ctrlc",
+ "dirs",
  "hayamimi-asr",
  "hayamimi-eval",
  "hayamimi-gpu",
@@ -731,6 +732,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "wasapi",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -787,6 +789,7 @@ dependencies = [
  "roxmltree",
  "serde",
  "serde_json",
+ "sha2",
  "sys-locale",
  "toml",
  "ureq 3.4.2",

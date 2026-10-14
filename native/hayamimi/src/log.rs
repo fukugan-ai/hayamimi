@@ -272,6 +272,9 @@ mod tests {
             id: 3,
             text: String::from("本文"),
             audio_seconds: 2.0,
+            t0_s: 0.5,
+            t1_s: 2.0,
+            end_wall_ms: 1_790_000_000_000,
             timings: Timings {
                 vad_ms: 1.0,
                 lid_ms: 0.0,

@@ -9,6 +9,7 @@ pub mod audio;
 pub mod error;
 pub mod fallback;
 pub mod itn;
+pub mod lid;
 pub mod ort_runtime;
 pub mod partial;
 pub mod pipeline;
@@ -16,6 +17,7 @@ pub mod punct;
 pub mod recognizer;
 pub mod replace;
 pub mod retry;
+pub mod route;
 pub mod vad;
 
 pub use error::AsrError;

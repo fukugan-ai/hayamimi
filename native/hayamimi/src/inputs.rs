@@ -36,6 +36,17 @@ impl Input {
         }
     }
 
+    /// The `source` of the utterances this input makes: `file`, `mic` or
+    /// `loopback`. A mix is read as a microphone, and an `/ingest` client
+    /// stands for one.
+    pub fn source(self) -> &'static str {
+        match self {
+            Input::Wav => "file",
+            Input::Speaker => "loopback",
+            Input::Mic | Input::Mix | Input::Ws => "mic",
+        }
+    }
+
     /// Whether the audio comes from a device of this machine.
     pub fn captures(self) -> bool {
         matches!(self, Input::Mic | Input::Speaker | Input::Mix)

@@ -142,6 +142,9 @@ fn finished() -> Final {
         id: 1,
         text: String::from("警察のソランキ総監によれば被告人は顔を隠して出頭した。"),
         audio_seconds: 6.7,
+        t0_s: 0.0,
+        t1_s: 6.7,
+        end_wall_ms: 1_790_000_000_000,
         timings: Timings {
             vad_ms: 1.0,
             lid_ms: 0.0,
@@ -157,7 +160,7 @@ fn finished() -> Final {
 /// One event of each type the Rust server makes, from the real builders.
 fn rust_samples() -> Vec<Value> {
     vec![
-        wire::final_event(&finished()),
+        wire::final_event(&finished(), "file"),
         wire::partial_event("警察の"),
         wire::session_summary(11.0, 1, Some(533.0), Some(533.0)),
         wire::session_reset(),
