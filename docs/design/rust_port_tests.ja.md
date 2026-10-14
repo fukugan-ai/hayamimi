@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-38）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-39）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1453,7 +1453,7 @@ command（001 から 017）：`cd native && flock -w 1800 target/release/.cargo-
 | T-RP-37-009 | en から ja。`It will rain tomorrow.`、答えは `明日は雨かもしれません。` | 004 の逆向き | 止まる | `Held`、理由 `uncertainty`、log 0 件（specified、RP-37） | 陰性 | `an_added_hedge_into_ja_still_holds_for_uncertainty` |
 | T-RP-37-010 | `そこにいないかもしれません。`（否定 `ない` と推量 `かもしれ` の両方）を zh、ko、es へ。答えは否定も推量も持たない文（zh `他在那里。`、ko `그는 거기에 있어요.`、es `Él está allí.`） | 否定の食い違いと推量の食い違いが同居 | 止まる | `Held`、理由 `negation`、log 0 件。止めた行は推量を log に残さない（specified、RP-37 の「否定を落とした訳は `negation` で止まる」。log の対象は止めずに出した訳） | 境界、陰性 | `a_lost_negation_wins_over_a_hedge_mismatch_in_zh_ko_es` |
 | T-RP-37-011 | `PLAIN` を zh、ko、es へ。答えは否定を足した文（zh `明天不会下雨。`、ko `내일은 비가 안 와요.`、es `No lloverá mañana.`） | 否定が訳だけ（006 の逆向き） | 止まる | `Held`、理由 `negation`、log 0 件（specified、3.6 の「否定の検査は今のまま」。表は有無の一致を見る） | 陰性 | `an_added_negation_holds_in_zh_ko_es` |
-| T-RP-37-012 | `予算は五百万円です。` を zh、ko、es へ。答えは数が同じ文（zh `预算是5百万日元。`、ko `예산은 5백만 엔이에요.`、es `El presupuesto es de 5 millones de yenes.`） | 数の食い違いが無い（007 の対） | 止まらずに出る | `Ok`、log 0 件。007 の訳と数の書き方を揃え、数だけが違う（specified、RP-37。007 の陰性対照） | 陽性 | `the_same_number_passes_in_zh_ko_es` |
+| T-RP-37-012 | `予算は五百万円です。` を zh、ko、es へ。答えは数が同じ文（zh `预算是500万日元。`、ko `예산은 5,000,000 엔이에요.`、es `El presupuesto es de 5000000 de yenes.`） | 数の食い違いが無い（007 の対） | 止まらずに出る | `Ok`、log 0 件（specified、RP-37。007 の陰性対照）。数の書き方は今の `numbers.rs` が読む形にする。倍の語の形（`5百万`、`5백만`、`5 millones`）は RP-39 の case が持つ | 陽性 | `the_same_number_passes_in_zh_ko_es` |
 | T-RP-37-013 | 001 の ko の 1 件の log | log の形 | 欄の集合 | `level` が info。欄は `id`、`lang`、原文の推量の語、訳の推量の語の 4 つ。原文の語は `かもしれ`。`message` と全部の欄の値に、原文の文と訳の文が入らない（specified、3.6 の「項目は `id`、`lang`、原文と訳の推量の語」と `observability-and-log-monitoring.md` の「入力本文を出力しない」）。実装の欄の key は `src_hedge` と `dst_hedge` | 境界、陽性 | `the_hedge_event_is_info_and_carries_no_line_text` |
 | T-RP-37-014 | `たぶん明日は雨かもしれません。`（推量の語が `たぶん` と `かもしれ` の 2 つ）を zh へ。答えは `明天会下雨。` | 推量の語が複数 | 1 件 | `Ok`、log が 1 件で、原文の推量の語は `たぶん` か `かもしれ` のどちらか 1 つ（specified、RP-37 の「1 件」。log は行につき 1 件） | 境界 | `several_hedge_words_on_one_side_log_one_event` |
 | T-RP-37-015 | en から zh、ko、es。`It might rain tomorrow.`、答えは推量の語が無い文（001 の 3 文） | 原文の言語が en | 止まらずに出る | `Ok`、log 1 件、原文の推量の語が `might`、訳の推量の語が null（specified、RP-37 の「原文と食い違う」。原文の言語を ja に限る文は無い） | 陽性 | `an_english_source_dropped_hedge_into_zh_ko_es_is_logged` |
@@ -1504,11 +1504,12 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 実装した行は 001 と 002 で、003 から 008 は未実装である（実装の席が足す）。
 陰性の build（口は実装の席が置く）：(a) zh の行にも E を掛け、T の答えと E の答えのそれぞれに V を掛けて log を出す形に `eval.rs` を変えた build。001 が 2 件になり、003 が要求 2 件になって落ちる。(b) log をファイルにつき 1 件にまとめる build。005 が 1 件になって落ちる。
 
-**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+設計の決め：RP-38 の陰性欄は `settle_other` で V を 2 回掛けた build である（`rust_port.ja.md` の 6 の RP-38。zh に E は掛けない）。関数の名前は 4.1 の 3 つの形のうち `rp38_` + 末尾である。`eval` が `translate.hedge.logged` に付ける `id` は、その file の 1 始まりの行の番号の文字列である（`eval.rs` の `verdict` が `line.to_string()` を渡す）。
 
-- 6 の RP-38 の入力は「T の訳と E の訳のどちらにも推量の食い違いが在る zh の行」で、陰性欄は「下書きと確定の両方の V で log を出す今の `eval.rs` の形で 2 件になり落ちる」である。今の `eval.rs` は zh を T だけで訳し（`settle` から `settle_other` へ進み、E の要求を出さない）、V を 1 回しか掛けない。en は `table_for` が表を返さないので `translate.hedge.logged` を出さない。生きた経路の `pipeline.rs` も、ja と en の外の言語は E を掛けずに `settle_draft` へ進む。したがって、T と E の両方に V を掛ける zh の行は今の経路に存在せず、今の `eval.rs` で 2 件になる入力も存在しない。001 は今の `eval.rs` のままでも通る（code を読んだ予測で、実走は NOT VERIFIED）。陰性欄は今の形ではなく、(a) の build に当たる。設計は、(1) 陰性欄を (a) の build に直す、(2) zh にも E を掛ける設計に変える、のどちらかを決める。(2) は 3.6 の「E を掛けない」と食い違う。
-- 関数の名前の規則。4.1 は「受入 test の名前 + `_` + 末尾」と書くが、実装済みの test は `rp38_` + 末尾（草稿）である。この節は実装に合わせた。
-- `eval` が `translate.hedge.logged` に付ける `id` の形。005 は区別に使うので 1 始まりの行の番号を前提にした。
+### 4.49 RP-39（zh、ko、es の倍の語を読む V の数の検査）
+
+test：`native/hayamimi-relay/tests/rp39.rs`。受入 test の名前は `rp39_number_scales_read_in_zh_ko_es`。`#[ignore]` を持たない（`numbers.rs` の読みと偽の llama-server の応答だけを使う）。
+case 行は test-designer の席が書く（`rust_port.ja.md` の 6 の RP-39 の行と 3.6 の R8l から）。T-RP-37-012 の元の 3 文（zh `预算是5百万日元。`、ko `예산은 5백만 엔이에요.`、es `El presupuesto es de 5 millones de yenes.`）をこの ID の陽性の行に入れる。
 
 ## 5. RP-19 の対応表
 
