@@ -20,23 +20,25 @@ Once the speed target is met, quality must match or beat the Python version.
 
 ### State as of 2026-10-15
 
-The end-to-end check (E2E) has not passed.
+Both end-to-end checks (E2E) passed in the measurement of 2026-10-15.
+For Japanese to English (E2E-1), the delay (L) of the Rust version was below that of the Python version at both p50 and p95.
+For English to Japanese (E2E-2), L at p95 stayed within the 2000 ms limit.
+The values and conditions are under [Measured performance](#measured-performance).
+Each check is a single run that played recorded audio.
+A check with a person speaking Japanese into a real microphone has not been done yet (NOT VERIFIED).
+
 Removing Python (R11) is waiting for its entry conditions, so Python is still in the tree.
 The slices for recognition, language routing, speakers, audio capture, the subtitle server and screens, and the translation relay have passed verification by someone other than the implementer, and are merged.
-The microphone and loopback have not been checked on a real machine.
 In the latest re-measurement the CPU (int8) was faster than the GPU for recognition, so recognition stays on the CPU.
 The machine load was high during that re-measurement, so the values are unverified and only the direction is used.
 
-The E2E-1 values (one E2E run; the design asks for 5 repeats and 3 pairs, this run has 2 repeats and 2 pairs):
+Three things are not implemented:
 
-| Version | n | L p50 | L p95 | Translations obtained |
-|---|---|---|---|---|
-| Rust | 67 | 1420 ms | 1950 ms | 67/80 |
-| Python | 76 | 1481 ms | 2018 ms | 76/80 |
+- R11 (removing Python): 187 of the 386 rows of RP-19 (the check that Python test cases were ported to Rust tests) have no Rust test yet.
+- R12y: the arguments of `hayamimi-relay eval` (`--final`, `--heldout`, `--direction`) for scoring translations on a held-out set (an evaluation set never shown during tuning), and the refusal to use the same set twice.
+- Sending to YouTube Live caption ingestion: the conversation-subtitle design lists it as something not to build, and streaming uses the OBS subtitle page burned into the video instead.
 
-The Rust share of translations obtained, 67/80 (0.8375), is below the 20/23 threshold.
-E2E-2 (en→ja sent to `/ingest`, not the real loopback) gave n 25, p50 1069 ms and p95 3139 ms, so p95 is over 2000 ms.
-The table in `docs/design/status.md` holds the latest state.
+The state of each slice is in the table in `docs/design/status.md`.
 
 ### Related documents
 
@@ -319,9 +321,48 @@ bounded no matter how many languages a session wanders through.
 
 ## Measured performance
 
+### End-to-end delay of the Rust version (measured 2026-10-15)
+
+**L** is the delay from the moment the last audio sample of an utterance is sent to the moment the translated subtitle of that utterance appears.
+The p50 and p95 are computed over valid samples that got a translation only.
+Samples without a translation do not enter L, so the share that got one is judged separately.
+
+| Measurement | Direction | Valid samples | Samples with a translation | L p50 | L p95 |
+|---|---|---|---|---|---|
+| E2E-1 Rust | ja→en | 100 | 93 | 1415 ms | 1872 ms |
+| E2E-1 Python (the comparison) | ja→en | 100 | 95 | 1478 ms | 2187 ms |
+| E2E-2 Rust | en→ja | 75 | 70 | 970 ms | 1303 ms |
+
+Both checks passed. The conditions and results:
+
+- E2E-1: the share with a translation is at least 20/23 (about 0.87), and the Rust L p50 and p95 are both no greater than Python's.
+  The results were 93/100, p50 1415 ms against 1478 ms, and p95 1872 ms against 2187 ms.
+- E2E-2: the share with a translation is at least 20/23, and the L p95 is at most 2000 ms.
+  The results were 70/75 and a p95 of 1303 ms (the p50 is reported and not judged).
+
+Conditions of the measurement:
+
+- Build: main at 7ea558f. The Rust processes ran at nice 0, and llama-server ran at nice -5 from 11:26.
+- Python baseline: a single run (py1) on the Windows Python with refine left enabled.
+- Samples: E2E-1 played 23 recorded Japanese utterances (`lat-ja`) five times each, 115 samples. E2E-2 played 15 recorded English utterances (`lat-en`) five times each, 75 samples.
+- Valid sample: the delay from the end of the utterance to the final text, minus the time from the end-of-speech decision to the final text, is at least the `--min-silence` value of 300 ms.
+- Valid counts: in E2E-1, 100 of the 115 samples for both Rust and Python; in E2E-2, all 75.
+
+What this measurement does not show:
+
+- The Python baseline is one run, and the verdict of the alternating pairs under the same load that the design asks for (RP-32) is not part of this record.
+- The machine load before each run is not part of this record.
+- It played recorded audio, so a person speaking Japanese into a real microphone has not been checked (NOT VERIFIED: check by speaking on a real machine and watching the subtitle and its translation).
+- The record does not say whether the E2E-2 capture came from the output device of a real Windows machine (NOT VERIFIED: check by running E2E-2 again on a real Windows machine).
+
+The per-run sample jsonl files and the conditions are in `docs/results/e2e/` (commit `9103c95`).
+
+### Clip-level scoring of the original Python version (re-measured 2026-09-01)
+
 End-to-end (LID -> routing -> decode -> ja punctuation), real speech, no
 preroll/two-pass (single clips). `en` uses WER, all others use CER (`yue`
 t2s-normalized). Full methodology in `docs/results/scorecard.md`.
+**RTF** (real-time factor) is the processing time divided by the audio length.
 
 | Language | Clips | LID accuracy | Route | Mean error | Mean RTF |
 |---|---|---|---|---|---|
@@ -331,8 +372,8 @@ t2s-normalized). Full methodology in `docs/results/scorecard.md`.
 | ko | 12 | 12/12 | SenseVoice | 8.1% | 0.060 |
 | yue | 12 | 12/12 | SenseVoice | 6.1% | 0.043 |
 
-RTF (real-time factor) well under 0.2 across every route means each route
-runs 9-16x faster than realtime on CPU alone -- see `docs/design/goals.md` for the
+An RTF of 0.102 or lower on every route means each route
+runs about 10-23x faster than realtime on CPU alone -- see `docs/design/goals.md` for the
 full target table and `docs/results/benchmarks.md` for the complete iteration log
 (30+ measured changes, latency/memory/accuracy tradeoffs and why each one was
 made or rejected).
