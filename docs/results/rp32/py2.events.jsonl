@@ -1,0 +1,1349 @@
+{"event":{"sr":16000,"type":"ready"},"t_us":61772}
+{"event":{"text":"ちゃんと","type":"partial"},"t_us":3128148}
+{"event":{"text":"チャンドラシェ代わる","type":"partial"},"t_us":3507715}
+{"event":{"text":"チャンドラシェカール・ソランキス","type":"partial"},"t_us":4025076}
+{"event":{"text":"チャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":4523331}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば","type":"partial"},"t_us":5054079}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":5506218}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を確認","type":"partial"},"t_us":6042117}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":6763636}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭","type":"partial"},"t_us":7047279}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":7585560}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":8254476}
+{"event":{"audio_s":6.742,"decode_ms":186.1117000225931,"lang":"ja","latency_ms":548.0772000155412,"lid_ms":122.95769999036564,"speaker":"","switched":false,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":8803968}
+{"event":{"lang":"en","text":"Police police chief Chandraschekar Solanki says the defendant hi masked his face and appeared in court. The accused, who had been brought to trial by a judge with her head hidden behind their faces concealing cover from him—in front of them — according Cchandlachedashcar Solanqui (C Co-General) Changradoracheskar Zhskal Solunki: Attor General Chandrazkar Toranchi","type":"translation"},"t_us":9690072}
+{"event":{"audio_s":6.742,"lang":"ja","speaker":"","text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","type":"refine"},"t_us":10151935}
+{"event":{"text":"決まり","type":"partial"},"t_us":15021738}
+{"event":{"text":"も","type":"partial"},"t_us":15461598}
+{"event":{"text":"も","type":"partial"},"t_us":16025975}
+{"event":{"text":"気もあれば沸騰するまでにな","type":"partial"},"t_us":16505694}
+{"event":{"audio_s":3.446,"decode_ms":92.81729999929668,"lang":"ja","latency_ms":94.47549999458715,"lid_ms":0.0,"speaker":"","switched":false,"text":"沸騰する地域もあれば沸騰するまでに何分。","tier":"rz","type":"final"},"t_us":16845712}
+{"event":{"lang":"en","text":"There are areas where it boils, and there may be regions in which to cook.","type":"translation"},"t_us":16987183}
+{"event":{"text":"あります","type":"partial"},"t_us":17966296}
+{"event":{"audio_s":1.536,"decode_ms":87.47510000830516,"lang":"ja","latency_ms":155.20510001806542,"lid_ms":66.81879999814555,"speaker":"","switched":false,"text":"地域もあります。","tier":"rz","type":"final"},"t_us":18446931}
+{"event":{"lang":"en","text":"There are also regions in the region, and there is even regional areas.","type":"translation"},"t_us":18531338}
+{"event":{"audio_s":4.982,"lang":"ja","speaker":"","text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","type":"refine"},"t_us":20570429}
+{"event":{"text":"折り","type":"partial"},"t_us":24219998}
+{"event":{"text":"羽を折り返すこと","type":"partial"},"t_us":24658926}
+{"event":{"text":"羽根を折り返すことができない","type":"partial"},"t_us":25240002}
+{"event":{"text":"羽を折り返すことができない昆虫は","type":"partial"},"t_us":25703343}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボ","type":"partial"},"t_us":26143684}
+{"event":{"text":"はげろう","type":"partial"},"t_us":26637695}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27180787}
+{"event":{"text":"羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":27672703}
+{"event":{"audio_s":5.398,"decode_ms":165.27669999049976,"lang":"ja","latency_ms":259.4604000041727,"lid_ms":90.96790000330655,"speaker":"","switched":false,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":28151028}
+{"event":{"lang":"en","text":"The only insects currently not capable of turning the feather blade back are dragonf and rhangos, which can’t be turned down.","type":"translation"},"t_us":28329882}
+{"event":{"audio_s":5.398,"lang":"ja","speaker":"","text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","type":"refine"},"t_us":30160058}
+{"event":{"text":"ミスは","type":"partial"},"t_us":32469313}
+{"event":{"text":"スミスはツアーです","type":"partial"},"t_us":33016545}
+{"event":{"text":"スミスはツアーで予定しています","type":"partial"},"t_us":33493516}
+{"event":{"text":"スミスはツアーで予定していたコンサート","type":"partial"},"t_us":34095410}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止","type":"partial"},"t_us":34448727}
+{"event":{"text":"スはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":34968838}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":35559065}
+{"event":{"audio_s":4.662,"decode_ms":172.74780001025647,"lang":"ja","latency_ms":176.08199999085627,"lid_ms":0.0,"speaker":"","switched":false,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":35744521}
+{"event":{"lang":"en","text":"Aerosmith has canceled a concert scheduled for the tour.","type":"translation"},"t_us":35863274}
+{"event":{"audio_s":4.662,"lang":"ja","speaker":"","text":"エアロスミスはツアーで予定していたコンサートを中止しました。","type":"refine"},"t_us":37658438}
+{"event":{"text":"三本","type":"partial"},"t_us":41163127}
+{"event":{"text":"サモアの首都","type":"partial"},"t_us":41615896}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":42116528}
+{"event":{"text":"この町","type":"partial"},"t_us":42637477}
+{"event":{"text":"この町はウポリ","type":"partial"},"t_us":43123754}
+{"event":{"text":"この町はウポル島にあり","type":"partial"},"t_us":43667565}
+{"event":{"text":"この町はウポル島にありGF","type":"partial"},"t_us":44175420}
+{"event":{"text":"この町はウポル島にあり人口は百％","type":"partial"},"t_us":44643869}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":45199769}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":45693928}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":46229243}
+{"event":{"audio_s":6.934,"decode_ms":171.86709999805316,"lang":"ja","latency_ms":264.1511999827344,"lid_ms":88.82920001633465,"speaker":"","switched":false,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":46656342}
+{"event":{"audio_s":6.934,"lang":"ja","speaker":"","text":"この町はウポル島にあり人口は4万人弱です。","type":"refine"},"t_us":48550275}
+{"event":{"text":"二週間","type":"partial"},"t_us":52324246}
+{"event":{"text":"僅か二週間でアメリカ","type":"partial"},"t_us":52719955}
+{"event":{"text":"僅か二週間でアメリカ軍","type":"partial"},"t_us":53228768}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":53947708}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は未練","type":"partial"},"t_us":54254199}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを発射","type":"partial"},"t_us":54830700}
+{"event":{"text":"わずか二週間でアメリカ軍と自由フランス軍は南フランスを解放しています","type":"partial"},"t_us":55312165}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ","type":"partial"},"t_us":55932471}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":56360094}
+{"event":{"text":"僅かにアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":56817741}
+{"event":{"audio_s":6.614,"decode_ms":200.35050000296903,"lang":"ja","latency_ms":289.36070000054315,"lid_ms":85.32169999671169,"speaker":"","switched":false,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":57481006}
+{"event":{"lang":"en","text":"Within only two weeks, the American and Free French forces had liberated South France in just a couple of week's time.","type":"translation"},"t_us":58064432}
+{"event":{"audio_s":6.614,"lang":"ja","speaker":"","text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","type":"refine"},"t_us":59315466}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":63897833}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":64389740}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":64815171}
+{"event":{"text":"整个不用就来了这个图就有个问题","type":"partial"},"t_us":65615137}
+{"event":{"text":"等一隔够用久年这个自己有个一级两个","type":"partial"},"t_us":65857236}
+{"event":{"text":"等一隔个个久来这这个就有一个两个个个名了","type":"partial"},"t_us":66347641}
+{"event":{"text":"等一隔够用久来这个自就一个两个个关名了有可能是","type":"partial"},"t_us":66866447}
+{"event":{"text":"等一隔个用久来这个自就有个两个过关名单有可能是一些个","type":"partial"},"t_us":67395958}
+{"event":{"text":"整隔个个用久这个个个一个两个个国名呢有可能是一些个性","type":"partial"},"t_us":67936483}
+{"event":{"text":"整隔个个月然后这个自己有个连个个国民呢有很多是一些个性穿新歌","type":"partial"},"t_us":68455055}
+{"event":{"text":"整个够用久年这个自己有个问题两个国民呢有可能是一些个性创新歌王","type":"partial"},"t_us":68972518}
+{"event":{"text":"整隔个个用久后几个字己一个两个个国民呢有可能是一些个性穿了个王歌了","type":"partial"},"t_us":69510671}
+{"event":{"text":"整个个用久年几个自己有个两个个国民呢有很多是一些个性除那些歌娃对那个","type":"partial"},"t_us":70011898}
+{"event":{"text":"整一个个用久后几个字己有个两个个个那有有很多人性个性穿了个娃对那个不成对吧的嘛","type":"partial"},"t_us":70539170}
+{"event":{"text":"整个够用久年这个自己有个两个个个民呢有很多人性个性穿那些歌娃对那跟对话的关系的","type":"partial"},"t_us":71028154}
+{"event":{"text":"不用久来和几个字己有过一集连我过关明天有很多是一些个性创新歌娃那跟对吧的关系的","type":"partial"},"t_us":71564390}
+{"event":{"audio_s":9.27,"decode_ms":310.19069999456406,"lang":"ja","latency_ms":435.92610000632703,"lid_ms":117.55059999995864,"speaker":"","switched":false,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":72003113}
+{"event":{"lang":"en","text":"On August 15th, 1940 the All allied Powers invaded southern France on a day of 18 Aug-15nd (A 8/13 September 40), and its invasion was called Operation Dragoon.","type":"translation"},"t_us":72221998}
+{"event":{"audio_s":9.27,"lang":"ja","speaker":"","text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","type":"refine"},"t_us":73612432}
+{"event":{"text":"経済","type":"partial"},"t_us":77427853}
+{"event":{"text":"経済産業省","type":"partial"},"t_us":77922494}
+{"event":{"text":"経済産業省は","type":"partial"},"t_us":78440188}
+{"event":{"text":"経済産業省はアップルが支援","type":"partial"},"t_us":79065880}
+{"event":{"text":"経済産業省はアップルが深刻ではない","type":"partial"},"t_us":79435844}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":79983278}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":80450278}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項追加率","type":"partial"},"t_us":81078396}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事頻追加で三十四％","type":"partial"},"t_us":81526415}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告","type":"partial"},"t_us":82033006}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと","type":"partial"},"t_us":82560430}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表","type":"partial"},"t_us":83059914}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表しました","type":"partial"},"t_us":83591619}
+{"event":{"audio_s":7.798,"decode_ms":244.1590999951586,"lang":"ja","latency_ms":366.1713999754283,"lid_ms":115.58439998771064,"speaker":"","switched":false,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":83951424}
+{"event":{"lang":"en","text":"Last week the Ministry of Economy, Trade and Industry announced that it had reported 34 reports on an additional heat overheating issue Apple said was not serious about.","type":"translation"},"t_us":84301371}
+{"event":{"audio_s":7.798,"lang":"ja","speaker":"","text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","type":"refine"},"t_us":85756220}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":89209008}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":89640073}
+{"event":{"text":"はい","type":"partial"},"t_us":90233649}
+{"event":{"text":"大橋さんはやっぱり大変でしたか","type":"partial"},"t_us":90693829}
+{"event":{"audio_s":3.51,"decode_ms":102.07829999853855,"lang":"ja","latency_ms":103.76189998351038,"lid_ms":0.0,"speaker":"","switched":false,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":91135258}
+{"event":{"lang":"en","text":"Was Mr. Ohashi-Oobashi having had a hard time, was it difficult for you? Did she have to deald with the difficulty of doing something that went really tough or did Ms OHHASHI Bridgesan saw were he found difficulties and any problems as I thought what could't been so bad?\"","type":"translation"},"t_us":91375336}
+{"event":{"audio_s":3.51,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":93095849}
+{"event":{"text":"かな","type":"partial"},"t_us":98616892}
+{"event":{"text":"はい","type":"partial"},"t_us":99040534}
+{"event":{"text":"丸太","type":"partial"},"t_us":99564770}
+{"event":{"text":"丸太を","type":"partial"},"t_us":100103142}
+{"event":{"text":"丸太を","type":"partial"},"t_us":100525052}
+{"event":{"text":"丸太を組んでいく","type":"partial"},"t_us":101052313}
+{"event":{"text":"丸太を組んでいかだに","type":"partial"},"t_us":101580618}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":102152173}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":102602254}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":103176004}
+{"event":{"text":"丸太を組んでいかだにしてどんどん","type":"partial"},"t_us":103666940}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したの","type":"partial"},"t_us":104241415}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":104675166}
+{"event":{"text":"いかだにしてどんどん流したんですこれを","type":"partial"},"t_us":105259246}
+{"event":{"audio_s":8.246,"decode_ms":234.89830002654344,"lang":"ja","latency_ms":350.23939999518916,"lid_ms":108.6801000055857,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":105610639}
+{"event":{"lang":"en","text":"From upstream that way from the top of it, a log lined with logs was put together to form rafts and floated down through them. This is what I'm here; this one: It has been flowing out continuously by shhand-log rowers in an over there as wellfrom its upper upward level into those trees where we were then putting round bars on each other between these two at highup above they had formed many pieces building timber barn solidwood lines joined along all members which are forming onto their own,\" groupong maroo join team build groups tied around him he came toward some right Upri or arrangeas formation","type":"translation"},"t_us":106420652}
+{"event":{"text":"それ","type":"partial"},"t_us":106867580}
+{"event":{"text":"百M","type":"partial"},"t_us":107398092}
+{"event":{"text":"さあ百M の高","type":"partial"},"t_us":107932765}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":108421079}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":108873546}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":109610393}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":109945727}
+{"event":{"text":"得意のドルフィング","type":"partial"},"t_us":110470752}
+{"event":{"text":"得意のドルフィンキック","type":"partial"},"t_us":110991906}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":111495038}
+{"event":{"text":"得意のドルフィンキック","type":"partial"},"t_us":112110085}
+{"event":{"audio_s":6.806,"decode_ms":184.56970000988804,"lang":"ja","latency_ms":327.4179000000004,"lid_ms":136.4502999931574,"speaker":"","switched":false,"text":"本多選手はこの得意のドルフィンキックで。","tier":"rz","type":"final"},"t_us":112442724}
+{"event":{"lang":"en","text":"Honda player with this good dolphin kick of the Dolphin Kick.","type":"translation"},"t_us":112581741}
+{"event":{"text":"ああ","type":"partial"},"t_us":114480735}
+{"event":{"audio_s":15.158,"lang":"ja","speaker":"","text":"そこの上流から丸太を組んでいかだにしていかだをどんどん流したんです。さあ百Mのターンを迎える。","type":"refine"},"t_us":114690991}
+{"event":{"text":"あぶったー","type":"partial"},"t_us":114940371}
+{"event":{"text":"でもする","type":"partial"},"t_us":115441926}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":116074516}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":116442093}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":117019381}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":117508774}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":118114475}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":118539570}
+{"event":{"text":"でも駿河さん九十一歳力強い","type":"partial"},"t_us":119040967}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに","type":"partial"},"t_us":119614186}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":120144600}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":120622735}
+{"event":{"text":"でも駕さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":121182934}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":121646560}
+{"event":{"audio_s":9.142,"decode_ms":244.4738999765832,"lang":"ja","latency_ms":346.58420001505874,"lid_ms":96.16939999978058,"speaker":"","switched":false,"text":"でも駕さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":122288464}
+{"event":{"lang":"en","text":"But Too-san, 91 years old at the age of ninety one. She's going to turn into a strong running forceful run; she will change her way forward for more powerful and stronger runs as it turns back mighty hard on that he’ll be turning his horsed driving with strength int very firm racer (he is only 21).","type":"translation"},"t_us":122656175}
+{"event":{"text":"随分","type":"partial"},"t_us":123996306}
+{"event":{"text":"随分ありました","type":"partial"},"t_us":124494152}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":124951332}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":125486413}
+{"event":{"audio_s":3.478,"decode_ms":91.04869997827336,"lang":"ja","latency_ms":92.74069999810308,"lid_ms":0.0,"speaker":"","switched":false,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":125874337}
+{"event":{"lang":"en","text":"It's been a long time, though there were many. I know that was quite some of it... but ... well ).","type":"translation"},"t_us":126016704}
+{"event":{"text":"よ","type":"partial"},"t_us":127194954}
+{"event":{"text":"住民によると","type":"partial"},"t_us":127697108}
+{"event":{"audio_s":2.24,"decode_ms":89.28750001359731,"lang":"ja","latency_ms":156.9518999895081,"lid_ms":66.48589999531396,"speaker":"","switched":false,"text":"住民によると。","tier":"rz","type":"final"},"t_us":128185505}
+{"event":{"lang":"en","text":"According to the inhabitants according residents:.","type":"translation"},"t_us":128250575}
+{"event":{"text":"二","type":"partial"},"t_us":129303020}
+{"event":{"text":"似たよ","type":"partial"},"t_us":129815291}
+{"event":{"text":"ここにも似たような訪問","type":"partial"},"t_us":130327409}
+{"event":{"text":"ここにも似たような訪問があったと","type":"partial"},"t_us":130946594}
+{"event":{"text":"ここにも似たような訪問があったといいます","type":"partial"},"t_us":131296102}
+{"event":{"text":"その後半以降にも似たような訪問があったといいます","type":"partial"},"t_us":131893970}
+{"event":{"audio_s":3.968,"decode_ms":195.89060000726025,"lang":"ja","latency_ms":199.29919997230172,"lid_ms":0.0,"speaker":"","switched":false,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":132181564}
+{"event":{"lang":"en","text":"A similar visit has been made in the past, and it is said that there have also had a same kind of trips as before.","type":"translation"},"t_us":132394157}
+{"event":{"text":"きれる","type":"partial"},"t_us":134310765}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":134725356}
+{"event":{"text":"そうですね","type":"partial"},"t_us":135301340}
+{"event":{"text":"そうですね","type":"partial"},"t_us":135785741}
+{"event":{"text":"そうですね","type":"partial"},"t_us":136211644}
+{"event":{"audio_s":3.766,"decode_ms":92.13790000649168,"lang":"ja","latency_ms":94.0038000117056,"lid_ms":0.0,"speaker":"","switched":false,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":136433934}
+{"event":{"lang":"en","text":"Will it be able to break through firmly? Can I make a firm impact.","type":"translation"},"t_us":136605481}
+{"event":{"audio_s":23.542,"lang":"ja","speaker":"","text":"でも駕さん91歳。力強い走りに変わっていきます。 ずいぶんありましたけどね。 住民によると。 過去にも似たような訪問があったといいます。 しっかり打ち切れるかです。","type":"refine"},"t_us":139475597}
+{"event":{"text":"けさの東","type":"partial"},"t_us":140274799}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":140766931}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":141334294}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":142013807}
+{"event":{"text":"けさの東京風はなさそうです","type":"partial"},"t_us":142322959}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":142830633}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":143330482}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":143993478}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":144410218}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":144890375}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":145455483}
+{"event":{"audio_s":6.806,"decode_ms":179.57659999956377,"lang":"ja","latency_ms":303.404899983434,"lid_ms":118.42290000640789,"speaker":"","switched":false,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":145764712}
+{"event":{"lang":"en","text":"It doesn't seem to be the Tokyo style of this morning, but it seems like there is no such thing as TOKYO-style in Japan today. How do you feel? Kondosan (Konto).","type":"translation"},"t_us":145961273}
+{"event":{"audio_s":6.806,"lang":"ja","speaker":"","text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":147567356}
+{"event":{"text":"もう","type":"partial"},"t_us":151665691}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":152122292}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":152586065}
+{"event":{"text":"もう一つ大きな線が","type":"partial"},"t_us":153228300}
+{"event":{"text":"もう一つ大きな勢力がありま","type":"partial"},"t_us":153590561}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":154116264}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":154633206}
+{"event":{"audio_s":4.79,"decode_ms":144.70849998178892,"lang":"ja","latency_ms":147.2790999978315,"lid_ms":0.0,"speaker":"","switched":false,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":154844961}
+{"event":{"lang":"en","text":"and there is another big power, one more great force.","type":"translation"},"t_us":155059963}
+{"event":{"audio_s":4.79,"lang":"ja","speaker":"","text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":156794290}
+{"event":{"text":"した","type":"partial"},"t_us":159234666}
+{"event":{"text":"したものの》","type":"partial"},"t_us":159736587}
+{"event":{"text":"はい","type":"partial"},"t_us":160254769}
+{"event":{"audio_s":2.774,"decode_ms":107.39199997624382,"lang":"ja","latency_ms":190.15040001249872,"lid_ms":81.30930000334047,"speaker":"","switched":false,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":160537123}
+{"event":{"lang":"en","text":"Did you win a victory or did we have won any vi tri winning?","type":"translation"},"t_us":160598133}
+{"event":{"text":"人","type":"partial"},"t_us":161268428}
+{"event":{"text":"人以上の","type":"partial"},"t_us":161759577}
+{"event":{"text":"人以上の戦死者","type":"partial"},"t_us":162297707}
+{"event":{"text":"人以上の戦死者を出した","type":"partial"},"t_us":162792570}
+{"event":{"text":"人以上の戦死者を出していた","type":"partial"},"t_us":163262328}
+{"event":{"audio_s":3.264,"decode_ms":141.3133000023663,"lang":"ja","latency_ms":143.48130000871606,"lid_ms":0.0,"speaker":"","switched":false,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":163756771}
+{"event":{"audio_s":6.038,"lang":"ja","speaker":"","text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":165649281}
+{"event":{"text":"先頭","type":"partial"},"t_us":166754333}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":167265900}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":167790924}
+{"event":{"audio_s":2.87,"decode_ms":129.51340002473444,"lang":"ja","latency_ms":202.29329998255707,"lid_ms":71.25740000628866,"speaker":"","switched":false,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":168164640}
+{"event":{"lang":"en","text":"Left-sided center left, centre right.","type":"translation"},"t_us":168248054}
+{"event":{"audio_s":2.87,"lang":"ja","speaker":"","text":"左寄りセンターレフト。","type":"refine"},"t_us":169959486}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":172760313}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":173321638}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":173833950}
+{"event":{"text":"ヒーローよりもてめぇを幸せ","type":"partial"},"t_us":174343421}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":174771085}
+{"event":{"text":"ヒーローよりもテメェを信じる","type":"partial"},"t_us":175329521}
+{"event":{"audio_s":4.342,"decode_ms":184.22240001382303,"lang":"ja","latency_ms":186.39529999927615,"lid_ms":0.0,"speaker":"","switched":false,"text":"言ったろ。ヒーローよりもテメェを信じる。","tier":"rz","type":"final"},"t_us":175677203}
+{"event":{"lang":"en","text":"I told you, didn't say. You believe in Teme rather than heroes more trust Thamee and not a Hero More believed better faith Tenemé (be believing) but tenmje instead of theheroer Than him or less Bel Time stead te Me he beliefs TaME compared to your Lord De me tell it!","type":"translation"},"t_us":176158750}
+{"event":{"audio_s":4.342,"lang":"ja","speaker":"","text":"言ったろ。ヒーローよりもテメェを信じる。","type":"refine"},"t_us":177452369}
+{"event":{"text":"二百","type":"partial"},"t_us":178247100}
+{"event":{"text":"二百人に聞く","type":"partial"},"t_us":178772309}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":179278614}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":179949478}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":180294165}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":180836667}
+{"event":{"text":"ネットの見すぎを感じ","type":"partial"},"t_us":181320901}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":181982936}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":182383297}
+{"event":{"text":"ネットの見すぎを感じ使うのをやっぱり","type":"partial"},"t_us":182869678}
+{"event":{"audio_s":6.422,"decode_ms":220.82090002368204,"lang":"ja","latency_ms":335.267099988414,"lid_ms":110.51479997695424,"speaker":"","switched":false,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":183397287}
+{"event":{"lang":"en","text":"I listened to 200 high school,200 people","type":"translation"},"t_us":183466287}
+{"event":{"text":"さらにスピン","type":"partial"},"t_us":185236604}
+{"event":{"text":"さらにスピンオフドラマ","type":"partial"},"t_us":185729650}
+{"event":{"text":"さらにスピンオフドラマ波風よ","type":"partial"},"t_us":186235996}
+{"event":{"text":"スピンオフドラマ波風立ってくれは","type":"partial"},"t_us":186728615}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占禁す","type":"partial"},"t_us":187208032}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":187766234}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":188268833}
+{"event":{"audio_s":4.694,"decode_ms":154.01219998602755,"lang":"ja","latency_ms":157.4815999774728,"lid_ms":0.0,"speaker":"","switched":false,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":188429992}
+{"event":{"lang":"en","text":"Additionally, spin-off drama wave winds and stand up in the air of a spinning off drum wave are exclusive distribution on TeLASA.","type":"translation"},"t_us":188557550}
+{"event":{"text":"にさん","type":"partial"},"t_us":190612023}
+{"event":{"text":"裁判に参加した","type":"partial"},"t_us":191049090}
+{"event":{"text":"裁判に参加した大学","type":"partial"},"t_us":191767886}
+{"event":{"text":"参加した大学一年生","type":"partial"},"t_us":192158258}
+{"event":{"text":"参加した大学一年生の炎","type":"partial"},"t_us":192565661}
+{"event":{"text":"参加した大学一年生の本音とは","type":"partial"},"t_us":193122580}
+{"event":{"text":"裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":193630759}
+{"event":{"audio_s":4.822,"decode_ms":151.03189999354072,"lang":"ja","latency_ms":153.55889999773353,"lid_ms":0.0,"speaker":"","switched":false,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":193893619}
+{"event":{"lang":"en","text":"What is the real sound of a fresh first-year university student who participated in simulated trial trials?","type":"translation"},"t_us":194024169}
+{"event":{"audio_s":17.11,"lang":"ja","speaker":"","text":"高校生200人に聞きました。ネットの見すぎを感じ、使うのをやった。こと。さらにスピンオフドラマ、波風よ。立ってくれはTELASAで独占模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":196736910}
+{"event":{"text":"ちゃんと","type":"partial"},"t_us":198369651}
+{"event":{"text":"チャンドラシェ代わる","type":"partial"},"t_us":198794250}
+{"event":{"text":"チャンドラシェカール・ソランキス","type":"partial"},"t_us":199326756}
+{"event":{"text":"チャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":200114975}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば評論","type":"partial"},"t_us":200347263}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":200887640}
+{"event":{"text":"総監によれば被告人は顔を確認","type":"partial"},"t_us":201399892}
+{"event":{"text":"チャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":201903929}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭","type":"partial"},"t_us":202371179}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":203124878}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":203490195}
+{"event":{"audio_s":6.838,"decode_ms":220.05890001310036,"lang":"ja","latency_ms":354.31809999863617,"lid_ms":128.77469998784363,"speaker":"","switched":false,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":203858629}
+{"event":{"lang":"en","text":"Police police chief Chandraschekar Solanki says the defendant hi masked his face and appeared in court. The accused, who had been brought to trial by a judge with her head hidden behind their faces concealing cover from him—in front of them — according Cchandlachedashcar Solanqui (C Co-General) Changradoracheskar Zhskal Solunki: Attor General Chandrazkar Toranchi","type":"translation"},"t_us":204872293}
+{"event":{"audio_s":6.838,"lang":"ja","speaker":"","text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","type":"refine"},"t_us":205628954}
+{"event":{"text":"沸騰","type":"partial"},"t_us":209425815}
+{"event":{"text":"混浴で沸騰する地域","type":"partial"},"t_us":209911865}
+{"event":{"text":"沙する地域もあれば","type":"partial"},"t_us":210478226}
+{"event":{"text":"沙する地域もあれば沸騰","type":"partial"},"t_us":210969095}
+{"event":{"text":"沸騰する地域もあれば沸騰","type":"partial"},"t_us":211489738}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分も","type":"partial"},"t_us":211982590}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる","type":"partial"},"t_us":212464424}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":212963475}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":213601269}
+{"event":{"text":"淵する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":214066681}
+{"event":{"audio_s":6.358,"decode_ms":201.65000000270084,"lang":"ja","latency_ms":324.27360001020133,"lid_ms":118.42640000395475,"speaker":"","switched":false,"text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあり。","tier":"rz","type":"final"},"t_us":214448190}
+{"event":{"lang":"en","text":"Some areas boil in one minute, while some regions take minutes to cook; and others takes hours of time for several weeks before it is cooked.","type":"translation"},"t_us":214582681}
+{"event":{"audio_s":6.358,"lang":"ja","speaker":"","text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあり。","type":"refine"},"t_us":216296765}
+{"event":{"text":"折り","type":"partial"},"t_us":219507873}
+{"event":{"text":"羽を折り返すこと","type":"partial"},"t_us":219997568}
+{"event":{"text":"羽根を折り返すことができない","type":"partial"},"t_us":220472436}
+{"event":{"text":"羽を折り返すことができない昆虫は","type":"partial"},"t_us":221006791}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボ","type":"partial"},"t_us":221458855}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボと","type":"partial"},"t_us":221977704}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":222497701}
+{"event":{"text":"羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":223072709}
+{"event":{"audio_s":5.494,"decode_ms":150.9430000151042,"lang":"ja","latency_ms":245.68180000642317,"lid_ms":91.78750001592562,"speaker":"","switched":false,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":223569148}
+{"event":{"lang":"en","text":"The only insects currently not capable of turning the feather blade back are dragonf and rhangos, which can’t be turned down.","type":"translation"},"t_us":223705990}
+{"event":{"audio_s":5.494,"lang":"ja","speaker":"","text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","type":"refine"},"t_us":225451957}
+{"event":{"text":"ミスは","type":"partial"},"t_us":227809600}
+{"event":{"text":"スミスはツアーです","type":"partial"},"t_us":228291074}
+{"event":{"text":"スミスはツアーで予定している","type":"partial"},"t_us":228788978}
+{"event":{"text":"スミスはツアーで予定していたコンサート","type":"partial"},"t_us":229494806}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止","type":"partial"},"t_us":229803683}
+{"event":{"text":"スはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":230320477}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":230926748}
+{"event":{"audio_s":4.63,"decode_ms":217.7347999822814,"lang":"ja","latency_ms":221.0570999886841,"lid_ms":0.0,"speaker":"","switched":false,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":231149708}
+{"event":{"lang":"en","text":"Aerosmith has canceled a concert scheduled for the tour.","type":"translation"},"t_us":231262924}
+{"event":{"audio_s":4.63,"lang":"ja","speaker":"","text":"エアロスミスはツアーで予定していたコンサートを中止しました。","type":"refine"},"t_us":232879020}
+{"event":{"text":"三本","type":"partial"},"t_us":236477747}
+{"event":{"text":"サモアの首都","type":"partial"},"t_us":236952585}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":237504689}
+{"event":{"text":"この町","type":"partial"},"t_us":238006749}
+{"event":{"text":"この町はウポリ","type":"partial"},"t_us":238424424}
+{"event":{"text":"この町はウポル島にあり","type":"partial"},"t_us":239026410}
+{"event":{"text":"この町はウポル島にありGF","type":"partial"},"t_us":239482544}
+{"event":{"text":"この町はウォル島にあり人口は一億","type":"partial"},"t_us":239993261}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":240518569}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":241119699}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":241597081}
+{"event":{"audio_s":6.934,"decode_ms":178.84750000666827,"lang":"ja","latency_ms":268.6161999881733,"lid_ms":85.95190002233721,"speaker":"","switched":false,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":241992292}
+{"event":{"audio_s":6.934,"lang":"ja","speaker":"","text":"この町はウポル島にあり人口は4万人弱です。","type":"refine"},"t_us":243809530}
+{"event":{"text":"僅かに週間","type":"partial"},"t_us":247570192}
+{"event":{"text":"僅か二週間でアメリカ","type":"partial"},"t_us":248120012}
+{"event":{"text":"僅か二週間でアメリカ軍","type":"partial"},"t_us":248585567}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":249102176}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は未練","type":"partial"},"t_us":249539660}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランス","type":"partial"},"t_us":250171187}
+{"event":{"text":"わずか二週間でアメリカ軍と自由フランス軍は南フランスを解放しています","type":"partial"},"t_us":250606010}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ戦","type":"partial"},"t_us":251184344}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":251666595}
+{"event":{"text":"僅かにアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":252193597}
+{"event":{"audio_s":6.614,"decode_ms":182.5624000048265,"lang":"ja","latency_ms":281.9297999958508,"lid_ms":95.2578000142239,"speaker":"","switched":false,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":252805488}
+{"event":{"lang":"en","text":"Within only two weeks, the American and Free French forces had liberated South France in just a couple of week's time.","type":"translation"},"t_us":253348429}
+{"event":{"audio_s":6.614,"lang":"ja","speaker":"","text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","type":"refine"},"t_us":254733154}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":259215620}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":259627085}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":260172165}
+{"event":{"text":"等一个不用久了这个图机有可能题","type":"partial"},"t_us":260688208}
+{"event":{"text":"等一隔个用几年这个直己有个能机两个","type":"partial"},"t_us":261136847}
+{"event":{"text":"等一隔个个月来这个直接有个题两个个关没了","type":"partial"},"t_us":261672058}
+{"event":{"text":"等一隔够用久这个直机有可能进两个过关名了有可能是","type":"partial"},"t_us":262249641}
+{"event":{"text":"等一个个月久后这个就可能进两个过关名单有很多是一个性","type":"partial"},"t_us":262684460}
+{"event":{"text":"等隔个用久后这个这个就进两个个关名呢有可能是一些个性","type":"partial"},"t_us":263253327}
+{"event":{"text":"等隔个用久年这个自就有个题两个过关名天有很多人性个性穿了性歌","type":"partial"},"t_us":263778980}
+{"event":{"text":"整隔够用久年这个自己有关题两个个关名呢有很多事情个性除了新歌啊","type":"partial"},"t_us":264309624}
+{"event":{"text":"整隔个用久年这个个就有一个两个个关名呢有很多是一些个性除了事性歌外","type":"partial"},"t_us":264782668}
+{"event":{"text":"整个够用久年几个个时就个两个过关名天有很多人性个性除了性歌娃对那个","type":"partial"},"t_us":265496382}
+{"event":{"text":"整隔个用久年几个月期有个两个过个明天有很多事情性个性穿了歌娃对那跟是不成对吧的嘛","type":"partial"},"t_us":265890469}
+{"event":{"text":"整隔个用久后两个自己有个两个过关明天有很多事情个性除了性性歌啊都他跟对话的关系的","type":"partial"},"t_us":266409212}
+{"event":{"text":"不用久联和几个字己有关一集连个过关明呢有很多是一些个性创新歌娃都要跟对话的关系的","type":"partial"},"t_us":266890418}
+{"event":{"audio_s":9.27,"decode_ms":318.8705999928061,"lang":"ja","latency_ms":438.8020999904256,"lid_ms":111.76880000857636,"speaker":"","switched":false,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":267332128}
+{"event":{"lang":"en","text":"On August 15th, 1940 the All allied Powers invaded southern France on a day of 18 Aug-15nd (A 8/13 September 40), and its invasion was called Operation Dragoon.","type":"translation"},"t_us":267488548}
+{"event":{"audio_s":9.27,"lang":"ja","speaker":"","text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","type":"refine"},"t_us":268893232}
+{"event":{"text":"経済","type":"partial"},"t_us":272704951}
+{"event":{"text":"経済産業省","type":"partial"},"t_us":273272615}
+{"event":{"text":"経済産業省は","type":"partial"},"t_us":273754438}
+{"event":{"text":"経済産業省はアップルが支援","type":"partial"},"t_us":274361946}
+{"event":{"text":"経済産業省はアップルが深刻ではない","type":"partial"},"t_us":274740753}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":275252958}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":275923085}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加率","type":"partial"},"t_us":276368189}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事頻追加で三十四％","type":"partial"},"t_us":276817021}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告","type":"partial"},"t_us":277451428}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと","type":"partial"},"t_us":277857916}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表","type":"partial"},"t_us":278406908}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表しました","type":"partial"},"t_us":278902363}
+{"event":{"audio_s":7.798,"decode_ms":185.6176000146661,"lang":"ja","latency_ms":286.59249999327585,"lid_ms":94.64279998792335,"speaker":"","switched":false,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":279193711}
+{"event":{"lang":"en","text":"Last week the Ministry of Economy, Trade and Industry announced that it had reported 34 reports on an additional heat overheating issue Apple said was not serious about.","type":"translation"},"t_us":279485205}
+{"event":{"audio_s":7.798,"lang":"ja","speaker":"","text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","type":"refine"},"t_us":281062681}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":284572847}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":285051460}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":285531018}
+{"event":{"text":"やっぱり大変でしたか","type":"partial"},"t_us":286190241}
+{"event":{"audio_s":3.446,"decode_ms":105.66080000717191,"lang":"ja","latency_ms":107.58420001366176,"lid_ms":0.0,"speaker":"","switched":false,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":286431866}
+{"event":{"lang":"en","text":"Was Mr. Ohashi-Oobashi having had a hard time, was it difficult for you? Did she have to deald with the difficulty of doing something that went really tough or did Ms OHHASHI Bridgesan saw were he found difficulties and any problems as I thought what could't been so bad?\"","type":"translation"},"t_us":286686604}
+{"event":{"audio_s":3.446,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":288401296}
+{"event":{"text":"流","type":"partial"},"t_us":293558649}
+{"event":{"text":"この上流から","type":"partial"},"t_us":294055315}
+{"event":{"text":"上流から","type":"partial"},"t_us":294573134}
+{"event":{"text":"丸太を","type":"partial"},"t_us":295205417}
+{"event":{"text":"この上流から丸太を","type":"partial"},"t_us":295537839}
+{"event":{"text":"丸太を組んで","type":"partial"},"t_us":296164958}
+{"event":{"text":"丸太を組んで","type":"partial"},"t_us":296581293}
+{"event":{"text":"丸太を組んでいかだにしてる","type":"partial"},"t_us":297256789}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":297653115}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":298174645}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":298661081}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":299345595}
+{"event":{"text":"この上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":299752557}
+{"event":{"text":"この上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":300317518}
+{"event":{"audio_s":8.534,"decode_ms":194.1037999931723,"lang":"ja","latency_ms":292.29310000664555,"lid_ms":93.11900002649054,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":300721841}
+{"event":{"lang":"en","text":"From upstream that way from the top of it, a log lined with logs was put together to form rafts and floated down through them. This is what I'm here; this one: It has been flowing out continuously by shhand-log rowers in an over there as wellfrom its upper upward level into those trees where we were then putting round bars on each other between these two at highup above they had formed many pieces building timber barn solidwood lines joined along all members which are forming onto their own,\" groupong maroo join team build groups tied around him he came toward some right Upri or arrangeas formation","type":"translation"},"t_us":301400942}
+{"event":{"text":"さあ","type":"partial"},"t_us":302591026}
+{"event":{"text":"さあ百M","type":"partial"},"t_us":303049751}
+{"event":{"text":"さあ百M ターン","type":"partial"},"t_us":303698034}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":304178528}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":304556586}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":305071505}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":305635887}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":306149518}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":306663671}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":307150433}
+{"event":{"audio_s":6.39,"decode_ms":192.65700000687505,"lang":"ja","latency_ms":295.7794000103604,"lid_ms":99.58420001203194,"speaker":"","switched":false,"text":"本多選手はこの得意のドルフィンキック。","tier":"rz","type":"final"},"t_us":307604962}
+{"event":{"lang":"en","text":"This dolphin kick is the best Dolplefin Kyki.","type":"translation"},"t_us":307734990}
+{"event":{"audio_s":15.414,"lang":"ja","speaker":"","text":"そこの上流から丸太を組んでいかだにしていかだをどんどん流したんです。さあ百Mのターンを迎えるドルフィン。","type":"refine"},"t_us":309588674}
+{"event":{"text":"さあ","type":"partial"},"t_us":310023226}
+{"event":{"text":"Withたで。","type":"partial"},"t_us":310468390}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":311087553}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":311575812}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":312171437}
+{"event":{"text":"でも駿河さん九十一","type":"partial"},"t_us":312582480}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313164805}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":313600366}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":314138674}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":314643726}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わった","type":"partial"},"t_us":315127766}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":315790080}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":316240618}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":316722508}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":317233164}
+{"event":{"audio_s":8.886,"decode_ms":227.05359998508357,"lang":"ja","latency_ms":335.38940001744777,"lid_ms":103.12230000272392,"speaker":"","switched":false,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":317609000}
+{"event":{"lang":"en","text":"But Surkawa is 91 years old, and she's going to turn into a strong run. She will be turning more powerful on the road as it turns stronger- mighty running; but Tsuru Kawa Skugawa was only ninety 99 at age 90 for Mr Su river Shizu River (Sur Group) when he turned back from his first solid runs that would change towards forceful driving with strength in this way I’t moving forward!","type":"translation"},"t_us":317987310}
+{"event":{"text":"随分","type":"partial"},"t_us":319365419}
+{"event":{"text":"随分ありました","type":"partial"},"t_us":319813093}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":320336044}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":320842737}
+{"event":{"audio_s":3.414,"decode_ms":87.50080000027083,"lang":"ja","latency_ms":89.13909998955205,"lid_ms":0.0,"speaker":"","switched":false,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":321122585}
+{"event":{"lang":"en","text":"It's been a long time, though there were many. I know that was quite some of it... but ... well ).","type":"translation"},"t_us":321257584}
+{"event":{"text":"よ","type":"partial"},"t_us":322551637}
+{"event":{"text":"住民によると","type":"partial"},"t_us":322981261}
+{"event":{"audio_s":2.304,"decode_ms":84.46220000041649,"lang":"ja","latency_ms":146.11999999033287,"lid_ms":60.631000000284985,"speaker":"","switched":false,"text":"住民によると。","tier":"rz","type":"final"},"t_us":323502165}
+{"event":{"lang":"en","text":"According to the inhabitants according residents:.","type":"translation"},"t_us":323572122}
+{"event":{"text":"二","type":"partial"},"t_us":324645042}
+{"event":{"text":"ここにも似たよ","type":"partial"},"t_us":325105635}
+{"event":{"text":"ここにも似たような訪問","type":"partial"},"t_us":325687500}
+{"event":{"text":"ここにも似たような訪問があったと","type":"partial"},"t_us":326216456}
+{"event":{"text":"ここにも似たような訪問があったといいます","type":"partial"},"t_us":326609271}
+{"event":{"text":"ここにも似たような訪問があったといいます","type":"partial"},"t_us":327124922}
+{"event":{"audio_s":4.0,"decode_ms":226.18149998015724,"lang":"ja","latency_ms":228.44370000530031,"lid_ms":0.0,"speaker":"","switched":false,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":327580126}
+{"event":{"lang":"en","text":"A similar visit has been made in the past, and it is said that there have also had a same kind of trips as before.","type":"translation"},"t_us":327784299}
+{"event":{"text":"切れる","type":"partial"},"t_us":329608326}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":330126414}
+{"event":{"text":"そうですね","type":"partial"},"t_us":330589713}
+{"event":{"text":"しっかり打ち切れるかです。","type":"partial"},"t_us":331250345}
+{"event":{"text":"しっかり打ち切れるかです。","type":"partial"},"t_us":331616984}
+{"event":{"audio_s":3.83,"decode_ms":147.84750001854263,"lang":"ja","latency_ms":277.465499995742,"lid_ms":0.0,"speaker":"","switched":false,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":332029319}
+{"event":{"lang":"en","text":"Will it be able to break through firmly? Can I make a firm impact.","type":"translation"},"t_us":332290952}
+{"event":{"audio_s":23.382,"lang":"ja","speaker":"","text":"でも駿河さん91歳。力強い走りに変わっていきます。 ずいぶんありましたけどね。 住民によると。 過去にも似たような訪問があったといいます。 しっかり打ち切れるかです。","type":"refine"},"t_us":334461418}
+{"event":{"text":"けさの東","type":"partial"},"t_us":335635480}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":336170917}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":336654130}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":337195470}
+{"event":{"text":"けさの東京風はなさそうです","type":"partial"},"t_us":337739348}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":338190838}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":338693924}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":339265403}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":339729087}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":340281500}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":340777555}
+{"event":{"audio_s":6.774,"decode_ms":163.46449998673052,"lang":"ja","latency_ms":273.5246999945957,"lid_ms":103.92789999605156,"speaker":"","switched":false,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":341066982}
+{"event":{"lang":"en","text":"It doesn't seem to be the Tokyo style of this morning, but it seems like there is no such thing as TOKYO-style in Japan today. How do you feel? Kondosan (Konto).","type":"translation"},"t_us":341213709}
+{"event":{"audio_s":6.774,"lang":"ja","speaker":"","text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":343063299}
+{"event":{"text":"もう","type":"partial"},"t_us":346942152}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":347409187}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":347904485}
+{"event":{"text":"もう一つ大きな線が","type":"partial"},"t_us":348455616}
+{"event":{"text":"もう一つ大きな勢力がありま","type":"partial"},"t_us":348864233}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":349447740}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":349967512}
+{"event":{"audio_s":4.758,"decode_ms":141.57259999774396,"lang":"ja","latency_ms":144.34349999646656,"lid_ms":0.0,"speaker":"","switched":false,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":350154300}
+{"event":{"lang":"en","text":"and there is another big power, one more great force.","type":"translation"},"t_us":350378877}
+{"event":{"audio_s":4.758,"lang":"ja","speaker":"","text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":352210030}
+{"event":{"text":"した","type":"partial"},"t_us":354540446}
+{"event":{"text":"したものの》","type":"partial"},"t_us":355067260}
+{"event":{"text":"はい","type":"partial"},"t_us":355566398}
+{"event":{"audio_s":2.71,"decode_ms":104.6869000128936,"lang":"ja","latency_ms":181.65849999058992,"lid_ms":75.84809997933917,"speaker":"","switched":false,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":355781331}
+{"event":{"lang":"en","text":"Did you win a victory or did we have won any vi tri winning?","type":"translation"},"t_us":355839826}
+{"event":{"text":"人","type":"partial"},"t_us":356539866}
+{"event":{"text":"人以上の","type":"partial"},"t_us":357127132}
+{"event":{"text":"人以上の戦死者","type":"partial"},"t_us":357626962}
+{"event":{"text":"人以上の戦死者を出した","type":"partial"},"t_us":358152035}
+{"event":{"text":"人以上の戦死者を出していた","type":"partial"},"t_us":358581156}
+{"event":{"audio_s":3.36,"decode_ms":125.43189999996684,"lang":"ja","latency_ms":127.47570002102292,"lid_ms":0.0,"speaker":"","switched":false,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":359090512}
+{"event":{"audio_s":6.07,"lang":"ja","speaker":"","text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":361079820}
+{"event":{"text":"先頭","type":"partial"},"t_us":362097243}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":362574778}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":363126472}
+{"event":{"audio_s":2.902,"decode_ms":102.69100000732578,"lang":"ja","latency_ms":167.05910000018775,"lid_ms":63.05409999913536,"speaker":"","switched":false,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":363481057}
+{"event":{"lang":"en","text":"Left-sided center left, centre right.","type":"translation"},"t_us":363569890}
+{"event":{"audio_s":2.902,"lang":"ja","speaker":"","text":"左寄りセンターレフト。","type":"refine"},"t_us":365275795}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":368224358}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":368613486}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":369103285}
+{"event":{"text":"ヒーローよりもてめェを仕入れろ","type":"partial"},"t_us":369824563}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":370131585}
+{"event":{"text":"ヒーローよりもテメェを信じる","type":"partial"},"t_us":370696014}
+{"event":{"audio_s":4.31,"decode_ms":130.72839999222197,"lang":"ja","latency_ms":132.9124000039883,"lid_ms":0.0,"speaker":"","switched":false,"text":"言ったろ。ヒーローよりもてめェを信じる。","tier":"rz","type":"final"},"t_us":370914178}
+{"event":{"lang":"en","text":"I told you, didn't tell me. You believe in more than heroes but rather trust your omens instead of the Heroer and not a Lord Bel More Than He is better believed (be faith).","type":"translation"},"t_us":371146542}
+{"event":{"text":"こう","type":"partial"},"t_us":372913190}
+{"event":{"text":"高校生に","type":"partial"},"t_us":373387137}
+{"event":{"text":"高校生二百人","type":"partial"},"t_us":373867289}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":374441995}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":374868677}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":375411564}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":375964827}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":376446798}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":376953357}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":377617822}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":378008122}
+{"event":{"audio_s":7.126,"decode_ms":199.6386999962851,"lang":"ja","latency_ms":290.1936999987811,"lid_ms":86.38799999607727,"speaker":"","switched":false,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":378644077}
+{"event":{"lang":"en","text":"I listened to 200 high school,200 people","type":"translation"},"t_us":378708086}
+{"event":{"text":"スピンオフ","type":"partial"},"t_us":380659783}
+{"event":{"text":"スピンオフドラマー","type":"partial"},"t_us":381079792}
+{"event":{"text":"スピンオフドラマ波風よ","type":"partial"},"t_us":381576349}
+{"event":{"text":"波風歌ってくれは","type":"partial"},"t_us":382146587}
+{"event":{"text":"波風を歌ってくれはTELASA で独占","type":"partial"},"t_us":382538834}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":383188912}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":383650677}
+{"event":{"audio_s":4.662,"decode_ms":174.94850000366569,"lang":"ja","latency_ms":178.40490001253784,"lid_ms":0.0,"speaker":"","switched":false,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":383837075}
+{"event":{"lang":"en","text":"Additionally, spin-off drama wave winds and stand up in the air of a spinning off drum wave are exclusive distribution on TeLASA.","type":"translation"},"t_us":383993035}
+{"event":{"text":"二歳","type":"partial"},"t_us":385923633}
+{"event":{"text":"裁判に参加した","type":"partial"},"t_us":386428529}
+{"event":{"text":"詐欺に参加した大学","type":"partial"},"t_us":386895410}
+{"event":{"text":"この模擬裁判に参加した大学一年生","type":"partial"},"t_us":387511555}
+{"event":{"text":"参加した大学一年生の炎","type":"partial"},"t_us":387914613}
+{"event":{"text":"参加した大学一年生の本音とは","type":"partial"},"t_us":388408607}
+{"event":{"text":"参加した大学一年生の本音とは","type":"partial"},"t_us":388928483}
+{"event":{"audio_s":4.886,"decode_ms":138.9116000209469,"lang":"ja","latency_ms":141.62719997693785,"lid_ms":0.0,"speaker":"","switched":false,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":389273655}
+{"event":{"lang":"en","text":"What is the real sound of a fresh first-year university student who participated in simulated trial trials?","type":"translation"},"t_us":389434864}
+{"event":{"audio_s":22.678,"lang":"ja","speaker":"","text":"言ったろう。ヒーローよりもてめぇを信じる高校生200人に聞きました。ネットの見すぎを感じ使うのをやった。さらにスピンオフドラマ波風よ。立ってくれはTELASAで独占模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":392259917}
+{"event":{"text":"ちゃんと","type":"partial"},"t_us":393642959}
+{"event":{"text":"チャンドラシェ代わる","type":"partial"},"t_us":394187792}
+{"event":{"text":"チャンドラシェカール・ソランキス","type":"partial"},"t_us":394747616}
+{"event":{"text":"チャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":395189698}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば","type":"partial"},"t_us":395735287}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":396171551}
+{"event":{"text":"総監によれば被告人は顔を隠れ家族","type":"partial"},"t_us":396727829}
+{"event":{"text":"チャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":397248244}
+{"event":{"text":"総監によれば被告人は顔を隠して法廷に出頭","type":"partial"},"t_us":397721490}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":398256219}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":398736564}
+{"event":{"audio_s":6.838,"decode_ms":173.21319997427054,"lang":"ja","latency_ms":266.76189998397604,"lid_ms":89.70060001593083,"speaker":"","switched":false,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":399102216}
+{"event":{"lang":"en","text":"Police police chief Chandraschekar Solanki says the defendant hi masked his face and appeared in court. The accused, who had been brought to trial by a judge with her head hidden behind their faces concealing cover from him—in front of them — according Cchandlachedashcar Solanqui (C Co-General) Changradoracheskar Zhskal Solunki: Attor General Chandrazkar Toranchi","type":"translation"},"t_us":399991977}
+{"event":{"audio_s":6.838,"lang":"ja","speaker":"","text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","type":"refine"},"t_us":400874194}
+{"event":{"text":"沸騰","type":"partial"},"t_us":404757928}
+{"event":{"text":"淵する地域","type":"partial"},"t_us":405261044}
+{"event":{"text":"沫する地域もあれば","type":"partial"},"t_us":405797179}
+{"event":{"text":"沸騰する地域もあれば沸騰","type":"partial"},"t_us":406369216}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでいい","type":"partial"},"t_us":406739377}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分も","type":"partial"},"t_us":407322508}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる","type":"partial"},"t_us":407795889}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":408400516}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":408821182}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":409333275}
+{"event":{"audio_s":6.23,"decode_ms":157.33419999014586,"lang":"ja","latency_ms":260.9617999987677,"lid_ms":98.6401999834925,"speaker":"","switched":false,"text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","tier":"rz","type":"final"},"t_us":409598115}
+{"event":{"lang":"en","text":"Some areas are boiling in a minute, while some regions take minutes to cook and others takes hours for several weeks until it is cooked.","type":"translation"},"t_us":409752840}
+{"event":{"audio_s":6.23,"lang":"ja","speaker":"","text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","type":"refine"},"t_us":411428182}
+{"event":{"text":"はい","type":"partial"},"t_us":414800311}
+{"event":{"text":"羽を折り返すこと","type":"partial"},"t_us":415366899}
+{"event":{"text":"羽を折り返すことができない","type":"partial"},"t_us":415870384}
+{"event":{"text":"羽を折り返すことができない昆虫は","type":"partial"},"t_us":416381312}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボ","type":"partial"},"t_us":416779932}
+{"event":{"text":"はげろ","type":"partial"},"t_us":417300593}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":417948105}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":418429027}
+{"event":{"audio_s":5.366,"decode_ms":167.6656999916304,"lang":"ja","latency_ms":272.7659000083804,"lid_ms":102.23199997562917,"speaker":"","switched":false,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":418788849}
+{"event":{"lang":"en","text":"The only insects currently not capable of turning the feather blade back are dragonf and rhangos, which can’t be turned down.","type":"translation"},"t_us":418909325}
+{"event":{"audio_s":5.366,"lang":"ja","speaker":"","text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","type":"refine"},"t_us":420631123}
+{"event":{"text":"ミスは","type":"partial"},"t_us":423137353}
+{"event":{"text":"スミスはツアーでいい","type":"partial"},"t_us":423692945}
+{"event":{"text":"スミスはツアーで予定しています","type":"partial"},"t_us":424181232}
+{"event":{"text":"スミスはツアーで予定していたコンサート","type":"partial"},"t_us":424722534}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止","type":"partial"},"t_us":425104474}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":425690428}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":426208204}
+{"event":{"audio_s":4.63,"decode_ms":170.77619998599403,"lang":"ja","latency_ms":174.1827999940142,"lid_ms":0.0,"speaker":"","switched":false,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":426379342}
+{"event":{"lang":"en","text":"Aerosmith has canceled a concert scheduled for the tour.","type":"translation"},"t_us":426484303}
+{"event":{"audio_s":4.63,"lang":"ja","speaker":"","text":"エアロスミスはツアーで予定していたコンサートを中止しました。","type":"refine"},"t_us":428316390}
+{"event":{"text":"三本","type":"partial"},"t_us":431836408}
+{"event":{"text":"サモアの首都","type":"partial"},"t_us":432305605}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":432784596}
+{"event":{"text":"この町","type":"partial"},"t_us":433636791}
+{"event":{"text":"この町はウポリ","type":"partial"},"t_us":433829929}
+{"event":{"text":"この町はウポル島にあり","type":"partial"},"t_us":434273756}
+{"event":{"text":"この町はウポル島にありGF","type":"partial"},"t_us":434790473}
+{"event":{"text":"この町はウォル島にあり人口は一億","type":"partial"},"t_us":435300385}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":435919318}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":436399882}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":436953517}
+{"event":{"audio_s":6.966,"decode_ms":202.3588000156451,"lang":"ja","latency_ms":290.78489998937584,"lid_ms":84.33139999397099,"speaker":"","switched":false,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":437366751}
+{"event":{"audio_s":6.966,"lang":"ja","speaker":"","text":"この町はウポル島にあり人口は4万人弱です。","type":"refine"},"t_us":439160981}
+{"event":{"text":"僅かに週間","type":"partial"},"t_us":442875163}
+{"event":{"text":"僅か二週間で","type":"partial"},"t_us":443414101}
+{"event":{"text":"僅か二週間でアメリカ軍","type":"partial"},"t_us":444072738}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":444510092}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍","type":"partial"},"t_us":444880723}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランス","type":"partial"},"t_us":445479416}
+{"event":{"text":"わずか二週間でアメリカ軍と自由フランス軍は南フランスを解放しています","type":"partial"},"t_us":445932038}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ戦","type":"partial"},"t_us":446488130}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":447006432}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":447593541}
+{"event":{"audio_s":6.614,"decode_ms":229.1613999987021,"lang":"ja","latency_ms":356.4673000073526,"lid_ms":121.32930001826026,"speaker":"","switched":false,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":448212588}
+{"event":{"lang":"en","text":"Within only two weeks, the American and Free French forces had liberated South France in just a couple of week's time.","type":"translation"},"t_us":448803626}
+{"event":{"audio_s":6.614,"lang":"ja","speaker":"","text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","type":"refine"},"t_us":450199524}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":454467598}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":455001815}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":455543633}
+{"event":{"text":"等一个用用久了这个直己有可能去","type":"partial"},"t_us":456042081}
+{"event":{"text":"等一隔个个就来几个直机有个一机两个","type":"partial"},"t_us":456478088}
+{"event":{"text":"等于隔二个钟就几个直接有个问机两个个关没有","type":"partial"},"t_us":457015423}
+{"event":{"text":"等于隔二个月呢几个直己有个题两个个关名呢有很难是","type":"partial"},"t_us":457535982}
+{"event":{"text":"等一隔个个久呢几个字己有个能两个个民呢有很多人是一个","type":"partial"},"t_us":458079460}
+{"event":{"text":"等隔隔个用就后几个地个一个两个个个名呢有可多是一些个性","type":"partial"},"t_us":458585921}
+{"event":{"text":"等隔隔个用就呢几个字就有个题两个个国民呢有很多是一些个性穿那性歌","type":"partial"},"t_us":459090005}
+{"event":{"text":"等隔个个久呢几个字就有个题两个个国民呢有很多事情些个性除那些歌啊","type":"partial"},"t_us":459650024}
+{"event":{"text":"等隔一个月时后几个自就有个两个个个名呢有很多是一些个性除了事情歌外","type":"partial"},"t_us":460175257}
+{"event":{"text":"整隔个个久呢几个字就有个能级两个国家有很多是人性个性除了性歌歌娃对那个","type":"partial"},"t_us":460672471}
+{"event":{"text":"整隔个个久呢几个字就有个人两个个国名有有很多人性个性除了些歌娃对了跟舍不成对话的嘛","type":"partial"},"t_us":461163489}
+{"event":{"text":"整隔个个久呢几个字己有个年级两个个人有很多是人性个性除了个歌对跟那个人对话的关系的","type":"partial"},"t_us":461703836}
+{"event":{"text":"不用久联和几个自己有关联集连我过关明南有很多是一些个性除那些歌娃都要跟对话的关系的","type":"partial"},"t_us":462345039}
+{"event":{"audio_s":9.302,"decode_ms":293.30449999542907,"lang":"ja","latency_ms":466.944500018144,"lid_ms":164.0186000149697,"speaker":"","switched":false,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":462816480}
+{"event":{"lang":"en","text":"On August 15th, 1940 the All allied Powers invaded southern France on a day of 18 Aug-15nd (A 8/13 September 40), and its invasion was called Operation Dragoon.","type":"translation"},"t_us":462996264}
+{"event":{"audio_s":9.302,"lang":"ja","speaker":"","text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","type":"refine"},"t_us":464336589}
+{"event":{"text":"経済","type":"partial"},"t_us":468279579}
+{"event":{"text":"経済産業省","type":"partial"},"t_us":468623626}
+{"event":{"text":"経済産業省はアップル","type":"partial"},"t_us":469141769}
+{"event":{"text":"経済産業省はアップルが支援","type":"partial"},"t_us":469679638}
+{"event":{"text":"経済産業省はアップルが深刻ではない","type":"partial"},"t_us":470110912}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":470628197}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":471195826}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加率","type":"partial"},"t_us":471692843}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項追加で三十一％","type":"partial"},"t_us":472205061}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項追加で三十四件報告","type":"partial"},"t_us":472714697}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと","type":"partial"},"t_us":473226798}
+{"event":{"text":"先週経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表","type":"partial"},"t_us":473843656}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加で三十四件報告したと発表しました","type":"partial"},"t_us":474295291}
+{"event":{"audio_s":7.766,"decode_ms":250.53599997772835,"lang":"ja","latency_ms":373.5556000028737,"lid_ms":116.69460000121036,"speaker":"","switched":false,"text":"先週経済産業省はアップルが深刻ではないとする過熱事頚を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":474672805}
+{"event":{"lang":"en","text":"Last week the Ministry of Economy, Trade and Industry announced that it had reported 34 additional reports on overheated incidents in addition to a total report last weekend—and said Apple wasn’t serious at all.","type":"translation"},"t_us":475548335}
+{"event":{"audio_s":7.766,"lang":"ja","speaker":"","text":"先週経済産業省はアップルが深刻ではないとする過熱事頚を追加で34件報告したと発表しました。","type":"refine"},"t_us":476357664}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":479912761}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":480391489}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":480913509}
+{"event":{"text":"やっぱり大変でしたか","type":"partial"},"t_us":481420282}
+{"event":{"audio_s":3.478,"decode_ms":97.64920000452548,"lang":"ja","latency_ms":99.34139999677429,"lid_ms":0.0,"speaker":"","switched":false,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":481774975}
+{"event":{"lang":"en","text":"Was Mr. Ohashi-Oobashi having had a hard time, was it difficult for you? Did she have to deald with the difficulty of doing something that went really tough or did Ms OHHASHI Bridgesan saw were he found difficulties and any problems as I thought what could't been so bad?\"","type":"translation"},"t_us":482009574}
+{"event":{"audio_s":3.478,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":483786260}
+{"event":{"text":"かな","type":"partial"},"t_us":489268124}
+{"event":{"text":"はい","type":"partial"},"t_us":489680807}
+{"event":{"text":"丸太","type":"partial"},"t_us":490238485}
+{"event":{"text":"丸太を","type":"partial"},"t_us":490835028}
+{"event":{"text":"丸太を","type":"partial"},"t_us":491213438}
+{"event":{"text":"丸太を組んでいる","type":"partial"},"t_us":491815059}
+{"event":{"text":"丸太を組んでいかだに","type":"partial"},"t_us":492293157}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":492749440}
+{"event":{"text":"丸太を組んでいかだにしてる","type":"partial"},"t_us":493329174}
+{"event":{"text":"丸太を組んでいかだにしていかだ","type":"partial"},"t_us":493832067}
+{"event":{"text":"丸太を組んでいかだにして","type":"partial"},"t_us":494324914}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":494829027}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":495359654}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":496066981}
+{"event":{"audio_s":8.214,"decode_ms":241.18610000004992,"lang":"ja","latency_ms":385.47200002358295,"lid_ms":137.40289999987,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":496454347}
+{"event":{"lang":"en","text":"From upstream that way from the top of it, a log lined with logs was put together to form rafts and floated down through them. This is what I'm here; this one: It has been flowing out continuously by shhand-log rowers in an over there as wellfrom its upper upward level into those trees where we were then putting round bars on each other between these two at highup above they had formed many pieces building timber barn solidwood lines joined along all members which are forming onto their own,\" groupong maroo join team build groups tied around him he came toward some right Upri or arrangeas formation","type":"translation"},"t_us":497222161}
+{"event":{"text":"戻しています","type":"partial"},"t_us":497535223}
+{"event":{"text":"百M","type":"partial"},"t_us":498040471}
+{"event":{"text":"百M のター","type":"partial"},"t_us":498565028}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":499172183}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":499573126}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":500078774}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":500619526}
+{"event":{"text":"得意のドルフィング","type":"partial"},"t_us":501174916}
+{"event":{"text":"得意のドルフィン","type":"partial"},"t_us":501640665}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":502177222}
+{"event":{"text":"得意のドルフィンキック","type":"partial"},"t_us":502687390}
+{"event":{"audio_s":6.838,"decode_ms":211.007999983849,"lang":"ja","latency_ms":305.08829999598674,"lid_ms":89.8278999957256,"speaker":"","switched":false,"text":"本多選手はこの得意のドルフィン。","tier":"rz","type":"final"},"t_us":503046375}
+{"event":{"lang":"en","text":"Honda player Dolp fins, the best dorffin in this game.","type":"translation"},"t_us":503140958}
+{"event":{"audio_s":15.19,"lang":"ja","speaker":"","text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。 本多選手はこの得意のドルフィン。","type":"refine"},"t_us":505154022}
+{"event":{"text":"でもさ","type":"partial"},"t_us":506076785}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":506501168}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":507032603}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":507617346}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":508006165}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":508600183}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":509099238}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":509545416}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":510223550}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":510618870}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":511137453}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":511642834}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":512249185}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":512701824}
+{"event":{"audio_s":8.246,"decode_ms":213.03460001945496,"lang":"ja","latency_ms":338.82799997809343,"lid_ms":118.58110001776367,"speaker":"","switched":false,"text":"でも駿さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":513044214}
+{"event":{"lang":"en","text":"But Too-san, 91 years old at the age of ninety one. She's going to turn into a strong running forceful run; she will change her way forward for more powerful and stronger runs as it turns back mighty hard on that he’ll be turning his horsed driving with strength int very firm racer (he is only 21).","type":"translation"},"t_us":513414690}
+{"event":{"text":"随分","type":"partial"},"t_us":514647832}
+{"event":{"text":"随分ありました","type":"partial"},"t_us":515092542}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":515613377}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":516180238}
+{"event":{"audio_s":3.446,"decode_ms":90.24089999729767,"lang":"ja","latency_ms":92.14520000386985,"lid_ms":0.0,"speaker":"","switched":false,"text":"話でずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":516497785}
+{"event":{"lang":"en","text":"I've had a lot to talk about, but that was quite something.","type":"translation"},"t_us":516589281}
+{"event":{"text":"よる","type":"partial"},"t_us":517822480}
+{"event":{"text":"住民によると","type":"partial"},"t_us":518341215}
+{"event":{"audio_s":1.984,"decode_ms":119.70149999251588,"lang":"ja","latency_ms":187.06629998632707,"lid_ms":66.19860001956113,"speaker":"","switched":false,"text":"住民によると。","tier":"rz","type":"final"},"t_us":518573342}
+{"event":{"lang":"en","text":"According to the inhabitants according residents:.","type":"translation"},"t_us":518619913}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":519889910}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":520364618}
+{"event":{"text":"過去に過去にも似たような訪問","type":"partial"},"t_us":520847584}
+{"event":{"text":"過去に過去にも似たような訪問があった","type":"partial"},"t_us":521431417}
+{"event":{"text":"この過去にも似たような訪問があったといいま","type":"partial"},"t_us":521803560}
+{"event":{"text":"過去に過去にも似たような訪問があったといいます","type":"partial"},"t_us":522345556}
+{"event":{"audio_s":4.224,"decode_ms":109.28649999550544,"lang":"ja","latency_ms":111.9053000002168,"lid_ms":0.0,"speaker":"","switched":false,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":522715685}
+{"event":{"lang":"en","text":"A similar visit has been made in the past, and it is said that there have also had a same kind of trips as before.","type":"translation"},"t_us":522847907}
+{"event":{"text":"きれる","type":"partial"},"t_us":524897890}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":525397175}
+{"event":{"text":"そうですね","type":"partial"},"t_us":525949272}
+{"event":{"text":"しっかり打ち切れるかです。","type":"partial"},"t_us":526513980}
+{"event":{"text":"しっかり打ち切れるかです。","type":"partial"},"t_us":526909053}
+{"event":{"audio_s":3.926,"decode_ms":145.10249998420477,"lang":"ja","latency_ms":271.39310000347905,"lid_ms":0.0,"speaker":"","switched":false,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":527455286}
+{"event":{"lang":"en","text":"Will it be able to break through firmly? Can I make a firm impact.","type":"translation"},"t_us":527621664}
+{"event":{"audio_s":22.838,"lang":"ja","speaker":"","text":"でも駿河さん91歳力強い走りに変わっていきます。ずいぶんありましたけどね。住民によると過去にも似たような訪問があったといいます。しっかり打ち切れるかです。","type":"refine"},"t_us":530306460}
+{"event":{"text":"けさの東","type":"partial"},"t_us":530946714}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":531495029}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":532023863}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":532617784}
+{"event":{"text":"けさの東京風はなさそうです","type":"partial"},"t_us":532960723}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":533567857}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":534085788}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":534568004}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":535096100}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":535584018}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":536198110}
+{"event":{"audio_s":6.774,"decode_ms":213.79139999044128,"lang":"ja","latency_ms":355.530800006818,"lid_ms":135.31039998633787,"speaker":"","switched":false,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":536558553}
+{"event":{"lang":"en","text":"It doesn't seem to be the Tokyo style of this morning, but it seems like there is no such thing as TOKYO-style in Japan today. How do you feel? Kondosan (Konto).","type":"translation"},"t_us":536794720}
+{"event":{"audio_s":6.774,"lang":"ja","speaker":"","text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":538333894}
+{"event":{"text":"もう","type":"partial"},"t_us":542287435}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":542720398}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":543258782}
+{"event":{"text":"もう一つ大きな線が","type":"partial"},"t_us":543766798}
+{"event":{"text":"もう一つ大きな勢力がありま","type":"partial"},"t_us":544214692}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":544731136}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":545273361}
+{"event":{"audio_s":4.822,"decode_ms":144.1288999922108,"lang":"ja","latency_ms":146.97100000921637,"lid_ms":0.0,"speaker":"","switched":false,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":545548699}
+{"event":{"lang":"en","text":"and there is another big power, one more great force.","type":"translation"},"t_us":545769557}
+{"event":{"audio_s":4.822,"lang":"ja","speaker":"","text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":547465495}
+{"event":{"text":"した","type":"partial"},"t_us":549920931}
+{"event":{"text":"したものの》","type":"partial"},"t_us":550364808}
+{"event":{"text":"はい","type":"partial"},"t_us":550949312}
+{"event":{"text":"はい","type":"partial"},"t_us":551435864}
+{"event":{"text":"したものの十万人以上","type":"partial"},"t_us":551917605}
+{"event":{"text":"したものの十万人以上の戦闘員","type":"partial"},"t_us":552400236}
+{"event":{"text":"はい","type":"partial"},"t_us":552894785}
+{"event":{"text":"はい","type":"partial"},"t_us":553463252}
+{"event":{"text":"勝利はしたものの十万人以上の戦死者を出していた","type":"partial"},"t_us":553963271}
+{"event":{"audio_s":6.07,"decode_ms":185.6830999895465,"lang":"ja","latency_ms":296.46469998988323,"lid_ms":107.04460000852124,"speaker":"","switched":false,"text":"勝利はしたものの10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":554589759}
+{"event":{"audio_s":6.07,"lang":"ja","speaker":"","text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":556588490}
+{"event":{"text":"センター","type":"partial"},"t_us":557407605}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":557991063}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":558452273}
+{"event":{"audio_s":2.934,"decode_ms":106.12380001111887,"lang":"ja","latency_ms":178.57469999580644,"lid_ms":70.85789999109693,"speaker":"","switched":false,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":558884649}
+{"event":{"lang":"en","text":"Left-sided center left, centre right.","type":"translation"},"t_us":558936796}
+{"event":{"audio_s":2.934,"lang":"ja","speaker":"","text":"左寄りセンターレフト。","type":"refine"},"t_us":560921616}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":563456818}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":563950837}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":564471132}
+{"event":{"text":"ヒーローよりもてめェを主役だ","type":"partial"},"t_us":565017683}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":565421223}
+{"event":{"text":"ヒーローよりもてめェを信じる","type":"partial"},"t_us":566016270}
+{"event":{"audio_s":4.342,"decode_ms":138.2473999983631,"lang":"ja","latency_ms":140.87669999571517,"lid_ms":0.0,"speaker":"","switched":false,"text":"言ったろ。ヒーローよりもてめェを信じる。","tier":"rz","type":"final"},"t_us":566264779}
+{"event":{"lang":"en","text":"I told you, didn't tell me. You believe in more than heroes but rather trust your omens instead of the Heroer and not a Lord Bel More Than He is better believed (be faith).","type":"translation"},"t_us":566504694}
+{"event":{"text":"こう","type":"partial"},"t_us":568223973}
+{"event":{"text":"高校生に","type":"partial"},"t_us":568708842}
+{"event":{"text":"高校生二百人","type":"partial"},"t_us":569199597}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":569759601}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":570186231}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":570739805}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":571246781}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":571757409}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":572362427}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":572837049}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":573447760}
+{"event":{"audio_s":7.094,"decode_ms":231.02050001034513,"lang":"ja","latency_ms":351.49939998518676,"lid_ms":116.80479999631643,"speaker":"","switched":false,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":573997528}
+{"event":{"lang":"en","text":"I listened to 200 high school,200 people","type":"translation"},"t_us":574063172}
+{"event":{"text":"スピンオフ","type":"partial"},"t_us":575927710}
+{"event":{"text":"スピンオフドラマー","type":"partial"},"t_us":576374872}
+{"event":{"text":"スピンオフドラマ波風よ","type":"partial"},"t_us":576900735}
+{"event":{"text":"スピンオフドラマ波風歌ってくれは","type":"partial"},"t_us":577514850}
+{"event":{"text":"波風立ってくれはTELASA で独占禁物","type":"partial"},"t_us":577905073}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":578394242}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":579031411}
+{"event":{"audio_s":4.662,"decode_ms":257.92589999036863,"lang":"ja","latency_ms":261.3478999992367,"lid_ms":0.0,"speaker":"","switched":false,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":579295822}
+{"event":{"lang":"en","text":"Additionally, spin-off drama wave winds and stand up in the air of a spinning off drum wave are exclusive distribution on TeLASA.","type":"translation"},"t_us":579428609}
+{"event":{"text":"兄さん","type":"partial"},"t_us":581267743}
+{"event":{"text":"裁判に参加した","type":"partial"},"t_us":581756686}
+{"event":{"text":"詐欺に参加した大学","type":"partial"},"t_us":582261829}
+{"event":{"text":"この模擀した大学一年生","type":"partial"},"t_us":582769790}
+{"event":{"text":"参加した大学一年生の炎","type":"partial"},"t_us":583303360}
+{"event":{"text":"この模擦裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":583782560}
+{"event":{"text":"参加した大学一年生の本音とは","type":"partial"},"t_us":584298882}
+{"event":{"audio_s":4.854,"decode_ms":144.73040000302717,"lang":"ja","latency_ms":147.1423000039067,"lid_ms":0.0,"speaker":"","switched":false,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":584571255}
+{"event":{"lang":"en","text":"What is the real sound of a fresh first-year university student who participated in simulated trial trials?","type":"translation"},"t_us":584714847}
+{"event":{"audio_s":22.646,"lang":"ja","speaker":"","text":"言ったろう。ヒーローよりもてめぇを信じる高校生二さらにスピンオフドラマ波風よ。立ってくれはTELASAで独占模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":587561924}
+{"event":{"text":"ちゃんと","type":"partial"},"t_us":589076426}
+{"event":{"text":"チャンドラシェか","type":"partial"},"t_us":589517976}
+{"event":{"text":"チャンドラシェカール・ソランキス","type":"partial"},"t_us":590115536}
+{"event":{"text":"チャンドラシェ代わる空き総監に","type":"partial"},"t_us":590527398}
+{"event":{"text":"警察のチャンドラシェかるソランキ総監によれば","type":"partial"},"t_us":591067994}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は","type":"partial"},"t_us":591482046}
+{"event":{"text":"ソランキ総監によれば被告人は顔を隠れ","type":"partial"},"t_us":592152484}
+{"event":{"text":"総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":592536627}
+{"event":{"text":"ソランキ総監によれば被告人は顔を隠して法廷に出頭","type":"partial"},"t_us":593120596}
+{"event":{"text":"警察のチャンドラシェカール・ソナンキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":593618297}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":594197595}
+{"event":{"audio_s":6.838,"decode_ms":293.17550000268966,"lang":"ja","latency_ms":437.5804000010248,"lid_ms":137.45199999539182,"speaker":"","switched":false,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":594657632}
+{"event":{"lang":"en","text":"Police police chief Chandraschekar Solanki says the defendant hi masked his face and appeared in court. The accused, who had been brought to trial by a judge with her head hidden behind their faces concealing cover from him—in front of them — according Cchandlachedashcar Solanqui (C Co-General) Changradoracheskar Zhskal Solunki: Attor General Chandrazkar Toranchi","type":"translation"},"t_us":595615856}
+{"event":{"audio_s":6.838,"lang":"ja","speaker":"","text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","type":"refine"},"t_us":596231788}
+{"event":{"text":"沸騰","type":"partial"},"t_us":600078785}
+{"event":{"text":"淵する地域","type":"partial"},"t_us":600612741}
+{"event":{"text":"沫する地域もあれば","type":"partial"},"t_us":601100305}
+{"event":{"text":"沸騰する地域もあれば沸騰","type":"partial"},"t_us":601848359}
+{"event":{"text":"沸騰する地域もあれば沸騰する","type":"partial"},"t_us":602089273}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分も","type":"partial"},"t_us":602580442}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる","type":"partial"},"t_us":603111768}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":603647134}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":604205777}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":604735873}
+{"event":{"audio_s":6.23,"decode_ms":160.54510002140887,"lang":"ja","latency_ms":286.7975999834016,"lid_ms":121.225399983814,"speaker":"","switched":false,"text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","tier":"rz","type":"final"},"t_us":605026516}
+{"event":{"lang":"en","text":"Some areas are boiling in a minute, while some regions take minutes to cook and others takes hours for several weeks until it is cooked.","type":"translation"},"t_us":605174010}
+{"event":{"audio_s":6.23,"lang":"ja","speaker":"","text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","type":"refine"},"t_us":606722926}
+{"event":{"text":"折り","type":"partial"},"t_us":610272752}
+{"event":{"text":"はい","type":"partial"},"t_us":610671519}
+{"event":{"text":"羽根を折り返すことができない","type":"partial"},"t_us":611183647}
+{"event":{"text":"羽を折り返すことができない昆虫は","type":"partial"},"t_us":611724359}
+{"event":{"text":"はい","type":"partial"},"t_us":612160356}
+{"event":{"text":"はげろ","type":"partial"},"t_us":612693502}
+{"event":{"text":"現を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":613190069}
+{"event":{"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":613711416}
+{"event":{"audio_s":5.366,"decode_ms":133.25760001316667,"lang":"ja","latency_ms":222.7352999907453,"lid_ms":86.53299999423325,"speaker":"","switched":false,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":614090099}
+{"event":{"lang":"en","text":"The only insects currently not capable of turning the feather blade back are dragonf and rhangos, which can’t be turned down.","type":"translation"},"t_us":614249091}
+{"event":{"audio_s":5.366,"lang":"ja","speaker":"","text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","type":"refine"},"t_us":616032583}
+{"event":{"text":"ミスは","type":"partial"},"t_us":618439277}
+{"event":{"text":"スミスは","type":"partial"},"t_us":618914372}
+{"event":{"text":"スミスはツアーで予定しています","type":"partial"},"t_us":619465656}
+{"event":{"text":"スミスはツアーで予定していたコンサート","type":"partial"},"t_us":619991622}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止","type":"partial"},"t_us":620427648}
+{"event":{"text":"スはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":621070098}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":621531283}
+{"event":{"audio_s":4.63,"decode_ms":199.58290000795387,"lang":"ja","latency_ms":203.1972999975551,"lid_ms":0.0,"speaker":"","switched":false,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":621736175}
+{"event":{"lang":"en","text":"Aerosmith has canceled a concert scheduled for the tour.","type":"translation"},"t_us":621822035}
+{"event":{"audio_s":4.63,"lang":"ja","speaker":"","text":"エアロスミスはツアーで予定していたコンサートを中止しました。","type":"refine"},"t_us":623642007}
+{"event":{"text":"サモア","type":"partial"},"t_us":627216919}
+{"event":{"text":"サモアの首都です","type":"partial"},"t_us":627723303}
+{"event":{"text":"サモアの首都です","type":"partial"},"t_us":628233522}
+{"event":{"text":"この町は","type":"partial"},"t_us":628752283}
+{"event":{"text":"この町はウポルト","type":"partial"},"t_us":629294228}
+{"event":{"text":"この町はウポル島にあり","type":"partial"},"t_us":629726537}
+{"event":{"text":"この町はウポル島にあり人口","type":"partial"},"t_us":630262342}
+{"event":{"text":"サモアの首都です","type":"partial"},"t_us":630760979}
+{"event":{"text":"この町はウポル島にあり人口は四万人","type":"partial"},"t_us":631287831}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":631811750}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":632352359}
+{"event":{"audio_s":6.806,"decode_ms":171.6096999880392,"lang":"ja","latency_ms":275.7166000083089,"lid_ms":98.60640001716092,"speaker":"","switched":false,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":632644064}
+{"event":{"audio_s":6.806,"lang":"ja","speaker":"","text":"この町はウポル島にあり人口は4万人弱です。","type":"refine"},"t_us":634627035}
+{"event":{"text":"二週間","type":"partial"},"t_us":638327550}
+{"event":{"text":"僅か二週間です","type":"partial"},"t_us":638754458}
+{"event":{"text":"僅か二週間でアメリカ軍と自衛隊","type":"partial"},"t_us":639252476}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":639941658}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南","type":"partial"},"t_us":640295312}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを把握","type":"partial"},"t_us":640764353}
+{"event":{"text":"わずか二週間でアメリカ軍と自由フランス軍は南フランスを解放しています","type":"partial"},"t_us":641402250}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ","type":"partial"},"t_us":641820641}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":642345636}
+{"event":{"text":"僅かにアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":642852141}
+{"event":{"audio_s":6.646,"decode_ms":217.65929998946376,"lang":"ja","latency_ms":326.72149999416433,"lid_ms":104.65940000722183,"speaker":"","switched":false,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":643574545}
+{"event":{"lang":"en","text":"Within only two weeks, the American and Free French forces had liberated South France in just a couple of week's time.","type":"translation"},"t_us":644116002}
+{"event":{"audio_s":6.646,"lang":"ja","speaker":"","text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","type":"refine"},"t_us":645528332}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":649872866}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":650339856}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":650828408}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":651354752}
+{"event":{"text":"千九百四十年八月十五日連合国","type":"partial"},"t_us":651840223}
+{"event":{"text":"千九百四十年八月十五日連合国は南アフリー","type":"partial"},"t_us":652352556}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランス引退","type":"partial"},"t_us":652832508}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻し","type":"partial"},"t_us":653509053}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻し終戦","type":"partial"},"t_us":653886130}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻","type":"partial"},"t_us":654405173}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻は","type":"partial"},"t_us":655047597}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラッグ・グー","type":"partial"},"t_us":655436770}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦","type":"partial"},"t_us":655952061}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":656535513}
+{"event":{"text":"千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":656992118}
+{"event":{"text":"四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました","type":"partial"},"t_us":657571796}
+{"event":{"audio_s":9.334,"decode_ms":228.07649997412227,"lang":"ja","latency_ms":362.32850002124906,"lid_ms":100.22480000043288,"speaker":"","switched":false,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":657938978}
+{"event":{"lang":"en","text":"On August 15th, 1940 the All allied Powers invaded southern France on a day of 18 Aug-15nd (A 8/13 September 40), and its invasion was called Operation Dragoon.","type":"translation"},"t_us":658110382}
+{"event":{"audio_s":9.334,"lang":"ja","speaker":"","text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","type":"refine"},"t_us":659762152}
+{"event":{"text":"経済","type":"partial"},"t_us":663468368}
+{"event":{"text":"経済産業省","type":"partial"},"t_us":663877331}
+{"event":{"text":"経済産業省は","type":"partial"},"t_us":664442756}
+{"event":{"text":"生锈客在上药兽啊啊不对嘎","type":"partial"},"t_us":664956767}
+{"event":{"text":"生锈格在上药兽啊啊不对嘎新哥哥的啊","type":"partial"},"t_us":665423583}
+{"event":{"text":"生锈格仔伤药效啊啊不对嘎新哥哥的啊那些都是的","type":"partial"},"t_us":665947132}
+{"event":{"text":"生锈客在商药效啊啊不对嘎辛苦苦的那些都是刘康的自己","type":"partial"},"t_us":666459579}
+{"event":{"text":"生锈客在上药秀啊啊不对嘎辛苦苦的那那就都是刘康的自己自己搞","type":"partial"},"t_us":666980830}
+{"event":{"text":"生修客人上药秀啊啊不对嘎辛苦苦的那些都是刘康你自己个自己搞的商人就","type":"partial"},"t_us":667555432}
+{"event":{"text":"生锈客在上药秀啊啊不对嘎辛苦苦的那些都是流行的这几个自高的上就用点火","type":"partial"},"t_us":668023470}
+{"event":{"text":"生锈客人上药秀啊啊不对嘎辛苦苦的那些都是刘行你这几个最高的上就用电火锅锅晓得","type":"partial"},"t_us":668571308}
+{"event":{"text":"生修客人上药秀啊啊不那个辛苦苦的那些都是流行的这几个自己搞的上就用点火锅锅小都好表戏嘛","type":"partial"},"t_us":669055271}
+{"event":{"text":"生锈客人上药秀啊啊不对嘎新果哥的那些都是刘款你这几个自己搞的就就点火锅锅小多哈表情嘛是吧","type":"partial"},"t_us":669658330}
+{"event":{"audio_s":7.926,"decode_ms":222.32240001903847,"lang":"ja","latency_ms":336.0431999899447,"lid_ms":107.47129999799654,"speaker":"","switched":false,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":670023806}
+{"event":{"lang":"en","text":"Last week the Ministry of Economy, Trade and Industry announced that it had reported 34 reports on an additional heat overheating issue Apple said was not serious about.","type":"translation"},"t_us":670397225}
+{"event":{"audio_s":7.926,"lang":"ja","speaker":"","text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","type":"refine"},"t_us":671865006}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":675270477}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":675698478}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":676226024}
+{"event":{"text":"大橋さんはやっぱり大変でしたか","type":"partial"},"t_us":676806635}
+{"event":{"audio_s":3.51,"decode_ms":105.60499998973684,"lang":"ja","latency_ms":107.37549999612384,"lid_ms":0.0,"speaker":"","switched":false,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":677158402}
+{"event":{"lang":"en","text":"Was Mr. Ohashi-Oobashi having had a hard time, was it difficult for you? Did she have to deald with the difficulty of doing something that went really tough or did Ms OHHASHI Bridgesan saw were he found difficulties and any problems as I thought what could't been so bad?\"","type":"translation"},"t_us":677419287}
+{"event":{"audio_s":3.51,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":679163683}
+{"event":{"text":"上流","type":"partial"},"t_us":684307849}
+{"event":{"text":"上流から","type":"partial"},"t_us":684819677}
+{"event":{"text":"上流から","type":"partial"},"t_us":685398556}
+{"event":{"text":"上流から丸太を","type":"partial"},"t_us":685877944}
+{"event":{"text":"上流から丸太を","type":"partial"},"t_us":686283281}
+{"event":{"text":"丸太を組んで","type":"partial"},"t_us":686803342}
+{"event":{"text":"いかなり","type":"partial"},"t_us":687545892}
+{"event":{"text":"上流から丸太を組んでいかだにして","type":"partial"},"t_us":687870084}
+{"event":{"text":"いかだにして","type":"partial"},"t_us":688442799}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":688879889}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":689402965}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":689922548}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":690481312}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":690964618}
+{"event":{"audio_s":8.406,"decode_ms":187.5237000058405,"lang":"ja","latency_ms":277.0582999801263,"lid_ms":84.75900001940317,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":691330322}
+{"event":{"lang":"en","text":"From upstream that way from the top of it, a log lined with logs was put together to form rafts and floated down through them. This is what I'm here; this one: It has been flowing out continuously by shhand-log rowers in an over there as wellfrom its upper upward level into those trees where we were then putting round bars on each other between these two at highup above they had formed many pieces building timber barn solidwood lines joined along all members which are forming onto their own,\" groupong maroo join team build groups tied around him he came toward some right Upri or arrangeas formation","type":"translation"},"t_us":692007089}
+{"event":{"text":"さあ","type":"partial"},"t_us":693074209}
+{"event":{"text":"さあ百M","type":"partial"},"t_us":693575906}
+{"event":{"text":"さあ百M オターン","type":"partial"},"t_us":694158981}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":694662281}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":695048595}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":695582447}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":696240974}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":696688693}
+{"event":{"text":"百％","type":"partial"},"t_us":697123469}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":697720132}
+{"event":{"text":"本多選手は得意のドルフィンキック","type":"partial"},"t_us":698212142}
+{"event":{"audio_s":6.678,"decode_ms":175.64970001694746,"lang":"ja","latency_ms":300.60580000281334,"lid_ms":119.19460000353864,"speaker":"","switched":false,"text":"本多選手はこの得意のドルフィンキック。","tier":"rz","type":"final"},"t_us":698514472}
+{"event":{"lang":"en","text":"This dolphin kick is the best Dolplefin Kyki.","type":"translation"},"t_us":698677115}
+{"event":{"audio_s":15.446,"lang":"ja","speaker":"","text":"そこの上流から丸太を組んでいかだにしていかだをどんどん流したんです。さあ。百Mのターンを迎えるさあ。本田選手。","type":"refine"},"t_us":700493064}
+{"event":{"text":"でもさ","type":"partial"},"t_us":701288112}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":701789470}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":702481540}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":702956403}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":703309787}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":703831258}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":704378248}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":704894864}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":705444638}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":705912699}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":706453601}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":706942150}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":707605385}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":708020705}
+{"event":{"audio_s":8.31,"decode_ms":235.42729998007417,"lang":"ja","latency_ms":351.2075000035111,"lid_ms":108.9324999775272,"speaker":"","switched":false,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":708376484}
+{"event":{"lang":"en","text":"But Surkawa is 91 years old, and she's going to turn into a strong run. She will be turning more powerful on the road as it turns stronger- mighty running; but Tsuru Kawa Skugawa was only ninety 99 at age 90 for Mr Su river Shizu River (Sur Group) when he turned back from his first solid runs that would change towards forceful driving with strength in this way I’t moving forward!","type":"translation"},"t_us":708816987}
+{"event":{"text":"随分","type":"partial"},"t_us":709998368}
+{"event":{"text":"随分ありました","type":"partial"},"t_us":710439425}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":710934585}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":711545898}
+{"event":{"audio_s":3.446,"decode_ms":102.39879999426194,"lang":"ja","latency_ms":104.40370001015252,"lid_ms":0.0,"speaker":"","switched":false,"text":"話でずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":711841830}
+{"event":{"lang":"en","text":"I've had a lot to talk about, but that was quite something.","type":"translation"},"t_us":711948125}
+{"event":{"text":"より","type":"partial"},"t_us":713207173}
+{"event":{"text":"住民によると","type":"partial"},"t_us":713669526}
+{"event":{"audio_s":2.24,"decode_ms":87.10370000335388,"lang":"ja","latency_ms":140.53740000235848,"lid_ms":52.49490001006052,"speaker":"","switched":false,"text":"住民によると。","tier":"rz","type":"final"},"t_us":714118124}
+{"event":{"lang":"en","text":"According to the inhabitants according residents:.","type":"translation"},"t_us":714193047}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":715226691}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":715661809}
+{"event":{"text":"過去に過去にも似たようなホーム","type":"partial"},"t_us":716198511}
+{"event":{"text":"過去に過去にも似たような訪問があった","type":"partial"},"t_us":716725736}
+{"event":{"text":"この過去にも似たような訪問があったといいま","type":"partial"},"t_us":717136900}
+{"event":{"text":"過去に過去にも似たような訪問があったといいます","type":"partial"},"t_us":717718485}
+{"event":{"audio_s":4.128,"decode_ms":132.41780002135783,"lang":"ja","latency_ms":135.17560000764206,"lid_ms":0.0,"speaker":"","switched":false,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":718230957}
+{"event":{"lang":"en","text":"A similar visit has been made in the past, and it is said that there have also had a same kind of trips as before.","type":"translation"},"t_us":718402602}
+{"event":{"text":"きれる","type":"partial"},"t_us":720337390}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":720764937}
+{"event":{"text":"そうですね","type":"partial"},"t_us":721236549}
+{"event":{"text":"そうですね","type":"partial"},"t_us":721809527}
+{"event":{"text":"そうですね","type":"partial"},"t_us":722211332}
+{"event":{"audio_s":3.958,"decode_ms":119.48610001127236,"lang":"ja","latency_ms":123.13700001686811,"lid_ms":0.0,"speaker":"","switched":false,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":722679030}
+{"event":{"lang":"en","text":"Will it be able to break through firmly? Can I make a firm impact.","type":"translation"},"t_us":722872349}
+{"event":{"audio_s":22.87,"lang":"ja","speaker":"","text":"でも駿河さん91歳力強い走りに変わっていきます。ずいぶんありましたけどね。住民によると過去にも似たような訪問があったといいます。しっかり打ち切れるかです。","type":"refine"},"t_us":725736725}
+{"event":{"text":"けさの東","type":"partial"},"t_us":726282923}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":726778247}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":727368340}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":727902107}
+{"event":{"text":"けさの東京風はなさそうです","type":"partial"},"t_us":728302608}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":728826275}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":729423571}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":729872752}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":730401384}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":730940730}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":731436620}
+{"event":{"audio_s":6.774,"decode_ms":180.04500001552515,"lang":"ja","latency_ms":296.80079998797737,"lid_ms":111.34979999042116,"speaker":"","switched":false,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":731737761}
+{"event":{"lang":"en","text":"It doesn't seem to be the Tokyo style of this morning, but it seems like there is no such thing as TOKYO-style in Japan today. How do you feel? Kondosan (Konto).","type":"translation"},"t_us":731904190}
+{"event":{"audio_s":6.774,"lang":"ja","speaker":"","text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":733684254}
+{"event":{"text":"もう","type":"partial"},"t_us":737604327}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":738047515}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":738581523}
+{"event":{"text":"もう一つ大きな線が","type":"partial"},"t_us":739075659}
+{"event":{"text":"もう一つ大きな勢力がありま","type":"partial"},"t_us":739632165}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":740111394}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":740593659}
+{"event":{"audio_s":4.822,"decode_ms":125.38779998430982,"lang":"ja","latency_ms":128.43640000210144,"lid_ms":0.0,"speaker":"","switched":false,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":740842320}
+{"event":{"lang":"en","text":"and there is another big power, one more great force.","type":"translation"},"t_us":741030977}
+{"event":{"audio_s":4.822,"lang":"ja","speaker":"","text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":742850791}
+{"event":{"text":"した","type":"partial"},"t_us":745211261}
+{"event":{"text":"したものの》","type":"partial"},"t_us":745722660}
+{"event":{"text":"はい","type":"partial"},"t_us":746224446}
+{"event":{"audio_s":2.71,"decode_ms":110.25259998859838,"lang":"ja","latency_ms":202.64610002050176,"lid_ms":90.69610000005925,"speaker":"","switched":false,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":746466509}
+{"event":{"lang":"en","text":"Did you win a victory or did we have won any vi tri winning?","type":"translation"},"t_us":746559727}
+{"event":{"text":"人","type":"partial"},"t_us":747288190}
+{"event":{"text":"人以上の","type":"partial"},"t_us":747780505}
+{"event":{"text":"人以上の戦死者","type":"partial"},"t_us":748293247}
+{"event":{"text":"人以上の戦死者を出した","type":"partial"},"t_us":748810910}
+{"event":{"text":"人以上の戦死者を出していた","type":"partial"},"t_us":749226935}
+{"event":{"audio_s":3.392,"decode_ms":210.82099998602644,"lang":"ja","latency_ms":212.91820000624284,"lid_ms":0.0,"speaker":"","switched":false,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":749855523}
+{"event":{"audio_s":6.102,"lang":"ja","speaker":"","text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":751830379}
+{"event":{"text":"センター","type":"partial"},"t_us":752847560}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":753311481}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":753776289}
+{"event":{"audio_s":2.838,"decode_ms":144.22930000000633,"lang":"ja","latency_ms":206.14490000298247,"lid_ms":60.64989999867976,"speaker":"","switched":false,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":754190092}
+{"event":{"lang":"en","text":"Left-sided center left, centre right.","type":"translation"},"t_us":754267033}
+{"event":{"audio_s":2.838,"lang":"ja","speaker":"","text":"左寄りセンターレフト。","type":"refine"},"t_us":755983535}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":758789033}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":759325756}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":759783159}
+{"event":{"text":"ヒーローよりもてめえを邪魔しろ","type":"partial"},"t_us":760326135}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":760750988}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":761386586}
+{"event":{"audio_s":4.342,"decode_ms":176.94739997386932,"lang":"ja","latency_ms":178.96970000583678,"lid_ms":0.0,"speaker":"","switched":false,"text":"言ったろ。ヒーローよりもてめぇを信じる。","tier":"rz","type":"final"},"t_us":761634237}
+{"event":{"lang":"en","text":"I told you, didn't say. You believe in yourself more than heroes and better trust your thy bebe believing rather a Heroer Than the Lord More Bel Better Trust Me or Fa Be faith).","type":"translation"},"t_us":761852344}
+{"event":{"audio_s":4.342,"lang":"ja","speaker":"","text":"言ったろ。ヒーローよりもてめぇを信じる。","type":"refine"},"t_us":763545173}
+{"event":{"text":"二百","type":"partial"},"t_us":764236590}
+{"event":{"text":"二百人に聞いた","type":"partial"},"t_us":764806405}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":765279517}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":765779049}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":766219500}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":766801752}
+{"event":{"text":"ネットの見すぎを感じ","type":"partial"},"t_us":767333384}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":767789932}
+{"event":{"text":"二百人に聞きました","type":"partial"},"t_us":768340527}
+{"event":{"text":"ネットの見すぎを感じ使うのをやっぱり","type":"partial"},"t_us":768818309}
+{"event":{"audio_s":6.39,"decode_ms":214.27230001427233,"lang":"ja","latency_ms":355.077500018524,"lid_ms":137.2583000047598,"speaker":"","switched":false,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":769332858}
+{"event":{"lang":"en","text":"I listened to 200 high school,200 people","type":"translation"},"t_us":769400216}
+{"event":{"text":"スピンオフ","type":"partial"},"t_us":771297405}
+{"event":{"text":"スピンオフドラマ","type":"partial"},"t_us":771732124}
+{"event":{"text":"スピンオフドラマ波風よ","type":"partial"},"t_us":772246538}
+{"event":{"text":"スピンオフドラマ波風歌ってくれは","type":"partial"},"t_us":772748134}
+{"event":{"text":"スピンオフドラマ波風立ってくれはTELASA で独占禁さ","type":"partial"},"t_us":773251738}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":773774626}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":774244943}
+{"event":{"audio_s":4.662,"decode_ms":143.18159999675115,"lang":"ja","latency_ms":146.64900000207126,"lid_ms":0.0,"speaker":"","switched":false,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占。","tier":"rz","type":"final"},"t_us":774394246}
+{"event":{"lang":"en","text":"TELASA is the exclusive spin-off drama wave winds, and it stands up with a spinning off drum waves.","type":"translation"},"t_us":774523829}
+{"event":{"text":"兄さん","type":"partial"},"t_us":776586137}
+{"event":{"text":"裁判に参加した","type":"partial"},"t_us":777087871}
+{"event":{"text":"詐欺に参加した大学","type":"partial"},"t_us":777572937}
+{"event":{"text":"この模擀した大学一年生","type":"partial"},"t_us":778237751}
+{"event":{"text":"裁判に参加した大学一年生の炎","type":"partial"},"t_us":778550836}
+{"event":{"text":"この模擦裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":779106466}
+{"event":{"text":"その模擦した大学一年生の本音とは","type":"partial"},"t_us":779604759}
+{"event":{"audio_s":4.854,"decode_ms":112.9691999813076,"lang":"ja","latency_ms":115.67960001411848,"lid_ms":0.0,"speaker":"","switched":false,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":779871831}
+{"event":{"lang":"en","text":"What is the real sound of a fresh first-year university student who participated in simulated trial trials?","type":"translation"},"t_us":779982475}
+{"event":{"audio_s":17.174,"lang":"ja","speaker":"","text":"高校生200人に聞きました。ネットの見すぎを感じ、使うのをやった。さらにスピンオフドラマ、波風よ。立ってくれはTELASAで独占模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":782592022}
+{"event":{"text":"ちゃんと","type":"partial"},"t_us":784319021}
+{"event":{"text":"チャンドラシェ代わる","type":"partial"},"t_us":784843704}
+{"event":{"text":"チャンドラシェカール・ソランティス","type":"partial"},"t_us":785456617}
+{"event":{"text":"チャンドラシェカール・ソランキ総監に","type":"partial"},"t_us":785906833}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば飛行機","type":"partial"},"t_us":786324635}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人いわく","type":"partial"},"t_us":786843842}
+{"event":{"text":"チャンドラシェカール・ソランキ総監によれば被告人は顔を隠す労働者","type":"partial"},"t_us":787445321}
+{"event":{"text":"チャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷","type":"partial"},"t_us":787890088}
+{"event":{"text":"チャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭する","type":"partial"},"t_us":788427775}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":788977093}
+{"event":{"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです","type":"partial"},"t_us":789452244}
+{"event":{"audio_s":6.806,"decode_ms":188.50459999521263,"lang":"ja","latency_ms":283.741099992767,"lid_ms":91.56770000117832,"speaker":"","switched":false,"text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","tier":"rz","type":"final"},"t_us":789783009}
+{"event":{"lang":"en","text":"Police police chief Chandraschekar Solanki says the defendant hi masked his face and appeared in court. The accused, who had been brought to trial by a judge with her head hidden behind their faces concealing cover from him—in front of them — according Cchandlachedashcar Solanqui (C Co-General) Changradoracheskar Zhskal Solunki: Attor General Chandrazkar Toranchi","type":"translation"},"t_us":790711495}
+{"event":{"audio_s":6.806,"lang":"ja","speaker":"","text":"警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。","type":"refine"},"t_us":791600493}
+{"event":{"text":"沸騰","type":"partial"},"t_us":795515530}
+{"event":{"text":"淵する地域","type":"partial"},"t_us":795937338}
+{"event":{"text":"沫する地域もあれば","type":"partial"},"t_us":796440522}
+{"event":{"text":"沸騰する地域もあれば沸騰","type":"partial"},"t_us":797063692}
+{"event":{"text":"沸騰する地域もあれば沸騰するまで煮る","type":"partial"},"t_us":797424953}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分も","type":"partial"},"t_us":798006446}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる地域","type":"partial"},"t_us":798455291}
+{"event":{"text":"沸騰する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":798996718}
+{"event":{"text":"沙する地域もあれば沸騰するまでに何分もかかる地域もあります","type":"partial"},"t_us":799579087}
+{"event":{"text":"淵する地域もあれば沸騰するまでに何分もかかる地域もあり","type":"partial"},"t_us":800024415}
+{"event":{"audio_s":6.23,"decode_ms":200.91789998696183,"lang":"ja","latency_ms":323.00959998974577,"lid_ms":117.17750001116656,"speaker":"","switched":false,"text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","tier":"rz","type":"final"},"t_us":800348856}
+{"event":{"lang":"en","text":"Some areas are boiling in a minute, while some regions take minutes to cook and others takes hours for several weeks until it is cooked.","type":"translation"},"t_us":800496280}
+{"event":{"audio_s":6.23,"lang":"ja","speaker":"","text":"一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。","type":"refine"},"t_us":802074767}
+{"event":{"text":"折り","type":"partial"},"t_us":805500861}
+{"event":{"text":"はい","type":"partial"},"t_us":805966172}
+{"event":{"text":"羽根を折り返すことができない","type":"partial"},"t_us":806557899}
+{"event":{"text":"羽を折り返すことができない昆虫は","type":"partial"},"t_us":807086719}
+{"event":{"text":"はい","type":"partial"},"t_us":807477703}
+{"event":{"text":"はい","type":"partial"},"t_us":807984660}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":808654825}
+{"event":{"text":"羽を折り返すことができない昆虫はトンボとカゲロウのみです","type":"partial"},"t_us":809080849}
+{"event":{"audio_s":5.366,"decode_ms":157.68689999822527,"lang":"ja","latency_ms":272.5886999978684,"lid_ms":110.43310002423824,"speaker":"","switched":false,"text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","tier":"rz","type":"final"},"t_us":809472804}
+{"event":{"lang":"en","text":"The only insects currently not capable of turning the feather blade back are dragonf and rhangos, which can’t be turned down.","type":"translation"},"t_us":809604813}
+{"event":{"audio_s":5.366,"lang":"ja","speaker":"","text":"現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。","type":"refine"},"t_us":811320898}
+{"event":{"text":"ミスは","type":"partial"},"t_us":813799328}
+{"event":{"text":"ス","type":"partial"},"t_us":814321853}
+{"event":{"text":"スミスはツアーで予定しています","type":"partial"},"t_us":814792947}
+{"event":{"text":"スミスはツアーで予定していたコント","type":"partial"},"t_us":815396454}
+{"event":{"text":"スミスはツアーで予定していたコンサートを抽出","type":"partial"},"t_us":815766220}
+{"event":{"text":"スはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":816338204}
+{"event":{"text":"スミスはツアーで予定していたコンサートを中止しました","type":"partial"},"t_us":816799894}
+{"event":{"audio_s":4.662,"decode_ms":143.5535000055097,"lang":"ja","latency_ms":147.11850002640858,"lid_ms":0.0,"speaker":"","switched":false,"text":"エアロスミスはツアーで予定していたコンサートを中止しました。","tier":"rz","type":"final"},"t_us":816949732}
+{"event":{"lang":"en","text":"Aerosmith has canceled a concert scheduled for the tour.","type":"translation"},"t_us":817021796}
+{"event":{"audio_s":4.662,"lang":"ja","speaker":"","text":"エアロスミスはツアーで予定していたコンサートを中止しました。","type":"refine"},"t_us":818937835}
+{"event":{"text":"さん","type":"partial"},"t_us":822497561}
+{"event":{"text":"サモアの首都","type":"partial"},"t_us":822925351}
+{"event":{"text":"アピアはサモアの首都です","type":"partial"},"t_us":823444764}
+{"event":{"text":"この町","type":"partial"},"t_us":823990069}
+{"event":{"text":"この町はウポリ","type":"partial"},"t_us":824402284}
+{"event":{"text":"この町はウポル島にあり","type":"partial"},"t_us":824981558}
+{"event":{"text":"この町はウポル島にありGF","type":"partial"},"t_us":825455609}
+{"event":{"text":"この町はウポル島にあり人口は一億","type":"partial"},"t_us":825986240}
+{"event":{"text":"この町はウポル島にあり人口は四万","type":"partial"},"t_us":826484004}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":827023949}
+{"event":{"text":"この町はウポル島にあり人口は四万人弱です","type":"partial"},"t_us":827551255}
+{"event":{"audio_s":6.934,"decode_ms":183.42180000036024,"lang":"ja","latency_ms":286.51069998159073,"lid_ms":98.68369999458082,"speaker":"","switched":false,"text":"この町はウポル島にあり人口は4万人弱です。","tier":"rz","type":"final"},"t_us":827986368}
+{"event":{"audio_s":6.934,"lang":"ja","speaker":"","text":"この町はウポル島にあり人口は4万人弱です。","type":"refine"},"t_us":829960706}
+{"event":{"text":"二週間","type":"partial"},"t_us":833683578}
+{"event":{"text":"僅か二週間です","type":"partial"},"t_us":834121470}
+{"event":{"text":"僅か二週間でアメリカ軍","type":"partial"},"t_us":834621608}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス","type":"partial"},"t_us":835127144}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南","type":"partial"},"t_us":835636551}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを把握","type":"partial"},"t_us":836133386}
+{"event":{"text":"わずか二週間でアメリカ軍と自由フランス軍は南フランスを解放しています","type":"partial"},"t_us":836656809}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツ","type":"partial"},"t_us":837133178}
+{"event":{"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かって逃走","type":"partial"},"t_us":837664442}
+{"event":{"text":"僅かに週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました","type":"partial"},"t_us":838231506}
+{"event":{"audio_s":6.646,"decode_ms":207.6877999934368,"lang":"ja","latency_ms":304.4549000042025,"lid_ms":92.87190000759438,"speaker":"","switched":false,"text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","tier":"rz","type":"final"},"t_us":838883982}
+{"event":{"lang":"en","text":"Within only two weeks, the American and Free French forces had liberated South France in just a couple of week's time.","type":"translation"},"t_us":839433274}
+{"event":{"audio_s":6.646,"lang":"ja","speaker":"","text":"僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。","type":"refine"},"t_us":840722203}
+{"event":{"text":"千九百四十年","type":"partial"},"t_us":845120197}
+{"event":{"text":"千九百四十年八月","type":"partial"},"t_us":845612549}
+{"event":{"text":"千九百四十年八月十五日","type":"partial"},"t_us":846163583}
+{"event":{"text":"整个不用久然了这个自己有可能寄","type":"partial"},"t_us":846807315}
+{"event":{"text":"整个够用久年后几个直接有个能机两个","type":"partial"},"t_us":847144737}
+{"event":{"text":"整一个个久然后这个直接有个题连个个个没有","type":"partial"},"t_us":847673592}
+{"event":{"text":"整个够用久几个直接有个能题连我过关你天有很长时情","type":"partial"},"t_us":848210538}
+{"event":{"text":"整个够用久年几个直接有关能连我个国民呢有很多事情性性","type":"partial"},"t_us":848705771}
+{"event":{"text":"整一个用久后几个地接有个题两个个个民俩有很大是一些个性","type":"partial"},"t_us":849258565}
+{"event":{"text":"整隔个用久年几个字己有关联进两个个关明俩有很多事情个性穿了性性","type":"partial"},"t_us":849764904}
+{"event":{"text":"整隔够用久年几个字己有关能进两个个个民年有很多事情个性除了性歌啊","type":"partial"},"t_us":850305005}
+{"event":{"text":"整隔个用久然后几个字己有关系连我个国明年有很多事情性个性除了些歌袜","type":"partial"},"t_us":850780000}
+{"event":{"text":"整隔够用久年几个字己有个问题两个个国民有有很多事情个性除了些歌袜对那个","type":"partial"},"t_us":851336674}
+{"event":{"text":"整隔个用久年几个地己有个人节我个个明天有很多事情性个性穿些歌袜那那跟不是对吧的嘛","type":"partial"},"t_us":851885097}
+{"event":{"text":"整个个用久年几个自己有关系两我个国民天有很多事情些个性除了些歌啊那他跟对吧的关系的","type":"partial"},"t_us":852376241}
+{"event":{"text":"不用久男和几个自己有关联集连我过关明天有很多事情个性除那些国娃对他跟对话的关系的","type":"partial"},"t_us":852918781}
+{"event":{"audio_s":9.398,"decode_ms":247.2732000169344,"lang":"ja","latency_ms":369.2684999841731,"lid_ms":115.06579999695532,"speaker":"","switched":false,"text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","tier":"rz","type":"final"},"t_us":853293902}
+{"event":{"lang":"en","text":"On August 15th, 1940 the All allied Powers invaded southern France on a day of 18 Aug-15nd (A 8/13 September 40), and its invasion was called Operation Dragoon.","type":"translation"},"t_us":853450593}
+{"event":{"audio_s":9.398,"lang":"ja","speaker":"","text":"1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。","type":"refine"},"t_us":855177418}
+{"event":{"text":"経済","type":"partial"},"t_us":858767941}
+{"event":{"text":"経済産業省","type":"partial"},"t_us":859254145}
+{"event":{"text":"経済産業省は","type":"partial"},"t_us":859802618}
+{"event":{"text":"経済産業省はアップルが支援","type":"partial"},"t_us":860314221}
+{"event":{"text":"経済産業省はアップルが深刻ではない","type":"partial"},"t_us":860824537}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする","type":"partial"},"t_us":861290136}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項","type":"partial"},"t_us":862040280}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加率","type":"partial"},"t_us":862427960}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加で三十一％","type":"partial"},"t_us":862838918}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告","type":"partial"},"t_us":863420348}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表","type":"partial"},"t_us":863875770}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事故を追加で三十四件報告したと発表","type":"partial"},"t_us":864428574}
+{"event":{"text":"経済産業省はアップルが深刻ではないとする過熱事項を追加で三十四件報告したと発表しました","type":"partial"},"t_us":864924756}
+{"event":{"audio_s":7.958,"decode_ms":220.47380000003616,"lang":"ja","latency_ms":312.88660000427626,"lid_ms":87.25630000117235,"speaker":"","switched":false,"text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","tier":"rz","type":"final"},"t_us":865392648}
+{"event":{"lang":"en","text":"Last week the Ministry of Economy, Trade and Industry announced that it had reported 34 reports on an additional heat overheating issue Apple said was not serious about.","type":"translation"},"t_us":865705179}
+{"event":{"audio_s":7.958,"lang":"ja","speaker":"","text":"先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。","type":"refine"},"t_us":867298822}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":870571302}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":870985775}
+{"event":{"text":"やっぱり","type":"partial"},"t_us":871518402}
+{"event":{"text":"大橋さんはやっぱり大変でしたか","type":"partial"},"t_us":872042708}
+{"event":{"audio_s":3.51,"decode_ms":90.00880000530742,"lang":"ja","latency_ms":91.9028999924194,"lid_ms":0.0,"speaker":"","switched":false,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":872471428}
+{"event":{"lang":"en","text":"Was Mr. Ohashi-Oobashi having had a hard time, was it difficult for you? Did she have to deald with the difficulty of doing something that went really tough or did Ms OHHASHI Bridgesan saw were he found difficulties and any problems as I thought what could't been so bad?\"","type":"translation"},"t_us":872736848}
+{"event":{"audio_s":3.51,"lang":"ja","speaker":"","text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":874543604}
+{"event":{"text":"上流","type":"partial"},"t_us":879529984}
+{"event":{"text":"上流から","type":"partial"},"t_us":880017273}
+{"event":{"text":"上流から","type":"partial"},"t_us":880503914}
+{"event":{"text":"上流から丸太を","type":"partial"},"t_us":881197714}
+{"event":{"text":"上流から丸太を","type":"partial"},"t_us":881507138}
+{"event":{"text":"上流から丸太を組む","type":"partial"},"t_us":882000833}
+{"event":{"text":"丸太を組んで","type":"partial"},"t_us":882615647}
+{"event":{"text":"上流から丸太を組んでいかだにして","type":"partial"},"t_us":883047808}
+{"event":{"text":"上流から丸太を組んでいかだにして","type":"partial"},"t_us":883667249}
+{"event":{"text":"上流から丸太を組んでいかだにして","type":"partial"},"t_us":884165016}
+{"event":{"text":"上流から丸太を組んでいかだにして","type":"partial"},"t_us":884662697}
+{"event":{"text":"この上流から丸太を組んでいかだにして","type":"partial"},"t_us":885133647}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":885914708}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":886199130}
+{"event":{"audio_s":8.47,"decode_ms":219.3408000166528,"lang":"ja","latency_ms":310.2338000026066,"lid_ms":86.44959999946877,"speaker":"","switched":false,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。","tier":"rz","type":"final"},"t_us":886635755}
+{"event":{"lang":"en","text":"From the upstream there from which he had made a row of logs, and turned it into rafts to floated down through them.","type":"translation"},"t_us":886754945}
+{"event":{"text":"そしています","type":"partial"},"t_us":888317874}
+{"event":{"text":"百M","type":"partial"},"t_us":888767254}
+{"event":{"text":"百M の高","type":"partial"},"t_us":889298584}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":889851582}
+{"event":{"text":"さあ百M のターンを迎える","type":"partial"},"t_us":890225335}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":890805314}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":891275807}
+{"event":{"text":"得意のドルフィング","type":"partial"},"t_us":891992830}
+{"event":{"text":"得意のドルフィン","type":"partial"},"t_us":892400452}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":892841088}
+{"event":{"text":"得意のドルフィンキック","type":"partial"},"t_us":893385382}
+{"event":{"audio_s":6.774,"decode_ms":161.75139998085797,"lang":"ja","latency_ms":278.5325000004377,"lid_ms":111.20459999074228,"speaker":"","switched":false,"text":"本多選手は得意のドルフィンキックで。","tier":"rz","type":"final"},"t_us":893668931}
+{"event":{"lang":"en","text":"Honda with a dolphin kick that he is good at.","type":"translation"},"t_us":893758850}
+{"event":{"text":"ああ","type":"partial"},"t_us":895735295}
+{"event":{"audio_s":15.51,"lang":"ja","speaker":"","text":"そこの上流から丸太を組んでいかだにしていかだをどんどん流したんです。さあ百Mのターンを迎える。","type":"refine"},"t_us":895787031}
+{"event":{"text":"たっぷった","type":"partial"},"t_us":896230623}
+{"event":{"text":"でもする","type":"partial"},"t_us":896778098}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":897307100}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":897735825}
+{"event":{"text":"でも駿河さん","type":"partial"},"t_us":898279684}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":898853386}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":899312572}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":900077116}
+{"event":{"text":"でも駿河さん九十一歳力強い","type":"partial"},"t_us":900374296}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに","type":"partial"},"t_us":900878125}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに","type":"partial"},"t_us":901419048}
+{"event":{"text":"でも駕さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":901944122}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":902474977}
+{"event":{"text":"でも駕さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":903023811}
+{"event":{"audio_s":9.206,"decode_ms":205.07809999980964,"lang":"ja","latency_ms":295.55209999671206,"lid_ms":85.1490999921225,"speaker":"","switched":false,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":903604860}
+{"event":{"lang":"en","text":"But Surkawa is 91 years old, and she's going to turn into a strong run. She will be turning more powerful on the road as it turns stronger- mighty running; but Tsuru Kawa Skugawa was only ninety 99 at age 90 for Mr Su river Shizu River (Sur Group) when he turned back from his first solid runs that would change towards forceful driving with strength in this way I’t moving forward!","type":"translation"},"t_us":903967568}
+{"event":{"text":"随分","type":"partial"},"t_us":905380013}
+{"event":{"text":"随分ありました","type":"partial"},"t_us":905731401}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":906277640}
+{"event":{"text":"随分ありましたけどね","type":"partial"},"t_us":906913077}
+{"event":{"text":"ずいぶんありましたけどね","type":"partial"},"t_us":907285119}
+{"event":{"audio_s":3.67,"decode_ms":117.35119999502786,"lang":"ja","latency_ms":119.87280001631008,"lid_ms":0.0,"speaker":"","switched":false,"text":"話でずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":907409121}
+{"event":{"lang":"en","text":"I've had a lot to talk about, but that was quite something.","type":"translation"},"t_us":907505272}
+{"event":{"text":"より","type":"partial"},"t_us":908553784}
+{"event":{"text":"住民によると","type":"partial"},"t_us":909013110}
+{"event":{"audio_s":2.016,"decode_ms":77.93949998449534,"lang":"ja","latency_ms":139.43720000679605,"lid_ms":60.235499986447394,"speaker":"","switched":false,"text":"住民によると。","tier":"rz","type":"final"},"t_us":909428831}
+{"event":{"lang":"en","text":"According to the inhabitants according residents:.","type":"translation"},"t_us":909501821}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":910524525}
+{"event":{"text":"過去に過去にも","type":"partial"},"t_us":910981951}
+{"event":{"text":"過去に過去にも似たような訪問","type":"partial"},"t_us":911494772}
+{"event":{"text":"過去に過去にも似たような訪問","type":"partial"},"t_us":912178874}
+{"event":{"text":"この過去にも似たような訪問があったといい","type":"partial"},"t_us":912467610}
+{"event":{"text":"過去に過去にも似たような訪問があったといいます","type":"partial"},"t_us":913052660}
+{"event":{"audio_s":4.064,"decode_ms":148.78570000291802,"lang":"ja","latency_ms":151.41329998732544,"lid_ms":0.0,"speaker":"","switched":false,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":913519119}
+{"event":{"lang":"en","text":"A similar visit has been made in the past, and it is said that there have also had a same kind of trips as before.","type":"translation"},"t_us":913664603}
+{"event":{"text":"きれる","type":"partial"},"t_us":915570011}
+{"event":{"text":"しっかり打ち切れるかです","type":"partial"},"t_us":916067340}
+{"event":{"text":"そうですね","type":"partial"},"t_us":916641782}
+{"event":{"text":"そうですね","type":"partial"},"t_us":917137262}
+{"event":{"text":"そうですね","type":"partial"},"t_us":917551244}
+{"event":{"audio_s":3.862,"decode_ms":86.4681999955792,"lang":"ja","latency_ms":88.49279998685233,"lid_ms":0.0,"speaker":"","switched":false,"text":"しっかり打ち切れるかです。","tier":"rz","type":"final"},"t_us":917876252}
+{"event":{"lang":"en","text":"Will it be able to break through firmly? Can I make a firm impact.","type":"translation"},"t_us":918036418}
+{"event":{"audio_s":23.67,"lang":"ja","speaker":"","text":"でも駿河さん91歳。力強い走りに変わっていきます。 話でずいぶんありましたけどね。 住民によると。 過去にも似たような訪問があったといいます。 しっかり打ち切れるかです。","type":"refine"},"t_us":920504869}
+{"event":{"text":"けさの","type":"partial"},"t_us":921567718}
+{"event":{"text":"けさの東京","type":"partial"},"t_us":922102733}
+{"event":{"text":"けさの東京風","type":"partial"},"t_us":922736349}
+{"event":{"text":"けさの東京風はなさそ","type":"partial"},"t_us":923185413}
+{"event":{"text":"けさの東京風はなさそうです","type":"partial"},"t_us":923583806}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":924209408}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":924655815}
+{"event":{"text":"けさの東京風はなさそうですけどね","type":"partial"},"t_us":925188251}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか","type":"partial"},"t_us":925687120}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか","type":"partial"},"t_us":926259239}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":926742540}
+{"event":{"audio_s":6.87,"decode_ms":167.2641999903135,"lang":"ja","latency_ms":265.40569998905994,"lid_ms":94.28879999904892,"speaker":"","switched":false,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":927094453}
+{"event":{"lang":"en","text":"It doesn't seem to be the Tokyo style of this morning, but it seems like there is no such thing as TOKYO-style in Japan today. How do you feel? Kondosan (Konto).","type":"translation"},"t_us":927257282}
+{"event":{"audio_s":6.87,"lang":"ja","speaker":"","text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":928983128}
+{"event":{"text":"もう","type":"partial"},"t_us":932885972}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":933446660}
+{"event":{"text":"もう一つ","type":"partial"},"t_us":933892552}
+{"event":{"text":"もう一つ大きな線が","type":"partial"},"t_us":934494727}
+{"event":{"text":"もう一つ大きな勢力がありま","type":"partial"},"t_us":934908447}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":935434244}
+{"event":{"text":"もう一つ大きな勢力があります","type":"partial"},"t_us":935935337}
+{"event":{"audio_s":4.822,"decode_ms":153.2545000081882,"lang":"ja","latency_ms":155.60699999332428,"lid_ms":0.0,"speaker":"","switched":false,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":936206421}
+{"event":{"lang":"en","text":"and there is another big power, one more great force.","type":"translation"},"t_us":936429934}
+{"event":{"audio_s":4.822,"lang":"ja","speaker":"","text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":938128180}
+{"event":{"text":"した","type":"partial"},"t_us":940578460}
+{"event":{"text":"したものの》","type":"partial"},"t_us":941046245}
+{"event":{"text":"はい","type":"partial"},"t_us":941531647}
+{"event":{"audio_s":2.774,"decode_ms":103.01669998443684,"lang":"ja","latency_ms":188.37910000002012,"lid_ms":83.84949999162927,"speaker":"","switched":false,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":941843235}
+{"event":{"lang":"en","text":"Did you win a victory or did we have won any vi tri winning?","type":"translation"},"t_us":941926775}
+{"event":{"text":"人","type":"partial"},"t_us":942602361}
+{"event":{"text":"人以上の","type":"partial"},"t_us":943043949}
+{"event":{"text":"人以上の戦死者","type":"partial"},"t_us":943628219}
+{"event":{"text":"人以上の戦死者を出した","type":"partial"},"t_us":944147647}
+{"event":{"text":"人以上の戦死者を出していた","type":"partial"},"t_us":944549820}
+{"event":{"audio_s":3.264,"decode_ms":226.26630001468584,"lang":"ja","latency_ms":228.36219999589957,"lid_ms":0.0,"speaker":"","switched":false,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":945143268}
+{"event":{"audio_s":6.038,"lang":"ja","speaker":"","text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":947124870}
+{"event":{"text":"センター","type":"partial"},"t_us":948246786}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":948637968}
+{"event":{"text":"センターレフト","type":"partial"},"t_us":949123946}
+{"event":{"audio_s":3.062,"decode_ms":191.6728000214789,"lang":"ja","latency_ms":274.71599998534657,"lid_ms":81.61689998814836,"speaker":"","switched":false,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":949818533}
+{"event":{"lang":"en","text":"Left-sided center left, centre right.","type":"translation"},"t_us":949930748}
+{"event":{"audio_s":3.062,"lang":"ja","speaker":"","text":"左寄りセンターレフト。","type":"refine"},"t_us":951532397}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":954124520}
+{"event":{"text":"言ったろ","type":"partial"},"t_us":954639718}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":955115364}
+{"event":{"text":"ヒーローよりもてめぇをさない","type":"partial"},"t_us":955814973}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":956102824}
+{"event":{"text":"ヒーローよりもてめェを信じる","type":"partial"},"t_us":956706395}
+{"event":{"audio_s":4.278,"decode_ms":171.29500000737607,"lang":"ja","latency_ms":174.3719000078272,"lid_ms":0.0,"speaker":"","switched":false,"text":"言ったろ。ヒーローよりもてめぇを信じる。","tier":"rz","type":"final"},"t_us":956901961}
+{"event":{"lang":"en","text":"I told you, didn't say. You believe in yourself more than heroes and better trust your thy bebe believing rather a Heroer Than the Lord More Bel Better Trust Me or Fa Be faith).","type":"translation"},"t_us":957128615}
+{"event":{"text":"お","type":"partial"},"t_us":958778886}
+{"event":{"text":"高校生","type":"partial"},"t_us":959303002}
+{"event":{"text":"高校生二百人","type":"partial"},"t_us":959942562}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":960364437}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":960787909}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":961336216}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":961869246}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":962375629}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":962905041}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":963468782}
+{"event":{"text":"高校生二百人に聞きました","type":"partial"},"t_us":963904772}
+{"event":{"audio_s":7.158,"decode_ms":366.28899999777786,"lang":"ja","latency_ms":499.41849999595433,"lid_ms":129.07299998914823,"speaker":"","switched":false,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":964808961}
+{"event":{"lang":"en","text":"I listened to 200 high school,200 people","type":"translation"},"t_us":964898807}
+{"event":{"text":"スピンオフ","type":"partial"},"t_us":966597041}
+{"event":{"text":"スピンオフドラマ","type":"partial"},"t_us":967059376}
+{"event":{"text":"スピンオフドラマ波風","type":"partial"},"t_us":967588568}
+{"event":{"text":"波風を立ってくれは","type":"partial"},"t_us":968114234}
+{"event":{"text":"波風立ってくれはTELASA でドラマ","type":"partial"},"t_us":968552453}
+{"event":{"text":"スピンオフドラマ波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":969038583}
+{"event":{"text":"波風よ立ってくれはTELASA で独占","type":"partial"},"t_us":969701174}
+{"event":{"audio_s":4.726,"decode_ms":249.5135999924969,"lang":"ja","latency_ms":265.4729000059888,"lid_ms":0.0,"speaker":"","switched":false,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占。","tier":"rz","type":"final"},"t_us":969971253}
+{"event":{"lang":"en","text":"TELASA is the exclusive spin-off drama wave winds, and it stands up with a spinning off drum waves.","type":"translation"},"t_us":970122905}
+{"event":{"text":"さん","type":"partial"},"t_us":972095271}
+{"event":{"text":"裁判に参加した","type":"partial"},"t_us":972450694}
+{"event":{"text":"裁判に参加した大学","type":"partial"},"t_us":972924359}
+{"event":{"text":"参加した大学一年生","type":"partial"},"t_us":973622101}
+{"event":{"text":"参加した大学一年生の女","type":"partial"},"t_us":973943319}
+{"event":{"text":"この裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":974444779}
+{"event":{"text":"裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":974942828}
+{"event":{"audio_s":4.822,"decode_ms":133.644399989862,"lang":"ja","latency_ms":137.07220001379028,"lid_ms":0.0,"speaker":"","switched":false,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":975224916}
+{"event":{"lang":"en","text":"What is the real sound of a fresh first-year university student who participated in simulated trial trials?","type":"translation"},"t_us":975330512}
