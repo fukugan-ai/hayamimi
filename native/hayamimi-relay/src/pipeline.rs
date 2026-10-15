@@ -44,6 +44,12 @@ use crate::watched::Watched;
 /// Tokens a translation or an edit may use at most.
 pub const MAX_TOKENS: u32 = 256;
 
+/// Tokens an edit (E) may use at most. The relay stops waiting for the model
+/// after 1500 ms, which holds about 140 tokens, so an edit that does not end
+/// within a few more tokens than the longest correct one (119) is a runaway,
+/// and a larger cap only lets it run into the time limit.
+pub const EDIT_MAX_TOKENS: u32 = 128;
+
 /// Which event of the recognizer a line came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -808,7 +814,10 @@ impl<L: Llm> Pipeline<L> {
         let edit_started = Instant::now();
         observer.stage(Stage::Edit);
         let prompt = self.edit_prompt_for(request, &draft.text);
-        let edited = match self.llm.complete(&Completion::new(&prompt, MAX_TOKENS)) {
+        let edited = match self
+            .llm
+            .complete(&Completion::new(&prompt, EDIT_MAX_TOKENS))
+        {
             Ok(text) => text,
             Err(error) => {
                 return self.edit_failed(
@@ -1124,6 +1133,7 @@ mod tests {
     struct Scripted {
         answers: RefCell<Vec<Result<String, LlmError>>>,
         prompts: RefCell<Vec<String>>,
+        n_predicts: RefCell<Vec<u32>>,
     }
 
     impl Scripted {
@@ -1131,6 +1141,7 @@ mod tests {
             Scripted {
                 answers: RefCell::new(answers),
                 prompts: RefCell::new(Vec::new()),
+                n_predicts: RefCell::new(Vec::new()),
             }
         }
 
@@ -1143,6 +1154,7 @@ mod tests {
     impl Llm for &Scripted {
         fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError> {
             self.prompts.borrow_mut().push(request.prompt.to_owned());
+            self.n_predicts.borrow_mut().push(request.n_predict);
             let mut answers = self.answers.borrow_mut();
             if answers.is_empty() {
                 return Err(LlmError::Transport(String::from("no scripted answer")));
@@ -1402,6 +1414,15 @@ mod tests {
             (Status::Ok, Pass::T, true)
         );
         assert_eq!(settled.text, trace.early[0].text);
+        Ok(())
+    }
+
+    #[test]
+    fn the_edit_request_carries_its_own_token_cap_and_the_draft_keeps_the_general_one()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("The budget is 500 yen.", "The budget is 500 yen.");
+        run_traced(&script, &request("予算は500円です。"))?;
+        assert_eq!(*script.n_predicts.borrow(), [MAX_TOKENS, EDIT_MAX_TOKENS]);
         Ok(())
     }
 
