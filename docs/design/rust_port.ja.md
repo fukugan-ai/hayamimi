@@ -195,7 +195,7 @@ lat-ja の 1 回の run の標本の枠は 23 発話 × 5 回で、各標本は�
 **消すのは R11 だけ**で、R11 に入る条件は次の 3 つである。
 
 1. R0 の基準の要約（遅れ、誤り率、chrF、DER の値と、測った条件）が、git 管理下の `docs/results/baseline_python.md` に在る。
-2. RP-1、RP-13、RP-14、RP-15 が `<base>` の値と照らして通っている。RP-13 は 6 の RP-13 の行の決め方（V なしの chrF を記録と同じ組で測る）で、この入口の条件は満たした（V なしは 4 言語とも記録を超えた。2026-10-15 05:1x、1 回。再現と版による揺れは NOT VERIFIED）。V ありの値は止め率つきの報告に留める。RP-19 は 187 本が未実装で、R12a〜R12g が入るまで R11 は始めない。RP-1 の ko の R11 の入口の上限（RP-36）は、配る形の build の記録値 86939（百万分率）で、Rust の平均を丸めずに整数のまま比べ、超えたら評議へ出す（小数 3 桁へ丸めるのは Python の表と比べる RP-1 の本体だけ）。RP-1 の閾値の 0.081 は動かさず、ko の行は赤のまま 10 の H35 に残す。陽性対照は、Python の wheel の ORT を読ませた Rust の run の 66 clip が Python の log と全部一致し、ko が 0.081 になること（R3c の実測）である。ORT か sherpa-onnx の版を上げるたびに ko を測り直し、86939 と比べる。
+2. RP-1、RP-13、RP-14、RP-15 が `<base>` の値と照らして通っている。RP-13 は 6 の RP-13 の行の決め方（V なしの chrF を記録と同じ組で測る）で、この入口の条件は満たした（V なしは 4 言語とも記録を超えた。2026-10-15 05:1x、1 回。再現と版による揺れは NOT VERIFIED）。V ありの値は止め率つきの報告に留める。RP-19 は 187 本が未実装で、8 の「RP-19 の未実装 187 行の仕分けと slice」の slice が全部入り、評議へ出した 21 行の判定が出るまで R11 は始めない。RP-1 の ko の R11 の入口の上限（RP-36）は、配る形の build の記録値 86939（百万分率）で、Rust の平均を丸めずに整数のまま比べ、超えたら評議へ出す（小数 3 桁へ丸めるのは Python の表と比べる RP-1 の本体だけ）。RP-1 の閾値の 0.081 は動かさず、ko の行は赤のまま 10 の H35 に残す。陽性対照は、Python の wheel の ORT を読ませた Rust の run の 66 clip が Python の log と全部一致し、ko が 0.081 になること（R3c の実測）である。ORT か sherpa-onnx の版を上げるたびに ko を測り直し、86939 と比べる。
 3. RP-19 の対応表（Python の test の case → Rust の test の名前）が全行そろい、全部通っている。
 
 消した file の中身は git の履歴に残り、R11 の commit の 1 つ前を指せば読める。
@@ -793,7 +793,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-16 | GPU の無い機械では段ごとに CPU へ落として字幕を出す | `CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` を起こし、同じ run の `/events` を読む `cargo test --release --test rp16 -- --ignored` | 終了 code が 0、`final` が 1 件以上、`gpu.device.unavailable` が 1 件（`reason` が `no_device`）。その run が読み込む 3.5 の GPU の段のそれぞれに `gpu.fallback.cpu` が 1 件ずつ（R2 の ja の run では句読点の 1 件、R3 以降は言語判定も）、同じ段の `/events` の `fallback`（`to` が `cpu`）が 1 件ずつ。`gpu.session.created` の実際の provider が全件 `cpu`。stderr に `nvidia-smi` の名前が在り、`LANG=ja_JP.UTF-8` と `LANG=C.UTF-8` で stderr の文が別の言語 | GPU の在る run では `gpu.device.unavailable` と `gpu.fallback.cpu` と `fallback` の event が 0 件で、GPU の段の provider が `cuda`（GPU が在るのに CPU へ落ちない） | GPU が在るのに CPU へ落ちる build（session を `cpu` で作る build）では、GPU の在る run で `gpu.fallback.cpu` か `cpu` の provider が出て落ちる。落ちたのに event を出さない build では、GPU を隠した run で event の数が足りず落ちる |
 | RP-17 | 自分で build した library が開け、ORT が 1 つである（R1 の門） | Windows と WSL で `hayamimi-gpu-probe`（`hayamimi-gpu` crate の bin。`native/target/<triple>/release/` に在る）を走らせ、`cargo test --release --test rp17` が子の process の出力を読む（`rp17.rs` の test は `#[ignore]` を持たないので `--ignored` を付けない。付けると 0 本しか走らない）。Linux 限定の test（T-RP-17-031）は WSL から打つ。`hayamimi` crate は R2 で作るので、`<hy> gpu-probe` はそれまで無い | `cuda_devices: 1`、sherpa-onnx の CUDA の session が 1 本作れて実際の provider が `cuda`、`ort` が開いた ORT の `GetVersionString` が `build.json` の ORT の版（1.31.0。退路へ戻したときは 1.28.3）と同じ、process の中の `onnxruntime` の library が 1 つで、その読み込み元が実行 file と同じ directory（probe の `modules` の origin が `exe_directory`）。CUDA の版は、認識器が開いている間の process の読込 module の名前で見る（`build.json` の申告ではない。名前は大文字と小文字を区別せずに数える）。Windows は `cublas64_13` と `cublasLt64_13` が各 1、`cudart64_12` と `cublas64_12` と `cublasLt64_12` が 0。`cufft64_12` は在ってよい（CUDA 13.4 の toolkit 自身が `cufft64_12.dll` を持つので、`*_12` を一律 0 にはしない）。WSL は `libcudart.so.12` が 0、`libcublas.so.13` が 1。ORT の CUDA の provider の library の中の文字列では CUDA の版を判別しない（`cudart64_12.dll` と `cudart64_13.dll` の文字列を両方持つ）。Windows では、`hayamimi-gpu` を依存に持つ全 crate の bins と tests に 3.4 の 2 本の link 引数が在る（`cargo metadata` で依存する crate を数え、各 crate の build script を読む）。通ったときは、その build の `build.json` の sha256 と probe の出力を `native/target/sherpa-gpu/<os>/rp17_passed.json` に書く（RP-24 が読む） | 2 つの OS で同じ出力の形 | 配布の CPU 版の sherpa-onnx に繋いだ build では provider が `cpu` で落ちる。`onnxruntime` の読み込み元が `system` の run で落ちる |
 | RP-18 | 句読点の同一性 | `cargo test --release --test rp18` が `mobile/hayamimi_core/test/fixtures/punct_ja_parity.json` を読む | 全 case で `input_ids` が一致。GPU で `expected` の文字列が全件一致 | fixture の 1 件目 | NFKC を外した token 化で落ちる |
-| RP-19 | Python の test の case を Rust へ写したこと | `cargo test --release -- --list` の出力と、test-designer が `rust_port_tests.ja.md` に書く対応表を `cargo test --release --test rp19` が突き合わせる | 対応表の全 386 行が、Rust の test の名前か `写さない：<理由>` のどちらかを持つ。名前を持つ 334 行は list に在り、全部通る。`写さない` を許すのは 4 種だけで、3.2 が消す script の test、この設計で無くなる部品（Python の中の翻訳 worker と翻訳器の pool、文ごとの訳の分割。訳は `hayamimi-relay` が 1 行ずつ頼む、3.6。翻訳 worker が hub に訳を出す case は中継へも写さず、中継が訳を出すことは会話字幕の CS-21 と CS-22 が持つ）、外が更新する model の sha256 を動作の gate にする case（sha256 は `models/manifest.json` の記録に留める、3.10）、Python の実行時の package の import に固有の挙動（`soundcard` の import の再試行。Rust には実行時の import が無く、装置が開けない時の落とし方は RP-29 の R5 の行が持つ）である。`docs/spec/ja_pipeline_spec.json` の `config` を `<hy> config dump` で作り直した値と差 0 | 対応表の 1 行目 | 名前を 1 つ変えた list で落ちる |
+| RP-19 | Python の test の case を Rust へ写したこと | `cargo test --release -- --list` の出力と、test-designer が `rust_port_tests.ja.md` に書く対応表を `cargo test --release --test rp19` が突き合わせる | 対応表の全 386 行が、Rust の test の名前か `写さない：<理由>` のどちらかを持つ。名前を持つ行は list に在り、全部通る。名前を持つ行のうち list に無い行は `native/hayamimi-eval/tests/rp19_not_yet.txt` の名前つき一覧に在り、一覧の行の数は `rp19.rs` の `ALLOWED_NOT_YET` 以下で、`ALLOWED_NOT_YET` は下げる向きにだけ動く。一覧が空でない間、`rp19_python_cases_are_ported` は一覧の数を出して落ちる（8 の「RP-19 の未実装 187 行の仕分けと slice」）。`写さない` を許すのは 5 種だけである。5 つ目は Rust が意図して持たない Python の口で、`写さない：Python の口（<Rust の在り処、または持たない機構>）` と書き、在り処も機構も無い行は許さない（同じ小節の「写さない行」の 15 行）。ほかの 4 種は、3.2 が消す script の test、この設計で無くなる部品（Python の中の翻訳 worker と翻訳器の pool、文ごとの訳の分割。訳は `hayamimi-relay` が 1 行ずつ頼む、3.6。翻訳 worker が hub に訳を出す case は中継へも写さず、中継が訳を出すことは会話字幕の CS-21 と CS-22 が持つ）、外が更新する model の sha256 を動作の gate にする case（sha256 は `models/manifest.json` の記録に留める、3.10）、Python の実行時の package の import に固有の挙動（`soundcard` の import の再試行。Rust には実行時の import が無く、装置が開けない時の落とし方は RP-29 の R5 の行が持つ）である。`docs/spec/ja_pipeline_spec.json` の `config` を `<hy> config dump` で作り直した値と差 0 | 対応表の 1 行目 | 名前を 1 つ変えた list で落ちる |
 | RP-20 | 3.5 の表の全段の置き場が決まったこと | `cargo test --release --test rp20` が 3.5 の表の「いまの置き場」の列に「測る」が残っていないことと、各行が `gpu_stages.md` の行に対応することを確かめる（test は `#[ignore]` を持たない。docs だけを読む） | 「測る」が 0 件、表の行と結果の行の対応が全件 | R1 の前の表（`native/hayamimi-eval/tests/fixtures/rp20_table_before_r1.md`、「いまの置き場」の列に「測る」が 8 件）を陽性対照の入力にし、同じ式が 8 件と数える | 結果の file の行を 1 つ消すと落ちる |
 | RP-21 | model の取得に Python が要らない | 空の directory で `<hy> models fetch --minimal --dir <tmp>` | 今の `--minimal` と同じ 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）が 3.5 の置き場に合った版（3.10）で揃い、`models/manifest.json` に sha256 が在る | 既に在る directory で打つと取り直さない | 取得先の 1 つを壊すと、もう 1 つの取得先（sherpa-onnx の release と Hugging Face）から取る。両方を壊すと前の file を残し、`models.fallback.previous` を 1 件出して終了 code 0 |
 | RP-22 | GPU の memory の上限 | RP-3 の run の間、`nvidia-smi --query-gpu=memory.used --format=csv` を 1 秒ごとに読む（R3b は `/ingest` が入る前なので、llama-server を起こした機械で `<hy> --wav testdata/lat-multi.wav` を実時間で流す間に読む。8 の「07:00 の計画」の R3 の着手の 2） | 最大が 14,000 MiB 以下（`gpu_stages.md` に memory の実測が無いまま据え置いた値で、R3 と R8e が測り、超えたら評議へ戻す。16,311 MiB から、他の process の 1,161 MiB と、余白の約 1,150 MiB を除いた値） | 起動前の値が読める | 上限を、その run の起動前の読みの最大より 1 MiB 高い値に置いた test の設定（読む物は GPU 全体で、他の process の使用量は run ごとに動くので、別の run の最大から置いた上限は、その run が届かない所に在りうる。起動前の読みから置いた上限は、読み込んだ後の `hayamimi` の分だけ必ず下回る）では、`hayamimi` が止まらず `gpu.fallback.cpu`（`memory_budget`）を 1 件以上出し、test の比べる式は上限を超えた読みを名指しして落ちる（比べる式が働くことの確かめ） |
@@ -821,6 +821,12 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-44 | R8o の後の RP-35 の held-out の組（新しく作る） | test-designer の席が repo の外に新しい組を作り、`cargo test --release -p hayamimi-eval --test rp44 -- --ignored` が組の ids と記録を読む | dev と test split の id との重なりが 0 で、原文に「なさそう」を含む行が 1 行以上在る。言語ごとの ids の sha256 を state.json に書く。組は 1 回だけ使う（会話字幕の CS-30 は同じ `heldout_sha256` の 2 回目を拒む）。組が届くまでの RP-35 の代わりは、dev の seed 0 と seed 1 の vprobe（RP-37 の形）である。RP-35 の chrF の平均は、組のうち FLEURS の表から取った行だけで出す。手書きの行は参照訳が 1 本で書き手が 1 人なので、chrF の平均に入れず、V が止めた行の数（RP-35）と否定の語の確かめにだけ使う。全行の chrF は別の列に記録だけを置く。組は RP-35 の前の main と branch の比べにだけ使い、記録の値（RB-7、RP-13）と比べない。評価の model が FLEURS の文を学習で見ていれば 2 つの腕の chrF が同じ向きに上がるので差には効きにくいが、記録の値との比べでは model の側にだけ効くからである。2 つの model の技術報告は学習のデータに FLEURS と FLoRes の名を挙げないが、web の crawl を使うので、見ていないとは言えない（S21、S22。NOT VERIFIED）。前の main の腕も同じ組で打ち直し、別の組の結果と比べない。2 つの腕は別々の結果の file に書く（CS-30 が拒むのは、同じ結果の file に同じ組が別の表で在る時である。1 つの判定の 2 つの腕を 1 回の使用とする） | 同じ test が、dev の seed 0 の組の ids から重なりを数えられる | dev の id を 1 つ混ぜた ids で落ちる |
 | RP-45 | E の雛形が字幕に出ない（8 の R8p） | `cargo test --release -p hayamimi-relay --test rp45` が、偽の llama-server の E の答えに雛形の札（`English:`、`Draft Japanese:`、`Rewritten Japanese:`、ja→en では同じ形の札）を付けて中継に流す。merge の後の E2E-2 の打ち直しで、確定の訳の文字列を数える | 札は 8 の R8p の形（行頭の `Draft` 系か `Rewritten` に、訳の言語名と `:` が続く形）だけで、最後の札の後ろの訳だけが確定の訳になり、その札の語は確定の訳に残らない。行頭に無い札の形（太字、言語名と `:` の間の注、番号つき、1 行に続く雛形）は剥がさず、訳の本文として V に渡す（10 の H60）。札しか無い答え、札を剥がすと空の答えは `form` で止まる。E2E-2 の打ち直しで、確定の訳のうち札の語を含む物が、行頭か否かを問わず 0 件（1 件でも在れば H60 の形が run に出たので、その形を名指しして設計へ戻す） | 同じ test が、札の無い E の答えをそのまま確定にする | `edit` で `translation_of` を外した build で、札の付いた訳が確定になり落ちる。札を行の途中でも読む build で、札に似た正しい訳（`The draft: nobody read it.`）が削られて落ちる |
 | RP-46 | 英語の認識器を最初の英語の発話より前に読む（8 の R8q） | `cargo test --release -p hayamimi --test rp46 -- --ignored` が、`<hy> --input ws --lang en --ws-port <空いている port>` を起こし（`--ws-port 0` は選んだ port を知らせないので、RP-11 と同じく空いていた port を渡す）、server が listen した直後に繋いで `/ingest` に英語の音声を 2 発話送る | `asr.model.loaded`（`model` が `v3`）が `/ingest` の `ready` より前に出る（`ready` を返した直後に出る `ingest.client.connected` の行より前の行で見る）。最初の発話の `final` の `decode_ms` が読み込みの時間を含まない（`asr.model.loaded` の `load_ms` より小さく、2 発話目の `decode_ms` の 10 倍以下） | 同じ test が `--lang ja` の run で ReazonSpeech の読み込みを `ready` より前に見て、英語の認識器（`v3`）の `asr.model.loaded` が 0 件 | 最初の英語の発話で読み込む今の形で、`asr.model.loaded` が `ready` より後になり落ちる |
+| RP-48 | session の reset が前の session を残さない（8 の R12h） | `cargo test --release -p hayamimi-asr --lib reset_parts` | `reset_parts` の後に、`History` の buffer が空で、次の `with_preroll` が reset の前の sample を 1 つも含まず、`Router` の言語の粘りが無く（次の発話の振り分けが最初の発話と同じ扱い）、話者の重心が 0 個。`History` の絶対の位置（`end()`）は reset の前の値のまま | 同じ test が、reset を打たない run で前の session の preroll と言語と重心が残ることを示す | `History::clear` を呼ばない `reset_parts` で、preroll に前の sample が入り落ちる。`Router::reset_session` を呼ばない形で、言語の粘りが残り落ちる |
+| RP-49 | `final` の `switched` が前の `final` の言語と比べて決まる（8 の R12i） | `cargo test --release -p hayamimi --lib switched` | 最初の `final` で偽、言語が変わった `final` で真、同じ言語が続くと偽。session の reset の後の最初の `final` で偽 | 同じ test が、言語の同じ 2 本で偽を 2 回出す | `switched` を常に偽で出す今の `wire.rs` で、言語が変わった行が落ちる |
+| RP-50 | DER の内訳（8 の R12q） | `cargo test --release -p hayamimi-eval --lib der_breakdown` | 同じ ref と hyp で Miss、FA、Confusion が全部 0。話者を入れ替えた hyp で Confusion だけが増え、区間を落とした hyp で Miss だけが増える。3 つの和が `der` の値と 1e-9 以内で同じ | 同じ test が、内訳の和を `der` の値と比べる | Confusion を Miss に足す内訳で、入れ替えの行が落ちる |
+| RP-51 | Windows の COM の初期化の HRESULT を分ける（8 の R12r、3.7） | `cargo test --release -p hayamimi --lib windows_com_scope` | HRESULT を分ける純関数が、成功（`S_OK`、`S_FALSE`）を後始末の要る初期化、`RPC_E_CHANGED_MODE` を後始末しない既存の初期化、それ以外を endpoint の名前を持つ `CaptureError` に分ける。scope の型は成功の時だけ後始末を 1 回呼ぶ | 純関数の test は Windows でなくても走る | `RPC_E_CHANGED_MODE` を失敗として返す今の形（`windows.rs` の `run`）で落ちる |
+| RP-53 | 4 クラスの句読点（8 の R12t1〜R12t3、3.10 の `--punct-4class`） | `cargo test --release -p hayamimi-asr --lib punct::four`、model を使う行は `-- --ignored` | T の 5.3 の `test_punct_4class.py` の 14 行と、`--punct-model` の選択の 7 行が通る。既定は BERT のままで、4 クラスの model が無いときは BERT へ落ちて warn を 1 回出す | 同じ test が既定の BERT の経路で今と同じ文字列を出す（RP-18 が通ったまま） | 4 クラスを既定にした build で、既定の行が落ちる |
+| RP-54 | 2 人の話者の材料（8 の R12u1） | `cargo test --release -p hayamimi-eval --lib two_speaker_clip` | 8 の小節の規則で `testdata/eval_diar/` の RTTM から窓を 1 つ選び、窓の中の話者が 2 人、区間が 4 つ、少ない方の区間が 1 つで 2〜4 秒、重なりが 0。manifest に会議の名前、始まり、終わり、sha256 が在る | 同じ関数が、規則に合う窓を手で置いた RTTM の fixture から同じ窓を選ぶ | 重なりの在る窓だけの fixture で、窓が無いと名指しして `Err` を返す |
 | RP-47 | 新しい確定文の T を前の行の E の後ろに並べない（8 の R8r） | `cargo test --release -p hayamimi-relay --test rp47` が、E に 1000 ms の待ちを入れた偽の llama-server に、200 ms 間を空けた 2 つの確定文を流す | 2 つ目の確定文の T の依頼が、1 つ目の E の応答より前に出る。slot の数（3.6 の 5）を超えて依頼を並べない | 同じ test が、E の無い形（zh）で 2 つの T が順に出ることを示す | 訳の lane が 1 本で直列の今の形で、2 つ目の T が 1 つ目の E の後になり落ちる |
 
 ## 7. test の名前
@@ -879,6 +885,13 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-45 | `rp45_edit_template_never_reaches_the_subtitle` | `native/hayamimi-relay/tests/rp45.rs` | `translation_of` を外した build、札を行の途中でも読む build |
 | RP-46 | `rp46_english_recognizer_loads_before_ready` | `native/hayamimi/tests/rp46.rs` | 最初の英語の発話で読み込む形 |
 | RP-47 | `rp47_next_draft_is_not_queued_behind_the_previous_edit` | `native/hayamimi-relay/tests/rp47.rs` | 直列の訳の lane |
+| RP-48 | `reset_parts_forget_the_previous_sessions_audio_language_and_speakers` | `native/hayamimi-asr/src/pipeline.rs` の `mod tests` | `History::clear` か `Router::reset_session` を呼ばない `reset_parts` |
+| RP-49 | `final_event_switched_true_when_language_changes` | `native/hayamimi/src/session.rs` の `mod tests` | `switched` を常に偽で出す `wire.rs` |
+| RP-50 | `der_breakdown_isolates_confusion_from_miss` | `native/hayamimi-eval/src/der.rs` の `mod tests` | Confusion を Miss に足す内訳 |
+| RP-51 | `windows_com_scope_uses_existing_changed_mode_apartment` | `native/hayamimi/src/capture/windows.rs` の `mod tests`（純関数は cfg を外した module に置く） | `RPC_E_CHANGED_MODE` を失敗として返す形 |
+| RP-53 | `reconstruct_inserts_question_mark` | `native/hayamimi-asr/src/punct/four.rs` の `mod tests` | 4 クラスを既定にした build |
+| RP-54 | `two_speaker_clip_is_cut_by_the_rule_from_ami` | `native/hayamimi-eval/src/two_speakers.rs` の `mod tests` | 重なりの在る窓だけの RTTM |
+| RP-19（R12a1） | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` | `native/hayamimi-eval/tests/rp19.rs` | 一覧に在る名前が list にも在る（消し忘れ）、一覧の数が `ALLOWED_NOT_YET` を超える |
 
 test は会話字幕の設計 7.1 と同じ規則で書く（`Result` を返して `?`、`unwrap` と `expect` と `unwrap_or*` を書かない、実行時に環境変数を読まない）。
 `CUDA_VISIBLE_DEVICES`、`CUDA_CACHE_PATH`、`LANG` は test の code が読む値ではなく、test が子の process を起こすときに渡す値である。
@@ -921,13 +934,8 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R8l | zh、ko、es の V の数の検査で、算用数字の後の倍の語の列を読む（3.6）。語だけで書いた数は 10 の H51 | RP-39 | その commit を `git revert` |
 | R0b | worktree に `testdata/` が無いとき、test の support が本体の `testdata/` を引く。`hayamimi-eval` の `tests/support/mod.rs` の `BASE` と `TESTDATA` を、まず `CARGO_MANIFEST_DIR` の 2 つ上の `testdata`、無ければ `git rev-parse --path-format=absolute --git-common-dir` の親の `testdata` の順で探す関数にする。両方に無ければ、探した 2 つの path を名指しして `Err` を返す（黙って通さない）。symlink は使わない（Windows から WSL の symlink を辿れない。RP-24 の os error 1920） | worktree の中で `cargo test -p hayamimi-eval --test rb01 … --test rb08` の FAILED が 0。陰性対照は、本体にも worktree にも `testdata/` が無い clone で、2 つの path を名指しした `Err` で落ちる | commit を revert |
 | R10 | `models fetch`、`config dump`、`doc-links`、README（`README.md` と `README.ja.md` の CPU だけという売りの行を含む）と文書の書き替え、英語版。`docs/guide/embedding.md` と `embedding.ja.md` の wire の記述を、その時の実装（3.3 の項目、`settled`、`of: "partial"`、`speaker` の event）に合わせる。T-RP-21-001、005、006、007 は `native/hayamimi/tests/rp21.rs` に置き、007 が使う RP-9 の `check_descendants` を R10 が作る | RP-21、RP-19 の spec の行、RP-30 | 文書の commit を revert |
-| R12a | RP-19 と RP-9 の受入 test を作る（`native/hayamimi-eval/tests/rp19.rs` の `check_port_table` と、`rp09.rs` の Python を子に立てない確かめ。RP-9 の `check_descendants` は R10 の `native/hayamimi-eval/src/descendants.rs` を使う）。R12b〜R12g より先に main へ入れ、各 slice が自分の行を rp19 で確かめられるようにする | RP-19 の T の行（T-RP-19-001〜007）、RP-9 | commit を revert |
-| R12b | RP-19 の 5.3 の行のうち、Python の file が `test_embed_runtime.py` の未実装の 50 本 | RP-19（その 50 行が list に在り、全部通る） | commit を revert |
-| R12c | 同じく `test_ws_ingest.py` 21、`test_lifecycle.py` 7、`test_process_safety.py` 4 の 32 本（取り込みの口と process） | RP-19（その 32 行） | commit を revert |
-| R12d | 同じく `test_diar_eval.py` 20、`test_diar_overlap.py` 4、`test_diarize.py` 3、`test_speaker_id.py` 3 の 30 本（話者） | RP-19（その 30 行） | commit を revert |
-| R12e | 同じく `test_itn_cjk.py` 14、`test_punct_4class.py` 14 の 28 本（ITN と句読点） | RP-19（その 28 行） | commit を revert |
-| R12f | 同じく `test_units.py` の 20 本（単位の換算と照合 V の数） | RP-19（その 20 行） | commit を revert |
-| R12g | 同じく `test_audio_capture.py` 18、`test_ja_golden.py` 4、`test_ja_pipeline_spec.py` 3、`test_asr_segment.py` 2 の 27 本（取り込みの装置と ja の経路） | RP-19（その 27 行） | commit を revert |
+| R12a | RP-19 と RP-9 の受入 test を作る（`native/hayamimi-eval/tests/rp19.rs` の `check_port_table` と、`rp09.rs` の Python を子に立てない確かめ。RP-9 の `check_descendants` は R10 の `native/hayamimi-eval/src/descendants.rs` を使う）。rp19 は R12a1、rp09 は R12a2 として 2 席に分ける。R12a1 は R12h 以降より先に main へ入れ、各 slice が自分の行を rp19 で確かめられるようにする | RP-19 の T の行（T-RP-19-001〜007）、RP-9 | commit を revert |
+| R12h〜R12u、R12a1、R12a2 | RP-19 の 5.3 の未実装の 187 行を、この 8 の「RP-19 の未実装 187 行の仕分けと slice」の slice で入れる | 同じ小節の表の受入 ID | commit を revert |
 | R11 | 3.2 の 3 つの条件を確かめてから、Python の 78 本と `requirements*.txt` を消し、CI を cargo に替え、Dart の comment を書き替える | RP-9、RP-19 | R11 の commit を revert |
 
 R0 で Python を動かすのは、置き換える前の物の速さと誤り率を同じ機械で測るためで、Python の file は 1 行も書かない。
@@ -975,8 +983,8 @@ merge の前の検査では、受入の `-p <crate>` の run に加えて、bran
 | R0b | 無し。worktree の席の rb01〜rb08 を通すので、空いた席ですぐ打つ | `native/hayamimi-eval/tests/support/mod.rs:23` と `:25` が `CARGO_MANIFEST_DIR` の 2 つ上の `testdata` だけを見る |
 | R10 | R3、R4、R5 の config（`config dump` が全項目を出す） | RP-19 の spec の行 |
 | R12a | 無し。T の 5.3 の対応表と `cargo test --release --workspace -- --list` | `rp19.rs` と `rp09.rs` が無い。5.3 の名前を持つ 334 行のうち list に在るのは 147 で、無いのは 187（test-designer の席の数え） |
-| R12b〜R12g | R12a の rp19 | 各 slice が自分の行を rp19 で確かめる |
-| R11 | RP-1（R3）、RP-13（R8f）、RP-15（R4）、RP-19 の全行（R12a〜R12g）、R10 | 3.2 の R11 に入る 3 つの条件 |
+| R12h〜R12u | R12a1 の rp19（R12h、R12i、R12q、R12r、R12t、R12u は自分の受入 ID でも確かめる） | 各 slice が自分の行を rp19 で確かめる |
+| R11 | RP-1（R3）、RP-13（R8f）、RP-15（R4）、RP-19 の全行（R12a1〜R12u と評議へ出した 21 行の判定）、R10 | 3.2 の R11 に入る 3 つの条件 |
 | 端から端 | R3（`--lang`）、R5（取り込み）、R8a〜R8c、R6 の頁 | この小節の E2E-1 と E2E-2 |
 
 R3 は 2 席に分ける。R3a は振り分け（`hayamimi-asr::route` と `::lid`、RP-19 の `route.rs` 70 行と `lid.rs` 9 行）、R3b は認識器と常駐（`::decode` と `::resident`、`decode.rs` 24 行、`hayamimi-eval scorecard`、RP-22）である。
@@ -998,7 +1006,7 @@ status を書く同じ手番で、`README.md` と `README.ja.md` に在る数字
 | V3 | 04:15〜04:45 | 検証と merge | 0.5 時間 |
 | W4 | 04:45〜05:45 | R7 の置き場の測り直し（済み）。R11 は入口の条件（RP-19 の 187 本）が揃わないので、この波では入れない | 1 時間 |
 | E2E | 05:45〜06:45 | 端から端の 2 本と `L` の p50、p95。`L` は RP-32 の交互の run で取る | 1 時間 |
-| W5 | E2E の後 | R12a（1 席）を先に入れ、その merge の後に R12b〜R12f の 5 席を並べ、空いた席に R12g。R12 が全部入って RP-19 が通ってから R11 | R12b が最も大きい（50 本） |
+| W5 | 11:45〜13:55 | 8 の「RP-19 の未実装 187 行の仕分けと slice」の「13:55 までに入る組」（6 席、実装 11:45〜13:00、検証と merge 13:00〜13:55）。残りの slice は同じ小節の優先の順で次の波に並べる。R12 が全部入って RP-19 が通ってから R11 | 各 slice 60 分以内 |
 
 cargo の並列は 2 に固定されている。
 5 席が同時に `cargo build --release` を打つと 10 job になり、この機械の 16 core に収まるが、1 席の build は単独の時より遅くなる。
@@ -1048,6 +1056,327 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 | E2E-1 | `e2e1_mic_process_ja_to_en_beats_python` | `native/hayamimi-eval/tests/e2e1.rs` |
 | E2E-2 | `e2e2_loopback_process_en_to_ja_within_budget` | `native/hayamimi-eval/tests/e2e2.rs` |
 
+### RP-19 の未実装 187 行の仕分けと slice
+
+T の 5.3 の対応表で Rust の test の名前を持つ 334 行のうち 187 行は、その名前の関数が `native/` に無い。
+この小節は 187 行を行ごとに 4 つへ分け、作る行を 60 分以内の slice に割り、移さない行の理由を置く。
+slice は module で割る。Python の file で割ると、1 つの file の行が別々の crate と別々の席の衝突に散るからである。
+
+**数え方**（数えるのは実装の席と検証の席で、設計の席は cargo を打たない）：
+
+```
+LC_ALL=C
+names = 5.3 の表の行のうち 3 列目が `-` でない物の 3 列目（awk -F'|' で切り、空白と backquote を除く）
+have  = native/ の .rs の `fn <名前>` の名前（rg -o --no-filename --glob '!target' 'fn [a-z0-9_]+' native）
+missing = comm -23 <(sort -u names) <(sort -u have)
+```
+
+- 範囲は worktree の `docs/design/rust_port_tests.ja.md` の 5.3 と `native/`（`target/` を除く）。
+- 結果は 386 行、名前を持つ 334 行、そのうち `native/` に無い 187 行。
+- 陽性対照は `join_pieces_concatenates_cjk_without_spaces`（在る名前）が `comm -12` で 1 行出ること、陰性対照は在りえない名前が 0 行であること。
+- この式は `fn` の名前だけを見るので、test でない同じ名前の関数でも在ると数える。合否は `cargo test --release --workspace -- --list` の名前で決める（RP-19 の command）。
+
+**4 つの分け方**：
+
+- **(a) 移す**：Rust に同じ振る舞いの code が在り、test を書けば通る行。111 行。
+- **(c) 作る**：Rust の `src/` に機能が無く、test だけでは届かない行。57 行（うち評議へ 21 行）。
+- **(b) 写さない（Python の口）**：Rust が意図して持たない Python の口の行。15 行。RP-19 の 5 つ目の種類にする（6 の RP-19）。
+- **材料が無い**：test の入力の音声が repo にも手元にも無い行。4 行。作る（R12u）。
+
+111 + 57 + 15 + 4 = 187 である。
+6 席の申告の足し算（a 113、b 14、c 54、材料無し 4、割れる 2）とは、行の置き方が 3 か所違う。この表が正で、違う行は次のとおりである。
+`live_vad_failed_rebuild_preserves_active_and_pending_state` は (c)（作り直しの失敗を注入する口が無い）に置いた。
+Refiner の 17 行と recluster の 4 行は (c) の評議へに置いた。
+`cli_rejects_loopback_on_non_windows_before_loading_models` ほか取り込みの 4 行は (b) に置いた。
+割れた 2 行は、この表のどれかの行に入っている（名指しは 6 席の返しに無く、照らしていない。10 の H62）。
+
+**(c) と材料が無い行は「写さない」に入れない**。
+rp19 は、名前を持つ行のうち list に無い行を `native/hayamimi-eval/tests/rp19_not_yet.txt` の名前つき一覧で持つ（1 行に 1 名前、slice ごとに空行で区切った塊にし、席が違えば違う塊を消すので git の衝突を起こさない）。
+一覧の行の数の上限を `rp19.rs` の `ALLOWED_NOT_YET` に置き、上限は下げる向きにだけ動かす（`rust_guide_contract.rs` の予算と同じ形）。
+`rp19_python_cases_are_ported` は一覧が空でない間は落ち、一覧の数を出す（RP-19 は通っていないと機械が言う）。
+各 slice は自分の行を一覧から消し、`rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` で、一覧に無い行が list に在り、一覧に在る名前が list に無いことを確かめる。
+
+#### 行ごとの仕分け
+
+(b) の 15 行は下の「写さない行」の表に在る。残る 172 行をここに置く。
+分類の `a` は (a)、`c` は (c)、`c 評議` は評議へ出した (c)、`材料` は材料が無い行である。
+
+| case | 分類 | slice |
+|---|---|---|
+| `live_path_preroll_keeps_utterance_initial_words` | a | R12p |
+| `split_retry_stands_down_when_the_speech_measure_clears_the_buffer_alarm` | a | R12p |
+| `aligned_speaker_match_discards_stale_and_retains_future` | a | R12o |
+| `capture_timestamps_keep_audio_spacing_when_backend_returns_a_burst` | a | R12o |
+| `mic_timestamp_is_taken_in_the_capture_callback` | a | R12o |
+| `microphone_device_selection_uses_input_only_case_insensitive_match` | a | R12o |
+| `mix_speaker_failure_falls_back_once_to_mic_only` | a | R12o |
+| `mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate` | a | R12o |
+| `put_latest_keeps_only_newest_bounded_items` | a | R12o |
+| `speaker_capture_owns_com_objects_and_downmixes_native_channels` | a（downmix だけ） | R12o |
+| `speaker_capture_rejects_non_windows_before_import_or_com` | a | R12o |
+| `wait_for_speaker_drains_packet_enqueued_as_done_becomes_true` | a | R12o |
+| `windows_com_scope_balances_every_success_result` | c | R12r |
+| `windows_com_scope_uses_existing_changed_mode_apartment` | c | R12r |
+| `windows_com_scope_rejects_other_hresult_failures` | c | R12r |
+| `speaker_capture_failure_is_reported_with_endpoint_context` | c | R12r |
+| `parse_rttm_basic` | a | R12l |
+| `parse_rttm_ignores_non_speaker_lines_and_blanks` | a | R12l |
+| `parse_rttm_empty_file` | a | R12l |
+| `parse_rttm_rejects_malformed_line` | a | R12l |
+| `parse_rttm_rejects_negative_duration` | a | R12l |
+| `parse_rttm_round_trips_zero_duration` | a | R12l |
+| `segments_to_der_tuples_coerces_types` | a | R12l |
+| `segments_to_der_tuples_drops_zero_and_negative_length` | a | R12l |
+| `segments_to_der_tuples_empty` | a | R12l |
+| `der_zero_for_identical_ref_and_hyp` | a | R12l |
+| `der_nonzero_for_swapped_speaker_labels_within_overlap` | a | R12l |
+| `der_end_to_end_from_parsed_rttm` | a | R12l |
+| `group_segments_single_segment` | a | R12l |
+| `group_segments_merges_close_segments` | a | R12l |
+| `group_segments_splits_on_silence_gap` | a | R12l |
+| `group_segments_splits_on_max_length` | a | R12l |
+| `group_segments_empty_input` | a | R12l |
+| `der_breakdown_zero_for_identical_ref_and_hyp` | c | R12q |
+| `der_breakdown_isolates_confusion_from_miss` | c | R12q |
+| `production_over_splits_relative_to_eval_replica_on_a_skipped_vad_segment` | c 評議 | Refiner |
+| `pool_audio_for_group_uses_diarizer_turns_when_present` | c 評議 | recluster |
+| `pool_audio_for_group_falls_back_to_full_buffer_when_declined` | c 評議 | recluster |
+| `pool_audio_for_group_declined_duration_prefers_group_span_over_buffer_length` | c 評議 | recluster |
+| `pool_audio_for_group_empty_group_yields_empty_audio` | c 評議 | recluster |
+| `group_diarizer_missing_model_raises_filenotfound` | a | R12p |
+| `group_diarizer_short_buffer_returns_empty` | a | R12p |
+| `group_diarizer_finds_multiple_speakers_on_two_speaker_audio` | 材料 | R12u2 |
+| `eventhub_publish_delivers_to_subscriber_in_order` | a | R12m |
+| `eventhub_unsubscribe_stops_delivery` | a | R12m |
+| `eventhub_multiple_listeners_all_receive_the_event` | a（複数の購読者） | R12m |
+| `eventhub_replays_refine_events_to_new_subscribers` | c 評議 | Refiner |
+| `final_event_carries_audio_s_lid_ms_decode_ms` | a | R12m |
+| `final_event_switched_is_false_for_the_first_final` | c | R12i |
+| `final_event_switched_true_when_language_changes` | c | R12i |
+| `final_event_switched_false_when_language_repeats` | c | R12i |
+| `session_stats_reset_clears_last_final_lang` | c | R12i |
+| `set_punctuate_off_then_on_is_a_noop_when_already_loaded` | a | R12p |
+| `live_vad_applies_pending_change_at_a_safe_boundary` | a | R12n |
+| `live_vad_defers_rebuild_while_speech_is_active` | a | R12n |
+| `live_vad_set_sensitivity_partial_args_keep_other_values` | a | R12n |
+| `live_vad_composes_pending_updates_and_keeps_last_explicit_value` | a | R12n |
+| `live_vad_empty_update_does_not_rebuild_detector` | a | R12n |
+| `live_vad_waits_for_completed_segment_to_be_drained` | a | R12n |
+| `live_vad_rebuild_preserves_absolute_segment_positions` | a | R12n |
+| `live_vad_failed_rebuild_preserves_active_and_pending_state` | c（注入の口） | R12n |
+| `live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates` | c 評議 | Refiner |
+| `live_vad_real_speech_matches_fresh_detector_after_rebuild` | a | R12n |
+| `live_vad_set_sensitivity_rejects_invalid_values` | a | R12n |
+| `live_vad_set_sensitivity_accepts_valid_values` | a | R12n |
+| `live_vad_set_sensitivity_none_is_always_a_noop_no_change` | a | R12n |
+| `post_config_invalid_vad_value_returns_400_not_a_crash` | a | R12m |
+| `audio_history_clear_empties_buffer_and_offsets` | c | R12h |
+| `refiner_reset_drops_spans_and_clears_history` | c 評議 | Refiner |
+| `refiner_reset_writes_a_separator_into_an_open_transcript` | c 評議 | Refiner |
+| `reset_live_session_emits_summary_then_reset_in_order` | a | R12m |
+| `reset_live_session_tolerates_every_optional_piece_being_none` | a | R12m |
+| `reset_live_session_flushes_pending_refine_before_summarizing` | c 評議 | Refiner |
+| `control_queue_submit_does_not_run_synchronously` | a | R12m |
+| `control_queue_poll_runs_queued_callables_in_fifo_order` | a | R12m |
+| `control_queue_poll_with_nothing_queued_is_a_noop` | a | R12m |
+| `control_queue_poll_sets_the_event_after_running` | a（`oneshot` の返事） | R12m |
+| `run_stream_applies_a_submitted_task_on_the_decode_thread_not_the_submitter` | a | R12m |
+| `get_config_reports_current_values` | a | R12m |
+| `post_config_applies_a_subset_of_keys` | a | R12m |
+| `post_config_invalid_value_returns_400_with_message` | a | R12m |
+| `post_reset_calls_the_reset_function` | a | R12m |
+| `post_reset_pending_returns_202` | a | R12m |
+| `only_applies_to_ja_zh_yue` | a | R12k |
+| `empty_text_is_a_noop` | a | R12k |
+| `magnitude_form_full_arithmetic_without_big_units` | a | R12k |
+| `magnitude_form_keeps_man_and_oku_as_literal_units` | a | R12k |
+| `traditional_wan_and_liang_forms` | a | R12k |
+| `decimal_digit_by_digit_reading` | a | R12k |
+| `decimal_with_magnitude_integer_part` | a | R12k |
+| `bare_digit_run_reads_digit_by_digit` | a | R12k |
+| `single_bare_numeral_untouched` | a | R12k |
+| `idioms_and_proper_nouns_stay_untouched` | a | R12k |
+| `default_exclusion_list_blocks_a_longer_run_directly` | a | R12k |
+| `user_exclude_adds_to_builtin_list` | a | R12k |
+| `user_force_wins_over_rule_output` | a | R12k |
+| `user_force_can_apply_to_text_the_rules_would_leave_alone` | a | R12k |
+| `golden_file_is_self_consistent` | a | R12p |
+| `golden_wavs_are_the_ones_that_were_recorded` | a | R12p |
+| `references_still_match_the_fleurs_manifest` | a | R12p |
+| `pipeline_still_produces_the_golden_text` | a | R12p |
+| `spec_file_exists_and_declares_its_generator` | c | R12s2 |
+| `config_matches_the_live_dump` | c | R12s1 |
+| `dump_needs_no_models_directory` | c | R12s1 |
+| `refiner_close_ends_the_worker_thread` | c 評議 | Refiner |
+| `refiner_close_is_idempotent` | c 評議 | Refiner |
+| `refiner_close_runs_the_queued_backlog_first` | c 評議 | Refiner |
+| `refiner_refuses_work_after_close` | c 評議 | Refiner |
+| `closing_the_refiner_releases_the_engine` | c 評議 | Refiner |
+| `refiner_close_closes_the_transcript_file` | c 評議 | Refiner |
+| `build_vad_raises_not_exits_when_model_missing` | a | R12n |
+| `run_stream_stops_mid_wav_when_stop_event_is_set` | a | R12o |
+| `run_stream_without_stop_event_runs_to_completion` | a | R12o |
+| `mic_chunks_notices_stop_event_without_audio` | a | R12o |
+| `reconstruct_inserts_period_and_comma_after_token_end` | c | R12t1 |
+| `reconstruct_inserts_question_mark` | c | R12t1 |
+| `reconstruct_inserts_exclamation_mark` | c | R12t1 |
+| `reconstruct_no_mark_is_noop` | c | R12t1 |
+| `reconstruct_ignores_special_token_offsets` | c | R12t1 |
+| `reconstruct_only_first_mark_per_position_wins` | c | R12t1 |
+| `reconstruct_multi_sentence_marks_mid_and_end` | c | R12t1 |
+| `punct4_labels_order` | c | R12t1 |
+| `decode_gates_remove_weak_marks_before_argmax` | c | R12t1 |
+| `restore_smoke_question` | c | R12t2 |
+| `restore_smoke_exclamation` | c | R12t2 |
+| `restore_smoke_only_inserts_marks` | c | R12t2 |
+| `restore_smoke_empty_string` | c | R12t2 |
+| `missing_model_dir_raises_file_not_found` | c | R12t2 |
+| `fast_path_default_finds_both_real_speakers` | 材料 | R12u2 |
+| `provisional_display_does_not_reproduce_section_9s_swallowing_bug` | 材料 | R12u2 |
+| `hysteresis_can_swallow_a_rare_real_speaker` | 材料 | R12u2 |
+| `digits_pass_when_source_has_no_ascii_digits` | a | R12p |
+| `digits_pass_on_exact_and_superset` | a | R12p |
+| `digits_fail_on_mangled_number` | a | R12p |
+| `preroll_prepends_context` | a | R12p |
+| `preroll_never_bleeds_into_previous_segment` | a | R12p |
+| `preroll_respects_rolling_buffer_offset` | a | R12p |
+| `load_replacements_formats` | a | R12p |
+| `load_replacements_empty_path` | a | R12p |
+| `resolve_punct_model_accepts_known_values` | c | R12t3 |
+| `resolve_punct_model_rejects_unknown_value` | c | R12t3 |
+| `punct_property_defaults_to_bert` | c | R12t3 |
+| `punct_property_builds_4class_when_selected` | c | R12t3 |
+| `punct_property_4class_missing_falls_back_to_bert_with_warning` | c | R12t3 |
+| `punct_property_disables_when_both_models_unavailable` | c | R12t3 |
+| `punct4_prefers_int8_when_present` | c | R12t3 |
+| `refiner_add_span_keeps_same_language_in_one_group` | c 評議 | Refiner |
+| `refiner_add_span_splits_group_at_language_boundary` | c 評議 | Refiner |
+| `refiner_add_span_splits_again_on_return_to_original_language` | c 評議 | Refiner |
+| `refiner_worker_prints_groups_in_enqueue_order_despite_slower_first_decode` | c 評議 | Refiner |
+| `refiner_shutdown_must_drain_full_backlog_not_just_last_task` | c 評議 | Refiner |
+| `compute_accept_key_matches_rfc_example` | a | R12j |
+| `parse_handshake_request_extracts_path_and_key` | a | R12j |
+| `parse_handshake_request_rejects_non_websocket` | a | R12j |
+| `parse_handshake_request_rejects_missing_key` | a | R12j |
+| `build_handshake_response_contains_correct_accept` | a | R12j |
+| `build_handshake_request_roundtrips_through_parse` | a | R12j |
+| `frame_roundtrip_unmasked_binary` | a | R12j |
+| `frame_roundtrip_masked_text` | a | R12j |
+| `frame_masked_bytes_differ_from_plaintext_on_wire` | a | R12j |
+| `decode_frame_incomplete_returns_none` | a | R12j |
+| `decode_frame_two_frames_in_one_buffer` | a | R12j |
+| `decode_frame_large_payload_uses_64bit_length` | a | R12j |
+| `frame_close_and_ping_opcodes_roundtrip` | a | R12j |
+| `decode_pcm16_mono_roundtrip` | a | R12j |
+| `decode_pcm16_drops_trailing_odd_byte` | a | R12j |
+| `decode_pcm16_averages_stereo_to_mono` | a | R12j |
+| `decode_pcm16_empty_input` | a | R12j |
+| `resample_linear_identity_when_rates_match` | a | R12j |
+| `resample_linear_upsamples_to_expected_length` | a | R12j |
+| `resample_linear_downsamples_to_expected_length` | a | R12j |
+| `resample_linear_preserves_a_ramp_shape` | a | R12j |
+
+`/ingest` の手順と frame の 13 行の置き場は、T の 5.3 の `hayamimi/src/ingest.rs` ではなく `hayamimi-eval/src/ws.rs` である。`hayamimi` の `/ingest` は axum の WebSocket（`ingest.rs` の `WebSocketUpgrade`）で手順と frame を持たず、手で書いた codec は測りの道具の側に在るからである。置き場の列の書き換えは T の席が持つ。
+(a) の行は module の在り処までを確かめ、関数の一致は確かめていない。席が同じ振る舞いの関数を見つけられなければ、その行を (c) として設計の席へ返す（10 の H63）。
+
+#### 作る slice
+
+見積りは 1 席、cargo の並列 2、release の build を 1 回含む分である。根拠は変える file と関数の数と、書く test の本数である。
+
+| slice | 中身 | 変える file と関数 | 見積り | 優先 | 受入 ID | 受入 test の名前 |
+|---|---|---|---|---|---|---|
+| R12a1 | rp19 の照合。5 種の `写さない`、`rp19_not_yet.txt`、`ALLOWED_NOT_YET` | `native/hayamimi-eval/tests/rp19.rs`（新規）、関数 3（表を読む、list を読む、照らす）、一覧の file 1 | 55 分 | 0（他の slice の門） | RP-19 | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` |
+| R12h | session の reset が、前の session の音声の履歴、言語の粘り、話者を忘れる | `hayamimi-asr/src/audio.rs` の `History::clear`、`pipeline.rs` の `Engine::reset_session` と 3 つを受ける小さな関数 `reset_parts`、`hayamimi/src/session.rs` の `reset` が呼ぶ。3 file、関数 3 | 40 分 | 1 | RP-48 | `reset_parts_forget_the_previous_sessions_audio_language_and_speakers` |
+| R12i | `final` の `switched` を前の `final` の言語から決める | `hayamimi/src/session.rs` の `Stats` に `last_final_lang` と `switched_to`、`wire.rs` の `final_event` に引数 1。2 file、関数 2 | 30 分 | 2 | RP-49 | `final_event_switched_true_when_language_changes` |
+| R12m | (a) server と命令と hub の 17 行 | `routes.rs`、`control.rs`、`server.rs`、`session.rs`、`wire.rs` に test だけ | 55 分 | 3 | RP-19 | 同上（R12a1 の名前） |
+| R12n | (a) VAD の 11 行と `build_vad_raises_not_exits_when_model_missing`、(c) 作り直しの失敗を注入する口 1（`live_vad_failed_rebuild_preserves_active_and_pending_state`）。計 13 行 | `hayamimi-asr/src/vad.rs` に失敗を注入する口 1（test の build だけ）と test | 50 分 | 3 | RP-19 | 同上 |
+| R12o | (a) 取り込みの 10 行と止める合図の 3 行 | `hayamimi/src/capture/mod.rs`、`combine.rs`、`session.rs` に test。`put_latest` に当たる関数が無ければその行を (c) として設計へ返す | 55 分 | 3 | RP-19 | 同上 |
+| R12j | (a) `/ingest` の 21 行。手順と frame の 13 行は `hayamimi-eval/src/ws.rs`（`accept_key`、`encode_frame`、`decode_frame`）、PCM の 4 行は `hayamimi/src/capture/convert.rs` の `pcm16_to_f32`、resample の 4 行は `hayamimi-asr/src/audio.rs` | test だけ、3 file | 50 分 | 4 | RP-19 | 同上 |
+| R12k | (a) ITN の 14 行 | `hayamimi-asr/src/itn.rs` に test | 45 分 | 4 | RP-19 | 同上 |
+| R12p | (a) 残りの 17 行（分割再試行 2、preroll 3、置換辞書 2、`GroupDiarizer` 2、golden 4、V の数 3、句読点の on/off 1） | `decode.rs`、`audio.rs`、`replace.rs`、`diarize.rs`、`hayamimi-asr/tests/ja_golden.rs`、`hayamimi-relay` の V の test | 55 分 | 4 | RP-19 | 同上 |
+| R12l | (a) DER の 17 行。`segments_to_der_tuples_*` は `der::scorable`、`group_segments_*` は `hayamimi-asr::refine::group_ranges` | `hayamimi-eval/src/der.rs`、`hayamimi-asr/src/refine.rs` に test | 50 分 | 5 | RP-19 | 同上 |
+| R12q | DER の Miss、FA、Confusion の内訳 | `hayamimi-eval/src/der.rs` に `breakdown` 1 と内訳の struct 1 | 35 分 | 5 | RP-50 | `der_breakdown_isolates_confusion_from_miss` |
+| R12r | Windows の COM の初期化の HRESULT を分ける。`CaptureError` に endpoint の名前 | `capture/windows.rs` に HRESULT を分ける純関数 1 と scope の型 1、`capture/mod.rs` の `CaptureError` の欄 1。2 file | 55 分 | 6 | RP-51 | `windows_com_scope_uses_existing_changed_mode_apartment` |
+| R12s1 | `hayamimi config dump` | `args.rs` の subcommand、新しい `config_dump.rs` の関数 1、起動の分岐 1。3 file | 50 分 | 6 | RP-19 の spec の行 | `config_matches_the_live_dump` |
+| R12s2 | `docs/spec/ja_pipeline_spec.json` を `config dump` で作り直し、`generated_by` を `hayamimi config dump` にする | data の file 1、test 1 | 25 分 | 6（R12s1 の後） | RP-19 の spec の行 | `spec_file_exists_and_declares_its_generator` |
+| R12t1 | 4 クラスの句読点の純関数（`reconstruct_*` 7、`punct4_labels_order`、`decode_gates_remove_weak_marks_before_argmax`） | 新しい `hayamimi-asr/src/punct/four.rs`、関数 3 | 50 分 | 7 | RP-53 | `reconstruct_inserts_question_mark` |
+| R12t2 | 4 クラスの句読点の session（`restore_smoke_*` 4、`missing_model_dir_raises_file_not_found`） | `punct/four.rs` に開く関数 1 と復元 1。model は `models fetch --punct-4class` が取る | 60 分 | 7（R12t1 の後） | RP-53 | `restore_smoke_question` |
+| R12t3 | `--punct-model {bert,4class}` の選択と落とし（`resolve_punct_model_*` 2、`punct_property_*` 4、`punct4_prefers_int8_when_present`） | `args.rs`、`punct/mod.rs`、関数 2 | 50 分 | 7（R12t2 の後） | RP-53 | `punct_property_4class_missing_falls_back_to_bert_with_warning` |
+| R12u1 | 2 人の話者の音声の材料を AMI の RTTM から作る | `hayamimi-eval` に切り出しの関数 2（窓を選ぶ、wav と manifest を書く） | 45 分 | 8 | RP-54 | `two_speaker_clip_is_cut_by_the_rule_from_ami` |
+| R12u2 | 材料を読む 4 行 | `diarize.rs`、`speaker.rs` に test（model が要るので `--ignored`） | 40 分 | 8（R12u1 の後） | RP-54 | `group_diarizer_finds_multiple_speakers_on_two_speaker_audio` |
+| R12a2 | RP-9 の確かめ | `native/hayamimi-eval/tests/rp09.rs`、R10 の `descendants.rs` を使う | 40 分 | 8 | RP-9 | `rp09_no_python_at_run_time` |
+
+優先は速さ、品質の順で、同じ順の中は live の経路に近い物を先にした。
+R12h が先頭なのは、今の `session.rs` の `reset` が `Engine::finish` と `Stats` の置き直しだけを行い、`History` の buffer、`Router::reset_session`（言語の粘り）、話者の重心をどれも消さないからである（code を読んで確かめた。`session.rs` の `reset`、`pipeline.rs` の `Route`、`audio.rs` の `History`）。
+その結果、reset の後の最初の確定文は前の session の言語に粘って振り分けられ（違う言語なら言語判定の切り替えを 2 回待つ）、前の session の話者の印を受け、preroll は reset の前の音声を最大 1 秒取り込む。
+振り分けの誤りは誤り率と `L_asr` の両方に効く。
+`History::clear` は buffer を空にし、`last_segment_end` を今の終わりに置き、絶対の位置（`offset`）は戻さない。`t1_s` は process の流れの先頭からの位置で（3.1）、戻すと reset の前後で `t1_s` が重なるからである。
+R12i は字幕の言語の印と mobile の consumer が読む値で、`wire.rs` が `switched` を常に偽で出している。
+R12q は評価の道具だけ、R12r は Windows の取り込みの thread が自前で始めるので既に別の mode の thread に当たらない口、R12s は文書の出所、R12t は既定で切った opt-in なので、効く物の後に置いた。
+
+#### 評議へ
+
+**Refiner（清書の非同期の worker、transcript の file、`refine` の event）の 17 行と recluster の 4 行**は、作るか移さないかを評議へ出す。
+今の `hayamimi` は清書の再分離を評価の道具（`hayamimi-eval` の `der_run.rs` が `hayamimi-asr::refine::refine_group` を呼ぶ）でだけ行い、live の経路に清書の worker を持たない。`session_summary` の `refine_*` は 0 の定数である。
+清書は字幕の確定文ではなく transcript の品質に効き、live の確定と同じ CPU を取り合う。作ると live の `L` に負荷が乗りうる一方、RP-2 の `cer_refine_vs_reference` と transcript の頁の清書の列は清書が無いと測れない。
+速さと品質がここでぶつかり、設計の文から決まらない。
+対象の行は、`refiner_close_*` 4、`refiner_refuses_work_after_close`、`closing_the_refiner_releases_the_engine`、`refiner_reset_*` 2、`reset_live_session_flushes_pending_refine_before_summarizing`、`live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates`、`eventhub_replays_refine_events_to_new_subscribers`、`refiner_add_span_*` 3、`refiner_worker_prints_groups_in_enqueue_order_despite_slower_first_decode`、`refiner_shutdown_must_drain_full_backlog_not_just_last_task`、`production_over_splits_relative_to_eval_replica_on_a_skipped_vad_segment` と、`pool_audio_for_group_*` 4 である。
+recluster を同じ問いに入れるのは、`global_recluster.py` の呼び手が清書の経路（`realtime_transcribe.py` の `global_recluster` の option と `eval_diar.py`）だけだからである。
+評議の判定が出るまで、この 21 行は `rp19_not_yet.txt` に残る。
+
+#### 写さない行（Python の口）
+
+RP-19 の 5 つ目の種類は `写さない：Python の口（<Rust の在り処、または持たない機構>）` とする。
+ラベルだけで在り処も機構も無い行は、(a) か (c) に戻す。
+
+| case | Rust の在り処、または持たない機構 |
+|---|---|
+| `cli_rejects_loopback_on_non_windows_before_loading_models` | 3.15 は要る物が無いことで起動を止めないので、loopback の無い OS では取り込みの落とし（`capture.fallback.single` か `none`、RP-29 の R5 の行）で動き続け、拒む口を持たない |
+| `loopback_rejects_corrupt_channel_or_window_shapes` | Rust の loopback は `wasapi` が返す型つきの format（channel の数と frame の数）から窓を組むので（`capture/windows.rs`、`capture/convert.rs`）、形の壊れた配列を受ける口が無い |
+| `mix_microphone_failure_is_fatal_and_stops_speaker` | 3.15 はマイクが開けない時に在る音源だけで動かし、`capture/combine.rs` は speaker だけの窓をそのまま流すので、致命にする形を持たない |
+| `mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | Rust の mix はマイクの窓を時計にして同じ時刻の speaker の窓を足し（`capture/combine.rs`）、speaker の側が詰まってもマイクの窓を捨てないので、両側を捨てる形を持たない |
+| `eventhub_add_listener_receives_the_raw_dict_synchronously` | Rust の `Hub`（`server.rs`）は broadcast の channel で文字列の event を配り、同じ process の中で同期に呼ぶ listener の口を持たない。埋め込む側は `/events` の SSE を読む（3.8） |
+| `eventhub_listener_exception_is_swallowed_and_reported_once` | 同期の listener の口が無いので（上の行）、listener が投げる例外も無い |
+| `eventhub_a_second_broken_listener_gets_its_own_report` | 同上 |
+| `control_queue_poll_sets_event_and_continues_past_a_raising_callable` | Rust の命令は closure ではなく data の `Command`（`control.rs`）で、投げる命令が無い。適用の失敗は `session.rs` の `apply` の `Result` で loop に返る |
+| `control_queue_task_runs_on_the_thread_that_calls_poll_not_the_submitter` | 命令が closure でないので、走る thread を問う物が無い。命令を decode の loop で適用することは `run_stream_applies_a_submitted_task_on_the_decode_thread_not_the_submitter`（R12m）が持つ |
+| `run_stream_polls_control_once_per_chunk` | Rust の session の loop は窓ごとに届いた命令を全部適用する（`session.rs` の `apply_commands`）。1 窓に 1 回 poll する口は無い |
+| `run_stream_without_control_is_unaffected` | Rust の `Session` は命令の受け口を常に持ち、受け口の無い形が無い |
+| `config_and_reset_404_without_controls_attached` | Rust の server は `/config` と `/reset` を session の命令の受け口へ常に結び（`routes.rs`）、受け口を付けない server の形が無い |
+| `post_reset_without_reset_fn_returns_400` | 同じ理由で reset の関数の無い形が無い。loop が止まった時は `routes.rs` の `reset` が `applied(false)` を返す |
+| `set_punctuate_reenable_after_degrade_clears_punct_for_retry` | Rust は句読点の model を起動時に 1 回開き、開けなければ 3.15 の形で落として実行中に読み直さない。`Engine::set_punctuate` は on と off の切り替えだけで、再試行する状態を持たない |
+| `run_clip_leaves_no_engine_behind` | Rust の `Engine` は持ち主の scope を出た時に `Drop` で手放され、process 全体から引く global や回収待ちの参照を持たない |
+
+15 行である。T の 5.3 への移しと 5.2 の凡例の 5 つ目の種類は T の席が書く。
+
+#### 材料が無い 4 行
+
+`group_diarizer_finds_multiple_speakers_on_two_speaker_audio`、`fast_path_default_finds_both_real_speakers`、`provisional_display_does_not_reproduce_section_9s_swallowing_bug`、`hysteresis_can_swallow_a_rare_real_speaker` は `testdata/two_speakers.wav` を読み、その file は repo にも本体の `testdata/` にも無い（Python の側も skip している）。
+材料は作る（R12u1）。
+規則は、`testdata/eval_diar/` の AMI の 5 会議の RTTM を会議の名前の順に読み、話者がちょうど 2 人で重なりが無く、話者の区間が 4 つで、少ない方の話者の区間が 1 つ（2〜4 秒）である最初の窓を切り出すことである（Python の test の docstring が述べる「4 区間のうち 1 つが約 3 秒の 2 人目」の形）。
+切った会議の名前、窓の始まりと終わり、音声の sha256 を manifest に書き、sha256 は記録だけにする。
+作らずに外す形は採らない。話者の印は transcript の品質に効き、AMI の音声が手元に在るので材料を作る手数は 1 slice に収まるからである。
+規則に合う窓が 5 会議に無ければ、R12u1 の席が窓の条件（区間の数、秒）と見つかった窓の数を設計の席へ返す。
+
+#### 13:55 までに入る組
+
+実装の窓は 11:45〜13:00、席は 6 で、席ごとに cargo の並列は 2 である。
+13:00〜13:55 は、書いていない席が受入を打ち直してから merge する。
+
+| 席 | slice | 見積り |
+|---|---|---|
+| 1 | R12a1 | 55 分 |
+| 2 | R12h | 40 分 |
+| 3 | R12i、続けて R12q | 30 分 + 35 分 |
+| 4 | R12m | 55 分 |
+| 5 | R12n | 50 分 |
+| 6 | R12j | 50 分 |
+
+merge の順は R12a1、R12h、R12i、R12m、R12n、R12j、R12q である。R12h、R12i、R12m は `session.rs` を触るので、この順で後の席が前の席の差に重ねる。
+入らない slice は R12o、R12p、R12k、R12l、R12r、R12s1、R12s2、R12t1、R12t2、R12t3、R12u1、R12u2、R12a2 と、評議へ出した Refiner と recluster の 21 行である。
+入る組を足すと `rp19_not_yet.txt` は 172 行（187 から写さない 15 を除いた数）から 172 − 1 − 4 − 2 − 17 − 13 − 21 = 114 行に減る（見込み。R12n の注入の口の行を含む）。
+R11 はこの組では入らない。
+
 ## 9. 決めたこと
 
 評議の判定（2026-10-13）で決めた物は、この文書の本文に写した。
@@ -1089,6 +1418,10 @@ u14 は 2 回とも T の訳が V に落ち、E を待った（T 255 ms と E 11
 - **H61** 英語側の否定の表（`verify_markers.toml` の `en.negation`）は語と `n't` だけを読み、接頭辞の否定（`un-`、`dis-`、`in-`。表に在る `unable` を除く）を読まない。そのため原文の否定を接頭辞で訳した正しい訳（`興味がなさげな顔だった。`→`He looked uninterested.`）が `Held(Negation)` で止まる（T-RP-43-012 が固定する）。止まった T の訳は E を待ち、両方止まれば訳を出さない（H53）。
 決め：止まりを受け、code も表も今は変えない。止まる向きは誤った訳を字幕に出さない側で、速さの損は E の 1 回の待ちである。接頭辞の規則（`un` で始まる語を否定と読む）は採らない。`under`、`until`、`unit`、`understand`、`discuss`、`information` のような否定でない語を否定と読み、否定の無い原文の訳を止める（否定の検査は有無の一致を見る。T-RP-43-008）からである。直すときは、記録に出た語だけを `en.negation` の `markers` に 1 語ずつ足す（`unable` と同じ形。表の data の変更で、code は要らない）。
 機械が拾う物は、E2E-1 の打ち直しの `translate.line.held` の T の側の理由が `negation` の行と、`--verify-text` の file に出た訳の文字列である。持ち主は E2E-1 の打ち直しの席で、`negation` で止まった訳のうち接頭辞の否定の語を持つ行を数え、1 行以上なら語を名指しして設計の席へ返す。表に足す時は RP-43 の 012 の 2 件目が落ちるので、同じ手番で test-designer の席が書き直す。
+- **H62** 6 席の申告の足し算（a 113、b 14、c 54、材料無し 4、割れる 2）と 8 の「RP-19 の未実装 187 行の仕分けと slice」の表（a 111、b 15、c 57、材料 4）は、置き方の違う行が在る。割れた 2 行は名指しが届いておらず、照らしていない（NOT VERIFIED）。表が正である。持ち主は T の席で、5.3 へ移す時に 6 席の返しと表を行ごとに照らし、違う行を名指しして設計の席へ返す。
+- **H63** (a) の 111 行は、その行の module に同じ振る舞いの code が在ることまでを読んで決め、関数ごとの一致は確かめていない（NOT VERIFIED。とくに `put_latest_keeps_only_newest_bounded_items` は同じ名前の関数が無い）。数えた式は `fn` の名前を見るので、test でない同じ名前の関数も在ると数える。持ち主は各 slice の実装の席で、同じ振る舞いが無ければその行を (c) として設計の席へ返し、`rp19_not_yet.txt` には残す。
+- **H64** Refiner の 17 行と recluster の 4 行は、作るか移さないかが設計の文から決まらない（8 の同じ小節の「評議へ」）。評議の席が、清書の worker を live に足して `L` に乗る負荷と、transcript の清書の列と RP-2 の清書の CER のどちらを取るかを決める。持ち主は受付（評議へ運ぶ）で、判定の後に設計の席が作る slice か `写さない` の理由を書く。
+- **H65** `History::clear` が絶対の位置を戻さない形（R12h）は、Python の `test_audio_history_clear_empties_buffer_and_offsets` の「offsets を空にする」と違う。T の case 行は「buffer が空で、reset の前の sample が preroll に入らない」に合わせる。持ち主は T の席である。
 - **H58** R8m の `listen` が本物の中継の event を本物の `/events` から SSE で読むことは打てていない（WSL に出力の装置が無い）。持ち主は E2E の打ち直しの席で、Windows の実機で RP-41 の `--ignored` の行と E2E-2 を打つ。
 - **H55** Windows の `hayamimi.exe` が今の main で build されておらず、RP-10（`lang` の条件つき）と Windows の実機の E2E を打てない。持ち主は Windows の build を持つ席（R10 の続き）で、build の後に、書いていない検証の席が RP-10 を打つ。
 - **H51** V の数の検査は、ko の語だけで書いた数（`오백만`）と、es の小数点が読点の数（`1,5 millones`）を読まない。原文と同じ数の正しい訳が `number` で止まりうる。es の `1,5` は区切りの読点と見分けられない。持ち主は R8l の後に `numbers.rs` を触る席で、dev の組の vprobe で `number` で止まった参照訳の行を数え、語だけの数が何行在るかを材料に、直すかを評議へ出す。
