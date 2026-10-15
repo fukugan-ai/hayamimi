@@ -7,7 +7,7 @@
 
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::logging::MemorySink;
-use hayamimi_relay::verify::{HoldReason, Verdict, Verifier};
+use hayamimi_relay::verify::{HEDGE_EVENT, HoldReason, Verdict, Verifier};
 
 /// A Japanese source with "なさそう", "なさげ" or "なさすぎ", a translation that
 /// keeps the negation and one that drops it.
@@ -79,16 +79,16 @@ const CONJUGATED: [(&str, &str, &str); 3] = [
 
 /// The same first two sources with a translation that keeps the negation in a
 /// form the English tables do not read.
-const NEGATION_THE_TABLES_DO_NOT_READ: [(&str, &str, HoldReason); 2] = [
+const NEGATION_THE_TABLES_DO_NOT_READ: [(&str, &str, Option<HoldReason>); 2] = [
     (
         "ご飯が美味しくなさそうに見える。",
         "The food does not look tasty.",
-        HoldReason::Uncertainty,
+        None,
     ),
     (
         "興味がなさげな顔だった。",
         "He looked uninterested.",
-        HoldReason::Negation,
+        Some(HoldReason::Negation),
     ),
 ];
 
@@ -205,34 +205,45 @@ fn rp43_a_negated_nasasou_with_a_hedge_word_in_the_translation_passes() -> Resul
     Ok(())
 }
 
-/// T-RP-43-011: pins the behavior of H59. The same sources with a correct
-/// translation that has no hedge word of the table are held for
-/// `uncertainty`. This row falls on the day H59 is fixed.
+/// The `translate.hedge.logged` events V records for a Japanese source and its
+/// translation: a hedge that only one side carries is logged once, not held.
+fn hedge_events(src: &str, translation: &str) -> Result<usize, String> {
+    let mut sink = MemorySink::default();
+    let verifier = Verifier::open(None, &mut sink)?;
+    verifier.log_pair_hedge("id", src, translation, Lang::Ja, &mut sink);
+    Ok(sink
+        .events
+        .iter()
+        .filter(|event| event.event == HEDGE_EVENT)
+        .count())
+}
+
+/// T-RP-43-011: a hedge that only the source carries does not hold a ja to en
+/// line (RP-48). The same sources with a correct translation that has no
+/// hedge word of the table go out, and the disagreement is logged once.
 #[test]
-fn rp43_a_negated_nasasou_without_a_hedge_word_in_the_translation_is_held_for_uncertainty()
+fn rp43_a_negated_nasasou_without_a_hedge_word_in_the_translation_goes_out_and_logs_the_hedge()
 -> Result<(), String> {
     for (src, translation) in NEGATED_WITHOUT_HEDGE {
-        assert_eq!(
-            verdict(src, translation)?,
-            Verdict::Held(HoldReason::Uncertainty),
-            "{src}"
-        );
+        assert_eq!(verdict(src, translation)?, Verdict::Ok, "{src}");
+        assert_eq!(hedge_events(src, translation)?, 1, "{src}");
     }
     Ok(())
 }
 
-/// T-RP-43-012: pins the current tables. A correct translation that keeps the
-/// negation in a form the tables do not read is held. This row falls on the
-/// day the tables read those forms.
+/// T-RP-43-012: a correct translation that keeps the negation in a form the
+/// tables do not read. The first goes out with its hedge disagreement logged
+/// (RP-48); the second, with the prefix `un-`, is held for `negation`. The
+/// second row falls on the day the tables read those forms.
 #[test]
-fn rp43_a_conjugated_form_whose_translation_the_tables_do_not_read_is_held_for_now()
+fn rp43_a_conjugated_form_whose_translation_the_tables_do_not_read_goes_out_or_is_held_for_now()
 -> Result<(), String> {
     for (src, translation, reason) in NEGATION_THE_TABLES_DO_NOT_READ {
-        assert_eq!(
-            verdict(src, translation)?,
-            Verdict::Held(reason),
-            "{src}: {translation}"
-        );
+        let expected = reason.map_or(Verdict::Ok, Verdict::Held);
+        assert_eq!(verdict(src, translation)?, expected, "{src}: {translation}");
+        if reason.is_none() {
+            assert_eq!(hedge_events(src, translation)?, 1, "{src}");
+        }
     }
     Ok(())
 }

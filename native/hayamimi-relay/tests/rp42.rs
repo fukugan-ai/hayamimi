@@ -260,14 +260,24 @@ fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
     Ok(())
 }
 
-/// T-RP-42-006: every reason V gives is a possible reason for T. E always
-/// answers with the same text, so only T's side changes.
+/// T-RP-42-006: every reason that holds a ja to en line is a possible reason
+/// for T. E always answers with the same text, so only T's side changes.
+/// `uncertainty` is not one of them: a hedge that only one side carries does
+/// not hold a line into English (RP-48), so the hedged T below passes V and
+/// the line goes out with no held event.
 #[test]
-fn rp42_every_reason_of_v_can_be_the_reason_of_t() -> TestResult {
+fn rp42_every_reason_that_holds_a_ja_to_en_line_can_be_the_reason_of_t() -> TestResult {
     const WITH_NAME: &str = "五人はAcmeにいませんでした。";
+    let hedged = "Maybe five were not there.";
+    let (line, events) = run_line(SOURCE, hedged, E_NO_NUMBER, &mut NoObserver)?;
+    assert_eq!(line.status, Status::Ok);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.event != "translate.line.held")
+    );
     let cases = [
         (SOURCE, "Six were not there.", "number"),
-        (SOURCE, "Maybe five were not there.", "uncertainty"),
         (SOURCE, "Sure, five were not there.", "form"),
         (WITH_NAME, "Five were not there.", "proper_noun"),
     ];
