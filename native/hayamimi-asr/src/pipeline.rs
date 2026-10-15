@@ -622,6 +622,9 @@ impl Engine {
         let started = Instant::now();
         route.vad.flush();
         let segments = route.vad.take_segments()?;
+        // A detector aborts when it is fed after a `flush` inside a stream, so
+        // the next audio goes to a new one. Nothing is in progress or waiting.
+        route.vad.rebuild(route.vad.sensitivity())?;
         route.vad_ms += millis(started);
         self.finish_segments(segments)
     }

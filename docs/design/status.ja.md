@@ -1,17 +1,47 @@
 # hayamimi の実装の状態
 
-正本は英語版の [status.md](status.md) で、この文書はその日本語版である。食い違ったときは英語版に従う。
+正本は日本語のこの文書で、英語版は [status.md](status.md) である。
+意味が食い違ったときは、この文書を先に直してから英語版を直す。
 
-slice ごとに、状態、merge の commit、検証の出所、受入の通過、残る穴を 1 行ずつ書く。
+この文書は、完成までに残っている物と、slice ごとの状態を書く。
+冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `f0aeaf4` である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `3421440`（2026-10-15 17:03 に `git fetch` した後の `origin/main`）である。
+
+## 完成までに残っている物
+
+完成の条件は、実行時の経路から Python が無くなって消えることと、主指標 `L`（発話の終わりから訳の字幕が出るまでの遅れ）が目標を満たすことである。
+次の表は、その条件に届いていない物を、持ち主と止めている物つきで並べる。
+「持ち主」は、その物を動かす席である。
+記録に持ち主が無い物は「記録に無い」と書く。
+
+| 残っている物 | 今の状態 | 持ち主 | 止めている物 | 根拠 |
+|---|---|---|---|---|
+| RP-32：Python と Rust を同じ負荷で交互に 3 対流す（E2E-1 の正式な判定） | test は main に入った。実走は打っていない（`docs/results/rp32/` が無い） | E2E の席 | 各 run の前の 1 分の load が 2 未満であること（`rust_port.ja.md` の 6 の RP-32） | `0900a32`、`e745bd3` |
+| RP-33：T が V に落ちた行の最初の訳の段ごとの列 | test は main に入った。実走は打っていない | E2E の席 | RP-32 の Rust の run を読むので、RP-32 の実走が先に要る | `fccce49` |
+| RP-66：発話の終わりの待ち `d` を縮める 2 段の区切り（R8v） | 手番 1 の流し直しで通す線から外れた。評議 PAUSE。合否を文の途中の切断の率に替えた。T の行は書き直した（T-RP-66-040〜063）。手番 1b（仕分けの probe）は E2E の窓が閉じてから。設計と、停止条件 2 に当たった後の設計の直し（RP-68、H75、H76）は main に入った。実装は未着手 | R8v の席 | 手番 1b（仕分け）の結果を、文の途中の切断の率で判定すること。held-out を 1 回流すこと。その後に手番 2 で RP-68 の test を通してから 2 本目の detector を作る | 設計 `27efb3c`、直し `4ca0f86`（`5522942` で merge）、合否の線の書き直し `3fb8875`、T の書き直し `bcf41e0`、D の 2 文 `2705ffe`、probe `f925f8c`（branch `feat/r8v-probe`、main に無い） |
+| RP-67：`L` の p95 を 1000 ms 以下にする | 設計済みで未実装 | ja は訳の波の席、en は R7 の席 | R8v だけでは届かない。ja は `L` が訳の p95 1034 ms（E2E-1 の n=93）を下回れず、en は 1000 ms を超えてよい標本が 3 件までで上位 3 件が使い切っている（H69） | `27efb3c` |
+| RP-1 の ko、T-RP-1-013 の実記録、RP-10 の `lang` の条件。RP-22 と言語判定の結線は通過 | R3b と R3c は検証済みで merge 済み。RP-22 は peak 8936 MiB（上限 14000）で通過。RP-1 は ja、en、zh、yue が Python と同じ値で、ko だけが配る形の build で 0.087（Python は 0.081） | ko は評議が R11 の入口の上限（RP-36）で受けた。T-RP-1-013 は E2E の席。RP-10 は Windows の build を持つ席 | ko は ORT の build の違いで、閾値は緩めない（H35）。H55 は Windows の build が無いと書く | `0358773`、`b8fd07e`、`docs/results/r3/rp22_run.json` |
+| RP-44：新しい held-out の組（RP-35 の最終の測りに使う） | 組はできた（`testdata/heldout/set2/`、git の外。en、zh、ko、es 各 35 行） | R12y の席 | 組を使う入口（`hayamimi-relay eval` の `--final`、`--heldout`、`--direction`）と、同じ組を 2 回使う拒み（CS-30）が未実装 | `rust_port.ja.md` の 8 の R12y、README |
+| RP-9、RP-19：Python を消す（R11） | RP-19 は 187 本が未実装。`rp19.rs` と `rp09.rs` が無い。R12a から R12g の branch に独自の commit は 0 件 | R12 の席 | RP-19 の 187 本（Refiner の R12w0 から R12w4 を含む）が全部入るまで R11 を始めない（`rust_port.ja.md` の 3.2 の 2） | `80e2812` |
+| 重ね窓（`hayamimi-overlay`、透明で最前面の窓） | 未着手。`native/` に crate が無い | 記録に無い | `rust_port.ja.md` の 8 に slice の行が無い。設計は会話字幕の設計 3.12、受入は CS-10、CS-11、CS-12 | `git ls-tree origin/main native/` |
+| Zoom と Teams への送信の実機（CS-17、CS-18） | R8g は偽の受け手で検証済み。実機は打っていない | 記録に無い | Zoom の host の token と Teams の主催者の link が要る。手元にあるかは NOT VERIFIED | `a496066`、`state.json` の `blocked_on` |
+| 動画ファイルから SRT への実機（CS-14、CS-15） | R8g は検証済み。実機は日本語 9 秒の動画 1 本を CPU で通しただけ | 記録に無い | 英語の行、翻訳器、GPU、長い動画は通していない。MPC-HC が `<動画名>.ja.srt` を自動で読むかは NOT VERIFIED（会話字幕の設計 9 の H3、H18） | `a496066` |
+| OBS の字幕頁を OBS の中で測る（CS-16） | 未実施 | 記録に無い | 利用者の OBS が仮想カメラを使っていないときに、別の portable の OBS でだけ測る（会話字幕の設計 9 の H11） | 会話字幕の設計 9 |
+| マイクの実機（E2E-1） | 2026-10-15 15:43 に RDP のマイクで process A を起こし、起動までを機械で確かめた。記録は `docs/guide/run_hayamimi.ja.md` に入った。`capture.fallback.none` は 0 件、`asr.final.published` は 8 件 | 利用者の発話 | 人が日本語を話した結果は機械では確かめられない | `2d18f1d`（`5ad5da1` で merge） |
+| 対面のモード（1 本のマイクで日英の双方向） | 設計済み（評議 GO）。実装は R8v の merge の後の IP-S3 から | 設計の席 | R8v の merge。設計は `conversation_subtitles.ja.md` の 10 節、受入は IP-1〜IP-7 | `1ba9af7`（`docs/in-person`） |
+
+YouTube Live の字幕取り込みへの送信は作らない（会話字幕の設計 1 と 4）。
+配信では OBS の字幕頁を映像に焼き込む経路を使う。
+
+## slice ごとの状態
 
 状態の語は 5 つである。
 
-- **済み**：merge され、書いていない席の検証が可を出した。
+- **済み**（表では「検証済み」とも書く）：merge され、書いていない席の検証が可を出した。
 - **実装済み・検証待ち**：branch に commit してあり、merge はまだで、書いていない席の検証がまだ済んでいない。
 - **作業中**：branch か worktree で作っている。
-- **計画済み**：まだ作り始めていないが、07:00 の計画（`rust_port.ja.md` の 8 の「07:00 の計画」）の波に入っている。W1 は 2026-10-14 の 14:00〜20:00 JST、W2 は 21:00〜01:00、W3 は 2026-10-15 の 01:45〜04:15、W4 は 04:45〜05:45 である。
+- **計画済み**：まだ作り始めていないが、`rust_port.ja.md` の 8 の波に入っている。
 - **未着手**：まだ作り始めておらず、波にも入っていない。
 
 | slice | 状態 | merge の commit | 検証の出所 | 受入の通過 | 残る穴 |
@@ -33,16 +63,22 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 | R10（取得、文書、英語版） | 検証済み | `5861235`（R8f と一緒に fast-forward） | 独立検証で R10-V1〜V8 が可、`verify/w3-r10-r8f` で R8f と合わせた INT-1〜5 が可（検証の席の返答、git の外） | R10-V1〜V8。R8f と合わせて 2249 passed、0 failed、clippy 0 | H16 |
 | R8h（`L` の差の詰め、3.16） | 1 と 3 は検証済み（RP-31 の数え方、RP-32 の訳の取れた割合の判定、`asr.feed.waited` の log、`<run>.gpu.json` と `gpu_load::pair_is_valid`）。2 の B は R8f の V の直し。4（RP-32 の交互の run）は E2E の波で打つ | `7399db8` | 独立検証で R8h-V1〜V9 が可（検証の席の返答、git の外）。`verify-w3` で rp08 31、rp20 11、rp31 29、rp32 2 を打ち直して通過 | 2316 passed、FAILED 0、clippy 0、fmt 0。R8e の記録を数え直すと n 67、`L` の p50 1533 ms、p95 2752 ms、有効 100 のうち訳あり 66 で 20/23 を割る（検証の席の独立の式）。未実行は RP-32、RP-33、RP-34、RP-35、`gpu.json` を書く `stream` の実走 | H42、H43、H44。`r8a_follow` が AddrInUse で 1 回落ちた（単独の 3 回は通る）、原因は未特定 |
 | R8i（zh、ko、es の推量の不一致を log にだけ残す、3.6） | 検証済み。R8j（RP-38 の回帰と hub の test の直し）も検証済み | `aa85fb4`。R8j は `7f29938`。R8k（RP-36 の 005 と 006、RP-37 の 008〜017）は `6cf71ff` | 独立検証で V1〜V7 が可、`a730738`（検証の席の返答、git の外）。merge 後の木で relay 621 passed、0 failed、rp08 31、rp20 11、rp36 3 passed（1 ignored）、rp30 12 を打ち直し。R8j：独立検証で V1〜V6 が可、`a730738`（検証の席の返答、git の外）。merge 後の木で relay の binary 37、ok 行 37、623 passed、0 failed、rp08 31、rp20 11 を打ち直し。R8k：独立検証で V1〜V4 が可、`a53f30b`（検証の席の返答、git の外）。merge 後の木で `-p hayamimi-relay -p hayamimi-eval` が binary 64、ok 行 66（binary 64 と Doc-tests 2。`rp23` の入れ子の 4 行は数えない）、1433 passed、0 failed | RP-37 が通過。R8j：RP-38 が通り、陰性対照（`settle_other` で V を 2 回）は 2 対 1 で落ちる。hub の test は id を読んだ所で読み止め、枠の `\n\n` の前で比べていたのが原因で（H49 を閉じた）、単独 10/10 で通り、陰性対照は 5/5 で落ちる。R8k：12 本の名前が T と一致し、陰性対照（011 の変更）で 12 行が落ちる。T-RP-37-012 は `rp37.rs` の入力に揃えた。zh seed 0 の否定の壊し行 9/13→8/13（id 1512）は H36 の免除。未実行は、`pairs_seed1` が dev から seed 0 を除いた組であることの照らし（RP-37 の行） | H36、H48、H50、H52（全体の run で `cs28` が 1 回落ちた）。`aa85fb4` の全体の run は 2483 passed、0 failed、87 ignored。検証の席の 2471 と 86 は、`rp11` の `test result:` の行が log の行で 2 行に分かれ、1 行を拾えなかった数え |
-| E2E（端から端、2026-10-15） | 単独の 1 run で E2E-1 と E2E-2 の受入 test が PASS。評議の判定で、E2E-1 の正式な判定は RP-32 の交互の 3 対で出し、その 3 対は未実行 | なし。記録は `feat/r8n` の `9103c95` の `docs/results/e2e/`（`e2e1/e2e1.jsonl`、`e2e1/py1.jsonl`、`e2e2/e2e2.jsonl`）。run の build は main の `7ea558f` | 受入 test `e2e1_mic_process_ja_to_en_beats_python` と `e2e2_loopback_process_en_to_ja_within_budget` の PASS は実装の席の申告で、設計の席は打ち直していない。数は設計の席が `9103c95` の jsonl を jq で引き直し、`docs/results/e2e/README.md` の表と一致した | 有効は 3.1 の式で `--min-silence` 300 ms、`L` は有効のうち訳の取れた標本で取る（p は nearest rank）。E2E-1（`lat-ja`、23 発話 × 5）：Rust は有効 100、訳あり 93、`L` の p50 1415 ms、p95 1872 ms。Python（`py1`）は有効 100、訳あり 95、p50 1478 ms、p95 2187 ms。E2E-2（`lat-en`、15 発話 × 5、loopback の送り先）：有効 75、訳あり 70、p50 970 ms、p95 1303 ms。遅れの内訳：VAD が区切りを決めるまでの待ち d（`L_asr − L_dec`、有効な標本）は、ja（E2E-1 の Rust）が p50 865 ms、p95 1341 ms、en（E2E-2）が p50 456 ms、p95 706 ms。d は評議の席の申告を設計の席が引き直した値である。`L` はこの待ちを含み、`t_end` の定義（manifest の発話の終わりの sample を送った時刻、3.1）は変えない。RP-22 は別の run（`docs/results/r3/rp22_run.json`）で通過：peak 8936 MiB（上限 14000）、起動前 7443 MiB、memory の落とし 0。RP-5 は打ち直していない（前の run で速報の p95 が Rust 3737 ms 対 Python 3265 ms、H44） | RP-32 の交互の 3 対。RP-5 の打ち直し。R8u（作らない）、R11、R12y は 13:55 の組に入らない。H53、H54、H55 |
-| R8m、R8o、R8p（E2E の後：`listen` を SSE で、両方止めた行の観測と否定の表、E の雛形を剥がす） | 検証済み | R8m は `295fed8`。R8o は `7b3544c`。R8p は `cd91986` | どれも独立検証で可（検証の席の返答、git の外） | R8m：eval の Running 29＋Doc-tests 1＝ok 行 30、813 passed、0 failed（RP-41）。R8o：relay の 39＋1＝ok 行 40、653 passed（RP-42、RP-43）。R8p：relay の 40＋1＝ok 行 41、675 passed、0 failed（RP-45。T の 4.55 の case 行は test-designer の席が書き直すまで暫定）。未実行は E2E-1 と E2E-2 の打ち直し | H58（本物の `/events` を Windows で）。続きは R8o2 と R8p2 の行 |
-| R8o2、R8p2（語幹が「な」の 4 語を否定の `exclude` に、札の読みを行頭に狭める） | 検証済み | R8o2 は `521a9cf`（commit `c133eed`）。R8p2 は `dfd68df`（commit `0678102`） | どれも独立検証で可（merge の commit の 1 行目の「verified」。検証の席の返答は git の外） | R8o2：RP-43（T-RP-43-005）。R8p2：RP-45（T の 4.55 は `38f1a73` で書き直し、010〜016 は未実装）。数は検証の席の返答に在り、この文書は打ち直していない。`7b3544c`〜`dfd68df` の main では `-p hayamimi` の test が build できない（`native/hayamimi/tests/r8a_relay.rs` の `RelayConfig` に `verify_dump` が無く E0063。受付の申告、設計の席は build を打たず、code を読んで欄の欠けを確かめた）。直しは `feat/r5b` の `a6d2d5b`（検証中）。未実行は E2E-1 と E2E-2 の打ち直し | H56（`--verify-text` なしの時の test）、H59（「〜なさそう」の推量）、H60（行頭に無い札と綴りゆれの代償）、H61（英語の接頭辞の否定） |
-| R8t（en→ja の推量を片向きに、義務の過去形と「なくては」の 8 つを否定の `exclude` に） | 未着手。設計は D に先に置き、code と test は実装の席が `feat/r8t` に置く（評議の条件は D と test と code を同じ commit に入れる形で、時間のため分けた） | なし | なし | RP-63 は未実行 | H53 の 3 |
-| R8u（T と E の両方が数で止まった行を 1 回訳し直す）、R3e（session の言語の文字を持たない 1〜2 字の確定文を捨てる） | R8u は作らない（probe で訳し直しが効かず、その行は held のまま原文の字幕を出す。RP-64 は欠番）。R3e は未着手で、13:55 の組の後の波 | なし | なし | RP-65 は未実行 | H66、H67 |
-| R8s（ja→en の推量を log にだけ、英語の時刻、E2E-1 の `--verify-text`） | 独立検証で可、merge はまだ（branch `feat/r8s`）。RP-49 の D の文は実装（半時の語に 30 を足す、ja と en の両方向）に合わせて直した | なし | 独立検証で可（検証の席の返答、git の外） | RP-49 は再現の行（今の main で `At one thirty` が止まる）が落ち、実装で通る。数は検証の席の返答に在り、この文書は打ち直していない | H59 は R8s の 1 が入ると閉じる。H53 の 3 |
+| E2E（端から端、2026-10-15） | 単独の 1 run で E2E-1 と E2E-2 の受入 test が PASS。評議の判定で、E2E-1 の正式な判定は RP-32 の交互の 3 対で出し、その 3 対は未実行 | `dfa85d6`（`feat/r8n` の merge）。記録は `9103c95` の `docs/results/e2e/`（`e2e1/e2e1.jsonl`、`e2e1/py1.jsonl`、`e2e2/e2e2.jsonl`）。run の build は main の `7ea558f` | 受入 test `e2e1_mic_process_ja_to_en_beats_python` と `e2e2_loopback_process_en_to_ja_within_budget` の PASS は実装の席の申告で、設計の席は打ち直していない。数は設計の席が `9103c95` の jsonl を jq で引き直し、`docs/results/e2e/README.md` の表と一致した | 有効は 3.1 の式で `--min-silence` 300 ms、`L` は有効のうち訳の取れた標本で取る（p は nearest rank）。E2E-1（`lat-ja`、23 発話 × 5）：Rust は有効 100、訳あり 93、`L` の p50 1415 ms、p95 1872 ms。Python（`py1`）は有効 100、訳あり 95、p50 1478 ms、p95 2187 ms。E2E-2（`lat-en`、15 発話 × 5、loopback の送り先）：有効 75、訳あり 70、p50 970 ms、p95 1303 ms。遅れの内訳：VAD が区切りを決めるまでの待ち d（`L_asr − L_dec`、有効な標本）は、ja（E2E-1 の Rust）が p50 865 ms、p95 1341 ms、en（E2E-2）が p50 456 ms、p95 706 ms。d は評議の席の申告を設計の席が引き直した値である。`L` はこの待ちを含み、`t_end` の定義（manifest の発話の終わりの sample を送った時刻、3.1）は変えない。RP-22 は別の run（`docs/results/r3/rp22_run.json`）で通過：peak 8936 MiB（上限 14000）、起動前 7443 MiB、memory の落とし 0。RP-5 は打ち直していない（前の run で速報の p95 が Rust 3737 ms 対 Python 3265 ms、H44） | RP-32 の交互の 3 対。RP-5 の打ち直し。R8u（作らない）、R11、R12y は別の行で扱う。H53、H54、H55 |
+| R8m、R8o、R8p（E2E の後：`listen` を SSE で、両方止めた行の観測と否定の表、E の雛形を剥がす） | 検証済み | R8m は `295fed8`。R8o は `7b3544c`。R8p は `cd91986` | どれも独立検証で可（検証の席の返答、git の外） | R8m：eval の Running 29＋Doc-tests 1＝ok 行 30、813 passed、0 failed（RP-41）。R8o：relay の 39＋1＝ok 行 40、653 passed（RP-42、RP-43）。R8p：relay の 40＋1＝ok 行 41、675 passed、0 failed（RP-45。T の 4.55 の case 行は test-designer の席が書き直すまで暫定）。E2E-1 と E2E-2 は 3 つとも入った `7ea558f` の build で打ち直した（通過の出所は E2E の行） | H58（本物の `/events` を Windows で）。続きは R8o2 と R8p2 の行 |
+| R8o2、R8p2（語幹が「な」の 4 語を否定の `exclude` に、札の読みを行頭に狭める） | 検証済み | R8o2 は `521a9cf`（commit `c133eed`）。R8p2 は `dfd68df`（commit `0678102`） | どれも独立検証で可（merge の commit の 1 行目の「verified」。検証の席の返答は git の外） | R8o2：RP-43（T-RP-43-005）。R8p2：RP-45（T の 4.55 は `38f1a73` で書き直し、010〜016 は未実装）。数は検証の席の返答に在り、この文書は打ち直していない。`7b3544c`〜`dfd68df` の間の main では `-p hayamimi` の test が build できなかった（`native/hayamimi/tests/r8a_relay.rs` の `RelayConfig` に `verify_dump` が無く E0063）。直しの `a6d2d5b` は main に入っている。workspace の test は `fccce49` の木で Running 119＋Doc-tests 7＝126、ok 126、FAILED 0（`state.json` の記録）。E2E-1 と E2E-2 は 2 つとも入った `7ea558f` の build で打ち直した（通過の出所は E2E の行） | H56（`--verify-text` なしの時の test）、H59（「〜なさそう」の推量）、H60（行頭に無い札と綴りゆれの代償）、H61（英語の接頭辞の否定） |
+| R8t（en→ja の推量を片向きに、義務の過去形と「なくては」の 8 つを否定の `exclude` に） | 検証済み | `e55d8cf` | 独立検証で可（merge の commit の本文：720 passed、`rp63` 5 passed、衝突 0） | RP-63 | H53 の 3 |
+| R8u（T と E の両方が数で止まった行を 1 回訳し直す）、R3e（session の言語の文字を持たない 1〜2 字の確定文を捨てる） | R8u は作らない（probe で訳し直しが効かず、その行は held のまま原文の字幕を出す。RP-64 は欠番）。R3e は未着手 | なし | なし | RP-65 は未実行 | H66、H67 |
+| R8s（ja→en の推量を log にだけ、英語の時刻、E2E-1 の `--verify-text`） | 検証済み。RP-49 の D の文は実装（半時の語に 30 を足す、ja と en の両方向）に合わせて直した | `a557a96` | 独立検証で可（merge の commit の本文：714 passed、衝突 0） | RP-49 は再現の行（R8s の前の main で `At one thirty` が止まる）が落ち、実装で通る。数は検証の席の返答に在り、この文書は打ち直していない | H59 は R8s の 1 が入ると閉じる（R8s は入ったが、`rust_port.ja.md` の H59 の行は書き替わっていない）。H53 の 3 |
+| RP-32 と RP-33 の test、R8p3 | 検証済み | RP-32 の名前の test と R8p3 は `e745bd3`、RP-32 の `pairs.txt` の dir を読む test は `0900a32`、RP-33 の test は `fccce49` | 3 本とも独立検証で可（merge の commit の本文）。workspace の test（`-- --skip rp19`）は `fccce49` の木で Running 119＋Doc-tests 7＝126、ok 126、FAILED 0（`state.json` の記録） | `native/hayamimi-eval/tests/rp32.rs` と `rp33.rs` が main に在る。R8p3 は RP-48 に合わせて RP-42-006、RP-43-011、RP-43-012 の期待値を直した（`445aa2f`） | RP-32 と RP-33 の実走は打っていない（冒頭の表） |
+| E2E の境界の test（T-E2E-1-015、T-E2E-2-011） | merge 済み。書いていない席の検証は記録に無い | `8f3468b`（merge の commit は無く、fast-forward で入った） | `-p hayamimi-eval` の test は Running 31＋Doc-tests 1＝32、ok 32、FAILED 0。workspace 全体の test はその時は打っていない（`state.json` の記録） | E2E-1 は 70/80 で通り 69 で落ちる（`the_translated_share_passes_at_70_of_80_and_fails_at_69`）。E2E-2 の境界は 20/23（`the_translated_share_boundary_is_20_of_23`） | 書いていない席の検証 |
+| R8v の設計（RP-66、RP-67、3.17）と VAD の閾値の probe | 設計は merge 済み。R8v の実装は未着手 | 設計 `27efb3c`。probe `42132a1` | 設計の merge は documents のみで test を打っていない（merge の commit の本文）。probe の表は `docs/results/vad-threshold-20261015/README.md` の 6 行と一致し、閾値は 0.5 のまま（`state.json` の記録） | RP-66 と RP-67 は未実装（冒頭の表） | 停止条件 2 に当たった offline の probe（`feat/r8v-probe`）は main に無い |
+| RP-68 の test と H75 の直し（`Engine::finish` の後に detector を作り直す）、設計の直し（RP-68、H75、H76） | 検証済み | `5522942`（`5660032` と `4ca0f86` を含む） | 独立検証で可（merge の commit の本文）。workspace の test は Running 120＋Doc-tests 7＝127、ok 127、FAILED 0（`state.json` の記録、2 回目の run）。1 回目は `cs20` の `start_command_returns_while_the_server_keeps_running` が 24.8 s で落ちた（load 3.7 の時の時間の test で、差分とは無関係と記録されている）ので、式が合わず、同じ木で打ち直した | 直す前の main で `rp68` の 006、007、009、015 が落ち（子 process が SIGABRT）、直した後は通る（`5660032` の本文） | `cs20` の時間の test は load が高いと落ちる。RP-68 の子 3 は `finish` の後の feed を守るが、live の run で abort が起きた記録は探していない（H75） |
+| 実機のマイクの確かめと、process A、B、中継の起こし方 | 検証済み | `5ad5da1`（`2d18f1d`） | 書いていない席の可（受付の申告、git の外）。merge は documents のみで test を打っていない（merge の commit の本文） | 2026-10-15 15:43 の run：`capture.fallback.none` 0 件、`capture.device.opened` 1 件（device は「リモート オーディオ」、kind は mic）、`asr.model.loaded` 1 件、`asr.final.published` 8 件。存在しない装置名の陰性対照は `capture.fallback.none` 1 件 | 人が日本語を話した結果は機械では確かめられない（冒頭の表） |
 | R11（Python を消す） | 入口の条件待ち。RP-13 は満たし、RP-19 は 187 本が未実装（R12a〜R12g） | なし | なし | RP-9、RP-19 は未実行 | 3.2 の 3 つの条件 |
-| 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 単独の 1 run で受入 test が PASS。E2E-1 の正式な判定は RP-32 の交互の 3 対で出し、未実行 | なし（受入 test は `feat/r8n` の `9103c95`） | 実装の席の申告（git の外）。設計の席は打ち直していない | E2E-1、E2E-2 の受入 test は PASS。数は上の E2E の行 | RP-32 の 3 対。実機のマイクに人が話した ja は機械では確かめられない |
+| 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 単独の 1 run で受入 test が PASS。E2E-1 の正式な判定は RP-32 の交互の 3 対で出し、未実行 | `dfa85d6`（受入 test は `9103c95`） | 実装の席の申告（git の外）。設計の席は打ち直していない | E2E-1、E2E-2 の受入 test は PASS。数は上の E2E の行 | RP-32 の 3 対。実機のマイクに人が話した ja は機械では確かめられない |
 
-作業中の slice は、いまは無い。
+作業中の branch は 1 つある。
+`feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
 
 ## 採らない手段
 
