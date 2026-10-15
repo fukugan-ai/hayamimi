@@ -2055,6 +2055,52 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 - RP-67 の run が 1 回か複数回か（D は「5 回」の枠だけを書き、交互の対にしない）。この節は 1 つの run の列を渡す形にした。
 - 015 の `docs/results/rp67/` の記録を、誰がどの手番で置くか。
 
+### 4.66 RP-68（流れの途中の `flush` の再現と、R8v と `finish` の後の守り）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-asr/tests/rp68.rs`。受入 test の名前は `rp68_flush_inside_speech_aborts_and_the_early_end_never_flushes`。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-asr --test rp68`。
+関数の名前と引数の形は実装の席が決める。ただし case 単位の test の名前は、各行の「関数の末尾」と同じにする。
+
+**形**（D 6 の RP-68 のとおり）：親の test が、自分の test の binary（`std::env::current_exe`）を子 process として `--ignored --exact <子の test の名前>` で起こし、子の終わり方（終了の status と stderr）だけを見る。行の「関数の末尾」は親の test の名前で、子の名前は親の名前に `_child` を付けた物にする。子は `#[ignore]` を持つ。
+
+**音声の形**（窓は 512 sample = 32 ms、16 kHz）：
+
+- **V68**：`testdata/lat-ja.wav` の 1 発話目の声の区間（manifest の `start_sample` から `end_sample`）。
+- **無音 S4**：4 窓 = 2048 sample = 0.128 秒。**無音 S6**：6 窓 = 3072 sample = 0.192 秒。D の「0.12〜0.2 秒の無音」の両端に最も近い窓の数である。
+- **長い無音 L12**：12 窓 = 6144 sample = 0.384 秒。D の「0.30 秒以上の無音」を満たす。`min_silence` 0.30 秒 = 4800 sample を超え、手番 1 の probe の `Invalid n: -2752`（2048 − 4800）と同じ向きに足りなくなる長さである。
+
+**期待の読み方**（評議の条件）：
+
+- 異常の判定は「終了の status が 0 でない」か「stderr に `Invalid n` が出る」のどちらかが当たること。abort とは断定しない。`circular-buffer.cc` の `Get` と `Pop` は `Invalid n` を log に出して空のまま戻るだけなので、process が落ちるとは断定しない。status が無い終わり方（signal で殺された）も「0 でない」に数える。
+- 正常の判定は、2 つともそろうこと。status が 0、かつ stderr に `Invalid n` が無い。
+- 各行は「今の main」と「直した後」を分ける。直しは、`Engine::finish` が `flush` と segment の取り出しの後に A と B を作り直して offset を進める小さな commit で、R8v とは別に入れる。順は評議の判定どおり、まず RP-68 の test だけを今の main に当て、子 3 が落ちたら直す。子 3 の「今の main」の欄は走らせて決まるので NOT VERIFIED と書く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle）。今の main ／ 直した後 | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-68-001 | **子 1（再現）**：sherpa-onnx の `VoiceActivityDetector` を直に開き、V68 → S4 → `flush` → L12 を 512 sample ずつ食わせる | 無音の下端 | 異常 | 今の main ／ 直した後 とも異常（status が 0 でない、または stderr に `Invalid n`）。直しは `Engine::finish` だけを変えるので、`VoiceActivityDetector` を直に叩くこの子は変わらない（specified、D 3.17 の方針 4 の機構と RP-68。評議の条件 1） | 陽性、境界 | `a_flush_inside_speech_then_a_long_silence_is_abnormal_after_a_short_gap` |
+| T-RP-68-002 | 001 の S4 を S6 にする | 無音の上端 | 異常 | 001 と同じ（specified、同上） | 陽性、境界 | `a_flush_inside_speech_then_a_long_silence_is_abnormal_after_a_long_gap` |
+| T-RP-68-003 | 子 1 の対照：V68 → S6 → L12。`flush` を打たない | `flush` が無い | 正常 | 今の main ／ 直した後 とも正常（status 0、`Invalid n` 無し）（specified、D 3.17 の方針 4。機構は「流れの途中の `flush`」にある）。001 と 002 の陰性の対照 | 陰性 | `without_the_flush_the_same_audio_ends_cleanly` |
+| T-RP-68-004 | **子 2（守り、R8v の形）**：同じ音声を `hayamimi-asr` の `Vad`（A と B）と確定の線の規則に通す。V68 → S6 → L12 | R8v の早い終わり | 正常、final 1 件 | 今の main：2 本目の detector と確定の線の規則が無く、この子は書けない（R8v の手番 2 まで走らせない）。直した後：status 0、stderr に `Invalid n` が無く、`final` が 1 件で、その `t1_s` が確定の線の sample である（specified、D 6 の RP-68 の子 2。評議の条件 2） | 陽性 | `the_early_end_never_flushes_the_detector` |
+| T-RP-68-005 | 004 を、確定の時に A へ `flush` を打つ build で流す | 守りが破られた build | 異常 | 直した後の build に `flush` を足した物は、異常（status が 0 でない、または stderr に `Invalid n`）で 004 が落ちる（specified、D 6 の RP-68 の陰性欄）。今の main には 004 が無いので走らせない | 陰性 | `a_build_that_flushes_at_the_early_end_fails_the_guard` |
+| T-RP-68-006 | **子 3（守り、`finish` の後）**：V68 → S4 → `Engine::finish` → L12 を feed する | 声の後の無音の後で finish。下端 | 正常 | 今の main：落ちうる（H75。NOT VERIFIED。落ちる時は status が 0 でない、または stderr に `Invalid n`）。直した後：status 0 で stderr に `Invalid n` が無い（specified、D 6 の RP-68 の子 3 と H75。評議の条件 2、3。声の最中に finish する形ではなく、声の後の無音を挟む形にする） | 陽性、境界 | `finish_after_a_short_silence_then_a_long_silence_ends_cleanly` |
+| T-RP-68-007 | 006 の S4 を S6 にする | 上端 | 正常 | 006 と同じ。今の main：落ちうる（NOT VERIFIED）。直した後：正常（specified、同上） | 陽性、境界 | `finish_after_a_long_gap_then_a_long_silence_ends_cleanly` |
+| T-RP-68-008 | **子 3 の対照（評議の条件 3）**：V68 の途中（声の最中。`end_sample` より前の 0.5 秒目）で `Engine::finish` → L12 を feed する | 声の最中に finish する形 | 正常 | 今の main ／ 直した後 とも正常（status 0、`Invalid n` 無し）（specified、評議の条件 3。NOT VERIFIED、走らせて確かめる）。欠陥があってもこの形は通るので、006 と 007 の形でなければ守りを測れない | 陰性、境界 | `finish_inside_speech_does_not_expose_the_defect` |
+| T-RP-68-009 | 子 3 の続き：006 の後に、V68 をもう 1 回 feed する | `finish` の後の同じ音声 | 正常 | 今の main：落ちうる（NOT VERIFIED）。直した後：status 0 で stderr に `Invalid n` が無い（specified、D 6 の RP-68 の子 3「続けて同じ音声をもう 1 回食わせても」） | 陽性 | `a_second_utterance_after_finish_ends_cleanly` |
+| T-RP-68-010 | **harness の対照**：偽の子 2 つ。(1) `exit(3)` で終わる子。(2) 自分に SIGABRT を打つ子（status が無い） | 終わり方の読み | どちらも異常 | 今の main ／ 直した後 とも、どちらも異常と読む。(2) は終了の code が無いので「0 と読んで通す」読み方を落とす（specified、評議の条件 1 の「status が 0 でない」。implicit） | 陽性、境界 | `the_harness_reads_a_nonzero_and_a_signalled_child_as_abnormal` |
+| T-RP-68-011 | 偽の子：stderr に `Invalid n: -1. size: 8` を出して status 0 で終わる | stderr だけの異常 | 異常 | 今の main ／ 直した後 とも異常と読む（specified、評議の条件 1。process が落ちずに log だけ出す形） | 陽性 | `the_harness_reads_invalid_n_on_stderr_alone_as_abnormal` |
+| T-RP-68-012 | 偽の子：何も出さず status 0 で終わる | 正常な終わり | 正常 | 今の main ／ 直した後 とも正常と読む（001 から 011 の陰性の対照） | 陰性 | `the_harness_reads_a_silent_clean_child_as_normal` |
+| T-RP-68-013 | 子の test の名前を存在しない名前にして起こす（`--exact` が 0 本の test に当たる） | 子が走っていない | `Err` | 今の main ／ 直した後 とも `Err` で 0 本しか走らなかったことを名指す。`--exact` の名前違いは status 0 で終わるので、そのまま正常と読ませない（derived。cargo の test binary は当たる test が無くても status 0 で終わる） | 陰性、境界 | `a_child_name_that_runs_no_test_is_rejected` |
+| T-RP-68-014 | 子 1 の代わりに、正常な偽の子（012 の形）を渡す | 再現の前提が変わった | `Err` | 今の main ／ 直した後 とも `Err` で「子 1 が異常にならない。再現の前提が変わった」を言う（specified、D 6 の RP-68 の陰性欄「子 1 が status 0 で終わる時はこの test が落ちて再現の前提が変わったことを言う」） | 陰性 | `a_clean_reproduction_child_is_reported_as_a_changed_premise` |
+| T-RP-68-015 | 受入：001、002、004、006、007、009 の子を順に起こす親の test | 全体 | 通る | 今の main：001 と 002 は異常で 003 は正常。006 と 007 と 009 は走らせた結果で決まる（NOT VERIFIED）。004 は走らせない。直した後（R8v の手番 2 の後）：全部がそろって通る（specified、D 6 の RP-68） | 陽性 | `rp68_flush_inside_speech_aborts_and_the_early_end_never_flushes` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- `testdata/lat-ja.wav` は `.gitignore` の `testdata/` に入っていて、main の tree（`/mnt/c/Users/user01/source/hayamimi/testdata/`）にだけ在る。worktree の中には無い。子が音声を読む置き場（絶対 path か、`tests/golden/ja/` の追跡済みの wav か）は設計に無い。
+- V68 の切り方。D は「1 発話の声の区間」とだけ書く。この節は lat-ja の 1 発話目と書いたが、manifest の file 名と欄は確かめていない。
+- 直した後の 009 で、2 回目の発話が `final` を出すか、その `t1_s` の値。D は「status 0 で終わる」とだけ書く。offset を進める量は設計の席が決める。
+- 008 の「声の最中」の位置（0.5 秒目）は、この席が置いた。評議の条件 3 は形だけを定めた。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
