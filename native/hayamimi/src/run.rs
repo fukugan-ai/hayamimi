@@ -95,6 +95,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.diagnose = args.diagnose;
     settings.gpu = gpu;
     settings.max_resident = args.max_resident;
+    settings.endpoint = args.endpoint;
     settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
@@ -431,6 +432,7 @@ mod tests {
             models: "models".into(),
             min_silence: 0.35,
             max_speech: 12.0,
+            endpoint: hayamimi_asr::endpoint::Mode::Early,
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),

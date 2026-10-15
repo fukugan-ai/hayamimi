@@ -180,6 +180,7 @@ impl Session<'_> {
         for done in finals {
             state.stats.add_final(done);
             log::print(&log::utterance_timed_line(self.strings, done));
+            log::print(&log::endpoint_decided_line(self.strings, done));
             if done.punct_error.is_some() {
                 log::print(&log::punct_failed_line(self.strings, done));
             }
@@ -339,6 +340,10 @@ mod tests {
             },
             punct_error: None,
             speaker_audio: Vec::new(),
+            endpoint: hayamimi_asr::endpoint::Decision {
+                rule: hayamimi_asr::endpoint::Rule::Silence,
+                silence_ms: 300,
+            },
         }
     }
 

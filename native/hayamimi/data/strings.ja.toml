@@ -5,6 +5,7 @@
 "gpu.session.created" = "model の session を作りました"
 "gpu.session.placed" = "model の node を置きました"
 "asr.utterance.timed" = "発話を確定しました"
+"asr.endpoint.decided" = "発話の終わりを決めました"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
 "asr.speaker.failed" = "話者の印をつけられなかったので、印なしの文で続けました"
 "asr.final.published" = "確定文を字幕の event へ出し終えました"
@@ -61,6 +62,7 @@ options:
   --models <dir>       model の directory を置いた directory（既定は models）
   --min-silence <sec>  発話の終わりにする無音の秒数（既定は 0.30）
   --max-speech <sec>   この秒数の発話が続いたら確定する（既定は 12）
+  --endpoint <rule>    early（既定）は短い無音で完結した文を確定する、silence は --min-silence の無音を待つ
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
@@ -73,6 +75,7 @@ unknown_option = "知らない option です。"
 missing_value = "option に値がありません。"
 bad_number = "option には正の数が要ります。"
 mode_unsupported = "--mode は balanced、fast、single のどれかです。"
+endpoint_unsupported = "--endpoint は early、silence のどちらかです。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"

@@ -38,6 +38,19 @@ impl DraftClock {
         }
     }
 
+    /// Where the speech in progress began, or `None` outside speech.
+    pub fn speech_start(&self) -> Option<usize> {
+        self.speech_since
+    }
+
+    /// Moves the start of the speech in progress to `at`, once the text up to
+    /// there is final. Does nothing outside speech.
+    pub fn restart_at(&mut self, at: usize) {
+        if self.speech_since.is_some() {
+            self.speech_since = Some(at);
+        }
+    }
+
     /// The start of the speech to draft when a draft is due at input position
     /// `now`, or `None`. A due draft is taken even when the speech is still
     /// too short for one, so that the next try is half a second later.
@@ -98,6 +111,18 @@ mod tests {
         assert_eq!(clock.due(4 * HALF), None);
         clock.observe(true, 4 * HALF);
         assert_eq!(clock.due(5 * HALF), Some(4 * HALF));
+    }
+
+    #[test]
+    fn the_start_can_be_read_and_moved_inside_speech_only() {
+        let mut clock = DraftClock::new();
+        assert_eq!(clock.speech_start(), None);
+        clock.restart_at(500);
+        assert_eq!(clock.speech_start(), None);
+        clock.observe(true, 100);
+        assert_eq!(clock.speech_start(), Some(100));
+        clock.restart_at(500);
+        assert_eq!(clock.speech_start(), Some(500));
     }
 
     #[test]

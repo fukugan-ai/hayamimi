@@ -10,8 +10,9 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use crate::audio::{History, SAMPLE_RATE, windows};
+use crate::audio::{History, SAMPLE_RATE, WINDOW, windows};
 use crate::decode::{Recognizers, ResidentEvent};
+use crate::endpoint::{self, Decision, Mode, Plan, Rule, State};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
@@ -23,7 +24,7 @@ use crate::recognizer::{THREADS, model_files};
 use crate::replace::Replacements;
 use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier};
 use crate::speaker_stage::{Mark, SpeakerStage};
-use crate::vad::{Segment, Sensitivity, Vad, VadSettings};
+use crate::vad::{EARLY_MIN_SILENCE_MS, Segment, Sensitivity, Vad, VadSettings};
 
 /// The language the punctuation model restores marks for.
 const PUNCTUATED_LANGUAGE: &str = "ja";
@@ -72,6 +73,8 @@ pub struct Settings {
     /// How languages are chosen. A policy that forces a language opens no
     /// language identifier.
     pub policy: Policy,
+    /// How the end of an utterance is decided.
+    pub endpoint: Mode,
 }
 
 impl Settings {
@@ -87,6 +90,8 @@ impl Settings {
             itn_overrides: Overrides::default(),
             replacements: Replacements::default(),
             diagnose: false,
+            // The library keeps the silence rule; the `hayamimi` command line asks for the early one.
+            endpoint: Mode::Silence,
         }
     }
 }
@@ -142,6 +147,24 @@ pub struct Final {
     /// The 16 kHz samples of the utterance, kept only while the speaker stage
     /// is on, for [`Engine::mark_speaker`]. The `final` does not wait for the mark.
     pub speaker_audio: Vec<f32>,
+    /// The rule that ended the utterance.
+    pub endpoint: Decision,
+}
+
+/// What reading a stretch of audio made: the text and where the time went.
+#[derive(Debug, Clone, PartialEq)]
+struct Solved {
+    text: String,
+    lang: String,
+    tier: &'static str,
+    /// Seconds of audio decoded, the pre-roll included.
+    seconds: f64,
+    lid_ms: f64,
+    decode_ms: f64,
+    itn_ms: f64,
+    punct_ms: f64,
+    punct_error: Option<String>,
+    l_dec_ms: f64,
 }
 
 /// The detector and the recognizers, which only work together.
@@ -151,6 +174,8 @@ struct Route {
     history: History,
     vad_ms: f64,
     draft: DraftClock,
+    /// What the early detector has finalised inside the voice in progress.
+    early: State<Solved>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -282,11 +307,11 @@ fn open_route(
     reports: &mut Vec<SessionReport>,
     fallbacks: &mut Vec<Fallback>,
 ) -> Result<Option<Route>, AsrError> {
-    let vad = open_or_disable(
-        Vad::open(&settings.models, settings.vad),
-        Stage::Vad,
-        fallbacks,
-    )?;
+    let opened = match settings.endpoint {
+        Mode::Early => Vad::open_with_early(&settings.models, settings.vad),
+        Mode::Silence => Vad::open(&settings.models, settings.vad),
+    };
+    let vad = open_or_disable(opened, Stage::Vad, fallbacks)?;
     let mut recognizers = Recognizers::new(&settings.models, THREADS, settings.max_resident);
     let recognizer_out = recognizers.load(Tier::Rz)?;
     if let Some(reason) = recognizer_out {
@@ -311,6 +336,7 @@ fn open_route(
         history: History::new(),
         vad_ms: 0.0,
         draft: DraftClock::new(),
+        early: State::default(),
     }))
 }
 
@@ -538,9 +564,11 @@ impl Engine {
         let window_start = route.history.end() - window.len();
         let started = Instant::now();
         route.vad.accept(window);
+        let notices = route.vad.take_early()?;
         let segments = route.vad.take_segments()?;
         route.vad_ms += millis(started);
-        let finals = self.finish_segments(segments)?;
+        let mut finals = self.early_notices(notices)?;
+        finals.extend(self.finish_segments(segments, false)?);
         if let Some(route) = self.route.as_mut() {
             route.draft.observe(route.vad.detected(), window_start);
         }
@@ -621,12 +649,20 @@ impl Engine {
         };
         let started = Instant::now();
         route.vad.flush();
+        for notice in route.vad.take_early()? {
+            route.early.note_voice(notice.start);
+        }
         let segments = route.vad.take_segments()?;
         // A detector aborts when it is fed after a `flush` inside a stream, so
-        // the next audio goes to a new one. Nothing is in progress or waiting.
+        // the next audio goes to new ones, both of them. Nothing is in
+        // progress or waiting.
         route.vad.rebuild(route.vad.sensitivity())?;
         route.vad_ms += millis(started);
-        self.finish_segments(segments)
+        let finals = self.finish_segments(segments, true);
+        if let Some(route) = self.route.as_mut() {
+            route.early.clear();
+        }
+        finals
     }
 
     /// A whole recording at once, without pacing.
@@ -639,7 +675,79 @@ impl Engine {
         Ok(finals)
     }
 
-    fn finish_segments(&mut self, segments: Vec<Segment>) -> Result<Vec<Final>, AsrError> {
+    /// Takes the stretches of voice the early detector finished: notes that
+    /// voice went on, and, while the main detector is still inside speech,
+    /// reads what has been said since the line.
+    fn early_notices(&mut self, notices: Vec<Segment>) -> Result<Vec<Final>, AsrError> {
+        let mut finals = Vec::new();
+        for notice in notices {
+            let Some(route) = self.route.as_mut() else {
+                break;
+            };
+            route.early.note_voice(notice.start);
+            if route.vad.detected()
+                && let Some(done) = self.consider(&notice)?
+            {
+                finals.push(done);
+            }
+        }
+        Ok(finals)
+    }
+
+    /// Reads the speech since the line (or since the speech began) at a
+    /// notice of the early detector. A complete sentence is finalised there;
+    /// any other is kept for the moment the main detector ends the utterance.
+    fn consider(&mut self, notice: &Segment) -> Result<Option<Final>, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        let floor = notice.start + notice.samples.len();
+        let now = route.history.end();
+        let (from, samples) = match route.early.line() {
+            Some(line) => (line.at, route.history.slice(line.at, now)),
+            None => {
+                let Some(start) = route.draft.speech_start() else {
+                    return Ok(None);
+                };
+                (start, route.history.draft(start, usize::MAX))
+            }
+        };
+        if samples.is_empty() {
+            return Ok(None);
+        }
+        let Some(solved) = self.solve(&samples, now.saturating_sub(from))? else {
+            return Ok(None);
+        };
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        if !endpoint::is_complete(&solved.lang, &solved.text) {
+            route.early.hold(solved, now, floor);
+            return Ok(None);
+        }
+        let speaker_audio = if self.speakers.is_some() {
+            route.history.slice(from, now)
+        } else {
+            Vec::new()
+        };
+        route.early.confirm(now, floor);
+        route.history.mark_segment_end(now);
+        route.draft.restart_at(now);
+        let ended_wall_ms = epoch_ms()?;
+        let rate = f64::from(SAMPLE_RATE);
+        let decision = Decision {
+            rule: Rule::Early,
+            silence_ms: EARLY_MIN_SILENCE_MS,
+        };
+        let span = (from as f64 / rate, now as f64 / rate);
+        Ok(self.finalize(solved, span, speaker_audio, ended_wall_ms, decision))
+    }
+
+    fn finish_segments(
+        &mut self,
+        segments: Vec<Segment>,
+        flushed: bool,
+    ) -> Result<Vec<Final>, AsrError> {
         if segments.is_empty() {
             return Ok(Vec::new());
         }
@@ -647,22 +755,99 @@ impl Engine {
         let ended_wall_ms = epoch_ms()?;
         let mut finals = Vec::new();
         for segment in segments {
-            if let Some(done) = self.process(segment, ended_wall_ms)? {
+            if let Some(done) = self.on_segment(segment, ended_wall_ms, flushed)? {
                 finals.push(done);
             }
         }
         Ok(finals)
     }
 
+    /// A segment of the main detector: read whole, or only what the early
+    /// path has not finalised, or not at all when it has finalised it all.
+    fn on_segment(
+        &mut self,
+        segment: Segment,
+        ended_wall_ms: u64,
+        flushed: bool,
+    ) -> Result<Option<Final>, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        let decision = decision_of(&segment, route.vad.sensitivity(), flushed);
+        let end = segment.start + segment.samples.len();
+        match route.early.plan(segment.start, end, WINDOW) {
+            Plan::Whole => self.process(segment, ended_wall_ms, decision),
+            Plan::Drop => {
+                route.history.mark_segment_end(end);
+                Ok(None)
+            }
+            Plan::Rest(line) => {
+                // INVARIANT: the plan returns `Rest` only for a line inside the segment.
+                let samples = segment.samples[line - segment.start..].to_vec();
+                self.process(
+                    Segment {
+                        start: line,
+                        samples,
+                    },
+                    ended_wall_ms,
+                    decision,
+                )
+            }
+            Plan::Held(held, start) => {
+                route.history.mark_segment_end(end);
+                // INVARIANT: `start` is the segment's start or a line inside it.
+                let samples = segment.samples[start - segment.start..].to_vec();
+                let rate = f64::from(SAMPLE_RATE);
+                let span = (start as f64 / rate, end as f64 / rate);
+                let mut solved = held.solved;
+                // Nothing was read after the detector handed the segment over.
+                solved.l_dec_ms = 0.0;
+                let speaker_audio = if self.speakers.is_some() {
+                    samples
+                } else {
+                    Vec::new()
+                };
+                Ok(self.finalize(solved, span, speaker_audio, ended_wall_ms, decision))
+            }
+        }
+    }
+
     /// Decodes the whole text of one segment: recognition, retry, ITN,
     /// punctuation, dictionary. A segment with no speech makes no final.
-    fn process(&mut self, segment: Segment, ended_wall_ms: u64) -> Result<Option<Final>, AsrError> {
+    fn process(
+        &mut self,
+        segment: Segment,
+        ended_wall_ms: u64,
+        decision: Decision,
+    ) -> Result<Option<Final>, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        let samples = route.history.with_preroll(segment.start, &segment.samples);
+        let Some(solved) = self.solve(&samples, segment.samples.len())? else {
+            return Ok(None);
+        };
+        let span = span_seconds(&segment);
+        let speaker_audio = if self.speakers.is_some() {
+            segment.samples
+        } else {
+            Vec::new()
+        };
+        Ok(self.finalize(solved, span, speaker_audio, ended_wall_ms, decision))
+    }
+
+    /// Reads `samples`, of which `speech_samples` are speech: recognition,
+    /// retry, ITN, punctuation, dictionary. Audio with no speech gives `None`.
+    fn solve(
+        &mut self,
+        samples: &[f32],
+        speech_samples: usize,
+    ) -> Result<Option<Solved>, AsrError> {
         let started = Instant::now();
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
-        let decoded = decode_segment(route, &segment)?;
-        let vad_ms = route.vad_ms;
+        let decoded = decode_samples(route, samples, speech_samples)?;
         if decoded.text.trim().is_empty() {
             return Ok(None);
         }
@@ -672,39 +857,54 @@ impl Engine {
         if text.trim().is_empty() {
             return Ok(None);
         }
-        // The detector's time is handed on with the utterance it led to.
-        if let Some(route) = self.route.as_mut() {
-            route.vad_ms = 0.0;
-        }
-        let id = self.next_id;
-        self.next_id += 1;
-        let l_dec_ms = millis(started);
-        let (t0_s, t1_s) = span_seconds(&segment);
-        let speaker_audio = if self.speakers.is_some() {
-            segment.samples
-        } else {
-            Vec::new()
-        };
-        Ok(Some(Final {
-            id,
+        Ok(Some(Solved {
             text,
             lang: decoded.lang,
             tier: decoded.tier,
-            audio_seconds: decoded.seconds,
+            seconds: decoded.seconds,
+            lid_ms: decoded.lid_ms,
+            decode_ms: decoded.decode_ms,
+            itn_ms,
+            punct_ms,
+            punct_error,
+            l_dec_ms: millis(started),
+        }))
+    }
+
+    /// Makes the `final` of a read text. The detector's time since the last
+    /// one is handed on with it. `None` without a route.
+    fn finalize(
+        &mut self,
+        solved: Solved,
+        (t0_s, t1_s): (f64, f64),
+        speaker_audio: Vec<f32>,
+        ended_wall_ms: u64,
+        endpoint: Decision,
+    ) -> Option<Final> {
+        let vad_ms = std::mem::take(&mut self.route.as_mut()?.vad_ms);
+        let id = self.next_id;
+        self.next_id += 1;
+        Some(Final {
+            id,
+            text: solved.text,
+            lang: solved.lang,
+            tier: solved.tier,
+            audio_seconds: solved.seconds,
             t0_s,
             t1_s,
             end_wall_ms: ended_wall_ms,
             timings: Timings {
                 vad_ms,
-                lid_ms: decoded.lid_ms,
-                decode_ms: decoded.decode_ms,
-                punct_ms,
-                itn_ms,
-                l_dec_ms,
+                lid_ms: solved.lid_ms,
+                decode_ms: solved.decode_ms,
+                punct_ms: solved.punct_ms,
+                itn_ms: solved.itn_ms,
+                l_dec_ms: solved.l_dec_ms,
             },
-            punct_error,
+            punct_error: solved.punct_error,
             speaker_audio,
-        }))
+            endpoint,
+        })
     }
 
     /// Whether utterances get a speaker mark: the stage is on and its model opened.
@@ -767,13 +967,16 @@ fn asr_error_of(error: RouteError) -> AsrError {
 
 /// Reads a segment with its pre-roll: the route names the language, picks the
 /// recognizer and retries piece by piece when the text looks cut short.
-fn decode_segment(route: &mut Route, segment: &Segment) -> Result<Decoded, AsrError> {
-    let samples = route.history.with_preroll(segment.start, &segment.samples);
+fn decode_samples(
+    route: &mut Route,
+    samples: &[f32],
+    speech_samples: usize,
+) -> Result<Decoded, AsrError> {
     let seconds = samples.len() as f64 / f64::from(SAMPLE_RATE);
     let request = Request {
-        samples: &samples,
+        samples,
         known_lang: None,
-        speech_s: Some(segment.samples.len() as f64 / f64::from(SAMPLE_RATE)),
+        speech_s: Some(speech_samples as f64 / f64::from(SAMPLE_RATE)),
         live: true,
         second_opinion: None,
     };
@@ -786,6 +989,28 @@ fn decode_segment(route: &mut Route, segment: &Segment) -> Result<Decoded, AsrEr
         lid_ms: transcript.lid_ms + transcript.probe_ms,
         decode_ms: transcript.decode_ms,
     })
+}
+
+/// Which rule ended `segment`: a flush, the limit on continuous speech
+/// (the detector cuts a segment of about that length), or the silence.
+fn decision_of(segment: &Segment, main: Sensitivity, flushed: bool) -> Decision {
+    let limit = (f64::from(main.max_speech) * f64::from(SAMPLE_RATE)) as usize;
+    if flushed {
+        Decision {
+            rule: Rule::Flush,
+            silence_ms: 0,
+        }
+    } else if segment.samples.len() + 2 * WINDOW >= limit {
+        Decision {
+            rule: Rule::MaxSpeech,
+            silence_ms: 0,
+        }
+    } else {
+        Decision {
+            rule: Rule::Silence,
+            silence_ms: (main.min_silence * 1000.0).round() as u32,
+        }
+    }
 }
 
 /// Runs `work` and returns its result with the milliseconds it took.

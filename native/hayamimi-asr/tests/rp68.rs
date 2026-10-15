@@ -21,8 +21,9 @@ use std::path::Path;
 use std::process::Command;
 
 use hayamimi_asr::audio::{WINDOW, read_wav};
+use hayamimi_asr::endpoint::{Mode, Rule};
 use hayamimi_asr::vad::{DEFAULT_THRESHOLD, VadSettings, silero_config_with, take_segments};
-use hayamimi_asr::{Engine, Settings};
+use hayamimi_asr::{Engine, Final, Settings};
 use hayamimi_gpu::session_lock::lock_for_session;
 use sherpa_onnx::VoiceActivityDetector;
 use support::{Failure, TestResult, models_dir, read_json, testdata_dir};
@@ -364,8 +365,55 @@ fn a_clean_reproduction_child_is_reported_as_a_changed_premise() {
     );
 }
 
-// T-RP-68-015: the acceptance, every child in turn. The early-end child
-// (T-RP-68-004) is added with the second detector.
+// T-RP-68-004: the early end of speech. V68, a gap and a long silence go
+// through the engine with the early detector on; the main detector is never
+// flushed, so the process ends cleanly and one final is made, at a notice of
+// the early detector and not at the main detector's silence.
+
+#[test]
+fn the_early_end_never_flushes_the_detector() -> TestResult {
+    expect_normal(&child_of("the_early_end_never_flushes_the_detector"))
+}
+
+fn feed_collect(engine: &mut Engine, samples: &[f32]) -> Result<Vec<Final>, Failure> {
+    let mut finals = Vec::new();
+    let (windows, _tail) = samples.as_chunks::<WINDOW>();
+    for window in windows {
+        let made = engine
+            .feed(window.as_slice())
+            .map_err(|why| why.to_string())?;
+        finals.extend(made);
+    }
+    Ok(finals)
+}
+
+#[test]
+#[ignore = "child process of the RP-68 test of the same name"]
+fn the_early_end_never_flushes_the_detector_child() -> TestResult {
+    let mut settings = Settings::new(models_dir()?);
+    settings.stages.speakers = false;
+    settings.endpoint = Mode::Early;
+    let mut engine = Engine::open(settings).map_err(|why| why.to_string())?;
+    let voice = voice()?;
+    let mut finals = feed_collect(&mut engine, &voice)?;
+    finals.extend(feed_collect(&mut engine, &silence(LONG_GAP))?);
+    finals.extend(feed_collect(&mut engine, &silence(LONG_SILENCE))?);
+    assert_eq!(finals.len(), 1, "{finals:?}");
+    let made = &finals[0];
+    assert_eq!(made.endpoint.rule, Rule::Early, "{made:?}");
+    assert_eq!(made.endpoint.silence_ms, 120, "{made:?}");
+    // The line is the end of a window, and it lies in the silence after the voice.
+    let line = (made.t1_s * 16_000.0).round() as usize;
+    assert_eq!(line % WINDOW, 0, "{line}");
+    assert!(line >= voice.len(), "{line} is inside the voice");
+    // A second utterance after the first is read as well: the detector was not left in a bad state.
+    let mut again = feed_collect(&mut engine, &voice)?;
+    again.extend(feed_collect(&mut engine, &silence(LONG_SILENCE))?);
+    assert_eq!(again.len(), 1, "{again:?}");
+    Ok(())
+}
+
+// T-RP-68-015: the acceptance, every child in turn.
 
 #[test]
 fn rp68_flush_inside_speech_aborts_and_the_early_end_never_flushes() -> TestResult {
@@ -378,6 +426,7 @@ fn rp68_flush_inside_speech_aborts_and_the_early_end_never_flushes() -> TestResu
         "finish_after_a_short_silence_then_a_long_silence_ends_cleanly",
         "finish_after_a_long_gap_then_a_long_silence_ends_cleanly",
         "a_second_utterance_after_finish_ends_cleanly",
+        "the_early_end_never_flushes_the_detector",
     ];
     for parent in reproductions {
         reproduce(&child_of(parent))?;

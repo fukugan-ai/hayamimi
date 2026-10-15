@@ -5,6 +5,7 @@
 "gpu.session.created" = "Model session created"
 "gpu.session.placed" = "Model nodes placed"
 "asr.utterance.timed" = "Utterance finished"
+"asr.endpoint.decided" = "The end of an utterance was decided"
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.speaker.failed" = "The speaker mark failed; the text went on without it"
 "asr.final.published" = "The final subtitle was sent to the event stream"
@@ -61,6 +62,7 @@ options:
   --models <dir>       directory that holds the model directories (default models)
   --min-silence <sec>  silence that ends an utterance (default 0.30)
   --max-speech <sec>   speech after which an utterance is finalised (default 12)
+  --endpoint <rule>    early (default) finalises a complete sentence at a short silence, silence waits for --min-silence
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
@@ -73,6 +75,7 @@ unknown_option = "Unknown option."
 missing_value = "An option is missing its value."
 bad_number = "An option needs a positive number."
 mode_unsupported = "--mode is one of balanced, fast, single."
+endpoint_unsupported = "--endpoint is one of early, silence."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."
