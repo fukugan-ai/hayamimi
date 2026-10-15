@@ -285,6 +285,82 @@ pub fn rp32_dir() -> PathBuf {
     Path::new(RESULTS).join("rp32")
 }
 
+/// How many pairs a directory is read as, and the count its `pairs.txt` records.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PairCount {
+    pub pairs: usize,
+    pub recorded: Option<usize>,
+}
+
+/// The pair count `pairs.txt` writes: one decimal number, alone on its line.
+/// `1` is refused (two pairs are the fewest), and so is anything unreadable.
+pub fn parse_pairs_text(text: &str) -> Result<usize, Failure> {
+    let word = text.trim();
+    if word.is_empty() || !word.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(format!(
+            "pairs.txt holds {word:?}, not a pair count such as 2"
+        ));
+    }
+    let pairs: usize = word
+        .parse()
+        .map_err(|_| format!("pairs.txt holds {word:?}, not a pair count such as 2"))?;
+    if pairs < FEWEST_PAIRS {
+        return Err(format!(
+            "pairs.txt holds {pairs}: at least {FEWEST_PAIRS} pairs are needed"
+        ));
+    }
+    Ok(pairs)
+}
+
+/// The highest pair number of which any file stands in `dir`; `None` when no pair's file does.
+fn pairs_present(dir: &Path) -> Option<usize> {
+    let stands = |n: usize| {
+        [
+            format!("py{n}.jsonl"),
+            format!("rs{n}.jsonl"),
+            format!("load{n}.txt"),
+        ]
+        .iter()
+        .any(|name| dir.join(name).is_file())
+    };
+    (1..=9).filter(|n| stands(*n)).max()
+}
+
+/// How many pairs `dir` is read as. No `pairs.txt` means three pairs; a
+/// `pairs.txt` means the number it records, which must be the number of pairs
+/// whose files stand there. The count is never taken from the file names alone:
+/// a directory that lost its third pair would look like one that stopped at two.
+pub fn pairs_to_read(dir: &Path) -> Result<PairCount, Failure> {
+    let path = dir.join("pairs.txt");
+    if !path.is_file() {
+        return Ok(PairCount {
+            pairs: PAIRS,
+            recorded: None,
+        });
+    }
+    let recorded = parse_pairs_text(&read(&path)?)?;
+    let present = pairs_present(dir);
+    if present != Some(recorded) {
+        let stand = present.map_or_else(|| String::from("no"), |n| n.to_string());
+        return Err(format!(
+            "pairs.txt records {recorded} pairs but {stand} pairs stand in {}",
+            dir.display()
+        ));
+    }
+    Ok(PairCount {
+        pairs: recorded,
+        recorded: Some(recorded),
+    })
+}
+
+/// RP-32 over a directory of runs: the pair count from `pairs.txt` (three when
+/// it is absent), the runs of that many pairs, and the judgement.
+pub fn check_dir(dir: &Path) -> Result<AltReport, Failure> {
+    let count = pairs_to_read(dir)?;
+    let runs = load_alternated(dir, count.pairs)?;
+    check_alternated_runs(&runs, count.recorded)
+}
+
 /// The run names of `pairs` pairs in the order they were measured.
 fn run_names(pairs: usize) -> Vec<(String, Implementation)> {
     (1..=pairs)

@@ -15,9 +15,9 @@ use hayamimi_eval::latency::{Sample, Stat, Window, build_samples, parse_event};
 use serde_json::Value;
 use support::e2e::columns_of;
 use support::rp32::{
-    AltReport, AltRun, Implementation, check_alternated_runs, check_columns_written,
-    l_comparison_set, load_alternated, load_hundredths, missing_files, parse_load_file,
-    render_columns, rp32_dir,
+    AltReport, AltRun, Implementation, check_alternated_runs, check_columns_written, check_dir,
+    l_comparison_set, load_alternated, load_hundredths, missing_files, pairs_to_read,
+    parse_load_file, parse_pairs_text, render_columns, rp32_dir,
 };
 use support::{Failure, TestResult, base};
 
@@ -483,12 +483,145 @@ fn a_directory_without_the_runs_names_the_files_it_lacks() {
         && why.contains("load2.txt")),);
 }
 
+/// Writes the F32 runs of `pairs` pairs into a scratch directory under the
+/// build tree and returns it: `py<N>.jsonl`, `rs<N>.jsonl` (Rust equals
+/// Python) and `load<N>.txt` per pair, and `pairs_txt` as `pairs.txt` when given.
+/// `name` keeps the tests that run side by side apart.
+fn f32_dir(
+    name: &str,
+    pairs: u32,
+    pairs_txt: Option<&str>,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../target/rp32-test-dirs")
+        .join(name);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    std::fs::create_dir_all(&dir)?;
+    for k in 1..=pairs {
+        let mut load = String::new();
+        for run in [format!("py{k}"), format!("rs{k}")] {
+            let samples: Vec<String> = (1..=19)
+                .map(|utt| serde_json::to_string(&f32_sample(utt, k)))
+                .collect::<Result<_, _>>()?;
+            std::fs::write(dir.join(format!("{run}.jsonl")), samples.join("\n") + "\n")?;
+            for when in ["before", "after"] {
+                load.push_str(&format!("{run} {when} 00:00:00 {LOAD_OK}\n"));
+            }
+        }
+        std::fs::write(dir.join(format!("load{k}.txt")), load)?;
+    }
+    if let Some(text) = pairs_txt {
+        std::fs::write(dir.join("pairs.txt"), text)?;
+    }
+    Ok(dir)
+}
+
+/// T-RP-32-030: no `pairs.txt` and three pairs is read as three pairs.
+#[test]
+fn a_dir_without_pairs_txt_is_read_as_three_pairs() -> TestResult {
+    let dir = f32_dir("t030", 3, None)?;
+    let count = pairs_to_read(&dir)?;
+    assert_eq!((count.pairs, count.recorded), (3, None));
+    check_dir(&dir)?;
+    Ok(())
+}
+
+/// T-RP-32-031: no `pairs.txt` and two pairs: the third pair is missing, not
+/// read as a run of two.
+#[test]
+fn a_dir_without_pairs_txt_and_two_pairs_is_missing_the_third() -> TestResult {
+    let dir = f32_dir("t031", 2, None)?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .is_err_and(|why| why.contains("py3.jsonl") && why.contains("rs3.jsonl")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-032: `2` in `pairs.txt` reads two pairs.
+#[test]
+fn pairs_txt_of_2_accepts_two_pairs() -> TestResult {
+    let dir = f32_dir("t032", 2, Some("2\n"))?;
+    let count = pairs_to_read(&dir)?;
+    assert_eq!((count.pairs, count.recorded), (2, Some(2)));
+    check_dir(&dir)?;
+    Ok(())
+}
+
+/// T-RP-32-033: `2` recorded while three pairs stand there. Both numbers are named.
+#[test]
+fn pairs_txt_of_2_with_three_pairs_present_is_rejected() -> TestResult {
+    let dir = f32_dir("t033", 3, Some("2\n"))?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .is_err_and(|why| why.contains("records 2 pairs") && why.contains("3 pairs stand")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-034: a `pairs.txt` that holds no number is refused as unreadable,
+/// and is not read as a count that disagrees. Each input is named on failure.
+#[test]
+fn an_unreadable_pairs_txt_is_rejected_as_unreadable() -> TestResult {
+    for (index, content) in ["two", "", "2 pairs", "-2"].into_iter().enumerate() {
+        let dir = f32_dir(&format!("t034-{index}"), 2, Some(content))?;
+        let said = check_dir(&dir);
+        assert!(
+            said.as_ref()
+                .is_err_and(|why| why.contains("not a pair count") && !why.contains("records")),
+            "pairs.txt {content:?}: {said:?}"
+        );
+    }
+    Ok(())
+}
+
+/// T-RP-32-035: `1` is under the lower bound and is named so, not as a mismatch.
+#[test]
+fn pairs_txt_of_1_is_rejected() -> TestResult {
+    let dir = f32_dir("t035", 1, Some("1\n"))?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .is_err_and(|why| why.contains("at least 2 pairs") && !why.contains("records")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-036: `3` with three pairs gives the result of no `pairs.txt`.
+#[test]
+fn pairs_txt_of_3_accepts_three_pairs() -> TestResult {
+    let dir = f32_dir("t036", 3, Some("3\n"))?;
+    let count = pairs_to_read(&dir)?;
+    assert_eq!((count.pairs, count.recorded), (3, Some(3)));
+    check_dir(&dir)?;
+    Ok(())
+}
+
+#[test]
+fn a_pair_count_is_one_number_or_it_is_refused() {
+    assert_eq!(parse_pairs_text("2\n"), Ok(2));
+    assert_eq!(parse_pairs_text(" 3 "), Ok(3));
+    for bad in ["", "\n", "two", "2 pairs", "-2", "0", "1"] {
+        assert!(parse_pairs_text(bad).is_err(), "{bad:?}");
+    }
+}
+
 /// The real runs of `docs/results/rp32/`: Python, Rust, Python, Rust, Python, Rust.
+/// The number of pairs is read from `pairs.txt` there (three when it is absent).
 #[test]
 #[ignore = "reads the runs in docs/results/rp32/"]
 fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
-    let runs = load_alternated(&rp32_dir(), 3)?;
-    let said = check_alternated_runs(&runs, None);
+    let dir = rp32_dir();
+    let count = pairs_to_read(&dir)?;
+    let runs = load_alternated(&dir, count.pairs)?;
+    let said = check_alternated_runs(&runs, count.recorded);
     if let Ok(report) = &said {
         println!("rp32 python:\n{}", render_columns(&report.python));
         println!("rp32 rust:\n{}", render_columns(&report.rust));
