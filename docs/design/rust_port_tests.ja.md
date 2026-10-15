@@ -1858,30 +1858,9 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - en→ja の行が `eval` を通るか。6 の RP-63 は「`eval` でも 1 行に 1 件」と書くが、`eval` は `<code>.ja.txt` を原文に読む。en→ja の入口が在るかは確かめていない（NOT VERIFIED）ので、行にしない。
 - 004 の「なくては」の形が `ならない`／`いけない` の `ない` を除いた後に残らないこと。除き方は `exclude` の長い順の規則に依り、004 の 8 つが通ることで固定される。
 
-### 4.61 RP-64（T と E の両方が数で止まった行だけを 1 回訳し直す）
+### 4.61 RP-64（欠番）
 
-test：`native/hayamimi-relay/tests/rp64.rs`。受入 test の名前は `rp64_a_line_held_for_numbers_twice_is_translated_once_more`（001）。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。評議の判定を待つ設計の項で、判定が GO の時だけ実装する（8 の R8u）。
-関数の名前は `rp64_` に各行の「関数の末尾」を続けた物にする。
-入力：原文は `3人が来ました。`（数 3）。偽の llama-server は依頼の順に答えを返し、依頼の数と本文を控える。T と E の答えは原文に無い数を足した文（`Five people came.`）、訳し直しの依頼の答えは別の文を返す。V が読む数は 3 つの機構（`numbers.rs`）による。
-command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp64`。
-
-| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
-|---|---|---|---|---|---|---|
-| T-RP-64-001 | T と E の答えが `Five people came.`（両方 `number`）。3 本目の答えは `Three people came.` | 両方が数で止まる。訳し直しが V を通る | 3 本目 1 回 | 依頼が 3 本、3 本目の答えが確定の訳として出る（specified、6 の RP-64 の「その答えが V を通れば確定の訳として出す」） | 陽性。訳し直しを持たない今の build は訳を出さず落ちる | `a_line_held_for_numbers_twice_is_translated_once_more` |
-| T-RP-64-002 | 001 の入力で、3 本目の答えも `Five people came.` | 訳し直しも V に落ちる | 4 本目を出さない | 依頼が 3 本で止まり、訳を出さず、`translate.line.held` が出る（specified、6 の RP-64 の「通らなければ今のとおり訳を出さない」と「4 本目は出さない」） | 陰性。止まる限り依頼を続ける build は 4 本目が出て落ちる | `a_second_failure_gives_no_translation_and_no_fourth_request` |
-| T-RP-64-003 | T の答えが `Three people came.`（V を通る） | T が V を通る行 | 依頼 2 本 | 依頼が 2 本（T と E）のまま。訳し直しの依頼が出ない（specified、6 の RP-64 の陽性欄） | 陽性、境界 | `a_line_that_passes_is_not_asked_again` |
-| T-RP-64-004 | (a) T が `Five people came.`（`number`）で E が `Three people came.`（通る）。(b) T が `Three people came.`（通る）で E が `Five people came.` | 片方だけが止まる | 訳し直さない | 2 つとも依頼が 2 本で、3 本目が出ない（specified、6 の RP-64 の「片方だけが止まった行は訳し直さない」） | 陰性 | `a_line_held_on_one_side_only_is_not_asked_again` |
-| T-RP-64-005 | `3人は来ませんでした。` の T が `Three people came.`（`negation`）、E が `Five people came.`（`number`） | 理由が `number` だけでない | 訳し直さない | 依頼が 2 本で、3 本目が出ない（specified、6 の RP-64 の「数以外の理由で止まった行は訳し直さない」。T と E の理由が違う組と、両方が `negation` の組の 2 つを打つ） | 陰性 | `a_line_held_for_another_reason_is_not_asked_again` |
-| T-RP-64-006 | 001 の 3 本目の依頼の本文を、T の依頼の本文と比べる | 依頼の形 | 本文が違う | 3 本目の本文に原文から読んだ数（`3`）が入り、T の本文と同じではない。`temperature` が 0、model が T と同じ（specified、8 の R8u の「V が原文から読んだ数を名指して、他の数を書かない旨の 1 文を足した形」）。足す 1 文の字面は設計が言わず、`3` が本文に在ることだけを判定する | 境界 | `the_third_request_names_the_source_numbers` |
-
-陰性の build と落ちる行（表から読んだ予測、NOT VERIFIED）：訳し直しを持たない今の build は 001 が落ちる。止まる限り依頼を続ける build は 002 が落ちる。両方が止まれば理由を見ずに訳し直す build は 005 が落ちる。
-
-**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
-
-- 6 の RP-64 の「訳し直した行の『訳』の段の時間を別の列に出す」の列の名前と出し先（`translate.line` の欄か、`stream` の JSONL か）。名前が設計に無いので行にしない（持ち主は設計の席）。
-- 006 の足す 1 文の字面と、V が名指す数の書き方（`3` か `3.0` か）。設計は「原文の数は X だけ」までを言う。
-- 訳し直しの依頼が `settle_pair` の外（`settle_other` の zh、ko、es）にも掛かるか。設計は T と E の両方が止まった行と言うので、E を持たない言語は対象外と読み、行にしない。
-- 評議が NO GO なら、この節の行を消す。
+欠番。D の H66 を見よ（`rust_port.ja.md`。R8u は作らない）。
 
 ### 4.62 RP-65（session の言語の文字を持たない 1〜2 字の確定文を出さない）
 
