@@ -4,10 +4,12 @@
 //! `check_alternated_runs` takes the runs in the order they were measured.
 //! It checks the order (Python, Rust, Python, Rust, ...), the number of
 //! pairs, the load before each run, and then judges the samples of the three
-//! pairs pooled: the `L` p50 and p95 of Rust are no greater than Python's, and
-//! enough utterances of the comparison set are as fast. The validity of a
-//! sample, the percentiles and the paired threshold come from
-//! `hayamimi_eval::compare`, the functions RP-3 uses.
+//! pairs pooled: at least 20 / 23 of the valid Rust samples got a translation
+//! (the three Rust runs counted together, not run by run), the `L` p50 and p95
+//! of Rust are no greater than Python's, and enough utterances of the
+//! comparison set are as fast. The share of Python is written beside Rust's and
+//! not judged. The validity of a sample, the share, the percentiles and the
+//! paired threshold come from `hayamimi_eval::compare`, the functions RP-3 uses.
 //!
 //! The runs stand in `docs/results/rp32/`: `py<N>.jsonl` and `rs<N>.jsonl`
 //! (the samples `stream --out` wrote) and `load<N>.txt` for each pair N. A line
@@ -16,7 +18,10 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use hayamimi_eval::compare::{check_paired, check_percentiles, is_valid_l_asr, read_samples};
+use hayamimi_eval::compare::{
+    TranslatedShare, check_paired, check_percentiles, check_translated_share, is_valid_l_asr,
+    read_samples, translated_share,
+};
 use hayamimi_eval::latency::Sample;
 use hayamimi_eval::percentile::nearest_rank;
 
@@ -52,6 +57,10 @@ pub struct AltReport {
     pub rust: Columns,
     pub comparison_set: Vec<u32>,
     pub not_slower: usize,
+    /// The valid samples of the three Rust runs pooled and those with a translation. Judged.
+    pub rust_share: TranslatedShare,
+    /// The same count for the Python runs. Recorded, not judged.
+    pub python_share: TranslatedShare,
     /// The 1 minute load after each run, in hundredths. Recorded, not judged.
     pub loads_after: Vec<i64>,
 }
@@ -192,9 +201,10 @@ fn not_slower(set: &[u32], python: &BTreeMap<u32, i64>, rust: &BTreeMap<u32, i64
         .count()
 }
 
-/// The failures of the pooled judgement: the percentiles, then the paired comparison.
-fn judge_pooled(report: &AltReport) -> Vec<String> {
-    let mut failures = Vec::new();
+/// The failures of the pooled judgement: the translated share of Rust (`share`,
+/// already judged), the percentiles, then the paired comparison.
+fn judge_pooled(report: &AltReport, share: Option<String>) -> Vec<String> {
+    let mut failures: Vec<String> = share.into_iter().collect();
     match (report.python.l, report.rust.l) {
         (Some(python), Some(rust)) => {
             failures.extend(
@@ -215,9 +225,10 @@ fn judge_pooled(report: &AltReport) -> Vec<String> {
     failures
 }
 
-/// RP-32: `runs` in the order they were measured; `recorded_pairs` is the
-/// pair count written in the result when fewer than three fitted.
-pub fn check_alternated_runs(
+/// What the runs came to, judged on nothing but their form: the order, the
+/// pair count and the loads are checked, the values are only counted. The
+/// columns of a run that `check_alternated_runs` refuses stand here.
+pub fn alternated_report(
     runs: &[AltRun],
     recorded_pairs: Option<usize>,
 ) -> Result<AltReport, Failure> {
@@ -235,15 +246,30 @@ pub fn check_alternated_runs(
         .collect();
     let comparison_set = l_comparison_set(&python_runs);
     let not_slower = not_slower(&comparison_set, &medians(&python)?, &medians(&rust)?);
-    let report = AltReport {
+    Ok(AltReport {
         pairs: runs.len() / 2,
         python: columns_of(&python, MIN_SILENCE_MS)?,
         rust: columns_of(&rust, MIN_SILENCE_MS)?,
         comparison_set,
         not_slower,
+        rust_share: translated_share(&rust, MIN_SILENCE_MS),
+        python_share: translated_share(&python, MIN_SILENCE_MS),
         loads_after,
-    };
-    let failures = judge_pooled(&report);
+    })
+}
+
+/// RP-32: `runs` in the order they were measured; `recorded_pairs` is the
+/// pair count written in the result when fewer than three fitted.
+pub fn check_alternated_runs(
+    runs: &[AltRun],
+    recorded_pairs: Option<usize>,
+) -> Result<AltReport, Failure> {
+    let report = alternated_report(runs, recorded_pairs)?;
+    let rust = pooled(runs, Implementation::Rust);
+    let share = check_translated_share(&rust, MIN_SILENCE_MS)
+        .err()
+        .map(|why| why.to_string());
+    let failures = judge_pooled(&report, share);
     if failures.is_empty() {
         return Ok(report);
     }
@@ -267,6 +293,33 @@ pub fn render_columns(columns: &Columns) -> String {
         line("translation stage", columns.l_tr),
     ]
     .join("\n")
+}
+
+/// The headings of the two translated-share columns. The render and the check
+/// both read these.
+pub const SHARE_COLUMN_RUST: &str = "translated share rust";
+pub const SHARE_COLUMN_PYTHON: &str = "translated share python";
+
+/// The translated-share columns, one per side: `<heading> <translated> / <valid>`.
+pub fn render_share_columns(report: &AltReport) -> String {
+    let line = |heading: &str, share: &TranslatedShare| {
+        format!("{heading} {} / {}", share.translated, share.valid)
+    };
+    [
+        line(SHARE_COLUMN_RUST, &report.rust_share),
+        line(SHARE_COLUMN_PYTHON, &report.python_share),
+    ]
+    .join("\n")
+}
+
+/// The output names both translated-share columns.
+pub fn check_share_columns_written(text: &str) -> Result<(), Failure> {
+    for heading in [SHARE_COLUMN_RUST, SHARE_COLUMN_PYTHON] {
+        if !text.lines().any(|line| line.starts_with(heading)) {
+            return Err(format!("the column {heading} is missing from the output"));
+        }
+    }
+    Ok(())
 }
 
 /// The output names every column the design lists.
