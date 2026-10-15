@@ -270,7 +270,7 @@ fn rp37_an_added_hedge_into_en_is_logged_and_not_held() -> TestResult {
     Ok(())
 }
 
-/// T-RP-37-009 (draft): a hedge only the Japanese translation carries is
+/// T-RP-37-009: a hedge only the Japanese translation carries is
 /// recorded and the line goes out.
 #[test]
 fn rp37_an_added_hedge_into_ja_is_logged_and_not_held() -> TestResult {
