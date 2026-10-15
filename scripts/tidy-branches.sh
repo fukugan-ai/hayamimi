@@ -39,21 +39,40 @@ cd "$root"
 # zero, and that is "not started", not "merged": a builder may be working in
 # it right now. The tip's position cannot tell the two apart (a fast-forward
 # merge leaves the tip on the trunk's first-parent line, exactly like a fresh
-# branch), so the reflog does: a branch that was written on carries a
-# `commit:` entry; one that only took the trunk carries `branch: Created from`
-# and at most a fast-forward.
+# branch), so the reflog does: a branch that was written on carries one of
+#   `commit:`          an ordinary commit
+#   `commit (merge):`  a merge committed with `git commit`
+#   `merge <name>: ..` a merge commit made by `git merge` (e.g. `--no-ff`)
+# A branch that only took the trunk carries `branch: Created from` and at most
+# a fast-forward, so `merge <name>: Fast-forward` is not a write: it moves the
+# tip and creates no commit.
 #
-# A reflog that cannot be read (expired, or never kept) proves nothing, and
-# that is not permission: treat the branch as not started and keep it.
+# Taken: reading the reason after `<sha> <ref>@{n}: ` only, so a commit message
+# that happens to contain one of these words cannot count as a write.
+# Not taken: treating a branch whose reflog cannot be read as finished (an
+# expired or never-kept reflog proves nothing, and that is not permission:
+# treat the branch as not started and keep it), and `git branch -D`.
+# Residual: a branch that only ever fast-forwarded to another branch's tip is
+# read as not started and stays.
+#
+# The reflog text arrives as the first argument. `awk` reads it to the end, so
+# no early exit can turn into SIGPIPE on the producer side under `pipefail`
+# (which is also why `grep -q` is not used here).
+reflog_shows_a_write() {
+  printf '%s\n' "$1" | awk '
+    { sub(/^[^ ]+ [^ ]+@\{[0-9]+\}: /, "") }
+    /^commit:/ || /^commit \(merge\):/ { found = 1 }
+    /^merge / && !/: Fast-forward$/ { found = 1 }
+    END { exit !found }'
+}
+
 not_started() {
   local reflog
   reflog="$(git reflog show "$1" 2>/dev/null || true)"
   if [ -z "$reflog" ]; then
     return 0
   fi
-  # No `grep -q`: with `pipefail` its early exit turns into SIGPIPE on the
-  # producer side and the whole test reads as false.
-  ! printf '%s\n' "$reflog" | grep -F 'commit:' >/dev/null
+  ! reflog_shows_a_write "$reflog"
 }
 
 # One detached worktree, named on the command line. It has no branch to
