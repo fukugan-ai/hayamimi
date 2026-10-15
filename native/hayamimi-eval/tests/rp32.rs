@@ -16,10 +16,11 @@ use hayamimi_eval::latency::{Sample, Stat, Window, build_samples, parse_event};
 use serde_json::Value;
 use support::e2e::columns_of;
 use support::rp32::{
-    AltReport, AltRun, Implementation, SHARE_COLUMN_PYTHON, SHARE_COLUMN_RUST, alternated_report,
-    check_alternated_runs, check_columns_written, check_dir, check_share_columns_written,
-    l_comparison_set, load_alternated, load_hundredths, missing_files, pairs_to_read,
-    parse_load_file, parse_pairs_text, render_columns, render_share_columns, rp32_dir,
+    AltReport, AltRun, Implementation, LOAD_OK, SHARE_COLUMN_PYTHON, SHARE_COLUMN_RUST,
+    alternated_report, check_alternated_runs, check_columns_written, check_dir, check_ports_held,
+    check_share_columns_written, f32_sample, l_comparison_set, load_alternated, load_hundredths,
+    missing_files, pairs_to_read, parse_load_file, parse_pairs_text, render_columns,
+    render_share_columns, rp32_dir, scratch_dir, write_f32_dir,
 };
 use support::{Failure, TestResult, base};
 
@@ -100,29 +101,6 @@ fn the_recorded_r8e_run_is_below_20_of_23() -> TestResult {
 }
 
 // ---- RP-32 judgement of runs measured one after the other (T 4.42) ----
-
-const LOAD_OK: &str = "0.50 0.50 0.50 1/300 1000";
-
-/// F32: `t_end` 0, `L_asr` 700 + u ms, `L` 1000 + 10u + k ms (utterance u, pair k).
-/// The silence gap is 600 + u ms, over the 300 ms limit, so every sample is valid.
-fn f32_sample(utt: u32, k: u32) -> Sample {
-    Sample {
-        repeat: 1,
-        utt,
-        t_start_us: 0,
-        t_end_us: 0,
-        t_partial_us: None,
-        t_partial_tr_us: None,
-        t_final_us: Some(i64::from(700 + utt) * 1000),
-        t_tr_us: Some(i64::from(1000 + 10 * utt + k) * 1000),
-        finals: 1,
-        text: String::new(),
-        translation: None,
-        final_latency_ms: Some(100.0),
-        cer_dist: 0,
-        cer_denom: 0,
-    }
-}
 
 fn f32_run(implementation: Implementation, k: u32) -> AltRun {
     AltRun {
@@ -485,38 +463,15 @@ fn a_directory_without_the_runs_names_the_files_it_lacks() {
         && why.contains("load2.txt")),);
 }
 
-/// Writes the F32 runs of `pairs` pairs into a scratch directory under the
-/// build tree and returns it: `py<N>.jsonl`, `rs<N>.jsonl` (Rust equals
-/// Python) and `load<N>.txt` per pair, and `pairs_txt` as `pairs.txt` when given.
-/// `name` keeps the tests that run side by side apart.
+/// The F32 runs of `pairs` pairs in a scratch directory under the build tree
+/// (see `write_f32_dir`); `name` keeps the tests that run side by side apart.
 fn f32_dir(
     name: &str,
     pairs: u32,
     pairs_txt: Option<&str>,
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../target/rp32-test-dirs")
-        .join(name);
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir)?;
-    }
-    std::fs::create_dir_all(&dir)?;
-    for k in 1..=pairs {
-        let mut load = String::new();
-        for run in [format!("py{k}"), format!("rs{k}")] {
-            let samples: Vec<String> = (1..=19)
-                .map(|utt| serde_json::to_string(&f32_sample(utt, k)))
-                .collect::<Result<_, _>>()?;
-            std::fs::write(dir.join(format!("{run}.jsonl")), samples.join("\n") + "\n")?;
-            for when in ["before", "after"] {
-                load.push_str(&format!("{run} {when} 00:00:00 {LOAD_OK}\n"));
-            }
-        }
-        std::fs::write(dir.join(format!("load{k}.txt")), load)?;
-    }
-    if let Some(text) = pairs_txt {
-        std::fs::write(dir.join("pairs.txt"), text)?;
-    }
+    let dir = scratch_dir("rp32-test-dirs", name)?;
+    write_f32_dir(&dir, pairs, pairs_txt)?;
     Ok(dir)
 }
 
@@ -623,6 +578,7 @@ fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
     let dir = rp32_dir();
     let count = pairs_to_read(&dir)?;
     let runs = load_alternated(&dir, count.pairs)?;
+    check_ports_held(&dir, count.pairs)?;
     let said = check_alternated_runs(&runs, count.recorded);
     if let Ok(report) = &said {
         println!("rp32 python:\n{}", render_columns(&report.python));
