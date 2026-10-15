@@ -278,6 +278,31 @@ pub fn judge_e2e2_files(list: &RecordList) -> Result<Judged, Failure> {
     judge_e2e2(&rust, &read(&events_path(&list.rust))?)
 }
 
+/// A run of `valid` valid samples (the silence gap is 1200 ms, over the
+/// 300 ms limit) of which the first `translated` got a translation 100 ms
+/// after the `final`, so every translated `L` is 1400 ms. A fixture for the
+/// edge of the translated share.
+pub fn share_run(valid: u32, translated: u32) -> Vec<Sample> {
+    (1..=valid)
+        .map(|utt| Sample {
+            repeat: 1,
+            utt,
+            t_start_us: 0,
+            t_end_us: 1_000_000,
+            t_partial_us: None,
+            t_partial_tr_us: None,
+            t_final_us: Some(2_300_000),
+            t_tr_us: (utt <= translated).then_some(2_400_000),
+            finals: 1,
+            text: String::new(),
+            translation: None,
+            final_latency_ms: Some(100.0),
+            cer_dist: 0,
+            cer_denom: 0,
+        })
+        .collect()
+}
+
 /// A copy of a run in which every sample that has a `final` gets its
 /// translation `delay_us` after it: a fixture for the verdict's two ends.
 pub fn translated_after(samples: &[Sample], delay_us: i64) -> Vec<Sample> {

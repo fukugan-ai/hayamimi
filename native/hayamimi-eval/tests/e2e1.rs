@@ -20,7 +20,7 @@ use hayamimi_eval::compare::read_samples;
 use hayamimi_eval::latency::{Sample, Stat};
 use support::e2e::{
     RecordList, events_path, judge_e2e1, judge_e2e1_files, list_run, load_pooled, load_run,
-    report_of, run_dir, translated_after,
+    report_of, run_dir, share_run, translated_after,
 };
 use support::{FIXTURES, RESULTS, TestResult};
 
@@ -201,6 +201,20 @@ fn e2e1_without_a_python_run_is_refused() {
         said.as_ref().is_err_and(|m| m.contains("py<N>.jsonl")),
         "{said:?}"
     );
+}
+
+/// The edge of the translated share, 20 / 23 = 0.8696: 70 of 80 (0.875) is
+/// over it, 69 of 80 (0.8625) is under it. Python has the same `L` (1400 ms)
+/// on both sides, so only the share can fail.
+#[test]
+fn the_translated_share_passes_at_70_of_80_and_fails_at_69() -> TestResult {
+    let python = share_run(80, 80);
+    let at_70 = judge_e2e1(&share_run(80, 70), &python)?;
+    assert!(at_70.failures.is_empty(), "{:?}", at_70.failures);
+    let at_69 = judge_e2e1(&share_run(80, 69), &python)?;
+    assert_eq!(at_69.failures.len(), 1, "{:?}", at_69.failures);
+    assert!(at_69.failures[0].contains("69 of 80 valid samples have a translation"));
+    Ok(())
 }
 
 #[test]

@@ -22,7 +22,7 @@ use hayamimi_eval::compare::read_samples;
 use hayamimi_eval::latency::Stat;
 use support::e2e::{
     Columns, E2E2_P95_BUDGET_MS, RecordList, budget_failure, count_events, judge_e2e2,
-    judge_e2e2_files, load_pooled, load_run, translated_after,
+    judge_e2e2_files, load_pooled, load_run, share_run, translated_after,
 };
 use support::{FIXTURES, RESULTS, TestResult, read};
 
@@ -186,6 +186,19 @@ fn a_run_with_no_translation_fails() -> TestResult {
     );
     assert!(said.contains("no shown translation in ja"), "{said}");
     assert!(!said.contains("no `final` in en"), "{said}");
+    Ok(())
+}
+
+/// The edge of the translated share, 20 / 23: 20 of 23 passes, 19 of 23 does
+/// not. `L` (1400 ms) and the events are fixed inside the budget, so only the
+/// share can fail.
+#[test]
+fn the_translated_share_boundary_is_20_of_23() -> TestResult {
+    let at_20 = judge_e2e2(&share_run(23, 20), EVENTS_BOTH)?;
+    assert!(at_20.failures.is_empty(), "{:?}", at_20.failures);
+    let at_19 = judge_e2e2(&share_run(23, 19), EVENTS_BOTH)?;
+    assert_eq!(at_19.failures.len(), 1, "{:?}", at_19.failures);
+    assert!(at_19.failures[0].contains("19 of 23 valid samples have a translation"));
     Ok(())
 }
 
