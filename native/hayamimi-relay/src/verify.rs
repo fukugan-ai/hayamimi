@@ -351,9 +351,13 @@ pub fn hedge_into<'a>(
 
 /// Whether the numbers of a source and of its translation are the same, each
 /// text read with the number words of its own language.
+///
+/// Between Japanese and English a half hour is spelled in words on one side
+/// (`1時半`) and as `one thirty` on the other, so both texts are read for it.
 fn numbers_agree(src: &str, src_code: &str, translation: &str, dst_code: &str) -> bool {
-    numbers::compared_values(src, Tongue::of_code(src_code))
-        == numbers::compared_values(translation, Tongue::of_code(dst_code))
+    let clock = matches!((src_code, dst_code), ("ja", "en") | ("en", "ja"));
+    numbers::compared_values_with_clock(src, Tongue::of_code(src_code), clock)
+        == numbers::compared_values_with_clock(translation, Tongue::of_code(dst_code), clock)
 }
 
 /// Whether every Latin word of a Japanese source stands in its translation.
