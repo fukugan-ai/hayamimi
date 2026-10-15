@@ -34,6 +34,7 @@ use hayamimi_gpu::session_lock::lock_for_session;
 use serde_json::Value;
 use sherpa_onnx::VoiceActivityDetector;
 use support::{Failure, TestResult, models_dir, read, read_json, testdata_dir};
+use unicode_normalization::UnicodeNormalization;
 
 /// The early detector: threshold 0.65 puts its end line at 0.50.
 const EARLY_THRESHOLD: f32 = 0.65;
@@ -140,26 +141,48 @@ struct Plan {
     candidates: Vec<Candidate>,
     /// The sample of each confirmed (complete) candidate, in order.
     confirmed: Vec<usize>,
-    /// Whether what is left after the last line holds text.
-    remainder: bool,
+    /// The text left after the last line (empty when nothing is left).
+    remainder_text: String,
 }
 
 impl Plan {
+    fn has_remainder(&self) -> bool {
+        !self.remainder_text.trim().is_empty()
+    }
+
     /// The finals the early path makes out of this segment.
     fn finals(&self) -> usize {
         if self.confirmed.is_empty() {
             1
         } else {
-            self.confirmed.len() + usize::from(self.remainder)
+            self.confirmed.len() + usize::from(self.has_remainder())
         }
     }
 
     /// The sample at which the last final of the segment is made.
     fn last_final_at(&self) -> usize {
         match self.confirmed.last() {
-            Some(last) if !self.remainder => *last,
+            Some(last) if !self.has_remainder() => *last,
             _ => self.seg.seen,
         }
+    }
+
+    /// The texts of the finals, in order: each confirmed candidate, then the
+    /// remainder. Empty when the early path makes no split.
+    fn final_texts(&self) -> Vec<&str> {
+        if self.finals() < 2 {
+            return Vec::new();
+        }
+        let mut texts: Vec<&str> = self
+            .candidates
+            .iter()
+            .filter(|c| c.complete)
+            .map(|c| c.text.as_str())
+            .collect();
+        if self.has_remainder() {
+            texts.push(self.remainder_text.as_str());
+        }
+        texts
     }
 }
 
@@ -329,9 +352,9 @@ fn micros_since(started: Instant) -> i64 {
 }
 
 /// Feeds both detectors the windows in order, timing each detector's work on a window.
-fn run_pass(models: &Path, audio: &[f32]) -> Result<Pass, Failure> {
+fn run_pass(models: &Path, audio: &[f32], early_settings: VadSettings) -> Result<Pass, Failure> {
     let now = detector(models, NOW_SETTINGS, DEFAULT_THRESHOLD)?;
-    let early = detector(models, EARLY_SETTINGS, EARLY_THRESHOLD)?;
+    let early = detector(models, early_settings, EARLY_THRESHOLD)?;
     let mut pass = Pass {
         now: Vec::new(),
         early: Vec::new(),
@@ -427,19 +450,17 @@ fn plan_segment(
             confirmed.push(cand.seen);
         }
     }
-    let remainder = match line {
+    let remainder_text = match line {
         Some(at) if seg.span.end >= at + REMAINDER_MIN => {
-            !solve(models, audio, at, seg.span.end, lang)?
-                .trim()
-                .is_empty()
+            solve(models, audio, at, seg.span.end, lang)?
         }
-        _ => false,
+        _ => String::new(),
     };
     Ok(Plan {
         seg: *seg,
         candidates,
         confirmed,
-        remainder,
+        remainder_text,
     })
 }
 
@@ -504,6 +525,180 @@ struct SetReport {
     utt_spans: Vec<Span>,
     now_us: Vec<i64>,
     both_us: Vec<i64>,
+    splits: Vec<SplitRecord>,
+}
+
+/// Where a split by B alone falls against the sentences of the reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    /// The final before the line ends where a reference sentence ends.
+    Boundary,
+    /// The final after the line carries nothing of the rest of the reference.
+    Tail,
+    /// Neither.
+    Mid,
+}
+
+/// The units of a text (characters for ja, lower-case words for en) and the
+/// places a sentence ends in them, counted in units before the end mark.
+struct Marked {
+    units: Vec<String>,
+    ends: Vec<usize>,
+}
+
+fn push_end(units: &[String], ends: &mut Vec<usize>) {
+    if !units.is_empty() && ends.last() != Some(&units.len()) {
+        ends.push(units.len());
+    }
+}
+
+/// ja: NFKC, then letters and digits; 。 ? ! end a sentence. en: words
+/// without punctuation, lower-case; a word ending in . ? ! ends a sentence.
+fn marked(text: &str, lang: &str) -> Marked {
+    let mut found = Marked {
+        units: Vec::new(),
+        ends: Vec::new(),
+    };
+    if lang == "ja" {
+        for ch in text.nfkc() {
+            if matches!(ch, '。' | '?' | '!') {
+                push_end(&found.units, &mut found.ends);
+            } else if ch.is_alphanumeric() {
+                found.units.push(ch.to_string());
+            }
+        }
+        return found;
+    }
+    for token in text.split_whitespace() {
+        let word: String = token.chars().filter(|c| c.is_alphanumeric()).collect();
+        if !word.is_empty() {
+            found.units.push(word.to_lowercase());
+        }
+        if token.ends_with(['.', '?', '!']) {
+            push_end(&found.units, &mut found.ends);
+        }
+    }
+    found
+}
+
+/// How far into `reference` the units of `prefix` reach: the length of the
+/// reference prefix with the smallest edit distance to `prefix` (the first
+/// such length when several tie). `None` cannot happen: the row always has
+/// the empty reference prefix in it.
+fn align_end(prefix: &[String], reference: &[String]) -> Option<usize> {
+    let width = reference.len() + 1;
+    let mut previous: Vec<usize> = (0..width).collect();
+    for (i, unit) in prefix.iter().enumerate() {
+        let mut row = vec![i + 1; width];
+        for j in 1..width {
+            let swap = usize::from(*unit != reference[j - 1]);
+            row[j] = (previous[j - 1] + swap)
+                .min(previous[j] + 1)
+                .min(row[j - 1] + 1);
+        }
+        previous = row;
+    }
+    previous
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, distance)| **distance)
+        .map(|(reach, _)| reach)
+}
+
+/// Sorts one split. `prefix` is every final up to the line, `next` the final
+/// after it. A tail wins over a boundary when both hold.
+fn classify(prefix: &Marked, next: &Marked, reference: &Marked) -> Option<Kind> {
+    let reach = align_end(&prefix.units, &reference.units)?;
+    let rest = &reference.units[reach..];
+    if next.units.is_empty() || !next.units.iter().any(|u| rest.contains(u)) {
+        Some(Kind::Tail)
+    } else if reference.ends.iter().any(|end| end.abs_diff(reach) <= 1) {
+        Some(Kind::Boundary)
+    } else {
+        Some(Kind::Mid)
+    }
+}
+
+/// One split by B alone with its two sortings.
+struct SplitRecord {
+    prefix: String,
+    next: String,
+    reference: Option<String>,
+    a_final: String,
+    by_reference: Option<Kind>,
+    by_a: Kind,
+}
+
+impl SplitRecord {
+    /// The sorting that counts: by the reference for ja, by the final of A for en.
+    fn kind(&self, lang: &str) -> Kind {
+        match (lang, self.by_reference) {
+            ("ja", Some(kind)) => kind,
+            _ => self.by_a,
+        }
+    }
+}
+
+/// The splits of one plan, sorted against the reference and the final of A.
+fn plan_splits(
+    models: &Path,
+    lang: &str,
+    audio: &[f32],
+    plan: &Plan,
+    reference: Option<&str>,
+) -> Result<Vec<SplitRecord>, Failure> {
+    let texts = plan.final_texts();
+    if texts.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let from = plan.seg.span.start.saturating_sub(preroll_samples());
+    let a_final = solve(models, audio, from, plan.seg.span.end, lang)?;
+    let a_marked = marked(&a_final, lang);
+    let joiner = if lang == "en" { " " } else { "" };
+    let mut records = Vec::new();
+    for line in 1..texts.len() {
+        let prefix = texts[..line].join(joiner);
+        let (prefix_m, next_m) = (marked(&prefix, lang), marked(texts[line], lang));
+        let by_reference = match reference {
+            Some(text) => Some(
+                classify(&prefix_m, &next_m, &marked(text, lang))
+                    .ok_or_else(|| String::from("an empty alignment"))?,
+            ),
+            None => None,
+        };
+        records.push(SplitRecord {
+            by_reference,
+            by_a: classify(&prefix_m, &next_m, &a_marked)
+                .ok_or_else(|| String::from("an empty alignment"))?,
+            reference: reference.map(str::to_owned),
+            a_final: a_final.clone(),
+            next: texts[line].to_owned(),
+            prefix,
+        });
+    }
+    Ok(records)
+}
+
+/// The sorted splits of every plan; the reference of a plan is that of the
+/// first utterance it touches.
+fn all_splits(
+    models: &Path,
+    lang: &str,
+    audio: &[f32],
+    plans: &[Plan],
+    utterances: &[Span],
+    references: &[Option<String>],
+) -> Result<Vec<SplitRecord>, Failure> {
+    let mut records = Vec::new();
+    for plan in plans {
+        let owner = utterances
+            .iter()
+            .position(|u| overlaps(plan.seg.span, *u))
+            .and_then(|index| references.get(index))
+            .and_then(Option::as_deref);
+        records.extend(plan_splits(models, lang, audio, plan, owner)?);
+    }
+    Ok(records)
 }
 
 /// The segments of A that touch an utterance, replayed one by one.
@@ -521,15 +716,29 @@ fn plan_all(
         .collect()
 }
 
-fn analyse(
-    models: &Path,
-    name: &str,
-    lang: &str,
-    audio: &[f32],
-    utterances: &[Span],
-) -> Result<SetReport, Failure> {
-    let pass = run_pass(models, audio)?;
+/// What one run is given: the set, its utterances with their reference
+/// sentences (none for AMI), and the settings of B.
+struct Input<'a> {
+    name: &'a str,
+    lang: &'a str,
+    audio: &'a [f32],
+    utterances: &'a [Span],
+    references: &'a [Option<String>],
+    early: VadSettings,
+}
+
+fn analyse(models: &Path, input: &Input) -> Result<SetReport, Failure> {
+    let Input {
+        name,
+        lang,
+        audio,
+        utterances,
+        references,
+        early,
+    } = *input;
+    let pass = run_pass(models, audio, early)?;
     let plans = plan_all(models, lang, audio, &pass, utterances)?;
+    let splits = all_splits(models, lang, audio, &plans, utterances, references)?;
     let stats: Vec<(usize, UttStat)> = utterances
         .iter()
         .enumerate()
@@ -546,6 +755,7 @@ fn analyse(
         utt_spans: utterances.to_vec(),
         now_us: pass.now_us,
         both_us: pass.both_us,
+        splits,
     })
 }
 
@@ -682,8 +892,64 @@ fn ja_limit(report: &SetReport) -> Result<Option<i64>, Failure> {
     Ok(Some(ceil_ten(p_b + JA_D_P95_MAIN_MS - p_a)))
 }
 
+/// The counts of the three kinds and, for ja, how often the two sortings agree.
+fn kind_lines(report: &SetReport) -> Vec<String> {
+    let count = |kind: Kind| {
+        report
+            .splits
+            .iter()
+            .filter(|s| s.kind(&report.lang) == kind)
+            .count()
+    };
+    let total = report.splits.len();
+    let mut lines = vec![format!(
+        "R8V {} KINDS splits {total} boundary {} tail {} mid {} (mid per split {}/{total}, mid per utterance {}/{})",
+        report.name,
+        count(Kind::Boundary),
+        count(Kind::Tail),
+        count(Kind::Mid),
+        count(Kind::Mid),
+        count(Kind::Mid),
+        report.utterances
+    )];
+    let both: Vec<&SplitRecord> = report
+        .splits
+        .iter()
+        .filter(|s| s.by_reference.is_some())
+        .collect();
+    if !both.is_empty() {
+        let agree = both
+            .iter()
+            .filter(|s| s.by_reference == Some(s.by_a))
+            .count();
+        lines.push(format!(
+            "R8V {} KINDS_AGREE by reference vs by A: agree {agree} differ {} of {}",
+            report.name,
+            both.len() - agree,
+            both.len()
+        ));
+    }
+    for s in &report.splits {
+        lines.push(format!(
+            "R8V {} SPLIT kind {:?} by_reference {:?} by_A {:?} prefix {:?} next {:?} reference {:?} a_final {:?}",
+            report.name,
+            s.kind(&report.lang),
+            s.by_reference,
+            s.by_a,
+            s.prefix,
+            s.next,
+            s.reference,
+            s.a_final
+        ));
+    }
+    lines
+}
+
 fn print_set(report: &SetReport) -> TestResult {
     for line in report_lines(report)? {
+        println!("{line}");
+    }
+    for line in kind_lines(report) {
         println!("{line}");
     }
     let (passed, a_only, b_added) = pass_line(report);
@@ -703,12 +969,47 @@ fn print_set(report: &SetReport) -> TestResult {
     Ok(())
 }
 
-fn lat_set(models: &Path, testdata: &Path, lang: &str) -> Result<SetReport, Failure> {
+/// The `ref` of each manifest entry.
+fn manifest_references(path: &Path) -> Result<Vec<Option<String>>, Failure> {
+    let Some(entries) = read_json(path)?.as_array().cloned() else {
+        return Err(format!("{} is not an array", path.display()));
+    };
+    entries
+        .iter()
+        .map(|entry| {
+            let text = entry
+                .get("ref")
+                .and_then(Value::as_str)
+                .ok_or_else(|| String::from("a manifest entry has no `ref`"))?;
+            Ok(Some(text.to_owned()))
+        })
+        .collect()
+}
+
+/// A latency set under the name `name`, with B set to `early`.
+fn lat_set(
+    models: &Path,
+    testdata: &Path,
+    lang: &str,
+    name: &str,
+    early: VadSettings,
+) -> Result<SetReport, Failure> {
     let audio =
         read_wav(&testdata.join(format!("lat-{lang}.wav"))).map_err(|why| why.to_string())?;
     let manifest = testdata.join("manifests").join(format!("lat-{lang}.json"));
     let utterances = manifest_spans(&manifest)?;
-    analyse(models, &format!("lat-{lang}"), lang, &audio, &utterances)
+    let references = manifest_references(&manifest)?;
+    analyse(
+        models,
+        &Input {
+            name,
+            lang,
+            audio: &audio,
+            utterances: &utterances,
+            references: &references,
+            early,
+        },
+    )
 }
 
 #[test]
@@ -716,7 +1017,24 @@ fn lat_set(models: &Path, testdata: &Path, lang: &str) -> Result<SetReport, Fail
 fn r8v_latency_set_probe() -> TestResult {
     let (models, testdata) = (models_dir()?, testdata_dir()?);
     for lang in ["ja", "en"] {
-        print_set(&lat_set(&models, &testdata, lang)?)?;
+        let name = format!("lat-{lang}");
+        print_set(&lat_set(&models, &testdata, lang, &name, EARLY_SETTINGS)?)?;
+    }
+    Ok(())
+}
+
+/// B with `min_silence` 0.20 s, on the latency sets only; a record, not a judgement.
+#[test]
+#[ignore = "an offline probe: reads testdata/ and the models"]
+fn r8v_latency_set_probe_min_silence_020() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let early = VadSettings {
+        min_silence: 0.20,
+        ..EARLY_SETTINGS
+    };
+    for lang in ["ja", "en"] {
+        let name = format!("lat-{lang}-b020");
+        print_set(&lat_set(&models, &testdata, lang, &name, early)?)?;
     }
     Ok(())
 }
@@ -728,7 +1046,16 @@ fn r8v_heldout_ja_probe() -> TestResult {
     let dir = testdata.join("r8v_heldout");
     let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
     let utterances = manifest_spans(&dir.join("ja.json"))?;
-    print_set(&analyse(&models, "heldout-ja", "ja", &audio, &utterances)?)
+    let references = manifest_references(&dir.join("ja.json"))?;
+    let input = Input {
+        name: "heldout-ja",
+        lang: "ja",
+        audio: &audio,
+        utterances: &utterances,
+        references: &references,
+        early: EARLY_SETTINGS,
+    };
+    print_set(&analyse(&models, &input)?)
 }
 
 #[test]
@@ -749,7 +1076,16 @@ fn r8v_heldout_en_probe() -> TestResult {
         let rttm = read(&dir.join(format!("{id}.rttm")))?;
         let utterances = ami_utterances(&rttm, AMI_TURNS_PER_MEETING)?;
         let name = format!("heldout-en-{id}");
-        print_set(&analyse(&models, &name, "en", &audio, &utterances)?)?;
+        let references = vec![None; utterances.len()];
+        let input = Input {
+            name: &name,
+            lang: "en",
+            audio: &audio,
+            utterances: &utterances,
+            references: &references,
+            early: EARLY_SETTINGS,
+        };
+        print_set(&analyse(&models, &input)?)?;
     }
     Ok(())
 }
@@ -826,8 +1162,81 @@ fn plan_of(confirmed: Vec<usize>, remainder: bool) -> Plan {
         },
         candidates: Vec::new(),
         confirmed,
-        remainder,
+        remainder_text: String::from(if remainder { "あ" } else { "" }),
     }
+}
+
+fn units(text: &str) -> Vec<String> {
+    marked(text, "ja").units
+}
+
+#[test]
+fn a_ja_text_is_split_into_characters_with_the_sentence_ends_between_them() {
+    let m = marked("今日は雨です。明日は？", "ja");
+    assert_eq!(m.units.len(), 9);
+    assert_eq!(m.ends, vec![6, 9]);
+}
+
+#[test]
+fn an_en_text_is_split_into_lower_case_words_with_the_sentence_ends_between_them() {
+    let m = marked("It rains. Does it, today?", "en");
+    assert_eq!(m.units, vec!["it", "rains", "does", "it", "today"]);
+    assert_eq!(m.ends, vec![2, 5]);
+}
+
+#[test]
+fn the_alignment_reaches_the_end_of_the_matching_reference_prefix() {
+    let reference = units("今日は雨です明日は晴れです");
+    assert_eq!(align_end(&units("今日は雨です"), &reference), Some(6));
+    assert_eq!(align_end(&[], &reference), Some(0));
+}
+
+fn kind_of(prefix: &str, next: &str, reference: &str) -> Option<Kind> {
+    classify(
+        &marked(prefix, "ja"),
+        &marked(next, "ja"),
+        &marked(reference, "ja"),
+    )
+}
+
+#[test]
+fn a_cut_where_the_reference_sentence_ends_is_a_boundary() {
+    let reference = "今日は雨です。明日は晴れです。";
+    assert_eq!(
+        kind_of("今日は雨です。", "明日は晴れです。", reference),
+        Some(Kind::Boundary)
+    );
+}
+
+#[test]
+fn a_cut_inside_a_reference_sentence_is_mid() {
+    let reference = "今日は雨ですが明日は晴れです。";
+    assert_eq!(
+        kind_of("今日は雨です", "が明日は晴れです。", reference),
+        Some(Kind::Mid)
+    );
+}
+
+#[test]
+fn a_next_final_with_nothing_of_the_reference_is_a_tail_even_at_a_boundary() {
+    let reference = "今日は雨です。";
+    assert_eq!(
+        kind_of("今日は雨です。", "ABC", reference),
+        Some(Kind::Tail)
+    );
+    assert_eq!(kind_of("今日は雨です。", "", reference), Some(Kind::Tail));
+}
+
+#[test]
+fn only_the_final_texts_of_a_split_plan_are_listed() {
+    let mut plan = plan_of(vec![200], true);
+    plan.candidates.push(Candidate {
+        text: String::from("前。"),
+        complete: true,
+        continues: true,
+    });
+    assert_eq!(plan.final_texts(), vec!["前。", "あ"]);
+    assert!(plan_of(vec![200], false).final_texts().is_empty());
 }
 
 #[test]
