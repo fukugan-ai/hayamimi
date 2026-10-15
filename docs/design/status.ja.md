@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `3e8a974`（2026-10-15 16:51 に `git fetch` した後の `origin/main`）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `3421440`（2026-10-15 17:03 に `git fetch` した後の `origin/main`）である。
 
 ## 完成までに残っている物
 
@@ -19,7 +19,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 |---|---|---|---|---|
 | RP-32：Python と Rust を同じ負荷で交互に 3 対流す（E2E-1 の正式な判定） | test は main に入った。実走は打っていない（`docs/results/rp32/` が無い） | E2E の席 | 各 run の前の 1 分の load が 2 未満であること（`rust_port.ja.md` の 6 の RP-32） | `0900a32`、`e745bd3` |
 | RP-33：T が V に落ちた行の最初の訳の段ごとの列 | test は main に入った。実走は打っていない | E2E の席 | RP-32 の Rust の run を読むので、RP-32 の実走が先に要る | `fccce49` |
-| RP-66：発話の終わりの待ち `d` を縮める 2 段の区切り（R8v） | 手番 1 の流し直しで通す線から外れた。評議 PAUSE。合否を文の途中の切断の率に替えた。次は手番 1b（仕分け）。設計と、停止条件 2 に当たった後の設計の直し（RP-68、H75、H76）は main に入った。実装は未着手 | R8v の席 | 手番 1b（仕分け）の結果を、文の途中の切断の率で判定すること。held-out を 1 回流すこと。その後に手番 2 で RP-68 の test を通してから 2 本目の detector を作る | 設計 `27efb3c`、直し `4ca0f86`（`5522942` で merge）、合否の線の書き直し `3fb8875`、probe `f925f8c`（branch `feat/r8v-probe`、main に無い） |
+| RP-66：発話の終わりの待ち `d` を縮める 2 段の区切り（R8v） | 手番 1 の流し直しで通す線から外れた。評議 PAUSE。合否を文の途中の切断の率に替えた。T の行は書き直した（T-RP-66-040〜063）。手番 1b（仕分けの probe）は E2E の窓が閉じてから。設計と、停止条件 2 に当たった後の設計の直し（RP-68、H75、H76）は main に入った。実装は未着手 | R8v の席 | 手番 1b（仕分け）の結果を、文の途中の切断の率で判定すること。held-out を 1 回流すこと。その後に手番 2 で RP-68 の test を通してから 2 本目の detector を作る | 設計 `27efb3c`、直し `4ca0f86`（`5522942` で merge）、合否の線の書き直し `3fb8875`、T の書き直し `bcf41e0`、D の 2 文 `2705ffe`、probe `f925f8c`（branch `feat/r8v-probe`、main に無い） |
 | RP-67：`L` の p95 を 1000 ms 以下にする | 設計済みで未実装 | ja は訳の波の席、en は R7 の席 | R8v だけでは届かない。ja は `L` が訳の p95 1034 ms（E2E-1 の n=93）を下回れず、en は 1000 ms を超えてよい標本が 3 件までで上位 3 件が使い切っている（H69） | `27efb3c` |
 | RP-1 の ko、T-RP-1-013 の実記録、RP-10 の `lang` の条件。RP-22 と言語判定の結線は通過 | R3b と R3c は検証済みで merge 済み。RP-22 は peak 8936 MiB（上限 14000）で通過。RP-1 は ja、en、zh、yue が Python と同じ値で、ko だけが配る形の build で 0.087（Python は 0.081） | ko は評議が R11 の入口の上限（RP-36）で受けた。T-RP-1-013 は E2E の席。RP-10 は Windows の build を持つ席 | ko は ORT の build の違いで、閾値は緩めない（H35）。H55 は Windows の build が無いと書く | `0358773`、`b8fd07e`、`docs/results/r3/rp22_run.json` |
 | RP-44：新しい held-out の組（RP-35 の最終の測りに使う） | 組はできた（`testdata/heldout/set2/`、git の外。en、zh、ko、es 各 35 行） | R12y の席 | 組を使う入口（`hayamimi-relay eval` の `--final`、`--heldout`、`--direction`）と、同じ組を 2 回使う拒み（CS-30）が未実装 | `rust_port.ja.md` の 8 の R12y、README |
