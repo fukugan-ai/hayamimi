@@ -133,6 +133,21 @@ held_out="$(report pair "$work/locks/held")"
 free_out="$(report pair "$work/locks/free")"
 check "the free and held reports differ on the same branch" "$([ "$held_out" != "$free_out" ] && echo yes || echo no)"
 
+# Under `sudo -n nice -n -5` $HOME is /root. The default main-lock binary must
+# still be found, so a removable verify/ branch is reported removable. Only
+# meaningful while the real lock is free, so the case asks the real binary first.
+real_lock="$(getent passwd "$(id -un)" | cut -d: -f6)/.claude/hooks/rust/target/release/main-lock"
+zero="0000000000000000000000000000000000000000"
+real_out="$(printf 'refs/heads/main %s refs/heads/main %s\n' "$zero" "$zero" | "$real_lock" check tidy-branches 2>&1)" && real_rc=0 || real_rc=$?
+if [ -x "$real_lock" ] && [ "$real_rc" = "0" ] && [ -z "$real_out" ] && sudo -n true 2>/dev/null; then
+  make_repo sudo_home
+  git -C "$work/sudo_home" branch verify/level
+  out="$(sudo -n env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*' nice -n -5 "$work/sudo_home/scripts/tidy-branches.sh" 2>&1)"
+  check "under sudo -n nice -n -5 the default main-lock is found and the branch is removable" "$(has_line "$out" verify/level 外せる)"
+else
+  echo "skip the sudo case (real lock not free, binary missing, or sudo unavailable)"
+fi
+
 echo
 echo "cases=$cases failures=$failures"
 [ "$failures" = "0" ]

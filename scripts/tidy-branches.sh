@@ -46,7 +46,12 @@ readonly root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly trunk="main"
 # The main-lock binary that decides whether a `verify/` branch may go. The path
 # is a parameter (`--main-lock BIN`) so a test can name a stand-in.
-main_lock="$HOME/.claude/hooks/rust/target/release/main-lock"
+# Its place comes from the home directory of the repository's owner, not from
+# $HOME: under `sudo -n nice -n -5` $HOME is /root and the binary would not be
+# found, so a removable verify/ branch would be kept as "cannot tell".
+repo_owner="$(stat -c %U "$root")"
+owner_home="$(getent passwd "$repo_owner" | cut -d: -f6)"
+main_lock="$owner_home/.claude/hooks/rust/target/release/main-lock"
 if [ "${1:-}" = "--main-lock" ]; then
   main_lock="${2:?--main-lock needs the path of the main-lock binary}"
   shift 2
