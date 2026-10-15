@@ -1,16 +1,20 @@
 //! R8v step 1: an offline probe of the two-stage end-of-speech decision (3.17).
 //!
-//! The current detector (threshold 0.5, min_silence 0.30 s) and an early one
-//! (threshold 0.65, min_silence 0.12 s, the same 0.25 s shortest speech) are
-//! fed the same windows of `lat-ja.wav` and `lat-en.wav` in the same order.
-//! A notice of the early detector is a candidate only while the current
-//! detector is inside speech. A candidate is solved from the voice start of
-//! the current detector (the pre-roll included) to the candidate's sample
-//! through the engine, so the text has been through recognition, ITN and
-//! punctuation; the completeness table below is then applied to it.
+//! The current detector A (threshold 0.5, min_silence 0.30 s) and an early one
+//! B (threshold 0.65, min_silence 0.12 s, the same 0.25 s shortest speech) are
+//! fed the same windows in the same order. A notice of B is a candidate only
+//! while A is inside speech. The early path is replayed per segment of A:
+//! each candidate is solved from the line (the voice start of A with its
+//! pre-roll, then the last confirmed candidate) to the candidate sample, through
+//! the engine, so the text has been through recognition, ITN and punctuation.
+//! A complete text confirms the candidate and moves the line. What is left of
+//! the segment after the last line is solved once more and counts as a final
+//! when it holds text.
 //!
-//! Nothing here changes a product default. The tables are constants of this
-//! file in the shape `endpoint.rs` will take them.
+//! Three runs, each its own test: the latency set (`lat-ja`, `lat-en`), and
+//! the held-out sets (FLEURS ja joined with 1.5 s gaps, AMI turns). The
+//! thresholds, the tables and the pass line below are fixed before the
+//! held-out sets are run.
 //!
 //!     cargo test --release -p hayamimi-asr --test r8v_probe -- --ignored --nocapture
 
@@ -29,7 +33,7 @@ use hayamimi_eval::percentile::nearest_rank;
 use hayamimi_gpu::session_lock::lock_for_session;
 use serde_json::Value;
 use sherpa_onnx::VoiceActivityDetector;
-use support::{Failure, TestResult, models_dir, read_json, testdata_dir};
+use support::{Failure, TestResult, models_dir, read, read_json, testdata_dir};
 
 /// The early detector: threshold 0.65 puts its end line at 0.50.
 const EARLY_THRESHOLD: f32 = 0.65;
@@ -42,16 +46,21 @@ const NOW_SETTINGS: VadSettings = VadSettings {
     max_speech: 12.0,
 };
 const BUFFER_SECONDS: f32 = 30.0;
-/// A candidate this close to the manifest end, or earlier, has speech still
-/// to come: 300 ms at 16 kHz.
-const STILL_SPEAKING: usize = 4800;
-/// The manifest end of ja moved by at least this many ms is a pass (R8v step 1).
-const REQUIRED_GAIN_MS: i64 = 150;
-/// The limit of the p95 of the detectors' time per window (C3), in microseconds.
+/// The limit of the p95 of the detectors' time per window, in microseconds.
 const VAD_P95_LIMIT_US: i64 = 2000;
+/// What is left of a segment after the last line is solved only when it is
+/// at least this long (0.5 s at 16 kHz).
+const REMAINDER_MIN: usize = 8000;
+/// The p95 of `d` of the current main for ja, in ms (3.17, count 1).
+const JA_D_P95_MAIN_MS: i64 = 1341;
+/// The AMI turns taken per meeting, from the start of the meeting.
+const AMI_TURNS_PER_MEETING: usize = 12;
+/// An AMI turn is an utterance when it lasts this long (seconds)...
+const AMI_MIN_TURN_S: f64 = 1.0;
+/// ...and no other speaker's turn comes this close before or after it.
+const AMI_MARGIN_S: f64 = 0.3;
 
-/// Sentence endings that can close a Japanese sentence (an initial table; the
-/// rows are fixed by the test-designer in step 2).
+/// Sentence endings that can close a Japanese sentence.
 const JA_FINAL: [&str; 17] = [
     "です",
     "ます",
@@ -94,7 +103,7 @@ const EN_CONTINUATION: [&str; 22] = [
     "on", "at", "by", "if", "when", "as", "than", "then",
 ];
 
-/// A stretch of the input in samples: a manifest utterance or a detected segment.
+/// A stretch of the input in samples: an utterance or a detected segment.
 #[derive(Clone, Copy, Debug)]
 struct Span {
     start: usize,
@@ -118,12 +127,59 @@ struct Pass {
     both_us: Vec<i64>,
 }
 
-/// A candidate with its solved text and verdicts.
+/// A solved candidate.
 struct Candidate {
-    notice: Notice,
     text: String,
     complete: bool,
-    inside_window: bool,
+    continues: bool,
+}
+
+/// The early path replayed over one segment of A.
+struct Plan {
+    seg: Notice,
+    candidates: Vec<Candidate>,
+    /// The sample of each confirmed (complete) candidate, in order.
+    confirmed: Vec<usize>,
+    /// Whether what is left after the last line holds text.
+    remainder: bool,
+}
+
+impl Plan {
+    /// The finals the early path makes out of this segment.
+    fn finals(&self) -> usize {
+        if self.confirmed.is_empty() {
+            1
+        } else {
+            self.confirmed.len() + usize::from(self.remainder)
+        }
+    }
+
+    /// The sample at which the last final of the segment is made.
+    fn last_final_at(&self) -> usize {
+        match self.confirmed.last() {
+            Some(last) if !self.remainder => *last,
+            _ => self.seg.seen,
+        }
+    }
+}
+
+/// What the plans say about one utterance.
+struct UttStat {
+    a_segments: Vec<Span>,
+    finals_early: usize,
+    first_complete_at: Option<usize>,
+    a_seen: usize,
+    last_final_at: usize,
+}
+
+impl UttStat {
+    /// The first complete candidate, or the detection of A when none came.
+    fn first_detection(&self) -> usize {
+        match self.first_complete_at {
+            Some(at) => at,
+            None => self.a_seen,
+        }
+    }
 }
 
 fn is_terminal(ch: char) -> bool {
@@ -165,6 +221,24 @@ fn is_complete(lang: &str, text: &str) -> bool {
     }
 }
 
+fn overlaps(a: Span, b: Span) -> bool {
+    a.start < b.end && a.end > b.start
+}
+
+/// Whether voice goes on after `candidate` inside the segment `seg` of A: B
+/// reads the start of another stretch of voice after the candidate's end and
+/// before the segment's end.
+fn voice_continues(early: &[Notice], candidate: &Notice, seg: Span) -> bool {
+    early
+        .iter()
+        .any(|n| n.span.start >= candidate.span.end && n.span.start < seg.end)
+}
+
+/// Rounds up to a multiple of 10.
+fn ceil_ten(value: i64) -> i64 {
+    (value + 9).div_euclid(10) * 10
+}
+
 fn manifest_spans(path: &Path) -> Result<Vec<Span>, Failure> {
     let Some(entries) = read_json(path)?.as_array().cloned() else {
         return Err(format!("{} is not an array", path.display()));
@@ -185,6 +259,40 @@ fn manifest_spans(path: &Path) -> Result<Vec<Span>, Failure> {
             })
         })
         .collect()
+}
+
+/// The utterances of one AMI meeting: single-speaker turns of at least a
+/// second with no other speaker's turn within the margin, the first
+/// `per_meeting` of them.
+fn ami_utterances(rttm: &str, per_meeting: usize) -> Result<Vec<Span>, Failure> {
+    let mut turns: Vec<(f64, f64, String)> = Vec::new();
+    for line in rttm.lines().filter(|l| l.starts_with("SPEAKER")) {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        let [_, _, _, start, duration, _, _, speaker, ..] = fields.as_slice() else {
+            return Err(format!("an RTTM line has too few fields: {line}"));
+        };
+        let start: f64 = start.parse().map_err(|why| format!("{line}: {why}"))?;
+        let duration: f64 = duration.parse().map_err(|why| format!("{line}: {why}"))?;
+        turns.push((start, start + duration, (*speaker).to_owned()));
+    }
+    turns.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let rate = f64::from(SAMPLE_RATE);
+    let alone = |turn: &(f64, f64, String)| {
+        turns.iter().all(|other| {
+            other.2 == turn.2
+                || other.1 <= turn.0 - AMI_MARGIN_S
+                || other.0 >= turn.1 + AMI_MARGIN_S
+        })
+    };
+    Ok(turns
+        .iter()
+        .filter(|turn| turn.1 - turn.0 >= AMI_MIN_TURN_S && alone(turn))
+        .take(per_meeting)
+        .map(|turn| Span {
+            start: (turn.0 * rate) as usize,
+            end: (turn.1 * rate) as usize,
+        })
+        .collect())
 }
 
 fn detector(
@@ -251,68 +359,107 @@ fn run_pass(models: &Path, audio: &[f32]) -> Result<Pass, Failure> {
     Ok(pass)
 }
 
-/// The segment of the current detector a candidate falls in: it started
-/// before the candidate and was handed over after it.
-fn enclosing(now: &[Notice], seen: usize) -> Option<Span> {
-    now.iter()
-        .rev()
-        .find(|n| n.span.start <= seen && seen <= n.seen)
-        .map(|n| n.span)
+fn engine_for(models: &Path, lang: &str) -> Result<Engine, Failure> {
+    let mut settings = Settings::new(models.to_path_buf());
+    settings.policy = Policy::single(lang);
+    settings.stages.speakers = false;
+    Engine::open(settings).map_err(|why| why.to_string())
 }
 
-/// The text from the voice start (the pre-roll included) to `seen`, through the engine.
+/// The text of `audio[from..to]` through a fresh engine (a reused engine's
+/// detector is not used again after `finish`). A slice that yields several
+/// finals is joined.
 fn solve(
     models: &Path,
     audio: &[f32],
-    voice: Span,
-    seen: usize,
+    from: usize,
+    to: usize,
     lang: &str,
 ) -> Result<String, Failure> {
-    let preroll = (PREROLL_SECONDS * f64::from(SAMPLE_RATE)) as usize;
-    let from = voice.start.saturating_sub(preroll);
-    let to = seen.min(audio.len());
-    // A fresh engine per candidate: a reused one carries its detector's
-    // timeline over and aborted inside the detector's buffer on the 7th slice.
     let mut engine = engine_for(models, lang)?;
     let finals = engine
-        .transcribe(&audio[from..to])
+        .transcribe(&audio[from..to.min(audio.len())])
         .map_err(|why| why.to_string())?;
     let texts: Vec<&str> = finals.iter().map(|done| done.text.as_str()).collect();
     Ok(texts.join(if lang == "en" { " " } else { "" }))
 }
 
-fn falls_in_window(seen: usize, utterances: &[Span]) -> bool {
-    utterances
-        .iter()
-        .any(|u| u.start <= seen && seen + STILL_SPEAKING <= u.end)
+fn preroll_samples() -> usize {
+    (PREROLL_SECONDS * f64::from(SAMPLE_RATE)) as usize
 }
 
-/// Solves every candidate: a notice of the early detector while the current one is in speech.
-fn candidates(
+/// The B notices that fall inside the segment `seg` of A while A was in voice.
+fn candidates_in<'a>(pass: &'a Pass, seg: &Notice) -> Vec<&'a Notice> {
+    pass.early
+        .iter()
+        .filter(|n| n.in_voice && seg.span.start <= n.seen && n.seen <= seg.seen)
+        .collect()
+}
+
+/// Replays the early path over one segment of A.
+fn plan_segment(
     models: &Path,
     lang: &str,
     audio: &[f32],
     pass: &Pass,
-    utterances: &[Span],
-) -> Result<Vec<Candidate>, Failure> {
-    let mut found = Vec::new();
-    for notice in pass.early.iter().filter(|n| n.in_voice) {
-        let Some(voice) = enclosing(&pass.now, notice.seen) else {
-            continue;
+    seg: &Notice,
+) -> Result<Plan, Failure> {
+    let mut line: Option<usize> = None;
+    let mut candidates = Vec::new();
+    let mut confirmed = Vec::new();
+    for cand in candidates_in(pass, seg) {
+        let from = match line {
+            Some(at) => at,
+            None => seg.span.start.saturating_sub(preroll_samples()),
         };
-        let text = solve(models, audio, voice, notice.seen, lang)?;
-        found.push(Candidate {
-            notice: *notice,
-            complete: is_complete(lang, &text),
-            inside_window: falls_in_window(notice.seen, utterances),
+        if cand.seen <= from {
+            continue;
+        }
+        let text = solve(models, audio, from, cand.seen, lang)?;
+        let complete = is_complete(lang, &text);
+        candidates.push(Candidate {
+            continues: voice_continues(&pass.early, cand, seg.span),
+            complete,
             text,
         });
+        if complete {
+            line = Some(cand.seen);
+            confirmed.push(cand.seen);
+        }
     }
-    Ok(found)
+    let remainder = match line {
+        Some(at) if seg.span.end >= at + REMAINDER_MIN => {
+            !solve(models, audio, at, seg.span.end, lang)?
+                .trim()
+                .is_empty()
+        }
+        _ => false,
+    };
+    Ok(Plan {
+        seg: *seg,
+        candidates,
+        confirmed,
+        remainder,
+    })
 }
 
-fn overlaps(a: Span, b: Span) -> bool {
-    a.start < b.end && a.end > b.start
+/// What the plans say about `utt`; `None` when no segment of A touches it.
+fn utterance_stat(utt: Span, plans: &[Plan]) -> Option<UttStat> {
+    let touching: Vec<&Plan> = plans
+        .iter()
+        .filter(|plan| overlaps(plan.seg.span, utt))
+        .collect();
+    let last = touching.last()?;
+    Some(UttStat {
+        a_segments: touching.iter().map(|plan| plan.seg.span).collect(),
+        finals_early: touching.iter().map(|plan| plan.finals()).sum(),
+        first_complete_at: touching
+            .iter()
+            .flat_map(|plan| plan.confirmed.iter().copied())
+            .min(),
+        a_seen: last.seg.seen,
+        last_final_at: last.last_final_at(),
+    })
 }
 
 fn ms(samples: i64) -> i64 {
@@ -321,31 +468,6 @@ fn ms(samples: i64) -> i64 {
 
 fn signed(later: usize, earlier: usize) -> i64 {
     ms(later as i64 - earlier as i64)
-}
-
-/// For each utterance the last notice that overlaps it: end minus manifest end, and seen minus manifest end.
-fn last_notice_diffs(notices: &[Notice], utterances: &[Span]) -> (Vec<i64>, Vec<i64>) {
-    let (mut ends, mut seens) = (Vec::new(), Vec::new());
-    for utterance in utterances {
-        if let Some(last) = notices.iter().rfind(|n| overlaps(n.span, *utterance)) {
-            ends.push(signed(last.span.end, utterance.end));
-            seens.push(signed(last.seen, utterance.end));
-        }
-    }
-    (ends, seens)
-}
-
-/// For each utterance the first complete candidate that overlaps it: seen minus manifest end.
-fn first_complete_delays(found: &[Candidate], utterances: &[Span]) -> Vec<i64> {
-    utterances
-        .iter()
-        .filter_map(|u| {
-            found
-                .iter()
-                .find(|c| c.complete && overlaps(c.notice.span, *u))
-                .map(|c| signed(c.notice.seen, u.end))
-        })
-        .collect()
 }
 
 fn percentile(values: &[i64], p: usize) -> Result<Option<i64>, Failure> {
@@ -357,192 +479,277 @@ fn percentile(values: &[i64], p: usize) -> Result<Option<i64>, Failure> {
         .map_err(|why| why.to_string())
 }
 
-fn p50_p95(values: &[i64]) -> Result<(Option<i64>, Option<i64>), Failure> {
-    Ok((percentile(values, 50)?, percentile(values, 95)?))
+fn show(value: Option<i64>) -> String {
+    value.map_or_else(|| String::from("n/a"), |v| v.to_string())
 }
 
-/// What one language came to.
-struct LangReport {
-    lang: &'static str,
-    utterances: usize,
-    now_end: Vec<i64>,
-    early_end: Vec<i64>,
-    early_seen: Vec<i64>,
-    first_complete: Vec<i64>,
-    raw_notices: usize,
-    candidates: usize,
-    inside_raw: usize,
-    complete: usize,
-    complete_inside: usize,
-    listing: Vec<String>,
-}
-
-fn language_report(
-    models: &Path,
-    lang: &'static str,
-    audio: &[f32],
-    pass: &Pass,
-    utterances: &[Span],
-) -> Result<LangReport, Failure> {
-    let found = candidates(models, lang, audio, pass, utterances)?;
-    let (now_end, _) = last_notice_diffs(&pass.now, utterances);
-    let (early_end, early_seen) = last_notice_diffs(&pass.early, utterances);
-    let listing = found
-        .iter()
-        .filter(|c| c.inside_window || c.complete)
-        .map(|c| {
-            format!(
-                "CAND {lang} seen={} inside_window={} complete={} text={:?}",
-                c.notice.seen, c.inside_window, c.complete, c.text
-            )
-        })
-        .collect();
-    Ok(LangReport {
-        lang,
-        utterances: utterances.len(),
-        now_end,
-        early_end,
-        early_seen,
-        first_complete: first_complete_delays(&found, utterances),
-        raw_notices: pass.early.len(),
-        candidates: found.len(),
-        inside_raw: found.iter().filter(|c| c.inside_window).count(),
-        complete: found.iter().filter(|c| c.complete).count(),
-        complete_inside: found
-            .iter()
-            .filter(|c| c.complete && c.inside_window)
-            .count(),
-        listing,
-    })
-}
-
-fn show(pair: (Option<i64>, Option<i64>)) -> String {
-    let one = |value: Option<i64>| value.map_or_else(|| String::from("n/a"), |v| v.to_string());
-    format!("p50 {} p95 {}", one(pair.0), one(pair.1))
-}
-
-fn report_lines(report: &LangReport) -> Result<Vec<String>, Failure> {
-    let lang = report.lang;
-    Ok(vec![
-        format!(
-            "R8V {lang} utterances={} early_notices={} candidates(in current speech)={} \
-             inside_window_raw={} complete={} complete_inside_window={}",
-            report.utterances,
-            report.raw_notices,
-            report.candidates,
-            report.inside_raw,
-            report.complete,
-            report.complete_inside
-        ),
-        format!(
-            "R8V {lang} end_diff_ms current {}",
-            show(p50_p95(&report.now_end)?)
-        ),
-        format!(
-            "R8V {lang} end_diff_ms early {}",
-            show(p50_p95(&report.early_end)?)
-        ),
-        format!(
-            "R8V {lang} detection_minus_end_ms early (last notice) {}",
-            show(p50_p95(&report.early_seen)?)
-        ),
-        format!(
-            "R8V {lang} detection_minus_end_ms first complete candidate (n {}) {}",
-            report.first_complete.len(),
-            show(p50_p95(&report.first_complete)?)
-        ),
-    ])
-}
-
-fn vad_line(name: &str, micros: &[i64]) -> Result<String, Failure> {
-    let (p50, p95) = p50_p95(micros)?;
-    let ms = |value: Option<i64>| {
-        value.map_or_else(
-            || String::from("n/a"),
-            |v| format!("{:.3}", v as f64 / 1000.0),
-        )
-    };
+fn p50_p95(label: &str, values: &[i64]) -> Result<String, Failure> {
     Ok(format!(
-        "R8V vad_ms_per_window {name}: windows={} p50 {} p95 {} (limit p95 {:.1})",
-        micros.len(),
-        ms(p50),
-        ms(p95),
-        VAD_P95_LIMIT_US as f64 / 1000.0
+        "{label} (n {}) p50 {} p95 {}",
+        values.len(),
+        show(percentile(values, 50)?),
+        show(percentile(values, 95)?)
     ))
 }
 
-/// The three stop conditions of step 1, evaluated on the pooled numbers.
-fn verdict_lines(
-    ja: &LangReport,
-    en: &LangReport,
-    both_us: &[i64],
-) -> Result<Vec<String>, Failure> {
-    let ja_now = percentile(&ja.now_end, 50)?;
-    let ja_early = percentile(&ja.early_end, 50)?;
-    let gain = ja_now.zip(ja_early).map(|(now, early)| now - early);
-    let p95 = percentile(both_us, 95)?;
-    Ok(vec![
-        format!(
-            "R8V STOP1 ja end diff p50 gain {gain:?} ms (need >= {REQUIRED_GAIN_MS}): {}",
-            gain.is_some_and(|g| g >= REQUIRED_GAIN_MS)
-        ),
-        format!(
-            "R8V STOP2 complete candidates inside an utterance window: ja {} en {} (need 0)",
-            ja.complete_inside, en.complete_inside
-        ),
-        format!(
-            "R8V STOP3 vad p95 per window (both detectors) {p95:?} us (limit {VAD_P95_LIMIT_US}): {}",
-            p95.is_some_and(|us| us <= VAD_P95_LIMIT_US)
-        ),
-        format!(
-            "R8V STOP4 early detector had candidates: ja {} en {} (need > 0)",
-            ja.candidates, en.candidates
-        ),
-    ])
+/// What one set came to.
+struct SetReport {
+    name: String,
+    lang: String,
+    utterances: usize,
+    missed: usize,
+    a_segments: usize,
+    plans: Vec<Plan>,
+    stats: Vec<(usize, UttStat)>,
+    utt_spans: Vec<Span>,
+    now_us: Vec<i64>,
+    both_us: Vec<i64>,
 }
 
-fn engine_for(models: &Path, lang: &str) -> Result<Engine, Failure> {
-    let mut settings = Settings::new(models.to_path_buf());
-    settings.policy = Policy::single(lang);
-    settings.stages.speakers = false;
-    Engine::open(settings).map_err(|why| why.to_string())
-}
-
-/// One language: the pass, the candidates solved with that language's engine.
-fn one_language(
+/// The segments of A that touch an utterance, replayed one by one.
+fn plan_all(
     models: &Path,
-    testdata: &Path,
-    lang: &'static str,
-) -> Result<(LangReport, Pass), Failure> {
+    lang: &str,
+    audio: &[f32],
+    pass: &Pass,
+    utterances: &[Span],
+) -> Result<Vec<Plan>, Failure> {
+    pass.now
+        .iter()
+        .filter(|seg| utterances.iter().any(|u| overlaps(seg.span, *u)))
+        .map(|seg| plan_segment(models, lang, audio, pass, seg))
+        .collect()
+}
+
+fn analyse(
+    models: &Path,
+    name: &str,
+    lang: &str,
+    audio: &[f32],
+    utterances: &[Span],
+) -> Result<SetReport, Failure> {
+    let pass = run_pass(models, audio)?;
+    let plans = plan_all(models, lang, audio, &pass, utterances)?;
+    let stats: Vec<(usize, UttStat)> = utterances
+        .iter()
+        .enumerate()
+        .filter_map(|(index, utt)| utterance_stat(*utt, &plans).map(|stat| (index, stat)))
+        .collect();
+    Ok(SetReport {
+        name: name.to_owned(),
+        lang: lang.to_owned(),
+        utterances: utterances.len(),
+        missed: utterances.len() - stats.len(),
+        a_segments: plans.len(),
+        plans,
+        stats,
+        utt_spans: utterances.to_vec(),
+        now_us: pass.now_us,
+        both_us: pass.both_us,
+    })
+}
+
+fn candidate_counts(report: &SetReport) -> [usize; 4] {
+    let all = report.plans.iter().flat_map(|plan| plan.candidates.iter());
+    let total = all.clone().count();
+    let continuing = all.clone().filter(|c| c.continues).count();
+    let complete = all.clone().filter(|c| c.complete).count();
+    let complete_continuing = all.filter(|c| c.complete && c.continues).count();
+    [total, continuing, complete, complete_continuing]
+}
+
+/// Splits as the pass line counts them: those A makes, and those B adds.
+fn split_counts(report: &SetReport) -> (usize, usize) {
+    let a_only: usize = report
+        .stats
+        .iter()
+        .map(|(_, s)| s.a_segments.len() - 1)
+        .sum();
+    let b_added: usize = report.plans.iter().map(|plan| plan.finals() - 1).sum();
+    (a_only, b_added)
+}
+
+/// The delays per utterance, in ms: first complete candidate (or A when none),
+/// the last final, and A alone.
+fn delays(report: &SetReport) -> (Vec<i64>, Vec<i64>, Vec<i64>) {
+    let (mut first, mut last, mut now) = (Vec::new(), Vec::new(), Vec::new());
+    for (index, stat) in &report.stats {
+        let end = report.utt_spans[*index].end;
+        first.push(signed(stat.first_detection(), end));
+        last.push(signed(stat.last_final_at, end));
+        now.push(signed(stat.a_seen, end));
+    }
+    (first, last, now)
+}
+
+fn vad_line(name: &str, micros: &[i64]) -> Result<String, Failure> {
+    let value = |p| percentile(micros, p).map(|v| v.map(|us| us as f64 / 1000.0));
+    let (p50, p95) = (value(50)?, value(95)?);
+    let text = |v: Option<f64>| v.map_or_else(|| String::from("n/a"), |x| format!("{x:.3}"));
+    Ok(format!(
+        "vad_ms_per_window {name}: windows {} p50 {} p95 {}",
+        micros.len(),
+        text(p50),
+        text(p95)
+    ))
+}
+
+fn utterance_lines(report: &SetReport) -> Vec<String> {
+    let rate = f64::from(SAMPLE_RATE);
+    report
+        .stats
+        .iter()
+        .filter(|(_, s)| s.a_segments.len() > 1 || s.finals_early > 1)
+        .map(|(index, stat)| {
+            let segments: Vec<String> = stat
+                .a_segments
+                .iter()
+                .map(|s| format!("{:.2}-{:.2}", s.start as f64 / rate, s.end as f64 / rate))
+                .collect();
+            format!(
+                "UTT {index} A_segments {} [{}] finals_early {}",
+                stat.a_segments.len(),
+                segments.join(" "),
+                stat.finals_early
+            )
+        })
+        .collect()
+}
+
+fn candidate_listing(report: &SetReport) -> Vec<String> {
+    report
+        .plans
+        .iter()
+        .flat_map(|plan| {
+            plan.candidates.iter().filter(|c| c.complete).map(move |c| {
+                format!(
+                    "CAND A_seg_at {} continues {} text {:?}",
+                    plan.seg.span.start, c.continues, c.text
+                )
+            })
+        })
+        .collect()
+}
+
+fn report_lines(report: &SetReport) -> Result<Vec<String>, Failure> {
+    let [total, continuing, complete, complete_continuing] = candidate_counts(report);
+    let (a_only, b_added) = split_counts(report);
+    let (first, last, now) = delays(report);
+    let tag = format!("R8V {}", report.name);
+    let mut lines = vec![
+        format!(
+            "{tag} lang {} utterances {} without_A_segment {} A_segments {} candidates {total} \
+             candidates_voice_continues {continuing} complete {complete} \
+             complete_voice_continues {complete_continuing}",
+            report.lang, report.utterances, report.missed, report.a_segments
+        ),
+        format!(
+            "{tag} splits A_only {a_only} B_only {b_added} total_with_B {}",
+            a_only + b_added
+        ),
+        format!("{tag} delay_ms {}", p50_p95("first complete or A", &first)?),
+        format!("{tag} delay_ms {}", p50_p95("last final", &last)?),
+        format!("{tag} delay_ms {}", p50_p95("A alone", &now)?),
+        format!("{tag} {}", vad_line("A alone", &report.now_us)?),
+        format!("{tag} {}", vad_line("A plus B", &report.both_us)?),
+    ];
+    lines.extend(
+        utterance_lines(report)
+            .into_iter()
+            .map(|l| format!("{tag} {l}")),
+    );
+    lines.extend(
+        candidate_listing(report)
+            .into_iter()
+            .map(|l| format!("{tag} {l}")),
+    );
+    Ok(lines)
+}
+
+/// The pass line: B adds no split of its own, and with B the splits are no
+/// more than A alone makes.
+fn pass_line(report: &SetReport) -> (bool, usize, usize) {
+    let (a_only, b_added) = split_counts(report);
+    (b_added == 0 && a_only + b_added <= a_only, a_only, b_added)
+}
+
+/// The ja limit of RP-66: P_B + (1341 - P_A), rounded up to 10 ms.
+fn ja_limit(report: &SetReport) -> Result<Option<i64>, Failure> {
+    let (first, _, now) = delays(report);
+    let (Some(p_b), Some(p_a)) = (percentile(&first, 95)?, percentile(&now, 95)?) else {
+        return Ok(None);
+    };
+    Ok(Some(ceil_ten(p_b + JA_D_P95_MAIN_MS - p_a)))
+}
+
+fn print_set(report: &SetReport) -> TestResult {
+    for line in report_lines(report)? {
+        println!("{line}");
+    }
+    let (passed, a_only, b_added) = pass_line(report);
+    println!(
+        "R8V {} PASS_LINE {passed} (A_only {a_only}, B_only {b_added}); vad p95 limit {} us: {}",
+        report.name,
+        VAD_P95_LIMIT_US,
+        percentile(&report.both_us, 95)?.is_some_and(|us| us <= VAD_P95_LIMIT_US)
+    );
+    if report.lang == "ja" {
+        println!(
+            "R8V {} JA_LIMIT_MS {} (stop when >= {JA_D_P95_MAIN_MS})",
+            report.name,
+            show(ja_limit(report)?)
+        );
+    }
+    Ok(())
+}
+
+fn lat_set(models: &Path, testdata: &Path, lang: &str) -> Result<SetReport, Failure> {
     let audio =
         read_wav(&testdata.join(format!("lat-{lang}.wav"))).map_err(|why| why.to_string())?;
     let manifest = testdata.join("manifests").join(format!("lat-{lang}.json"));
     let utterances = manifest_spans(&manifest)?;
-    let pass = run_pass(models, &audio)?;
-    let report = language_report(models, lang, &audio, &pass, &utterances)?;
-    Ok((report, pass))
+    analyse(models, &format!("lat-{lang}"), lang, &audio, &utterances)
 }
 
 #[test]
 #[ignore = "an offline probe: reads testdata/ and the models"]
-fn r8v_early_end_probe() -> TestResult {
-    let models = models_dir()?;
-    let testdata = testdata_dir()?;
-    let (ja, ja_pass) = one_language(&models, &testdata, "ja")?;
-    let (en, en_pass) = one_language(&models, &testdata, "en")?;
-    let now_us: Vec<i64> = [ja_pass.now_us.as_slice(), en_pass.now_us.as_slice()].concat();
-    let both_us: Vec<i64> = [ja_pass.both_us.as_slice(), en_pass.both_us.as_slice()].concat();
-    let mut lines = Vec::new();
-    for report in [&ja, &en] {
-        lines.extend(report_lines(report)?);
+fn r8v_latency_set_probe() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    for lang in ["ja", "en"] {
+        print_set(&lat_set(&models, &testdata, lang)?)?;
     }
-    lines.push(vad_line("current detector alone", &now_us)?);
-    lines.push(vad_line("current + early", &both_us)?);
-    lines.extend(verdict_lines(&ja, &en, &both_us)?);
-    lines.extend(ja.listing.iter().cloned());
-    lines.extend(en.listing.iter().cloned());
-    for line in lines {
-        println!("{line}");
+    Ok(())
+}
+
+#[test]
+#[ignore = "an offline probe: reads testdata/r8v_heldout/ and the models"]
+fn r8v_heldout_ja_probe() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let dir = testdata.join("r8v_heldout");
+    let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
+    let utterances = manifest_spans(&dir.join("ja.json"))?;
+    print_set(&analyse(&models, "heldout-ja", "ja", &audio, &utterances)?)
+}
+
+#[test]
+#[ignore = "an offline probe: reads testdata/eval_diar/ and the models"]
+fn r8v_heldout_en_probe() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let dir = testdata.join("eval_diar");
+    let meetings = read_json(&dir.join("manifest.json"))?;
+    let Some(meetings) = meetings.as_array() else {
+        return Err("eval_diar/manifest.json is not an array".into());
+    };
+    for meeting in meetings {
+        let id = meeting
+            .get("meeting")
+            .and_then(Value::as_str)
+            .ok_or("a meeting has no name")?;
+        let audio = read_wav(&dir.join(format!("{id}.wav"))).map_err(|why| why.to_string())?;
+        let rttm = read(&dir.join(format!("{id}.rttm")))?;
+        let utterances = ami_utterances(&rttm, AMI_TURNS_PER_MEETING)?;
+        let name = format!("heldout-en-{id}");
+        print_set(&analyse(&models, &name, "en", &audio, &utterances)?)?;
     }
     Ok(())
 }
@@ -567,4 +774,75 @@ fn an_english_sentence_is_complete_only_when_its_last_word_does_not_continue() {
 #[test]
 fn a_language_outside_ja_and_en_is_never_complete() {
     assert!(!is_complete("zh", "今天下雨了。"));
+}
+
+#[test]
+fn a_limit_is_rounded_up_to_ten_milliseconds() {
+    assert_eq!(ceil_ten(1031), 1040);
+    assert_eq!(ceil_ten(1040), 1040);
+    assert_eq!(ceil_ten(1041), 1050);
+}
+
+#[test]
+fn voice_continues_only_when_another_stretch_starts_inside_the_segment() {
+    let notice = |start, end| Notice {
+        span: Span { start, end },
+        seen: end,
+        in_voice: true,
+    };
+    let early = [notice(0, 1000), notice(2000, 3000)];
+    let seg = Span {
+        start: 0,
+        end: 5000,
+    };
+    assert!(voice_continues(&early, &early[0], seg));
+    assert!(!voice_continues(&early, &early[1], seg));
+    let short = Span {
+        start: 0,
+        end: 1500,
+    };
+    assert!(!voice_continues(&early, &early[0], short));
+}
+
+#[test]
+fn an_ami_turn_needs_a_second_and_a_quiet_neighbourhood() -> TestResult {
+    let rttm = "SPEAKER m 1 1.000 2.000 <NA> <NA> A <NA> <NA>\n\
+                SPEAKER m 1 3.100 2.000 <NA> <NA> B <NA> <NA>\n\
+                SPEAKER m 1 10.000 0.500 <NA> <NA> A <NA> <NA>\n\
+                SPEAKER m 1 20.000 3.000 <NA> <NA> A <NA> <NA>\n";
+    let turns = ami_utterances(rttm, 10)?;
+    let seconds: Vec<usize> = turns.iter().map(|t| t.start / 16000).collect();
+    // The first two turns are closer than 0.3 s to each other, the third is short.
+    assert_eq!(seconds, vec![20]);
+    Ok(())
+}
+
+fn plan_of(confirmed: Vec<usize>, remainder: bool) -> Plan {
+    Plan {
+        seg: Notice {
+            span: Span { start: 0, end: 100 },
+            seen: 500,
+            in_voice: false,
+        },
+        candidates: Vec::new(),
+        confirmed,
+        remainder,
+    }
+}
+
+#[test]
+fn a_segment_without_a_complete_candidate_makes_one_final_at_the_detection() {
+    let plan = plan_of(Vec::new(), false);
+    assert_eq!(plan.finals(), 1);
+    assert_eq!(plan.last_final_at(), 500);
+}
+
+#[test]
+fn a_confirmed_candidate_with_text_left_makes_two_finals() {
+    let open = plan_of(vec![200], true);
+    assert_eq!(open.finals(), 2);
+    assert_eq!(open.last_final_at(), 500);
+    let closed = plan_of(vec![200], false);
+    assert_eq!(closed.finals(), 1);
+    assert_eq!(closed.last_final_at(), 200);
 }
