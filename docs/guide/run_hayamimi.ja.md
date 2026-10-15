@@ -160,6 +160,122 @@ stderr の URL の port に、LAN の address と 127.0.0.1 の両方から `GET
 - 既定を `0.0.0.0` にする。認証の無い `/config` と `/reset` が LAN に開くので、利用者が選んだ時だけにします。
 - 頁の中身を替える。この slice は待つ address だけを替えます。
 
+## マイクの実機を確かめる（Windows、RDP の録音の転送）
+
+RDP の録音の転送は、Windows に「リモート オーディオ」という録音の端点（音の出入り口）を作ります。
+`--input mic` で起こした `hayamimi` がこの端点を開き、装置の名前を log に出すところまでは、機械で確かめられます。
+人の声が字幕になることは、話す者が居る時にしか確かめられません。
+
+端点は RDP の session の中にだけ在ります。
+session を切る、ログオフする、既定の録音の装置を切り替える、のどれも打ちません。
+端点が消えるか、使う側の音声の設定が変わるためです。
+
+WSL の中から Windows の command を打ちます。
+`powershell.exe` は PATH に無いので、絶対 path で呼びます。
+
+```bash
+PS=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+/mnt/c/Windows/System32/qwinsta.exe
+$PS -NoProfile -Command 'Get-PnpDevice -Class AudioEndpoint | ForEach-Object { $_.InstanceId }'
+$PS -NoProfile -Command '"session=" + (Get-Process -Id $PID).SessionId'
+```
+
+1 本目は RDP の session が `Active` かを、2 本目は音声の端点の一覧を、3 本目は WSL から起こした Windows の process の session の ID を見ます。
+3 本目の値が `qwinsta.exe` で `>` が付いた行の ID と同じなら、起こした process から端点が見えます。
+
+実行物は Windows の cargo で build します。
+並列度は `C:\Users\<user>\.cargo\config.toml` の 2 のままで、`--jobs 2` を付けても同じです。
+worktree には GPU 版の sherpa-onnx の build が無いので、`SHERPA_ONNX_LIB_DIR` には本体の checkout の build を絶対 path で渡します。
+
+```bash
+$PS -NoProfile -Command 'Set-Location <repo の Windows path>\native; $env:SHERPA_ONNX_LIB_DIR = "<本体の checkout の Windows path>\native\target\sherpa-gpu\windows\install\lib"; & C:\Users\<user>\.cargo\bin\cargo.exe build --release --jobs 2 --target x86_64-pc-windows-msvc -p hayamimi'
+```
+
+process A（マイクの音を ja で認識する）を起こします。
+`<log dir>` は repo の外の作業 directory です。
+log は stdout の JSONL で、stderr は空です。
+
+```bash
+cd <repo>/native/target/x86_64-pc-windows-msvc/release
+setsid nohup ./hayamimi.exe --input mic --lang ja --models '<Windows 形式の models の path>' --serve 8833 --ws-port 8766 \
+  > <log dir>/hayamimi.stdout.log 2> <log dir>/hayamimi.stderr.log < /dev/null &
+$PS -NoProfile -Command 'Get-Process hayamimi | Select-Object Id,StartTime | Format-Table -AutoSize | Out-String'
+```
+
+最後の行で、起こした Windows の pid を控えます。
+`--mic-device` を付けなければ、Windows の既定の録音の装置を開きます。
+録音の端点がこの 1 つだけなら、既定の装置もこれです。
+
+RDP の画面の browser で `http://127.0.0.1:8833/` を開くと、認識の字幕が見えます。
+頁の殻は実行物に入っていますが、`ui/`（wasm と js）は実行物の隣に置く必要があります。
+Windows に wasm の target と `wasm-bindgen` が無いときは、在る側（WSL）で上の「画面（Dioxus の 3 頁）を配る」の 2 つの command を打ち、出力を Windows の実行物の隣へ置きます。
+`wasm-bindgen` の版は `Cargo.lock` の `wasm-bindgen` と同じにします。
+
+```bash
+wasm-bindgen --target web --no-typescript --out-dir <repo>/native/target/x86_64-pc-windows-msvc/release/ui --out-name hayamimi-ui \
+  <wasm の target dir>/wasm32-unknown-unknown/release/hayamimi-ui.wasm
+```
+
+process B（出力の装置の loopback を en で認識する）は、port を替えて同じ形で起こします。
+loopback は再生の端点（RDP では「リモート オーディオ」の再生側）を通る音を拾い、`capture.device.opened` の `kind` が `speaker` になります。
+頁は `http://127.0.0.1:8834/` です。
+
+```bash
+setsid nohup ./hayamimi.exe --input speaker --lang en --models '<Windows 形式の models の path>' --serve 8834 --ws-port 8767 \
+  > <log dir>/procB.stdout.log 2> <log dir>/procB.stderr.log < /dev/null &
+```
+
+訳も出すときは、`hayamimi-relay` を Windows の cargo で build して起こします。
+2 つの process の訳を出すときは、引数なしの `hayamimi-relay live` が 8833 と 8834 の両方を読みます。
+訳の server は WSL の user unit `llama-artisan@CAT-Translate-3.3b-Q8_0.service`（port 8080）で、Windows の `Invoke-WebRequest http://127.0.0.1:8080/health` が 200 を返せば届いています。
+訳は `http://127.0.0.1:8835/events` に出ます。
+`hayamimi` の頁が読むのは同じ origin の `/events` なので、8833 の頁には訳は出ません。
+
+```bash
+setsid nohup ./hayamimi-relay.exe live --events http://127.0.0.1:8833/events --llm http://127.0.0.1:8080 --serve 8835 \
+  > <log dir>/relay.stdout.log 2> <log dir>/relay.stderr.log < /dev/null &
+```
+
+0 件の判定は、同じ command の中で、必ず出る event も数えます。
+
+```bash
+for e in capture.fallback.none capture.device.opened asr.model.loaded asr.utterance.timed; do
+  printf '%s ' $e; grep -c "\"event\":\"$e\"" <log dir>/hayamimi.stdout.log
+done
+grep '"event":"capture.device.opened"' <log dir>/hayamimi.stdout.log
+```
+
+| event | 期待値 | 読み方 |
+|---|---|---|
+| `capture.fallback.none` | 0 | 開ける録音の装置が在った |
+| `capture.device.opened` | 1 | `device` が装置の名前（「リモート オーディオ」）、`kind` が `mic` |
+| `asr.model.loaded` | 1 以上 | 起動が済んでいる。0 件の対照になる |
+| `asr.utterance.timed` | 音が来ている間は増える | 録音の転送から音が届いている |
+
+`capture.fallback.none` を数える語が正しいことは、存在しない装置を名指しした run で確かめます。
+`--serve 0` で、process A の port とぶつかりません。
+
+```bash
+setsid nohup ./hayamimi.exe --input mic --mic-device zzz-no-such-device --lang ja --models '<Windows 形式の models の path>' --serve 0 \
+  > <log dir>/negctl.stdout.log 2> <log dir>/negctl.stderr.log < /dev/null &
+grep -c '"event":"capture.fallback.none"' <log dir>/negctl.stdout.log
+```
+
+出力は 1 になります。
+
+止めるのは、自分が起こした process の pid だけです。
+`pgrep -f` は自分の shell にも当たるので使いません。
+
+```bash
+$PS -NoProfile -Command 'Stop-Process -Id <pid>'
+$PS -NoProfile -Command '"remaining: " + @(Get-Process hayamimi -ErrorAction SilentlyContinue).Count'
+```
+
+**採らない手段**：
+
+- 既定の録音の装置を切り替えて端点を選ぶ。使う側の音声の設定が変わります。
+- RDP の session を切って、端点を作り直す。端点は繋いでいる session の中にだけ在ります。
+
 ## 落ちるときの形
 
 起動の時に、GPU を 2 段で確かめます。
