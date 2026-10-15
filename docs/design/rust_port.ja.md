@@ -1095,6 +1095,10 @@ E2E-2 は、events に `lang` が `en` の `final` と、`lang` が `ja` で字�
 陽性対照は `docs/results/r8h_verify/` の記録（rs1、py1、py2、e2e2c）で、数が出ることまでを見る。
 陰性対照は訳が 0 件の fixture（`native/hayamimi-eval/tests/fixtures/e2e_no_translation.jsonl`）で、落ちることを見る。
 load の記録と Python の run の交互の順（RP-32）は、この 2 本の判定に入れない。
+RP-32 の判定の test（`native/hayamimi-eval/tests/rp32.rs`）は、git 管理下の `docs/results/rp32/` を読む。
+dir の中は、流した順に `py1.jsonl`、`rs1.jsonl`、`py2.jsonl`、`rs2.jsonl`、`py3.jsonl`、`rs3.jsonl`（`stream --out` の samples）と、対 N ごとの `load<N>.txt` である。
+`load<N>.txt` の 1 行は、run の名前、`before` か `after`、時刻、`/proc/loadavg` の 1 行を空白で並べた形（`docs/results/r8h_verify/loadavg.txt` と同じ）で、各 run の前と後に 1 行ずつ置く。
+記録が揃っていない時、`--ignored` の test は足りない file の名前を挙げて落ちる。
 
 ### RP-19 の未実装 187 行の仕分けと slice
 
