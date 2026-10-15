@@ -8,7 +8,7 @@ When the two differ in meaning, the Japanese is corrected first and this one aft
 This document lists what still stands between the project and completion, then gives the state of each slice.
 The first table is what remains; the table after it gives each slice's state, merge commit, where the verification comes from, how far its acceptance has passed, and the holes left.
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
-Commit hashes were checked with `git log --oneline`; main was at `5ad5da1` (`origin/main` after a `git fetch` at 16:17 on 2026-10-15) when they were checked.
+Commit hashes were checked with `git log --oneline`; main was at `93e2af0` (`origin/main` after a `git fetch` at 16:27 on 2026-10-15) when they were checked.
 
 ## What remains before completion
 
@@ -30,7 +30,7 @@ The owner is the seat that moves the item; where no record names one, the cell s
 | Video file to SRT on a real run (CS-14, CS-15) | R8g is verified. The real run covered one 9-second Japanese video on the CPU only | No record | English lines, the translator, the GPU and long videos have not been run. Whether MPC-HC reads `<video name>.ja.srt` by itself is NOT VERIFIED (H3 and H18 in section 9 of the conversation-subtitles design) | `a496066` |
 | Measuring the OBS subtitle page inside OBS (CS-16) | Not done | No record | It is measured only in a separate portable OBS, and only when the user's OBS is not using the virtual camera (H11 in section 9 of the conversation-subtitles design) | Section 9 of the conversation-subtitles design |
 | The real microphone (E2E-1) | At 15:43 on 2026-10-15, process A was started on the RDP microphone and the start-up was checked by machine. The record is in `docs/guide/run_hayamimi.ja.md`: `capture.fallback.none` is 0 and `asr.final.published` is 8 | The user's own speech | What a person says in Japanese cannot be checked by machine | `2d18f1d` (merged in `5ad5da1`) |
-| The face-to-face mode (both directions, ja and en, on one microphone) | Under design. The branch `docs/in-person` is at the same commit as main with 0 commits of its own. Implementation has not started | The design seat | The design has not reached a commit. Implementation does not start until the work in the other rows of this table is done | `git rev-list --count origin/main..docs/in-person` is 0 |
+| The face-to-face mode (both directions, ja and en, on one microphone) | Designed (council GO). Implementation starts at IP-S3, after the R8v merge | The design seat | The R8v merge. The design is section 10 of `conversation_subtitles.ja.md`, and the acceptance is IP-1 to IP-7 | `1ba9af7` (`docs/in-person`) |
 
 Sending to YouTube Live caption ingestion will not be built (sections 1 and 4 of the conversation-subtitles design).
 Streaming uses the route that burns the OBS subtitle page into the video.
@@ -78,9 +78,8 @@ The five states:
 | R11 (removing Python) | Waiting for its entry conditions: RP-13 met, RP-19 has 187 tests missing (R12a to R12g) | none | none | RP-9, RP-19 not run | The three conditions in 3.2 |
 | End-to-end acceptance (E2E-1 mic ja→en, E2E-2 loopback en→ja) | The acceptance tests pass on a single run. The formal E2E-1 verdict comes from the three alternating pairs of RP-32, not run yet | `dfa85d6` (the acceptance tests are at `9103c95`) | The implementing seat's report (kept outside git); not re-run by the design seat | The E2E-1 and E2E-2 acceptance tests pass; the counts are in the E2E row above | The three pairs of RP-32. A Japanese utterance spoken into the real microphone cannot be checked by machine |
 
-Two branches are in progress.
+One branch is in progress.
 `feat/r8v-probe` is the offline probe of R8v step 1, waiting for its re-run.
-`docs/in-person` is the design of the face-to-face mode and has 0 commits of its own.
 
 ## Not taken
 

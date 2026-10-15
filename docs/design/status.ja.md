@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `5ad5da1`（2026-10-15 16:17 に `git fetch` した後の `origin/main`）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `93e2af0`（2026-10-15 16:27 に `git fetch` した後の `origin/main`）である。
 
 ## 完成までに残っている物
 
@@ -29,7 +29,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 | 動画ファイルから SRT への実機（CS-14、CS-15） | R8g は検証済み。実機は日本語 9 秒の動画 1 本を CPU で通しただけ | 記録に無い | 英語の行、翻訳器、GPU、長い動画は通していない。MPC-HC が `<動画名>.ja.srt` を自動で読むかは NOT VERIFIED（会話字幕の設計 9 の H3、H18） | `a496066` |
 | OBS の字幕頁を OBS の中で測る（CS-16） | 未実施 | 記録に無い | 利用者の OBS が仮想カメラを使っていないときに、別の portable の OBS でだけ測る（会話字幕の設計 9 の H11） | 会話字幕の設計 9 |
 | マイクの実機（E2E-1） | 2026-10-15 15:43 に RDP のマイクで process A を起こし、起動までを機械で確かめた。記録は `docs/guide/run_hayamimi.ja.md` に入った。`capture.fallback.none` は 0 件、`asr.final.published` は 8 件 | 利用者の発話 | 人が日本語を話した結果は機械では確かめられない | `2d18f1d`（`5ad5da1` で merge） |
-| 対面のモード（1 本のマイクで日英の双方向） | 設計中。branch `docs/in-person` は main と同じ commit で、独自の commit は 0 件。実装は未着手 | 設計の席 | 設計が commit に至っていない。実装は、この表の他の行の仕事が済むまで始めない | `git rev-list --count origin/main..docs/in-person` が 0 |
+| 対面のモード（1 本のマイクで日英の双方向） | 設計済み（評議 GO）。実装は R8v の merge の後の IP-S3 から | 設計の席 | R8v の merge。設計は `conversation_subtitles.ja.md` の 10 節、受入は IP-1〜IP-7 | `1ba9af7`（`docs/in-person`） |
 
 YouTube Live の字幕取り込みへの送信は作らない（会話字幕の設計 1 と 4）。
 配信では OBS の字幕頁を映像に焼き込む経路を使う。
@@ -77,9 +77,8 @@ YouTube Live の字幕取り込みへの送信は作らない（会話字幕の�
 | R11（Python を消す） | 入口の条件待ち。RP-13 は満たし、RP-19 は 187 本が未実装（R12a〜R12g） | なし | なし | RP-9、RP-19 は未実行 | 3.2 の 3 つの条件 |
 | 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 単独の 1 run で受入 test が PASS。E2E-1 の正式な判定は RP-32 の交互の 3 対で出し、未実行 | `dfa85d6`（受入 test は `9103c95`） | 実装の席の申告（git の外）。設計の席は打ち直していない | E2E-1、E2E-2 の受入 test は PASS。数は上の E2E の行 | RP-32 の 3 対。実機のマイクに人が話した ja は機械では確かめられない |
 
-作業中の branch は 2 つある。
+作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
-`docs/in-person` は対面のモードの設計で、独自の commit が 0 件である。
 
 ## 採らない手段
 
