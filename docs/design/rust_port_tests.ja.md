@@ -1227,7 +1227,7 @@ Python の run の「遅れて着いた疑い」は、`.jsonl` の行の並び�
 test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。実走の行（T-RP-32-029）だけが `#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp32`。実走の行はこれに `-- --ignored` を足す。
 `check_alternated_runs(runs)` は、流した順の run の列を受ける。1 つの run は、実装（Python か Rust）、前と後の `/proc/loadavg` の 1 行、RP-31 の数え方で出した標本の列である。
-次の 3 つを確かめる。順と対の数と load の記録（001 から 014）、3 対を合わせた標本の合否（015 から 022）、列の出力（023 から 028）。
+次の 4 つを確かめる。順と対の数と load の記録（001 から 014）、3 対を合わせた標本の合否（015 から 022）、列の出力（023 から 028）、dir の `pairs.txt` の読み方（030 から 036）。
 関数の名前と引数の形は実装の席が決める。
 
 **F32**（式で作る。実測のふりをしない）：実装 X が Python か Rust、対 k が 1〜3、発話 u が 1〜19 ごとに標本が 1 つ。
@@ -1269,7 +1269,16 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 | T-RP-32-026 | R0 の Python 同士の 2 run（`testdata/baseline/lat_ja_0.35_1.jsonl` と `_2.jsonl`）を、順を問わない 1 対として渡す | Python 同士の対 | 列が出る | `L` の標本の数が 95 と 94、列は 023 と同じ 6 つ以上。有効の判定は 350 ms（pseudo、jq。`select(.t_final_us != null)` と `((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 350` と `.t_tr_us != null` の数を数えた値。RB-5 の分割と同じ式）。この 1 対は合否の判定には掛けない（RP-32 の陽性欄の「Python 同士の 2 run の対から同じ列を出せる」） | 陽性 | `python_against_python_pair_yields_the_same_columns` |
 | T-RP-32-027 | 026 の 2 run に、`_1` を Rust として渡した 1 対 | 同じ run を 2 回 | 差 0 | `L` の p50 と p95 の差が 0 で、`Ok`（pseudo。同じ入力は差を持たない） | 陽性 | `the_same_run_against_itself_has_no_difference` |
 | T-RP-32-028 | R8e の Rust の run（RP-31 の 018 の数え方）と R0 の Python の run（`lat_ja_0.30_1`）を 1 対として列を出す。対の数と load は掛けない。有効の判定は両方 `min_silence` 300 ms | 実物の記録 | `L` の欄の値 | Rust の `L` が p50 1533 ms、p95 2752 ms（n 66）。Python の `L` が p50 1481 ms、p95 2008 ms（n 95）。Rust の p50 と p95 のどちらも Python を超える（pseudo、jq。有効の判定は `((t_final − t_end) / 1000 − final の latency_ms) >= 300`）。数え方を直した後も残る差を、判定の道具が「超える」と読む確かめ | 陰性 | `the_recorded_r8e_gap_is_read_as_slower_than_python` |
-| T-RP-32-029 | 実走：Python、Rust、Python、Rust、Python、Rust の 6 run と、各 run の前後の `/proc/loadavg` | 実走 | 実走 | 001 の形で `Ok`（specified、RP-32） | 陽性 | `three_alternated_pairs_of_real_runs_beat_python` |
+| T-RP-32-029 | 実走：Python、Rust、Python、Rust、Python、Rust の 6 run と、各 run の前後の `/proc/loadavg` | 実走 | 実走 | 001 の形で `Ok`（specified、RP-32） | 陽性 | `rp32_alternated_runs_under_the_same_load_beat_python` |
+| T-RP-32-030 | F32 の 3 対（6 run、順は 001 と同じ）を置いた dir。`pairs.txt` は無い | `pairs.txt` が無い 3 対 | `Ok` | `Ok`。無い dir は 3 対として読む（specified、D 3.16 の 4 の「順と置き場」。dir の file の名前は実装の席が決める） | 境界、陽性 | `a_dir_without_pairs_txt_is_read_as_three_pairs` |
+| T-RP-32-031 | 030 から 3 対目（5、6 番目の run）を除いた 4 本の dir。`pairs.txt` は無い | `pairs.txt` が無い 2 対 | `Err` | `Err` で 3 対目が欠けていることを名指し。無い dir は 3 対として読むので、在る数に合わせて 2 対とは読まない（specified、D 3.16 の 4 の「順と置き場」）。030 の陰性の対照 | 境界、陰性 | `a_dir_without_pairs_txt_and_two_pairs_is_missing_the_third` |
+| T-RP-32-032 | 031 の dir に、中身が `2` の 1 行の `pairs.txt` を足す | 2 と書いた 2 対 | `Ok` | `Ok`。在る dir はその数の対を読む（specified、D 3.16 の 4 の「順と置き場」）。005 と同じ 2 対を、dir の読み方から通す | 境界、陽性 | `pairs_txt_of_2_accepts_two_pairs` |
+| T-RP-32-033 | 030 の dir（3 対）に、中身が `2` の 1 行の `pairs.txt` を足す | 2 と書いたのに 3 対ある | `Err` | `Err` で数が合わないことを名指し。記録は 2、在る対は 3 と、どちらの数も出す（specified、D 3.16 の 4 の「`pairs.txt` の数と在る対の数が違う時」）。032 の陰性の対照 | 境界、陰性 | `pairs_txt_of_2_with_three_pairs_present_is_rejected` |
+| T-RP-32-034 | 031 の dir に、中身が次の 4 つのどれかの `pairs.txt` を足した 4 入力。`two`、空（0 byte）、`2 pairs`、`-2` | 読めない内容 | 4 入力とも `Err` | どの入力も `Err` で数が読めないことを名指し。数が合わないとは名指さない。`2 pairs` と `-2` を `2` と読んで 032 の `Ok` に通さない。落ちた入力は assert の message に出す（specified、D 3.16 の 4 の「数が読めない時」）。4 つは別の同値類（語、空、後ろに字、符号） | 陰性 | `an_unreadable_pairs_txt_is_rejected_as_unreadable` |
+| T-RP-32-035 | 先頭の 1 対だけ（2 本）の dir。中身が `1` の 1 行の `pairs.txt` | 1（下限の下） | `Err` | `Err` で 1 対は下限に満たないことを名指し。記録の 1 と在る 1 対は合っているので、数が合わないとは名指さない（specified、D 3.16 の 4 の「`1` の時」）。032 の 2 が下限の上、007 は判定関数の側の同じ境界 | 境界、陰性 | `pairs_txt_of_1_is_rejected` |
+| T-RP-32-036 | 030 の dir（3 対）に、中身が `3` の 1 行の `pairs.txt` を足す | 3 と書いた 3 対 | `Ok` | `Ok`。`pairs.txt` が無い 030 と同じ結果（specified、D 3.16 の 4 の「在る dir はその数の対を読む」）。033 の `2` を `3` にした陽性の対照 | 境界、陽性 | `pairs_txt_of_3_accepts_three_pairs` |
+
+**T-RP-32-030 から 036 は未実装。実装の席が feat/rp32-test に足す。** 7 本とも fixture の dir を読み、`--ignored` を付けずに通る。`pairs.txt` の中身の例は `2` と改行 1 つ（D 3.16 の 4 の「算用数字 1 つを 1 行で」）。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 
@@ -1279,6 +1288,7 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 - 「他の席が cargo の build を打たない」ことは、前の load が 2 未満であることでしか見えない。build が run の途中に始まっても、前の load には出ない。
 - 順は Python が先頭（003）。設計は「Python、Rust、Python、Rust … の順」と書く。
 - 訳の取れない標本の数を合否に使わない。028 の差は、数え方を直しても Rust が Python を超える。
+- dir の中の run と load の file の名前。設計は `pairs.txt` と `load<N>.txt` の名前だけを書く。030 から 036 の fixture の dir は、実装の席が名前を決めて置く。
 
 ### 4.43 RP-33（T が V に落ちた行の最初の訳）
 

@@ -717,6 +717,10 @@ R8h は次の 4 つを、この順に持つ。
 **R7 と R7b との関係**：R7 は認識の段の時間と置き場を持ち、R8h の 3 は確定の復号の前の待ちを測るだけで、復号の順を変えない。R7 の H10（確定の解き直しを省く）は同じ loop を触るので、H10 と R8h の 3 の待ちの log は同じ席が続けて打つ。R7b は日本語の streaming の認識器を測るだけで、`hayamimi` の経路を替えない（10 の H38）。streaming の認識器を採ると、速報は解き直しでなくなり、3 が測る待ちの形も変わる。採るかは E2E の後に評議が決める。
 
 **順と置き場**：1 は W3 の空いた席がすぐ打ち、E2E-1 と E2E-2 も 1 の後の道具で測る。2 の B は R8f の V の直しの席が持つ。3 の待ちの log と GPU の記録は W3 の空いた席が 4 の前に入れる。2 の A は上の条件が揃った時だけ、E2E の後に作る。4 の run は E2E の波で打ち、E2E-1 の `L` の判定も 4 の run で決める（仮の置き場。持ち主は R8h で、E2E の波の 1 時間に 3 対が収まらなければ 2 対にし、その数を記録する）。
+2 対の数の記録は、run の file と同じ dir（`docs/results/rp32/`）の `pairs.txt` に、対の数の算用数字 1 つ（`2`）だけを 1 行で書く。
+`pairs.txt` が無い dir は 3 対として読み、在る dir はその数の対を読む。
+`pairs.txt` の数と在る対の数が違う時、数が読めない時、`1` の時、RP-32 の実走の test（`rp32_alternated_runs_under_the_same_load_beat_python`）はその理由を挙げて落ちる。
+対の数を run の名前や `load<N>.txt` から数えて済ませないのは、3 対目を流し損ねた dir と、2 対で止めると決めた dir が同じ顔になるからである。
 
 ## 4. 採らない手段
 
@@ -878,7 +882,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-29 | `rp29_missing_resources_fall_back_and_say_so` | `native/hayamimi/tests/rp29.rs` | 外したのに event を出さない build、在るのに落ちる build |
 | RP-30 | `rp30_fallback_stage_and_reason_lists_match_the_code` | `native/hayamimi/tests/rp30.rs` | 1 つ消した一覧、code に無い値を足した一覧 |
 | RP-31 | `rp31_latency_counts_only_shown_translations_of_their_own_utterance` | `native/hayamimi-eval/tests/rp31.rs` | `held` の空の訳を先に置いた列、遅れて着いた `final` |
-| RP-32 | `rp32_alternated_runs_under_the_same_load_beat_python` | `native/hayamimi-eval/tests/rp32.rs` | load の記録が無い run、load 2 以上の run、交互でない順 |
+| RP-32 | `rp32_alternated_runs_under_the_same_load_beat_python`（実走の行 T-RP-32-029 の test。ほかの行の test の名前は T の 4.42 の表のとおり） | `native/hayamimi-eval/tests/rp32.rs` | load の記録が無い run、load 2 以上の run、交互でない順、`pairs.txt` の無い 2 対 |
 | RP-33 | `rp33_first_translation_after_a_failed_draft_beats_python` | `native/hayamimi-eval/tests/rp33.rs` | 落ちた行を 600 ms 遅らせる偽の中継 |
 | RP-34 | `rp34_wait_before_final_decode_not_longer_than_python` | `native/hayamimi-eval/tests/rp34.rs` | 確定の前に 300 ms 待つ偽の engine、GPU の記録が無い run |
 | RP-35 | `rp35_latency_work_keeps_chrf_and_verify` | `native/hayamimi-eval/tests/rp35.rs` | V を掛けずに出す偽の中継、T の訳をそのまま確定にする偽の中継 |
@@ -1095,6 +1099,10 @@ E2E-2 は、events に `lang` が `en` の `final` と、`lang` が `ja` で字�
 陽性対照は `docs/results/r8h_verify/` の記録（rs1、py1、py2、e2e2c）で、数が出ることまでを見る。
 陰性対照は訳が 0 件の fixture（`native/hayamimi-eval/tests/fixtures/e2e_no_translation.jsonl`）で、落ちることを見る。
 load の記録と Python の run の交互の順（RP-32）は、この 2 本の判定に入れない。
+RP-32 の判定の test（`native/hayamimi-eval/tests/rp32.rs`）は、git 管理下の `docs/results/rp32/` を読む。
+dir の中は、流した順に `py1.jsonl`、`rs1.jsonl`、`py2.jsonl`、`rs2.jsonl`、`py3.jsonl`、`rs3.jsonl`（`stream --out` の samples）と、対 N ごとの `load<N>.txt` である。
+`load<N>.txt` の 1 行は、run の名前、`before` か `after`、時刻、`/proc/loadavg` の 1 行を空白で並べた形（`docs/results/r8h_verify/loadavg.txt` と同じ）で、各 run の前と後に 1 行ずつ置く。
+記録が揃っていない時、`--ignored` の test は足りない file の名前を挙げて落ちる。
 
 ### RP-19 の未実装 187 行の仕分けと slice
 
