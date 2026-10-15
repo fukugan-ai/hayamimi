@@ -759,9 +759,9 @@ impl<L: Llm> Pipeline<L> {
         self.settle(request, text, Pass::T, ms, observer, sink)
     }
 
-    /// Records a hedge only one side of a Japanese line carries, for the
-    /// translation that is settled, when it is written into English.
-    fn log_hedge_into_english(&self, request: &Ctx<'_>, text: &str, sink: &mut dyn LogSink) {
+    /// Records a hedge only one side of a line carries and that did not hold
+    /// it, for the translation that is settled, within the live pair.
+    fn log_hedge_in_pair(&self, request: &Ctx<'_>, text: &str, sink: &mut dyn LogSink) {
         let into_pair = match request.dest {
             Dest::Pair => true,
             Dest::Other(target) => target.lang() == Some(request.src_lang.other()),
@@ -782,7 +782,7 @@ impl<L: Llm> Pipeline<L> {
         observer: &mut dyn Observer,
         sink: &mut dyn LogSink,
     ) -> Translation {
-        self.log_hedge_into_english(request, &text, sink);
+        self.log_hedge_in_pair(request, &text, sink);
         observer.stage(Stage::Annotate);
         let annotated = match request.dest {
             Dest::Pair => self.annotator.annotate(

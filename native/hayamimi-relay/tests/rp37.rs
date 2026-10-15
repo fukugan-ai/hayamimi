@@ -270,11 +270,15 @@ fn rp37_an_added_hedge_into_en_is_logged_and_not_held() -> TestResult {
     Ok(())
 }
 
-/// T-RP-37-009: a hedge only the Japanese translation carries holds.
+/// T-RP-37-009 (draft): a hedge only the Japanese translation carries is
+/// recorded and the line goes out.
 #[test]
-fn rp37_an_added_hedge_into_ja_still_holds_for_uncertainty() -> TestResult {
-    let outcome = in_pair(Lang::En, "It will rain tomorrow.", HEDGED)?;
-    assert_held(&outcome, HoldReason::Uncertainty, "ja");
+fn rp37_an_added_hedge_into_ja_is_logged_and_not_held() -> TestResult {
+    let (line, events) = in_pair(Lang::En, "It will rain tomorrow.", HEDGED)?;
+    assert_eq!(line.status, Status::Ok, "ja: status");
+    let event = the_hedge_event(&events, "ja")?;
+    assert!(field_is_null(event, "src_hedge"), "ja: src_hedge");
+    assert!(field_is_text(event, "dst_hedge"), "ja: dst_hedge");
     Ok(())
 }
 

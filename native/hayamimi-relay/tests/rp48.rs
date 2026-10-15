@@ -115,8 +115,9 @@ fn rp48_hedge_mismatch_into_english_is_logged_and_into_japanese_held() -> TestRe
 
     let lost = in_pair(Lang::En, "It might rain tomorrow.", "明日は雨が降ります。")?;
     assert_held(&lost, HoldReason::Uncertainty, "c");
+    // A hedge the Japanese translation adds is no longer held (draft, R8t).
     let gained = in_pair(Lang::En, "It will rain tomorrow.", HEDGED)?;
-    assert_held(&gained, HoldReason::Uncertainty, "d");
+    assert_eq!(gained.line.status, Status::Ok, "d: status");
     Ok(())
 }
 
