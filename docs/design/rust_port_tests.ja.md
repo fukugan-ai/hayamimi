@@ -1945,6 +1945,126 @@ command（受入 test の外）：`cd native && flock -w 1800 target/release/.ca
 - 009 と E2E-2-008 の数は `jq` で数えた値と注釈に在るだけで、式が test に無い。記録を入れ替えると値が動く。式を test の定数と一緒に置くかは実装の席が決める。
 - 015 と E2E-2-011 は、`judge_e2e1` と `judge_e2e2` の割合の境界の行である。今の test は 3 件の fixture の割合（2 of 3）でしか割合を打っておらず、20 / 23 の境界は実走の記録でしか確かめていない。
 
+### 4.64 RP-66（発話の終わりの待ち `d` と区切りの品質）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が R8v の手番で足す。
+test：`native/hayamimi-eval/tests/rp66.rs`。受入 test の名前は `rp66_early_end_shortens_the_wait_without_splitting_utterances`。実走の行（T-RP-66-038）だけが `#[ignore]` を持ち、`docs/results/r8v/` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp66`。実走の行はこれに `-- --ignored` を足す。
+関数の名前と引数の形は実装の席が決める。行は「言語ごとに、main の run と R8v の run の対を渡す」形で書く。
+
+**数え方**（3.1 と 3.17 のとおり。この席は足さない）：
+
+- 標本の枠は ja が 23 × 5 = 115、en が 15 × 5 = 75。枠は 有効 + final なし + 終端不正 に分かれる。RP-66 は終端不正の線を 0.12 秒にして数える（3.1 の例外）。
+- `d = L_asr − L_dec`（ms）。有効は `final` が在り `d ≥ 120`。0.30 秒で数える有効は `d ≥ 300`。
+- p50、p95 は nearest-rank（順位は (p × n + 99) / 100 の整数除算）。`d` の n は、訳の有無を問わない有効な標本の数である（D 3.17 の「RP-66 と RP-67 の数え方」の 1）。「final なし」は `t_final_us` が null の標本（同 2）。`d` の合否と品質の合否は、言語ごとに R8v の 2 本を合わせた集まりと、main の 2 本を合わせた集まりで取る（同 7）。run ごとの値は記録だけにする。
+
+**fixture**（式で作る。実測のふりをしない）：
+
+- **F66J**（ja の R8v の run）：枠 115 = 有効 100 + final なし 15。有効の k 番目（k = 1〜100、`d` の小さい順）の `d` は、k ≤ 50 で 450 + k、51 ≤ k ≤ 95 で 1050 − (95 − k)、96 ≤ k で 1100 + 10 × (k − 96)。したがって 50 番目が 500 ms、95 番目が 1050 ms で、nearest-rank の p50 は 50 番目 ((50 × 100 + 99) / 100)、p95 は 95 番目 ((95 × 100 + 99) / 100) である。有効の標本は全部 `L_dec` 100 ms、`L_tr` 300 ms、`finals` 1、`cer_dist` 1、`cer_denom` 50。final なしの 15 は `t_final_us` が null、`finals` 0、`cer_dist` 1、`cer_denom` 50。
+- **F66E**（en の R8v の run）：枠 75 = 有効 75。k 番目の `d` は、k ≤ 38 で 262 + k、39 ≤ k ≤ 72 で 520 − (72 − k)、73 ≤ k で 600 + 10 × (k − 73)。38 番目が 300 ms、72 番目が 520 ms で、p50 は 38 番目 ((50 × 75 + 99) / 100)、p95 は 72 番目 ((95 × 75 + 99) / 100) である。`L_dec` 200 ms、`L_tr` 200 ms、`finals` 1、`cer_dist` 1、`cer_denom` 50。
+- **M66J、M66E**（main の run）：F66J の全標本の `d` に 400 ms を足した物（M66J。50 番目が 900 ms）、F66E に 150 ms を足した物（M66E。38 番目が 450 ms）。ほかの欄は F66 と同じ。900 ms と 450 ms は、記録の main の `d` の p50（ja 865 ms、en 457 ms。D 3.17 の数え方の 1）の ±60 ms の帯（ja 805〜925、en 397〜517）に入る。
+- **対**：`[M66, F66, M66, F66]`（main、R8v、main、R8v の順。2 つの R8v の run は同じ標本、2 つの main の run も同じ標本）。load の記録は全 run の前で `0.50`。順と load は RP-32 と同じ規則で、行 028〜031 が持つ。
+
+合わせた集まりは、ja が n 200（p50 は 100 番目、p95 は 190 番目）、en が n 150（p50 は 75 番目、p95 は 143 番目）である。2 本が同じ標本なので、k 番目の値は合わせた順位の 2k − 1 番目と 2k 番目に並ぶ（ja の p50 は k = 50、p95 は k = 95。en の p50 は k = 38、p95 は k = 72）。
+行 001〜009 の「R8v の k 番目を変える」は、2 本の R8v の run の両方に当てる。品質の行（016〜025）の「R8v の標本を 1 つ変える」は、2 本のうち 1 本にだけ当てる（合わせた数で 1 件の差になる）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-66-001 | ja は `[M66J, F66J, M66J, F66J]`、en は `[M66E, F66E, M66E, F66E]`。そのまま | 4 つの限度がどれも等号 | `Ok` | ja も en も `Ok`。ja の `d` は p50 500 ms、p95 1050 ms、en は p50 300 ms、p95 520 ms（specified、6 の RP-66 の「以下」。F66 の式） | 境界、陽性 | `d_at_the_four_limits_passes` |
+| T-RP-66-002 | 001 の ja で、R8v の 50 番目を 501 ms にする | ja の p50 の順位に当たる標本 | `Err` | `Err` で ja の p50 だけを名指し。p95 の 95 番目は 1050 ms のまま（specified、6 の RP-66。ja p50 ≤ 500）。1050 ms の置き直しで書き直す（D 3.17 の数え方の 5） | 境界、陰性 | `ja_p50_of_d_one_millisecond_over_is_rejected` |
+| T-RP-66-003 | 001 の ja で、R8v の 51 番目だけを +1 ms にする | p50 の順位の次 | `Ok` | `Ok`。50 番目は 500 ms のまま（derived、nearest-rank。順位が p50 を決める）。1050 ms の置き直しで書き直す | 境界 | `ja_p50_is_decided_by_the_50th_sample_only` |
+| T-RP-66-004 | 001 の ja で、R8v の 95 番目を 1051 ms にする | ja の p95 の順位に当たる標本 | `Err` | `Err` で ja の p95 だけを名指し。p50 は通る（specified、6 の RP-66。ja p95 ≤ 1050）。1050 ms の置き直しで書き直す（D 3.17 の数え方の 5） | 境界、陰性 | `ja_p95_of_d_one_millisecond_over_is_rejected` |
+| T-RP-66-005 | 001 の ja で、R8v の 96 番目だけを +1 ms にする | p95 の順位の次 | `Ok` | `Ok`。95 番目は 1050 ms のまま（derived、nearest-rank）。1050 ms の置き直しで書き直す | 境界 | `ja_p95_is_decided_by_the_95th_sample_only` |
+| T-RP-66-006 | 001 の en で、R8v の 38 番目を 301 ms にする | en の p50 の順位に当たる標本 | `Err` | `Err` で en の p50 だけを名指し（specified、6 の RP-66。en p50 ≤ 300） | 境界、陰性 | `en_p50_of_d_one_millisecond_over_is_rejected` |
+| T-RP-66-007 | 001 の en で、R8v の 39 番目だけを +1 ms にする | p50 の順位の次 | `Ok` | `Ok`。38 番目は 300 ms のまま（derived、nearest-rank） | 境界 | `en_p50_is_decided_by_the_38th_sample_only` |
+| T-RP-66-008 | 001 の en で、R8v の 72 番目を 521 ms にする | en の p95 の順位に当たる標本 | `Err` | `Err` で en の p95 だけを名指し（specified、6 の RP-66。en p95 ≤ 520） | 境界、陰性 | `en_p95_of_d_one_millisecond_over_is_rejected` |
+| T-RP-66-009 | 001 の en で、R8v の 73 番目だけを +1 ms にする | p95 の順位の次 | `Ok` | `Ok`。72 番目は 520 ms のまま（derived、nearest-rank） | 境界 | `en_p95_is_decided_by_the_72nd_sample_only` |
+| T-RP-66-010 | **S2 の陽性対照**：main の run 2 本（M66J と M66E）。実物の記録として `docs/results/e2e/e2e1/e2e1.jsonl`（枠 115）と `docs/results/e2e/e2e2/e2e2.jsonl`（枠 75）も渡す（git の中に在る。写しを作らない。D 3.17 の数え方の 6） | main の run は早い規則を持たない | 0.12 秒と 0.30 秒の有効の数が一致 | M66J は 100 と 100、M66E は 75 と 75。実物は ja が 100 と 100、en が 75 と 75（pseudo、jq。`select(.t_final_us != null and ((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 120)` と `>= 300` の数。2026-10-15 に打った）。一致していれば `Ok`。出力に 2 つの数を並べる | 陽性、境界 | `main_runs_count_the_same_valid_samples_at_120_and_300_ms` |
+| T-RP-66-011 | **S2 の陰性対照**：M66J の 1 標本の `d` を 250 ms にした main の run | main の run で 2 つの数が違う | `Err` | `Err` で main の run の有効の数が 0.12 秒と 0.30 秒で合わないことを名指し（0.12 秒で 100、0.30 秒で 99）（derived、main は早い規則を持たず、`d` の最小は ja 428 ms、en 361 ms なので、2 つの数は等しいはずである。3.17 の記録） | 陰性 | `a_main_run_whose_valid_count_differs_between_120_and_300_ms_is_rejected` |
+| T-RP-66-012 | **S3**：F66J の標本の `d` を 119、120、121、299、300、301 ms にした 6 標本の run（`final` は在る） | 0.12 秒でだけ有効になる標本。両側の境界 | 数と分布を別に記録 | 0.30 秒の有効は 2（300、301）、0.12 秒の有効は 5。0.12 秒でだけ有効なのは 3（120、121、299）。その `d` の最小 120、p50 121 (((50 × 3) + 99) / 100 = 2 番目)、p95 299 ((95 × 3 + 99) / 100 = 3 番目)、最大 299 を出力に別の欄で書く（derived、手で数えた。119 は両方で終端不正、300 は両方で有効） | 境界、陽性 | `samples_valid_only_at_120_ms_are_counted_with_their_d` |
+| T-RP-66-013 | S3：M66J と M66E、および 010 の実物の 2 本 | 0.12 秒でだけ有効な標本が無い | 数 0、分布は欄を持たない | 数は 0。分布の欄は値を持たない（0 と書かない）。`Ok`（derived、010 の数の差 0。0 件を「待ちが 0 ms」と読ませない） | 陰性 | `no_sample_valid_only_at_120_ms_gives_zero_and_no_distribution` |
+| T-RP-66-014 | F66J の 1 番目の標本の `d` を 250 ms にした R8v の run（対は 001 と同じ） | H70。0.12 秒で有効、0.30 秒で終端不正 | `Ok` | `Ok`。250 ms の標本は有効に入り、有効は 100、p50 は 50 番目の 500 ms のまま。0.30 秒で数えた場合は有効が 99 になり、50 番目が 1006 ms になって ja の p50 の限度を超える（derived、F66J の 51 番目が 1006 ms。したがって 0.30 秒で数える build はこの行で落ちる） | 陽性、陰性 | `a_sample_with_a_wait_under_300_ms_counts_as_valid_at_120_ms` |
+| T-RP-66-015 | F66J の 1 番目の `d` を 100 ms にした run、250 ms にした run、そのままの run | 枠が三つに分かれる。0.12 秒の線の両側 | 合計が枠 | 100 ms の run は 0.12 秒で 有効 99 + final なし 15 + 終端不正 1 = 115、0.30 秒で 99 + 15 + 1 = 115。250 ms の run は 0.12 秒で 100 + 15 + 0、0.30 秒で 99 + 15 + 1。どの組も 115 になる。そのままの run は 100 + 15 + 0 の 2 通りとも（derived、3.1 の「枠 = 有効 + final なし + 終端不正」。標本を落として合計が枠を割ると `Err`） | 境界、陽性 | `the_frame_splits_into_valid_no_final_and_bad_end_without_loss` |
+| T-RP-66-016 | **S1**：001 の ja で、R8v の final なしの 1 標本を `finals` 2 にする（`t_final_us` は null のまま） | 割れた標本が有効でない（枠の中） | `Err` | `Err` で `finals` が 2 以上の標本の数を名指し。main は 0、R8v は 1。有効な標本だけで数えると 0 になり通ってしまう（derived、6 の RP-66 の品質の合否。枠 115 の全標本で数える） | 陰性 | `a_split_sample_without_a_final_is_counted_over_the_whole_frame` |
+| T-RP-66-017 | 001 の ja で、R8v の有効な標本の 1 つを `finals` 2 にする | 割れた標本が 1 件増える | `Err` | `Err` で `finals` が 2 以上の標本の数を名指し（main 0、R8v 1）（specified、6 の RP-66。増えない）。常に完結と判定して毎回確定する build は、割れた標本を増やすのでここで落ちる | 陰性 | `one_more_split_sample_is_rejected` |
+| T-RP-66-018 | main は 2 本それぞれ `finals` が 2 の標本を 1 つ（合わせて 2）。R8v は合わせて 2 と 1 | 割れた標本の数が等しい、減る | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「増えず」。等号側。実物の記録は ja が 10、en が 15 の標本を持つ。jq の `select(.finals >= 2)` を枠の全標本に当てた数） | 境界、陽性 | `equal_or_fewer_split_samples_pass` |
+| T-RP-66-019 | 001 の ja で、R8v の有効な標本の 1 つを final なしにする（`t_final_us` が null、`finals` 0） | final なしが 1 件増える | `Err` | `Err` で final なしの標本の数を名指し（2 本合わせて main 30、R8v 31）。有効は 99 になる（specified、6 の RP-66。増えない。枠 115 の全標本で数える） | 陰性 | `one_more_sample_without_a_final_is_rejected` |
+| T-RP-66-020 | main の final なしが 2 本合わせて 30、R8v が 30 と 29 | final なしが等しい、減る | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「増えず」。等号側） | 境界 | `equal_or_fewer_samples_without_a_final_pass` |
+| T-RP-66-021 | 001 の ja で、R8v の有効な標本の 1 つの `t_tr_us` を null にする | 訳の取れない有効な標本が 1 件増える | `Err` | `Err` で訳の取れない有効な標本の数を名指し（main 0、R8v 1）（specified、6 の RP-66。増えない） | 陰性 | `one_more_valid_sample_without_a_translation_is_rejected` |
+| T-RP-66-022 | main の訳の取れない有効な標本が 2 本合わせて 2、R8v が 2 と 1 | 等しい、減る | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「増えず」。等号側。実物の記録は ja が 7、en が 5） | 境界 | `equal_or_fewer_valid_samples_without_a_translation_pass` |
+| T-RP-66-023 | ja。main の 2 本を合わせた `cer_dist` の和 230、`cer_denom` の和 11500（F66J の全 115 標本が 2 本）。R8v は合わせた和 230 と 229 | CER が等しい、小さい | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「対の main 以下」。等号側。CER は和 ÷ 和。等号の 230 / 11500 を割り算の丸めで外さない） | 境界、陽性 | `ja_cer_equal_to_or_below_main_passes` |
+| T-RP-66-024 | ja。R8v の合わせた `cer_dist` の和 231 の 2 入力。(1) 有効な標本の 1 つの `cer_dist` を 2 にする。(2) final なしの標本の 1 つの `cer_dist` を 2 にする | CER が 1 つ増える。final なしの標本も数える | どちらも `Err` | どちらも `Err` で ja の CER を名指し（specified、6 の RP-66。「run の全標本」の和）。(2) は有効な標本だけで和を取ると通ってしまう。落ちた入力は assert の message に出す | 境界、陰性 | `ja_cer_above_main_is_rejected_whichever_sample_carries_it` |
+| T-RP-66-025 | en。R8v の `cer_dist` の和が main より大きい対 | en の CER | `Ok` | `Ok`。en の CER は判定しない（specified、6 の RP-66 は「ja の CER」とだけ書く） | 陰性 | `english_cer_is_not_judged` |
+| T-RP-66-026 | F66J の run | 記録するだけの列 | 6 つの値 | 出力に `L`、復号、訳の p50 と p95 が在る。`L` は p50 900 ms、p95 1450 ms（有効で訳の取れた 100 標本の 50、95 番目。`L = d + L_dec + L_tr` で `d` が 500、1050 のとき 500 + 100 + 300、1050 + 100 + 300）、復号は 100 ms と 100 ms、訳は 300 ms と 300 ms（derived、F66 の式。D の 3.17 の jq と同じ分け方）。F66E は `L` が 700 ms と 920 ms（300 + 200 + 200、520 + 200 + 200 の 38、72 番目）、復号は 200 ms と 200 ms、訳は 200 ms と 200 ms | 陽性 | `l_decode_and_translation_are_recorded` |
+| T-RP-66-027 | 001 の ja で、R8v の全標本の `L_tr` を 5300 ms にする | 訳が遅い | `Ok` | `Ok`。`d` は動かず、`L` の p95 と訳の p95 が大きくなっても落ちない。出力の `L` の p95 は 6450 ms、訳の p95 は 5300 ms（specified、6 の RP-66 の「`L`、復号、訳は p50 と p95 を記録するだけで合否に入れない」） | 陰性 | `a_slow_translation_does_not_fail_the_wait_verdict` |
+| T-RP-66-028 | 001 の ja で、順を main、main、R8v、R8v、にする | 順が交互でない | `Err` | `Err` で 2 番目の run を名指し（specified、6 の RP-66 の「main、R8v、main、R8v の順」。RP-32 の T-RP-32-002 と同じ形） | 陰性 | `a_run_order_that_is_not_alternated_is_rejected` |
+| T-RP-66-039 | ja。R8v の 1 本目は全標本の `d` を 460 ms にした run（有効 100）、2 本目は F66J の 50 番目だけ 501 ms にした run。main は M66J の 2 本 | 2 本を合わせると通り、2 本目だけだと落ちる | `Ok` | `Ok`。合わせた n 200 の p50 は 100 番目で 460 ms（1 本目の 100 標本が 500 ms 以下）、p95 は 190 番目で 2 本目の 90 番目の 1045 ms（derived、D 3.17 の数え方の 7）。2 本目だけで取ると p50 が 501 ms で `Err` になる。run ごとに判定する build はここで落ちる。run ごとの p50 と p95（460 ms と 460 ms、501 ms と 1050 ms）は記録だけに出す | 陽性、陰性 | `two_runs_are_pooled_per_language_for_d` |
+| T-RP-66-029 | 001 の ja で、4 番目の run の前の load を `1.99 0.50 0.50 1/300 1000` にする | load の上側の境界の手前 | `Ok` | `Ok`（specified、6 の RP-66 の「RP-32 と同じ」と RP-32 の「2 未満」。199 < 200） | 境界、陽性 | `a_load_of_1_99_before_a_run_passes` |
+| T-RP-66-030 | 029 の load を `2.00 0.50 0.50 1/300 1000` にする | 境界の値 | `Err` | `Err` で 4 番目の run を名指し（specified、RP-32。200 は 2 未満でない） | 境界、陰性 | `a_load_of_2_00_before_a_run_is_rejected` |
+| T-RP-66-031 | 001 の ja で、先頭の 1 対だけ（main、R8v の 2 本） | 対が 1 つ | `Err` | `Err` で対の数が 2 でないことを名指し（specified、6 の RP-66 の「言語ごとに 2 対」） | 境界、陰性 | `one_pair_per_language_is_rejected` |
+| T-RP-66-032 | ja。合わせた main の `d` の p50 が 804、805、925、926 ms の 4 入力 | 記録の 865 ms の ±60 ms の帯の両端 | 805 と 925 は `Ok`、804 と 926 は `Err` | 805（865 − 60）と 925（865 + 60）は帯の内で `Ok`、804 と 926 は `Err` で main の `d` の p50 を名指し（specified、D 3.17 の数え方の 4 の「差の絶対値 ≤ 60」、6 の RP-66 の陽性欄）。落ちた入力は assert の message に出す | 境界 | `main_d_p50_outside_the_recorded_band_for_ja_is_rejected` |
+| T-RP-66-033 | en。合わせた main の `d` の p50 が 396、397、517、518 ms の 4 入力 | 記録の 457 ms の ±60 ms の帯の両端 | 397 と 517 は `Ok`、396 と 518 は `Err` | 397（457 − 60）と 517（457 + 60）は帯の内で `Ok`、396 と 518 は `Err` で main の `d` の p50 を名指し（specified、同上） | 境界 | `main_d_p50_outside_the_recorded_band_for_en_is_rejected` |
+| T-RP-66-034 | 実物の記録：`docs/results/e2e/e2e1/e2e1.jsonl` と `docs/results/e2e/e2e2/e2e2.jsonl` を main の run として渡す | 実物の main の `d` | `Ok` | 有効な標本（ja n 100、en n 75）の nearest-rank で、ja の main の `d` の p50 は 865.5 ms、en は 456.6 ms で、どちらも帯の内側（805〜925、397〜517）で、D の ja 865 ms、en 457 ms と丸めて合う（pseudo、jq。`select(.t_final_us != null)` で `d ≥ 120`。2026-10-15 に打った）。D 3.17 の冒頭の表の 881 と 448 は訳の取れた標本の値で、この行には使わない（D 3.17 の数え方の 1） | 陽性 | `the_recorded_main_run_is_inside_the_band` |
+| T-RP-66-035 | 同じ記録を R8v の run として渡す（`--endpoint silence` の run が返す形） | 早い規則が働かない run | `Err` | `Err` で 4 つの限度を名指し。有効な標本で、ja は p50 865.5 ms > 500 と p95 1341.4 ms > 1050（n 100 の 50、95 番目）、en は p50 456.6 ms > 300 と p95 706.3 ms > 520（n 75 の 38、72 番目）（pseudo、jq）。判定の道具が実物の遅れを「超える」と読む確かめ | 陰性 | `the_recorded_main_run_does_not_meet_the_d_limits` |
+| T-RP-66-036 | R8v の run の `hayamimi` の log。`asr.endpoint.decided` が 3 件で、`rule` は `silence`、`max_speech`、`flush` | `early` が 0 件 | `Err` | `Err` で `rule` が `early` の行が無いことを名指し（specified、6 の RP-66 の陽性欄「`early` の行が 1 件以上」）。`silence`、`max_speech`、`flush` は数えない | 陰性 | `an_r8v_log_without_an_early_decision_is_rejected` |
+| T-RP-66-037 | 036 の log に `rule` が `early` で `silence_ms` が 120 の行を 1 件足す | `early` が 1 件 | `Ok` | `Ok`（specified、同上。1 件が下限の等号側）。`early` の行は `id`、`rule`、`silence_ms` を持つ（3.17 の 6） | 境界、陽性 | `one_early_decision_in_the_log_is_enough` |
+| T-RP-66-038 | 実走：`docs/results/r8v/` の対の番号 `<N>` ごとの `main<N>.e2e1.jsonl`、`r8v<N>.e2e1.jsonl`、`main<N>.e2e2.jsonl`、`r8v<N>.e2e2.jsonl` と `load<N>.txt`（D 3.17 の数え方の 6）、`hayamimi` の log | 実走 | 実走 | 001 の形で `Ok`（specified、6 の RP-66）。R8v の手番 3 の記録が置かれるまでは走らせない。ja の 1050 ms を置き直す席が終わるまで、手番 3 の run は打たない（D 3.17 の数え方の 5） | 陽性 | `rp66_early_end_shortens_the_wait_without_splitting_utterances` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 設計が決めた物（D 3.17 の数え方の 1〜7）は、行に反映した。残るのは次の 2 つである。
+- ja の p95 の限度 1050 ms を置き直したら、002〜005 の境界の値をこの席が書き直す（D の数え方の 5）。それまで 1050 で書いてある。
+- 011 の根拠（main の run の `d` の最小が ja 428 ms、en 361 ms）は 3.17 の記録の値で、この席は打ち直していない。010 は記録の有効の数が 0.12 秒と 0.30 秒で一致すること（jq）だけを打ち直した。
+
+### 4.65 RP-67（主指標 `L` の p95 を 1000 ms 以下にする）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-eval/tests/rp67.rs`。受入 test の名前は `rp67_speech_end_to_translation_p95_is_within_one_second`。実走の行（T-RP-67-015）だけが `#[ignore]` を持ち、`docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp67`。実走の行はこれに `-- --ignored` を足す。
+関数の名前と引数の形は実装の席が決める。行は「言語ごとの run の標本の列を渡す」形で書く。
+
+**数え方**（3.1 と D 3.17 の数え方の 3 のとおり）：`L = t_tr − t_end`。n は有効（`final` が在り `d ≥ min_silence`、RP-67 も `min_silence` は 0.12 秒。評議が GO）で訳の取れた標本の数。test は 0.30 秒でも数えて並べて記録する。p95 は nearest-rank で順位は (95 × n + 99) / 100 の整数除算。したがって 1000 ms を超えてよい標本の数は `n − 順位` である。
+
+| n | 順位 | 超えてよい数 |
+|---|---|---|
+| 92 | 88 | 4 |
+| 93（E2E-1 の記録の n） | 89 | 4 |
+| 94 | 90 | 4 |
+| 95 | 91 | 4 |
+| 96 | 92 | 4 |
+| 69 | 66 | 3 |
+| 70（E2E-2 の記録の n） | 67 | 3 |
+| 71 | 68 | 3 |
+
+**fixture F67**：n 標本、全部 `d` 500 ms、`L_dec` 150 ms、`L_tr` 250 ms（`L` は 900 ms）。「k 件を超える」は、`L` の大きい方から k 件の `L_tr` を足して `L` を 1001 ms にする。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-67-001 | F67、n = 93（ja）と n = 70（en） | 全標本が 900 ms | `Ok` | 両方 `Ok`（specified、6 の RP-67 の「全標本の `L` を 900 ms に置いた fixture で通る」）。出力に `d` 500 ms、復号 150 ms、訳 250 ms、`L` 900 ms の p50 と p95 が並ぶ（specified、「同じ結果に並べて書く」） | 陽性 | `all_samples_at_900_ms_pass_and_the_columns_are_written` |
+| T-RP-67-002 | F67、n = 93 で全標本の `L` を 1000 ms にする | 限度の値 | `Ok` | `Ok`（specified、6 の RP-67 の「1000 ms 以下」。等号側） | 境界、陽性 | `l_of_exactly_1000_ms_passes` |
+| T-RP-67-003 | F67、n = 93 で 4 件を 1001 ms 以上にする | 超えてよい数ちょうど（ja） | `Ok` | `Ok`。89 番目は 900 ms（derived、(95 × 93 + 99) / 100 = 89。n − 89 = 4 件まで超えてよい） | 境界、陽性 | `four_over_in_93_samples_still_pass` |
+| T-RP-67-004 | F67、n = 93 で 5 件を 1001 ms 以上にする | 超えてよい数より 1 件多い（ja） | `Err` | `Err` で `L` の p95 を名指し。89 番目が 1001 ms 以上（derived、同上。D の「許す数より 1 件多く入れた fixture で落ちる」） | 境界、陰性 | `five_over_in_93_samples_are_rejected` |
+| T-RP-67-005 | F67、n = 70 で 3 件を 1001 ms 以上にする | 超えてよい数ちょうど（en） | `Ok` | `Ok`。67 番目は 900 ms（derived、(95 × 70 + 99) / 100 = 67。n − 67 = 3） | 境界、陽性 | `three_over_in_70_samples_still_pass` |
+| T-RP-67-006 | F67、n = 70 で 4 件を 1001 ms 以上にする | 超えてよい数より 1 件多い（en） | `Err` | `Err` で `L` の p95 を名指し。67 番目が 1001 ms 以上（derived、同上） | 境界、陰性 | `four_over_in_70_samples_are_rejected` |
+| T-RP-67-007 | F67、n が 92、94、95、96（ja の側）と 69、71（en の側）の各 n で、超える件数が表の数ちょうどの入力と 1 件多い入力 | n が動くと順位が動く | 表の数は `Ok`、1 件多いと `Err` | 表のとおり。n = 92 は 4 件で `Ok`、5 件で `Err`。n = 69 と 71 は 3 件で `Ok`、4 件で `Err`（derived、順位の式を各 n に当てた。順位を 93 と 70 の値に固定した build はここで落ちる） | 境界 | `the_allowed_count_follows_n` |
+| T-RP-67-008 | main の記録の形：n = 70 で、1000 ms を超える標本が 32 件、上位 3 件が 4681、1658、1603 ms、残りの 29 件が 1001 ms 以上 | en の記録の形 | `Err` | `Err` で `L` の p95 を名指し。67 番目が 1001 ms 以上（derived、H69。上位 3 件が枠を使い切り、残りの 29 件が超えているので落ちる） | 陰性 | `a_run_shaped_like_the_recorded_en_run_is_rejected` |
+| T-RP-67-009 | 008 の 29 件を 1000 ms 以下にした n = 70 | 上位 3 件だけが超える | `Ok` | `Ok`（derived、H69 の「残りの 29 件をすべて 1000 ms 以下にする必要がある」）。008 の対照 | 境界、陽性 | `only_the_top_three_over_1000_ms_pass_in_70_samples` |
+| T-RP-67-010 | n = 100 の有効のうち、訳の取れない標本が 7（`t_tr_us` が null）、訳の取れた 93 のうち 5 件が 1001 ms 以上、88 件が 900 ms | 訳の無い標本を `L` が小さいと読む | `Err` | `Err`。n は 93、89 番目が 1001 ms 以上。訳の無い 7 標本を `L` 0 として 100 標本に混ぜると 95 番目が 900 ms になり通ってしまう（derived、(95 × 93 + 99) / 100 = 89。実物の記録は ja が有効 100 のうち訳ありが 93） | 陰性 | `samples_without_a_translation_are_not_counted_as_fast` |
+| T-RP-67-011 | 訳の取れた有効な標本が 0 件の run | 空 | `Err` | `Err` で標本が無いことを名指し（specified、E2E-1 の T-E2E-1-008 と同じ。0 件を「1000 ms 以下」と読まない） | 陰性、境界 | `a_run_with_no_translated_sample_is_not_a_pass` |
+| T-RP-67-012 | ja は全標本 1001 ms、en は全標本 900 ms | ja だけが落ちる | `Err` | `Err` で ja（E2E-1）だけを名指し。en は名指さない（specified、6 の RP-67 の「それぞれの `L` の p95」） | 陰性 | `a_failing_ja_run_is_named_alone` |
+| T-RP-67-013 | ja は全標本 900 ms、en は全標本 1001 ms | en だけが落ちる | `Err` | `Err` で en（E2E-2）だけを名指し。ja は名指さない（specified、同上） | 陰性 | `a_failing_en_run_is_named_alone` |
+| T-RP-67-014 | 今の main の記録：`docs/results/e2e/e2e1/e2e1.jsonl` と `docs/results/e2e/e2e2/e2e2.jsonl`（git の中に在る。D 3.17 の数え方の 6） | 実物の記録 | 両方 `Err` | ja は n 93 の `L` の p95 が 1871.7 ms（89 番目）、en は n 70 の p95 が 1303.2 ms（67 番目）で、どちらも `Err`。`L` が 1000 ms 以下の標本は ja が 6、en が 38（pseudo、jq。`select(.t_final_us != null and .t_tr_us != null)` と `d ≥ 300`、nearest-rank。2026-10-15 に打った）。出力に `d` の p50 881.5、p95 1355.1 ms（ja）、443.6、671.9 ms（en）も並ぶ | 陽性、陰性 | `the_recorded_main_runs_are_over_one_second` |
+| T-RP-67-016 | **S2**：main の記録（014 の 2 本）。陰性対照として、ja の 1 標本の `d` を 250 ms にした main の run | main の run で 0.12 秒と 0.30 秒の有効の数 | 一致なら `Ok`、差が出たら `Err` | 記録は ja が 100 と 100、en が 75 と 75 で、0.12〜0.30 秒に入る標本は 0 件で `Ok`（pseudo、jq。`select(.t_final_us != null and d >= 120)` と `>= 300` を数えた。評議の打ち直しと同じ値。2026-10-15 に打った）。250 ms の標本を入れた run は 0.12 秒で 100、0.30 秒で 99 になり、`Err` で main の run の有効の数が合わないことを名指す（評議の S2。差が出たら落とす） | 陽性、陰性、境界 | `main_runs_count_the_same_valid_samples_at_120_and_300_ms_for_the_l_verdict` |
+| T-RP-67-017 | **S3**：n 93 の run。88 標本は `d` 500 ms で `L` 900 ms。4 標本は `d` 500 ms で `L` 1001 ms。1 標本は `d` 250 ms で `L` 1500 ms（訳が取れている） | 0.12 秒でだけ有効な標本が 1 つ。数え方で判定が割れる | `Err` と並べた記録 | 0.12 秒の判定は n 93 で 5 件が 1000 ms 超、89 番目が 1001 ms で `Err`。0.30 秒で数えると n 92、4 件が超えて 88 番目が 900 ms になり通る。出力に 0.12 秒でだけ有効な標本の数 1 とその `L` 1500 ms を別に書き、`L` の p95 を 0.12 秒の値 1001 ms と 0.30 秒の値 900 ms の両方で並べる（derived、(95 × 93 + 99) / 100 = 89 と (95 × 92 + 99) / 100 = 88。評議の S3。0.30 秒で数える build はここで合格してしまうので落ちる） | 陰性、境界 | `a_slow_sample_valid_only_at_120_ms_counts_and_both_p95_values_are_written` |
+| T-RP-67-018 | **S4**：n 93 の訳の取れた標本（全部 `L` 900 ms）に、訳の取れない有効な標本 7（`t_tr_us` が null）を足した run | 訳の取れない有効な標本 | `Ok` と数 | `Ok`。出力に訳の取れない有効な標本の数 7 が別の欄で出る。7 標本は n に入らない（010 と同じ）（derived、評議の S4。実物の記録は ja が 7、en が 5。jq の `select(.t_final_us != null and .t_tr_us == null)`） | 陽性 | `valid_samples_without_a_translation_are_counted_apart` |
+| T-RP-67-015 | 実走：`docs/results/rp67/` の `e2e1.jsonl`（23 発話 × 5 回）と `e2e2.jsonl`（15 発話 × 5 回） | 実走 | 実走 | 両言語で `L` の p95 ≤ 1000 ms で `Ok`、`d`、復号、訳の p50 と p95 も出す（specified、6 の RP-67）。ja は訳の p95 の下限があるので R8v だけでは届かない（H69）。記録が置かれるまでは走らせない | 陽性 | `rp67_speech_end_to_translation_p95_is_within_one_second` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- RP-67 の有効の線は 0.12 秒で、評議が GO を出した（S2、S3、S4 は 016〜018）。D の 6 の RP-67 の行にこの線が書かれているかは、設計の席が D:836 と D:1648 を書いている途中で、この席は確かめていない。
+- RP-67 の run が 1 回か複数回か（D は「5 回」の枠だけを書き、交互の対にしない）。この節は 1 つの run の列を渡す形にした。
+- 015 の `docs/results/rp67/` の記録を、誰がどの手番で置くか。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
