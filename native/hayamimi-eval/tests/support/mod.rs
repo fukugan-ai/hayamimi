@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 pub mod der_logs;
 pub mod e2e;
 pub mod rp32;
+pub mod rp32_rules;
 pub mod rp33;
 pub mod rp70;
 pub mod stages;

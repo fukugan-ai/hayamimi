@@ -26,7 +26,9 @@ use serde_json::Value;
 use super::{Failure, RESULTS, read};
 
 /// The `--min-silence` both sides of the comparison were started with
-/// (milliseconds): the Rust default and the comparison value.
+/// (milliseconds): the Rust default and the comparison value. E2E-1, E2E-2 and
+/// RP-33 judge every sample against it; RP-32 judges a Rust sample against it
+/// unless the early rule closed that sample (`rp32_rules::silence_line_ms`).
 pub const MIN_SILENCE_MS: i64 = 300;
 /// E2E-2: the p95 of `L` must not exceed this (RP-3, en to ja).
 pub const E2E2_P95_BUDGET_MS: i64 = 2000;
@@ -105,13 +107,20 @@ fn stat_column(values_us: &[i64]) -> Result<Option<Stat>, Failure> {
     stat_of(values_us).map_err(|why| why.to_string())
 }
 
-/// The three columns over the valid samples of `samples`.
+/// The three columns over the valid samples of `samples`, every sample judged
+/// against the same line.
 pub fn columns_of(samples: &[Sample], min_silence_ms: i64) -> Result<Columns, Failure> {
+    columns_over(
+        samples
+            .iter()
+            .filter(|sample| is_valid_l_asr(sample, min_silence_ms)),
+    )
+}
+
+/// The three columns over samples already judged valid, each against its own line.
+pub fn columns_over<'a>(valid: impl IntoIterator<Item = &'a Sample>) -> Result<Columns, Failure> {
     let (mut l, mut l_asr, mut l_tr) = (Vec::new(), Vec::new(), Vec::new());
-    for sample in samples
-        .iter()
-        .filter(|sample| is_valid_l_asr(sample, min_silence_ms))
-    {
+    for sample in valid {
         l_asr.extend(sample.l_asr_us());
         l.extend(sample.l_us());
         l_tr.extend(sample.l_tr_us());

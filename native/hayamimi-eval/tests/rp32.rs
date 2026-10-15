@@ -8,6 +8,10 @@
 
 mod support;
 
+use std::collections::BTreeMap;
+
+use hayamimi_asr::endpoint::Rule;
+use hayamimi_asr::vad::EARLY_MIN_SILENCE_MS;
 use hayamimi_eval::compare::{
     TranslatedShare, check_percentiles, check_translated_share, comparison_threshold, read_samples,
     translated_share,
@@ -19,9 +23,10 @@ use support::rp32::{
     AltReport, AltRun, Implementation, LOAD_OK, SHARE_COLUMN_PYTHON, SHARE_COLUMN_RUST,
     alternated_report, check_alternated_runs, check_columns_written, check_dir, check_ports_held,
     check_share_columns_written, f32_sample, l_comparison_set, load_alternated, load_hundredths,
-    missing_files, pairs_to_read, parse_load_file, parse_pairs_text, render_columns,
-    render_share_columns, rp32_dir, scratch_dir, write_f32_dir,
+    load_runs, missing_files, missing_rule_files, pairs_to_read, parse_load_file, parse_pairs_text,
+    render_columns, render_line_counts, render_share_columns, rp32_dir, scratch_dir, write_f32_dir,
 };
+use support::rp32_rules::{closing_rules, decided_rules, rule_named, silence_line_ms};
 use support::{Failure, TestResult, base};
 
 const R8E: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/results/r8e");
@@ -108,6 +113,7 @@ fn f32_run(implementation: Implementation, k: u32) -> AltRun {
         load_before: Some(String::from(LOAD_OK)),
         load_after: Some(String::from(LOAD_OK)),
         samples: (1..=19).map(|utt| f32_sample(utt, k)).collect(),
+        rules: None,
     }
 }
 
@@ -584,6 +590,7 @@ fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
         println!("rp32 python:\n{}", render_columns(&report.python));
         println!("rp32 rust:\n{}", render_columns(&report.rust));
         println!("rp32 share:\n{}", render_share_columns(report));
+        println!("rp32 lines:\n{}", render_line_counts(report));
         println!(
             "rp32: {} of {} utterances not slower; loads after {:?}",
             report.not_slower,
@@ -752,6 +759,7 @@ fn f32l_run(implementation: Implementation) -> AltRun {
         load_before: Some(String::from(LOAD_OK)),
         load_after: Some(String::from(LOAD_OK)),
         samples,
+        rules: None,
     }
 }
 
@@ -875,7 +883,8 @@ fn the_recorded_rp32_dir_has_enough_translated_samples() -> TestResult {
     assert!(counted.1 * 23 >= counted.0 * 20);
     let dir = rp32_dir();
     let count = pairs_to_read(&dir)?;
-    let report = alternated_report(&load_alternated(&dir, count.pairs)?, count.recorded)?;
+    // No rule is read: the count is the one at the 300 ms line, as `jq` counts it.
+    let report = alternated_report(&load_runs(&dir, count.pairs)?, count.recorded)?;
     assert_eq!(report.rust_share, share_of(300, 277));
     let text = render_share_columns(&report);
     assert!(
@@ -903,5 +912,303 @@ fn a_missing_translated_share_column_is_rejected() -> TestResult {
         let said = check_share_columns_written(&without_a_column(&text, heading));
         assert!(said.is_err_and(|why| why.contains(heading)), "{heading}");
     }
+    Ok(())
+}
+
+// ---- the line of a Rust sample follows the rule that closed it (T-RP-32-047 on) ----
+
+/// The early detector's silence in milliseconds, from the constant the server logs.
+fn early_ms() -> f64 {
+    f64::from(EARLY_MIN_SILENCE_MS)
+}
+
+/// The F32 runs whose first Rust run records a rule for each sample: the base
+/// samples closed by the silence rule, and one more Rust sample (repeat 2,
+/// utterance 6) closed by `rule` with a silence gap of `gap_ms`.
+fn report_with_extra(rule: Rule, gap_ms: f64) -> Result<AltReport, Failure> {
+    let mut runs = f32_runs();
+    let mut rules: BTreeMap<(u32, u32), Rule> =
+        (1..=19).map(|utt| ((1, utt), Rule::Silence)).collect();
+    runs[1]
+        .samples
+        .push(extra_sample(6, 2, decode_for_gap(6, gap_ms)));
+    rules.insert((2, 6), rule);
+    runs[1].rules = Some(rules);
+    alternated_report(&runs, None)
+}
+
+/// Whether the extra sample of [`report_with_extra`] counts as valid: the Rust
+/// share holds 58 valid samples instead of the 57 of the base.
+fn extra_is_valid(rule: Rule, gap_ms: f64) -> Result<bool, Failure> {
+    Ok(report_with_extra(rule, gap_ms)?.rust_share.valid == 58)
+}
+
+/// T-RP-32-047: a sample the early rule closed is valid from the early line up,
+/// at the line and 1 ms over, and not 1 ms or 0.001 ms under.
+#[test]
+fn an_early_sample_is_valid_from_the_early_line() -> TestResult {
+    let line = early_ms();
+    assert!(!extra_is_valid(Rule::Early, line - 1.0)?);
+    assert!(!extra_is_valid(Rule::Early, line - 0.001)?);
+    assert!(extra_is_valid(Rule::Early, line)?);
+    assert!(extra_is_valid(Rule::Early, line + 1.0)?);
+    Ok(())
+}
+
+/// T-RP-32-048: a sample the silence rule closed is valid from `min_silence` up.
+#[test]
+fn a_silence_sample_is_valid_from_min_silence() -> TestResult {
+    let line = MIN_SILENCE_MS as f64;
+    assert!(!extra_is_valid(Rule::Silence, line - 1.0)?);
+    assert!(!extra_is_valid(Rule::Silence, line - 0.001)?);
+    assert!(extra_is_valid(Rule::Silence, line)?);
+    assert!(extra_is_valid(Rule::Silence, line + 1.0)?);
+    Ok(())
+}
+
+/// T-RP-32-049: the limit on speech and a flush wait for no silence of their own
+/// and are held to `min_silence`, not to the early line.
+#[test]
+fn a_max_speech_or_flush_sample_is_held_to_min_silence() -> TestResult {
+    let line = MIN_SILENCE_MS as f64;
+    for rule in [Rule::MaxSpeech, Rule::Flush] {
+        assert!(!extra_is_valid(rule, early_ms())?, "{rule:?}");
+        assert!(!extra_is_valid(rule, line - 1.0)?, "{rule:?}");
+        assert!(extra_is_valid(rule, line)?, "{rule:?}");
+    }
+    Ok(())
+}
+
+/// T-RP-32-050: an early sample whose gap is between the two lines is valid on
+/// its own line, invalid on `min_silence`, and counted as gained by `early`.
+#[test]
+fn an_early_sample_between_the_lines_is_gained() -> TestResult {
+    let report = report_with_extra(Rule::Early, early_ms() + 1.0)?;
+    assert_eq!(report.rust_share.valid, 58);
+    assert_eq!(report.flat.rust_share.valid, 57);
+    assert_eq!(report.gained.get("early"), Some(&1));
+    assert_eq!(report.gained.values().sum::<usize>(), 1);
+    Ok(())
+}
+
+/// T-RP-32-051: a silence sample under `min_silence` is invalid on both lines,
+/// and nothing is gained.
+#[test]
+fn a_silence_sample_under_min_silence_gains_nothing() -> TestResult {
+    let report = report_with_extra(Rule::Silence, early_ms() + 1.0)?;
+    assert_eq!(report.rust_share.valid, 57);
+    assert_eq!(report.flat.rust_share.valid, 57);
+    assert_eq!(report.gained.values().sum::<usize>(), 0);
+    Ok(())
+}
+
+/// T-RP-32-052: a run that records rules refuses a sample with a `final` and
+/// no rule, by run and utterance; it is not read as `min_silence`.
+#[test]
+fn a_sample_with_a_final_and_no_rule_is_refused() {
+    let mut runs = f32_runs();
+    let rules: BTreeMap<(u32, u32), Rule> = (1..=18).map(|utt| ((1, utt), Rule::Silence)).collect();
+    runs[1].rules = Some(rules);
+    let said = alternated_report(&runs, None);
+    rejected(
+        &said,
+        "run 2: repeat 1 utt 19 has a final and no recorded rule",
+    );
+}
+
+/// T-RP-32-053: the line of each rule, and the names the log gives.
+#[test]
+fn the_line_of_a_rule_comes_from_the_early_constant_or_min_silence() {
+    let early = i64::from(EARLY_MIN_SILENCE_MS);
+    assert_eq!(silence_line_ms(Rule::Early, MIN_SILENCE_MS), early);
+    for rule in [Rule::Silence, Rule::MaxSpeech, Rule::Flush] {
+        assert_eq!(silence_line_ms(rule, MIN_SILENCE_MS), MIN_SILENCE_MS);
+    }
+    assert_eq!(rule_named("early"), Some(Rule::Early));
+    assert_eq!(rule_named("max_speech"), Some(Rule::MaxSpeech));
+    for bad in ["Early", "", "silence ", "none"] {
+        assert_eq!(rule_named(bad), None, "{bad:?}");
+    }
+}
+
+fn decided(id: u64, rule: &str) -> String {
+    format!(
+        "{{\"event\":\"asr.endpoint.decided\",\"id\":{id},\"rule\":\"{rule}\",\"silence_ms\":0}}\n"
+    )
+}
+
+/// T-RP-32-054: only the decided lines are read; a duplicate id, a rule the
+/// server does not have, and a decided line that is not JSON are refused.
+#[test]
+fn the_decided_lines_are_read_and_the_bad_ones_refused() -> TestResult {
+    let log = format!(
+        "{{\"event\":\"asr.ready\"}}\nnot json at all\n{}{}",
+        decided(1, "early"),
+        decided(2, "silence")
+    );
+    let found = decided_rules(&log)?;
+    assert_eq!(found.len(), 2);
+    assert_eq!(found.get(&1), Some(&Rule::Early));
+    assert_eq!(found.get(&2), Some(&Rule::Silence));
+    let twice = decided_rules(&(decided(3, "early") + &decided(3, "early")));
+    assert!(twice.is_err_and(|why| why.contains("twice for id 3")));
+    let unknown = decided_rules(&decided(4, "quick"));
+    assert!(unknown.is_err_and(|why| why.contains("id 4") && why.contains("not a rule")));
+    let broken = decided_rules("{\"event\":\"asr.endpoint.decided\",\"id\":");
+    assert!(broken.is_err_and(|why| why.contains("not JSON")));
+    Ok(())
+}
+
+fn final_line(id: &str, t_us: i64) -> String {
+    format!("{{\"event\":{{\"id\":\"{id}\",\"text\":\"x\",\"type\":\"final\"}},\"t_us\":{t_us}}}\n")
+}
+
+/// T-RP-32-055: every `final` with no decided line is named with the run, and
+/// the ones that have a line are not.
+#[test]
+fn every_final_without_a_decided_line_is_named_with_its_run() {
+    let samples = [f32_sample(1, 1), f32_sample(2, 1), f32_sample(3, 1)];
+    let events = final_line("mic-1", 701_000)
+        + &final_line("mic-2", 702_000)
+        + &final_line("mic-3", 703_000);
+    let said = closing_rules("rs1", &samples, &events, &decided(1, "early"));
+    assert!(
+        said.as_ref().is_err_and(|why| why.contains("rs1")
+            && why.contains("mic-2, mic-3")
+            && !why.contains("mic-1")),
+        "{said:?}"
+    );
+}
+
+/// T-RP-32-056: the rule of a sample is the rule of the `final` received when the
+/// sample closed; two `final`s at that moment with different rules are refused.
+#[test]
+fn the_closing_final_of_a_sample_gives_its_rule() -> TestResult {
+    let samples = [f32_sample(1, 1), f32_sample(2, 1)];
+    let events = final_line("mic-1", 701_000) + &final_line("mic-2", 702_000);
+    let log = decided(1, "early") + &decided(2, "silence");
+    let rules = closing_rules("rs1", &samples, &events, &log)?;
+    assert_eq!(rules.get(&(1, 1)), Some(&Rule::Early));
+    assert_eq!(rules.get(&(1, 2)), Some(&Rule::Silence));
+    let same_moment = final_line("mic-1", 701_000) + &final_line("mic-2", 701_000);
+    let split = closing_rules("rs1", &samples[..1], &same_moment, &log);
+    assert!(split.is_err_and(|why| why.contains("different rules")));
+    let nothing = closing_rules("rs1", &samples[..1], &final_line("mic-1", 5), &log);
+    assert!(nothing.is_err_and(|why| why.contains("no final arrived")));
+    Ok(())
+}
+
+/// The F32 dir whose first Rust run has utterance 5 closed by `rule` and a
+/// silence gap of 200 ms: the early line and not `min_silence` is over it.
+fn dir_with_gap_200_closed_by(
+    name: &str,
+    rule: &str,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let dir = f32_dir(name, 3, None)?;
+    let samples = dir.join("rs1.jsonl");
+    let mut lines = Vec::new();
+    for line in std::fs::read_to_string(&samples)?.lines() {
+        let mut row: Value = serde_json::from_str(line)?;
+        if row.get("utt").and_then(Value::as_i64) == Some(5) {
+            row["final_latency_ms"] = Value::from(505.0);
+        }
+        lines.push(row.to_string());
+    }
+    std::fs::write(&samples, lines.join("\n") + "\n")?;
+    let log = dir.join("rs1.hayamimi.stdout.log");
+    let text = std::fs::read_to_string(&log)?;
+    let from = "\"id\":5,\"rule\":\"silence\"";
+    assert!(text.contains(from), "the F32 log lost its id 5 line");
+    std::fs::write(
+        &log,
+        text.replace(from, &format!("\"id\":5,\"rule\":\"{rule}\"")),
+    )?;
+    Ok(dir)
+}
+
+/// T-RP-32-057: a directory is read end to end. The same 200 ms gap is valid
+/// when the log says the early rule closed the utterance and invalid when it
+/// says the silence rule did.
+#[test]
+fn a_dir_judges_the_gap_by_the_rule_its_log_names() -> TestResult {
+    let early = dir_with_gap_200_closed_by("t057-early", "early")?;
+    let report = alternated_report(&load_alternated(&early, 3)?, None)?;
+    assert_eq!(report.rust_share.valid, 57);
+    assert_eq!(report.flat.rust_share.valid, 56);
+    assert_eq!(report.gained.get("early"), Some(&1));
+    let silence = dir_with_gap_200_closed_by("t057-silence", "silence")?;
+    let report = alternated_report(&load_alternated(&silence, 3)?, None)?;
+    assert_eq!(report.rust_share.valid, 56);
+    assert_eq!(report.gained.values().sum::<usize>(), 0);
+    Ok(())
+}
+
+/// T-RP-32-058: a Rust run whose log lacks the decided line of one `final` is
+/// refused with the run and the id, and no value is printed.
+#[test]
+fn a_dir_with_an_unjoined_final_is_refused_by_run_and_id() -> TestResult {
+    let dir = f32_dir("t058", 3, None)?;
+    let log = dir.join("rs2.hayamimi.stdout.log");
+    let kept: Vec<String> = std::fs::read_to_string(&log)?
+        .lines()
+        .filter(|line| !line.contains("\"id\":7,"))
+        .map(str::to_owned)
+        .collect();
+    std::fs::write(&log, kept.join("\n") + "\n")?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref().is_err_and(|why| why.contains("rs2")
+            && why.contains("mic-7")
+            && !why.contains("mic-8")
+            && !why.contains("p50")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-059: a Rust run without its stdout log is refused by the file's name.
+#[test]
+fn a_dir_without_a_hayamimi_stdout_log_is_refused_by_name() -> TestResult {
+    let dir = f32_dir("t059", 3, None)?;
+    assert!(missing_rule_files(&dir, 3).is_empty());
+    std::fs::remove_file(dir.join("rs2.hayamimi.stdout.log"))?;
+    assert_eq!(missing_rule_files(&dir, 3), vec!["rs2.hayamimi.stdout.log"]);
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .is_err_and(|why| why.contains("rs2.hayamimi.stdout.log") && !why.contains("p50")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-060: the counts at both lines are written, with the margin over the
+/// threshold in words: 2 over at 19 of 19, 0 at 17 of 19.
+#[test]
+fn both_counts_and_the_margin_are_written() -> TestResult {
+    let all = check_alternated_runs(&f32_runs(), None)?;
+    let text = render_line_counts(&all);
+    assert!(text.contains("not slower, 300 ms line: 19 / 19"), "{text}");
+    assert!(
+        text.contains("not slower, per-row line: 19 / 19 (17 needed, margin 2)"),
+        "{text}"
+    );
+    let edge = check_alternated_runs(&slower_utterances(&[1, 2]), None)?;
+    let text = render_line_counts(&edge);
+    assert!(
+        text.contains("17 / 19 (17 needed, margin 0: one utterance swapped fails)"),
+        "{text}"
+    );
+    let early = report_with_extra(Rule::Early, early_ms() + 1.0)?;
+    let text = render_line_counts(&early);
+    assert!(
+        text.contains("not on the 300 ms line: 1 (early 1,"),
+        "{text}"
+    );
+    assert!(
+        text.contains("quality python: two or more finals 0 / 57"),
+        "{text}"
+    );
+    assert!(text.contains("no final 0"), "{text}");
     Ok(())
 }
