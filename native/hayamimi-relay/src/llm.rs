@@ -6,7 +6,7 @@
 
 use std::io::{BufRead, BufReader};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -43,21 +43,53 @@ impl std::fmt::Display for LlmError {
 impl std::error::Error for LlmError {}
 
 /// Tells a request in flight whether its answer is still wanted: it is until
-/// the counter it was made from moves on.
+/// the counter it was made from moves on, or for as long as a line has claimed
+/// the answer (`pinned`).
 #[derive(Clone, Debug)]
 pub struct Wanted {
     latest: Arc<AtomicU64>,
     mine: u64,
+    pinned: Option<Arc<AtomicBool>>,
 }
 
 impl Wanted {
     /// A request made when `latest` read `mine`.
     pub fn new(latest: Arc<AtomicU64>, mine: u64) -> Wanted {
-        Wanted { latest, mine }
+        Wanted {
+            latest,
+            mine,
+            pinned: None,
+        }
     }
 
+    /// A request like [`Wanted::new`] whose answer stays wanted once `pin` is
+    /// set, whatever the counter reads.
+    pub fn pinned(latest: Arc<AtomicU64>, mine: u64, pin: Arc<AtomicBool>) -> Wanted {
+        Wanted {
+            latest,
+            mine,
+            pinned: Some(pin),
+        }
+    }
+
+    /// Whether the request is to go on: it is the newest of its source, or its
+    /// answer was claimed.
     pub fn still(&self) -> bool {
+        self.newest()
+            || self
+                .pinned
+                .as_ref()
+                .is_some_and(|pin| pin.load(Ordering::Acquire))
+    }
+
+    /// Whether the request is the newest of its source, claimed or not.
+    pub fn newest(&self) -> bool {
         self.latest.load(Ordering::Acquire) == self.mine
+    }
+
+    /// The value the counter read when the request was made.
+    pub fn generation(&self) -> u64 {
+        self.mine
     }
 }
 
@@ -580,6 +612,19 @@ mod tests {
         latest.store(6, Ordering::Release);
         assert!(!wanted.still());
         assert!(Wanted::new(latest, 6).still());
+    }
+
+    #[test]
+    fn a_pinned_answer_stays_wanted_after_its_counter_moves_on() {
+        let latest = counter_at(5);
+        let pin = Arc::new(AtomicBool::new(false));
+        let wanted = Wanted::pinned(Arc::clone(&latest), 5, Arc::clone(&pin));
+        latest.store(6, Ordering::Release);
+        assert!(!wanted.still());
+        pin.store(true, Ordering::Release);
+        assert!(wanted.still());
+        assert!(!wanted.newest());
+        assert_eq!(wanted.generation(), 5);
     }
 
     #[test]

@@ -15,6 +15,7 @@ pub mod der_logs;
 pub mod e2e;
 pub mod rp32;
 pub mod rp33;
+pub mod rp70;
 pub mod stages;
 
 /// What a `check_*` function returns for a wrong input: a message that

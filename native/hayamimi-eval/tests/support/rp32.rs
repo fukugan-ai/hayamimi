@@ -4,21 +4,31 @@
 //! `check_alternated_runs` takes the runs in the order they were measured.
 //! It checks the order (Python, Rust, Python, Rust, ...), the number of
 //! pairs, the load before each run, and then judges the samples of the three
-//! pairs pooled: the `L` p50 and p95 of Rust are no greater than Python's, and
-//! enough utterances of the comparison set are as fast. The validity of a
-//! sample, the percentiles and the paired threshold come from
-//! `hayamimi_eval::compare`, the functions RP-3 uses.
+//! pairs pooled: at least 20 / 23 of the valid Rust samples got a translation
+//! (the three Rust runs counted together, not run by run), the `L` p50 and p95
+//! of Rust are no greater than Python's, and enough utterances of the
+//! comparison set are as fast. The share of Python is written beside Rust's and
+//! not judged. The validity of a sample, the share, the percentiles and the
+//! paired threshold come from `hayamimi_eval::compare`, the functions RP-3 uses.
 //!
 //! The runs stand in `docs/results/rp32/`: `py<N>.jsonl` and `rs<N>.jsonl`
 //! (the samples `stream --out` wrote) and `load<N>.txt` for each pair N. A line
 //! of `load<N>.txt` is `<run> before|after <time> <a line of /proc/loadavg>`.
+//! `check_dir` also reads `rs<N>.events.jsonl` of every Rust run (RP-72): a
+//! `fallback` event with the reason `in_use` means the server moved off the
+//! port the tool kept sending to, and a run without its events file cannot be
+//! checked, so either refuses the directory by the run's name.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use hayamimi_eval::compare::{check_paired, check_percentiles, is_valid_l_asr, read_samples};
+use hayamimi_eval::compare::{
+    TranslatedShare, check_paired, check_percentiles, check_translated_share, is_valid_l_asr,
+    read_samples, translated_share,
+};
 use hayamimi_eval::latency::Sample;
 use hayamimi_eval::percentile::nearest_rank;
+use serde_json::Value;
 
 use super::e2e::{Columns, MIN_SILENCE_MS, columns_of};
 use super::{Failure, RESULTS, read};
@@ -52,6 +62,10 @@ pub struct AltReport {
     pub rust: Columns,
     pub comparison_set: Vec<u32>,
     pub not_slower: usize,
+    /// The valid samples of the three Rust runs pooled and those with a translation. Judged.
+    pub rust_share: TranslatedShare,
+    /// The same count for the Python runs. Recorded, not judged.
+    pub python_share: TranslatedShare,
     /// The 1 minute load after each run, in hundredths. Recorded, not judged.
     pub loads_after: Vec<i64>,
 }
@@ -192,9 +206,10 @@ fn not_slower(set: &[u32], python: &BTreeMap<u32, i64>, rust: &BTreeMap<u32, i64
         .count()
 }
 
-/// The failures of the pooled judgement: the percentiles, then the paired comparison.
-fn judge_pooled(report: &AltReport) -> Vec<String> {
-    let mut failures = Vec::new();
+/// The failures of the pooled judgement: the translated share of Rust (`share`,
+/// already judged), the percentiles, then the paired comparison.
+fn judge_pooled(report: &AltReport, share: Option<String>) -> Vec<String> {
+    let mut failures: Vec<String> = share.into_iter().collect();
     match (report.python.l, report.rust.l) {
         (Some(python), Some(rust)) => {
             failures.extend(
@@ -215,9 +230,10 @@ fn judge_pooled(report: &AltReport) -> Vec<String> {
     failures
 }
 
-/// RP-32: `runs` in the order they were measured; `recorded_pairs` is the
-/// pair count written in the result when fewer than three fitted.
-pub fn check_alternated_runs(
+/// What the runs came to, judged on nothing but their form: the order, the
+/// pair count and the loads are checked, the values are only counted. The
+/// columns of a run that `check_alternated_runs` refuses stand here.
+pub fn alternated_report(
     runs: &[AltRun],
     recorded_pairs: Option<usize>,
 ) -> Result<AltReport, Failure> {
@@ -235,15 +251,30 @@ pub fn check_alternated_runs(
         .collect();
     let comparison_set = l_comparison_set(&python_runs);
     let not_slower = not_slower(&comparison_set, &medians(&python)?, &medians(&rust)?);
-    let report = AltReport {
+    Ok(AltReport {
         pairs: runs.len() / 2,
         python: columns_of(&python, MIN_SILENCE_MS)?,
         rust: columns_of(&rust, MIN_SILENCE_MS)?,
         comparison_set,
         not_slower,
+        rust_share: translated_share(&rust, MIN_SILENCE_MS),
+        python_share: translated_share(&python, MIN_SILENCE_MS),
         loads_after,
-    };
-    let failures = judge_pooled(&report);
+    })
+}
+
+/// RP-32: `runs` in the order they were measured; `recorded_pairs` is the
+/// pair count written in the result when fewer than three fitted.
+pub fn check_alternated_runs(
+    runs: &[AltRun],
+    recorded_pairs: Option<usize>,
+) -> Result<AltReport, Failure> {
+    let report = alternated_report(runs, recorded_pairs)?;
+    let rust = pooled(runs, Implementation::Rust);
+    let share = check_translated_share(&rust, MIN_SILENCE_MS)
+        .err()
+        .map(|why| why.to_string());
+    let failures = judge_pooled(&report, share);
     if failures.is_empty() {
         return Ok(report);
     }
@@ -267,6 +298,33 @@ pub fn render_columns(columns: &Columns) -> String {
         line("translation stage", columns.l_tr),
     ]
     .join("\n")
+}
+
+/// The headings of the two translated-share columns. The render and the check
+/// both read these.
+pub const SHARE_COLUMN_RUST: &str = "translated share rust";
+pub const SHARE_COLUMN_PYTHON: &str = "translated share python";
+
+/// The translated-share columns, one per side: `<heading> <translated> / <valid>`.
+pub fn render_share_columns(report: &AltReport) -> String {
+    let line = |heading: &str, share: &TranslatedShare| {
+        format!("{heading} {} / {}", share.translated, share.valid)
+    };
+    [
+        line(SHARE_COLUMN_RUST, &report.rust_share),
+        line(SHARE_COLUMN_PYTHON, &report.python_share),
+    ]
+    .join("\n")
+}
+
+/// The output names both translated-share columns.
+pub fn check_share_columns_written(text: &str) -> Result<(), Failure> {
+    for heading in [SHARE_COLUMN_RUST, SHARE_COLUMN_PYTHON] {
+        if !text.lines().any(|line| line.starts_with(heading)) {
+            return Err(format!("the column {heading} is missing from the output"));
+        }
+    }
+    Ok(())
 }
 
 /// The output names every column the design lists.
@@ -354,11 +412,69 @@ pub fn pairs_to_read(dir: &Path) -> Result<PairCount, Failure> {
 }
 
 /// RP-32 over a directory of runs: the pair count from `pairs.txt` (three when
-/// it is absent), the runs of that many pairs, and the judgement.
+/// it is absent), the runs of that many pairs, the port each Rust run held
+/// (RP-72), and the judgement.
 pub fn check_dir(dir: &Path) -> Result<AltReport, Failure> {
     let count = pairs_to_read(dir)?;
     let runs = load_alternated(dir, count.pairs)?;
+    check_ports_held(dir, count.pairs)?;
     check_alternated_runs(&runs, count.recorded)
+}
+
+/// RP-72: the events file of the Rust run `number` (`rs<N>.events.jsonl`).
+fn events_file_name(number: usize) -> String {
+    format!("rs{number}.events.jsonl")
+}
+
+/// Whether an event row is the server telling that it moved off its port:
+/// `type` is `fallback` and `reason` is `in_use`, whatever the `stage`.
+fn is_port_move(row: &Value) -> bool {
+    let field = |key: &str| {
+        row.get("event")
+            .and_then(|event| event.get(key))
+            .and_then(Value::as_str)
+    };
+    field("type") == Some("fallback") && field("reason") == Some("in_use")
+}
+
+/// The refusal of one events file, or `None` when it shows no port move. A
+/// line that is not JSON cannot be checked and is refused.
+fn port_move_in(dir: &Path, number: usize) -> Result<Option<String>, Failure> {
+    let name = events_file_name(number);
+    let path = dir.join(&name);
+    if !path.is_file() {
+        return Ok(Some(format!(
+            "{name} is missing: a run whose port cannot be checked is not judged"
+        )));
+    }
+    for (index, line) in read(&path)?.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let row: Value = serde_json::from_str(line)
+            .map_err(|why| format!("{name} line {}: not JSON: {why}", index + 1))?;
+        if is_port_move(&row) {
+            return Ok(Some(format!(
+                "rs{number} is invalid: the server moved to another port \
+                 (a fallback with the reason in_use stands in {name} line {})",
+                index + 1
+            )));
+        }
+    }
+    Ok(None)
+}
+
+/// RP-72: every Rust run of `pairs` pairs held its port. All the runs that did
+/// not are named, not the first only; Python's events are not read.
+pub fn check_ports_held(dir: &Path, pairs: usize) -> Result<(), Failure> {
+    let mut refused = Vec::new();
+    for number in 1..=pairs {
+        refused.extend(port_move_in(dir, number)?);
+    }
+    if refused.is_empty() {
+        return Ok(());
+    }
+    Err(refused.join("; "))
 }
 
 /// The run names of `pairs` pairs in the order they were measured.
@@ -426,4 +542,79 @@ pub fn load_alternated(dir: &Path, pairs: usize) -> Result<Vec<AltRun>, Failure>
         });
     }
     Ok(runs)
+}
+
+// ---- F32, the runs the tests build by a formula (T 4.42) ----
+
+/// The 1 minute load of `/proc/loadavg` the F32 runs start and end under.
+pub const LOAD_OK: &str = "0.50 0.50 0.50 1/300 1000";
+
+/// F32: `t_end` 0, `L_asr` 700 + u ms, `L` 1000 + 10u + k ms (utterance u, pair k).
+/// The silence gap is 600 + u ms, over the 300 ms limit, so every sample is valid.
+pub fn f32_sample(utt: u32, k: u32) -> Sample {
+    Sample {
+        repeat: 1,
+        utt,
+        t_start_us: 0,
+        t_end_us: 0,
+        t_partial_us: None,
+        t_partial_tr_us: None,
+        t_final_us: Some(i64::from(700 + utt) * 1000),
+        t_tr_us: Some(i64::from(1000 + 10 * utt + k) * 1000),
+        finals: 1,
+        text: String::new(),
+        translation: None,
+        final_latency_ms: Some(100.0),
+        cer_dist: 0,
+        cer_denom: 0,
+    }
+}
+
+/// An empty directory `target/<group>/<name>` of this crate's build tree.
+/// `name` keeps the tests that run side by side apart.
+pub fn scratch_dir(group: &str, name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../target")
+        .join(group)
+        .join(name);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+/// The events a Rust run records that this suite reads: the recognizer is
+/// ready, then one `final`. No `fallback`.
+const CLEAN_EVENTS: &str = concat!(
+    "{\"event\":{\"sr\":16000,\"type\":\"ready\"},\"t_us\":1}\n",
+    "{\"event\":{\"id\":\"mic-1\",\"text\":\"x\",\"type\":\"final\"},\"t_us\":2}\n",
+);
+
+/// Writes the F32 runs of `pairs` pairs into `dir`: `py<N>.jsonl`, `rs<N>.jsonl`
+/// (Rust equals Python), `load<N>.txt` and the clean `rs<N>.events.jsonl` per
+/// pair, and `pairs_txt` as `pairs.txt` when given.
+pub fn write_f32_dir(
+    dir: &Path,
+    pairs: u32,
+    pairs_txt: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for k in 1..=pairs {
+        let mut load = String::new();
+        for run in [format!("py{k}"), format!("rs{k}")] {
+            let samples: Vec<String> = (1..=19)
+                .map(|utt| serde_json::to_string(&f32_sample(utt, k)))
+                .collect::<Result<_, _>>()?;
+            std::fs::write(dir.join(format!("{run}.jsonl")), samples.join("\n") + "\n")?;
+            for when in ["before", "after"] {
+                load.push_str(&format!("{run} {when} 00:00:00 {LOAD_OK}\n"));
+            }
+        }
+        std::fs::write(dir.join(format!("load{k}.txt")), load)?;
+        std::fs::write(dir.join(format!("rs{k}.events.jsonl")), CLEAN_EVENTS)?;
+    }
+    if let Some(text) = pairs_txt {
+        std::fs::write(dir.join("pairs.txt"), text)?;
+    }
+    Ok(())
 }

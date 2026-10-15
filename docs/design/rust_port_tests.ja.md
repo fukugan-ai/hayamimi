@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-47）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70 と RP-72。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1277,6 +1277,20 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 | T-RP-32-034 | 031 の dir に、中身が次の 4 つのどれかの `pairs.txt` を足した 4 入力。`two`、空（0 byte）、`2 pairs`、`-2` | 読めない内容 | 4 入力とも `Err` | どの入力も `Err` で数が読めないことを名指し。数が合わないとは名指さない。`2 pairs` と `-2` を `2` と読んで 032 の `Ok` に通さない。落ちた入力は assert の message に出す（specified、D 3.16 の 4 の「数が読めない時」）。4 つは別の同値類（語、空、後ろに字、符号） | 陰性 | `an_unreadable_pairs_txt_is_rejected_as_unreadable` |
 | T-RP-32-035 | 先頭の 1 対だけ（2 本）の dir。中身が `1` の 1 行の `pairs.txt` | 1（下限の下） | `Err` | `Err` で 1 対は下限に満たないことを名指し。記録の 1 と在る 1 対は合っているので、数が合わないとは名指さない（specified、D 3.16 の 4 の「`1` の時」）。032 の 2 が下限の上、007 は判定関数の側の同じ境界 | 境界、陰性 | `pairs_txt_of_1_is_rejected` |
 | T-RP-32-036 | 030 の dir（3 対）に、中身が `3` の 1 行の `pairs.txt` を足す | 3 と書いた 3 対 | `Ok` | `Ok`。`pairs.txt` が無い 030 と同じ結果（specified、D 3.16 の 4 の「在る dir はその数の対を読む」）。033 の `2` を `3` にした陽性の対照 | 境界、陽性 | `pairs_txt_of_3_accepts_three_pairs` |
+| T-RP-32-037 | F32 の **S50**：Rust の k = 3 の run の u = 13〜19 の 7 標本を、訳の取れない標本にする（RP-31 の A の発話 1 の形。`held` の空の訳だけで `t_tr` が無い。`final` は在り有効のまま）。ほかは F32 と同じ | 訳の取れた割合の下限の上。有効 57、訳の取れた 50。3 つの run に分けると k = 3 の run は 12 / 19 で 20 / 23 に足りない | 20 / 23 以上（整数で `訳の取れた × 23 ≥ 有効 × 20`） | `Ok`。50 × 23 = 1150 ≥ 57 × 20 = 1140。Rust の `L` は n 50 で p50 1091 ms、p95 1182 ms（nearest-rank の 25 番目と 48 番目）で、どちらも Python の 1102 ms、1191 ms 以下。比較集合 19 発話のすべてで Rust の中央値が Python 以下で、閾値 17 を超える。割合は run ごとではなく Rust の 3 run を合わせた標本で数える（derived、RP-32 の「訳の取れた割合が 20 / 23 以上」と D 3.18。値は awk で F32 の式から別に組んで照らした） | 境界、陽性 | `fifty_translated_of_57_valid_samples_pass_the_share` |
+| T-RP-32-038 | 037 に加えて、Rust の k = 2 の run の u = 19 の 1 標本も訳の取れない標本にする（S49） | 下限の下。有効 57、訳の取れた 49 | 同上 | `Err`。訳の取れた標本 49、有効な標本 57、必要な割合 20 / 23 を名指す（49 × 23 = 1127 < 1140）。ほかの理由は載らない：Rust の `L` は n 49 で p50 1091 ms、p95 1181 ms、比較集合 19 発話のうち 19 発話で Rust が Python 以下で、3 つとも通る。`L` が Python 以下でも落ちる、が RP-32 の陰性欄「訳の取れた割合が 20 / 23 未満の Rust の run」の形（specified、RP-32 と D 3.18 の「RP-32 の判定の直し」。値は awk で照らした）。037 の陰性の対照で、`check_translated_share` を呼ばない今の判定ではこの入力が `Ok` になり落ちる | 境界、陰性 | `forty_nine_translated_of_57_valid_samples_fail_the_share_alone` |
+| T-RP-32-039 | 038 に、Rust のすべての標本の `L` を +30 ms にした入力（全標本の `L` を同じだけ遅らせる） | 割合も `L` も対の比較も落ちる | `Err` | `Err`。訳の取れた割合（49 / 57）、`L` の p50（1121 ms が 1102 ms を超える）、p95（1211 ms が 1191 ms を超える）、対の比較（19 発話のうち Rust が Python 以下は 0 で閾値 17 に足りない）の 4 つがすべて載る。割合の失敗が `L` の失敗に隠れず、`L` の失敗が割合の失敗に隠れない（D 3.18 の「`judge_pooled` の失敗の列に足す」。derived、awk で照らした） | 陰性 | `a_short_share_is_listed_beside_the_other_failures` |
+| T-RP-32-040 | 037 の入力に、Rust の k = 1 の run へ標本を 8 つ足す：`final` の無い標本 5 つ（repeat 2、u = 1〜5）と、`L_asr − 復号` が 299.999 ms の標本 3 つ（repeat 2、u = 6〜8。終端不正）。有効の判定は RP-32 の `min_silence` 300 ms | 分母に入らない標本。終端不正の境界は 300.000 ms が有効で 299.999 ms が無効 | 20 / 23 以上 | `Ok`。有効 57、訳の取れた 50 のまま（3.1 の「有効」に入らない標本は分母にも分子にも入らない）。足した 8 つを分母に入れると有効 65 で、50 × 23 = 1150 < 65 × 20 = 1300 となり落ちるので、`Ok` は足した標本を数えていないことを示す（specified、RP-32 の「分母は発話の標本のうち 3.1 の『有効』に入る物の数」） | 境界、陽性 | `samples_that_are_not_valid_stay_out_of_the_denominator` |
+| T-RP-32-041 | 037 の入力で、Rust の全標本の `finals`（その標本に結ばれた `final` の数）を 2 にする | 分母は発話の標本の数で、`final` の数ではない | 20 / 23 以上 | `Ok`。有効 57、訳の取れた 50 のまま。`final` の数 114 を分母にすると 50 × 23 = 1150 < 114 × 20 = 2280 で落ちる（specified、RP-32 の「`final` の数や訳の依頼の数では数えない」） | 境界、陽性 | `the_denominator_counts_samples_not_finals` |
+| T-RP-32-042 | F32 の **PY49**：Python の k = 1 の run の u = 1〜8 の 8 標本を、訳の取れない標本にする。Rust は F32 のまま（57 すべて訳が取れる） | Python 側の欠け。Python の割合は 49 / 57 で 20 / 23 に足りない | Rust の割合だけを合否に入れる | `Ok`。比較集合は Python の全 run で訳の取れた発話の 11（u = 9〜19）、閾値 (11 × 20 + 22) / 23 = 10、Rust が Python 以下の発話は 11。`L` は Python が p50 1113 ms、p95 1191 ms（n 49）で、Rust の 1102 ms、1191 ms（n 57）が以下。出力の割合の列に Rust の 57 / 57 と Python の 49 / 57 の両方が出る（specified、RP-32 の「Python の同じ割合からの欠けも別の列に出す」。値は awk で照らした）。Python の割合を合否に入れる判定は、この入力を落として落ちる | 陰性 | `a_short_python_share_is_recorded_and_not_judged` |
+| T-RP-32-043 | F32 とは別の入力 **F32L**：Python と Rust の 3 対（6 run）が、23 発話 × 5 回 = 115 標本を持つ。全標本の `L` は 1000 ms、有効の作り方は F32 と同じ。Rust の 3 run を合わせて訳の取れない標本を 45 にする（発話 1〜22 が各 2 標本、発話 23 が 1 標本。どの発話にも訳の取れた標本が残る） | 設計の標本の大きさでの下限。有効 345、訳の取れた 300 | 20 / 23 以上 | `Ok`。300 × 23 = 6900 = 345 × 20 で等号。`L` の p50 と p95 は Rust も 1000 ms で Python 以下。比較集合 23 発話、閾値 (23 × 20 + 22) / 23 = 20 に対して 23 発話すべてで Rust が Python 以下（derived、345 × 20 / 23 = 300 を awk で割り切れることを確かめた） | 境界、陽性 | `three_hundred_of_345_valid_samples_pass_the_share_exactly` |
+| T-RP-32-044 | 043 に、発話 23 の 2 つ目の標本も訳の取れない標本にする（訳の取れた 299） | 043 の 1 つ下 | 同上 | `Err`。訳の取れた標本 299、有効な標本 345 を名指す（299 × 23 = 6877 < 6900）。`L` と対の比較は通り、載る理由はこの 1 つだけ（specified、RP-32 の陰性欄）。043 と 044 は訳の取れた数だけが 1 違い、割合の比べを整数で行うことと、等号を通すことを両側から固定する | 境界、陰性 | `two_hundred_ninety_nine_of_345_valid_samples_fail_the_share` |
+| T-RP-32-045 | `docs/results/rp32/` の 3 対（実物の記録）を `check_dir` に渡す。Rust の 3 run を合わせた有効な標本と、そのうち `t_tr_us` が null でない標本の数を `jq` で数える（`min_silence` 300 ms） | 実物の記録の割合。この dir は `fallback` の event を持たない | 有効 300、訳の取れた 277 | 判定の `Result` がどちらでも、載る理由に訳の取れた割合は無い。出力の割合の列は Rust の 277 / 300 を出す。277 × 23 = 6371 ≥ 300 × 20 = 6000（pseudo、`jq`：`select(.t_final_us != null and ((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 300)` の数と、その中の `.t_tr_us != null` の数を `rs1`〜`rs3` で数えた。2026-10-15 に 100 / 91、100 / 93、100 / 93 を数えた）。判定の他の理由（対の比較 14 / 19）は、この行が見ない | 陽性 | `the_recorded_rp32_dir_has_enough_translated_samples` |
+| T-RP-32-046 | 037 の出力から、訳の取れた割合の列を除いた出力 | 列の欠け | `Err` | `Err` で訳の取れた割合の列を名指す。Rust の割合の列も Python の割合の列も、設計が挙げる列である（specified、RP-32 の「別の列に出す」。024 と 025 の形。列の見出しの綴りは実装の席が決め、test はその綴りを 1 か所に持つ） | 陰性 | `a_missing_translated_share_column_is_rejected` |
+
+**T-RP-32-037 から 046 は未実装。実装の席が足す**（D 3.18 の「測り方の直し」の順 1。製品の code は変えない）。10 本とも fixture を読み、`--ignored` を付けずに通る。`check_alternated_runs` に `check_translated_share`（`native/hayamimi-eval/src/compare.rs`）を Rust の 3 run を合わせた標本へ掛ける 1 行と割合の列が入るまで、今の main で落ちるのは 038（`Ok` になる）、039（載る理由が 3 つで割合が無い）、042、045（割合の列が無い）、044（`Ok` になる）、046（列を調べる関数が無い）である。037、040、041、043 は割合を見ない今の main でも通り、割合を足した後で通ったままであることを固定する側である。
+**割合の計算は整数で行う**：`訳の取れた × 23 ≥ 有効 × 20`（`compare.rs` の `SHARE_DENOMINATOR` と `SHARE_NUMERATOR`）。小数の割合を作らない。`compare.rs` の unit test `twenty_of_twenty_three_have_enough_translations_and_nineteen_do_not`（23 標本の 20 と 19）が、この関数の単体の陽性対照で、この節の行は関数を run の判定に掛けた後の値を固定する。
+**F32L の作り方**：標本は式で作る。Python の k 番目の run の発話 u の repeat r の標本は `L` 1000 ms、`t_end` 0、`L_asr` 700 ms、復号 300 ms（無音 400 ms）。Rust も同じで、訳の取れない標本は `t_tr` を持たない。実測のふりをしない。
 
 **T-RP-32-030 から 036 は未実装。実装の席が feat/rp32-test に足す。** 7 本とも fixture の dir を読み、`--ignored` を付けずに通る。`pairs.txt` の中身の例は `2` と改行 1 つ（D 3.16 の 4 の「算用数字 1 つを 1 行で」）。
 
@@ -2146,6 +2160,129 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - V68 の切り方。D は「1 発話の声の区間」とだけ書く。この節は lat-ja の 1 発話目と書いたが、manifest の file 名と欄は確かめていない。
 - 直した後の 009 で、2 回目の発話が `final` を出すか、その `t1_s` の値。D は「status 0 で終わる」とだけ書く。offset を進める量は設計の席が決める。
 - 008 の「声の最中」の位置（0.5 秒目）は、この席が置いた。評議の条件 3 は形だけを定めた。
+
+### 4.67 RP-69（`final` が最後の速報を閉じるだけなら、速報の訳を使い回す）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-relay/tests/rp69.rs`。受入 test の名前は `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation`。25 本のうち実走の行は無く、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp69`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（この file の形）。引数の形は実装の席が決める。
+設計は D 3.18 の「部分訳の使い回し」と D 6 の RP-69 である。
+
+**F69**（偽の認識器と偽の llama-server。`tests/support/events.rs` の `FakeRecognizer`、`run_relay_partials`、`FakeLlm` と同じ形）：
+
+- **流れ**：先頭に確定文 L0（`mic-1`、`japanese_text(9)`）を流し、L0 の確定の訳が出るまで待つ。対象の発話は次の `mic-2` で、速報は `id` を持たないので中継が L0 の `final` の次の `id` として `mic-2` を読む（`partial.rs` の `Next::id`）。
+- **原文**：`X` は `japanese_text(1)` から末尾の `。` を除いた 4 字。`X。` は `japanese_text(1)`。`Y` は `japanese_text(2)` から `。` を除いた 4 字。
+- **偽の server**：T の依頼に 300 ms 後に答える。E は 100 ms 後。T の答えは `english_of` の字写しなので、`X` の答えは `.` を持たない 4 字 `aiue` の形で、`contains_eos` に当たらない。server は依頼ごとに種類（T か E）、依頼の文の原文、着いた時刻、打ち切られたか、同時に走っている数を記録する。
+- **時刻**：`Sent::send_through` が押す時刻から、収集役 `collect_from` が event を受けた時刻までを測る。
+- **数え方**：「T の依頼の数」は、種類が T で、原文が指した文字列に等しい依頼の数。`X` と `X。` は別の文字列として数える。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-69-001 | F69。速報 `X`（mic-2）を送り、その速報の訳（`of` が `partial`）が出るのを待つ。そのあとに `final` `X。`（mic-2）を送る | (a)。鍵が合う（音源、`id`、`X` + `。` 1 字）。速報の答えが出ている（`state` が `done`） | `final` を押してから訳が出るまで 50 ms 以内 | 原文が `X。` の T の依頼は 0 本。原文が `X` の T の依頼は 1 本（速報の分だけ）。`final` の訳 1 件が 50 ms 以内に出て、`of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` が `X。` の sha256、`text` が `aiue`。そのあと E が 1 本、`stage` が `e`、`settled` が真の訳が出る（specified、D 6 の RP-69 (a)。50 ms は T の 300 ms より十分に小さく、T を頼み直せば 300 ms 以上かかる） | 陽性 | `a_done_partial_answer_is_reused_without_asking_t_again` |
+| T-RP-69-002 | 001 と同じ。`translate.draft.reused` と `translate.line.ok` の log を読む | log の項目 | 1 件 | `translate.draft.reused`（info）がちょうど 1 件。項目は `id`（`mic-2`）、`source`（`mic`）、`match`（`closing_mark`）、`state`（`done`）、`waited_ms`、`verdict`（`ok`）の 6 つで、`X`、`X。`、訳の文字列を載せない。その行の `translate.line.ok` の `t_ms` が `waited_ms` と同じ値（specified、D 3.18 の「5. log」） | 陽性 | `the_reuse_is_logged_once_with_its_six_items_and_no_text` |
+| T-RP-69-003 | 001 の `final` を `X`（`。` を足さない同じ文字列）にする | 鍵の文字列が等しい。足す文字が 0 字 | 再利用 | T の依頼は原文 `X` の 1 本だけで、原文が `X` の `final` のために増えない。`translate.draft.reused` が 1 件で `match` が `same`。`src_sha256` が `X` の sha256（specified、D 3.18 の 1「同じか、後ろに `。` を 1 字足した物と同じ」。今の記録では「同じ」の行は 0 だが、鍵の定義には入っている） | 境界、陽性 | `a_final_with_the_same_text_reuses_the_answer_and_logs_same` |
+| T-RP-69-004 | 001 の `final` を `X？` にする | 足す文字が `？`。問いに変わる | 再利用しない | 原文が `X？` の T の依頼が 1 本出る。`translate.draft.reused` が 0 件。速報の依頼が走っていれば打ち切られ、その `dropped` が 1 になる（今のとおり）（specified、D 3.18 の 1「`？` と `！` を足した形は合わない」と 6「変えない物」） | 陰性 | `a_final_that_adds_a_question_mark_asks_t_again` |
+| T-RP-69-005 | 001 の `final` を `X！` にする | 足す文字が `！` | 再利用しない | 004 と同じ（specified、同上） | 陰性 | `a_final_that_adds_an_exclamation_mark_asks_t_again` |
+| T-RP-69-006 | 001 の `final` を次の 3 つにして 1 つずつ流す。`X。。`、`X、`、`X.`（ASCII の `.`） | 足す文字が `。` 1 字ではない（2 字、別の句読点、別の文字種の終止符） | 再利用しない | 3 つとも、原文がその `final` の文字列の T の依頼が 1 本出て、`translate.draft.reused` が 0 件。落ちた入力を assert の message に出す（specified、D 3.18 の 1「`。` を 1 字足した物」。`。` が 2 字でも、`.` でも、同じ型の別の文字でも合わない） | 境界、陰性 | `a_final_that_adds_anything_but_one_closing_mark_asks_t_again` |
+| T-RP-69-007 | 001 の `final` を `Y。`（別の文字列）にする | 文字列が違う。ITN で書き替わった形もここに入る | 再利用しない | 原文が `Y。` の T の依頼が 1 本出て、`translate.draft.reused` が 0 件。速報の依頼は止まる（specified、D 3.18 の 2「合わなければ今のとおり止める」と H80 の発話 8、13） | 陰性 | `a_final_with_other_text_asks_t_again` |
+| T-RP-69-008 | L0 の後に速報 `X` を送る（読む `id` は `mic-2`）。`final` は `X。` で `id` を `mic-4` にする | `id` が違う | 再利用しない | 原文が `X。` の T の依頼が 1 本出て、`translate.draft.reused` が 0 件（specified、D 6 の RP-69 の陽性欄「`id` の違う `final`」） | 陰性 | `a_final_with_another_id_asks_t_again` |
+| T-RP-69-009 | L0（mic）の後に速報 `X` を送る。`final` は `X。`、`id` は `mic-2` のまま、`source` を `loopback` にする | 音源が違う | 再利用しない | 原文が `X。` の T の依頼が 1 本出て、`translate.draft.reused` が 0 件（specified、D 3.18 の 1「音源、`id`、文字列の 3 つが合う時だけ」。3 つのうち 2 つが合っても使い回さない） | 陰性 | `a_final_from_another_source_asks_t_again` |
+| T-RP-69-010 | 速報を 2 つ送る。先に `X`、後に `Y`（どちらも訳が出るまで待つ）。`final` は `X。` | 鍵に合うのは最後ではない速報 | 再利用しない | 原文が `X。` の T の依頼が 1 本出て、`translate.draft.reused` が 0 件。最後の速報 `Y` の文字列と比べる（specified、D 3.18 の「同じ発話の最後の速報」） | 境界、陰性 | `only_the_last_partial_is_compared_with_the_final` |
+| T-RP-69-011 | 010 の順を逆にする。先に `Y`、後に `X`。`final` は `X。` | 鍵に合うのは最後の速報 | 再利用 | 原文が `X。` の T の依頼は 0 本で、`translate.draft.reused` が 1 件。010 の陽性の対照 | 境界、陽性 | `the_last_partial_is_the_one_that_is_reused` |
+| T-RP-69-012 | L0 の後、速報を送らずに `final` `X。` を送る | 速報が無い。今の挙動 | 再利用しない | 原文が `X。` の T の依頼が 1 本出て、`translate.draft.reused` が 0 件（specified、D 3.18 の 3「どちらも無ければ今のとおり slot を取って T を頼む」）。001 から 011 の読み方の基準 | 陰性 | `a_final_without_a_partial_asks_t_as_before` |
+| T-RP-69-013 | F69。速報 `X` を送り、偽の server に `X` の T の依頼が着いたのを見てから 100 ms 後に `final` `X。` を送る | (b)。速報の依頼が走っている間に `final` が来る（`state` が `running`） | 待ちは 200 ms を中心に [100, 400] ms | 速報の依頼は打ち切られず（`dropped` が 0）、その発話の T の依頼は全部で 1 本（原文が `X` の 1 本、原文が `X。` の 0 本）。`final` の訳（`stage` が `t`）は、速報の答えが着いた時（依頼が着いてから約 300 ms）に出る。`translate.draft.reused` が 1 件で `state` が `running`、`waited_ms` が [100, 400]。その行の `translate.line.ok` の `t_ms` が `waited_ms` と同じ（specified、D 6 の RP-69 (b)。300 − 100 = 200 ms が残りで、下の端は押す時刻の揺れ、上の端は機械の揺れを見込んだ幅） | 陽性 | `a_running_partial_is_awaited_not_aborted` |
+| T-RP-69-014 | 013 の `final` を押した直後（速報の答えが着く前）に、次の発話の速報（`Y`、`mic-3` と読まれる）を送る | (b) の続き。次の発話の速報が来る | 打ち切らない | 013 の速報の依頼は打ち切られず（`dropped` が 0）、013 の `final` の訳が出る。次の発話の速報の依頼は別に出る（specified、D 3.18 の 2「行に渡すと決めた依頼は、次の発話の速報が来ても止めない」） | 陽性 | `the_next_partial_does_not_abort_the_request_a_line_awaits` |
+| T-RP-69-015 | L0 の後に、速報を持たない確定文 4 本（`japanese_text(11)` から `(14)`）を 20 ms 間隔で流す。偽の server はその 4 本の T の依頼を 600 ms 眠らせ、slot（`LLAMA_SLOTS` の 4）を埋める。4 本が走っている間に、対象の速報 `X`（`id` は直前の確定文の次）を送り、すぐ `final` `X。` を送る | 速報の依頼が worker にまだ取られていない（待ち） | 再利用ではない。lane が T を頼む | 原文が `X` の T の依頼は 0 本（待っていた速報は mailbox から外れ、server に着かない）。原文が `X。` の T の依頼が 1 本出る。`translate.draft.reused` は 0 件。行は訳される（specified、D 3.18 の 2「待っている速報の文字列が合う時は、それを mailbox から外し、lane が自分で T を頼む」） | 境界、陰性 | `a_queued_partial_is_dropped_and_the_lane_asks_t_itself` |
+| T-RP-69-016 | 013 で、偽の server が原文 `X` の T の依頼に HTTP 500 を返す | 速報の依頼が失敗した。lane が待っている | lane が T を頼む | 原文が `X。` の T の依頼が 1 本出て、行の訳（`stage` が `t`）が出る。速報の失敗で行が訳されないまま終わらない（specified、D 3.18 の 3「失敗したか打ち切られた時は、待っていた lane が T を頼む」） | 陰性、境界 | `a_failed_partial_request_makes_the_lane_ask_t` |
+| T-RP-69-017 | L0 の後、6 つの発話を 1 本の流れに続けて流す。各発話は速報 `X_i` を押して 30 ms 後に `final` `X_i。` を押し、すぐ次の発話に移る | 速報の依頼が slot を使い、lane が待つ。slot は 4 本 | slot を持ったまま待たない | 6 つすべての `final` の訳が 3 秒以内に出る（直列でも 6 × (300 + 100) = 2400 ms で、600 ms の余裕）。server が同時に受けた依頼の最大が 4 以下。発話ごとの T の依頼（原文が `X_i` と `X_i。` の合計）が 1 本以下（derived、D 3.18 の 3「slot を持ったまま待たないのは、待たれている速報の依頼も slot を 1 本使っており、slot 4 本の中で互いを待つ形になる」。lane が slot を持って待つ build は、4 本の lane が slot を取り、速報の依頼が slot を取れずに止まるので、3 秒を超えて落ちる） | 陰性 | `lanes_waiting_for_partials_do_not_hold_a_slot` |
+| T-RP-69-018 | 001 で、偽の server が原文 `X` の T に「`aiue 7`」（原文に無い数 7）と答える | (c)。速報の T の答えが V に落ちる。`state` が `done` | `final` から E の依頼が着くまで 50 ms 以内 | 速報の訳は V で止まっている（`translate.partial.held`）。`final` `X。` の後、原文が `X。` の T の依頼は 0 本。E の依頼が 1 本、`final` を押してから 50 ms 以内に server へ着く。`final` の訳のうち `stage` が `t` の物は出ない。`translate.draft.reused` が 1 件で `verdict` が `held`。E の答えが V を通れば `stage` が `e` の訳が出る（specified、D 6 の RP-69 (c) と D 3.18 の 4「落ちれば先の訳を出さずにすぐ E を頼む」。T の頼み直しなら E の依頼は 300 ms 以上遅れる） | 陰性、境界 | `a_reused_answer_that_fails_v_sends_e_at_once` |
+| T-RP-69-019 | 018 の形で、`final` `X。` を、速報の依頼が走っている間（着いて 100 ms 後）に押す | (c) の `state` が `running` | 速報の答えが着いてから E の依頼が着くまで 50 ms 以内 | 速報の依頼は打ち切られない。その答え（`aiue 7`）が着いた時刻から 50 ms 以内に E の依頼が 1 本着く。原文が `X。` の T の依頼は 0 本。`stage` が `t` の訳は出ない。`translate.draft.reused` が 1 件で `state` が `running`、`verdict` が `held`（specified、D 3.18 の 3 と 4 の合わせ。答えを待ってから V、落ちれば E をすぐ） | 陰性、境界 | `a_running_answer_that_fails_v_sends_e_as_soon_as_it_arrives` |
+| T-RP-69-020 | 001 に、V の入力の原文を記録する差し込み口を付ける（口の名前は実装の席が置く）。速報の V と、使い回した答えの V の入力を分けて読む | (d)。V の原文 | `X。` | 使い回した答えを V に掛けた時の原文が `X。`（`final` の文字列）で、`X` ではない（specified、D 3.18 の 4「V の原文は `final` の文字列にする。速報で掛けた V の判定は使わない」）。速報の V の原文は `X` | 陽性 | `the_reused_answer_is_verified_against_the_final_text` |
+| T-RP-69-021 | 020 の記録を、001 の形（T が通り E を頼む）と 018 の形（T が落ち E を頼む）の 2 つで読む | (e)。1 行の V の回数 | 多くて 2 回 | 原文が `X。` の V の入力は、001 の形で 2 回（使い回した T の答えと E の答え）、018 の形でも 2 回（落ちた T の答えと E の答え）。3 回以上にならない（specified、D 6 の RP-69 (e) と D 3.18 の 4） | 境界 | `a_reused_line_runs_v_at_most_twice` |
+| T-RP-69-022 | 001 の E の依頼の prompt を読む | 使い回した T の答えの行き先 | E の `Draft` 欄 | E の prompt の `Draft` 欄の本文が、速報の T の答え `aiue` に等しい（derived。`tests/support/events.rs` の `read_prompt` が prompt から `Draft` 欄を読む。T を頼み直さなくても E が同じ下書きから始まる） | 陽性 | `e_is_asked_with_the_reused_answer_as_its_draft` |
+| T-RP-69-023 | 001 の `final` の訳の event と、004（`X？`）の `final` の訳のうち `stage` が `t` の event の、key の集合を比べる | wire の形 | 同じ | 2 つの event の key の集合が等しく、`status` が `ok`、`settled` が偽、`of` が `final`。使い回しで wire に key が増えも減りもしない（pseudo、同じ test の中の使い回さない行。specified、D 3.18 の 6「wire の形」を変えない） | 陽性 | `a_reused_translation_has_the_same_wire_keys_as_a_fresh_one` |
+| T-RP-69-024 | 既存の `native/hayamimi-relay/tests/r8d_partial.rs` の `the_final_of_the_utterance_drops_the_text_in_progress` | 速報と違う文字列の `final` | 通ったまま | 実装の後も通る。速報の依頼が走っている間に違う文字列の `final` が来ると、依頼は打ち切られる。新しい関数は足さず、この既存の test を回帰として数える（specified、D 3.18 の「数えた結果」の 3 行目と 6「文字列が合わない時の挙動」）。実装の席は、`partial.rs` の module の doc comment の「`final` は閉じた発話の速報を捨てる」を同じ commit で書き替える | 陽性 | `the_final_of_the_utterance_drops_the_text_in_progress` |
+| T-RP-69-025 | 受入：001 から 003、013、018、020、021 の形を 1 本に通す | 全体 | 通る | (a) 001（T 0 本、50 ms 以内、`closing_mark`）、(b) 013（T 全部で 1 本、打ち切らない、`running`）、(c) 018（E を 50 ms 以内に頼む、先の訳を出さない）、(d) 020（V の原文が `X。`）、(e) 021（V は 1 行に 2 回以下）が、1 回の test の中ですべて成り立つ（specified、D 6 の RP-69）。陽性欄の `X？` と `id` の違う `final` は 004 と 008 が持つ | 陽性 | `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- V の入力の原文を記録する差し込み口（020、021）。D は「observer の `draft_verify_input` と V の入力で数える」と書くが、`draft_verify_input` が受けるのは訳の文字列で、原文は受けない。原文を読む口は設計に無い。実装の席が置き、口の名前を行へ戻す。
+- 013 の `waited_ms` の幅 [100, 400] ms は、この席が置いた（中心は 300 − 100 = 200 ms）。D は 50 ms の外の幅を決めていない。
+- 015 の「待ち」の作り方（slot を 4 本埋めてから速報を送る）はこの席が置いた。worker が取る順の仕組みは D に書かれていない。
+- 016 で、速報の失敗の時に `translate.draft.reused` を出すか。D は「使い回した行ごとに 1 件」と書く。lane が T を頼んだ行は使い回した行ではないので、この席は 0 件と読んだが、行では見ていない。
+- 017 の発話の間隔 30 ms と 6 発話は、この席が置いた。
+- 020 の速報の V の原文（`X`）は、速報の経路が V を掛ける時の原文を指す。D 3.18 は速報の V の原文を書いていない。
+- 速報が `final` の前に 2 回以上更新される時、`Mailbox` が最後の速報を残す仕組み。010 と 011 が外から見える結果だけを固定する。
+
+### 4.68 RP-70（`。` を足しただけの文の訳を使い回してよい）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-eval/tests/rp70.rs`。受入 test の名前は `rp70_translating_without_the_closing_mark_keeps_chrf_and_verify`。実走の行（T-RP-70-013）だけが `#[ignore]` を持ち、E2E の席が llama-server に打った 4 組の結果を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp70`。実走の行はこれに `-- --ignored` を足す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。引数の形は実装の席が決める。
+設計は D 3.18 の「部分訳の使い回し」の品質の段落と D 6 の RP-70、H85 である。
+
+**判定の関数**：`check_closing_mark(a, b)` は、同じ条件で打った 2 回ずつの結果を受ける。`a` は末尾が `。` のままの原文の組の `a1` と `a2`、`b` は末尾の `。` だけを除いた組の `b1` と `b2` である。1 つの結果は、`<ev> chrf` の corpus chrF（小数 6 桁まで）と、中継の stdout の `translate.line.held` のうち T と E の両方を止めた行の数（RP-42 の理由の欄が 2 つ在る行）と、訳の文末の記録である。chrF は 2 回を合わせた corpus chrF で比べる（D 6 の「2 回を合わせた」）。小数は 10 の -6 乗の整数に読んで比べる。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-70-001 | `a` と `b` の chrF が同じ（a の 2 回を合わせた値と b の 2 回を合わせた値が 40.123456）。止めた行は `a` の合計 3、`b` の合計 3 | chrF の等号。止めた行の数の等号 | b ≥ a、b の止めた行 ≤ a の止めた行 | `Ok`（specified、D 6 の RP-70 の「以上」と「以下」。等号を通す） | 境界、陽性 | `equal_chrf_and_equal_held_rows_pass` |
+| T-RP-70-002 | 001 の `b` の chrF を 40.113456 にする（a より 0.01 低い） | 設計の陰性 | b < a | `Err` で chrF を名指し。b の値と a の値を出す（specified、D 6 の RP-70 の陰性欄「b の chrF を a より 0.01 低く置いた fixture」） | 陰性 | `a_chrf_one_hundredth_below_a_is_rejected` |
+| T-RP-70-003 | 001 の `b` の chrF を 40.123455 にする（最小の桁 1 つ下） | 境界の下の側 | b < a | `Err` で chrF を名指す（specified、同上。4.1 の「最小の桁 1 つ分だけ外れた値」） | 境界、陰性 | `a_chrf_one_micro_unit_below_a_is_rejected` |
+| T-RP-70-004 | 001 の `b` の chrF を 40.123457 にする（最小の桁 1 つ上） | 境界の上の側 | b ≥ a | `Ok`（specified、同上） | 境界、陽性 | `a_chrf_one_micro_unit_above_a_passes` |
+| T-RP-70-005 | 001 の `b` の止めた行を 4 にする（a は 3 のまま） | 設計の陰性 | b の止めた行 > a | `Err` で止めた行を名指し。4 と 3 を出す（specified、D 6 の RP-70 の陰性欄「b の止めた行を a より 1 行多く置いた fixture」） | 陰性、境界 | `one_more_held_row_in_b_is_rejected` |
+| T-RP-70-006 | 001 の `b` の止めた行を 2 にする（a は 3） | 止めた行が b の方が少ない | b の止めた行 ≤ a | `Ok`（specified、同上） | 境界、陽性 | `fewer_held_rows_in_b_pass` |
+| T-RP-70-007 | `a1` の chrF 40.00、`a2` 40.00 を合わせた値 40.00。`b1` の chrF 39.00、`b2` の chrF 42.00 を合わせた値 40.50（b1 は a1 より低く、b2 は a2 より高い） | 2 回を合わせた比べ。1 回ずつではない | b ≥ a（合わせた値） | `Ok`。1 回ずつ比べると b1 が a1 を下回って落ちるが、合わせた値は 40.50 ≥ 40.00 で通る（specified、D 6 の RP-70「2 回を合わせた corpus chrF」と H85。割れは 2 回の合わせで読む） | 境界、陽性 | `the_two_runs_are_pooled_before_the_comparison` |
+| T-RP-70-008 | 007 の `b2` を 40.50 にして、合わせた値を 39.75 にする | 合わせた値が a を下回る。b2 は a2 より高い | b < a（合わせた値） | `Err` で chrF を名指し。b2 が a2 を上回っても、合わせた値が下なら落ちる（007 の陰性の対照） | 陰性 | `a_pooled_value_below_a_fails_even_if_one_run_is_above` |
+| T-RP-70-009 | 001 に、b の訳の文末に `.`、`?`、`!` が無く、a の同じ行の訳には在る行を 5 つ足した入力（chrF と止めた行は 001 のまま） | 記録だけの欄 | 合否に入れない | `Ok`。出力にその行の数 5 が在る（specified、D 6 の RP-70「記録する（合否に入れない）」）。数を出す欄が無い出力は `Err` で欄を名指す | 陽性、陰性 | `rows_that_lose_their_final_mark_are_recorded_and_not_judged` |
+| T-RP-70-010 | `a` の 2 回だけから作った入力（`a1` と `a2` を、b の位置にも置く） | a 同士の差 | 差を出す | `Ok`。a1 と a2 の chrF の差と止めた行の差の 2 つが出力に在る（specified、D 6 の RP-70 の陽性欄「a の 2 回の対から chrF の差と止めた行の差を出す」と H85）。2 つの値が出ない出力は `Err` | 陽性 | `the_difference_between_the_two_a_runs_is_reported` |
+| T-RP-70-011 | 組の作りの確かめ。fixture の `a` の組 3 行と、`b` の組 3 行（原文の末尾の `。` だけが無く、`id` と参照訳は同じ） | 作りが正しい | 全行 | `Ok`。全行で `b` の原文 + `。` が `a` の原文に等しく、`id` と参照訳が等しい。`a` の行の数と `b` の行の数が等しい（specified、D 6 の RP-70「末尾の `。` だけを除いた組 b（行の id と参照訳は同じ）」） | 陽性 | `a_b_pair_set_is_the_a_set_without_the_final_closing_mark` |
+| T-RP-70-012 | 011 の `b` の 1 行で、`。` に加えて文末の 1 字も除いた原文。もう 1 つの入力は、`a` の組に末尾が `。` でない行が混ざった組 | `。` だけの違いではない。`a` に対象でない行が混ざる | `Err` | 前者は `Err` でその `id` を名指す。後者も `Err` でその `id` を名指す（末尾が `。` の行だけを取る。specified、D 6 の RP-70）。空の組（`。` で終わる行が 0 行）も `Err` で、seed 0 か seed 1 のどちらの組かを名指す。0 行を「差 0 で一致」と読ませない | 陰性、境界 | `a_b_set_that_differs_by_more_than_the_mark_or_an_empty_set_is_rejected` |
+| T-RP-70-013 | 実走：同じ llama-server（RP-71 の腕 N0）に、`a1`、`b1`、`a2`、`b2` の順で打った結果の dir と、中継の stdout を読む。seed 0 の組（`testdata/baseline/pairs/`）と seed 1 の組（`testdata/baseline/pairs_seed1/`）の ja の原文のうち、末尾が `。` の行だけで `a` と `b` を作る | 実走 | 実走 | 001 の形で `Ok`（specified、D 6 の RP-70）。落ちた時の扱い（鍵を「同じ」だけに狭める）は D 3.18 の段落が決め、test は a 同士の差と a と b の差を並べて出す。run の順が `a1`、`b1`、`a2`、`b2` でなければ `Err`（run の記録の時刻の順を読む。specified、D 6 の「順に打ち」） | 陽性 | `rp70_translating_without_the_closing_mark_keeps_chrf_and_verify` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- D 6 の RP-70 は、組 `a` と `b` を test-designer の席が git の外に作ると書く。この席は Bash で file を書けず、組の中身は repo に無い。作る手順は、末尾が `。` の行だけを取る `jq`（seed 0 と seed 1 の ja の行）と、その行から `。` を 1 字除く式で、`testdata/baseline/pairs_ending_mark/` と `testdata/baseline/pairs_without_mark/` に置く。この手順を打つ席と、組の行の数を `state.json` に書く席は、設計に名が無い。E2E の席が最初の run の前に打つ。
+- chrF の差の幅。H85 のとおり、同じ依頼を 2 回打っても出力の違う行が在る。001 は等号を通すので、偶然の割れで落ちうる。幅を置くかは評議が決める。
+- 「止めた行」の数え方：T と E の両方を止めた行を、`translate.line.held` で数えると D は書く。RP-42 の欄が 2 つ在る行がそれに当たると読んだが、`translate.line.held` の欄の綴りは RP-42 の実装が決める。
+- 止めた行の `a` の合計と `b` の合計は、`hayamimi-relay eval` の stdout から数える。stdout の置き場は RP-71 と同じ `docs/results/r8w/` の下と読んだが、D に書かれていない。
+- seed 0 と seed 1 の組は V の調整に使った組で、held-out ではない（H85）。記録の値（RB-7、RP-13）と比べない。
+
+### 4.69 RP-72（port が移った run を無効にする）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-eval/tests/rp72.rs`。受入 test の名前は `rp72_a_run_whose_server_moved_its_port_is_refused`。13 本とも fixture か repo の file を読み、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp72`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。fixture の dir は `native/hayamimi-eval/tests/fixtures/rp72_*` に置く。
+設計は D 3.18 の「測り方の直し」の 2 と D 6 の RP-72、H83 である。
+
+**F72**：T-RP-32-030 の dir（3 対、F32 の標本、`pairs.txt` は無い）に、`rs1.events.jsonl`、`rs2.events.jsonl`、`rs3.events.jsonl` を足した物。各 file は 1 行 1 event で、`{"event":{"type":"ready",...},"t_us":N}` の形（`docs/results/rp32/rs1.events.jsonl` と同じ）。`final` を 1 件以上、`fallback` を 0 件持つ。`py<N>.events.jsonl` は置かない。
+**in_use の行**：`{"event":{"type":"fallback","stage":"ingest","reason":"in_use","to":"next_port","url":"http://127.0.0.1:8767/ingest"},"t_us":N}`（`native/hayamimi/src/notice.rs` の `ingest_port_in_use` の形）。`stage` を `events` にした物は `port_in_use` の形。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-72-001 | F72 そのまま | 正しい dir。`ports<N>.txt` も無い | `fallback` が 0 件 | `Ok`（specified、D 6 の RP-72 の陽性欄「`fallback` の無い fixture の dir を、port の理由では落とさない」）。`ports<N>.txt` が無くても落ちない（記録で、判定には使わない。D 3.18 の 1） | 陽性 | `a_dir_without_a_port_move_passes` |
+| T-RP-72-002 | F72 の `rs2.events.jsonl` に in_use の行（`stage` が `ingest`）を 1 件足す | 1 件で足りる。真ん中の run | 1 件以上 | `Err` で `rs2` を名指し、理由が port の移動（`in_use`）であることを言う。値（`L` の p50 など）は出さない（specified、D 6 の RP-72 の期待値と D 3.18 の 2。今の main では port の理由の `Err` が出ないので、この test は今の main で落ちる） | 陰性 | `a_run_whose_ingest_port_moved_is_refused_by_name` |
+| T-RP-72-003 | 002 の in_use の行を `rs1.events.jsonl`（最初）に、次に `rs3.events.jsonl`（最後）に、1 つずつ置く | dir の両端の run | 1 件以上 | どちらも `Err` でその run の名前を挙げる（002 の境界。run の番号の数え方が 2 だけに効いていないことを確かめる） | 境界、陰性 | `the_first_and_the_last_run_are_read_too` |
+| T-RP-72-004 | 002 の行の `stage` を `events` にする（`/events` の 8833 が移った形） | 移った port が `/ingest` ではない | 1 件以上 | `Err` で `rs2` を名指す（specified、D 3.18 の 2「`type` が `fallback` で `reason` が `in_use` の event が 1 件でも」。`stage` は条件に入らない） | 陰性 | `a_moved_events_port_is_refused_too` |
+| T-RP-72-005 | `rs1.events.jsonl` と `rs3.events.jsonl` の両方に in_use の行を置く | 複数の run | 各 run | `Err` で `rs1` と `rs3` の両方を名指す（specified、D 6 の「その run の名前を挙げて」。1 つ目で止めて 2 つ目を隠さない） | 境界、陰性 | `every_run_that_moved_is_named` |
+| T-RP-72-006 | 002 の行の `reason` を `unreadable` にする（`type` は `fallback` のまま） | `type` が合い `reason` が違う | `reason` が `in_use` | `Ok`（specified、D 3.18 の 2 の条件は `type` と `reason` の両方。`REASONS` の別の値） | 境界、陽性 | `a_fallback_for_another_reason_is_not_a_port_move` |
+| T-RP-72-007 | 002 の行の `type` を `notice` にする（`reason` は `in_use` のまま） | `reason` が合い `type` が違う | `type` が `fallback` | `Ok`（specified、同上。006 の対） | 境界、陽性 | `an_event_of_another_type_with_in_use_is_not_a_port_move` |
+| T-RP-72-008 | F72 の `rs2.events.jsonl` を取り除く | events の file が無い run | file が在る | `Err` で `rs2.events.jsonl` が無いことを名指す。値は出さない（specified、D 6 の RP-72 の期待値「`rs<N>.events.jsonl` の無い dir も、その名前を挙げて `Err`」。確かめられない run を通さない） | 陰性 | `a_run_without_its_events_file_is_refused_by_name` |
+| T-RP-72-009 | F72 の `py1.events.jsonl` に in_use の行を置く（`rs<N>` は clean） | Python 側の events | Rust の run だけを読む | `Ok`（specified、D 3.18 の 2「RP-32 の dir の `rs<N>.events.jsonl`」。Python の events は読まない）。`py<N>.events.jsonl` が無くても落ちない（001 と同じ） | 境界、陽性 | `only_the_rust_events_are_read` |
+| T-RP-72-010 | `pairs.txt` が `2` の dir（T-RP-32-032 の形）。`rs1.events.jsonl` と `rs2.events.jsonl` は clean、`rs3.events.jsonl` は置かない | 2 対の dir | 在る対の events | `Ok`。対の数が 2 の dir は、`rs3.events.jsonl` を要らない。`rs2.events.jsonl` を取り除くと `Err` で名指す（specified、D 3.16 の 4「`pairs.txt` の数」と 008 の対） | 境界 | `a_two_pair_dir_needs_the_events_of_two_runs_only` |
+| T-RP-72-011 | `docs/results/rp32/`（実物の記録）の `rs1.events.jsonl`〜`rs3.events.jsonl` を読む | 実物 | `fallback` が 0 件 | 3 つとも `"type":"fallback"` が 0 件。`"type":"final"` が 125 件（pseudo、`rg -c`。2026-10-15 に `rs1` から `rs3` で `final` 125、`fallback` と `in_use` は 0 件を数えた）。この dir を `check_dir` に渡した時の `Err` の理由に、port の移動は載らない | 陽性 | `the_recorded_rp32_dir_has_no_port_move` |
+| T-RP-72-012 | `docs/results/e2e/README.md` の「Conditions of the run」の節を読む | 手順の文書 | 語が在る | 節の中に `ss -tanH`、`Get-NetTCPConnection`、`8766`、`8833`、`ports<N>.txt` が在る。陽性の対照：同じ file に見出し `Conditions of the run` が 1 件（`rg -c 'Conditions of the run' docs/results/e2e/README.md` が 1）（specified、D 3.18 の「測り方の直し」の 1。今の file には `ss -tanH` が 0 件なので、この test は今の main で落ちる） | 陽性、陰性 | `the_e2e_readme_names_the_port_wait_step` |
+| T-RP-72-013 | 受入：002、008、001 の 3 つの dir を順に `check_dir` に渡す | 全体 | 通る | 002 は `Err`（`rs2` の名前）、008 は `Err`（`rs2.events.jsonl` の名前）、001 は `Ok`（specified、D 6 の RP-72） | 陽性、陰性 | `rp72_a_run_whose_server_moved_its_port_is_refused` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 空の `rs<N>.events.jsonl`（0 byte）と、JSON として読めない行を持つ file の扱い。D は「無い run」と「in_use の行が在る run」だけを書く。空の file は run が起きていない形で、読めない行は確かめられない形である。この席は行にしていない。
+- `ports<N>.txt` の中身と、待った秒数の上限。D は「記録で、判定には使わない」とだけ書く。001 は、無くても落ちないことだけを固定する。
+- 003 の「run の番号の数え方」は `run_names` が 1 から `pairs` まで回すことを指す。実装の関数の綴りを行に写していない。
+- H83 のとおり、RP-66 の run の dir（`events.jsonl`）は RP-72 の読み口の外である。
+- RP-71 の case 行は書かない（3.18 の段 3 は評議の PAUSE）。
 
 ## 5. RP-19 の対応表
 
