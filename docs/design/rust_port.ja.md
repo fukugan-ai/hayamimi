@@ -1082,6 +1082,20 @@ E2E の画面の確かめでは、R6 の頁に fallback の帯が出た状態（
 | E2E-1 | `e2e1_mic_process_ja_to_en_beats_python` | `native/hayamimi-eval/tests/e2e1.rs` |
 | E2E-2 | `e2e2_loopback_process_en_to_ja_within_budget` | `native/hayamimi-eval/tests/e2e2.rs` |
 
+2 本とも `#[ignore]` を持ち、process も llama-server も起こさず、run が残した記録を読んで判定する。
+読む記録は git 管理下の決まった dir に置く。E2E-1 は `docs/results/e2e/e2e1/`、E2E-2 は `docs/results/e2e/e2e2/` である（RP-32 が `docs/results/r8h_verify/` を読むのと同じ形）。
+dir の中は、Rust の samples が `e2e1.jsonl`（E2E-2 は `e2e2.jsonl`）で、E2E-2 の events がその隣の `e2e2.events.jsonl` である。
+E2E-1 の Python の基準は同じ dir の `py1.jsonl`、`py2.jsonl` のように `py<N>.jsonl` と書き、1 本以上を置く。
+生の run の残り（stdout、stderr、pid、gpu の csv）は git の外の `~/.cache/hayamimi-e2e-<日付>/` に置き、この dir には samples と events の jsonl だけを写す。
+有効の判定（3.1、`--min-silence` 300 ms）、訳の取れた割合（20 / 23）、p50 と p95 の比べ方は、RP-32 と同じ `hayamimi_eval::compare` の関数を使う。
+`L` と `L_tr` は有効な標本のうち訳の取れた物で、`L_asr` は有効な標本で取る。
+打ち方は `cargo test --release --test e2e1 -- --ignored --nocapture` と、`--test e2e2` の同じ形である。
+有効な標本の数、訳の割合、`L`、`L_asr`、`L_tr` の p50 と p95、可否を 1 行ずつ出す（`--nocapture` が無いと、通った時の数は出ない）。
+E2E-2 は、events に `lang` が `en` の `final` と、`lang` が `ja` で字幕に出る訳が 1 件以上あることも判定する。
+陽性対照は `docs/results/r8h_verify/` の記録（rs1、py1、py2、e2e2c）で、数が出ることまでを見る。
+陰性対照は訳が 0 件の fixture（`native/hayamimi-eval/tests/fixtures/e2e_no_translation.jsonl`）で、落ちることを見る。
+load の記録と Python の run の交互の順（RP-32）は、この 2 本の判定に入れない。
+
 ### RP-19 の未実装 187 行の仕分けと slice
 
 T の 5.3 の対応表で Rust の test の名前を持つ 334 行のうち 187 行は、その名前の関数が `native/` に無い。
