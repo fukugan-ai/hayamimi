@@ -28,6 +28,7 @@ use hayamimi_relay::partial::PartialTranslation;
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig, sha256_hex};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
 use hayamimi_relay::strings::Strings;
+use hayamimi_relay::verify_dump::VerifyDump;
 use serde_json::{Value, json};
 
 fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -284,7 +285,7 @@ pub struct Call<'a> {
 
 /// Reads the stage and the source text off a prompt of the pipeline, and for
 /// an edit the draft too.
-fn read_prompt(prompt: &str) -> Option<(Stage, &str, &str)> {
+pub fn read_prompt(prompt: &str) -> Option<(Stage, &str, &str)> {
     if let Some(rest) = prompt.strip_prefix("Translate the following ") {
         let (_, text) = rest.split_once("\n\n")?;
         return Some((Stage::Translate, text, ""));
@@ -561,6 +562,20 @@ pub fn run_relay_logging<L: Llm + 'static>(
     outputs: Outputs,
     partials: PartialTranslation,
 ) -> Result<Running, io::Error> {
+    run_relay_dumping(logs, events, lanes, make, outputs, partials, None)
+}
+
+/// Starts a relay like [`run_relay_logging`] that also writes the developer's
+/// record of what V is handed to `verify_dump`, when one is given.
+pub fn run_relay_dumping<L: Llm + 'static>(
+    logs: Logs,
+    events: Vec<String>,
+    lanes: Lanes,
+    make: MakePipeline<L>,
+    outputs: Outputs,
+    partials: PartialTranslation,
+    verify_dump: Option<VerifyDump>,
+) -> Result<Running, io::Error> {
     let config = RelayConfig {
         events,
         lanes,
@@ -570,7 +585,7 @@ pub fn run_relay_logging<L: Llm + 'static>(
         },
         started_epoch: 1_790_000_000,
         translate: None,
-        verify_dump: None,
+        verify_dump,
     };
     let sink = SharedSink::new(logs.clone());
     let address = relay::start_partials(hub::bind(0)?, config, make, sink, outputs, partials)?;

@@ -10,17 +10,48 @@
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde_json::json;
 
 use crate::logging::{Level, LogEvent, LogSink};
 use crate::pipeline::{Observer, Pass};
 
+/// The source texts V judged translations against, in memory, as
+/// `(id, source)` rows in the order V ran. A developer or a test reads it back
+/// to see which text a reused answer was verified against; the file never
+/// carries it.
+#[derive(Clone, Default)]
+pub struct SourceLog(Arc<Mutex<Vec<(String, String)>>>);
+
+impl SourceLog {
+    /// The sources V ran against for the line `id`, in order.
+    pub fn sources_of(&self, id: &str) -> Vec<String> {
+        self.rows()
+            .iter()
+            .filter(|(row_id, _)| row_id == id)
+            .map(|(_, source)| source.clone())
+            .collect()
+    }
+
+    fn push(&self, id: &str, source: &str) {
+        self.rows().push((id.to_owned(), source.to_owned()));
+    }
+
+    fn rows(&self) -> MutexGuard<'_, Vec<(String, String)>> {
+        match self.0.lock() {
+            Ok(rows) => rows,
+            // A thread that panicked while holding the lock left whole rows.
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+}
+
 /// The open file, shared by the lanes.
 #[derive(Clone)]
 pub struct VerifyDump {
     file: Arc<Mutex<File>>,
+    sources: Option<SourceLog>,
 }
 
 impl VerifyDump {
@@ -30,6 +61,7 @@ impl VerifyDump {
         match OpenOptions::new().create(true).append(true).open(path) {
             Ok(file) => Some(VerifyDump {
                 file: Arc::new(Mutex::new(file)),
+                sources: None,
             }),
             Err(_) => {
                 sink.emit(
@@ -39,6 +71,12 @@ impl VerifyDump {
                 None
             }
         }
+    }
+
+    /// Also keeps the source texts V is run against in `log`.
+    pub fn keeping_sources(mut self, log: SourceLog) -> VerifyDump {
+        self.sources = Some(log);
+        self
     }
 
     /// The observer of the line `id`.
@@ -70,6 +108,12 @@ pub struct DumpObserver<'a> {
 }
 
 impl Observer for DumpObserver<'_> {
+    fn verify_source(&mut self, source: &str) {
+        if let Some(log) = &self.dump.sources {
+            log.push(self.id, source);
+        }
+    }
+
     fn verify_input(&mut self, translation: &str) {
         self.dump.write(self.id, Pass::E, translation);
     }

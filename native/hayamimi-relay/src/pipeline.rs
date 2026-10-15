@@ -24,7 +24,7 @@
 use std::fmt::Write as _;
 use std::ops::{ControlFlow, Deref};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -171,6 +171,9 @@ pub enum Stage {
 pub trait Observer {
     /// A stage is about to run.
     fn stage(&mut self, _stage: Stage) {}
+    /// The source text V judges the translation handed next against (the
+    /// text of the line, whichever translation it checks).
+    fn verify_source(&mut self, _source: &str) {}
     /// The exact translation text of E handed to V.
     fn verify_input(&mut self, _translation: &str) {}
     /// The exact translation text of T handed to V.
@@ -188,6 +191,54 @@ pub enum PartialOutcome {
     Held(HoldReason),
     /// The translator did not answer; nothing is shown.
     Failed,
+}
+
+/// How a `final` text relates to the last text in progress whose translation
+/// it takes over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReuseMatch {
+    /// The same text.
+    Same,
+    /// The text in progress with one `。` added.
+    ClosingMark,
+}
+
+impl ReuseMatch {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReuseMatch::Same => "same",
+            ReuseMatch::ClosingMark => "closing_mark",
+        }
+    }
+}
+
+/// Whether the answer of the text in progress was in when the line asked for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReuseState {
+    Done,
+    /// The request was still running; the line waited for it.
+    Running,
+}
+
+impl ReuseState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReuseState::Done => "done",
+            ReuseState::Running => "running",
+        }
+    }
+}
+
+/// T's answer for the last text in progress of a line, taken over as the
+/// answer T would have given the line itself.
+#[derive(Clone, Debug)]
+pub struct Reuse {
+    /// The answer as the translator gave it.
+    pub answer: String,
+    pub matched: ReuseMatch,
+    pub state: ReuseState,
+    /// How long the line waited for the answer.
+    pub waited: Duration,
 }
 
 /// An observer that sees nothing.
@@ -462,7 +513,26 @@ impl<L: Llm> Pipeline<L> {
             request,
             dest: Dest::Pair,
         };
-        self.stage_to(&ctx, observer, early, sink)
+        self.stage_to(&ctx, observer, early, None, sink)
+    }
+
+    /// Runs the first half of a line like [`Pipeline::draft_staged`], taking
+    /// `reuse` as T's answer instead of asking T: the answer for the last text
+    /// in progress, which the line's text closes. V judges it against the
+    /// line's own text.
+    pub fn draft_staged_reusing(
+        &mut self,
+        request: &LineRequest<'_>,
+        observer: &mut dyn Observer,
+        early: &mut dyn FnMut(Translation),
+        reuse: &Reuse,
+        sink: &mut dyn LogSink,
+    ) -> Staged {
+        let ctx = Ctx {
+            request,
+            dest: Dest::Pair,
+        };
+        self.stage_to(&ctx, observer, early, Some(reuse), sink)
     }
 
     /// Runs the second half of a line [`Pipeline::draft_staged`] left to E.
@@ -488,23 +558,28 @@ impl<L: Llm> Pipeline<L> {
         early: &mut dyn FnMut(Translation),
         sink: &mut dyn LogSink,
     ) -> Translation {
-        match self.stage_to(request, observer, early, sink) {
+        match self.stage_to(request, observer, early, None, sink) {
             Staged::Settled(done) => done,
             Staged::Drafted(drafted) => self.edit_drafted(request, drafted, observer, sink),
         }
     }
 
     /// T and the first V, and the draft event; E is left to
-    /// [`Pipeline::edit_drafted`].
+    /// [`Pipeline::edit_drafted`]. With `reuse`, T's answer is the one given.
     fn stage_to(
         &mut self,
         request: &Ctx<'_>,
         observer: &mut dyn Observer,
         early: &mut dyn FnMut(Translation),
+        reuse: Option<&Reuse>,
         sink: &mut dyn LogSink,
     ) -> Staged {
         let started = Instant::now();
-        let draft = match self.draft(request, observer, started, sink) {
+        let first = match reuse {
+            Some(reuse) => self.draft_reused(request, observer, reuse, sink),
+            None => self.draft(request, observer, started, sink),
+        };
+        let draft = match first {
             ControlFlow::Continue(draft) => draft,
             ControlFlow::Break(done) => return Staged::Settled(done),
         };
@@ -557,18 +632,34 @@ impl<L: Llm> Pipeline<L> {
         wanted: &Wanted,
         sink: &mut dyn LogSink,
     ) -> PartialOutcome {
+        self.translate_partial_kept(request, wanted, sink).0
+    }
+
+    /// Like [`Pipeline::translate_partial`], and also returns T's answer as the
+    /// translator gave it, whatever V made of it: a `final` that only closes
+    /// this text takes it over. `None` when the translator gave none, or the
+    /// request was dropped.
+    pub fn translate_partial_kept(
+        &mut self,
+        request: &LineRequest<'_>,
+        wanted: &Wanted,
+        sink: &mut dyn LogSink,
+    ) -> (PartialOutcome, Option<String>) {
         let started = Instant::now();
         if !wanted.still() {
-            return partial_aborted(request, started, sink);
+            return (partial_aborted(request, started, sink), None);
         }
         let prompt = translate_prompt(request.src_lang, request.text);
         let answer = self
             .llm
             .complete(&Completion::new(&prompt, MAX_TOKENS).wanted(wanted));
         match answer {
-            Ok(text) if wanted.still() => self.judge_partial(request, &text, started, sink),
-            Ok(_) | Err(LlmError::Aborted) => partial_aborted(request, started, sink),
-            Err(error) => partial_failed(request, &error, started, sink),
+            Ok(text) if wanted.still() => {
+                let outcome = self.judge_partial(request, &text, started, sink);
+                (outcome, Some(text))
+            }
+            Ok(_) | Err(LlmError::Aborted) => (partial_aborted(request, started, sink), None),
+            Err(error) => (partial_failed(request, &error, started, sink), None),
         }
     }
 
@@ -633,7 +724,37 @@ impl<L: Llm> Pipeline<L> {
             }
         };
         let t_ms = started.elapsed().as_millis();
-        if contains_eos(&answer) {
+        self.judge_draft(request, observer, &answer, t_ms, sink)
+    }
+
+    /// T's answer taken over from the text in progress, and the first V on it
+    /// against the line's own text. The log says the answer was reused, and
+    /// how the line's V came out.
+    fn draft_reused(
+        &mut self,
+        request: &Ctx<'_>,
+        observer: &mut dyn Observer,
+        reuse: &Reuse,
+        sink: &mut dyn LogSink,
+    ) -> ControlFlow<Translation, Draft> {
+        let waited_ms = reuse.waited.as_millis();
+        let judged = self.judge_draft(request, observer, &reuse.answer, waited_ms, sink);
+        let passed = matches!(&judged, ControlFlow::Continue(draft) if draft.passed());
+        sink.emit(reused_event(request, reuse, passed));
+        judged
+    }
+
+    /// The part of T after its answer is in: the end-marker check, and V on the
+    /// trimmed answer. `t_ms` is the time T took (or was waited for).
+    fn judge_draft(
+        &mut self,
+        request: &Ctx<'_>,
+        observer: &mut dyn Observer,
+        answer: &str,
+        t_ms: u128,
+        sink: &mut dyn LogSink,
+    ) -> ControlFlow<Translation, Draft> {
+        if contains_eos(answer) {
             // `stop` did not take effect; the marker would reach E's prompt.
             let line = self.held(request, HoldReason::Form, [t_ms, 0, 0], Pass::T, sink);
             return ControlFlow::Break(line);
@@ -641,6 +762,7 @@ impl<L: Llm> Pipeline<L> {
         let text = answer.trim().to_owned();
         let verify_started = Instant::now();
         observer.stage(Stage::VerifyDraft);
+        observer.verify_source(request.text);
         observer.draft_verify_input(&text);
         let verdict = self.verify(request, &text, sink);
         ControlFlow::Continue(Draft {
@@ -703,6 +825,7 @@ impl<L: Llm> Pipeline<L> {
         let text = translation_of(&edited, language_name(request.src_lang.other())).to_owned();
         let verify_started = Instant::now();
         observer.stage(Stage::Verify);
+        observer.verify_source(request.text);
         observer.verify_input(&text);
         let verdict = self.verify(request, &text, sink);
         let v_ms = draft.ms[2] + verify_started.elapsed().as_millis();
@@ -939,6 +1062,18 @@ fn timing(event: LogEvent, request: &Ctx<'_>, ms: [u128; 3]) -> LogEvent {
         .with("t_ms", clip(ms[0]))
         .with("e_ms", clip(ms[1]))
         .with("v_ms", clip(ms[2]))
+}
+
+/// The line took over the answer for its last text in progress. The event
+/// carries no text: the line is named by `id`, the answer's age by `state`.
+fn reused_event(request: &Ctx<'_>, reuse: &Reuse, passed: bool) -> LogEvent {
+    LogEvent::new(Level::Info, "translate.draft.reused", "service")
+        .with("id", request.id)
+        .with("source", request.source)
+        .with("match", reuse.matched.as_str())
+        .with("state", reuse.state.as_str())
+        .with("waited_ms", u64::try_from(reuse.waited.as_millis()).ok())
+        .with("verdict", if passed { "ok" } else { "held" })
 }
 
 /// A log event of the text in progress. These come about twice a second, so
