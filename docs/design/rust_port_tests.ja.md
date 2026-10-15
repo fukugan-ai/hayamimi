@@ -1634,7 +1634,7 @@ command（001 から 008）：`cd native && flock -w 1800 target/release/.cargo-
 - 006 から 008 は、設計の文（RP-43 の期待値）から導いた境界である。「語で読む」は表が部分文字列で読む前提（`verify_markers.toml` の `ja.negation` の読み方）に依る。
 - 005 の 8 件目から 11 件目（基本形）は 10 の H56 の決めである。基本形が否定でないと決めたのは `exclude` に `申し訳な` などの部分文字列を足したためで、同じ部分文字列を含む別の語（例：`申し訳ないが断る`）も否定でなくなる。この境界の行は設計が決めるまで置かない。
 - 012 の 2 件目：英語側の否定の語の表は接頭辞の否定（`uninterested`、`unable` 以外の `un-`、`dis-`、`in-`）を読まないので、否定を残した正しい訳（`He looked uninterested.`）が `Held(Negation)` で止まる。H59（推量の表の `そう`）とは別の形で、機構は英語側の `en.negation` の語の表にある。表に `un-` の語を足すか、止まりを受けるかは設計が決める（この席は新しい H 番号を振らない）。
-- 009 の E2E-1 の実走の command は 6 と E2E の表のとおりである。70/80 を判定する test は、実走の記録を読む受入 test `e2e1_mic_process_ja_to_en_beats_python`（`native/hayamimi-eval/tests/e2e1.rs`。4.63 の T-E2E-1-001）で、割合の境界の行は 4.63 の T-E2E-1-015（70 は通り 69 は落ちる。未実装）である。
+- 009 の E2E-1 の実走の command は 6 と E2E の表のとおりである。70/80 を判定する test は、実走の記録を読む受入 test `e2e1_mic_process_ja_to_en_beats_python`（`native/hayamimi-eval/tests/e2e1.rs`。4.63 の T-E2E-1-001）で、割合の境界の行は 4.63 の T-E2E-1-015（70 は通り 69 は落ちる）である。
 
 ### 4.54 RP-44（R8o の後の新しい held-out の組）
 
@@ -1925,7 +1925,7 @@ command（受入 test の外）：`cd native && flock -w 1800 target/release/.ca
 | T-E2E-2-010 | 標本も events も空の run | 空 | 全部の数で落ちる | 失敗に `no valid sample`、`hold no final in en`、`hold no shown translation in ja` が入る（specified、空を合格と読まない） | 陰性、境界 | `an_empty_run_with_no_events_fails_on_every_count` |
 | T-E2E-2-011 | 割合の境界：有効 23 のうち訳あり 20 の run と 19 の run | 20 / 23 の境界 | 20 は通り 19 は落ちる | 20/23 は割合の失敗が 0 件、19/23 は 1 件。events と `L` は通る値に揃える（derived、20/23 と同じ除算） | 境界、陰性 | `the_translated_share_boundary_is_20_of_23` |
 
-実装済みの行は、E2E-1 の 001 から 014 と E2E-2 の 001 から 010 である（`feat/r8n` の worktree に在り、main には入っていない。名前は写した）。015 と E2E-2-011 は未実装で、実装の席が足す。
+実装済みの行は、E2E-1 の 001 から 015 と E2E-2 の 001 から 011 である。015 は `native/hayamimi-eval/tests/e2e1.rs`、E2E-2-011 は `native/hayamimi-eval/tests/e2e2.rs` に在る。
 陰性の build と落ちる行（表から読んだ予測、NOT VERIFIED）：割合を数えない build は 007、009、015、E2E-2-011 が落ちる。`L` の p50 だけを判定する build は 005 が落ちる。0 件を合格と読む build は 003、008、E2E-2-003、010 が落ちる。ja の `final` を数える build は E2E-2-004 が落ちる。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
