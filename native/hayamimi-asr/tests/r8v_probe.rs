@@ -54,6 +54,12 @@ const VAD_P95_LIMIT_US: i64 = 2000;
 const REMAINDER_MIN: usize = 8000;
 /// The p95 of `d` of the current main for ja, in ms (3.17, count 1).
 const JA_D_P95_MAIN_MS: i64 = 1341;
+/// The limit of mid-sentence cuts in ja, in percent of the utterances (8 of 80 pass, 9 fail).
+const MID_LIMIT_JA_PERCENT: usize = 10;
+/// The limit of splits on which the two sortings differ, in percent...
+const DIFFER_LIMIT_PERCENT: usize = 5;
+/// ...and under this many splits no difference is allowed.
+const SMALL_SPLIT_COUNT: usize = 20;
 /// The AMI turns taken per meeting, from the start of the meeting.
 const AMI_TURNS_PER_MEETING: usize = 12;
 /// An AMI turn is an utterance when it lasts this long (seconds)...
@@ -287,7 +293,7 @@ fn manifest_spans(path: &Path) -> Result<Vec<Span>, Failure> {
 /// The utterances of one AMI meeting: single-speaker turns of at least a
 /// second with no other speaker's turn within the margin, the first
 /// `per_meeting` of them.
-fn ami_utterances(rttm: &str, per_meeting: usize) -> Result<Vec<Span>, Failure> {
+fn ami_utterances(rttm: &str, skip: usize, take: usize) -> Result<Vec<Span>, Failure> {
     let mut turns: Vec<(f64, f64, String)> = Vec::new();
     for line in rttm.lines().filter(|l| l.starts_with("SPEAKER")) {
         let fields: Vec<&str> = line.split_whitespace().collect();
@@ -310,7 +316,8 @@ fn ami_utterances(rttm: &str, per_meeting: usize) -> Result<Vec<Span>, Failure> 
     Ok(turns
         .iter()
         .filter(|turn| turn.1 - turn.0 >= AMI_MIN_TURN_S && alone(turn))
-        .take(per_meeting)
+        .skip(skip)
+        .take(take)
         .map(|turn| Span {
             start: (turn.0 * rate) as usize,
             end: (turn.1 * rate) as usize,
@@ -883,10 +890,11 @@ fn pass_line(report: &SetReport) -> (bool, usize, usize) {
     (b_added == 0 && a_only + b_added <= a_only, a_only, b_added)
 }
 
-/// The ja limit of RP-66: P_B + (1341 - P_A), rounded up to 10 ms.
+/// The ja limit of RP-66: P_B + (1341 - P_A), rounded up to 10 ms. P_B is the
+/// p95 of the delay at the last final (3.17, count 10), P_A that of A alone.
 fn ja_limit(report: &SetReport) -> Result<Option<i64>, Failure> {
-    let (first, _, now) = delays(report);
-    let (Some(p_b), Some(p_a)) = (percentile(&first, 95)?, percentile(&now, 95)?) else {
+    let (_, last, now) = delays(report);
+    let (Some(p_b), Some(p_a)) = (percentile(&last, 95)?, percentile(&now, 95)?) else {
         return Ok(None);
     };
     Ok(Some(ceil_ten(p_b + JA_D_P95_MAIN_MS - p_a)))
@@ -945,12 +953,51 @@ fn kind_lines(report: &SetReport) -> Vec<String> {
     lines
 }
 
+/// The limits the council fixed for step 1c, applied to a ja set: the mid-sentence
+/// cuts (sorted by the reference) over the utterances, and the splits on which
+/// the two sortings differ. For en the figures are recorded and judge nothing.
+fn limit_lines(report: &SetReport) -> Vec<String> {
+    let mid = report
+        .splits
+        .iter()
+        .filter(|s| s.by_reference == Some(Kind::Mid))
+        .count();
+    let rated: Vec<&SplitRecord> = report
+        .splits
+        .iter()
+        .filter(|s| s.by_reference.is_some())
+        .collect();
+    let differ = rated
+        .iter()
+        .filter(|s| s.by_reference != Some(s.by_a))
+        .count();
+    let mid_ok = mid * 100 <= MID_LIMIT_JA_PERCENT * report.utterances;
+    let differ_ok = if rated.len() < SMALL_SPLIT_COUNT {
+        differ == 0
+    } else {
+        differ * 100 <= DIFFER_LIMIT_PERCENT * rated.len()
+    };
+    vec![format!(
+        "R8V {} LIMITS mid {mid} of {} utterances ({:.1} %, limit {MID_LIMIT_JA_PERCENT} %): {mid_ok}; \
+         sortings differ {differ} of {} (limit {DIFFER_LIMIT_PERCENT} %, 0 under {SMALL_SPLIT_COUNT} splits): {differ_ok}",
+        report.name,
+        report.utterances,
+        100.0 * mid as f64 / report.utterances as f64,
+        rated.len()
+    )]
+}
+
 fn print_set(report: &SetReport) -> TestResult {
     for line in report_lines(report)? {
         println!("{line}");
     }
     for line in kind_lines(report) {
         println!("{line}");
+    }
+    if report.lang == "ja" {
+        for line in limit_lines(report) {
+            println!("{line}");
+        }
     }
     let (passed, a_only, b_added) = pass_line(report);
     println!(
@@ -1058,9 +1105,50 @@ fn r8v_heldout_ja_probe() -> TestResult {
     print_set(&analyse(&models, &input)?)
 }
 
+/// ReazonSpeech test rows (80 of them, joined with 1.5 s gaps), the second held-out set.
+#[test]
+#[ignore = "an offline probe: reads testdata/r8v_heldout2/ and the models"]
+fn r8v_heldout2_ja_probe() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let dir = testdata.join("r8v_heldout2");
+    let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
+    let utterances = manifest_spans(&dir.join("ja.json"))?;
+    let references = manifest_references(&dir.join("ja.json"))?;
+    let inside = references
+        .iter()
+        .flatten()
+        .filter(|text| text.trim_end_matches('。').contains('。'))
+        .count();
+    println!(
+        "R8V heldout2-ja references: {} utterances, {inside} with 。 inside the sentence",
+        references.len()
+    );
+    let input = Input {
+        name: "heldout2-ja",
+        lang: "ja",
+        audio: &audio,
+        utterances: &utterances,
+        references: &references,
+        early: EARLY_SETTINGS,
+    };
+    print_set(&analyse(&models, &input)?)
+}
+
 #[test]
 #[ignore = "an offline probe: reads testdata/eval_diar/ and the models"]
 fn r8v_heldout_en_probe() -> TestResult {
+    ami_sets("heldout-en", 0, AMI_TURNS_PER_MEETING)
+}
+
+/// The AMI turns that step 1 did not use: every turn after the first 12 of each meeting.
+#[test]
+#[ignore = "an offline probe: reads testdata/eval_diar/ and the models"]
+fn r8v_heldout2_en_probe() -> TestResult {
+    ami_sets("heldout2-en", AMI_TURNS_PER_MEETING, usize::MAX)
+}
+
+/// Every meeting of `eval_diar` as its own set: the turns after `skip`, `take` of them.
+fn ami_sets(prefix: &str, skip: usize, take: usize) -> TestResult {
     let (models, testdata) = (models_dir()?, testdata_dir()?);
     let dir = testdata.join("eval_diar");
     let meetings = read_json(&dir.join("manifest.json"))?;
@@ -1074,8 +1162,8 @@ fn r8v_heldout_en_probe() -> TestResult {
             .ok_or("a meeting has no name")?;
         let audio = read_wav(&dir.join(format!("{id}.wav"))).map_err(|why| why.to_string())?;
         let rttm = read(&dir.join(format!("{id}.rttm")))?;
-        let utterances = ami_utterances(&rttm, AMI_TURNS_PER_MEETING)?;
-        let name = format!("heldout-en-{id}");
+        let utterances = ami_utterances(&rttm, skip, take)?;
+        let name = format!("{prefix}-{id}");
         let references = vec![None; utterances.len()];
         let input = Input {
             name: &name,
@@ -1146,7 +1234,7 @@ fn an_ami_turn_needs_a_second_and_a_quiet_neighbourhood() -> TestResult {
                 SPEAKER m 1 3.100 2.000 <NA> <NA> B <NA> <NA>\n\
                 SPEAKER m 1 10.000 0.500 <NA> <NA> A <NA> <NA>\n\
                 SPEAKER m 1 20.000 3.000 <NA> <NA> A <NA> <NA>\n";
-    let turns = ami_utterances(rttm, 10)?;
+    let turns = ami_utterances(rttm, 0, 10)?;
     let seconds: Vec<usize> = turns.iter().map(|t| t.start / 16000).collect();
     // The first two turns are closer than 0.3 s to each other, the third is short.
     assert_eq!(seconds, vec![20]);

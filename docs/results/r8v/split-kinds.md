@@ -28,9 +28,9 @@ For ja the sorting is done twice: against the `ref` of the manifest, and against
 | held-out en, AMI 60 turns (by the final of A) | 31 | 28 | 2 | 1 | 1 of 31 | 1 of 60 |
 | en together | 33 | 29 | 2 | 2 | 2 of 33 | 2 of 75 (2.7 %) |
 
-The pass line of 3.17 is the rate of mid-sentence cuts, with its upper limit still to be set by the council after this result. The table gives the rate on two denominators (per split and per utterance), because the design does not say which one is meant. No limit exists yet to compare against, so no pass or fail is stated here.
+The pass line of 3.17 is the rate of mid-sentence cuts. The council fixed it after this result: the denominator is the utterances (all the samples of the frame), the numerator the ja splits that the reference sorts as mid-sentence, and the limit is ja 10 %; en is recorded and judges nothing. On these two earlier sets the ja figure is 6 of 104 (5.8 %), which is under the limit; step 1c is the judgement (`heldout2.md`).
 
-The ja sortings, by reference against by the final of A: **agree 4, differ 9 of 13** (lat-ja 1 of 4, held-out ja 3 of 9). The design says that when they differ often the en sorting is not used for the pass and goes to the council; the limit of "often" is also the council's.
+The ja sortings, by reference against by the final of A: **agree 4, differ 9 of 13** (the sortings agree on 1 of 4 in lat-ja and on 3 of 9 in held-out ja). The council later fixed the limit at 5 % of the splits that differ (0 when under 20 splits); this record is far above it.
 
 The mid-sentence ja cases: in the held-out set, three are inside the one reference sentence "…気を付けてください（縮みの原因になったり、…）。" (the reference has its 。 only at the very end, and the cut is at the full stop the recognizer put before the parenthesis), and two are cuts at "…選手やクラブが崩れる。" and "…七つのウィケットを失い。" inside one reference sentence; in `lat-ja`, one is the cut at "言ったろう。" inside "言ったろヒーローよりも…". The tail noise cases (both `lat-ja`) are a spurious "さあ。" and a garbled continuation after the end of the reference. The en mid case of lat-en is "He was in a fevered state of mind." cut from a sentence that the final of A joins with a comma.
 
@@ -51,19 +51,19 @@ These are the figures of step 1 ("last final" rows); the ja limit by the formula
 
 | set | splits by B alone | mid | last final p50 / p95 | vad_ms A plus B p95 |
 |---|---|---|---|---|
-| lat-ja, 0.12 s | 4 | 1 | 508 / 880 ms | 0.410 ms |
+| lat-ja, 0.12 s | 4 | 1 | 508 / 880 ms | 0.477 ms |
 | lat-ja, 0.20 s | 4 | 1 | 654 / 965 ms | 0.408 ms |
-| lat-en, 0.12 s | 2 | 1 | 186 / 550 ms | 0.462 ms |
+| lat-en, 0.12 s | 2 | 1 | 186 / 550 ms | 0.477 ms |
 | lat-en, 0.20 s | 1 | 0 | 282 / 550 ms | 0.511 ms |
 
-At 0.20 s the splits by B alone do not fall in ja (4 and 4) and fall by one in en; the delay grows by 146 ms (ja p50) and 96 ms (en p50). The choice between 0.12 s and 0.20 s is the judgement of the new held-out set (step 1c), not of this record.
+At 0.20 s the splits by B alone do not fall in ja (4 and 4) and fall by one in en; the delay grows by 146 ms (ja p50) and 96 ms (en p50). The council then fixed step 1c to 0.12 s only, so this record stays a record.
 
 ## 残る穴
 
-- **Translation chrF not done.** The chrF of the translation of the split utterances against the translation of A's single final (3.17 count 8) needs the translation stage, which this probe does not open. Owner: the seat that runs step 1c with the translation model, or the council decides to drop it.
+- **Translation chrF not taken.** The council dropped it from step 1c; the RP-66 run (step 3) records it and judges nothing with it.
 - **The ja sortings differ in 9 of 13.** Most differences come from the recognizer's own punctuation and misrecognitions in the final of A (for example a dropped first sentence), not from the early path. This run does not separate the two (NOT VERIFIED).
 - **en has no independent reference.** See above.
-- **The new held-out set (step 1c) is not run.** The upper limits of the mid-sentence rate and of the sorting agreement are to be set by the council from this result and fixed before step 1c, so step 1c waits for them.
+- **Step 1c** ran after the limits were fixed; its result is in `heldout2.md`.
 
 ## 採らない手段
 
