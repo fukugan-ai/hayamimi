@@ -378,7 +378,7 @@ fn a_slower_passed_draft_l_after_a_is_rejected() -> TestResult {
 /// T-RP-33-016: the real runs of `docs/results/rp32/`, Python, Rust, Python, Rust, Python, Rust.
 #[test]
 #[ignore = "reads the runs in docs/results/rp32/"]
-fn rust_translation_stage_beats_python_after_the_v_fix() -> TestResult {
+fn rp33_first_translation_after_a_failed_draft_beats_python() -> TestResult {
     let (rust, python) = load_real_runs(&rp32_dir())?;
     let said = check_first_translation(&rust, &python);
     if let Ok(columns) = &said {
