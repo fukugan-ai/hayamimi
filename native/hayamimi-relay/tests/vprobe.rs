@@ -81,15 +81,15 @@ fn the_references_v_withholds_as_they_stand_are_named() -> TestResult {
 fn each_break_is_counted_and_withheld_by_its_own_rows() -> TestResult {
     let dir = pairs_dir()?;
     let found = vprobe::probe(&vprobe::read_rows(dir.path(), "en")?, "en")?;
-    for (name, id) in [
-        ("break:number", "20"),
-        ("break:negation", "30"),
-        ("break:uncertainty", "40"),
-    ] {
+    for (name, id) in [("break:number", "20"), ("break:negation", "30")] {
         let one = finding(&found, name)?;
         assert_eq!(one.rows, 1, "{name}");
         assert_eq!(ids(one), [id], "{name}");
     }
+    // Into English a lost hedge is recorded, not withheld.
+    let hedge = finding(&found, "break:uncertainty")?;
+    assert_eq!(hedge.rows, 1);
+    assert!(ids(hedge).is_empty(), "{:?}", ids(hedge));
     Ok(())
 }
 

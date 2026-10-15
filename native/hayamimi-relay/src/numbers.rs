@@ -95,11 +95,22 @@ pub fn extract_in(text: &str, tongue: Tongue) -> Vec<Number> {
 /// "もう一度" and "a week" carry a 1 on one side only. A month name counts as
 /// its month, since a Japanese `7月` is written `July` elsewhere.
 pub fn compared_values(text: &str, tongue: Tongue) -> Vec<u128> {
+    compared_values_with_clock(text, tongue, false)
+}
+
+/// [`compared_values`] that, when `clock` is set, also counts the 30 of a half
+/// hour spelled in words (Japanese `1時半`, English `half past one`). A pair
+/// that writes the time as `1時半` and `one thirty` then carries the 30 on both
+/// sides; `one` itself is below the 2 that is compared.
+pub fn compared_values_with_clock(text: &str, tongue: Tongue, clock: bool) -> Vec<u128> {
     let mut values: Vec<u128> = extract_in(text, tongue)
         .into_iter()
         .map(|number| number.micro)
         .collect();
     values.extend(spelled::month_values(text, tongue));
+    if clock {
+        values.extend(spelled::half_hour_values(text, tongue));
+    }
     values.retain(|micro| *micro >= 2 * MICRO);
     values.sort_unstable();
     values
