@@ -1434,7 +1434,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 
 ### 4.47 RP-37（zh、ko、es の V の推量を log にだけ残す）
 
-test：`native/hayamimi-relay/tests/rp37.rs`。受入 test の名前は `rp37_hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en`（001 から 004）。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
+test：`native/hayamimi-relay/tests/rp37.rs`。受入 test の名前は `rp37_hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en`（001 から 004）。名前の `held_in_ja_en` は、003 が ja→en の推量を止めずに log する向きになったので、en→ja だけが止まる内容と食い違う。名前を変えるかは実装の席が決める。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
 関数の名前は `rp37_` に各行の「関数の末尾」を続けた物にする。001 から 004 は受入 test の名前の 1 本が順に確かめ、失敗の文は言語の code を前置きにする。
 入力：原文は 3 つ。`HEDGED`＝`明日は雨かもしれません。`（推量の語 `かもしれ`）、`PLAIN`＝`明日は雨です。`（推量の語も否定の語も無い）、`NEGATED_SOURCE`＝`そこにいませんでした。`（否定の語 `ません`）。偽の llama-server は全部の要求に決めた 1 つの文で答える。zh、ko、es は T だけなので要求は 1 回で、ja と en の組は T と E が同じ文を受ける。語の表は `native/hayamimi-relay/data/verify_markers.toml`。
 command（001 から 017）：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp37`。
@@ -1444,12 +1444,12 @@ command（001 から 017）：`cd native && flock -w 1800 target/release/.cargo-
 |---|---|---|---|---|---|---|
 | T-RP-37-001 | `HEDGED` を zh、ko、es へ。答えは推量の語が無い文（zh `明天会下雨。`、ko `내일은 비가 와요.`、es `Lloverá mañana.`）。言語ごとに 1 回 | 原文だけが推量 | 止まらずに出る | `Ok`、出る訳が答えと同じ、`translate.hedge.logged` が 1 件で `id` が要求の `id`、`lang` が言語の code、原文の推量の語が文字列、訳の推量の語が null（specified、RP-37 の期待値と 3.6 の R8i） | 陽性 | `hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en` |
 | T-RP-37-002 | `PLAIN` を zh、ko、es へ。答えは推量の語を持つ文（zh `明天可能会下雨。`、ko `내일은 비가 올 수도 있어요.`、es `Quizás llueva mañana.`） | 訳だけが推量（001 の逆向き） | 止まらずに出る | `Ok`、log が 1 件、原文の推量の語が null、訳の推量の語が文字列（specified、RP-37。語の表は `verify_markers.toml`） | 陽性 | 001 と同じ 1 本 |
-| T-RP-37-003 | ja から en。`HEDGED`、T と E の答えは `It will rain tomorrow.` | ja と en の組。推量が原文だけ | 止まる | `Held`、理由 `uncertainty`、`translate.hedge.logged` が 0 件（specified、RP-37 の「ja と en では今のとおり uncertainty で止まる」） | 陰性 | 001 と同じ 1 本 |
+| T-RP-37-003 | ja から en。`HEDGED`、T と E の答えは `It will rain tomorrow.` | ja と en の組。推量が原文だけ。訳の向きが en | 止まらずに出る | `Ok`、出る訳が答えと同じ、`translate.hedge.logged` が 1 件（T と E の両方が通っても、確定の訳の 1 回だけ）で `lang` が `en`、原文の推量の語が `かもしれ`、訳の推量の語が null（specified、`rust_port.ja.md` の 6 の RP-48 と 8 の R8s の 1） | 陽性 | 001 と同じ 1 本 |
 | T-RP-37-004 | en から ja。`It might rain tomorrow.`、答えは `明日は雨が降ります。` | 003 と向きが逆 | 止まる | `Held`、理由 `uncertainty`、log 0 件（specified、RP-37） | 陰性 | 001 と同じ 1 本 |
 | T-RP-37-005 | zh、ko、es のそれぞれで、`HEDGED` へ推量を残した訳（002 の 3 文）と、`PLAIN` へ推量の無い訳（001 の 3 文） | 食い違いが無い 2 通り（両方に有る、両方に無い） | 止まらずに出る | `Ok`、log 0 件（specified、RP-37 の陽性欄「食い違いの無い訳を止めずに出し、`translate.hedge.logged` が 0 件」） | 陽性、log の陰性 | `agreeing_hedges_log_nothing` |
 | T-RP-37-006 | `NEGATED_SOURCE` を zh、ko、es へ。落とした訳（zh `我在那里。`、ko `저는 거기에 있었어요.`、es `Estaba allí.`）と、残した訳（zh `我没有在那里。`、ko `저는 거기에 없었어요.`、es `No estaba allí.`） | 否定の食い違い。残した訳が対 | 落とした訳は止まる | 落とした訳は `Held`、理由 `negation`、log 0 件。残した訳は `Ok`（specified、RP-37 の「否定を落とした訳は `negation` で止まる」） | 陰性、陽性 | `a_lost_negation_still_holds_in_zh_ko_es` |
 | T-RP-37-007 | `予算は五百万円です。` を zh、ko、es へ。答えは数を変えた文（zh `预算大约是7百万日元。`、ko `예산은 7백만 엔 정도예요.`、es `El presupuesto es de 7 millones de yenes.`） | 数の食い違い。zh と ko は推量の語も付き、es は付かない | 止まる | `Held`、理由 `number`、log 0 件。推量の食い違いが同居しても理由は数（specified、RP-37 の「数を変えた訳は数の理由で止まる」） | 陰性 | `a_changed_number_still_holds_in_zh_ko_es` |
-| T-RP-37-008 | ja から en。`PLAIN`、答えは `It might rain tomorrow.` | 003 の逆向き。推量が訳だけ | 止まる | `Held`、理由 `uncertainty`、log 0 件（specified、RP-37） | 陰性 | `an_added_hedge_into_en_still_holds_for_uncertainty` |
+| T-RP-37-008 | ja から en。`PLAIN`、答えは `It might rain tomorrow.` | 003 の逆向き。推量が訳だけ | 止まらずに出る | `Ok`、出る訳が答えと同じ、`translate.hedge.logged` が 1 件、原文の推量の語が null、訳の推量の語が `might`（specified、RP-48 と R8s の 1） | 陽性 | `an_added_hedge_into_en_is_logged_and_not_held` |
 | T-RP-37-009 | en から ja。`It will rain tomorrow.`、答えは `明日は雨かもしれません。` | 004 の逆向き | 止まる | `Held`、理由 `uncertainty`、log 0 件（specified、RP-37） | 陰性 | `an_added_hedge_into_ja_still_holds_for_uncertainty` |
 | T-RP-37-010 | `そこにいないかもしれません。`（否定 `ない` と推量 `かもしれ` の両方）を zh、ko、es へ。答えは否定も推量も持たない文（zh `他在那里。`、ko `그는 거기에 있어요.`、es `Él está allí.`） | 否定の食い違いと推量の食い違いが同居 | 止まる | `Held`、理由 `negation`、log 0 件。止めた行は推量を log に残さない（specified、RP-37 の「否定を落とした訳は `negation` で止まる」。log の対象は止めずに出した訳） | 境界、陰性 | `a_lost_negation_wins_over_a_hedge_mismatch_in_zh_ko_es` |
 | T-RP-37-011 | `PLAIN` を zh、ko、es へ。答えは否定を足した文（zh `明天不会下雨。`、ko `내일은 비가 안 와요.`、es `No lloverá mañana.`） | 否定が訳だけ（006 の逆向き） | 止まる | `Held`、理由 `negation`、log 0 件（specified、3.6 の「否定の検査は今のまま」。表は有無の一致を見る） | 陰性 | `an_added_negation_holds_in_zh_ko_es` |
@@ -1467,10 +1467,14 @@ command（001 から 017）：`cd native && flock -w 1800 target/release/.cargo-
 | T-RP-37-023 | 021 の出力の `break:negation` の行：022 と同じ比べ方 | 否定の壊した行の止まる数 | `<branch>` が `<main>` 以上。`<main>` が R8i の前の木の時だけ例外が 1 組 | `<main>` が R8i の前の木なら、例外は zh の seed 0 の `<main>` − `<branch>` が `1512` の 1 行だけ（`held=` は 9 から 8、`rows=13`）で、残りの 7 組は差が空。`<main>` が R8i の後の木（今の main）なら全 8 組で差が空（derived、10 の H36 の免除。1512 は `testdata/baseline/pairs/zh.ids.txt` の 37 行目で、原文が `可能性があります` を持ち、R8i の前の木は推量の偶然で止めていた）。陽性対照：`rg -c '^1512$' testdata/baseline/pairs/zh.ids.txt` が 1。陰性の build（zh で否定を止めない）では 1512 以外の id も差に出る | 境界、陰性 | - |
 | T-RP-37-024 | 021 の出力の `reference` の行：組ごとに比べる | 参照訳の止まる数 | `<branch>` が `<main>` 以下 | 全 8 組で `held=` が `<branch>` ≤ `<main>`、`ids=` の集合差 `<branch>` − `<main>` が空（specified、RP-37 の「参照訳の止まる数が今の main 以下」）。陰性の build（zh で推量の食い違いを止める）は zh の `held=` が増え、この行が落ちる | 陰性 | - |
 | T-RP-37-025 | 021 の `break:negation` の `<branch>` の値を記録値と照らす | 記録した下限 | 以上 | `rows=` と `held=` が seed 0 は zh 13 と 8、ko 13 と 12、es 10 と 9。seed 1 は zh 20 と 18、ko 16 と 15、es 18 と 18。後の build の `held=` はこの値以上（derived、10 の H36 の「止まらない行」zh 5/13 と 2/20、ko 1/13 と 1/16、es 1/10 と 0/18 から引いた） | 境界 | - |
+| T-RP-37-026 | 2 回目の打ち直し：`<main>` と `<branch>` に `vprobe --pairs testdata/baseline/pairs --lang en` と `vprobe --pairs testdata/baseline/pairs_seed1 --lang en`（`--out` なし）を打つ。出力を scratchpad の `.log` に残す | en の 2 組（seed 0 と seed 1）。ja→en の推量を止めない build を対象にする | 1 組につき 4 行 | 各出力に `reference`、`break:number`、`break:negation`、`break:uncertainty` の 4 行が在り、全部 `rows=` が 1 以上（`rg -c 'rows=[1-9]' <log>` が 4）。0 件の出力を「止まる数が減らない」と読まない（specified、6 の RP-48 の行。RP-37 の 021 の en だけの打ち直し） | 陽性 | - |
+| T-RP-37-027 | 026 の `break:number` と `break:negation` の行：2 組それぞれで `<main>` と `<branch>` を比べる | 数と否定の壊した行の止まる数 | `<branch>` が `<main>` 以上 | 2 組とも、2 つの行で `held=` が `<branch>` ≥ `<main>`、`ids=` の集合差 `<main>` − `<branch>` が空（specified、RP-48 の「数と否定の壊した行の止まる数が今の main 以上」）。陰性の build（ja→en で否定と数を止めない）では差が空にならない | 陰性 | - |
+| T-RP-37-028 | 026 の `break:uncertainty` の行と `reference` の行：2 組それぞれで `<main>` と `<branch>` の `held=` を記録する | 推量の壊した行と参照訳の止まる数 | 記録だけ（判定は 027 と 024 の不等号） | `break:uncertainty` の `held=` は `<branch>` ≤ `<main>` になり得る（推量の止まりを外したため）。減った数を言語の行ごとに書く。`reference` の `held=` は `<branch>` ≤ `<main>`、`ids=` の集合差 `<branch>` − `<main>` が空（derived、RP-48 の「推量の止まりが減った数を言語の行ごとに記録する」。参照訳が新しく止まる理由は無い） | 境界、陰性 | - |
+| T-RP-37-029 | 026 の en の行の結果を、H36 の held-out の数と並べて読む：held-out の壊した行の止まる率は数 33/33 | 同じ build で、数の止まる率が下がっていない | 33/33 のまま | dev の en の 2 組の `break:number` が `held=rows=` のまま下がらず、held-out の数も 33/33 のまま（derived、`rust_port.ja.md` の 10 の H36 と RP-49 の「数の壊した行の止まる数は 33/33 のまま」）。held-out の打ち直しは RP-44 の席の手で、この行は dev の数だけを判定する | 境界 | - |
 
-実装済みの行は 001 から 007 である（001 から 004 は 1 本の関数）。001 から 017 のうち、未実装の行は 008 から 017 である（実装の席が足す）。
-018 から 025 は command を打つ行で、test の名前を持たない。
-陰性の build と落ちる行：zh で推量の食い違いを止める build は 001、002、014、015、024 が落ちる。ja で推量の食い違いを止めない build は 003、004、008、009 が落ちる。zh で否定を止めない build は 006、010、011、023 が落ちる。zh で数を止めない build は 007、022 が落ちる。落ちる行は表から読んだ予測で、build を作って打ち直すまでは NOT VERIFIED である。
+実装済みの行は 001 から 007 である（001 から 004 は 1 本の関数）。001 から 017 のうち、未実装の行は 008 から 017 である（実装の席が足す）。003 と 008 は ja→en の推量を止めない向きで、実装の席が期待値を書き直す。
+018 から 029 は command を打つ行で、test の名前を持たない。
+陰性の build と落ちる行：zh で推量の食い違いを止める build は 001、002、014、015、024 が落ちる。**en への訳で推量の食い違いを止める build**（ja→en の `uncertainty`）は 003、008 と 028 の `reference` が落ちる。**ja への訳で推量の食い違いを止めない build**（en→ja）は 004、009 が落ちる。zh で否定を止めない build は 006、010、011、023 が落ちる。zh で数を止めない build は 007、022 が落ちる。en への訳で否定と数を止めない build は RP-48 の 003、004 と 027 が落ちる。落ちる行は表から読んだ予測で、build を作って打ち直すまでは NOT VERIFIED である。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 
@@ -1478,7 +1482,7 @@ command（001 から 017）：`cd native && flock -w 1800 target/release/.cargo-
 - 001 から 004 が 1 本の関数にまとまっている。落ちた時に分かるのは言語で、行（001 から 004 のどれか）ではない。行ごとに関数を分けるかは実装の席が決める。
 - 止めた行が `translate.hedge.logged` を出さないこと（006、007、010、011）。設計は「止めずに出した訳」の log だけを言う。
 - log の欄の key の名前。設計は「原文と訳の推量の語」までで、`src_hedge` と `dst_hedge` は実装の名前である。
-- 陰性の build（zh で推量を止める、ja で止めない、zh で否定と数を止めない）を作る席と作り方。6 の RP-37 の陰性欄は build を名指しするが、誰が作るかは書いていない。
+- 陰性の build（zh で推量を止める、en への訳で止める、ja への訳で止めない、zh で否定と数を止めない）を作る席と作り方。6 の RP-37 の陰性欄は build を名指しするが、誰が作るかは書いていない。
 - seed 1 の id の集合が「dev の ja と対象の言語の重なりの id の集合から seed 0 の id を除いた集合」と同じであることを `jq` で照らす行。dev の ja の id の一覧の置き場が設計に無いので、command を置けない（持ち主は作っていない検証の席）。
 - 017 は穴を固定する行で、H36 を塞ぐ変更が入った時に書き直す。その変更の持ち主は R8h の 2 の B の席。
 
@@ -1488,7 +1492,7 @@ test：`native/hayamimi-relay/tests/rp38.rs`。受入 test の名前は `rp38_ev
 関数の名前は `rp38_` に各行の「関数の末尾」を続けた物にする。
 入力：`hayamimi_relay::eval::run`（`hayamimi-relay eval` が呼ぶ関数）に、`<pairs>/<code>.ja.txt`（1 行に 1 文）を置いた一時の dir と、`<out>` の一時の dir を渡し、`MemorySink` に集まった event のうち `translate.hedge.logged` を数える。原文は `HEDGED`＝`明日は雨かもしれません。`、`PLAIN`＝`明日は雨です。`、`NEGATED_SOURCE`＝`そこにいませんでした。`（RP-37 と同じ）。偽の llama-server は、答えを要求の本文に含まれる原文で選ぶ（1 行だけの run は全部の要求に 1 つの文で答えてよい）。
 command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp38`。
-`eval` の zh、ko、es の行は T だけで訳し、E を掛けない（3.6）。V を掛ける回数は 1 行につき 1 回である。ja から en の行は T と E に V を掛けるが、en は推量の語の表を持たないので `translate.hedge.logged` を出さない。
+`eval` の zh、ko、es の行は T だけで訳し、E を掛けない（3.6）。V を掛ける回数は 1 行につき 1 回である。ja から en の行は T と E に V を掛け、`translate.hedge.logged` は確定の訳の V の時に 1 件だけ出す（RP-48）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -1498,8 +1502,8 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 | T-RP-38-004 | zh に代えて ko（答え `내일은 비가 와요.`）、es（答え `Lloverá mañana.`）を、001 の形で 1 言語ずつ run する | 言語ごと | 1 件ずつ | 各 run の `translate.hedge.logged` が 1 件で、`lang` がその言語の code（specified、RP-38。R8i の対象は zh、ko、es） | 陽性 | `ko_and_es_log_one_event_each` |
 | T-RP-38-005 | `zh.ja.txt` に 3 行：`HEDGED`（答え `明天会下雨。`）、`PLAIN`（答え `明天会下雨。`）、`PLAIN`（答え `明天可能会下雨。`） | 1 つの file に複数行。食い違う行と揃う行が混ざる | 行ごとに 0 か 1 | `translate.hedge.logged` が 2 件で、`id` が 1 行目と 3 行目の物になり、2 行目の物が無い。`zh.hyp.txt` は 3 行とも答えと同じ（specified、RP-38 の「1 行に 1 件」。`id` に eval が付ける値は設計に無く、実装は 1 始まりの行の番号） | 境界 | `only_the_mismatched_lines_log_and_each_logs_once` |
 | T-RP-38-006 | `zh.ja.txt` に `NEGATED_SOURCE` の 1 行。答えは `我在那里。`（否定を落とした） | V が止める行 | 0 件 | `translate.hedge.logged` が 0 件、`translate.eval.held` が 1 件、`zh.hyp.txt` の 1 行目が空（specified、RP-37 の「否定を落とした訳は止まる」と eval の「止めた行は空の行」。log の対象は出した訳） | 陰性 | `a_held_line_logs_no_hedge_event` |
-| T-RP-38-007 | `en.ja.txt` に `HEDGED` の 1 行。T と E の答えは `It will rain tomorrow.` | ja から en の組。推量が原文だけ | 0 件 | `translate.hedge.logged` が 0 件で、`translate.eval.held` が 1 件（draft と edit の理由が `uncertainty`）、`en.hyp.txt` の 1 行目が空（specified、RP-37 の「ja と en では uncertainty で止まる」） | 陰性 | `the_ja_to_en_route_holds_a_dropped_hedge_and_logs_no_hedge_event` |
-| T-RP-38-008 | 007 と同じ組。T と E の答えは `It might rain tomorrow.` | ja から en の組。推量が揃う | 0 件 | `translate.hedge.logged` が 0 件、`translate.eval.held` が 0 件、`en.hyp.txt` の 1 行目が答えと同じ（specified、RP-37。007 の陽性対照） | 陽性 | `the_ja_to_en_route_passes_an_agreeing_hedge_without_an_event` |
+| T-RP-38-007 | `en.ja.txt` に `HEDGED` の 1 行。T と E の答えは `It will rain tomorrow.` | ja から en の組。推量が原文だけ | 1 件 | `translate.hedge.logged` が 1 件（T と E の両方に V を掛けても 1 行に 1 件）で `lang` が `en`、`translate.eval.held` が 0 件、`en.hyp.txt` の 1 行目が答えと同じ（specified、6 の RP-48 の「eval でも 1 行に 1 件」） | 陽性 | `the_ja_to_en_route_logs_a_dropped_hedge_once_and_does_not_hold` |
+| T-RP-38-008 | 007 と同じ組。T と E の答えは `It might rain tomorrow.` | ja から en の組。推量が揃う | 0 件 | `translate.hedge.logged` が 0 件、`translate.eval.held` が 0 件、`en.hyp.txt` の 1 行目が答えと同じ（specified、RP-37。007 の log の陰性対照） | 陽性 | `the_ja_to_en_route_passes_an_agreeing_hedge_without_an_event` |
 
 実装した行は 001 と 002 で、003 から 008 は未実装である（実装の席が足す）。
 陰性の build（口は実装の席が置く）：(a) zh の行にも E を掛け、T の答えと E の答えのそれぞれに V を掛けて log を出す形に `eval.rs` を変えた build。001 が 2 件になり、003 が要求 2 件になって落ちる。(b) log をファイルにつき 1 件にまとめる build。005 が 1 件になって落ちる。
@@ -1762,6 +1766,65 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - 001 の余裕 400 ms は、偽の server の待ちの値に依る。実機の E は 1000 ms と限らず、設計は余裕の値を言わない。
 - 003 の peak が 4 に等しいことは、偽の server が 6 本を同時に受けられる前提の値で、設計は「超えない」までを言う。
 - E が答えない（接続が切れる、timeout）行で、並べた次の T がどう動くか。設計に条件が無いので行にしない。
+
+### 4.58 RP-48（ja→en の推量の不一致を止めず log にだけ残す）
+
+test：`native/hayamimi-relay/tests/rp48.rs`。受入 test の名前は `rp48_hedge_mismatch_into_english_is_logged_and_into_japanese_held`（001）。`#[ignore]` を持たない（偽の llama-server の応答だけを使う）。
+関数の名前は `rp48_` に各行の「関数の末尾」を続けた物にする。
+入力：原文と偽の server の使い方は 4.47 と同じ（`HEDGED`＝`明日は雨かもしれません。`、`PLAIN`＝`明日は雨です。`、`NEGATED_SOURCE`＝`そこにいませんでした。`）。ja から en は T と E の組で、server は T の依頼と E の依頼を別々に数え、それぞれに決めた答えを返す。en から ja は原文が英語で、答えが日本語である。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp48`。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-48-001 | 4 つの向き：(a) ja から en、`HEDGED`、T と E の答えは `It will rain tomorrow.`。(b) ja から en、`PLAIN`、答えは `It might rain tomorrow.`。(c) en から ja、`It might rain tomorrow.`、答えは `明日は雨が降ります。`。(d) en から ja、`It will rain tomorrow.`、答えは `明日は雨かもしれません。` | 推量の食い違いが原文だけ／訳だけ × 訳の向きが en／ja | (a)(b) 止まらない、(c)(d) 止まる | (a) `Ok`、`translate.hedge.logged` が 1 件、`lang` が `en`、原文の推量の語が `かもしれ`、訳の推量の語が null。(b) `Ok`、1 件、原文の語が null、訳の語が `might`。(c)(d) `Held`、理由 `uncertainty`、log 0 件（specified、6 の RP-48。(a)(b)(c)(d) は T-RP-37-003、008、004、009 と同じ入力と期待値） | 陽性（a、b）、陰性（c、d） | `hedge_mismatch_into_english_is_logged_and_into_japanese_held` |
+| T-RP-48-002 | (a) の入力で、server が受けた依頼の数と、`translate.hedge.logged` の数を数える | T と E の両方が V を通る | 依頼 2 件、log 1 件 | 依頼が 2 件（T と E）、log が 1 件（確定の訳の V の時だけ。T の V と E の V の両方で出すと 2 件になる）（specified、6 の RP-48 の「確定の訳の V の時だけ出す」） | 境界、陰性 | `the_pair_route_logs_once_for_the_settled_translation` |
+| T-RP-48-003 | `NEGATED_SOURCE` を ja から en へ。T と E の答えは `I was there.`（否定を落とした） | ja→en でも否定は止める | 止まる | `Held`、理由 `negation`、log 0 件（specified、RP-48 の「否定を落とした訳は `negation` で止まる」）。陽性対照：答えを `I was not there.` にすると `Ok` | 陰性、陽性 | `a_lost_negation_into_english_is_still_held` |
+| T-RP-48-004 | `予算は五百万円です。` を ja から en へ。T と E の答えは `The budget is seven million yen.` | ja→en でも数は止める | 止まる | `Held`、理由 `number`、log 0 件（specified、RP-48 の「数を変えた訳は数の理由で止まる」）。陽性対照：答えを `The budget is five million yen.` にすると `Ok` | 陰性、陽性 | `a_changed_number_into_english_is_still_held` |
+| T-RP-48-005 | `そこにいないかもしれません。`（否定と推量が同居）を ja から en へ。答えは `He is there.`（否定も推量も無い） | 否定の食い違いと推量の食い違いが同居 | 止まる | `Held`、理由 `negation`、log 0 件。止めた行は推量を log に残さない（specified、RP-48。4.47 の T-RP-37-010 の en 版。理由の順は `verify_with` が決め、NOT VERIFIED） | 境界、陰性 | `a_held_line_into_english_logs_no_hedge_event` |
+| T-RP-48-006 | ja から en。(a) `HEDGED` の答え `It might rain tomorrow.`、(b) `PLAIN` の答え `It will rain tomorrow.` | 推量が揃う 2 通り | 止まらずに出る | 2 つとも `Ok`、log 0 件（specified、RP-48 の陽性欄「推量の食い違いの無い ja→en の訳を止めずに出し、log が 0 件」） | 陽性、log の陰性 | `agreeing_hedges_into_english_log_nothing` |
+| T-RP-48-007 | `たぶん明日は雨かもしれません。`（推量の語が 2 つ）を ja から en へ。答えは `It will rain tomorrow.` | 推量の語が複数 | 1 件 | `Ok`、log が 1 件で、原文の推量の語は `たぶん` か `かもしれ` のどちらか 1 つ（specified、RP-37 の「1 件」と同じ形） | 境界 | `several_hedge_words_into_english_log_one_event` |
+| T-RP-48-008 | (a) の入力の log 1 件の形 | log の欄 | 欄の集合 | `level` が info、欄は `id`、`lang`、`src_hedge`、`dst_hedge` の 4 つ。`message` と欄の値に原文の文と訳の文が入らない（specified、3.6 の R8i と `observability-and-log-monitoring.md`。T-RP-37-013 と同じ式） | 境界、陽性 | `the_english_hedge_event_carries_only_the_four_fields` |
+| T-RP-48-009 | `eval` の ja→en 1 行（`HEDGED`、T と E の答えは `It will rain tomorrow.`） | `eval` でも 1 行に 1 件 | 1 件 | T-RP-38-007 と同じ（`translate.hedge.logged` 1 件、`translate.eval.held` 0 件、`en.hyp.txt` の 1 行目が答えと同じ） | 陽性 | T-RP-38-007 の関数 |
+| T-RP-48-010 | dev の seed 0 と seed 1 の en の組で `vprobe --lang en` を `<main>` と `<branch>` に打つ | 数と否定の壊した行、推量の記録 | 数と否定が `<main>` 以上 | T-RP-37-026 から 029（command は 4.47 に在る）が 4.47 の 2 回目の打ち直しの行である。この行は重複して持たず、そちらを RP-48 の merge の前の条件とする（specified、6 の RP-48） | 陰性 | - |
+
+陰性の build と落ちる行（表から読んだ予測で、NOT VERIFIED）：ja→en で推量を止める今の build は 001 の (a)(b)、002、007、008、009 と T-RP-37-003、008 が落ちる。en→ja で推量を止めない build は 001 の (c)(d) と T-RP-37-004、009 が落ちる。ja→en で否定と数を止めない build は 003、004、005 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 001 は 4 つの向きを 1 本の関数にまとめる受入の形で、落ちた時に分かるのは向き（a から d）で、行ではない。行ごとに関数を分けるかは実装の席が決める。
+- T が V を通り、E が V に落ちる行で、log が T の訳の 1 件になるか 0 件になるかは、設計が「確定の訳」までしか言わず、E が落ちた時に確定する訳が T かは書いていない。行にしない（持ち主は R8s の 1 の実装の席）。
+- 005 の理由の順（`negation` が `uncertainty` より先か）は `verify_with` の実装に依る。設計は両方の食い違いが在る時の理由を言わない。
+- `live` の経路（`pipeline.rs`）が `settle_pair` と同じ log の回数を守るかは、設計に受入が無く、行にしていない。
+- 009 は T-RP-38-007 を指す。名前は 4.48 の `the_ja_to_en_route_logs_a_dropped_hedge_once_and_does_not_hold` で、実装の席が 4.48 の側へ置く。
+
+### 4.59 RP-49（英語の時刻の「時の語＋分の語」を時と分で読む）
+
+test：`native/hayamimi-relay/tests/rp49.rs`。受入 test の名前は `rp49_spelled_clock_time_is_read_as_hour_and_minute`（001 から 007）。`#[ignore]` を持たない。
+関数の名前は `rp49_` に各行の「関数の末尾」を続けた物にする。
+入力：行は ja の原文と英語の訳の組を、偽の llama-server の答えとして V（ja→en の組の経路）に通す。書き方の規則は D の 6 の RP-49：時の語（`one` から `twelve`）の直後に分の語（10 から 59 の語）が続く形を、時と分の組として読む。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp49`。
+001 の前に、改修前の main で 001 の入力だけを打ち、`Held` で理由が `number` になって落ちることを示す（D の 6 の RP-49 の陰性欄。実装の席が先に入れる）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-49-001 | `1時半に会いましょう。` の訳が `Let's meet at one thirty.`。同じ原文で `At one thirty, let's meet.` | 時の語＋分の語。大文字の `At` を含む | 止まらずに出る | 2 つとも `Ok`（specified、6 の RP-49 の「`Let's meet at one thirty.` は止まらずに出る」） | 陽性 | `half_past_one_matches_at_one_thirty` |
+| T-RP-49-002 | `1時30分に会いましょう。` の訳が `Let's meet at one thirty.` | 「30分」の書き方 | 止まらずに出る | `Ok`（specified、6 の RP-49 の「`1時30分`→`at one thirty`」） | 陽性 | `one_thirty_in_digits_matches_at_one_thirty` |
+| T-RP-49-003 | `1時半に会いましょう。` の訳が `Let's meet at two thirty.` | 時が違う | 止まる | `Held`、理由 `number`（specified、6 の RP-49 の「`two thirty` を `1時半` の訳にした行は数の理由で止まる」）。001 が対 | 陰性 | `two_thirty_for_half_past_one_is_held` |
+| T-RP-49-004 | `1時35分に着きます。` の訳が `I arrive at one thirty-five.` | 分の語が 2 語（`thirty-five`）。10 から 59 の中 | 止まらずに出る | `Ok`（derived、6 の RP-49 の「分の語（`thirty`、`fifteen`、`forty-five` ほか、10〜59）」。`thirty-five` が分の語に入ることは読み取り、ASSUMPTION） | 陽性 | `one_thirty_five_matches_thirty_five_past_one` |
+| T-RP-49-005 | `1時35分に着きます。` の訳が (a) `I arrive at one thirty-six.`、(b) `I arrive at one thirty.` | 分が違う | 止まる | 2 つとも `Held`、理由 `number`（derived、時と分の組として読む規則。004 が対） | 陰性 | `a_different_minute_is_held` |
+| T-RP-49-006 | `12時10分に会います。` の訳が `I meet at twelve ten.`。`12時59分` の訳が `I meet at twelve fifty-nine.` | 時の語の上端（`twelve`）と分の下端（10）と上端（59） | 止まらずに出る | 2 つとも `Ok`（derived、6 の RP-49 の「`one`〜`twelve`」と「10〜59」の両端） | 境界 | `the_ends_of_the_hour_and_minute_ranges_are_read_as_a_clock_time` |
+| T-RP-49-007 | 時刻でない読み：`30人が来ました。` の訳が `Thirty people came.`、`31日です。` の訳が `It is the thirty-first.`、`500万円です。` の訳が `It is 5 million yen.` | 時の語の後でない `thirty`。序数。倍の語 | 止まらずに出る | 3 つとも `Ok`。`numbers.rs` の読みは `thirty-first` が 31、`5 million` が 5000000 のまま（specified、6 の RP-49 の陽性欄。今の main で通る行で、時刻の読みを足しても動かない対照） | 陽性、境界 | `readings_outside_a_clock_time_stay_as_they_were` |
+| T-RP-49-008 | `1時に会いましょう。` の訳が (a) `Let's meet at one.`、(b) `Let's meet at two.` | 分の語が続かない時の語 | (a) 止まらない、(b) 止まる | (a) `Ok`、(b) `Held`、理由 `number`（specified、6 の RP-49 の「`one` の後に分の語でない語が続く形の読みは今のまま」。今の読みで (a) は通り (b) は止まる） | 境界、陰性 | `an_hour_word_without_a_minute_word_is_read_as_before` |
+| T-RP-49-009 | dev の seed 0 と seed 1 の en の組で `vprobe --lang en` を `<main>` と `<branch>` に打つ | 数の壊した行の止まる数 | 33/33 のまま | T-RP-37-026 から 029 が 2 回目の打ち直しの行である。`break:number` の `held=` が `rows=` と同じ値のまま下がらない（specified、6 の RP-49 の「数の壊した行の止まる数は 33/33 のまま」） | 陰性 | - |
+
+陰性の build と落ちる行（NOT VERIFIED）：時刻を読まない今の `numbers.rs` は 001、002、004、006 が落ちる。単位の語の次に十の位の語を一般に続けて読む build（`one thirty` を 31 と読む）は、001 と 002 の `1時半`／`1時30分` の行が数の理由で止まって落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 時の語が `one`〜`twelve` の外（`thirteen thirty`）、分が 10 未満（`one oh five`、`one five`）、分が 60 以上（`one sixty`）の読み。設計は「今のまま」までを言い、今の値を言わないので、期待値を置けない。
+- 004 の `thirty-five` が分の語に入るか。設計は `forty-five` を例に挙げ、`thirty-five` を明示していない。入るなら 004 は `Ok`、入らないなら今の読みで止まる側に変わる（持ち主は設計の席）。
+- 009 の 33/33 は H36 の held-out の数で、dev の en の `rows=` ではない。dev の en の行の数と内訳は設計に無く、009 は「下がらない」までを判定する。
+- 001 の `Held` で落ちる理由が `number` であることは、今の main で打っていない（NOT VERIFIED。D の R8s も「確かめていない」と書く）。
 
 ## 5. RP-19 の対応表
 
