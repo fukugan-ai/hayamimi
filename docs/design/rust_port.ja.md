@@ -721,6 +721,7 @@ dir（`docs/results/rp32/`）の run と load の file は、対の番号 `<N>`�
 **R7 と R7b との関係**：R7 は認識の段の時間と置き場を持ち、R8h の 3 は確定の復号の前の待ちを測るだけで、復号の順を変えない。R7 の H10（確定の解き直しを省く）は同じ loop を触るので、H10 と R8h の 3 の待ちの log は同じ席が続けて打つ。R7b は日本語の streaming の認識器を測るだけで、`hayamimi` の経路を替えない（10 の H38）。streaming の認識器を採ると、速報は解き直しでなくなり、3 が測る待ちの形も変わる。採るかは E2E の後に評議が決める。
 
 **順と置き場**：1 は W3 の空いた席がすぐ打ち、E2E-1 と E2E-2 も 1 の後の道具で測る。2 の B は R8f の V の直しの席が持つ。3 の待ちの log と GPU の記録は W3 の空いた席が 4 の前に入れる。2 の A は上の条件が揃った時だけ、E2E の後に作る。4 の run は E2E の波で打ち、E2E-1 の `L` の判定も 4 の run で決める（仮の置き場。持ち主は R8h で、E2E の波の 1 時間に 3 対が収まらなければ 2 対にし、その数を記録する）。
+4 の run の後の訳の段の詰め（部分訳の使い回し、推測デコード、RP-32 の判定の直し、交互の run の port の待ち）は 3.18（R8w）が持つ。
 2 対の数の記録は、run の file と同じ dir（`docs/results/rp32/`）の `pairs.txt` に、対の数の算用数字 1 つ（`2`）だけを 1 行で書く。
 `pairs.txt` が無い dir は 3 対として読み、在る dir はその数の対を読む。
 `pairs.txt` の数と在る対の数が違う時、数が読めない時、`1` の時、RP-32 の実走の test（`rp32_alternated_runs_under_the_same_load_beat_python`）はその理由を挙げて落ちる。
@@ -855,6 +856,175 @@ R8v の最初の手番は、build も E2E の run も要らない offline の pr
 流れの途中の `flush` で detector が abort する形の再現と守りは RP-68 で、手番 2 の最初に通す。
 残る穴は 10 の H68〜H79 である。
 
+### 3.18 訳の段の詰めの続き（R8w）
+
+RP-32 と RP-33 を通すために、訳の段（`final` から `t_tr` まで）を縮める。
+`docs/results/rp32/` の 3 対の記録では、RP-32 の対の比較が 19 発話中 14 で、下限の 17 に届かない。
+RP-33 の訳の段は Rust の p50 285 ms、p95 1025 ms で、Python の 187 ms、890 ms を超える。
+`L_asr` は 19 発話のすべてで Rust が速く、遅れは訳の段だけに在る（3 つとも原因の席の数えの転記）。
+遅い発話は 4、8、12、22、23 で、3 対とも同じ発話が遅い（転記）。
+
+#### 結論
+
+作る物は 3 つで、この順に入れる。
+
+1. **測り方の直し**：RP-32 の判定に訳の取れた割合を入れる（6 の RP-32 の行が持つ条件で、今の test が見ていない）。`/ingest` の port が移った run を無効にする（RP-72）。
+2. **部分訳の使い回し**：`final` の文字列が、同じ発話の最後の速報の文字列と同じか、その末尾に `。` を 1 字足しただけの時、速報の T の答えをその行の T の答えとして使い、T を頼み直さない（RP-69、RP-70）。
+3. **推測デコードの llama-server**：同じ model、同じ量子化（Q8_0）のまま、推測デコードを付けた llama-server を hayamimi 専用の unit で起こし、T と E の 1 回を縮める（RP-71）。
+
+作らない物は 3 つである。
+T と E0 を並べて投げる形（3.16 の 2 の A）、T の依頼の文の書き替え（発話 12）、量子化を軽くする形である。
+理由は、この節の「採らない手段」に置く。
+
+#### 数えた結果
+
+数えた範囲は、2026-10-15 の main `3dc6402` の `native/` の `*.rs`（`target/` を除く）と `docs/results/rp32/` である。
+
+| pattern（式） | 結果 | 陽性対照 | 扱い |
+|---|---|---|---|
+| `rs<N>.events.jsonl` の `final` ごとに、直前の `partial` の文字列と比べる `jq`（表の下） | 3 run とも 125 行中、そのまま同じが 0、末尾に `。` を足すと同じが 52、`？` を足すと同じが 9、句読点を除くと同じが 74 | 同じ file の `"type":"final"` の行が `rg -c` で 125 | 使い回す行を「同じ」と「`。` を 1 字足しただけ」に限る（今の記録で 52 行） |
+| 同じ `jq` の結果を、`rs1.jsonl` の `finals` の数で `final` を発話へ順に結んで分けた物 | 遅い 5 発話のうち、4 と 23 は 5 回とも `。` を足しただけ、12 は 5 回中 1 回、8 と 22 は 0 回。8 と 13 の速報は ITN の前の文字列（`三十四件`、`九十一歳`）で、確定文は ITN の後（`34件`、`91歳`）。22 の確定文は速報より語が多い | 結んだ `final` の数 125 と、`final` の行の数 125 が同じ | 4 と 23 が対象に入る。8、12、22 は入らない（10 の H80） |
+| `rg -n 'retire\(\|\.note_line\(' --type rust native/hayamimi-relay` | 呼ぶ所は `partial.rs:299`（`Route::note_line`）の 1 か所。test は `partial.rs` の unit test 3 本と、`tests/r8d_partial.rs` の `the_final_of_the_utterance_drops_the_text_in_progress` | `partial.rs:161` の定義が当たる | 文字列の違う `final` が速報の依頼を止める形は変えない。r8d の test は速報と違う文字列（`japanese_text`）の `final` を送るので、そのまま通る。`partial.rs` の module の doc comment の「`final` は閉じた発話の速報を捨てる」は、実装の席が同じ commit で書き替える |
+| `rg -n 'fn check_translated_share\|check_translated_share\(' native/hayamimi-eval` | 定義は `src/compare.rs:132`。呼ぶ所は `tests/support/e2e.rs:142` と、`tests/rp32.rs` の個別の test 2 本。RP-32 の判定 `check_alternated_runs`（`tests/support/rp32.rs:220-251`）は呼ばない | `compare.rs:473` の unit test が当たる | RP-32 の判定に入れる |
+| `rg -n 'cache_prompt' --type rust native/hayamimi-relay/src native/hayamimi-eval/src` | 中継の依頼は `llm.rs:129` で真。`hayamimi-eval` の `translate_call.rs:28` は偽で、読む者は `stage_runs.rs` と `stage_load.rs`（3.5 の段の表と負荷）だけ | `translate_call.rs:92` の test が偽を固定している | 変えない。RP-32 と RP-33 の run は中継の依頼で測られている。RP-71 も中継の依頼で測る |
+| 8080 の llama-server の起こし方（`systemctl --user` と `/proc/<pid>/cmdline`） | 別の app と共有の template の unit（`llama-artisan@.service`）で、その app が起こし止める。引数は `-m /home/fukugan/models/CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 8080 -ngl 99 -c 16384` で、`-np` を持たない | 18081 の `hayamimi-llama-other.service` の引数が、その unit の file と同じ | 共有の unit は書き替えない。推測デコードは hayamimi 専用の unit で起こす |
+
+句読点を除いて同じ 74 行と、`。` を足して同じ 52 行の差の 22 行は、`？` を足して同じ 9 行と、ITN か語が違う 13 行である。
+
+```
+jq -s -c '[.[] | .event | select(.type=="partial" or .type=="final") | {t:.type, x:.text}]
+  | reduce .[] as $e ({last:null, maru:0, n:0};
+      if $e.t=="partial" then .last=$e.x
+      else (.n+=1 | (if .last!=null and (.last+"。")==$e.x then .maru+=1 else . end) | .last=null) end)
+  | {maru, n}' docs/results/rp32/rs1.events.jsonl
+```
+
+#### 部分訳の使い回し（RP-69、RP-70）
+
+中継は、速報の訳を確定文の T と同じ依頼の文（`translate_prompt`。`pipeline.rs:564` と `:618`）で頼む。
+速報の job の `id` は、その発話が閉じる時の `final` の `id` と同じである（`partial.rs` の `Next::id`）。
+したがって `final` の文字列が最後の速報と同じなら、速報の T の答えは、その行の T と同じ依頼への答えである。
+今は `final` が来ると `Mailbox::retire`（`partial.rs:161-168`）が走っている速報の依頼を止め、lane が同じ文の T を頼み直す。
+T の 1 回は約 223 ms（prompt 17 ms、19 token × 10.3 ms、HTTP 約 10 ms。転記）である。
+
+決めは次のとおりである。
+
+1. **結ぶ鍵**：音源、`id`、文字列の 3 つが合う時だけ使い回す。文字列は、`final` の文字列が速報の文字列と同じか、速報の文字列の後ろに `。` を 1 字足した物と同じ時に合う。`？` と `！` を足した形は合わない。問いか言い切りかが変わり、訳の文末と V の推量の読みが変わるからである。
+2. **速報の答えを捨てない**：`final` が来た時、走っている速報の依頼の文字列が 1 の鍵で合えば、その依頼を止めずに、答えをその行に渡す。合わなければ今のとおり止める。待っている（worker がまだ取っていない）速報の文字列が合う時は、それを mailbox から外し、lane が自分で T を頼む。行に渡すと決めた依頼は、次の発話の速報が来ても止めない。
+3. **lane の受け方**：lane は slot を取る前に mailbox に鍵を渡す。答えが在ればそれを受け、合う依頼が走っていればその答えを待ち、どちらも無ければ今のとおり slot を取って T を頼む。速報の依頼が失敗したか打ち切られた時は、待っていた lane が T を頼む。slot を持ったまま待たないのは、待たれている速報の依頼も slot を 1 本使っており、slot 4 本（3.6 の 5）の中で互いを待つ形になるからである。
+4. **V は確定文を原文にして掛ける**：受けた T の答えは、`draft` の T の答えの後ろの処理（`pipeline.rs:635-650`。終わりの印の検査、observer、V）と同じ関数に通し、V の原文は `final` の文字列にする。速報で掛けた V の判定は使わない。`。` 1 字の違いでも、V が原文から読む物（数、否定、推量、名前、形）が変わりうるからである。V は 1 行につき多くて 2 回（T の答えと E の答え）のままである。V を通れば今と同じ先の訳（`of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` は `final` の文字列の sha256）を出し、落ちれば先の訳を出さずにすぐ E を頼む。
+5. **log**：使い回した行ごとに `translate.draft.reused`（info）を 1 件出す。項目は `id`、`source`、`match`（`same` か `closing_mark`）、`state`（`done` か `running`）、`waited_ms`、`verdict`（`ok` か `held`）で、文字列は載せない。その行の `translate.line.ok` と `translate.line.held` の `t_ms` は、待った時間（`waited_ms` と同じ値）にする。
+6. **変えない物**：速報の訳を出す条件と打ち切りの形（3.6 の 3）、wire の形、`final` の文字列が合わない時の挙動、E と V の依頼の形。
+
+使い回しが効く機構は次のとおりである。
+lat-ja では、最後の速報から確定文までに、`--min-silence` の無音と確定の復号が挟まる（ja の `d` の p50 881 ms、復号の p50 135 ms。3.17）。
+T の 1 回（約 223 ms）は、その間に終わっているか、走っている見込みである（NOT VERIFIED。`translate.draft.reused` の `state` と `waited_ms` で数える）。
+T が V に落ちる行も、T の 1 回を飛ばして E をすぐ頼めるので縮む。
+
+`。` を足しただけの文の T の答えを使ってよいかは、訳の質の問いである。
+原文の末尾の `。` の有無で、model の訳の文末の句点や語順が変わりうる。
+RP-70 が、held-out の組で「末尾の `。` を除いた原文の訳」と「そのままの原文の訳」を同じ server で交互に打ち、前者の chrF と V が止めた行の数が後者より悪くないことを確かめる。
+RP-70 が通らなければ、1 の鍵を「同じ」だけに狭める。
+今の記録では「同じ」の行は 0 なので、そのとき使い回しは速さに効かない。
+
+効きの見積り（NOT VERIFIED）は次のとおりである。
+使い回した行の訳の段は、答えが出ていれば V と配信の数 ms、走っていれば残りの時間になる。
+確定文の 42%（52/125）がそうなっても、残り 58% の行が今のままなら、全行の p50 はその 58% の下の側の値（今の V を通った行の p50 253 ms に近い値）に留まり、Python の 187 ms を下回るとは言えない。
+p50 を下げきるのは、次の推測デコードと合わせた時である。
+対の比較では、発話 4 と 23 が対象に入り、14 から 16 になる見込みである。
+17 に届くかは、8、12、22 の行が推測デコードでどれだけ縮むかに掛かる（10 の H80）。
+
+#### 推測デコードの llama-server（RP-71）
+
+T の 1 回の大半は、出力の token の生成（19 token × 10.3 ms ≈ 196 ms。転記）である。
+推測デコードは、安い下書き（小さい model か、文脈の n-gram）で数 token を先に出し、本体の model が 1 回の forward でまとめて照らす。
+貪欲（`temperature` 0）に照らす時は、本体の model が 1 token ずつ選ぶ時と同じ出力の分布になる（S35）。
+llama.cpp の推測デコードの文書も、出力を合わせるには貪欲の sampling を使うと書く（S34）。
+したがって訳の質を動かさずに、1 token あたりの時間を縮められる見込みがある。
+量子化は Q8_0 のまま変えない（8 の R8u の決め）。
+
+1 回の時間の見込みは、次の式で置く（S35 の式）。
+`α` は下書きの token が採られる率、`γ` は 1 回に下書く token の数、`c` は下書きの 1 token の時間と本体の 1 token の時間の比、`t_tok` は本体の 1 token の時間である。
+
+```
+1 回の照らしで進む token の数の期待値 = (1 − α^(γ+1)) / (1 − α)
+1 token あたりの時間 ≈ t_tok × (1 + γ c) / ((1 − α^(γ+1)) / (1 − α))
+```
+
+`α` は、この model の訳の依頼では測っていない（NOT VERIFIED）。
+例として `α` 0.7、`γ` 3、`c` 0.25 なら、1 token あたりの時間は 0.69 倍で、T の生成は約 196 ms から約 135 ms になる。
+n-gram の下書きは `c` がほぼ 0 だが、`α` は出力が文脈を写す時だけ高い。
+E の答えは T の下書きを写す所が多いので n-gram が効く見込みがあり、T の答えは原文と言語が違うので効きにくい見込みである（どちらも NOT VERIFIED）。
+
+決めは次のとおりである。
+
+1. **起こし方**：共有の 8080 の unit は書き替えない。hayamimi 専用の user unit `hayamimi-llama-pair.service` を作る。unit の file は `native/hayamimi-relay/units/` に置き、`hayamimi-llama-other.service` と同じ形で `~/.config/systemd/user/` へ写す。引数は `-m /mnt/h3-models/ollama/CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 18083 -ngl 99 -c 8192 -np 4` に、2 の腕の引数を足した物である。中継は `--llm http://127.0.0.1:18083` で向ける。Windows の `hayamimi llama start`（`native/hayamimi/src/llama/`）に同じ腕の引数を足すのは、RP-71 が通った後の手番である。
+2. **腕**：RP-71 を流す前に、次の 4 つに固定する。
+   - **N0**：推測デコードなし。
+   - **S1**：`--spec-type ngram-simple`（ほかの値は既定）。
+   - **S2**：`--spec-default`（`ngram-mod` を既定の値で使う）。
+   - **S3**：下書きの model に `CAT-Translate-0.8b`（基は `sarashina2.2-0.5b`、MIT。S36）の Q8_0 の GGUF を `--spec-draft-model` で渡し、`--spec-draft-n-max` は既定の 3 にする。GGUF への変換の道具が Python なので（10 の H17）、評議の判定を得てから流す。それまでは N0、S1、S2 で流す。
+3. **選び方**：RP-71 の期待値（T の 1 回の p50 と E の 1 回の p50 がどちらも N0 より小さいことと、品質の条件）を全部通った腕のうち、T と E の p50 の和が一番小さい腕を採る。和の差が 5 ms 以内なら、下書きの model の要らない腕を採る（置く物が 1 つ少ないからである）。通る腕が無ければ、推測デコードを採らない。腕と選び方は、結果を見てから動かさない。
+4. **測る時の起こし方**：llama-server は unit で起こした後に `sudo -n renice -n -5 -p <pid>` で上げ、測る client は `sudo -n nice -n -5 <command>` の形で起こす。測るのは E2E の席で、この節を書いた席は測らない。腕 S3 を流す時は、下書きの model と、その KV cache の分が足されるので、GPU の memory の上限（RP-22 の 14,000 MiB）を同じ run で読み直す。
+5. **戻し方**：起こす前に、`docs/results/r8w/server-args.md` に、共有の unit の `ExecStart` の行（上の表の引数）と、新しい unit の腕ごとの `ExecStart` の行を書いておく。戻す時は `systemctl --user stop hayamimi-llama-pair.service` を打ち、中継を `--llm` を付けずに（既定の 8080 で）起こし直す。unit の file の頭の comment に、起こす、確かめる、止める、外す command を書く（`hayamimi-llama-other.service` と同じ形）。共有の unit は触らないので、そちらに戻す物は無い。
+6. **llama.cpp の版**：推測デコードの引数の名前は版の間で変わっている（`--draft` と `--draft-min` は外され、`--spec-draft-n-max` に替わった。S33）。WSL の build（`build-cuda120`）と Windows の b11609 が `--spec-type` を持つかは確かめていない（NOT VERIFIED）。流す前に、llama.cpp を使う前に fetch して build し直す規則（hooks の `guard_commands.rs`）のとおり最新に上げ、`llama-server --help` の出力に `--spec-type` と `--spec-draft-model` が在ることを `docs/results/r8w/server-args.md` に記録する。
+
+#### 測り方の直し（RP-32 の判定、RP-72）
+
+RP-32 の判定 `check_alternated_runs`（`native/hayamimi-eval/tests/support/rp32.rs:220-251`）は、6 の RP-32 の行が持つ「Rust の有効な標本のうち訳の取れた割合が 20 / 23 以上」を見ていない。
+`compare.rs:132` の `check_translated_share` を Rust の対を合わせた標本に掛け、`judge_pooled` の失敗の列に足す。
+受入の定義は 6 の RP-32 の行のままで、新しい ID を置かない。
+同じ条件を 2 か所に書くと、片方だけが直されるからである。
+今の 3 対の記録で割合が足りているかは数えていない（NOT VERIFIED。直した test を今の dir に打てば出る）。
+
+`hayamimi` は、port が使えなければ次の 10 個から空いた port へ移って動き続ける（3.15 の port の行、`server.rs:168-182` の `bind_on`）。
+止めない形は変えない。
+ただし交互の run で Python を止めた直後に Rust を起こすと、`/ingest` の 8766 が取れずに移ることがあり、測りの道具は 8766 へ送り続ける（`hayamimi-eval` の `--port` の既定）。
+そこで次の 2 つを足す。
+
+1. **手順**：各 run の前に、前の run の process を止めた後、8766 と 8833 に待ち受けも接続も残っていないこと（WSL は `ss -tanH 'sport = :8766 or sport = :8833'` の出力が 0 行、Windows は `Get-NetTCPConnection -LocalPort 8766,8833 -ErrorAction SilentlyContinue` の出力が空）を 1 秒ごとに確かめ、空いてから次の server を起こす。待った秒数は、run の dir の `ports<N>.txt` に run ごとに 1 行で書く（記録で、判定には使わない）。この手順は `docs/results/e2e/README.md` の「Conditions of the run」に足す。
+2. **無効にする**：RP-32 の dir の `rs<N>.events.jsonl` に、`type` が `fallback` で `reason` が `in_use` の event が 1 件でも在る run は無効とし、RP-32 の判定はその run の名前を挙げて値を出さずに落ちる。`rs<N>.events.jsonl` が無い run も、確かめられないので落ちる（RP-72）。
+
+#### 構造
+
+```
+final（音源、id、文字列）
+   │
+   ├─ mailbox に鍵を渡す ─┬─ 合う答えが在る ─────────────────┐
+   │                      ├─ 合う依頼が走っている ── 待つ ────┤
+   │                      └─ 無い ── slot を取って T を頼む ──┤
+   │                                                          ▼
+   │                                  V（原文は final の文字列）
+   │                                    ├─ 通る ─▶ 先の訳 ─▶ E ─▶ V ─▶ 確定の訳
+   │                                    └─ 落ちる ─────────▶ E ─▶ V ─▶ 確定の訳
+   │
+   └─ T と E の依頼の行き先は、RP-71 で採った腕の llama-server（hayamimi-llama-pair、18083）
+```
+
+図の結論：使い回しは T の 1 回だけを飛ばし、V と E と確定の訳の決め方は今のままである。
+
+#### 採らない手段
+
+- **T と E0 を並べて投げる（3.16 の 2 の A）**：この節では作らない。H66 の probe で、E0 の 1 回の p50 は 640 ms（76 本）で、今の T が V に落ちた行の訳の段の p50 518 ms（転記）より長い。A の落ちた行の最初の訳は E0 の答えを待つので、今より遅くなる見込みである。2 回打って同じ出力の行も、E0 は 38 行中 24 で、今の T の 34 より少ない。使い回しが入ると、対象の行は T を飛ばして E をすぐ頼めるので、A の効く行はさらに減る。3.16 の 2 の条件と、6 の RP-67 の持ち主の記述は書き替えない。A を条件から外すかは評議へ出す（10 の H81）。
+- **T の依頼の文を書き替える（発話 12 の、訳に日本語が残る形）**：T の依頼の文は model card の形に固定し、`curl` と同じ body で打った訳と一致することを受入にしている（3.6 の「訳の依頼の形」）。書き替えると全行の T が変わり、RP-13 と RP-35 を打ち直すことになる。H66 の probe でも、T に 1 文を足した腕 A は、新しい数と途中で切れた訳を出した。発話 12 の差は 69 ms（転記）である。
+- **量子化を軽くする**：Q8_0 のまま据え置く（8 の R8u）。軽くすると出力が変わり、推測デコードと違って質が同じとは言えない。
+- **共有の 8080 の unit に推測デコードの引数を足す**：その unit は別の app が起こし止め、同じ port で別の model も読む。引数を足すとその app の速さと memory が変わり、hayamimi の run の側から戻せない。
+- **port が移ったら起動を止める**：3.15 の止めない形に反する。交互の run の側で空くのを待ち、移った run を無効にすれば足りる。
+- **句読点を全部除いて比べて使い回す**：`？` と `。` の違いは文の型の違いで、訳の文末と V の推量の読みを変える。
+- **速報に ITN と句読点を掛けて、使い回す行を広げる**：発話 8 と 13 は対象に入るが、`hayamimi-asr` の速報の経路（R8v の席が触る `pipeline.rs`）と、画面に出る速報の文字列が変わり、RP-5 と RP-25 を打ち直すことになる。広げるかは、使い回しの run の後に評議へ出す（10 の H80）。
+- **速報の T が V に落ちた時に、E を速報の段で先に頼む**：速報の文字列が変わるたびに E の 1 回と slot を使う。確定文と同じ文字列かは `final` が来るまで分からない。
+- **測りの道具の `cache_prompt` を真にする**：`translate_call.rs` は 3.5 の段の表のための物で、同じ文を繰り返し打っても計算し直す形を測っている。RP-32 と RP-33 は中継の依頼（`cache_prompt` は真）で測られている。
+
+#### 順と置き場
+
+1. RP-32 の判定の直しと RP-72（`native/hayamimi-eval/tests/support/rp32.rs`、`tests/rp72.rs`、`docs/results/e2e/README.md` の手順）。次の交互の run の前に入れる。製品の code は変えない。
+2. 部分訳の使い回し（`native/hayamimi-relay/src/partial.rs` の `Mailbox` と `Route::note_line`、`relay.rs` の `draft_line`、`pipeline.rs` の `stage_to` に T の答えを外から受ける入口）。RP-69 を通す。並べて、E2E の席が RP-70 を流す。
+3. 推測デコードの probe（RP-71）。2 と触る物が重ならないので、別の席で並べて進めてよい。採る腕が決まったら、unit の file と `hayamimi llama start` の引数を同じ手番で入れる。
+4. 2 と 3 が入った build で、RP-32 の交互の run と、RP-33、RP-25、RP-35 を打ち直す（E2E の席。3.16 の 4 の手順と、この節の port の手順）。2 と 3 の効き目を分けて読むために、2 だけの build の 1 対を先に流してよい（記録だけで、判定に使わない）。
+
+受入は 6 の RP-69〜RP-72 と、既存の RP-32、RP-33、RP-25、RP-35 で、test の名前は 7 の表、slice は 8 の R8w、残る穴は 10 の H80〜H85 である。
+RP-32 の判定の直しの陰性の case（訳の取れた割合が 20 / 23 未満で、`L` が Python 以下の Rust の対）は、test-designer の席が RP-32 の case 行に足す。
+
 ## 4. 採らない手段
 
 - **Python を残して Rust から呼ぶ**：実行時の経路に Python が残り、置き換えにならない。
@@ -977,6 +1147,10 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-66 | 発話の終わりの待ち `d`（`L_asr − L_dec`）と、区切りの品質（3.17、8 の R8v） | E2E-1（`lat-ja`）と E2E-2（`lat-en`）の手順で、R8v の前の main の `<hy>`（`--endpoint` を持たない build）と R8v の `<hy>`（既定の `--endpoint early`）を、main、R8v、main、R8v の順に言語ごとに 2 対流す。run の前の 1 分の load が 2 未満であること、`/proc/loadavg`、中継の stdout、`hayamimi` の log を run の file と同じ所に残すことは RP-32 と同じ。記録は `docs/results/r8v/` に置き、`cargo test --release -p hayamimi-eval --test rp66 -- --ignored` が読む | 遅れの合否は `d` だけで見る。有効な標本（3.1 の終端不正の例外のとおり `min_silence` を 0.12 秒にして数える）で、R8v の `d` が ja で p50 500 ms 以下かつ p95 1050 ms 以下、en で p50 300 ms 以下かつ p95 520 ms 以下。ja の p95 の限度 1050 ms は見積り（10 の H68）から置いた仮の値で、R8v の手番 1 の probe の結果を見て、手番 3 の run の前に置き直す（置き直した値と理由は `docs/results/r8v/probe.md` に書く）。品質の合否は 2 つで見る。1 つ目は、B だけが作った割れ（3.17 の方針 4）を 3.17 の「RP-66 と RP-67 の数え方」の 8 と 9 で仕分けた**文の途中の切断の率**（文の途中と仕分けた割れの数 ÷ 有効な標本の数）が上限以下であること。上限の値はまだ置かず、R8v の手番 1b の仕分けを見てから手番 1c を流す前に評議が固定し、この行に書く。2 つ目は、「final なし」の標本の数と訳の取れない有効な標本の数が同じ対の main より増えず、ja の CER（run の全標本の `cer_dist` の和 ÷ `cer_denom` の和）が対の main 以下であること。`finals` が 2 以上の標本の数、仕分けの 3 つの数（本物の文の切れ目、文の途中、尾の雑音）、割れた標本の訳の chrF（数え方の 8）は記録するだけで合否に入れない。`L`、復号（`L_dec`）、訳（`L_tr`）は p50 と p95 を記録するだけで、合否に入れない（`L` の p95 の合否は RP-67） | 合わせた 2 本の main の run の `d` の p50 が、今の main の記録（ja 865 ms、en 457 ms。3.17 の「RP-66 と RP-67 の数え方」の 1）から ±60 ms に入る。R8v の run の `hayamimi` の log に `asr.endpoint.decided` の `rule` が `early` の行が 1 件以上在る | R8v の build を `--endpoint silence` で流した run が `d` の期待値を外して落ちる。完結の判定を常に真にした build（毎回の候補で確定する）が、文の途中の切断の率で落ちる |
 | RP-67 | 主指標 `L` の p95 を 1000 ms 以下にする（3.17、10 の H69） | E2E-1（`lat-ja`、23 発話 × 5 回）と E2E-2（`lat-en`、15 発話 × 5 回）を、E2E の手順（`docs/results/e2e/README.md` の条件）で流し、`cargo test --release -p hayamimi-eval --test rp67 -- --ignored` が `docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む | 3.1 の数え方（訳の取れた有効な標本、nearest-rank。有効は 3.1 の終端不正の式で `min_silence` を 0.12 秒として数える（3.17 の :836、H70））で、E2E-1 と E2E-2 のそれぞれの `L` の p95 が 1000 ms 以下。`d`、復号、訳の p50 と p95 を同じ結果に並べて書く。持ち主は 2 つに分ける。ja（E2E-1）は訳の波（3.16 の 2、R8h の 2）で、R8f の V の直しは main に入っており、残る手は RP-32 の交互の run（R8h の 4）と、その後に 3.16 の 2 の 4 つの条件を満たした時にだけ作る A（T と E0 を並べて投げる形）と、名前だけ在って repo に無い RP-33 の test（R8n）である。en（E2E-2）の持ち主は R7 の席（認識の遅れの詰め、8 の R7 の行）で、復号の p95（422 ms）と、確定の解き直しを省く H10 から始める | test が、今の main の記録（`/home/fukugan/.cache/hayamimi-e2e-20261015/run3/` の e2e1 と e2e2）を読むと、ja 1871 ms、en 1303 ms で落ちる。同じ test が、全標本の `L` を 900 ms に置いた fixture で通る | `L` が 1000 ms を超える標本を、許す数（n から nearest-rank の順位を引いた数）より 1 件多く入れた fixture で落ちる |
 | RP-68 | 流れの途中で VAD の `flush` を打つと detector が abort する形の再現と、R8v と `finish` の後の feed がその形に入らない守り（3.17 の方針 4、10 の H75） | `cargo test --release -p hayamimi-asr --test rp68`。abort は test の harness ごと殺すので、親の test が自分の test の binary（`std::env::current_exe`）を子 process として引数つき（`--ignored --exact <子の test の名前>`）で起こし、子の終わり方（終了の status と stderr）だけを見る。音声は `testdata/lat-ja.wav` の 1 発話の声の区間を切って使う | 子 1（再現）：sherpa-onnx の `VoiceActivityDetector` を直に開き、「発話 → 0.12〜0.2 秒の無音 → `flush` → 0.30 秒以上の無音」を 512 sample ずつ食わせると、子が正常に終わらず、stderr に `Invalid n` が出る。子 2（守り、R8v の形）：同じ音声を `hayamimi-asr` の `Vad`（A と B）と確定の線の規則に通すと、子が status 0 で終わり、final が 1 件で、その `t1_s` が確定の線の sample である。子 3（守り、`finish` の後）：同じ音声の後に `Engine::finish` を打ち、続けて同じ音声をもう 1 回食わせても、子が status 0 で終わる | 子 2 と子 3 が status 0 で終わる（守りの形が abort しない） | 子 1 が status 0 で終わる時（固定の版で abort しなくなった時）は、この test が落ちて再現の前提が変わったことを言う。子 2 を、確定の時に A へ `flush` を打つ build で流すと落ちる |
+| RP-69 | 部分訳の使い回し（3.18、8 の R8w） | `cargo test --release -p hayamimi-relay --test rp69` が、T の答えに 300 ms の待ちを入れて依頼の数を数える偽の llama-server に、偽の認識器から速報と `final` の列を流す（`#[ignore]` を持たない） | (a) 速報 `X` の訳が V を通って出た後に、同じ `id` の `final` `X。` が来ると、その行の T の依頼は 0 本で、`final` を受けてから 50 ms 以内に、`of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` が `X。` の sha256 の訳が出る。`translate.draft.reused` が 1 件（`match` が `closing_mark`、`state` が `done`）。(b) 速報 `X` の依頼が走っている間に `final` `X。` が来ると、その依頼は打ち切られず、その発話の T の依頼は全部で 1 本で、先の訳は速報の答えが来た時に出る（`state` が `running`）。その後に次の発話の速報が来ても、その依頼は打ち切られない。(c) 速報の T の答えが原文に無い数を持つ時、`final` `X。` の行は T を頼まずに E を頼み、先の訳を出さない。(d) 使い回した答えに掛けた V の原文は `final` の文字列である（observer の `draft_verify_input` と V の入力で数える）。(e) 使い回した行の V は 1 行に多くて 2 回である | 同じ test が、`final` が `X？` の時と、`id` の違う `final` の時に、T を 1 本頼み直し、`translate.draft.reused` が 0 件であることを示す | `final` が来ると速報の依頼を止める今の形で、(a) と (b) の T が 2 本になり落ちる。句読点を全部除いて比べる build で、`X？` の行が使い回されて落ちる。速報で掛けた V の判定をそのまま使う build で、(d) が落ちる |
+| RP-70 | `。` を足しただけの文の訳を使い回してよいこと（3.18 の部分訳の使い回しの品質） | test-designer の席が、`testdata/baseline/pairs/`（seed 0）と `testdata/baseline/pairs_seed1/`（seed 1）の ja の原文のうち末尾が `。` の行だけを取り、そのままの組 a と、末尾の `。` だけを除いた組 b を git の外に作る（行の id と参照訳は同じ）。同じ llama-server（RP-71 の腕 N0）で、`hayamimi-relay eval --pairs <a> --out <ha1>`、`--pairs <b> --out <hb1>`、`--pairs <a> --out <ha2>`、`--pairs <b> --out <hb2>` の順に打ち、`<ev> chrf` で採点し、`cargo test --release -p hayamimi-eval --test rp70 -- --ignored` が 4 組の結果と中継の stdout を読む | b の 2 回を合わせた corpus chrF が、a の 2 回を合わせた値以上。V が両方の訳を止めた行の数が、b の 2 回の合計で a の 2 回の合計以下。b の訳の文末に `.`、`?`、`!` が無く、a の同じ行の訳には在る行の数を記録する（合否に入れない） | 同じ test が、a の 2 回の対から chrF の差と止めた行の差を出す（a 同士の差を記録する） | b の chrF を a より 0.01 低く置いた fixture と、b の止めた行を a より 1 行多く置いた fixture のどちらでも落ちる |
+| RP-71 | 推測デコードの llama-server が速く、同じ訳を出す（3.18、8 の R8w） | 3.18 の腕ごとに `hayamimi-llama-pair.service` を起こし直し、`sudo -n nice -n -5 <relay> eval --pairs testdata/baseline/pairs/ --out <腕と回の dir> --llm http://127.0.0.1:18083` を、N0、S1、S2（S3）、N0、S1、S2（S3）の順に腕ごとに 2 回打つ。中継の stdout（`translate.line.ok` と `translate.line.held` の `t_ms`、`e_ms`）と、`docs/results/r8w/server-args.md` の `--help` の記録を残し、`cargo test --release -p hayamimi-relay --test rp71 -- --ignored` が読む | 採る腕で、T の 1 回の p50 と E の 1 回の p50 が、どちらも N0 の 2 回を合わせた p50 より小さい。採る腕と N0 で確定の訳が違う行の数が、N0 の 2 回の間で違う行の数以下。採る腕の V が両方の訳を止めた行の数が N0 の 2 回の多い方以下で、corpus chrF が N0 の 2 回の少ない方以上。採る腕の引数が `--help` の記録に在る。腕ごとの p50 と p95 を全部記録する | 同じ test が、N0 の 2 回から、違う行の数と T と E の p50 の差を出す | T の p50 を N0 と同じ値に置いた fixture と、N0 との違う行を N0 同士より 1 行多く置いた fixture のどちらでも落ちる |
+| RP-72 | 交互の run で port が移った run を無効にする（3.18、8 の R8w） | `cargo test --release -p hayamimi-eval --test rp72` が、fixture の run の dir を RP-32 の判定（`check_dir`）に渡す（`#[ignore]` を持たない） | `rs<N>.events.jsonl` に `type` が `fallback` で `reason` が `in_use` の event が 1 件在る dir は、その run の名前を挙げて `Err`。`rs<N>.events.jsonl` の無い dir も、その名前を挙げて `Err` | 同じ test が、`docs/results/rp32/` と同じ形で `fallback` の無い fixture の dir を、port の理由では落とさない | event を読まない今の判定では、`in_use` の `fallback` を 1 件足した fixture の dir に port の理由の `Err` が出ないので、この test は今の main で落ちる |
 
 ## 7. test の名前
 
@@ -1042,6 +1216,10 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-66 | `rp66_early_end_shortens_the_wait_without_splitting_utterances` | `native/hayamimi-eval/tests/rp66.rs` | `--endpoint silence` の run、完結の判定を常に真にした build の run |
 | RP-67 | `rp67_speech_end_to_translation_p95_is_within_one_second` | `native/hayamimi-eval/tests/rp67.rs` | 今の main の E2E の記録、許す数より 1 件多く 1000 ms を超える fixture |
 | RP-68 | `rp68_flush_inside_speech_aborts_and_the_early_end_never_flushes` | `native/hayamimi-asr/tests/rp68.rs` | 確定の時に A へ `flush` を打つ build、`finish` の後に detector を作り直さない build |
+| RP-69 | `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation` | `native/hayamimi-relay/tests/rp69.rs` | `final` で速報の依頼を止める今の形、句読点を全部除いて比べる build、速報の V の判定をそのまま使う build |
+| RP-70 | `rp70_translating_without_the_closing_mark_keeps_chrf_and_verify` | `native/hayamimi-eval/tests/rp70.rs` | b の chrF を 0.01 下げた fixture、b の止めた行を 1 行足した fixture |
+| RP-71 | `rp71_speculative_server_is_faster_and_translates_the_same` | `native/hayamimi-relay/tests/rp71.rs` | T の p50 を N0 と同じにした fixture、違う行を 1 行足した fixture |
+| RP-72 | `rp72_a_run_whose_server_moved_its_port_is_refused` | `native/hayamimi-eval/tests/rp72.rs` | event を読まない今の RP-32 の判定 |
 | RP-55 | `reset_parts_forget_the_previous_sessions_audio_language_and_speakers` | `native/hayamimi-asr/src/pipeline.rs` の `mod tests` | `History::clear` か `Router::reset_session` を呼ばない `reset_parts` |
 | RP-56 | `final_event_switched_true_when_language_changes` | `native/hayamimi/src/session.rs` の `mod tests` | `switched` を常に偽で出す `wire.rs` |
 | RP-57 | `der_breakdown_isolates_confusion_from_miss` | `native/hayamimi-eval/src/der.rs` の `mod tests` | Confusion を Miss に足す内訳 |
@@ -1092,6 +1270,7 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R8t | 評議の条件つき GO。1（推量）：en→ja の推量の検査を片向きにする。原文の推量が訳で落ちた時だけ `uncertainty` で止め、訳だけが推量を持つ時は止めずに `translate.hedge.logged` を 1 件出す。原文の推量を落とした訳は、原文が言い切らない事を言い切って字幕に出すので止め続ける。訳だけが足した推量は意味を弱めるだけで、止めると正しい訳を E の待ちと訳の欠けへ回すので、速さを先に取る。採らない手段は 2 つである。`would` を en の推量の表に足す形は採らない（`I would like to order.` のような推量でない依頼を推量と読み、その訳を止める）。「だろう」「でしょう」だけを log に回す形も採らない（`could`→`かもしれません` のように、他の推量の語を訳が足した行が止まり続ける）。2（否定）：ja の義務の過去形と「なくては」の形が否定と読まれる。`exclude` は長い順に原文から除くので、`なければならなかった` は `なければなら` を除いた後に `なかった` が残り、否定の表の `なかっ` に当たって `negation` で止まる（`ないといけなかった` も `ないといけ` を除いた後に同じ）。`なくては〜` の形は除く語が無く、`なく` に当たる。RP-63 の 8 つの完全な形を `exclude` に足す。採らない手段は 3 つである。語幹（`なくては`）だけを除く形は、除いた後に `ならない` の `ない` が残り、止まりが直らない。`なくちゃ`、`なきゃ` は記録に出ていない口語の縮約で、出た形だけを足す。`ならなかった` を単独で除く形は、本当の否定（`雨にならなかった`）まで否定でなくする。D はこの行を先に main に置き、code と test は実装の席が `feat/r8t` に置く | RP-63 | commit を revert |
 | R8u | 作らない。T と E の両方が `number` で止まった行に、V が原文から読んだ数を名指す 1 文を足して訳し直す形は、probe で数を作る行の多くを直さなかった（10 の H66 の表）。その行は held のまま訳を出さず、原文の字幕を出し続ける。採らない手段は 4 つである。訳し直し（H66 の表のとおり効かず、効いた形は訳の言語が崩れる）、V を緩めて通す形（原文に無い数が字幕と外の送り先に出る）、QE の再ランクと MBR（候補の数だけ遅れが延びる）、量子化を変える形（Q8_0 のまま据え置く） | なし（RP-64 は欠番） | 作る物が無い |
 | R8v | 発話の終わりの判定を 2 段にする（3.17）。**手番 1（probe、流し直し）**：`origin/feat/r8v-probe` の `f925f8c` の `native/hayamimi-asr/tests/r8v_probe.rs` を次の形に直して流し直し、`docs/results/r8v/probe.md` を書き替える。(1) 候補が「発話の中」かは manifest の `end_sample` で決めず、同じ A の segment の中で、候補の後に声が続くか（候補の後、その A の segment の終わりまでに B が声の始まりを読むか、A の segment が候補の後ろへ声の区間を持つか）で決める。(2) A の segment の範囲（始まりと終わりの sample）と、A が 1 発話を割った数を発話ごとに出す。(3) 割れを「B だけ」（A は 1 つの segment なのに、完結で確定した候補で 2 つ以上の final になる）と「A も」（A が既に 2 つ以上に割っている）に分けて数える。(4) 遅れは、完結の候補が一度も出ない発話（今の結果で ja の 5/23）を A の検出の時刻に落とし、全発話で p50 と p95 を nearest-rank で取る。(5) engine は候補ごとに開き直す形のままにし、1 つの engine の detector を `finish` の後に使い回さない（RP-68 が通るまで）。手番 1 の結果は `origin/feat/r8v-probe` の `473c879` の `docs/results/r8v/probe.md` と `heldout.md` に在る。「B だけが作る割れが 0」の線は、割れが本物の文の切れ目か、文の途中か、尾の雑音かを区別しないので使わず、通す線は RP-66 の文の途中の切断の率に替える。`vad_ms` は A と B を合わせた p95 が 2 ms 以下のまま。**手番 1b（仕分け、新しい音声は流さない）**：`r8v_probe.rs` の 430〜437 行の remainder（確定の線の後ろの文）の文面も印字するように直し、今ある B だけの割れ（lat の 6 件、held-out の ja の 9 件、AMI の 31 件。今の生の出力は `/home/fukugan/.cache/hayamimi-e2e-20261015/r8v/` の `lat2.txt`、`held-ja.txt`、`held-en.txt`、`kept.ids`）を、3.17 の「RP-66 と RP-67 の数え方」の 8 と 9 で仕分け、3 つの数と ja の 2 通りの仕分けの一致の数、割れた標本の訳の chrF を `docs/results/r8v/split-kinds.md` に書く。遅れは数え方の 10 の最後の final で取り直す。評議はこの結果を見て、RP-66 の文の途中の切断の率の上限と、数え方の 9 の一致の上限を置き、手番 1c の前に固定する。並べて、B の `min_silence` を 0.20 秒に振った probe を lat（`lat-ja` と `lat-en`）だけで流してよい。その結果は記録で、0.12 秒と 0.20 秒のどちらを採るかを決める判定は手番 1c の新しい held-out で出す。**手番 1c（新しい held-out、1 回だけ流す）**：ja は ReazonSpeech の test（Hugging Face の `japanese-asr/ja_asr.reazonspeech_test`、5,263 行、参照の文に `。` と `、` が在る。S32）の行のうち、`testdata/eval_real` の ja の 15 本の参照の文と同じ文の行を除き、長さ 2 秒以上 15 秒以下の行を行の番号の順に先頭から 80 本取り、`hayamimi-eval fetch-set --concat` で 1.5 秒の無音を挟んでつなぐ。行の番号と音声の sha256 を manifest に書く（sha256 は記録で、取得の条件にしない）。`testdata/fleurs_bench/ja` は 100 本で `id` が 38 種しか無く、手番 1 の held-out で使い切ったので使わない。en は `testdata/eval_diar` の AMI の 5 会議で、手番 1 と同じ turn の規則（1 人の turn で 1 秒以上、前後 0.3 秒に他の話者が掛からない）に当たる turn のうち、手番 1 で取った各会議の先頭の 12 本（`kept.ids`）に入らなかった残りの全部を使う。AMI の turn の終わりは人の付けた境界なので、en の遅れは記録だけにする。threshold、B の `min_silence`、完結の表、RP-66 の上限、数え方の 8 から 10 は、手番 1c を流す前に固定し、結果を見て動かさない。手番 1 の held-out（`testdata/fleurs_bench/ja` の 81 本と AMI の 60 turn）は、結果を見た後なので、以後 held-out として使わない。手番 1c の結果は `docs/results/r8v/heldout2.md` に書く。**手番 2 の brief に写す条件**：A に流れの途中で `flush` も `reset` も打たない（3.17 の方針 4）。`Engine::finish` は A と B を `flush` して segment を取った後、2 本とも作り直して位置の offset を進める（`Vad::rebuild` と同じ形。10 の H75）。RP-68 の test を書いて通してから、`endpoint.rs`、`Vad` の 2 本目、`feed` の候補と完結の判定、確定の線、持っておいた文の使い回し、`asr.endpoint.decided`、`--endpoint` を作る。B だけの割れは、RP-66 で `finals` が 2 以上の標本として記録し、数え方の 8 で仕分けて文の途中の切断の率を合否に使う。`Final.speaker_audio` は A の声の始まりから確定の線までの sample から取る。ja の限度は 3.17 の「RP-66 と RP-67 の数え方」の 5 の式で置き直してから手番 3 へ進む。**手番 3**：RP-66 の run と、RP-1、RP-2、RP-5、RP-15 の打ち直し（区切りが変わるので） | RP-68（手番 2 の最初）、RP-66。RP-1、RP-2、RP-5、RP-12、RP-15、RP-25、RP-65 が今の main と同じく通る | 起こし直す時に `--endpoint silence`。code は R8v の commit を `git revert` |
+| R8w | 訳の段の詰めの続き（3.18）。1：RP-32 の判定に訳の取れた割合を入れ、port の移った run を無効にし、交互の run の手順に port の空きの待ちを足す（RP-72）。2：部分訳の使い回し（RP-69）と、その品質の run（RP-70。E2E の席）。3：推測デコードの llama-server の probe（RP-71。腕 S3 は H17 の評議の判定の後）と、採った腕の unit の file と `hayamimi llama start` の引数。2 と 3 は触る物が重ならないので別の席で並べてよい。4：2 と 3 の build で RP-32 の交互の run と RP-33、RP-25、RP-35 を打ち直す（E2E の席。起こす形は `sudo -n nice -n -5 <command>`） | RP-32、RP-69、RP-70、RP-71、RP-72。RP-33、RP-25、RP-35 は 4 の run で打ち直す | 1 と 2 は commit を `git revert`。3 は `systemctl --user stop hayamimi-llama-pair.service` を打ち、中継を `--llm` を付けずに起こし直す。`hayamimi llama start` の引数は commit を `git revert`。前の起動の引数は `docs/results/r8w/server-args.md` に在る |
 | R3e | session の言語の文字を持たない 1〜2 字の確定文を捨て、`asr.final.dropped` を出す（10 の H67）。規則は `hayamimi` の確定文を出す所に置き、認識器と振り分けは変えない。VAD（Silero、`hayamimi-asr/src/vad.rs`、threshold 0.5、最短の発話 0.25 秒）は既に認識の前段に在り、`ل` の発話（1.824 秒）も VAD が声と読んで通した。VAD を前段に置くと認識の幻覚が大きく減る（S24）が、それは今の構成で既に効いており、threshold は変えない（変えると `L_asr` と RP-1 の誤り率が動き、測り直しが要る）。1〜2 字という字数の閾値に一次資料は無いので、字数だけでなく「session の言語の文字を 1 つも持たない」を併せて条件にし、本物の短い発話を落とさないことを RP-65 の陽性対照で確かめる。同じ席が、その発話が `tier` `omni` で解かれた理由を振り分けの log で読み、結果を H67 に返す。席は `hayamimi` の確定文の経路を触る実装の席 1 つ、波は 13:55 の組の後、見積りは 45 分 | RP-65 | commit を revert |
 | R8o | H53 の決め（評議の判定）。2（観測）：`translate.line.held` に T の側の理由を enum で足し、止めた訳の本文は log に載せず、`Observer` の `draft_verify_input` と `verify_input` から repo の外の dev 用の file へ出す（`hayamimi-relay live --verify-text <file>` を付けた時だけ。実装は `native/hayamimi-relay/src/verify_dump.rs`、T の理由は `t_hold_reason`）。1（同じ run）：`verify_markers.toml` の `ja.negation` に「なさそう」「なさげ」「なさすぎ」を足す（「なさ」だけは「なさい」「なさる」「ごめんなさい」を巻き込むので足さない）。両方止めた行は今までどおり訳を出さない。新しい held-out の組は test-designer の席が作る（RP-44） | RP-42、RP-43、RP-44 | commit を revert |
 | R3d | T-RP-1-013 の陰性対照の口：`hayamimi-eval scorecard` に、ja の clip を SenseVoice の tier へ送る評価用の引数を足す（配る `hayamimi` には足さない） | T-RP-1-013 | commit を revert |
@@ -1674,6 +1853,12 @@ u14 は 2 回とも T の訳が V に落ち、E を待った（T 255 ms と E 11
 - **H77** 今の detector A の segment が 1 つも触れない発話が在る（品質の穴）。held-out の ja で 81 本中 8 本、`lat-ja` で 23 本中 1 本（`heldout.md` と `probe.md`。転記）、AMI で 60 本中 2 本である。その発話は final が出ず、字幕に何も出ない。R8v の B は A の声の中でしか働かないので、R8v はこの穴を直さず、遅れの数え方（3.17 の数え方の 10）でも母数から外している。A が逃す理由（声の大きさ、短さ、`min_speech` 0.25 秒、threshold 0.5）は確かめていない（NOT VERIFIED）。持ち主は R8v と別の席で、手番 1c の held-out でも同じ数を数えて記録し、直すかと直す席は評議が決める。
 - **H78** 手番 1c の材料は確かめていない所が 4 つある（NOT VERIFIED）。`hayamimi-eval fetch-set --pin` が `japanese-asr/ja_asr.reazonspeech_test` の行を取れるか。`testdata/eval_real` の ja の manifest は行の番号を持たないので、除外を参照の文の一致で行うこと（同じ文の別の行も除く）。AMI の残りの turn の数（手番 1 の 5 会議 × 12 本の外）。ReazonSpeech の頁に許諾の記載が無いこと（S32。評価の材料として git の外に置き、配る物に入れない）。どれも手番 1c の席が流す前に数え、ja が 80 本、en が 30 本に満たなければ流さずに評議へ出す。
 - **H79** en の割れの仕分けは、参照の文の終わりの印を A の final の句読点から取る（3.17 の数え方の 9。ASSUMPTION）。割れた発話を A が 1 つの final で解いた文が、そもそも文の途中で句読点を落としている時は、文の途中の割れを本物の文の切れ目と読み違えない代わりに、本物の切れ目を文の途中と読む向きに偏る。偏りの量は ja の 2 通りの仕分けの一致の数で見る。割れた標本の訳の chrF の参照は A の訳で、参照訳ではない（ReazonSpeech と LibriSpeech と AMI に ja と en の対の参照訳は無いと見込んでいるが、確かめていない）。
+- **H80** 部分訳の使い回し（3.18、R8w の 2）の対象は、今の記録で確定文の 52/125 だけで、RP-32 の遅い 5 発話のうち 4 と 23 にしか効かない見込みである（`docs/results/rp32/` の 3 run を `jq` で数えた。発話への結び方は `rs1.jsonl` の `finals` の数で順に結んだ近似で、`t1_s` で結んでいない。NOT VERIFIED）。8 と 13 は速報が ITN の前の文字列で、22 は確定文の語が速報より多い。対の比較の 17/19 に届くかは、8、12、22 の行が推測デコード（RP-71）でどれだけ縮むかに掛かり、測っていない。速報に ITN と句読点を掛けて対象を広げる形は 3.18 の「採らない手段」に置いた。持ち主は R8w の 4 の run の席で、run の後に発話ごとの `L` の中央値と `translate.draft.reused` の数を並べ、17 に届かなければ、広げる形を材料に評議へ出す。速報の答えが確定文の着く前に出ている割合（`state` が `done` の行の割合）も、同じ run で数える。
+- **H81** 3.16 の 2 の A（T と E0 を並べて投げる形）を、この文書は作らない見込みとして扱う（3.18 の「採らない手段」）。根拠の E0 の p50 640 ms は H66 の probe の 76 本（腕ごとに 2 回、負荷の記録なし）の値で、RP-32 の run の負荷の下の値ではない（NOT VERIFIED）。3.16 の 2 の 4 つの条件と、6 の RP-67 の持ち主の記述（A を残る手に数える）は書き替えていない。A を条件から外すか、「E0 の 1 回の p50 が、使い回しの後の T が V に落ちた行の訳の段の p50 より小さい」を 5 つ目の条件に足すかは、設計を変える判断なので評議へ出す。持ち主はセラ（評議に出す席）である。
+- **H82** 推測デコードの効き（3.18 の式の `α`）は、この model の訳の依頼では測っていない（NOT VERIFIED）。n-gram の下書き（腕 S1、S2）が prompt の token を下書きの材料に使うかは、llama.cpp の文書に書かれていない（S34 は「既に生成した文」に頼むと書く）。腕 S3 の `CAT-Translate-0.8b` が 3.3b と同じ tokenizer を持つかは model card に書かれていない（S36。NOT VERIFIED）。`tokenizer.json` の sha256 を 2 つの model で比べ、違えば S3 を流さない。S3 の GGUF は Python の変換の道具でしか作れない見込みで（H17）、評議の判定が要る。RP-71 の run は `eval` の 1 行ずつの直列の依頼で、slot 4 本が同時に埋まった時の推測デコードの効きは RP-32 の run でしか見えない。持ち主は R8w の 3 の席（probe）と 4 の席（RP-32 の run）である。
+- **H83** `/ingest` の 8766 が Python を止めて 21 秒と 85 秒の後に取れず、166〜170 秒の後に取れた（原因の席の申告の転記）。原因が Windows の TIME_WAIT かは確かめていない（NOT VERIFIED）。3.18 の手順は、待ち受けと接続の両方が消えるまで待つので、TIME_WAIT でも別の process でも同じに扱うが、別の常駐物が 8766 を持ち続けると run が始まらない。待った秒数は `ports<N>.txt` に残る。RP-66 の main と R8v の交互の run（3.17）も同じ形で port が移りうるが、RP-72 は RP-32 の dir だけを見る。持ち主は R8w の 1 の実装の席で、RP-66 の run の dir に `events.jsonl` が在るかを確かめ、在れば同じ判定を RP-66 の読み口に足すかを設計の席へ返す。8080 の llama-server は別の app が起こし止める共有の unit で、RP-71 の腕を採るまでの RP-32 の run はその unit に頼る。run の間にその app が server を止めると、訳の取れない標本が増える（NOT VERIFIED）。
+- **H84** 3.1 は、最後の速報の原文が `final` と同じ文字列なら、その速報の訳を `t_tr` に入れると書く（3.1 の「速報の原文が最後の速報で `final` と同じ文字列になっていれば」の文）。`hayamimi-eval` の `latency.rs:94` は、`of` が `partial` の訳を文字列に依らず `t_tr` の候補から外し、T の T-RP-31-010 もその形を固定している。3.18 の使い回しは `of` が `final` の先の訳を出すので、この食い違いの影響を受けない。どちらに揃えるかは設計の席が決め、揃えた側の test の行は test-designer の席が書き直す。今の記録では速報の文字列が `final` とそのまま同じ行は 0 で（3.18 の数えた結果）、どちらに揃えても今の値は動かない。
+- **H85** RP-70 の比べは「以上」と「以下」で、幅を置いていない。同じ依頼を 2 回打っても出力の違う行が在る（H66 の 38 行中 4）ので、a と b に差が無くても、どちらかの向きに偶然で割れうる。2 回ずつ合わせて比べるのはそのためで、割れの大きさは a 同士の差（RP-70 の陽性対照）で読む。RP-70 が落ちた時は、3.18 の部分訳の使い回しのとおり鍵を「同じ」だけに狭め、a 同士の差と a と b の差を並べて記録する。dev の seed 0 と seed 1 の組は V の調整に使った組で、held-out ではない。a と b の 2 つの腕の比べにだけ使い、記録の値（RB-7、RP-13）と比べない（RP-37 と同じ扱い）。持ち主は RP-70 を流す E2E の席である。
 - **H64** RP-61 の許す悪化の幅（清書を切った Rust に対して p50 で 30 ms、p95 で 60 ms）は実測の裏づけが無い仮の値である（NOT VERIFIED）。清書の別の `Router` が足す host の memory の量も測っていない（NOT VERIFIED）。持ち主は R12w0（W6 の席 1、清書 1 group の重さ）と R12w4（W8 の席 1、RP-61 の run）で、R12w4 の席が幅を置き直し、超えたら評議へ戻す。Refiner の 17 行は R12w0〜R12w4（8 の「清書（Refiner）を live に足す形」の表）が入るまで未実装の一覧に残る。
 - **H65** `History::clear` が絶対の位置を戻さない形（R12h）は、Python の `test_audio_history_clear_empties_buffer_and_offsets` の「offsets を空にする」と違う。T の case 行は「buffer が空で、reset の前の sample が preroll に入らない」に合わせる。持ち主は T の席である。
 - **H58** R8m の `listen` が本物の中継の event を本物の `/events` から SSE で読むことは打てていない（WSL に出力の装置が無い）。持ち主は E2E の打ち直しの席で、Windows の実機で RP-41 の `--ignored` の行と E2E-2 を打つ。
@@ -1740,7 +1925,7 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 
 ## 11. 出所
 
-取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S32 が 2026-10-15、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
+取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S36 が 2026-10-15、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
 crate の版は crates.io の API（`https://crates.io/api/v1/crates/<名前>`）で引いた。
 S12 と S15 は別の席の調べの転記で、この席は原典を開いていない。
 
@@ -1778,3 +1963,7 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S30 | 部分の発話から発話の全体を予測して応答を先読みする形。当たった予測の遅れの得と、外れた予測の計算の損の釣り合いを調べる（Interspeech 2023。abstract に数は無い） | https://arxiv.org/abs/2305.13794 |
 | S31 | Smart Turn v3.2：音声だけを読む turn の終わりの判定の model。23 言語（ja を含む）、約 8M parameter（Whisper Tiny の骨組み）、CPU で 10 ms から、多くの cloud の機械で 100 ms 未満。Silero などの VAD が無音を見た後に、その turn の音声（最大 8 秒）に掛ける。BSD-2-Clause | https://github.com/pipecat-ai/smart-turn |
 | S32 | ReazonSpeech の test の組（`japanese-asr/ja_asr.reazonspeech_test`）：test の split が 5,263 行、列は音声（0.62〜29.7 秒）と文字起こし（1〜169 字）、文字起こしに `。` と `、` が在る。頁に許諾の記載は無い | https://huggingface.co/datasets/japanese-asr/ja_asr.reazonspeech_test |
+| S33 | llama-server の README：依頼の `cache_prompt` の既定は真で、真にすると結果が決まらないことがある。`--cache-reuse` の既定は 0。推測デコードの引数は `--spec-type`（既定 `none`）、`--spec-draft-model`（`-md`）、`--spec-draft-n-max`（既定 3）、`--spec-draft-n-min`（既定 0）、`--spec-draft-p-min`（既定 0.00）、`--spec-draft-sampling`（既定 `greedy`）、`--spec-default`。`--draft` と `--draft-min` は外され、`--spec-draft-n-max` か `--spec-ngram-mod-n-max` を使うと書かれている | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md |
+| S34 | llama.cpp の推測デコードの文書：下書きの model（`draft-simple`）、EAGLE-3、DFlash、DSpark、MTP と、model の要らない n-gram の型（`ngram-cache`、`ngram-simple`、`ngram-map-k`、`ngram-map-k4v`、`ngram-mod`）。`--spec-default` は `ngram-mod` を有効にする。n-gram の型は既に生成した文の型に頼む。出力を正確に合わせるには貪欲の sampling を使う | https://github.com/ggml-org/llama.cpp/blob/master/docs/speculative.md |
+| S35 | 「Fast Inference from Transformers via Speculative Decoding」：近似の model が出した token を大きい model が並べて照らし、出力の分布を変えずに T5-XXL で 2〜3 倍速い（同じ出力）。既存の model を学習し直さずに使える | https://arxiv.org/abs/2211.17192 |
+| S36 | `cyberagent/CAT-Translate-0.8b`：基の model は `sbintuitions/sarashina2.2-0.5b`、許諾は MIT。3.3b と tokenizer が同じかは書かれていない。同じ作者の CAT-Translate は 0.8b、1.4b、3.3b、3.3b-beta、7b の 5 つ | https://huggingface.co/cyberagent/CAT-Translate-0.8b 、https://huggingface.co/api/models?author=cyberagent&search=CAT-Translate |
