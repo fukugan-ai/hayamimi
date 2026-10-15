@@ -14,8 +14,22 @@
 #   scripts/tidy-branches.sh                         dry run: report only
 #   scripts/tidy-branches.sh --remove                remove what the report marks removable
 #   scripts/tidy-branches.sh --remove-worktree PATH  remove one named worktree, after measuring it
+#   scripts/tidy-branches.sh --main-lock BIN [--remove]
+#                                                    ask BIN (the main-lock binary) instead of the default
 #
 # The root is the repository this script lives in. The trunk is `main`.
+#
+# A `verify/` branch is the one a merge seat makes from the trunk to check a
+# push before it lands. Level with the trunk it has no commit of its own, so the
+# reflog rule below reads it as "not started" and keeps it for ever. It is read
+# as finished only when all of these hold: its name starts with `verify/`, the
+# trunk and the branch are the same commit (`rev-list` counts 0 and 0), no
+# worktree holds it, and nobody holds the main lock. The lock is asked of the
+# main-lock binary (`main-lock check`), not read from its file: a pretend push to
+# `main` by a name that is not a holder passes silently only when the lock is
+# absent. A held lock (fresh), a stale or corrupt lock (it passes with a
+# warning), a binary that is missing, or any other answer keeps the branch.
+# Undo: `git branch verify/<name> <trunk>` makes the same branch again.
 #
 # A branch worktree goes only when its branch has no commit of its own and the
 # trunk contains its tip. Undo: `git worktree add <path> <branch>`; the branch
@@ -30,6 +44,13 @@ set -euo pipefail
 # renaming the directory cannot leave this script pointing at nothing.
 readonly root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly trunk="main"
+# The main-lock binary that decides whether a `verify/` branch may go. The path
+# is a parameter (`--main-lock BIN`) so a test can name a stand-in.
+main_lock="$HOME/.claude/hooks/rust/target/release/main-lock"
+if [ "${1:-}" = "--main-lock" ]; then
+  main_lock="${2:?--main-lock needs the path of the main-lock binary}"
+  shift 2
+fi
 remove="no"
 [ "${1:-}" = "--remove" ] && remove="yes"
 
@@ -73,6 +94,29 @@ not_started() {
     return 0
   fi
   ! reflog_shows_a_write "$reflog"
+}
+
+is_verify_branch() {
+  case "$1" in
+    verify/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# True only when nobody holds the main lock. `main-lock check` is given a push to
+# `main` that deletes nothing real (both shas zero, so the status check is
+# skipped) under a name no seat uses. It passes silently when the lock is absent,
+# stops (rc 2) while a fresh lock is held, and passes with a warning on stale or
+# corrupt ones. Only "rc 0 and no output" counts as free.
+main_lock_is_free() {
+  local zero out
+  [ -x "$main_lock" ] || return 1
+  zero="0000000000000000000000000000000000000000"
+  if out="$(printf 'refs/heads/main %s refs/heads/main %s\n' "$zero" "$zero" | "$main_lock" check tidy-branches 2>&1)"; then
+    [ -z "$out" ]
+  else
+    return 1
+  fi
 }
 
 # One detached worktree, named on the command line. It has no branch to
@@ -220,6 +264,13 @@ git for-each-ref --format='%(refname:short)' refs/heads | while read -r branch; 
   if [ "$ahead" = "0" ] && [ -z "$held" ] && [ "$behind" != "0" ] && [ "$behind" != "?" ]; then
     echo "  $branch  古い目印（どの worktree も持たず、幹が $behind 件 先）→ 消せる"
     if [ "$remove" = "yes" ]; then git branch -d "$branch" >/dev/null && echo "    消した"; fi
+  elif [ "$ahead" = "0" ] && [ "$behind" = "0" ] && [ -z "$held" ] && is_verify_branch "$branch"; then
+    if main_lock_is_free; then
+      echo "  $branch  verify/ の branch（幹と同じ commit、どの worktree も持たず、main-lock は誰も持たない）→ 外せる"
+      if [ "$remove" = "yes" ]; then git branch -d "$branch" >/dev/null && echo "    消した。戻すなら: git branch $branch $trunk"; fi
+    else
+      echo "  $branch  🔴 verify/ の branch（幹と同じ commit）。main-lock が空でない、または確かめられない → 残す"
+    fi
   elif [ "$ahead" = "0" ] && not_started "$branch"; then
     echo "  $branch  🔴 commit 0 件（着手前。誰かが使っている）→ 残す"
   elif [ "$ahead" = "0" ]; then
