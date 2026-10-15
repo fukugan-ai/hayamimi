@@ -1603,7 +1603,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 
 ### 4.53 RP-43（否定の表の「なさそう」「なさげ」「なさすぎ」）
 
-test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`（001 から 003）。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80（009）は `e2e1` の run で確かめる。
+test：`native/hayamimi-relay/tests/rp43.rs`。受入 test の名前は `rp43_nasasou_is_read_as_negation`（001 から 003）。表の行は `#[ignore]` を持たない。E2E-1 の打ち直しの 70/80（009）は、`e2e1_mic_process_ja_to_en_beats_python`（4.63）が実走の記録で確かめる。
 関数の名前は `rp43_` に各行の「関数の末尾」を続けた物にする。
 入力：`Verifier::open(None, sink)` が持つ内蔵の表に、日本語の原文と訳を渡して `verify(src, translation, Lang::Ja, sink)` の判定（`Ok` か `Held(理由)`）を読む。llama-server は使わない。表は `native/hayamimi-relay/data/verify_markers.toml` の `ja.negation` と `exclude`。
 command（001 から 008）：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp43`。
@@ -1634,7 +1634,7 @@ command（001 から 008）：`cd native && flock -w 1800 target/release/.cargo-
 - 006 から 008 は、設計の文（RP-43 の期待値）から導いた境界である。「語で読む」は表が部分文字列で読む前提（`verify_markers.toml` の `ja.negation` の読み方）に依る。
 - 005 の 8 件目から 11 件目（基本形）は 10 の H56 の決めである。基本形が否定でないと決めたのは `exclude` に `申し訳な` などの部分文字列を足したためで、同じ部分文字列を含む別の語（例：`申し訳ないが断る`）も否定でなくなる。この境界の行は設計が決めるまで置かない。
 - 012 の 2 件目：英語側の否定の語の表は接頭辞の否定（`uninterested`、`unable` 以外の `un-`、`dis-`、`in-`）を読まないので、否定を残した正しい訳（`He looked uninterested.`）が `Held(Negation)` で止まる。H59（推量の表の `そう`）とは別の形で、機構は英語側の `en.negation` の語の表にある。表に `un-` の語を足すか、止まりを受けるかは設計が決める（この席は新しい H 番号を振らない）。
-- 009 の E2E-1 の実走の command は 6 と E2E の表のとおりで、70/80 を判定する test の置き場と名前が設計に無い。
+- 009 の E2E-1 の実走の command は 6 と E2E の表のとおりである。70/80 を判定する test は、実走の記録を読む受入 test `e2e1_mic_process_ja_to_en_beats_python`（`native/hayamimi-eval/tests/e2e1.rs`。4.63 の T-E2E-1-001）で、割合の境界の行は 4.63 の T-E2E-1-015（70 は通り 69 は落ちる。未実装）である。
 
 ### 4.54 RP-44（R8o の後の新しい held-out の組）
 
@@ -1888,6 +1888,52 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - 数字と記号だけの 1〜2 字（`42`、`?`、`。`）。「どの字も session の言語の文字に入らない」に当たるなら捨てる。数字を「session の言語の文字」に含むかは設計に無く、期待値を置けない。本物の短い発話（`42`）を落とす穴になり得る（持ち主は設計の席）。
 - 空白だけの確定文（除くと 0 字）。「1〜2 字」に 0 字が入るかは設計に無い。
 - 009 の run の log の置き場。RP-1 と RP-2 の run が `asr.final.dropped` を残すかは、この席は確かめていない。
+
+### 4.63 E2E-1 と E2E-2（マイクと loopback の実走の記録を判定する）
+
+test：`native/hayamimi-eval/tests/e2e1.rs`（E2E-1）と `native/hayamimi-eval/tests/e2e2.rs`（E2E-2）。受入 test の名前は D の E2E の表（`rust_port.ja.md` の 6 の E2E の小節）どおり、`e2e1_mic_process_ja_to_en_beats_python` と `e2e2_loopback_process_en_to_ja_within_budget` である。ほかの関数の名前は、各行の「関数の末尾」をそのまま使う（`rp` の前置きを持たない。4.1 の 3 つの形のどれでもなく、受入 test の名前の形に揃えた）。
+受入 test は `#[ignore]` を持ち、実走の記録（`docs/results/e2e/e2e1/` と `docs/results/e2e/e2e2/`）を読むだけで、何も起こさない。実走の command は D の E2E の表のとおりで、この節は起こさない。受入 test 以外は `#[ignore]` を持たず、`tests/fixtures/` と `docs/results/r8h_verify/` の記録で動く。
+入力：`tests/fixtures/e2e_columns.jsonl` は 4 件の標本（`t_end_us` は全部 1000000）。`t_final_us` と `t_tr_us` と `final_latency_ms`（`L_dec`）は 1 件目が 2300000、2500000、1000.0。2 件目が 2300000、2400000、1000.5。3 件目が 2000000、3000000、100.0。4 件目が 1800000、null、100.0。`--min-silence` は 300 ms。有効は `L_asr − L_dec ≥ min_silence`（3.1 の分割式）で、`L_asr = t_final − t_end`、`L = t_tr − t_end`、`L_tr = t_tr − t_final`。
+command（受入 test の外）：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test e2e1 --test e2e2`。受入 test は `cargo test --release --test e2e1 -- --ignored`（と `e2e2`）で、記録が在る時だけ打つ。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-E2E-1-001 | 実走の記録：Rust の標本 `e2e1.jsonl` と、Python の run の `py<N>.jsonl`（束ねる） | 受入 | 訳の取れた割合 ≥ 20 / 23、`L` の p50 と p95 が Python 以下 | 有効な標本（3.1）のうち訳の取れた割合が 20 / 23 以上で、Rust の `L` の p50 と p95 がともに Python を束ねた値以下。`L`、`L_asr`、`L_tr` の p50 と p95 を出力する（specified、D の E2E-1 の期待値） | 陽性：D の「`<base>` の Python の run から同じ列が出る」は 010 と 013。陰性：訳が 0 件の記録で落ちる（005） | `e2e1_mic_process_ja_to_en_beats_python` |
+| T-E2E-1-002 | `e2e_columns.jsonl` を数える | 無効な標本（1 件）と訳の無い標本（1 件）が混ざる | 有効 3、訳あり 2 | 有効 3（2 件目は `1300 − 1000.5 = 299.5 ms` で 300 ms 未満）、訳あり 2（1 件目と 3 件目）。`L` は 1500 と 2000 で n=2、p50 1500、p95 2000。`L_asr` は 800、1000、1300 で n=3、p50 1000、p95 1300。`L_tr` は 200 と 1000 で n=2、p50 200、p95 1000（derived、3.1 の式と nearest-rank の p95 = ceil(0.95 × n) 番目を fixture の数に手で当てた） | 境界（299.5 ms） | `the_columns_count_only_valid_samples` |
+| T-E2E-1-003 | 標本が 0 件の run | 空 | 列が無い | 有効 0、訳あり 0、`L` と `L_asr` が無し（specified、3.1 の「標本が無い run は値を持たない」。0 件を速さと読まない） | 境界、陰性 | `a_run_with_no_sample_has_no_column` |
+| T-E2E-1-004 | Python は `e2e_columns.jsonl`。Rust は同じ標本の全件に、`t_final_us` の 100000 µs 後の訳を付けた run | Rust が速く、全件に訳が在る | 通る | 判定の失敗が 0 件（derived、有効 3 の全件に訳が在り、`L` は 1400、1100、900 ms で p50 1100 ≤ Python の 1500、p95 1400 ≤ 2000） | 陽性 | `a_run_faster_than_python_and_fully_translated_passes` |
+| T-E2E-1-005 | 004 と同じ組で、Rust の訳を `t_final_us` の 1000000 µs 後に付けた run | Rust が遅い | 落ちる | 失敗が 1 件で、p50 は Rust 2000 ms > Python 1500 ms、p95 は Rust 2300 ms > Python 2000 ms の両方を言う（derived、`L` が 2300、2000、1800 ms になる） | 陰性 | `a_run_slower_than_python_fails_on_both_percentiles` |
+| T-E2E-1-006 | Python と Rust が同じ `e2e_columns.jsonl` | 百分位が等しい | 等しいは遅くない | 失敗が 1 件で、訳の割合（有効 3 のうち 2）だけを言う。p50 と p95 は失敗に入らない（specified、RP-3 の「p50 と p95 以下」の以下） | 境界 | `equal_percentiles_are_not_slower` |
+| T-E2E-1-007 | Rust が `e2e_no_translation.jsonl`（3 件とも訳が無い）。Python は `e2e_columns.jsonl` | 訳が 0 件 | 落ちる | 失敗に `0 of 3 valid samples have a translation` と `rust: no valid sample has a translation` が入る（specified、D の E2E-1 の陰性対照「訳が 0 件で test が落ちる」。llama-server を止めた run の記録の形） | 陰性 | `a_run_with_no_translation_fails` |
+| T-E2E-1-008 | Rust の標本が空 | 空の run | 通らない | 失敗に `no valid sample` が入る（specified、空を合格と読まない） | 陰性 | `an_empty_run_is_not_a_pass` |
+| T-E2E-1-009 | `docs/results/r8h_verify/` の Rust の `rs1.jsonl` と、Python の `py1.jsonl` と `py2.jsonl`（束ねる） | 実物の記録 | 数が jq と一致 | Rust は有効 40、訳あり 34。Python は有効 80、訳あり 76。出力に `e2e1 rust: 34 of 40 valid samples translated` と `e2e1 python: 76 of 80 valid samples translated` が入る（derived、同じ file を `jq` で数えた値。数え方は test の注釈に在る） | 陽性 | `a_recorded_run_gives_its_columns` |
+| T-E2E-1-010 | `r8h_verify` の dir で `rs1` の記録の一覧 | 記録の置き場 | 名前の順 | Rust は `rs1.jsonl`、Python は `py1.jsonl`、`py2.jsonl` の順。`py1.events.jsonl` と `py1.summary.json` は run に数えない（specified、D の E2E-1 の「同じ列を `<base>` の Python の run から出せる」） | 陽性 | `a_run_directory_lists_its_samples_and_the_python_runs_in_name_order` |
+| T-E2E-1-011 | 記録の無い run の名前 | 記録が無い | 言う | 失敗が「E2E の席が写す」旨を言う（derived、実走の記録は E2E の席が置く） | 陰性 | `a_run_directory_without_the_samples_says_what_to_copy` |
+| T-E2E-1-012 | run の dir の名前 `e2e1` | 置き場の固定 | 末尾が一致 | `docs/results/e2e/e2e1` で終わる（specified、D の E2E の表の記録の置き場） | 境界 | `the_fixed_directory_of_a_run_is_under_docs_results_e2e` |
+| T-E2E-1-013 | Python の run が 0 本の記録 | Python が無い | 断る | 失敗が `py<N>.jsonl` の名前を言う（specified、`L` は Python の run と比べて判定する） | 陰性 | `e2e1_without_a_python_run_is_refused` |
+| T-E2E-1-014 | 標本の file `/r/obs2.jsonl` | events file の名前 | 隣に在る | `/r/obs2.events.jsonl`（derived、E2E-2 が events を読む規則と同じ） | 境界 | `the_events_file_stands_beside_the_samples_file` |
+| T-E2E-1-015 | 有効 80 のうち訳あり 70 の run と 69 の run（Python は別に固定） | 割合の境界 20 / 23 | 70 は通り 69 は落ちる | 70/80 = 0.875 は 20/23 = 0.8696 以上で割合の失敗が 0 件。69/80 = 0.8625 は未満で割合の失敗が 1 件（derived、20/23 の除算。T-RP-43-009 の 70/80 の判定がここに在る）。`L` は Python 以下に揃えて割合だけを動かす | 境界、陽性、陰性 | `the_translated_share_passes_at_70_of_80_and_fails_at_69` |
+| T-E2E-2-001 | 実走の記録：Rust の標本 `e2e2.jsonl` と events file `e2e2.events.jsonl` | 受入 | `lang` が en の `final` と ja の訳、割合 ≥ 20 / 23、`L` の p95 ≤ 2000 ms | events に `lang` が `en` の `final` と、`lang` が `ja` の見える訳が在り、訳の取れた割合が 20 / 23 以上で、`L` の p95 が 2000 ms 以下。p50 は出力するが判定しない（specified、D の E2E-2 の期待値） | 陽性：`/ingest` の run（008）。陰性：訳が 0 件の記録で落ちる（009） | `e2e2_loopback_process_en_to_ja_within_budget` |
+| T-E2E-2-002 | 予算 `E2E2_P95_BUDGET_MS` と、`L` の p95 が 1999、2000、2001 ms の列 | 予算の境界 | 2000 は通り 2001 は落ちる | 予算は 2000。1999 と 2000 は失敗なし。2001 は `L p95 2001 ms > 2000 ms` を言う（specified、RP-3 の en→ja の「p95 が 2000 ms 以下」） | 境界、陰性 | `the_budget_is_2000_ms_and_the_boundary_passes` |
+| T-E2E-2-003 | `L` が無い列（標本が無い） | `L` 無し | 通らない | 予算の失敗が在る（specified、空を予算の内と読まない） | 陰性 | `a_run_with_no_l_is_over_no_budget_and_still_fails` |
+| T-E2E-2-004 | 9 行の events：en の `final` 2 件、ja の `final` 1 件、ja の見える訳 2 件（`status` が `ok`）、ほかに `status` が無い訳、en の訳、`held` の訳、空の訳、`of` が `partial` の訳 | 数える対象の仕分け | en の `final` 2、ja の見える訳 2 | en の `final` が 2、ja の見える訳が 2。ja の `final`、en の訳、`status` が `ok` でない訳、空の訳、`partial` の訳は数えない（specified、D の E2E-2 の「`lang` が `en` の `final` と `lang` が `ja` の訳」と、字幕に見える訳だけを数える H の規則） | 境界、陰性 | `the_events_are_counted_by_language_and_by_what_the_subtitle_shows` |
+| T-E2E-2-005 | events の行が `not json`、`{"t_us":1}`、空の文字列 | 不正な行 | 断る | 前の 2 つは失敗、空は (0, 0)（derived） | 陰性、境界 | `an_events_line_that_is_not_an_event_is_refused` |
+| T-E2E-2-006 | 全件に訳が在り速い run と、en の `final` と ja の訳が 1 件ずつの events | 通る | 通る | 判定の失敗が 0 件（derived） | 陽性 | `a_fast_translated_run_with_both_languages_passes` |
+| T-E2E-2-007 | `L` が 2300、2000、1800 ms の run | p95 だけが予算を超える | 1 件だけ落ちる | p95 は最大の 2300 ms。失敗が 1 件で `L p95 2300 ms > 2000 ms`（derived、nearest-rank の p95 = ceil(0.95 × 3) = 3 番目） | 陰性 | `a_run_whose_p95_is_over_2000_ms_fails_on_that_alone` |
+| T-E2E-2-008 | `r8h_verify` の `/ingest` の run `e2e2c.jsonl` と `e2e2c.events.jsonl` | 実物の記録 | 数が jq と一致 | 有効 30、訳あり 25、en の `final` 38、ja の見える訳 54。出力に `e2e2 rust: 25 of 30 valid samples translated` と `38 final in en, 54 shown translation in ja` が入る（derived、同じ file を `jq` で数えた値。D の E2E-2 の陽性対照「`/ingest` の run でも同じ列が出る」） | 陽性 | `a_recorded_run_gives_its_columns_and_event_counts` |
+| T-E2E-2-009 | 訳が 0 件の記録（`e2e_no_translation.jsonl`） | 訳が 0 件 | 落ちる | 失敗に `0 of 3 valid samples have a translation`、`rust: no valid sample has a translation`、`no shown translation in ja` が入り、`no final in en` は入らない（specified、D の E2E-2 の期待値。en の `final` は在り ja の訳だけが無い） | 陰性 | `a_run_with_no_translation_fails` |
+| T-E2E-2-010 | 標本も events も空の run | 空 | 全部の数で落ちる | 失敗に `no valid sample`、`hold no final in en`、`hold no shown translation in ja` が入る（specified、空を合格と読まない） | 陰性、境界 | `an_empty_run_with_no_events_fails_on_every_count` |
+| T-E2E-2-011 | 割合の境界：有効 23 のうち訳あり 20 の run と 19 の run | 20 / 23 の境界 | 20 は通り 19 は落ちる | 20/23 は割合の失敗が 0 件、19/23 は 1 件。events と `L` は通る値に揃える（derived、20/23 と同じ除算） | 境界、陰性 | `the_translated_share_boundary_is_20_of_23` |
+
+実装済みの行は、E2E-1 の 001 から 014 と E2E-2 の 001 から 010 である（`feat/r8n` の worktree に在り、main には入っていない。名前は写した）。015 と E2E-2-011 は未実装で、実装の席が足す。
+陰性の build と落ちる行（表から読んだ予測、NOT VERIFIED）：割合を数えない build は 007、009、015、E2E-2-011 が落ちる。`L` の p50 だけを判定する build は 005 が落ちる。0 件を合格と読む build は 003、008、E2E-2-003、010 が落ちる。ja の `final` を数える build は E2E-2-004 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- D の E2E-1 の陰性対照のうち「`hayamimi` と中継は止まらず `translate.fallback.held` を出す」と、E2E-2 の「出力の装置を止めた run では止まらず `capture.fallback.none` が 1 件」は、記録を読む test の外の確かめで、この節の行にしていない。機械で確かめる在り処は設計に無い（持ち主は E2E の席）。
+- 受入 test は記録を読み、何も起こさない。D の E2E の表の command（llama-server、中継、process A と B を起こす）を、誰がどの手番で打って記録を置くか（`docs/results/e2e/` への写し）は、設計の 8 の R8 の行に在るが、この節は触れない。
+- 009 と E2E-2-008 の数は `jq` で数えた値と注釈に在るだけで、式が test に無い。記録を入れ替えると値が動く。式を test の定数と一緒に置くかは実装の席が決める。
+- 015 と E2E-2-011 は、`judge_e2e1` と `judge_e2e2` の割合の境界の行である。今の test は 3 件の fixture の割合（2 of 3）でしか割合を打っておらず、20 / 23 の境界は実走の記録でしか確かめていない。
 
 ## 5. RP-19 の対応表
 
