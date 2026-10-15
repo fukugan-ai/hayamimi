@@ -13,6 +13,7 @@ use std::fs;
 use std::sync::Arc;
 use std::time::Duration;
 
+use hayamimi_relay::cli::{Command, Live, parse_args, start_live};
 use hayamimi_relay::follow::Backoff;
 use hayamimi_relay::hub;
 use hayamimi_relay::lang::Lang;
@@ -22,6 +23,7 @@ use hayamimi_relay::pipeline::{
     LineKind, LineRequest, NoObserver, Observer, Pipeline, PipelineConfig, Status, Translation,
 };
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
+use hayamimi_relay::strings::Strings;
 use hayamimi_relay::verify::HoldReason;
 use hayamimi_relay::verify_dump::VerifyDump;
 use serde_json::{Value, json};
@@ -195,17 +197,10 @@ fn final_event(id: &str, text: &str) -> String {
     .to_string()
 }
 
-/// The relay's lane hands the observer of its line to the pipeline: a line
-/// that arrives through the recognizer's stream leaves its two rows, and the
-/// relay's log keeps the text out.
-#[test]
-fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
-    let dir = TempDir::new("rp42-relay")?;
-    let path = dir.join("verify-text.jsonl");
-    let logs = Logs::default();
-    let Some(dump) = VerifyDump::open(&path, &mut logs.clone()) else {
-        return Err("the dump file was not opened".into());
-    };
+/// A relay with `dump` (or none) that translates the one line `SOURCE`
+/// through the recognizer's stream and has published it. Its events go to
+/// `logs`.
+fn relay_translating_source(dump: Option<VerifyDump>, logs: &Logs) -> TestResult {
     let server = server_saying(T_NO_NEGATION, E_NO_NUMBER)?;
     let base = server.base_url();
     let make: MakePipeline<HttpLlm> =
@@ -220,7 +215,7 @@ fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
         },
         started_epoch: 1_790_000_000,
         translate: None,
-        verify_dump: Some(dump),
+        verify_dump: dump,
     };
     let address = relay::start_with(
         hub::bind(0)?,
@@ -232,6 +227,21 @@ fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
     let published = collect_from(address)?;
     recognizer.send(&final_event("mic-1", SOURCE));
     published.wait_for(1, Duration::from_secs(10));
+    Ok(())
+}
+
+/// The relay's lane hands the observer of its line to the pipeline: a line
+/// that arrives through the recognizer's stream leaves its two rows, and the
+/// relay's log keeps the text out.
+#[test]
+fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
+    let dir = TempDir::new("rp42-relay")?;
+    let path = dir.join("verify-text.jsonl");
+    let logs = Logs::default();
+    let Some(dump) = VerifyDump::open(&path, &mut logs.clone()) else {
+        return Err("the dump file was not opened".into());
+    };
+    relay_translating_source(Some(dump), &logs)?;
 
     assert_eq!(
         rows_of(&path)?,
@@ -247,5 +257,136 @@ fn rp42_the_relay_writes_the_rows_of_the_lines_it_translates() -> TestResult {
             "{line}"
         );
     }
+    Ok(())
+}
+
+/// T-RP-42-006: every reason that holds a ja to en line is a possible reason
+/// for T. E always answers with the same text, so only T's side changes.
+/// `uncertainty` is not one of them: a hedge that only one side carries does
+/// not hold a line into English (RP-48), so the hedged T below passes V and
+/// the line goes out with no held event.
+#[test]
+fn rp42_every_reason_that_holds_a_ja_to_en_line_can_be_the_reason_of_t() -> TestResult {
+    const WITH_NAME: &str = "五人はAcmeにいませんでした。";
+    let hedged = "Maybe five were not there.";
+    let (line, events) = run_line(SOURCE, hedged, E_NO_NUMBER, &mut NoObserver)?;
+    assert_eq!(line.status, Status::Ok);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.event != "translate.line.held")
+    );
+    let cases = [
+        (SOURCE, "Six were not there.", "number"),
+        (SOURCE, "Sure, five were not there.", "form"),
+        (WITH_NAME, "Five were not there.", "proper_noun"),
+    ];
+    for (src, t_text, reason) in cases {
+        let (_, events) = run_line(src, t_text, E_NO_NUMBER, &mut NoObserver)?;
+        let event = the_held_event(&events)?;
+        assert_eq!(
+            field(event, "t_hold_reason"),
+            Some(&json!(reason)),
+            "{t_text}"
+        );
+    }
+    Ok(())
+}
+
+/// T-RP-42-007: a line that goes out logs no held event, and the text of its
+/// translations stays out of the log although the dump file is open.
+#[test]
+fn rp42_a_line_that_goes_out_logs_no_held_event() -> TestResult {
+    let dir = TempDir::new("rp42-out")?;
+    let mut sink = MemorySink::default();
+    let Some(dump) = VerifyDump::open(&dir.join("verify-text.jsonl"), &mut sink) else {
+        return Err("the dump file was not opened".into());
+    };
+    let mut observer = dump.observer(ID);
+    let (line, events) = run_line(
+        PLAIN_SOURCE,
+        PLAIN_TRANSLATION,
+        PLAIN_TRANSLATION,
+        &mut observer,
+    )?;
+    assert_eq!(line.status, Status::Ok);
+    assert!(
+        events
+            .iter()
+            .all(|event| event.event != "translate.line.held")
+    );
+    assert_no_text_in_the_log(&events, &[PLAIN_TRANSLATION]);
+    Ok(())
+}
+
+/// T-RP-42-008: a relay whose config names no file writes none, and the line
+/// that V withholds still logs both reasons.
+#[test]
+fn rp42_a_relay_without_a_named_file_writes_none() -> TestResult {
+    let dir = TempDir::new("rp42-none")?;
+    let logs = Logs::default();
+    relay_translating_source(None, &logs)?;
+
+    assert_eq!(fs::read_dir(dir.path())?.count(), 0);
+    let held = logs.named("translate.line.held");
+    let [event] = held.as_slice() else {
+        return Err(format!("{} held events, not 1", held.len()).into());
+    };
+    assert_eq!(field(event, "hold_reason"), Some(&json!("number")));
+    assert_eq!(field(event, "t_hold_reason"), Some(&json!("negation")));
+    Ok(())
+}
+
+/// The settings `live` is given with `extra` after the stream and the server.
+fn live_settings(
+    recognizer: &FakeRecognizer,
+    server: &FakeServer,
+    extra: &[&str],
+) -> Result<Live, Box<dyn std::error::Error>> {
+    let mut args: Vec<String> = ["live", "--events", &recognizer.url(), "--llm"]
+        .map(str::to_owned)
+        .to_vec();
+    args.push(server.base_url());
+    args.push(String::from("--llm-other"));
+    args.push(server.base_url());
+    args.extend(["--serve", "0"].map(str::to_owned));
+    args.extend(extra.iter().map(|word| (*word).to_owned()));
+    match parse_args(&args) {
+        Ok(Command::Run(live)) => Ok(live),
+        other => Err(format!("live was not parsed: {other:?}").into()),
+    }
+}
+
+/// Starts the relay the way `cli::run` does and stops it again.
+fn start_and_stop(live: &Live) -> TestResult {
+    let strings = Strings::embedded(Lang::En)?;
+    let sink = SharedSink::new(Logs::default());
+    let relay = start_live(live, 1_790_000_000, &strings, &sink)
+        .map_err(|error| format!("live did not start: {error:?}"))?;
+    relay.stop();
+    Ok(())
+}
+
+/// T-RP-42-009: from the arguments to the relay's config, the developer's file
+/// is named only by `--verify-text`.
+#[test]
+fn rp42_live_without_verify_text_names_no_file() -> TestResult {
+    let dir = TempDir::new("rp42-live")?;
+    let named = dir.join("verify-text.jsonl");
+    let named_arg = named.to_str().ok_or("non-utf8 path")?;
+    let (recognizer, server) = (
+        FakeRecognizer::start()?,
+        server_saying(PLAIN_TRANSLATION, PLAIN_TRANSLATION)?,
+    );
+
+    let without = live_settings(&recognizer, &server, &[])?;
+    assert_eq!(without.verify_text, None);
+    start_and_stop(&without)?;
+    assert_eq!(fs::read_dir(dir.path())?.count(), 0);
+
+    let with = live_settings(&recognizer, &server, &["--verify-text", named_arg])?;
+    assert_eq!(with.verify_text.as_deref(), Some(named.as_path()));
+    start_and_stop(&with)?;
+    assert!(named.exists());
     Ok(())
 }

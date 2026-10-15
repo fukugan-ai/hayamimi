@@ -294,3 +294,144 @@ fn rp45_recorded_edit_answers_lose_their_labels() -> TestResult {
     assert_eq!(empty, 0);
     Ok(())
 }
+
+/// How many times E's translation was withheld, whatever the reason.
+fn edit_held_total(sink: &MemorySink) -> usize {
+    sink.events
+        .iter()
+        .filter(|event| event.event == "translate.edit.held")
+        .count()
+}
+
+/// The line settles on E with `text` and E was not withheld.
+fn assert_settled_on_e_as(line: &Translation, sink: &MemorySink, text: &str) {
+    assert_eq!((line.status, line.stage), (Status::Ok, Pass::E), "{text}");
+    assert_eq!(line.text, text);
+    assert_eq!(edit_held_total(sink), 0, "{text}");
+}
+
+/// Correct translations that look like a label: the language of the source,
+/// the source, T's translation and E's answer. Each source is chosen so that
+/// V passes E's answer as it stands.
+const LOOKS_LIKE_A_LABEL: [(Lang, &str, &str, &str); 6] = [
+    (
+        Lang::Ja,
+        "誰もそれを読まなかった。",
+        "Nobody read it.",
+        "The draft: nobody read it.",
+    ),
+    (
+        Lang::Ja,
+        "最終案の準備ができた。",
+        "The final draft is ready.",
+        "Final draft: ready.",
+    ),
+    (
+        Lang::Ja,
+        "法案が可決された。",
+        "The bill passed.",
+        "Draft law: passed.",
+    ),
+    (
+        Lang::Ja,
+        "計画は金曜までに提出する。",
+        "Submit the plan by Friday.",
+        "Draft plan: submit by Friday.",
+    ),
+    (
+        Lang::Ja,
+        "日本語の授業です。",
+        "It is a Japanese class.",
+        "Japanese: language class",
+    ),
+    (
+        Lang::En,
+        "It is an English class.",
+        "英語の授業です。",
+        "English: 英語の授業",
+    ),
+];
+
+/// T-RP-45-010: through the pipeline, text that looks like a label goes out
+/// as E's translation and is not emptied.
+#[test]
+fn rp45_text_that_looks_like_a_label_goes_out_as_the_translation() -> TestResult {
+    for (lang, src, draft, answer) in LOOKS_LIKE_A_LABEL {
+        let (line, sink) = settle(lang, src, draft, answer)?;
+        assert_settled_on_e_as(&line, &sink, answer);
+    }
+    Ok(())
+}
+
+/// T-RP-45-011: a language name two edits away is a label and three is not.
+#[test]
+fn rp45_a_language_name_two_edits_away_is_a_label_and_three_is_not() -> TestResult {
+    let answer = |name: &str| format!("Draft {name}:\n下書き\n\nRewritten {name}:\n{EN_EDITED}");
+
+    let (line, sink) = settle(Lang::En, EN_SRC, EN_DRAFT, &answer("Jpanse"))?;
+    assert_settled_on_e_as(&line, &sink, EN_EDITED);
+
+    let three = answer("Jpans");
+    let (line, sink) = settle(Lang::En, EN_SRC, EN_DRAFT, &three)?;
+    assert_settled_on_e_as(&line, &sink, &three);
+    assert!(carries_a_label(&line.text));
+    Ok(())
+}
+
+/// The answer is not read as having a label: it settles on E as it stands and
+/// its label words stay in the text.
+fn assert_kept_as_text(lang: Lang, src: &str, draft: &str, answer: &str) -> TestResult {
+    let (line, sink) = settle(lang, src, draft, answer)?;
+    assert_settled_on_e_as(&line, &sink, answer.trim());
+    assert!(line.text.contains("Rewritten"), "{answer}");
+    assert!(carries_a_label(&line.text), "{answer}");
+    Ok(())
+}
+
+/// T-RP-45-012 (pins H60): a label in bold is kept as text.
+#[test]
+fn rp45_a_bold_label_is_kept_as_text() -> TestResult {
+    let answer = format!("**Rewritten Japanese:** {EN_EDITED}");
+    assert_kept_as_text(Lang::En, EN_SRC, EN_DRAFT, &answer)
+}
+
+/// T-RP-45-013 (pins H60): a note between the language name and the colon.
+#[test]
+fn rp45_a_label_with_a_note_before_the_colon_is_kept_as_text() -> TestResult {
+    let answer = format!("Rewritten Japanese (final): {EN_EDITED}");
+    assert_kept_as_text(Lang::En, EN_SRC, EN_DRAFT, &answer)
+}
+
+/// T-RP-45-014 (pins H60): a numbered label.
+#[test]
+fn rp45_a_numbered_label_is_kept_as_text() -> TestResult {
+    let answer = format!("1. Rewritten Japanese: {EN_EDITED}");
+    assert_kept_as_text(Lang::En, EN_SRC, EN_DRAFT, &answer)
+}
+
+/// T-RP-45-015 (pins H60): the whole template on one line.
+#[test]
+fn rp45_a_template_written_on_one_line_is_kept_as_text() -> TestResult {
+    let answer =
+        format!("English: {EN_SRC} Draft Japanese: {EN_DRAFT} Rewritten Japanese: {EN_EDITED}");
+    assert_kept_as_text(Lang::En, EN_SRC, EN_DRAFT, &answer)
+}
+
+/// T-RP-45-016 (pins H60): `Javanese` is one edit from `Japanese`, so a line
+/// that starts with it is read as a label and the text before it is lost.
+#[test]
+fn rp45_a_line_head_javanese_label_is_read_as_a_misspelling() -> TestResult {
+    let answer = format!("Draft Javanese:\n{EN_EDITED}");
+    let (line, sink) = settle(Lang::En, EN_SRC, EN_DRAFT, &answer)?;
+    assert_settled_on_e_as(&line, &sink, EN_EDITED);
+    Ok(())
+}
+
+/// T-RP-45-017 (pins H60): `Enlist` is two edits from `English`.
+#[test]
+fn rp45_a_line_head_enlist_label_is_read_as_a_misspelling() -> TestResult {
+    let answer = format!("Draft Enlist:\n{JA_EDITED}");
+    let (line, sink) = settle(Lang::Ja, JA_SRC, JA_DRAFT, &answer)?;
+    assert_settled_on_e_as(&line, &sink, JA_EDITED);
+    Ok(())
+}

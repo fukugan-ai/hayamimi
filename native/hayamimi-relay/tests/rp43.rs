@@ -7,7 +7,7 @@
 
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::logging::MemorySink;
-use hayamimi_relay::verify::{HoldReason, Verdict, Verifier};
+use hayamimi_relay::verify::{HEDGE_EVENT, HoldReason, Verdict, Verifier};
 
 /// A Japanese source with "なさそう", "なさげ" or "なさすぎ", a translation that
 /// keeps the negation and one that drops it.
@@ -57,6 +57,66 @@ const POSITIVE: [(&str, &str); 11] = [
     ("頼りない人です。", "He is unreliable."),
 ];
 
+/// The three words followed by more text: a translation that keeps the
+/// negation and one that drops it.
+const CONJUGATED: [(&str, &str, &str); 3] = [
+    (
+        "ご飯が美味しくなさそうに見える。",
+        "It does not seem tasty.",
+        "The food looks tasty.",
+    ),
+    (
+        "興味がなさげな顔だった。",
+        "He was not interested.",
+        "He looked interested.",
+    ),
+    (
+        "やる気がなさすぎて困る。",
+        "He has no motivation, which is a problem.",
+        "He has motivation, which is a problem.",
+    ),
+];
+
+/// The same first two sources with a translation that keeps the negation in a
+/// form the English tables do not read.
+const NEGATION_THE_TABLES_DO_NOT_READ: [(&str, &str, Option<HoldReason>); 2] = [
+    (
+        "ご飯が美味しくなさそうに見える。",
+        "The food does not look tasty.",
+        None,
+    ),
+    (
+        "興味がなさげな顔だった。",
+        "He looked uninterested.",
+        Some(HoldReason::Negation),
+    ),
+];
+
+/// "なさそう" after "では": a translation that keeps the negation and one that
+/// drops it.
+const AFTER_DEWA: (&str, &str, &str) = (
+    "それは本物ではなさそうです。",
+    "It does not seem to be genuine.",
+    "It seems to be genuine.",
+);
+
+/// A source without a negation word and a translation that adds one.
+const NEGATION_ADDED: (&str, &str) = ("あまり美味しそうです。", "It does not seem tasty.");
+
+/// "〜なさそう" followed by a negation, with a translation that carries a
+/// hedge word of the table ("seem", "appear").
+const NEGATED_WITH_HEDGE: [(&str, &str); 2] = [
+    ("申し訳なさそうではない。", "He does not seem apologetic."),
+    ("仕方なさそうにしない。", "He does not appear resigned."),
+];
+
+/// The same two sources with a translation that keeps the negation and has no
+/// hedge word of the table ("look" alone is not one).
+const NEGATED_WITHOUT_HEDGE: [(&str, &str); 2] = [
+    ("申し訳なさそうではない。", "He is not apologetic."),
+    ("仕方なさそうにしない。", "He does not look resigned."),
+];
+
 fn verdict(src: &str, translation: &str) -> Result<Verdict, String> {
     let mut sink = MemorySink::default();
     let mut verifier = Verifier::open(None, &mut sink)?;
@@ -95,6 +155,95 @@ fn rp43_the_nai_row_reads_as_before() -> Result<(), String> {
 fn rp43_a_positive_adjective_with_the_stem_na_is_not_negation() -> Result<(), String> {
     for (src, translation) in POSITIVE {
         assert_eq!(verdict(src, translation)?, Verdict::Ok, "{src}");
+    }
+    Ok(())
+}
+
+/// T-RP-43-006: the words are read inside a longer form too.
+#[test]
+fn rp43_the_conjugated_forms_are_read_as_negation_too() -> Result<(), String> {
+    for (src, kept, dropped) in CONJUGATED {
+        assert_eq!(verdict(src, kept)?, Verdict::Ok, "{src}: kept");
+        assert_eq!(
+            verdict(src, dropped)?,
+            Verdict::Held(HoldReason::Negation),
+            "{src}: dropped"
+        );
+    }
+    Ok(())
+}
+
+/// T-RP-43-007: the character before "なさそう" does not matter.
+#[test]
+fn rp43_a_nasasou_after_dewa_is_read_as_negation() -> Result<(), String> {
+    let (src, kept, dropped) = AFTER_DEWA;
+    assert_eq!(verdict(src, kept)?, Verdict::Ok);
+    assert_eq!(verdict(src, dropped)?, Verdict::Held(HoldReason::Negation));
+    Ok(())
+}
+
+/// T-RP-43-008: the check compares presence on both sides, so a negation the
+/// translation adds to a source without one is held too.
+#[test]
+fn rp43_a_negation_added_to_a_plain_source_is_held() -> Result<(), String> {
+    let (src, translation) = NEGATION_ADDED;
+    assert_eq!(
+        verdict(src, translation)?,
+        Verdict::Held(HoldReason::Negation)
+    );
+    Ok(())
+}
+
+/// T-RP-43-010: pins the behavior of H59. The "そう" of "〜なさそう" is a hedge
+/// word of the Japanese table whatever follows it, so a translation that
+/// keeps the negation and has a hedge word of the English table passes.
+#[test]
+fn rp43_a_negated_nasasou_with_a_hedge_word_in_the_translation_passes() -> Result<(), String> {
+    for (src, translation) in NEGATED_WITH_HEDGE {
+        assert_eq!(verdict(src, translation)?, Verdict::Ok, "{src}");
+    }
+    Ok(())
+}
+
+/// The `translate.hedge.logged` events V records for a Japanese source and its
+/// translation: a hedge that only one side carries is logged once, not held.
+fn hedge_events(src: &str, translation: &str) -> Result<usize, String> {
+    let mut sink = MemorySink::default();
+    let verifier = Verifier::open(None, &mut sink)?;
+    verifier.log_pair_hedge("id", src, translation, Lang::Ja, &mut sink);
+    Ok(sink
+        .events
+        .iter()
+        .filter(|event| event.event == HEDGE_EVENT)
+        .count())
+}
+
+/// T-RP-43-011: a hedge that only the source carries does not hold a ja to en
+/// line (RP-48). The same sources with a correct translation that has no
+/// hedge word of the table go out, and the disagreement is logged once.
+#[test]
+fn rp43_a_negated_nasasou_without_a_hedge_word_in_the_translation_goes_out_and_logs_the_hedge()
+-> Result<(), String> {
+    for (src, translation) in NEGATED_WITHOUT_HEDGE {
+        assert_eq!(verdict(src, translation)?, Verdict::Ok, "{src}");
+        assert_eq!(hedge_events(src, translation)?, 1, "{src}");
+    }
+    Ok(())
+}
+
+/// T-RP-43-012: a correct translation that keeps the negation in a form the
+/// tables do not read. The first goes out with its hedge disagreement logged
+/// (RP-48); the second, with the prefix `un-`, is held for `negation`. The
+/// second row falls on the day the tables read those forms.
+#[test]
+fn rp43_a_conjugated_form_whose_translation_the_tables_do_not_read_goes_out_or_is_held_for_now()
+-> Result<(), String> {
+    for (src, translation, reason) in NEGATION_THE_TABLES_DO_NOT_READ {
+        let expected = reason.map_or(Verdict::Ok, Verdict::Held);
+        assert_eq!(verdict(src, translation)?, expected, "{src}: {translation}");
+        if reason.is_none() {
+            assert_eq!(hedge_events(src, translation)?, 1, "{src}");
+        }
     }
     Ok(())
 }
