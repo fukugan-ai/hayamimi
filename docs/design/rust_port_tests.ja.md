@@ -1957,6 +1957,8 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 - 標本の枠は ja が 23 × 5 = 115、en が 15 × 5 = 75。枠は 有効 + final なし + 終端不正 に分かれる。RP-66 は終端不正の線を 0.12 秒にして数える（3.1 の例外）。
 - `d = L_asr − L_dec`（ms）。有効は `final` が在り `d ≥ 120`。0.30 秒で数える有効は `d ≥ 300`。
 - p50、p95 は nearest-rank（順位は (p × n + 99) / 100 の整数除算）。`d` の n は、訳の有無を問わない有効な標本の数である（D 3.17 の「RP-66 と RP-67 の数え方」の 1）。「final なし」は `t_final_us` が null の標本（同 2）。`d` の合否と品質の合否は、言語ごとに R8v の 2 本を合わせた集まりと、main の 2 本を合わせた集まりで取る（同 7）。run ごとの値は記録だけにする。
+- 合否は 2 つ（6 の RP-66）。(1) `d` の 4 つの限度。(2) 品質：文の途中の切断の率（上限以下）と、「final なし」の数と訳の取れない有効な標本の数と ja の CER（対の main より悪くならない）。`finals` が 2 以上の標本の数、仕分けの 3 つの数、割れた標本の訳の chrF、`L`、復号、訳は記録だけ。文の途中の切断の率の上限の値は、評議が手番 1b の後、手番 1c の前に固定する。この節は数を置かない。
+- B だけが作った割れは、3 つに仕分ける：本物の文の切れ目、尾の雑音、文の途中（D 3.17 の数え方の 8）。en の参照の文の終わりの印は、A の final の句読点から写す（同 9）。発話の終わりの遅れは最後の final で取る（同 10）。
 
 **fixture**（式で作る。実測のふりをしない）：
 
@@ -1967,6 +1969,13 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 合わせた集まりは、ja が n 200（p50 は 100 番目、p95 は 190 番目）、en が n 150（p50 は 75 番目、p95 は 143 番目）である。2 本が同じ標本なので、k 番目の値は合わせた順位の 2k − 1 番目と 2k 番目に並ぶ（ja の p50 は k = 50、p95 は k = 95。en の p50 は k = 38、p95 は k = 72）。
 行 001〜009 の「R8v の k 番目を変える」は、2 本の R8v の run の両方に当てる。品質の行（016〜025）の「R8v の標本を 1 つ変える」は、2 本のうち 1 本にだけ当てる（合わせた数で 1 件の差になる）。
+
+**仕分けの fixture**（D 3.17 の数え方の 8 と 9。字や語で作る。実測のふりをしない）：
+
+- **参照 J5**（ja）：`今日は天気がいいですね。明日は雨です。`。NFKC の後に空白と句読点を除くと `今日は天気がいいですね明日は雨です`（17 字）で、`。` は 11 字目の後と 17 字目の後に在る。**参照 J4**：`今日は天気がいいですね、明日は雨です。`（`、` は終わりの印でない。`。` は 17 字目の後だけ）。
+- 割れの「前の文」は参照の先頭 e 字、「後ろの文」は残り。e = 11 は参照の文の切れ目にちょうど当たる。
+- **参照 E**（en）：`the cat sat on the mat and then it left`（10 語）。**A の final の文 E1**：`The cat sat on the mat. And then it left.`（`.` は 6 語目と 10 語目の後）。**E0**：`The cat sat on the mat and then it left.`（`.` は 10 語目の後だけ）。割れの前の文は先頭 e 語。
+- 仕分けの優先は、設計が書かない（本物の文の切れ目と尾の雑音の両方に当たる形、たとえば J5 の末尾の割れ）。この fixture は両方に当たる形を使わない（この節の「設計にない物」）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -1985,9 +1994,9 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-66-013 | S3：M66J と M66E、および 010 の実物の 2 本 | 0.12 秒でだけ有効な標本が無い | 数 0、分布は欄を持たない | 数は 0。分布の欄は値を持たない（0 と書かない）。`Ok`（derived、010 の数の差 0。0 件を「待ちが 0 ms」と読ませない） | 陰性 | `no_sample_valid_only_at_120_ms_gives_zero_and_no_distribution` |
 | T-RP-66-014 | F66J の 1 番目の標本の `d` を 250 ms にした R8v の run（対は 001 と同じ） | H70。0.12 秒で有効、0.30 秒で終端不正 | `Ok` | `Ok`。250 ms の標本は有効に入り、有効は 100、p50 は 50 番目の 500 ms のまま。0.30 秒で数えた場合は有効が 99 になり、50 番目が 1006 ms になって ja の p50 の限度を超える（derived、F66J の 51 番目が 1006 ms。したがって 0.30 秒で数える build はこの行で落ちる） | 陽性、陰性 | `a_sample_with_a_wait_under_300_ms_counts_as_valid_at_120_ms` |
 | T-RP-66-015 | F66J の 1 番目の `d` を 100 ms にした run、250 ms にした run、そのままの run | 枠が三つに分かれる。0.12 秒の線の両側 | 合計が枠 | 100 ms の run は 0.12 秒で 有効 99 + final なし 15 + 終端不正 1 = 115、0.30 秒で 99 + 15 + 1 = 115。250 ms の run は 0.12 秒で 100 + 15 + 0、0.30 秒で 99 + 15 + 1。どの組も 115 になる。そのままの run は 100 + 15 + 0 の 2 通りとも（derived、3.1 の「枠 = 有効 + final なし + 終端不正」。標本を落として合計が枠を割ると `Err`） | 境界、陽性 | `the_frame_splits_into_valid_no_final_and_bad_end_without_loss` |
-| T-RP-66-016 | **S1**：001 の ja で、R8v の final なしの 1 標本を `finals` 2 にする（`t_final_us` は null のまま） | 割れた標本が有効でない（枠の中） | `Err` | `Err` で `finals` が 2 以上の標本の数を名指し。main は 0、R8v は 1。有効な標本だけで数えると 0 になり通ってしまう（derived、6 の RP-66 の品質の合否。枠 115 の全標本で数える） | 陰性 | `a_split_sample_without_a_final_is_counted_over_the_whole_frame` |
-| T-RP-66-017 | 001 の ja で、R8v の有効な標本の 1 つを `finals` 2 にする | 割れた標本が 1 件増える | `Err` | `Err` で `finals` が 2 以上の標本の数を名指し（main 0、R8v 1）（specified、6 の RP-66。増えない）。常に完結と判定して毎回確定する build は、割れた標本を増やすのでここで落ちる | 陰性 | `one_more_split_sample_is_rejected` |
-| T-RP-66-018 | main は 2 本それぞれ `finals` が 2 の標本を 1 つ（合わせて 2）。R8v は合わせて 2 と 1 | 割れた標本の数が等しい、減る | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「増えず」。等号側。実物の記録は ja が 10、en が 15 の標本を持つ。jq の `select(.finals >= 2)` を枠の全標本に当てた数） | 境界、陽性 | `equal_or_fewer_split_samples_pass` |
+| T-RP-66-016 | **S1**：001 の ja で、R8v の final なしの 1 標本を `finals` 2 にする（`t_final_us` は null のまま） | 割れた標本が有効でない（枠の中）。記録の項目 | `Ok` と数 | `Ok`。記録の `finals` が 2 以上の標本の数は main 0、R8v 1。有効な標本だけで数えると 0 になり、記録が欠ける（derived、D 3.17 の数え方の 3。枠の全標本で数える。6 の RP-66 は `finals` が 2 以上の標本を合否に使わない） | 陽性、陰性 | `a_split_sample_without_a_final_is_recorded_over_the_whole_frame` |
+| T-RP-66-017 | 001 の ja で、R8v の有効な標本の 1 つを `finals` 2 にする | 割れた標本が 1 件増える | `Ok` と数 | `Ok`。記録の数は main 0、R8v 1 で、増えても落ちない（specified、6 の RP-66 の「記録するだけで合否に入れない」。旧い判定は増えると `Err` だった。常に完結と判定する build は、行 056 から 058 の文の途中の切断の率で落ちる） | 陰性 | `one_more_split_sample_is_recorded_and_does_not_fail` |
+| T-RP-66-018 | main は 2 本それぞれ `finals` が 2 の標本を 1 つ（合わせて 2）。R8v は合わせて 2 と 1 と 5 | 割れた標本の数が等しい、減る、増える | すべて `Ok` | 3 つとも `Ok`。記録の数は R8v が 2、1、5（specified、同上。実物の記録は ja が 10、en が 15 の標本を持つ。jq の `select(.finals >= 2)` を枠の全標本に当てた数） | 境界、陽性 | `split_samples_are_recorded_whichever_way_the_count_moves` |
 | T-RP-66-019 | 001 の ja で、R8v の有効な標本の 1 つを final なしにする（`t_final_us` が null、`finals` 0） | final なしが 1 件増える | `Err` | `Err` で final なしの標本の数を名指し（2 本合わせて main 30、R8v 31）。有効は 99 になる（specified、6 の RP-66。増えない。枠 115 の全標本で数える） | 陰性 | `one_more_sample_without_a_final_is_rejected` |
 | T-RP-66-020 | main の final なしが 2 本合わせて 30、R8v が 30 と 29 | final なしが等しい、減る | `Ok` | どちらも `Ok`（specified、6 の RP-66 の「増えず」。等号側） | 境界 | `equal_or_fewer_samples_without_a_final_pass` |
 | T-RP-66-021 | 001 の ja で、R8v の有効な標本の 1 つの `t_tr_us` を null にする | 訳の取れない有効な標本が 1 件増える | `Err` | `Err` で訳の取れない有効な標本の数を名指し（main 0、R8v 1）（specified、6 の RP-66。増えない） | 陰性 | `one_more_valid_sample_without_a_translation_is_rejected` |
@@ -1999,6 +2008,30 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-66-027 | 001 の ja で、R8v の全標本の `L_tr` を 5300 ms にする | 訳が遅い | `Ok` | `Ok`。`d` は動かず、`L` の p95 と訳の p95 が大きくなっても落ちない。出力の `L` の p95 は 6450 ms、訳の p95 は 5300 ms（specified、6 の RP-66 の「`L`、復号、訳は p50 と p95 を記録するだけで合否に入れない」） | 陰性 | `a_slow_translation_does_not_fail_the_wait_verdict` |
 | T-RP-66-028 | 001 の ja で、順を main、main、R8v、R8v、にする | 順が交互でない | `Err` | `Err` で 2 番目の run を名指し（specified、6 の RP-66 の「main、R8v、main、R8v の順」。RP-32 の T-RP-32-002 と同じ形） | 陰性 | `a_run_order_that_is_not_alternated_is_rejected` |
 | T-RP-66-039 | ja。R8v の 1 本目は全標本の `d` を 460 ms にした run（有効 100）、2 本目は F66J の 50 番目だけ 501 ms にした run。main は M66J の 2 本 | 2 本を合わせると通り、2 本目だけだと落ちる | `Ok` | `Ok`。合わせた n 200 の p50 は 100 番目で 460 ms（1 本目の 100 標本が 500 ms 以下）、p95 は 190 番目で 2 本目の 90 番目の 1045 ms（derived、D 3.17 の数え方の 7）。2 本目だけで取ると p50 が 501 ms で `Err` になる。run ごとに判定する build はここで落ちる。run ごとの p50 と p95（460 ms と 460 ms、501 ms と 1050 ms）は記録だけに出す | 陽性、陰性 | `two_runs_are_pooled_per_language_for_d` |
+| T-RP-66-040 | **仕分け（ja、本物の文の切れ目）**：B だけの割れ 1 件。参照 J5、前の文は先頭 11 字（e = 11）、後ろの文は残りの 6 字 | 合わせた終わりの直後に `。` | 本物の文の切れ目 | 本物 1、文の途中 0、尾の雑音 0（specified、D 3.17 の数え方の 8。`。` が 11 字目の直後に在る） | 陽性 | `a_split_at_a_reference_sentence_end_is_a_real_boundary` |
+| T-RP-66-041 | 040 の e を 10 にする（前の文は `今日は天気がいいです`） | 終わりの 1 字手前（+1 側の境界） | 本物の文の切れ目 | 本物 1（specified、同上の「直後（±1 字）」。`。` は合わせた終わりの 1 字後） | 境界 | `a_split_one_character_before_the_mark_is_still_a_real_boundary` |
+| T-RP-66-042 | 040 の e を 12 にする（前の文は `今日は天気がいいですね明`） | 終わりの 1 字後（−1 側の境界） | 本物の文の切れ目 | 本物 1（specified、同上。`。` は合わせた終わりの 1 字前） | 境界 | `a_split_one_character_after_the_mark_is_still_a_real_boundary` |
+| T-RP-66-043 | 040 の e を 9 にする（前の文は `今日は天気がいいで`） | 印から 2 字手前（外側の境界） | 文の途中 | 文の途中 1（specified、同上。`。` が合わせた終わりの 2 字後で ±1 字の外。後ろの文は参照の残りに合うので尾の雑音でない） | 境界、陰性 | `a_split_two_characters_before_the_mark_is_mid_sentence` |
+| T-RP-66-044 | 040 の e を 13 にする（前の文は `今日は天気がいいですね明日`） | 印から 2 字後（外側の境界） | 文の途中 | 文の途中 1（specified、同上。`。` が合わせた終わりの 2 字前。後ろの文 `は雨です` は参照の残りに合う） | 境界、陰性 | `a_split_two_characters_after_the_mark_is_mid_sentence` |
+| T-RP-66-045 | **尾の雑音**：参照 J4、前の文は先頭 11 字、後ろの文は `ん` | 後ろの文の字が参照の残り（`明日は雨です`）に合わない。直後は `、` で終わりの印でない | 尾の雑音 | 尾の雑音 1、本物 0、文の途中 0（specified、D 3.17 の数え方の 8。`ん` は残りの字のどれにも合わず、`、` は印でない） | 陽性 | `a_trailing_character_that_matches_nothing_is_tail_noise` |
+| T-RP-66-046 | 045 の後ろの文を `。`（句読点だけ）にする | 除くと空 | 尾の雑音 | 尾の雑音 1（specified、同上の「同じ形で除いて空」） | 境界 | `a_trailing_sentence_that_is_empty_after_stripping_is_tail_noise` |
+| T-RP-66-047 | 040、043、045 の 3 件を 1 つの run に入れる。040 をもう 1 件足す（本物が 2 件） | 3 つの数の和 | 4 件 | 本物 2、文の途中 1、尾の雑音 1。和は割れの数 4 に等しい。どの割れも 3 つのどれか 1 つだけに入る（derived、D の数え方の 8 の「3 つのどれか 1 つに入れる」）。数は 3 つの別の欄で出力する | 陽性、境界 | `every_split_is_in_exactly_one_of_the_three_kinds` |
+| T-RP-66-048 | 割れが 0 件の run（有効 100）と、有効が 0 件の run | 割れ無し、母数無し | 前者は 3 つが 0、後者は `Err` | 前者は 3 つの数が 0 で率が 0（specified）。後者は `Err` で有効が 0 件であることを名指し。0 で割った値を率として出さない（derived、0 件を成功と読まない） | 陰性、境界 | `no_split_gives_zero_and_no_valid_sample_is_rejected` |
+| T-RP-66-049 | **仕分け（en）**：割れ 1 件。参照 E、A の final E1、前の文は先頭 6 語、後ろの文は残り | 合わせた終わりの直後に A の final の `.` | 本物の文の切れ目 | 本物 1（specified、D 3.17 の数え方の 9。`.` を参照の 6 語目の後へ写す） | 陽性 | `an_en_split_at_the_mark_of_the_final_sentence_is_a_real_boundary` |
+| T-RP-66-050 | 049 の前の文を先頭 5 語、7 語にした 2 件 | ±1 語の内側 | 本物の文の切れ目 | 2 件とも本物（specified、同上の「±1 語」） | 境界 | `an_en_split_one_word_either_side_of_the_mark_is_a_real_boundary` |
+| T-RP-66-051 | 049 の前の文を先頭 4 語、8 語にした 2 件 | ±1 語の外側 | 文の途中 | 2 件とも文の途中（specified、同上。後ろの文は参照の残りに合う） | 境界、陰性 | `an_en_split_two_words_from_the_mark_is_mid_sentence` |
+| T-RP-66-052 | A の final を E0 にし、前の文を先頭 6 語、後ろの文を `uh` にする | A の final の `.` が末尾にしか無い | 尾の雑音 | 尾の雑音 1、本物 0（specified、同上。6 語目の後に印が無く、`uh` は残りに合わない） | 陽性、陰性 | `an_en_tail_word_with_no_mark_nearby_is_tail_noise` |
+| T-RP-66-053 | A の final を `The cat sat on the map. And then it left.`（`mat` を `map` と誤認）にし、参照 E に写す | 認識の誤りを含む合わせ | 印の位置 | `.` が参照の 6 語目の後と 10 語目の後に写る。編集距離の最小の合わせで `map` と `mat` が対になる（derived、D の数え方の 9 の「数え方の 8 の合わせ」） | 陽性 | `marks_of_the_final_sentence_are_carried_over_through_the_edit_alignment` |
+| T-RP-66-054 | **en の手の確かめ（ja）**：割れ 5 件。(1) J5、e = 11、A の final は J5 と同じ。(2) J5、e = 11、A の final は `今日は天気がいいですね明日は雨です。`。(3) J5、e = 13、A の final は `今日は天気がいいですね明日。は雨です。`。(4) J5、e = 9、A の final は J5 と同じ。(5) J4、e = 11、後ろの文 `ん`、A の final は J4 と同じ | 参照の `。` による仕分けと A の final の `。` による仕分けの一致 | 一致 3、不一致 2 | 一致 3 件（(1)(4)(5)）、不一致 2 件（(2)(3)）を別の欄に出す。(2) は参照で本物、A で文の途中。(3) は参照で文の途中、A で本物。不一致が多い時の上限は評議が手番 1b の後に固定する。この行は上限と比べず、2 つの数だけを確かめる（specified、D の数え方の 9。一致の件数と一致しなかった件数を並べて記録する） | 陽性、陰性 | `reference_and_final_sentence_sortings_are_compared_and_both_counts_are_written` |
+| T-RP-66-055 | 054 の 5 件を、A の final を全部参照と同じにして仕分ける | 全て一致 | 一致 5、不一致 0 | 一致 5、不一致 0（derived。054 で不一致 2 を数えた同じ道具が、一致する入力で 0 を返す対照） | 陰性、境界 | `identical_sortings_give_no_disagreement` |
+| T-RP-66-056 | **文の途中の切断の率**：ja の R8v を合わせた有効 200 標本（F66J の 2 本）に、文の途中の割れ 3 件と本物 2 件と尾の雑音 1 件。もう 1 つの run は文の途中 0 件 | 率の式 | 0.015 と 0 | 率 = 3 ÷ 200 = 0.015。0 件の run は 0（derived、D 6 の RP-66 の「文の途中と仕分けた割れの数 ÷ 有効な標本の数」。本物と尾の雑音は分子に入らない）。この行は率の値だけを確かめる。判定は 057 | 陽性、境界 | `the_mid_sentence_cut_rate_counts_only_mid_sentence_splits_over_valid_samples` |
+| T-RP-66-057 | 上限 U を置いた後の 056 の形。文の途中の割れが ⌊U × 200⌋ 件の run と、1 件多い run | 上限の両側 | 前者は `Ok`、後者は `Err` | 前者は `Ok`（率 ≤ U の等号側）、後者は `Err` で文の途中の切断の率を名指し。U の値は評議が手番 1b の後に固定する。値が固定されるまで、この行の数は書かない（specified、D 6 の RP-66 の「上限以下」） | 境界、陰性 | `the_mid_sentence_cut_rate_limit_is_inclusive` |
+| T-RP-66-058 | 完結の判定を常に真にした build の run を模した入力。文の途中の割れが ⌊U × 200⌋ + 1 件以上 | 毎回の候補で確定する | `Err` | `Err` で文の途中の切断の率を名指し。割れの数（`finals` が 2 以上の標本の数）は記録だけで、これでは落ちない（specified、D 6 の RP-66 の陰性欄）。U は評議が手番 1b の後に固定する | 陰性 | `an_always_complete_build_fails_on_the_mid_sentence_cut_rate` |
+| T-RP-66-059 | 割れた標本の訳の chrF：(1) 前の文の訳と後ろの文の訳をつないだ物が、A の 1 つの final の訳と同じ文字列。(2) 共通する字が 1 つも無い文字列 | 記録だけの欄 | 100 と 0。判定に入らない | (1) の chrF は 100、(2) は 0 を出力に書く。どちらの値でも他の判定は変わらず `Ok` のまま（derived、chrF の定義。D の数え方の 8 は「合否に入れない」） | 陽性、境界 | `the_chrf_of_split_translations_is_recorded_and_not_judged` |
+| T-RP-66-060 | **最後の final の遅れ**：10 発話。発話 k の `end_sample` は 10 秒、k = 1〜10 の最後の final の検出が 100k ms 後。ただし発話 3 は final が 2 つで、最初が 300 ms 後、最後（B だけの割れの後ろの文）が 800 ms 後 | 割れた発話の遅れ | p50 600、p95 1000 | 遅れの列は 100、200、800、400、500、600、700、800、900、1000。小さい順に 100、200、400、500、600、700、800、800、900、1000。p50 は (50 × 10 + 99) / 100 = 5 番目で 600 ms、p95 は (95 × 10 + 99) / 100 = 10 番目で 1000 ms（derived、D の数え方の 10。最初の final の 300 ms で取ると p50 は 500 ms になる） | 陽性、陰性 | `delay_is_taken_at_the_last_final_of_the_utterance` |
+| T-RP-66-061 | 060 の発話 3 を final 1 つ（300 ms 後）にした run | 割れの無い発話 | p50 500、p95 1000 | 遅れの列は 100〜1000 の 10 個。p50 は 5 番目の 500 ms、p95 は 10 番目の 1000 ms（derived）。060 との差が最後の final の効き目 | 境界 | `an_unsplit_utterance_is_delayed_at_its_only_final` |
+| T-RP-66-062 | 060 の発話 10 を、A の segment が 1 つも触れない発話にする | 母数から外す発話 | n 9、除外 1 | n は 9。遅れの列は 100、200、800、400、500、600、700、800、900 で、小さい順の 5 番目は 600 ms（p50）、9 番目は 900 ms（p95。(95 × 9 + 99) / 100 = 9）。除外した発話の数 1 を別の欄に書く（derived、D の数え方の 10。除外を遅れ 0 と読まない） | 境界、陰性 | `an_utterance_no_segment_touched_is_left_out_and_counted_apart` |
+| T-RP-66-063 | 060 の発話の列と、A だけの検出の時刻の列（発話 k が 100k + 50 ms 後。割れ無し）を同じ関数に渡す | 比べる相手は同じ数え方の A だけの値 | 2 つの列 | R8v の列は p50 600、p95 1000。A だけの列は 150、250、…、1050 の 10 個で p50 5 番目の 550、p95 10 番目の 1050 を並べて出す（derived、D の数え方の 10。同じ nearest-rank） | 陽性 | `the_a_only_delay_is_counted_the_same_way_and_written_beside` |
 | T-RP-66-029 | 001 の ja で、4 番目の run の前の load を `1.99 0.50 0.50 1/300 1000` にする | load の上側の境界の手前 | `Ok` | `Ok`（specified、6 の RP-66 の「RP-32 と同じ」と RP-32 の「2 未満」。199 < 200） | 境界、陽性 | `a_load_of_1_99_before_a_run_passes` |
 | T-RP-66-030 | 029 の load を `2.00 0.50 0.50 1/300 1000` にする | 境界の値 | `Err` | `Err` で 4 番目の run を名指し（specified、RP-32。200 は 2 未満でない） | 境界、陰性 | `a_load_of_2_00_before_a_run_is_rejected` |
 | T-RP-66-031 | 001 の ja で、先頭の 1 対だけ（main、R8v の 2 本） | 対が 1 つ | `Err` | `Err` で対の数が 2 でないことを名指し（specified、6 の RP-66 の「言語ごとに 2 対」） | 境界、陰性 | `one_pair_per_language_is_rejected` |
@@ -2012,7 +2045,10 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 
-- 設計が決めた物（D 3.17 の数え方の 1〜7）は、行に反映した。残るのは次の 2 つである。
+- 設計が決めた物（D 3.17 の数え方の 1〜10）は、行に反映した。残るのは次の物である。
+- 仕分けの優先。割れの前の文が参照の文の終わりに合い、かつ後ろの文が参照の残りの無い所に付いた雑音である形（たとえば J5 の 17 字目で終わる割れ）は、本物の文の切れ目と尾の雑音の両方に当たる。数え方の 8 は優先を書かない。040〜055 の fixture はこの形を使っていない。
+- 文の途中の切断の率の上限 U と、数え方の 9 の一致の上限は、評議が手番 1b の後に固定する。057 と 058 は U の値が決まったら数を書く。
+- 遅れの数え方（060〜063）を置く file。D の 6 の RP-66 は `rp66.rs` を指すが、probe の関数（`r8v_probe.rs`）に在る数え方かは設計に無い。
 - ja の p95 の限度 1050 ms を置き直したら、002〜005 の境界の値をこの席が書き直す（D の数え方の 5）。それまで 1050 で書いてある。
 - 011 の根拠（main の run の `d` の最小が ja 428 ms、en 361 ms）は 3.17 の記録の値で、この席は打ち直していない。010 は記録の有効の数が 0.12 秒と 0.30 秒で一致すること（jq）だけを打ち直した。
 
@@ -2061,7 +2097,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 
-- RP-67 の有効の線は 0.12 秒で、評議が GO を出した（S2、S3、S4 は 016〜018）。D の 6 の RP-67 の行にこの線が書かれているかは、設計の席が D:836 と D:1648 を書いている途中で、この席は確かめていない。
+- RP-67 の有効の線は 0.12 秒で、評議が GO を出した（S2、S3、S4 は 016〜018）。D の 6 の RP-67 の行（`rust_port.ja.md:978`）にもこの線が書かれている。RP-67 の `L` は `t_tr − t_end` で取り、発話の終わりの遅れ（最後の final）の数え方は使わない。
 - RP-67 の run が 1 回か複数回か（D は「5 回」の枠だけを書き、交互の対にしない）。この節は 1 つの run の列を渡す形にした。
 - 015 の `docs/results/rp67/` の記録を、誰がどの手番で置くか。
 
