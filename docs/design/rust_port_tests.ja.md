@@ -1292,7 +1292,7 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 
 ### 4.43 RP-33（T が V に落ちた行の最初の訳）
 
-test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。実走の行（T-RP-33-015）だけが `#[ignore]` を持ち、RP-32 の Rust の run と中継の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+test：`native/hayamimi-eval/tests/rp33.rs`。受入 test の名前は `rp33_first_translation_after_a_failed_draft_beats_python`。実走の行（T-RP-33-016）だけが `#[ignore]` を持ち、RP-32 の Rust の run と中継の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp33`。実走の行はこれに `-- --ignored` を足す。
 `check_first_translation(rust, python)` は、RP-31 の数え方で出した標本のうち、有効で訳が取れた物の「訳」の段（`final` から `t_tr` まで）を、T が V に落ちた行と通った行に分けて、p50 と p95 を出す。
 採る案は 3.16 の 2 のとおり B で、A は 5 つの条件が揃った時にだけ作る。したがって行は 2 つに分かれる。001 から 013 は B のままでも A を作った後でも同じに通る行、014 から 016 は A を作った時にだけ足す行である。
@@ -1319,7 +1319,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-33-013 | 012 の Rust の 3 つの列の合計 | 母数 | 47 + 19 = 66 | V を通った行 47 と落ちた行 19 の和が全行 66 と等しい。どちらにも入らない有効な行を作らない（derived、分け方の定義） | 境界 | `passed_and_failed_rows_add_up_to_all_rows` |
 | T-RP-33-014 | A を作った時だけ。A の前の run の V を通った行の `L` が 1000〜1009 ms の 10 行（n = 10 で p50 は 5 番目、p95 は 10 番目）。A の後の run が同じ値 | V を通った行の `L`（等号） | `Ok` | `Ok`（specified、RP-33 の「A を作った時は…A の前の run 以下」） | 境界、陽性 | `a_passed_draft_l_equal_to_before_a_passes` |
 | T-RP-33-015 | 014 で A の後の run の 5 番目の行（1004 ms）を 1005 ms にする。10 番目の行を 1010 ms にした別の入力も作る | p50 の順位、p95 の順位 | `Err` | 5 番目が 1005 ms になる入力は `Err` で p50 を名指し。10 番目が 1010 ms になる入力は `Err` で p95 を名指し。1 番目だけを 1001 ms にした入力は `Ok`（specified、RP-33） | 境界、陰性 | `a_slower_passed_draft_l_after_a_is_rejected` |
-| T-RP-33-016 | 実走：RP-32 の Rust の run の `/events`（B の後の run）。A を作った後は A の前の run も | 実走 | 実走 | 001 の形で、全行の「訳」の段が Python 以下（specified、RP-33） | 陽性 | `rust_translation_stage_beats_python_after_the_v_fix` |
+| T-RP-33-016 | 実走：RP-32 の Rust の run の `/events`（B の後の run）。A を作った後は A の前の run も | 実走 | 実走 | 001 の形で、全行の「訳」の段が Python 以下（specified、RP-33） | 陽性 | `rp33_first_translation_after_a_failed_draft_beats_python` |
 
 A を作る条件（3.16 の 2）のうち、ID の合否に入る物は 014 と 015 だけである。残りの 3 つは A を作る時の前提で、測り方は次の表のとおり（A を作った時だけ足す。今は走らせない）。
 
