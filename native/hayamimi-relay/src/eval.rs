@@ -269,12 +269,16 @@ impl<'a, L: Llm> Translator<'a, L> {
             edited,
             edited_verdict == Verdict::Ok,
         );
-        if settled.is_none() {
-            sink.emit(held_event(
+        match &settled {
+            Some(kept) => {
+                self.verifier
+                    .log_pair_hedge(&line.to_string(), src, kept, Lang::Ja, sink)
+            }
+            None => sink.emit(held_event(
                 target,
                 line,
                 [reason_of(draft_verdict), reason_of(edited_verdict)],
-            ));
+            )),
         }
         Ok(settled)
     }
