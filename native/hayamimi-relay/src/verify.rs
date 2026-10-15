@@ -7,7 +7,10 @@
 //! Into Chinese, Korean and Spanish a disagreement in hedging is not a hold
 //! reason: the translation goes out and [`HEDGE_EVENT`] records the hedge
 //! words of both sides. Negation, numbers, form and names hold there as
-//! everywhere, and hedging still holds into Japanese and English.
+//! everywhere. Into English a hedge that only one side carries is recorded the
+//! same way, once per settled line ([`Verifier::log_pair_hedge`]); into
+//! Japanese a hedge the source carried and the translation lost still holds
+//! the line, and a hedge the translation added is recorded.
 
 use std::path::{Path, PathBuf};
 
@@ -217,7 +220,7 @@ pub fn verify_with(
         (src_markers, Scan::of(src_lang)),
         (dst_markers, Scan::of(src_lang.other())),
     );
-    if let Some(reason) = marker_mismatch(src_side, dst_side, src, translation) {
+    if let Some(reason) = marker_mismatch(src_side, dst_side, src, translation, src_lang) {
         return Verdict::Held(reason);
     }
     if !proper_nouns_ok(glossary, src, translation, src_lang) {
@@ -264,18 +267,50 @@ fn hedge_mismatch<'a>(
     (seen.src.is_some() != seen.dst.is_some()).then_some(seen)
 }
 
+/// Whether a hedge that only one side of a line carries holds a line of the
+/// live pair. It does only when the source carried the hedge and the
+/// translation lost it, and only into Japanese. A hedge the translation adds
+/// (`would` becoming `だろう`), and any mismatch into English, is recorded
+/// instead (see [`hedge_in_pair`]).
+fn hedge_holds(src_lang: Lang, seen: &HedgeMismatch<'_>) -> bool {
+    src_lang == Lang::En && seen.src.is_some()
+}
+
 /// The first of negation and uncertainty on which the source and the
-/// translation disagree, each side read with its own table and scan.
+/// translation disagree, each side read with its own table and scan. A hedge
+/// disagreement is a mismatch only when [`hedge_holds`].
 fn marker_mismatch(
     src_side: Side<'_>,
     dst_side: Side<'_>,
     src: &str,
     translation: &str,
+    src_lang: Lang,
 ) -> Option<HoldReason> {
     if negation_differs(src_side, dst_side, src, translation) {
         return Some(HoldReason::Negation);
     }
-    hedge_mismatch(src_side, dst_side, src, translation).map(|_| HoldReason::Uncertainty)
+    hedge_mismatch(src_side, dst_side, src, translation)
+        .filter(|seen| hedge_holds(src_lang, seen))
+        .map(|_| HoldReason::Uncertainty)
+}
+
+/// The hedge words of a source and of its translation within the live pair
+/// when exactly one is hedged and the line is not held for it: any mismatch
+/// into English, and a hedge only the Japanese translation carries.
+pub fn hedge_in_pair<'a>(
+    markers: &'a Markers,
+    src: &str,
+    translation: &str,
+    src_lang: Lang,
+) -> Option<HedgeMismatch<'a>> {
+    let dst_lang = src_lang.other();
+    hedge_mismatch(
+        source_side(markers, src_lang),
+        source_side(markers, dst_lang),
+        src,
+        translation,
+    )
+    .filter(|seen| !hedge_holds(src_lang, seen))
 }
 
 /// Verifies a translation into `target`. Into the other language of the live
@@ -351,9 +386,13 @@ pub fn hedge_into<'a>(
 
 /// Whether the numbers of a source and of its translation are the same, each
 /// text read with the number words of its own language.
+///
+/// Between Japanese and English a half hour is spelled in words on one side
+/// (`1時半`) and as `one thirty` on the other, so both texts are read for it.
 fn numbers_agree(src: &str, src_code: &str, translation: &str, dst_code: &str) -> bool {
-    numbers::compared_values(src, Tongue::of_code(src_code))
-        == numbers::compared_values(translation, Tongue::of_code(dst_code))
+    let clock = matches!((src_code, dst_code), ("ja", "en") | ("en", "ja"));
+    numbers::compared_values_with_clock(src, Tongue::of_code(src_code), clock)
+        == numbers::compared_values_with_clock(translation, Tongue::of_code(dst_code), clock)
 }
 
 /// Whether every Latin word of a Japanese source stands in its translation.
@@ -610,6 +649,25 @@ impl Verifier {
         )
     }
 
+    /// Records [`HEDGE_EVENT`] for line `id` when `translation`, the settled
+    /// translation of `src` into the other language of the pair, and its
+    /// source disagree on a hedge that does not hold the line (see
+    /// [`hedge_in_pair`]). Called once per line for the translation that is kept, so a line
+    /// that V judged twice (T, then E) is recorded once.
+    pub fn log_pair_hedge(
+        &self,
+        id: &str,
+        src: &str,
+        translation: &str,
+        src_lang: Lang,
+        sink: &mut dyn LogSink,
+    ) {
+        let markers = self.markers.current();
+        if let Some(hedge) = hedge_in_pair(markers, src, translation, src_lang) {
+            sink.emit(hedge_event(id, src_lang.other().code(), &hedge));
+        }
+    }
+
     /// Verifies one line `id` translated into `target`, first picking up any
     /// table file that changed. A line that passes with a hedge the other side
     /// lacks (into a language that has a table of its own) is recorded in
@@ -692,13 +750,19 @@ mod tests {
     }
 
     #[test]
-    fn an_added_hedge_is_held_for_uncertainty() {
+    fn a_lost_hedge_into_japanese_is_held_for_uncertainty() {
+        let said = check("The delivery may be delayed.", "納品が遅れます。", Lang::En);
+        assert_eq!(said, Ok(Verdict::Held(HoldReason::Uncertainty)));
+    }
+
+    #[test]
+    fn an_added_hedge_into_japanese_goes_out() {
         let said = check(
             "The delivery is delayed.",
             "納品が遅れる可能性があります。",
             Lang::En,
         );
-        assert_eq!(said, Ok(Verdict::Held(HoldReason::Uncertainty)));
+        assert_eq!(said, Ok(Verdict::Ok));
     }
 
     #[test]
@@ -1144,14 +1208,15 @@ mod tests {
             Lang::Ja,
         );
         assert_eq!(said, Verdict::Ok);
-        let looks = verify_with(
-            &markers,
-            &glossary,
-            "雨が降りそうです。",
-            "It is raining.",
-            Lang::Ja,
+        let (src, translation) = ("雨が降りそうです。", "It is raining.");
+        let looks = verify_with(&markers, &glossary, src, translation, Lang::Ja);
+        assert_eq!(looks, Verdict::Ok);
+        assert!(hedge_in_pair(&markers, src, translation, Lang::Ja).is_some());
+        let heard = (
+            "彼はドアベルを作ったそうです。",
+            "He said he built a doorbell.",
         );
-        assert_eq!(looks, Verdict::Held(HoldReason::Uncertainty));
+        assert!(hedge_in_pair(&markers, heard.0, heard.1, Lang::Ja).is_none());
         Ok(())
     }
 
@@ -1180,14 +1245,10 @@ mod tests {
             HoldReason::Number,
         )?;
         let (markers, glossary) = tables()?;
-        let held = verify_with(
-            &markers,
-            &glossary,
-            "1日前のことです。",
-            "It was about a day ago.",
-            Lang::Ja,
-        );
-        assert_eq!(held, Verdict::Held(HoldReason::Uncertainty));
+        let (src, translation) = ("1日前のことです。", "It was about a day ago.");
+        let said = verify_with(&markers, &glossary, src, translation, Lang::Ja);
+        assert_eq!(said, Verdict::Ok);
+        assert!(hedge_in_pair(&markers, src, translation, Lang::Ja).is_some());
         Ok(())
     }
 

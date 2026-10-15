@@ -58,3 +58,38 @@ fn rp38_eval_logs_nothing_when_the_hedge_agrees() -> TestResult {
     assert_eq!(hedge_events_for(KEPT)?, 0);
     Ok(())
 }
+
+/// T-RP-38-007: into English, where T and E both pass V, the dropped hedge is
+/// recorded once for the settled translation and nothing is held.
+#[test]
+fn rp38_the_ja_to_en_route_logs_a_dropped_hedge_once_and_does_not_hold() -> TestResult {
+    let said = "It will rain tomorrow.";
+    let body = support::chat_reply(said);
+    let server = FakeServer::start(move |_, _| Reply::json(&body))?;
+    let pairs = TempDir::new("rp38-en-pairs")?;
+    std::fs::write(pairs.join("en.ja.txt"), format!("{HEDGED}\n"))?;
+    let out = TempDir::new("rp38-en-out")?;
+    let llm = HttpLlm::with_timeout(&server.base_url(), Duration::from_secs(5));
+    let mut sink = MemorySink::default();
+    eval::run(
+        &llm,
+        &llm,
+        &EvalOptions {
+            pairs: pairs.path(),
+            out: out.path(),
+        },
+        &mut sink,
+    )?;
+    let count = |name: &str| sink.events.iter().filter(|e| e.event == name).count();
+    assert_eq!(count(HEDGE_EVENT), 1, "hedge events");
+    assert_eq!(count(eval::HELD_EVENT), 0, "held events");
+    let hyp = std::fs::read_to_string(out.join("en.hyp.txt"))?;
+    assert_eq!(hyp.lines().next(), Some(said));
+    let lang = sink
+        .events
+        .iter()
+        .find(|e| e.event == HEDGE_EVENT)
+        .and_then(|e| e.fields.get("lang"));
+    assert_eq!(lang, Some(&serde_json::json!("en")));
+    Ok(())
+}

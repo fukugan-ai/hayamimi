@@ -1,0 +1,4 @@
+{"repeat":1,"utt":1,"t_start_us":0,"t_end_us":1000000,"t_partial_us":null,"t_partial_tr_us":null,"t_final_us":2300000,"t_tr_us":2500000,"finals":1,"text":"a","translation":"A","final_latency_ms":1000.0,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":2,"t_start_us":0,"t_end_us":1000000,"t_partial_us":null,"t_partial_tr_us":null,"t_final_us":2300000,"t_tr_us":2400000,"finals":1,"text":"b","translation":"B","final_latency_ms":1000.5,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":3,"t_start_us":0,"t_end_us":1000000,"t_partial_us":null,"t_partial_tr_us":null,"t_final_us":2000000,"t_tr_us":3000000,"finals":1,"text":"c","translation":"C","final_latency_ms":100.0,"cer_dist":0,"cer_denom":1}
+{"repeat":1,"utt":4,"t_start_us":0,"t_end_us":1000000,"t_partial_us":null,"t_partial_tr_us":null,"t_final_us":1800000,"t_tr_us":null,"finals":1,"text":"d","translation":null,"final_latency_ms":100.0,"cer_dist":0,"cer_denom":1}

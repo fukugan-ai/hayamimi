@@ -208,6 +208,55 @@ fn month_of(tokens: &[&str], at: usize, tongue: Tongue) -> Option<u128> {
     u128::try_from(number + 1).ok()
 }
 
+/// Whether `c` ends a Japanese hour numeral: a digit or a kanji digit.
+fn is_hour_numeral(c: char) -> bool {
+    c.is_ascii_digit() || ('０'..='９').contains(&c) || "〇零一二三四五六七八九十".contains(c)
+}
+
+/// Whether `word` names an hour of the clock: digits or `one` to `twelve`.
+fn is_english_hour(word: &str) -> bool {
+    const HOURS: [&str; 12] = [
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+        "twelve",
+    ];
+    word.bytes().all(|b| b.is_ascii_digit()) || HOURS.iter().any(|h| word.eq_ignore_ascii_case(h))
+}
+
+/// How many times `text` says "half past <hour>" (`half past one`).
+fn english_half_hours(text: &str) -> usize {
+    let mut count = 0;
+    let (mut after_half, mut after_past) = (false, false);
+    for word in text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+    {
+        if after_past && is_english_hour(word) {
+            count += 1;
+        }
+        after_past = after_half && word.eq_ignore_ascii_case("past");
+        after_half = word.eq_ignore_ascii_case("half");
+    }
+    count
+}
+
+/// How many times `text` says "<hour>時半" (`1時半`, `一時半`).
+fn japanese_half_hours(text: &str) -> usize {
+    text.match_indices("時半")
+        .filter(|(at, _)| text[..*at].chars().next_back().is_some_and(is_hour_numeral))
+        .count()
+}
+
+/// The 30, in millionths, that each half hour spelled in words stands for:
+/// Japanese `N時半` and English `half past N`. Other languages have none.
+pub(crate) fn half_hour_values(text: &str, tongue: Tongue) -> Vec<u128> {
+    let count = match tongue {
+        Tongue::English => english_half_hours(text),
+        Tongue::Other => japanese_half_hours(text),
+        Tongue::Spanish | Tongue::Chinese | Tongue::Korean => 0,
+    };
+    vec![30 * MICRO; count]
+}
+
 /// The month numbers, in millionths, that the month names of a text stand for.
 pub(crate) fn month_values(text: &str, tongue: Tongue) -> Vec<u128> {
     let tokens: Vec<&str> = text

@@ -184,6 +184,35 @@ fn a_decode_that_failed_is_an_error_and_the_router_goes_on() -> Result<(), Route
 }
 
 #[test]
+fn a_model_loaded_inside_the_decode_is_not_in_its_time() -> Result<(), RouteError> {
+    // The script claims 7 s of loading during the decode; the decode itself
+    // took microseconds, so nothing is left once the load is taken out.
+    let script = Script::answering(&[(Tier::Rz, "はい", "")]).loading(&[0.0, 7000.0]);
+    let got = single(script, "ja").transcribe(&Request::live(&SAMPLES))?;
+    assert_eq!(got.decode_ms, 0.0);
+    Ok(())
+}
+
+#[test]
+fn a_model_loaded_before_the_decode_started_is_not_taken_out_of_it() -> Result<(), RouteError> {
+    // The load of the first call came before the clock started (a draft, a
+    // probe): it must not eat into the decode that follows.
+    let script = Script::answering(&[(Tier::Rz, "はい", "")]).loading(&[7000.0, 0.0]);
+    let got = single(script, "ja").transcribe(&Request::live(&SAMPLES))?;
+    assert!(got.decode_ms > 0.0, "{}", got.decode_ms);
+    assert!(got.decode_ms < 7000.0, "{}", got.decode_ms);
+    Ok(())
+}
+
+#[test]
+fn a_backend_that_loads_nothing_lazily_leaves_the_time_whole() -> Result<(), RouteError> {
+    let script = Script::answering(&[(Tier::Rz, "はい", "")]);
+    let got = single(script, "ja").transcribe(&Request::live(&SAMPLES))?;
+    assert!(got.decode_ms > 0.0, "{}", got.decode_ms);
+    Ok(())
+}
+
+#[test]
 fn a_segment_that_is_not_live_leaves_the_session_alone() -> Result<(), RouteError> {
     let mut routed = single(Script::answering(&[(Tier::Rz, "はい", "")]), "ja");
     let request = Request {

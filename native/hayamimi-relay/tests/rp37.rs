@@ -163,15 +163,15 @@ fn rp37_hedge_mismatch_is_logged_in_zh_ko_es_and_held_in_ja_en() -> TestResult {
             "{code}: added, dst_hedge"
         );
     }
-    // The same disagreement into the live pair still holds, and logs nothing.
+    // Into English the same disagreement goes out and is recorded once, T and
+    // E both passing V notwithstanding.
     let (to_en, events) = in_pair(Lang::Ja, HEDGED, "It will rain tomorrow.")?;
-    assert_eq!(to_en.status, Status::Held, "en: status");
-    assert_eq!(
-        to_en.hold_reason,
-        Some(HoldReason::Uncertainty),
-        "en: reason"
-    );
-    assert!(hedge_events(&events).is_empty(), "en: events");
+    assert_eq!(to_en.status, Status::Ok, "en: status");
+    assert_eq!(to_en.text, "It will rain tomorrow.", "en: text");
+    let event = the_hedge_event(&events, "en")?;
+    assert_eq!(event.fields.get("src_hedge"), Some(&json!("かもしれ")));
+    assert!(field_is_null(event, "dst_hedge"), "en: dst_hedge");
+    // Into Japanese it still holds, and logs nothing.
     let (to_ja, events) = in_pair(Lang::En, "It might rain tomorrow.", "明日は雨が降ります。")?;
     assert_eq!(to_ja.status, Status::Held, "ja: status");
     assert_eq!(
@@ -257,19 +257,28 @@ fn assert_out_silently(outcome: &Outcome, label: &str) {
     assert!(hedge_events(events).is_empty(), "{label}: events");
 }
 
-/// T-RP-37-008: a hedge only the English translation carries holds.
+/// T-RP-37-008: a hedge only the English translation carries is recorded and
+/// the line goes out.
 #[test]
-fn rp37_an_added_hedge_into_en_still_holds_for_uncertainty() -> TestResult {
-    let outcome = in_pair(Lang::Ja, PLAIN, "It might rain tomorrow.")?;
-    assert_held(&outcome, HoldReason::Uncertainty, "en");
+fn rp37_an_added_hedge_into_en_is_logged_and_not_held() -> TestResult {
+    let (line, events) = in_pair(Lang::Ja, PLAIN, "It might rain tomorrow.")?;
+    assert_eq!(line.status, Status::Ok, "en: status");
+    assert_eq!(line.text, "It might rain tomorrow.", "en: text");
+    let event = the_hedge_event(&events, "en")?;
+    assert!(field_is_null(event, "src_hedge"), "en: src_hedge");
+    assert_eq!(event.fields.get("dst_hedge"), Some(&json!("might")));
     Ok(())
 }
 
-/// T-RP-37-009: a hedge only the Japanese translation carries holds.
+/// T-RP-37-009: a hedge only the Japanese translation carries is
+/// recorded and the line goes out.
 #[test]
-fn rp37_an_added_hedge_into_ja_still_holds_for_uncertainty() -> TestResult {
-    let outcome = in_pair(Lang::En, "It will rain tomorrow.", HEDGED)?;
-    assert_held(&outcome, HoldReason::Uncertainty, "ja");
+fn rp37_an_added_hedge_into_ja_is_logged_and_not_held() -> TestResult {
+    let (line, events) = in_pair(Lang::En, "It will rain tomorrow.", HEDGED)?;
+    assert_eq!(line.status, Status::Ok, "ja: status");
+    let event = the_hedge_event(&events, "ja")?;
+    assert!(field_is_null(event, "src_hedge"), "ja: src_hedge");
+    assert!(field_is_text(event, "dst_hedge"), "ja: dst_hedge");
     Ok(())
 }
 

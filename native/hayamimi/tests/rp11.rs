@@ -137,6 +137,8 @@ struct Rig {
 
 fn rig() -> Result<Rig, Box<dyn Error>> {
     let hub = Hub::new();
+    // `/ingest` answers `ready` once the session has started.
+    hub.publish_session_start();
     let (tx, audio) = feed::channel();
     let strings = Arc::new(Strings::embedded(Lang::En)?);
     let state = IngestState::new(hub.clone(), tx, strings);

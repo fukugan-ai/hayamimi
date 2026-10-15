@@ -80,6 +80,32 @@ fn the_parakeet_tier_reads_an_english_clip() -> TestResult {
     assert_reads(Tier::V3, "eval_real", "en")
 }
 
+/// The time of a decode is the recognizer's: the first use of a tier loads its
+/// model, and that load is reported on its own and is not in `decode_ms`.
+#[test]
+fn the_time_of_a_first_decode_does_not_hold_the_model_load() -> TestResult {
+    let sample = clip("eval_real", "en", 0)?;
+    let mut recognizers = recognizers(None)?;
+    let decoded = recognizers.decode(Tier::V3, "en", &sample.samples)?;
+    let loaded = recognizers
+        .take_events()
+        .iter()
+        .find_map(|event| match event {
+            ResidentEvent::Loaded { tier: Tier::V3, ms } => Some(*ms),
+            _ => None,
+        });
+    let Some(loaded) = loaded else {
+        return Err("the first use of v3 reported no load".into());
+    };
+    assert!(
+        decoded.decode_ms < loaded,
+        "decode {} ms against a load of {loaded} ms",
+        decoded.decode_ms
+    );
+    assert!(recognizers.take_load_ms() >= loaded);
+    Ok(())
+}
+
 #[test]
 fn the_paraformer_tier_reads_a_mandarin_clip() -> TestResult {
     assert_reads(Tier::Pz, "eval_real_zhko", "zh")

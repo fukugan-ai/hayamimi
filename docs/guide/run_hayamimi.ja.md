@@ -73,7 +73,8 @@ hayamimi --wav lat-ja.wav --models <models の directory>
 | option | 意味 |
 |---|---|
 | `--wav` | 16 bit の wav。既定は音声の速さで流す。`--no-realtime` で続けて流す |
-| `--serve [port]` | `/events` を 127.0.0.1 で配る。port の既定は 8833 |
+| `--serve [port]` | `/events` を配る。port の既定は 8833 |
+| `--serve-host <address>` | `--serve` が待つ address。既定は 127.0.0.1（この機械だけ）。LAN の端末から開くときは `0.0.0.0`（次の節） |
 | `--min-silence` | 発話の終わりにする無音の秒数。既定は 0.30 |
 | `--replace` | 置換辞書。読めなければ使わずに続ける |
 | `--gpu-diagnose` | 句読点の model の node の置き場を log に出す |
@@ -112,6 +113,52 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 - wasm を実行物に組み込む。`hayamimi` の build が wasm の build を待つことになるので採りません。
 - 配る directory を option や環境変数で変える。置き場が 2 つ以上になって指し間違えるので採りません。
 - 旧来の `data/pages/*.html` を、`ui/` が無いときの代わりに返す。どの route からも返さない形にしました。file は残してあります。
+
+## LAN の端末から字幕を見る
+
+`hayamimi` の `--serve` と `hayamimi-relay live` の `--serve` は、既定では 127.0.0.1 だけで待ちます。
+`--serve-host` が LAN へ開くのは `--serve` の router（頁、`/events`、`/config`、`/reset` ほか）だけです。
+`/config` と `/reset` は認証なしで設定と状態を変えるので、LAN へ開くのは利用者が選んだ時だけにします。
+`/ingest`（音声の入力）は `--ws-host` で別に決まり、既定は 127.0.0.1 のままです。`--serve-host` を付けても LAN には開きません。
+
+別の端末の browser で頁を開くときは、2 つの process に `--serve-host 0.0.0.0` を付けて起こします。
+端から端の受入（E2E）で別の機械の browser から頁を見るときも同じで、process A、process B、中継の command にそれぞれ足します。
+
+```bash
+hayamimi --wav lat-ja.wav --models <models の directory> --serve 8833 --serve-host 0.0.0.0
+hayamimi-relay live --serve 8835 --serve-host 0.0.0.0
+```
+
+loopback でない address で待つと、stderr に LAN の URL が 1 行出ます。
+文の後ろに URL が続く形で、`hayamimi` は頁の URL（`http://<LAN の address>:8833/`）、`hayamimi-relay` は `/events` の URL（`http://<LAN の address>:8835/events`）です。
+同じ時に、`hayamimi` は log の event `server.lan.opened`（warn、`port` だけを持つ）を stdout に出します。
+`hayamimi-relay` は `relay.serve.started` の `scope` が `lan` になります（loopback のときは `loopback`）。
+
+URL の address は、待つ address によって決まります。
+
+- `0.0.0.0` で待つと、この機械が外へ出るときの送り元の address（`ip route get` が示す `src`）です。
+- 特定の address を渡すと、その address だけで待ち、URL にも同じ address を使います。127.0.0.1 からは繋がりません。
+- この機械が持たない address を渡すと、待てません。`hayamimi` は字幕の server の段を外して続けます。stderr の理由は「port が使われています」と出ますが、原因は address です。
+- network への経路が無い機械では、address を決められないと 1 行だけ言い、URL は出しません。この機械の address と `--serve` の port で開きます。
+
+受入は RP-40 です。
+`hayamimi-relay` の実行物が `hayamimi` の隣（`target/release`）に要るので、先に build します。
+
+```bash
+cargo build --release -p hayamimi-relay
+cargo test --release -p hayamimi --test rp40 -- --ignored
+```
+
+この test は、`hayamimi --wav ja_014.wav --serve 0 --serve-host 0.0.0.0` と `hayamimi-relay live --serve 0 --serve-host 0.0.0.0` を起こします。
+stderr の URL の port に、LAN の address と 127.0.0.1 の両方から `GET /` と `GET /events` を打ちます。
+`/events` は `text/event-stream` を返し、`hayamimi` の `GET /` は 200 を返します。
+中継は `/events` だけを配るので、`GET /` は 404 です。
+もう 1 本の test は、`--serve-host` を付けない run で、LAN の address に繋がらず、LAN の URL の行が出ないことを確かめます。
+
+**採らない手段**：
+
+- 既定を `0.0.0.0` にする。認証の無い `/config` と `/reset` が LAN に開くので、利用者が選んだ時だけにします。
+- 頁の中身を替える。この slice は待つ address だけを替えます。
 
 ## 落ちるときの形
 
@@ -270,6 +317,7 @@ cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
 |---|---|
 | 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release`（上の file があれば指定は要らない） |
 | 実走の test | `cargo test --release -p hayamimi --test rp06 --test rp16 --test rp26 --test rp29 -- --ignored` |
+| RP-40（LAN から届く。先に `cargo build --release -p hayamimi-relay`） | `cargo test --release -p hayamimi --test rp40 -- --ignored` |
 | RP-21（`models fetch`。実際に取得するので network を使う） | `cargo test --release -p hayamimi --test rp21 -- --include-ignored` |
 | 文書の link（RP-19） | `cargo run --release -p hayamimi-eval -- doc-links --repo <repo>` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |

@@ -7,7 +7,7 @@
 //! it takes another road, and the change is said once in the log, on the
 //! screen (`/events`) and on stderr.
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
@@ -20,6 +20,7 @@ use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::vad::{Sensitivity, VadSettings};
 use hayamimi_asr::{AsrError, Engine, Gpu, Settings, check_library};
 use hayamimi_gpu::memory::MemoryMeter;
+use hayamimi_relay::lan::{self, LanUrl};
 
 #[cfg(test)]
 use crate::args::Mode;
@@ -34,7 +35,7 @@ use crate::inputs::Input;
 use crate::log;
 use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
-use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter};
+use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter, tell_resident};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
 use crate::session::Session;
@@ -144,25 +145,38 @@ const INGEST: Endpoint = Endpoint {
     notice: Notice::ingest_port_in_use,
 };
 
-/// Serves `router` on `port` or the first free port after it. A server that
-/// moved, or could not be started because every port in reach was taken,
-/// adds a notice.
+/// Serves `router` on `port` or the first free port after it, and returns the
+/// address it listens on. A server that moved, or could not be started because
+/// every port in reach was taken (`None`), adds a notice.
 fn start_listener(
     router: Router,
     ip: IpAddr,
     port: u16,
     endpoint: &Endpoint,
     notices: &mut Vec<Notice>,
-) -> Result<(), RunError> {
+) -> Result<Option<SocketAddr>, RunError> {
     let Ok(listener) = server::bind_on(ip, port) else {
         notices.push((endpoint.notice)(None));
-        return Ok(());
+        return Ok(None);
     };
     let address = server::serve(router, listener, endpoint.name)?;
     if port != 0 && address.port() != port {
         notices.push((endpoint.notice)(Some((endpoint.url)(address))));
     }
-    Ok(())
+    Ok(Some(address))
+}
+
+/// Says that the subtitle server listens on the network, and where its page
+/// opens, when the address it listens on is not the loopback. The URL is data
+/// and follows the sentence of the table.
+fn say_lan(strings: &Strings, address: SocketAddr) {
+    let line = match lan::lan_url(address, "/") {
+        LanUrl::Loopback => return,
+        LanUrl::At(url) => format!("{} {url}", strings.cli_text(keys::LAN_URL)),
+        LanUrl::Unknown => strings.cli_text(keys::LAN_URL_UNKNOWN).to_owned(),
+    };
+    log::print(&log::lan_opened_line(strings, address.port()));
+    eprintln!("{line}");
 }
 
 /// Starts the servers the command line asks for.
@@ -179,8 +193,10 @@ fn start_servers(
             hub: hub.clone(),
             controls: Arc::clone(controls),
         };
-        let ip = IpAddr::V4(Ipv4Addr::LOCALHOST);
-        start_listener(routes::router(state), ip, port, &EVENTS, notices)?;
+        let ip = args.serve_host;
+        if let Some(address) = start_listener(routes::router(state), ip, port, &EVENTS, notices)? {
+            say_lan(strings, address);
+        }
     }
     if let Some(port) = args.io.ingest_port() {
         let state = IngestState::new(hub.clone(), audio.clone(), Arc::new(strings.clone()));
@@ -343,11 +359,16 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     if args.io.source_refused {
         notices.push(Notice::source_unknown());
     }
-    let engine = open_engine(settings, strings, &mut notices)?;
+    let mut engine = open_engine(settings, strings, &mut notices)?;
     controls
         .live()
         .engine_opened(engine.as_ref().is_some_and(Engine::can_punctuate));
     tell_notices(strings, &hub, &notices, gpu);
+    // The models loaded while opening are said before `session_start`, which
+    // is what a client of `/ingest` waits for before it is answered `ready`.
+    if let Some(opened) = engine.as_mut() {
+        tell_resident(strings, &hub, opened);
+    }
     let stop = install_stop()?;
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;
     hub.publish_session_start();
@@ -399,6 +420,7 @@ mod tests {
     use super::*;
     use crate::inputs::IoArgs;
     use hayamimi_asr::Reason;
+    use std::net::Ipv4Addr;
 
     fn args_with(input: Option<Input>, replace: Option<&str>) -> Args {
         Args {
@@ -411,6 +433,7 @@ mod tests {
             max_speech: 12.0,
             replace: replace.map(Into::into),
             serve: None,
+            serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             diagnose: false,
             max_resident: None,
             gpu_budget_mib: 14_000,
@@ -575,6 +598,25 @@ mod tests {
                 .as_deref()
                 .is_some_and(|url| url.ends_with("/ingest"))
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_started_server_reports_the_address_it_listens_on() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let mut notices = Vec::new();
+        let started = start_listener(
+            Router::new(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            0,
+            &EVENTS,
+            &mut notices,
+        )
+        .map_err(|_| "the server did not start")?;
+        let Some(address) = started else {
+            return Err("a free port gave no address".into());
+        };
+        assert!(address.ip().is_loopback() && address.port() != 0);
         Ok(())
     }
 
