@@ -2319,6 +2319,8 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 | 初回の依頼 | 偽の `Llm` | 依頼は 1 本で、T の形の user 1 つ。答えれば info 1 件、失敗すれば warn 1 件 | `hayamimi-relay/src/warmup.rs` | `the_first_request_is_one_t_prompt_in_one_message`、`an_answered_request_logs_one_info_event_with_its_time`、`a_failed_request_logs_one_warn_event_and_returns`、`a_transport_failure_keeps_the_cause_out_of_the_event` |
 | 初回の依頼 | `announce_when_warm` | 初回の依頼が 1 本、`relay.serve.started` より前に出る。失敗しても `relay.serve.started` に進む。2 つの event は日本語と英語の文言を持つ | `hayamimi-relay/src/cli.rs` | `the_first_request_goes_out_once_before_the_relay_says_it_serves`、`a_first_request_that_fails_does_not_stop_the_relay_from_saying_it_serves`、`serving_events_are_worded_in_both_locales` |
 
+追加の行（初回の依頼の時間の上限）：偽の translator が 3 s 後に答える（`REQUEST_TIMEOUT` の 1.5 s より長く、`warmup::TIMEOUT` の 10 s より短い）。起動の経路 `announce_after_first_request` が `translate.warmup.sent` を出し、`translate.warmup.failed` を出さず、依頼は 1 本である。置き場は `hayamimi-relay/tests/warmup_start.rs`、test の名前は `a_translator_that_answers_in_three_seconds_still_warms_up_at_start`。陰性対照は、`HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT)` を `HttpLlm::new(&live.llm)` に替えると `translate.warmup.failed` が出て落ちることである（実走した）。
+
 **この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
 
 ## 5. RP-19 の対応表

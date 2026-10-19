@@ -474,6 +474,20 @@ fn announce_when_warm<L: Llm>(
     announce_serving(live, address, sink, strings);
 }
 
+/// The start-up path of `live`: the first request goes to the translator at
+/// `live.llm` with the time limit of [`warmup::TIMEOUT`], which is longer than
+/// a live subtitle may wait because a translator that has just started answers
+/// its first request late. Then the serving is announced.
+pub fn announce_after_first_request(
+    live: &Live,
+    address: SocketAddr,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) {
+    let first = HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT);
+    announce_when_warm(&first, live, address, sink, strings);
+}
+
 /// Says the URL a client on the LAN opens, when the server is not on the loopback.
 fn announce_lan(address: SocketAddr, strings: &Strings) {
     match lan::lan_url(address, "/events") {
@@ -602,8 +616,7 @@ fn run_relay(live: &Live, now: i64, strings: &Strings) -> u8 {
     for code in started.skipped() {
         eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
     }
-    let first = HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT);
-    announce_when_warm(&first, live, started.address(), &mut sink, strings);
+    announce_after_first_request(live, started.address(), &mut sink, strings);
     // The relay works in threads of its own and ends with the process.
     loop {
         std::thread::park();
