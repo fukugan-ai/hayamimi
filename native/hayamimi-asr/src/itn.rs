@@ -418,4 +418,140 @@ mod tests {
     fn text_without_numerals_is_unchanged() {
         assert_eq!(ja("こんにちは。"), "こんにちは。");
     }
+
+    fn conv(text: &str, lang: &str) -> String {
+        convert(text, lang, &Overrides::default())
+    }
+
+    #[test]
+    fn only_applies_to_ja_zh_yue() {
+        for lang in ["ja", "zh", "yue"] {
+            assert_eq!(conv("三千二百", lang), "3200", "{lang}");
+        }
+        for lang in ["en", "ko", "de", ""] {
+            assert_eq!(conv("三千二百", lang), "三千二百", "{lang:?}");
+        }
+    }
+
+    #[test]
+    fn empty_text_is_a_noop() {
+        assert_eq!(conv("", "ja"), "");
+    }
+
+    #[test]
+    fn magnitude_form_full_arithmetic_without_big_units() {
+        assert_eq!(conv("三千二百", "ja"), "3200");
+        assert_eq!(conv("一百五十", "zh"), "150");
+        assert_eq!(conv("四十九", "ja"), "49");
+    }
+
+    #[test]
+    fn magnitude_form_keeps_man_and_oku_as_literal_units() {
+        assert_eq!(conv("四万人弱", "ja"), "4万人弱");
+        assert_eq!(conv("一億円", "ja"), "1億円");
+        assert_eq!(conv("三千万円", "ja"), "3000万円");
+    }
+
+    #[test]
+    fn traditional_wan_and_liang_forms() {
+        assert_eq!(conv("四萬人", "yue"), "4萬人");
+        assert_eq!(conv("兩百", "yue"), "200");
+        assert_eq!(conv("两千", "zh"), "2000");
+    }
+
+    #[test]
+    fn decimal_digit_by_digit_reading() {
+        assert_eq!(conv("二点四", "ja"), "2.4");
+        assert_eq!(conv("八零二点一", "zh"), "802.1");
+    }
+
+    #[test]
+    fn decimal_with_magnitude_integer_part() {
+        assert_eq!(conv("三十点五", "ja"), "30.5");
+    }
+
+    #[test]
+    fn bare_digit_run_reads_digit_by_digit() {
+        assert_eq!(conv("一九四五年", "ja"), "1945年");
+        assert_eq!(conv("二〇二〇", "zh"), "2020");
+        assert_eq!(conv("零一二三", "ja"), "0123");
+    }
+
+    #[test]
+    fn single_bare_numeral_untouched() {
+        assert_eq!(conv("一つください", "ja"), "一つください");
+        assert_eq!(conv("十本", "ja"), "十本");
+        assert_eq!(conv("九月", "ja"), "九月");
+    }
+
+    #[test]
+    fn idioms_and_proper_nouns_stay_untouched() {
+        for sentence in [
+            "一番好きです",
+            "一緒に行きます",
+            "一部だけです",
+            "四国に住んでいます",
+            "九州出身です",
+            "十分に休みました",
+            "一石二鳥の作戦です",
+            "二人三脚で頑張ります",
+        ] {
+            assert_eq!(conv(sentence, "ja"), sentence);
+        }
+    }
+
+    fn with_exclude(words: &[&str]) -> Overrides {
+        Overrides {
+            exclude: words.iter().map(|word| (*word).to_owned()).collect(),
+            force: Vec::new(),
+        }
+    }
+
+    fn with_force(wrong: &str, right: &str) -> Overrides {
+        Overrides {
+            exclude: Vec::new(),
+            force: vec![(wrong.to_owned(), right.to_owned())],
+        }
+    }
+
+    #[test]
+    fn default_exclusion_list_blocks_a_longer_run_directly() {
+        assert_eq!(conv("十分だと思う", "ja"), "十分だと思う");
+        assert_eq!(conv("一石二鳥だ", "ja"), "一石二鳥だ");
+        // Runs of two or more numerals that overlap a built-in phrase: only the
+        // exclusion list keeps them, since the rules alone would read them.
+        assert_eq!(conv("三一旦だ", "ja"), "三一旦だ");
+        assert_eq!(conv("二九州", "ja"), "二九州");
+        assert_eq!(conv("三十分", "ja"), "三十分");
+    }
+
+    #[test]
+    fn user_exclude_adds_to_builtin_list() {
+        assert_eq!(conv("二十歳", "ja"), "20歳");
+        assert_eq!(
+            convert("二十歳", "ja", &with_exclude(&["二十歳"])),
+            "二十歳"
+        );
+        assert_eq!(
+            convert("一番だ", "ja", &with_exclude(&["二十歳"])),
+            "一番だ"
+        );
+        // The built-in list still applies to a run the user list does not name.
+        assert_eq!(
+            convert("三一旦", "ja", &with_exclude(&["二十歳"])),
+            "三一旦"
+        );
+    }
+
+    #[test]
+    fn user_force_wins_over_rule_output() {
+        let forced = with_force("三千二百", "3,200");
+        assert_eq!(convert("三千二百人", "ja", &forced), "3,200人");
+    }
+
+    #[test]
+    fn user_force_can_apply_to_text_the_rules_would_leave_alone() {
+        let forced = with_force("一番", "No.1");
+        assert_eq!(convert("一番だ", "ja", &forced), "No.1だ");
+    }
 }
