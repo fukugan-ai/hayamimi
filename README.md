@@ -32,6 +32,14 @@ The slices for recognition, language routing, speakers, audio capture, the subti
 In the latest re-measurement the CPU (int8) was faster than the GPU for recognition, so recognition stays on the CPU.
 The machine load was high during that re-measurement, so the values are unverified and only the direction is used.
 
+### Translation and start-up behaviour as of 2026-10-20
+
+The translated subtitle and the start-up behave as follows.
+
+- **The form of the rewrite (E) request**: a finalized sentence is first translated as a draft (T), and then a second translation (E) rewrites the draft. The E request has two messages: the first holds the draft and a note to keep the facts, numbers, proper names, negation and uncertainty, and the second holds the source sentence. The T request is one message holding the source sentence only. With this form, lines where E's answer echoed the instruction text fell from 1 per run to 0 (the E2E seat's report; this document did not recount them). The gate that checks numbers and uncertainty is not loosened.
+- **The first request to the translation server**: before it emits `relay.serve.started`, `hayamimi-relay live` sends one short request to the `--llm` server. This pays the slowness of the very first request before the first subtitle. If the server answers, `translate.warmup.sent` is emitted; if it does not, `translate.warmup.failed` (warn) is emitted and start-up goes on. The wait is at most 10 seconds. When the translation server has not been started, `translate.warmup.failed` appears. How slow that first request is has not been measured (NOT VERIFIED).
+- **The reason of an early-end hold**: `asr.endpoint.held` carries a `reason`. It is `incomplete` when the sentence is not complete, and `too_short` when it is complete but the speech is short. How to count them is in `docs/guide/run_hayamimi.ja.md`.
+
 Three things are not implemented:
 
 - R11 (removing Python): 187 of the 386 rows of RP-19 (the check that Python test cases were ported to Rust tests) have no Rust test yet.
@@ -356,6 +364,26 @@ What this measurement does not show:
 - The record does not say whether the E2E-2 capture came from the output device of a real Windows machine (NOT VERIFIED: check by running E2E-2 again on a real Windows machine).
 
 The per-run sample jsonl files and the conditions are in `docs/results/e2e/` (commit `9103c95`).
+
+### Alternating Rust and Python measurement (RP-32, 2026-10-20)
+
+Python and Rust were run in 3 alternating pairs under the same load; this is the formal verdict of E2E-1.
+The values come from the `--ignored` output of `rp32` and from the E2E seat's report; this document did not recount them.
+The record of this run is outside the repository, and `docs/results/rp32/` holds the run before the change of E's form.
+
+| Item | Result | Condition |
+|---|---|---|
+| Per-row line | 18 of 19 utterances are no slower than Python | 17 are required |
+| 300 ms line | 17/19 | the second line in the `rp32` output |
+| L p50 and p95 | 885 ms, 1501 ms | the run before the change of E's form had 865 ms and 1461 ms |
+| Share of utterances with two or more `final` | Rust 22.61 %, Python 8.70 % | smaller is better |
+| CER | Rust 13.15 %, Python 12.95 % | smaller is better |
+
+What this measurement does not show:
+
+- On quality, Rust is still worse than Python on both the split `final` share and CER.
+- The cause of the L p95 getting worse than in the run before the change of E's form is not identified.
+- The Python baseline is fixed to the 3 pairs of 2026-10-15 and was not re-run.
 
 ### Clip-level scoring of the original Python version (re-measured 2026-09-01)
 
