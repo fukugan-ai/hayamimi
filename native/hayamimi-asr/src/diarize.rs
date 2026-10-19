@@ -491,4 +491,41 @@ mod tests {
         let mut centroids = two_speakers();
         assert!(remap_group(&mut centroids, &[], "S1", RemapOptions::default()).is_empty());
     }
+
+    #[test]
+    fn group_diarizer_missing_model_raises_filenotfound() {
+        let models = Path::new("no-such-models");
+        let said = GroupDiarizer::open(models, DiarizeSettings::default()).err();
+        // The error names the segmentation model that was looked for.
+        assert!(
+            matches!(&said, Some(AsrError::MissingModel(path)) if *path == segmentation_path(models)),
+            "{said:?}"
+        );
+    }
+
+    /// The `models/` directory at or above this checkout: model files are not in git, so a worktree reads them from the main checkout.
+    fn models_with_segmentation() -> Result<PathBuf, String> {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .map(|directory| directory.join("models"))
+            .find(|models| {
+                segmentation_path(models).is_file() && embedder::model_path(models).is_file()
+            })
+            .ok_or_else(|| {
+                String::from(
+                    "no models/ with the segmentation and embedding models above the checkout",
+                )
+            })
+    }
+
+    #[test]
+    fn group_diarizer_short_buffer_returns_empty() -> Result<(), Box<dyn std::error::Error>> {
+        crate::check_library()?;
+        let mut diarizer =
+            GroupDiarizer::open(&models_with_segmentation()?, DiarizeSettings::default())?;
+        // 0.1 s of silence is under the half second that can hold speech.
+        let samples = vec![0.0_f32; diarizer.sample_rate / 10];
+        assert!(diarizer.process(&samples, None)?.is_empty());
+        Ok(())
+    }
 }

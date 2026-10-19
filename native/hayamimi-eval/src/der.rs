@@ -210,6 +210,7 @@ pub fn der(reference: &[Turn], hypothesis: &[Turn], collar: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hayamimi_asr::refine::{Span, group_ranges};
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() < 1e-9
@@ -322,5 +323,162 @@ mod tests {
             Turn::new("A", 3.0, 2.0),
         ]);
         assert_eq!(kept, [Turn::new("A", 1.0, 2.0)]);
+    }
+
+    /// The text of an RTTM `SPEAKER` line for `speaker` from `start` for `duration`.
+    fn speaker_line(meeting: &str, start: &str, duration: &str, speaker: &str) -> String {
+        format!("SPEAKER {meeting} 1 {start} {duration} <NA> <NA> {speaker} <NA> <NA>\n")
+    }
+
+    /// Whether `result` is an `Invalid` error whose text holds `part`.
+    fn refused_with(result: Result<Vec<Turn>, EvalError>, part: &str) -> bool {
+        matches!(result, Err(EvalError::Invalid(ref said)) if said.contains(part))
+    }
+
+    #[test]
+    fn parse_rttm_basic() -> Result<(), EvalError> {
+        let text = speaker_line("meet1", "34.27", "10.12", "FEE041")
+            + &speaker_line("meet1", "46.43", "10.42", "FEE044");
+        assert_eq!(
+            parse_rttm(&text, "x.rttm")?,
+            [
+                Turn::new("FEE041", 34.27, 34.27 + 10.12),
+                Turn::new("FEE044", 46.43, 46.43 + 10.42),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_rttm_ignores_non_speaker_lines_and_blanks() -> Result<(), EvalError> {
+        let text = format!(
+            "\nSPKR-INFO meet1 1 <NA> <NA> <NA> unknown FEE041 <NA> <NA>\n{}\n",
+            speaker_line("meet1", "1.0", "2.0", "S1")
+        );
+        assert_eq!(parse_rttm(&text, "x.rttm")?, [Turn::new("S1", 1.0, 3.0)]);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_rttm_empty_file() -> Result<(), EvalError> {
+        assert!(parse_rttm("", "x.rttm")?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn parse_rttm_rejects_malformed_line() {
+        // The speaker field and everything after the duration are missing.
+        let result = parse_rttm("SPEAKER meet1 1 1.0 2.0\n", "x.rttm");
+        assert!(refused_with(result, "x.rttm:1: malformed SPEAKER line"));
+    }
+
+    #[test]
+    fn parse_rttm_rejects_negative_duration() {
+        let text = speaker_line("meet1", "1.0", "-2.0", "S1");
+        assert!(refused_with(
+            parse_rttm(&text, "x.rttm"),
+            "x.rttm:1: negative duration"
+        ));
+    }
+
+    #[test]
+    fn parse_rttm_round_trips_zero_duration() -> Result<(), EvalError> {
+        // A zero-length turn is legal RTTM: the parser keeps it and `scorable` drops it.
+        let text = speaker_line("meet1", "5.0", "0.0", "S1");
+        let turns = parse_rttm(&text, "x.rttm")?;
+        assert_eq!(turns, [Turn::new("S1", 5.0, 5.0)]);
+        assert!(scorable(turns).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn segments_to_der_tuples_coerces_types() {
+        // The diarizer reports f32 seconds; scoring is in f64, and widening is exact.
+        let narrow = Turn::new("S1", f64::from(1.0_f32), f64::from(2.5_f32));
+        assert_eq!(scorable(vec![narrow]), [Turn::new("S1", 1.0, 2.5)]);
+    }
+
+    #[test]
+    fn segments_to_der_tuples_drops_zero_and_negative_length() {
+        let kept = scorable(vec![
+            Turn::new("S1", 1.0, 1.0),
+            Turn::new("S1", 2.0, 1.5),
+            Turn::new("S1", 1.0, 2.0),
+        ]);
+        assert_eq!(kept, [Turn::new("S1", 1.0, 2.0)]);
+    }
+
+    #[test]
+    fn segments_to_der_tuples_empty() {
+        assert!(scorable(Vec::new()).is_empty());
+    }
+
+    #[test]
+    fn der_zero_for_identical_ref_and_hyp() {
+        let reference = [Turn::new("A", 0.0, 5.0), Turn::new("B", 5.0, 10.0)];
+        assert!(close(der(&reference, &reference, 0.0), 0.0));
+    }
+
+    #[test]
+    fn der_nonzero_for_swapped_speaker_labels_within_overlap() {
+        // A global relabeling scores 0: the error depends on the partition, not on the names.
+        let reference = [Turn::new("A", 0.0, 5.0), Turn::new("B", 5.0, 10.0)];
+        let swapped = [Turn::new("B", 0.0, 5.0), Turn::new("A", 5.0, 10.0)];
+        assert!(close(der(&reference, &swapped, 0.0), 0.0));
+        // A real confusion on a sub-interval is not free.
+        let whole = [Turn::new("A", 0.0, 10.0)];
+        let confused = [Turn::new("A", 0.0, 5.0), Turn::new("B", 5.0, 10.0)];
+        assert!(der(&whole, &confused, 0.0) > 0.0);
+    }
+
+    #[test]
+    fn der_end_to_end_from_parsed_rttm() -> Result<(), EvalError> {
+        let text =
+            speaker_line("meet", "0.0", "5.0", "A") + &speaker_line("meet", "5.0", "5.0", "B");
+        let reference = scorable(parse_rttm(&text, "ref.rttm")?);
+        assert_eq!(reference.len(), 2);
+        assert!(close(der(&reference, &reference, 0.25), 0.0));
+        Ok(())
+    }
+
+    const SR: usize = 16_000;
+
+    fn span(start: usize, end: usize) -> Span {
+        Span {
+            start,
+            end,
+            label: String::from("S1"),
+        }
+    }
+
+    #[test]
+    fn group_segments_single_segment() {
+        assert_eq!(group_ranges(&[span(0, SR)]), [0..1]);
+    }
+
+    #[test]
+    fn group_segments_merges_close_segments() {
+        // Two 1 s segments 0.5 s apart: the gap is under 2 s, so one group.
+        let spans = [span(0, SR), span(SR * 3 / 2, SR * 5 / 2)];
+        assert_eq!(group_ranges(&spans), [0..2]);
+    }
+
+    #[test]
+    fn group_segments_splits_on_silence_gap() {
+        // A 3 s gap is over the 2 s limit, so two groups.
+        let spans = [span(0, SR), span(4 * SR, 5 * SR)];
+        assert_eq!(group_ranges(&spans), [0..1, 1..2]);
+    }
+
+    #[test]
+    fn group_segments_splits_on_max_length() {
+        // A group already 26 s long closes before the next segment, with no gap between them.
+        let spans = [span(0, 26 * SR), span(26 * SR, 27 * SR)];
+        assert_eq!(group_ranges(&spans), [0..1, 1..2]);
+    }
+
+    #[test]
+    fn group_segments_empty_input() {
+        assert!(group_ranges(&[]).is_empty());
     }
 }
