@@ -625,6 +625,15 @@ mod tests {
     }
 
     #[test]
+    fn split_retry_stands_down_when_the_speech_measure_clears_the_buffer_alarm() {
+        // Over the whole 30 s buffer the text is sparse: the cheap gate fires.
+        assert!(looks_truncated(WHOLE, 30.0, 30.0, "ja"));
+        // The detector found 5 s of speech in it; the second gate, which
+        // `split_retry` runs on that measure, clears the alarm before any decode.
+        assert!(!looks_truncated(WHOLE, 5.0, 5.0, "ja"));
+    }
+
+    #[test]
     fn normal_density_cjk_output_is_not_suspicious() {
         let text = "私たちは植物で家を作り植物から衣類を作ります日々食べる食材の植物です".repeat(2);
         assert!(!looks_truncated(&text, 10.6, 18.3, "ja"));

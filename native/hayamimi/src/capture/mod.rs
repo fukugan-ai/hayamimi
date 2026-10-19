@@ -273,6 +273,59 @@ mod tests {
         assert_eq!(stamps[2] - stamps[1], WINDOW_NS);
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn speaker_capture_rejects_non_windows_before_import_or_com() {
+        let (out, packets) = mpsc::channel();
+        let result = open(SourceKind::Speaker, None, Clock::start(), out);
+        assert!(matches!(result, Err(CaptureError::Unsupported)));
+        // No thread was started, so no window was ever sent.
+        assert!(packets.try_recv().is_err());
+    }
+
+    #[test]
+    fn mic_timestamp_is_taken_in_the_capture_callback() -> Result<(), Box<dyn std::error::Error>> {
+        let (out, packets) = mpsc::channel();
+        let clock = Clock::start();
+        let mut feeder = Feeder::new(16_000, 1, clock, out);
+        let before = clock.now_ns();
+        // The callback runs on the device's own thread.
+        let callback = std::thread::spawn(move || feeder.push(&[0.25_f32; WINDOW]));
+        assert!(callback.join().map_err(|_| "callback panicked")?);
+        let after = clock.now_ns();
+        // The reader comes late; the stamp must not move with it.
+        std::thread::sleep(Duration::from_millis(60));
+        let packet = packets.try_recv()?;
+        assert!(
+            (before..=after).contains(&packet.end_ns),
+            "{} not in {before}..={after}",
+            packet.end_ns
+        );
+        assert!(packet.samples.iter().all(|s| (s - 0.25).abs() < 1e-6));
+        Ok(())
+    }
+
+    #[test]
+    fn capture_timestamps_keep_audio_spacing_when_backend_returns_a_burst() {
+        let (out, packets) = mpsc::channel();
+        let clock = Clock::start();
+        // The run must be older than the two windows stamped before "now".
+        std::thread::sleep(Duration::from_millis(80));
+        let mut feeder = Feeder::new(16_000, 1, clock, out);
+        // A burst: three windows in one delivery.
+        assert!(feeder.push(&[0.0_f32; WINDOW * 3]));
+        let burst: Vec<u64> = packets.try_iter().map(|p| p.end_ns).collect();
+        assert_eq!(burst.len(), 3);
+        assert_eq!(burst[1], burst[0] + WINDOW_NS);
+        assert_eq!(burst[2], burst[1] + WINDOW_NS);
+        // A delivery after a real pause is stamped when it happened, not packed behind the burst.
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(feeder.push(&[0.0_f32; WINDOW]));
+        let later: Vec<u64> = packets.try_iter().map(|p| p.end_ns).collect();
+        assert_eq!(later.len(), 1);
+        assert!(later[0] >= burst[2] + 100_000_000, "{later:?} {burst:?}");
+    }
+
     #[test]
     fn a_buffer_shorter_than_a_window_sends_nothing_and_a_closed_listener_is_said() {
         let (out, packets) = mpsc::channel();

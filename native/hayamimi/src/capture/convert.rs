@@ -238,6 +238,17 @@ mod tests {
     }
 
     #[test]
+    fn speaker_capture_owns_com_objects_and_downmixes_native_channels() {
+        // The device's own stereo format is averaged to one channel per frame.
+        let mut chain = Chain::new(16_000, 2, 16_000);
+        let interleaved: Vec<f32> = (0..WINDOW).flat_map(|_| [0.2_f32, 0.6]).collect();
+        let windows = chain.push(&interleaved);
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].len(), WINDOW);
+        assert!(windows[0].iter().all(|sample| (sample - 0.4).abs() < 1e-6));
+    }
+
+    #[test]
     fn the_chain_turns_a_second_of_stereo_48k_into_whole_windows() {
         let mut chain = Chain::new(48_000, 2, 16_000);
         let windows = chain.push(&vec![0.25; 48_000 * 2]);

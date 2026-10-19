@@ -373,6 +373,73 @@ mod tests {
     }
 
     #[test]
+    fn mix_speaker_failure_falls_back_once_to_mic_only() -> Result<(), Box<dyn std::error::Error>> {
+        use super::super::align::Packet;
+        use crate::feed::{self, AudioItem};
+
+        let (events, rx) = mpsc::channel();
+        let alive = Arc::new(Alive::default());
+        let mut supervisor = Supervisor::new(
+            vec![spec(SourceKind::Mic), spec(SourceKind::Speaker)],
+            Arc::clone(&alive),
+            events,
+            Box::new(|kind, _| match kind {
+                SourceKind::Mic => fake_source("mic"),
+                SourceKind::Speaker => super::super::spawn_source("fake", |control| {
+                    control.opened("speaker");
+                    Err(CaptureError::Device(String::from("loopback lost")))
+                }),
+            }),
+        );
+        let start = Instant::now();
+        supervisor.pass(start);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !supervisor.running.iter().flatten().any(Running::is_lost)
+            && Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // Passes before the retry wait is over must not say it again.
+        supervisor.pass(start + Duration::from_millis(50));
+        supervisor.pass(start + Duration::from_millis(100));
+        assert!(alive.is(SourceKind::Mic));
+        assert!(!alive.is(SourceKind::Speaker));
+        let said = drained(&rx);
+        assert_eq!(
+            said.iter().filter(|event| **event == Event::Single).count(),
+            1
+        );
+
+        // From here the combiner passes the microphone windows on alone.
+        let (mic_tx, mic_rx) = mpsc::channel();
+        let (_speaker_tx, speaker_rx) = mpsc::channel();
+        let (tx, out) = feed::channel();
+        let stop = Arc::new(AtomicBool::new(false));
+        let combiner = combine::spawn(
+            Inputs {
+                mic: mic_rx,
+                speaker: speaker_rx,
+            },
+            Arc::clone(&alive),
+            Clock::start(),
+            tx,
+            Arc::clone(&stop),
+        )?;
+        for (end_ns, value) in [(1_000, 0.25_f32), (2_000, 0.5)] {
+            mic_tx.send(Packet {
+                end_ns,
+                samples: vec![value; 4],
+            })?;
+        }
+        let wait = Duration::from_secs(5);
+        assert_eq!(out.recv_timeout(wait)?, AudioItem::Window(vec![0.25; 4]));
+        assert_eq!(out.recv_timeout(wait)?, AudioItem::Window(vec![0.5; 4]));
+        stop.store(true, Ordering::Relaxed);
+        assert!(combiner.join().is_ok());
+        Ok(())
+    }
+
+    #[test]
     fn a_lost_source_is_noticed_and_the_level_falls() -> Result<(), Box<dyn std::error::Error>> {
         let (events, rx) = mpsc::channel();
         let alive = Arc::new(Alive::default());

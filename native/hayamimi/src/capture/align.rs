@@ -187,6 +187,34 @@ mod tests {
     }
 
     #[test]
+    fn put_latest_keeps_only_newest_bounded_items() {
+        let mut aligner = Aligner::default();
+        for index in 0..(KEPT as u64 + 8) {
+            aligner.absorb(packet(index, 0.0));
+        }
+        let kept: Vec<u64> = aligner.pending.iter().map(|p| p.end_ns).collect();
+        let expected: Vec<u64> = (8..KEPT as u64 + 8).map(ms).collect();
+        assert_eq!(kept, expected);
+    }
+
+    #[test]
+    fn aligned_speaker_match_discards_stale_and_retains_future() {
+        let mut aligner = Aligner::default();
+        // stale, less near, near, future
+        for (end, value) in [(900, 0.1), (960, 0.3), (998, 0.2), (1100, 0.4)] {
+            aligner.absorb(packet(end, value));
+        }
+        let chosen = aligner.take_closest(ms(1000));
+        assert_eq!(chosen.map(|p| p.end_ns), Some(ms(998)));
+        let left: Vec<u64> = aligner.pending.iter().map(|p| p.end_ns).collect();
+        assert_eq!(left, vec![ms(1100)]);
+        // Far-future audio stays for a later microphone window.
+        assert!(aligner.take_closest(ms(1000)).is_none());
+        let left: Vec<u64> = aligner.pending.iter().map(|p| p.end_ns).collect();
+        assert_eq!(left, vec![ms(1100)]);
+    }
+
+    #[test]
     fn the_sum_is_clipped_and_a_length_mismatch_leaves_the_first_alone() {
         let first = [0.75_f32, -0.75, 0.25, 0.0];
         let same = Packet {

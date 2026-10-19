@@ -188,6 +188,22 @@ mod tests {
     }
 
     #[test]
+    fn live_path_preroll_keeps_utterance_initial_words() {
+        // The detector places the speech start 198 ms after the true onset;
+        // the pre-roll must hand those samples back in front of the segment.
+        let onset = 20_000_usize;
+        let late = onset + 198 * 16;
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let out = history.with_preroll(late, &[7.0; 512]);
+        assert_eq!(out.len(), 16_000 + 512);
+        let first_of_pre = late - 16_000;
+        assert_eq!(out[onset - first_of_pre], onset as f32);
+        assert_eq!(out[late - first_of_pre - 1], (late - 1) as f32);
+        assert_eq!(out[late - first_of_pre], 7.0);
+    }
+
+    #[test]
     fn preroll_does_not_reach_into_the_previous_segment() {
         let mut history = History::new();
         history.push(&ramp(0, 40_000));
