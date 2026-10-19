@@ -210,14 +210,17 @@ fn count_of_type(rows: &[Value], kind: &str) -> usize {
         .count()
 }
 
-/// T-RP-72-011: the recorded RP-32 runs hold 125 `final` and no `fallback`
-/// each, and the directory's refusal (it has one, for the paired comparison)
-/// does not name a port move.
+/// The `final` events of each recorded Rust run `rs1` to `rs3`, in run order.
+const RECORDED_FINALS: [usize; 3] = [149, 149, 149];
+
+/// T-RP-72-011: the recorded RP-32 runs hold `RECORDED_FINALS` `final` events
+/// and no `fallback` each, and the directory's refusal (it has one, for the
+/// paired comparison) does not name a port move.
 #[test]
 fn the_recorded_rp32_dir_has_no_port_move() -> TestResult {
-    for number in 1..=3 {
+    for (number, finals) in (1..=3).zip(RECORDED_FINALS) {
         let rows = recorded_events(number)?;
-        assert_eq!(count_of_type(&rows, "final"), 125, "rs{number}");
+        assert_eq!(count_of_type(&rows, "final"), finals, "rs{number}");
         assert_eq!(count_of_type(&rows, "fallback"), 0, "rs{number}");
     }
     let said = check_dir(&rp32_dir());

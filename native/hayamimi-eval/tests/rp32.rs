@@ -873,22 +873,22 @@ fn row_has_a_valid_gap(row: &Value) -> bool {
     }
 }
 
-/// T-RP-32-045: the recorded runs hold 277 translated of 300 valid Rust samples,
-/// which reaches 20 / 23 (277 x 23 = 6371 >= 6000). Whether the dir passes the
+/// T-RP-32-045: the recorded runs hold 234 translated of 254 valid Rust samples,
+/// which reaches 20 / 23 (234 x 23 = 5382 >= 5080). Whether the dir passes the
 /// other checks or not, the share is not among its reasons.
 #[test]
 fn the_recorded_rp32_dir_has_enough_translated_samples() -> TestResult {
     let counted = recorded_rust_share()?;
-    assert_eq!(counted, (300, 277));
+    assert_eq!(counted, (254, 234));
     assert!(counted.1 * 23 >= counted.0 * 20);
     let dir = rp32_dir();
     let count = pairs_to_read(&dir)?;
     // No rule is read: the count is the one at the 300 ms line, as `jq` counts it.
     let report = alternated_report(&load_runs(&dir, count.pairs)?, count.recorded)?;
-    assert_eq!(report.rust_share, share_of(300, 277));
+    assert_eq!(report.rust_share, share_of(254, 234));
     let text = render_share_columns(&report);
     assert!(
-        text.contains(&format!("{SHARE_COLUMN_RUST} 277 / 300")),
+        text.contains(&format!("{SHARE_COLUMN_RUST} 234 / 254")),
         "{text}"
     );
     let said = check_dir(&dir);
