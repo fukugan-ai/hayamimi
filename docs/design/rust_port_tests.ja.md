@@ -2300,6 +2300,27 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - H83 のとおり、RP-66 の run の dir（`events.jsonl`）は RP-72 の読み口の外である。
 - RP-71 の case 行は書かない（3.18 の段 3 は評議の PAUSE）。
 
+### 4.70 E の card の形、早い終わりの reason、初回の依頼
+
+設計は D 3.6 の「E の依頼の形」と「初回の依頼」、D 3.17、D 3.13 の `asr.endpoint.held` の行である。
+test の file と関数は repo に在る。command は `cd native && cargo test --release --jobs 2 -p hayamimi-relay -p hayamimi-asr -p hayamimi -p hayamimi-eval --lib --tests` で、`--ignored` を付けない。
+偽の llama-server と偽の `Llm` だけを使い、本物の server には送らない。
+陰性対照は、E の依頼から `with_system` を外す（`pipeline.rs` と `eval.rs`）か、`cli.rs` の `announce_when_warm` から `warmup::warm_up` を外すと、下の「E の依頼」と「初回の依頼」の行が落ちることである（実走して 11 本が落ち、戻して差分が元と一致した）。
+
+| case | 入力 | 期待値 | 置き場 | test の名前 |
+|---|---|---|---|---|
+| E の依頼 | `Completion` に system を足す | `messages` が `[system, user]` の順で、system を持たない依頼は `[user]` のまま | `hayamimi-relay/src/llm.rs` | `a_system_message_goes_before_the_user_message`、`a_request_is_one_user_message_with_the_stop_marker` |
+| E の依頼 | ja の原文に T が `Hello.` と答えた最終の経路 | T の依頼は user 1 つ。E の依頼は system と user の 2 つで、user は T と同じ文、system は下書きの注で始まり「Rewritten」を持たない | `hayamimi-relay/src/pipeline.rs` | `the_final_path_asks_t_in_one_message_and_e_in_two` |
+| E の依頼 | 偽の llama-server に T と E を頼む | body の `messages` が T は user 1 つ、E は system と user で、E の user が T と同じ文、system に下書きがある。順の違いと、system の無い E と、下書きの違いを拒む陰性の case 付き | `hayamimi-relay/tests/cs25.rs` | `cs25_stages_run_in_order_t_e_v_once`、`cs25_a_wrong_order_or_an_edit_without_the_draft_is_refused` |
+| E の依頼 | `eval` の E | E の body が system と user の 2 つで、user が T と同じ文（空白を含む）、system が下書きの注と calques の行を持つ | `hayamimi-relay/tests/r8f_eval.rs` | `eval_asks_e_with_ts_prompt_and_the_draft_in_a_system_message`、`a_request_names_the_language_in_one_user_message` |
+| E の system | calques、`ja_style.toml`、対の外の言語 | calques の行が注の後ろに並ぶ。ja 向けは `Style:` と `Avoid` の行。対の外は注だけ。対は `edit_system` と同じ | `hayamimi-relay/src/pipeline.rs` | `the_calques_stand_at_the_end_of_the_english_edit_system`、`the_edit_system_carries_the_draft_and_the_japanese_style`、`the_edit_system_into_a_named_target_follows_the_pair_only_for_the_pair` |
+| E の答え | 札を持たない訳（probe の e1 の答え 2 件） | trim して返す | `hayamimi-relay/src/edit_answer.rs` | `answers_to_the_card_form_request_are_returned_as_they_are` |
+| 早い終わりの reason | `incomplete` と `too_short` の保留 | 両方を数え、それぞれ `reason` と読んだ声の長さを持つ。log の event は `reason`、`span_ms`、`min_ms` を持つ | `hayamimi-asr/src/pipeline.rs`、`hayamimi-asr/src/endpoint.rs`、`hayamimi/src/log.rs` | `a_hold_carries_its_reason_and_the_speech_it_was_read_from`、`holds_are_named_for_the_log`、`a_held_endpoint_event_names_the_reason_the_span_and_the_minimum_without_the_text`、`every_event_the_code_emits_has_a_message_in_both_tables` |
+| 初回の依頼 | 偽の `Llm` | 依頼は 1 本で、T の形の user 1 つ。答えれば info 1 件、失敗すれば warn 1 件 | `hayamimi-relay/src/warmup.rs` | `the_first_request_is_one_t_prompt_in_one_message`、`an_answered_request_logs_one_info_event_with_its_time`、`a_failed_request_logs_one_warn_event_and_returns`、`a_transport_failure_keeps_the_cause_out_of_the_event` |
+| 初回の依頼 | `announce_when_warm` | 初回の依頼が 1 本、`relay.serve.started` より前に出る。失敗しても `relay.serve.started` に進む。2 つの event は日本語と英語の文言を持つ | `hayamimi-relay/src/cli.rs` | `the_first_request_goes_out_once_before_the_relay_says_it_serves`、`a_first_request_that_fails_does_not_stop_the_relay_from_saying_it_serves`、`serving_events_are_worded_in_both_locales` |
+
+**この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。

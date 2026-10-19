@@ -112,10 +112,21 @@ fn read_body(stream: &mut TcpStream) -> Option<Vec<u8>> {
     Some(body)
 }
 
-fn kind_of(prompt: &str, coded: bool) -> Kind {
+/// The user message of a chat request and, when there is one before it, the
+/// system message: a translation is the user message alone, an edit has the
+/// draft in a system message as well.
+fn messages_of(request: &Value) -> Option<(&str, Option<&str>)> {
+    match request["messages"].as_array()?.as_slice() {
+        [user] => Some((user["content"].as_str()?, None)),
+        [system, user] => Some((user["content"].as_str()?, Some(system["content"].as_str()?))),
+        _ => None,
+    }
+}
+
+fn kind_of(system: Option<&str>, coded: bool) -> Kind {
     if coded {
         Kind::Coded
-    } else if prompt.starts_with("Translate the following ") {
+    } else if system.is_none() {
         Kind::Translate
     } else {
         Kind::Edit
@@ -124,12 +135,14 @@ fn kind_of(prompt: &str, coded: bool) -> Kind {
 
 /// What the server answers to the request, after the time that kind of
 /// request takes.
-fn answer(shared: &Shared, kind: Kind, prompt: &str) -> Option<String> {
+fn answer(shared: &Shared, kind: Kind, prompt: &str, system: Option<&str>) -> Option<String> {
     if kind == Kind::Coded {
         sleep(CODED_TAKES);
         return Some(ZH.to_owned());
     }
-    shared.llm.complete(&Completion::new(prompt, 256)).ok()
+    let mut request = Completion::new(prompt, 256);
+    request.system = system;
+    shared.llm.complete(&request).ok()
 }
 
 fn serve(mut stream: TcpStream, shared: &Shared) {
@@ -139,14 +152,14 @@ fn serve(mut stream: TcpStream, shared: &Shared) {
     let Ok(request) = serde_json::from_slice::<Value>(&body) else {
         return;
     };
-    let Some(prompt) = request["messages"][0]["content"].as_str() else {
+    let Some((prompt, system)) = messages_of(&request) else {
         return;
     };
-    let kind = kind_of(prompt, request.get("chat_template_kwargs").is_some());
+    let kind = kind_of(system, request.get("chat_template_kwargs").is_some());
     let arrived = Instant::now();
     let now = shared.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
     shared.peak.fetch_max(now, Ordering::SeqCst);
-    let said = answer(shared, kind, prompt);
+    let said = answer(shared, kind, prompt, system);
     shared.in_flight.fetch_sub(1, Ordering::SeqCst);
     locked(&shared.seen).push(Seen {
         kind,

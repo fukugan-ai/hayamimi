@@ -6,7 +6,7 @@
 "gpu.session.placed" = "model の node を置きました"
 "asr.utterance.timed" = "発話を確定しました"
 "asr.endpoint.decided" = "発話の終わりを決めました"
-"asr.endpoint.held" = "完結した文でも短いので、早い終わりでは確定せず、無音を待ちます"
+"asr.endpoint.held" = "文が完結していないか、完結していても短いので、早い終わりでは確定せず、無音を待ちます"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
 "asr.speaker.failed" = "話者の印をつけられなかったので、印なしの文で続けました"
 "asr.final.published" = "確定文を字幕の event へ出し終えました"

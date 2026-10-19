@@ -62,5 +62,6 @@ pub mod verify;
 pub mod verify_dump;
 pub mod video;
 pub mod vprobe;
+pub mod warmup;
 pub mod watched;
 pub mod ws_client;

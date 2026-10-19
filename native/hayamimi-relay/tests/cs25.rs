@@ -46,50 +46,88 @@ impl Observer for Trace {
     }
 }
 
+/// A request as the server saw it: the user message, and the system message
+/// before it when there was one.
+#[derive(Clone, Debug)]
+struct Asked {
+    system: Option<String>,
+    user: String,
+}
+
 /// What a check of the recorded requests refuses.
 #[derive(Debug, PartialEq, Eq)]
 enum Fault {
     Count(usize),
     FirstIsNotT,
     SecondIsNotE,
+    EditIsNotAskedWithTsPrompt,
     EditLacksTheDraft,
 }
 
-/// The prompts of the two requests must be T's and then E's, and E's must
-/// carry the draft T answered.
-fn check_requests(prompts: &[String], draft: &str) -> Result<(), Fault> {
-    let [first, second] = prompts else {
-        return Err(Fault::Count(prompts.len()));
+/// The beginning of E's system message when T answered `draft`.
+fn edit_note_start(draft: &str) -> String {
+    format!(
+        "A draft Japanese translation of the user's English text is: {draft}\nIt may contain errors."
+    )
+}
+
+/// The two requests must be T's (one user message) and then E's (T's own
+/// prompt as the user message, and the draft T answered in a system message).
+fn check_requests(asked: &[Asked], draft: &str) -> Result<(), Fault> {
+    let [first, second] = asked else {
+        return Err(Fault::Count(asked.len()));
     };
-    if first != &translate_prompt(Lang::En, SOURCE) {
+    let t = translate_prompt(Lang::En, SOURCE);
+    if first.user != t || first.system.is_some() {
         return Err(Fault::FirstIsNotT);
     }
-    if !second.starts_with("Below is a English sentence") {
+    let Some(system) = &second.system else {
         return Err(Fault::SecondIsNotE);
+    };
+    if second.user != t {
+        return Err(Fault::EditIsNotAskedWithTsPrompt);
     }
-    if !second.contains(&format!("Draft Japanese:\n{draft}\n\nRewritten Japanese:")) {
+    if !system.starts_with(&edit_note_start(draft)) {
         return Err(Fault::EditLacksTheDraft);
     }
     Ok(())
 }
 
-fn prompt_of(raw: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
-    let body: Value = serde_json::from_slice(request_body(raw))?;
-    let messages = body["messages"]
-        .as_array()
-        .ok_or("a request without messages")?;
-    let [message] = messages.as_slice() else {
-        return Err(format!("{} messages, not one", messages.len()).into());
-    };
+fn content_of(message: &Value, role: &str) -> Result<String, Box<dyn std::error::Error>> {
+    if message["role"] != role {
+        return Err(format!(
+            "a {} message where a {role} message belongs",
+            message["role"]
+        )
+        .into());
+    }
     message["content"]
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| "a message without content".into())
 }
 
+fn asked_of(raw: &[u8]) -> Result<Asked, Box<dyn std::error::Error>> {
+    let body: Value = serde_json::from_slice(request_body(raw))?;
+    let messages = body["messages"]
+        .as_array()
+        .ok_or("a request without messages")?;
+    match messages.as_slice() {
+        [user] => Ok(Asked {
+            system: None,
+            user: content_of(user, "user")?,
+        }),
+        [system, user] => Ok(Asked {
+            system: Some(content_of(system, "system")?),
+            user: content_of(user, "user")?,
+        }),
+        _ => Err(format!("{} messages, not one or two", messages.len()).into()),
+    }
+}
+
 /// Everything one run left behind.
 struct Run {
-    prompts: Vec<String>,
+    asked: Vec<Asked>,
     trace: Trace,
     drafts: Vec<Translation>,
     requests_when_drafted: Vec<usize>,
@@ -128,13 +166,13 @@ fn run() -> Result<Run, Box<dyn std::error::Error>> {
         },
         &mut sink,
     );
-    let prompts = server
+    let asked = server
         .requests()
         .iter()
-        .map(|raw| prompt_of(raw))
+        .map(|raw| asked_of(raw))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Run {
-        prompts,
+        asked,
         trace,
         drafts,
         requests_when_drafted,
@@ -146,7 +184,7 @@ fn run() -> Result<Run, Box<dyn std::error::Error>> {
 fn cs25_stages_run_in_order_t_e_v_once() -> TestResult {
     let run = run()?;
     // T then E, one request each, and E's carries T's translation.
-    assert_eq!(check_requests(&run.prompts, DRAFT), Ok(()));
+    assert_eq!(check_requests(&run.asked, DRAFT), Ok(()));
     // V ran on each translation once, on exactly what the model answered.
     assert_eq!(run.trace.draft_inputs, [DRAFT]);
     assert_eq!(run.trace.edit_inputs, [EDITED]);
@@ -189,12 +227,18 @@ fn cs25_the_draft_goes_out_after_t_and_before_e_is_asked() -> TestResult {
     Ok(())
 }
 
-/// The negative controls: an order or a prompt a wrong build would produce.
+/// The negative controls: an order or a request a wrong build would produce.
 #[test]
 fn cs25_a_wrong_order_or_an_edit_without_the_draft_is_refused() {
-    let t = translate_prompt(Lang::En, SOURCE);
-    let e =
-        format!("Below is a English sentence\n\nDraft Japanese:\n{DRAFT}\n\nRewritten Japanese:\n");
+    let user = translate_prompt(Lang::En, SOURCE);
+    let t = Asked {
+        system: None,
+        user: user.clone(),
+    };
+    let e = Asked {
+        system: Some(format!("{}\nStyle: x", edit_note_start(DRAFT))),
+        user: user.clone(),
+    };
     assert_eq!(check_requests(&[t.clone(), e.clone()], DRAFT), Ok(()));
     assert_eq!(
         check_requests(&[e.clone(), t.clone()], DRAFT),
@@ -207,6 +251,14 @@ fn cs25_a_wrong_order_or_an_edit_without_the_draft_is_refused() {
     assert_eq!(
         check_requests(&[t.clone(), t.clone()], DRAFT),
         Err(Fault::SecondIsNotE)
+    );
+    let other_user = Asked {
+        user: String::from("Rewrite this."),
+        ..e.clone()
+    };
+    assert_eq!(
+        check_requests(&[t.clone(), other_user], DRAFT),
+        Err(Fault::EditIsNotAskedWithTsPrompt)
     );
     assert_eq!(
         check_requests(&[t, e], "other"),

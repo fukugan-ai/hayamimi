@@ -2,9 +2,9 @@
 //! language each file names, through the chat endpoint, and writes one line
 //! per sentence for a scorer.
 //!
-//! A scripted server stands in for llama-server: it reads the one user message
-//! of each request and answers the translation or the edit of the sentence
-//! the message holds.
+//! A scripted server stands in for llama-server: it reads the user message of
+//! each request (and the system message of an edit) and answers the
+//! translation or the edit of the sentence the user message holds.
 
 mod support;
 
@@ -24,20 +24,32 @@ struct Row {
     edit: &'static str,
 }
 
-/// The user message of a chat request: its text, and whether it carries the
+/// What a chat request holds: the text of its user message, whether a system
+/// message stands before it (the draft of an edit), and whether it carries the
 /// language codes as template variables (the form of the model that writes
 /// the languages outside the live pair).
-fn user_message(raw: &[u8]) -> Option<(String, bool)> {
-    let body: Value = serde_json::from_slice(request_body(raw)).ok()?;
-    let text = body["messages"][0]["content"].as_str()?.to_owned();
-    Some((text, body.get("chat_template_kwargs").is_some()))
+struct Chat {
+    user: String,
+    has_system: bool,
+    coded: bool,
 }
 
-/// What the scripted server says to `message`: the translation when it is a
-/// T prompt or a coded request, the edit when it is an E prompt.
-fn scripted_answer(rows: &[Row], message: &str, coded: bool) -> Option<&'static str> {
-    let row = rows.iter().find(|row| message.contains(row.source))?;
-    if coded || message.starts_with("Translate the following") {
+fn chat_of(raw: &[u8]) -> Option<Chat> {
+    let body: Value = serde_json::from_slice(request_body(raw)).ok()?;
+    let messages = body["messages"].as_array()?;
+    let user = messages.last()?["content"].as_str()?.to_owned();
+    Some(Chat {
+        user,
+        has_system: messages.len() == 2,
+        coded: body.get("chat_template_kwargs").is_some(),
+    })
+}
+
+/// What the scripted server says to `chat`: the translation when it is a T
+/// request or a coded request, the edit when a system message holds a draft.
+fn scripted_answer(rows: &[Row], chat: &Chat) -> Option<&'static str> {
+    let row = rows.iter().find(|row| chat.user.contains(row.source))?;
+    if chat.coded || !chat.has_system {
         Some(row.translation)
     } else {
         Some(row.edit)
@@ -46,8 +58,7 @@ fn scripted_answer(rows: &[Row], message: &str, coded: bool) -> Option<&'static 
 
 fn scripted_server(rows: Vec<Row>) -> std::io::Result<FakeServer> {
     FakeServer::start(move |_, raw| {
-        match user_message(raw).and_then(|(message, coded)| scripted_answer(&rows, &message, coded))
-        {
+        match chat_of(raw).and_then(|chat| scripted_answer(&rows, &chat)) {
             Some(text) => Reply::json(&chat_reply(text)),
             None => Reply::status(400),
         }
@@ -193,17 +204,16 @@ fn a_request_names_the_language_in_one_user_message() -> TestResult {
     assert_eq!(first["temperature"], 0.0);
     assert_eq!(first["cache_prompt"], true);
     let second: Value = serde_json::from_slice(request_body(&requests[1]))?;
-    let Some(edit) = second["messages"][0]["content"].as_str() else {
-        panic!("the second request has no user message: {second}");
-    };
-    assert!(edit.contains("Rewritten English:"), "{edit}");
+    assert_eq!(second["messages"].as_array().map(Vec::len), Some(2));
+    assert_eq!(second["messages"][0]["role"], "system");
+    assert_eq!(second["messages"][1]["role"], "user");
     Ok(())
 }
 
-/// T's request has one space between the blank line and the source; E's has
-/// none, and still ends in the labelled sections it always did.
+/// E's request is two messages: T's own prompt as the user message, space
+/// included, and the draft with what to keep in a system message before it.
 #[test]
-fn eval_asks_t_with_a_space_after_the_blank_line_and_e_without_one() -> TestResult {
+fn eval_asks_e_with_ts_prompt_and_the_draft_in_a_system_message() -> TestResult {
     let server = scripted_server(vec![Row {
         source: "猫が寝ています。",
         translation: "The cat sleeps.",
@@ -220,16 +230,24 @@ fn eval_asks_t_with_a_space_after_the_blank_line_and_e_without_one() -> TestResu
     };
     assert!(translate.ends_with("\n\n 猫が寝ています。"), "{translate}");
     let second: Value = serde_json::from_slice(request_body(&requests[1]))?;
-    let Some(edit) = second["messages"][0]["content"].as_str() else {
-        panic!("the second request has no user message: {second}");
+    assert_eq!(second["messages"].as_array().map(Vec::len), Some(2));
+    assert_eq!(second["messages"][1]["content"], translate);
+    let Some(system) = second["messages"][0]["content"].as_str() else {
+        panic!("the second request has no system message: {second}");
     };
     assert!(
-        edit.ends_with(
-            "\nJapanese:\n猫が寝ています。\n\nDraft English:\nThe cat sleeps.\n\nRewritten English:\n"
+        system.starts_with(
+            "A draft English translation of the user's Japanese text is: The cat sleeps.\nIt may contain errors. Keep the facts, numbers, proper names, negation and uncertainty of the Japanese text."
         ),
-        "{edit}"
+        "{system}"
     );
-    assert!(!edit.contains("\n\n "), "{edit}");
+    assert!(
+        system.contains(
+            "\nAvoid \"please take care of me\"; write \"I look forward to working with you\"."
+        ),
+        "{system}"
+    );
+    assert!(!system.contains("Rewritten"), "{system}");
     Ok(())
 }
 

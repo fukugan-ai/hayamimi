@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
+use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 
 use crate::verify::EOS_MARKER;
@@ -93,13 +94,17 @@ impl Wanted {
     }
 }
 
-/// One request to the translator: the text of the single user message, how
-/// many tokens the answer may take, and the sampling the relay always uses.
+/// One request to the translator: the text of the user message, an optional
+/// system message before it, how many tokens the answer may take, and the
+/// sampling the relay always uses.
 #[derive(Debug)]
 pub struct Completion<'a> {
-    /// The text of the one user message. The server applies the model's chat
+    /// The text of the user message. The server applies the model's chat
     /// template to it.
     pub prompt: &'a str,
+    /// The text of a system message that goes before the user message. T's
+    /// request has none; E's carries the draft and what to keep in it.
+    pub system: Option<&'a str>,
     /// The source and target language codes of a model whose chat template
     /// takes them as template variables (TranslateGemma). `prompt` is then
     /// the bare text to translate.
@@ -115,7 +120,7 @@ pub struct Completion<'a> {
 /// The body of a llama-server `/v1/chat/completions` request.
 #[derive(Serialize)]
 struct ChatBody<'a> {
-    messages: [ChatMessage<'a>; 1],
+    messages: Messages<'a>,
     max_tokens: u32,
     temperature: f32,
     stop: [&'static str; 1],
@@ -139,6 +144,31 @@ struct ChatMessage<'a> {
     content: &'a str,
 }
 
+/// The `messages` array of a request: the system message when there is one,
+/// then the user message. Written without building a list.
+struct Messages<'a> {
+    system: Option<&'a str>,
+    user: &'a str,
+}
+
+impl Serialize for Messages<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let length = 1 + usize::from(self.system.is_some());
+        let mut list = serializer.serialize_seq(Some(length))?;
+        if let Some(content) = self.system {
+            list.serialize_element(&ChatMessage {
+                role: "system",
+                content,
+            })?;
+        }
+        list.serialize_element(&ChatMessage {
+            role: "user",
+            content: self.user,
+        })?;
+        list.end()
+    }
+}
+
 /// The language codes the chat template of TranslateGemma reads. The server
 /// takes them only from here; written inside the message they are dropped
 /// and the template falls back to en-GB on both sides.
@@ -151,10 +181,10 @@ struct TemplateCodes<'a> {
 impl<'a> From<&Completion<'a>> for ChatBody<'a> {
     fn from(request: &Completion<'a>) -> ChatBody<'a> {
         ChatBody {
-            messages: [ChatMessage {
-                role: "user",
-                content: request.prompt,
-            }],
+            messages: Messages {
+                system: request.system,
+                user: request.prompt,
+            },
             max_tokens: request.n_predict,
             temperature: request.temperature,
             stop: request.stop,
@@ -173,6 +203,7 @@ impl<'a> Completion<'a> {
     pub fn new(prompt: &'a str, n_predict: u32) -> Completion<'a> {
         Completion {
             prompt,
+            system: None,
             codes: None,
             n_predict,
             temperature: 0.0,
@@ -188,6 +219,12 @@ impl<'a> Completion<'a> {
             codes: Some((from, to)),
             ..Completion::new(text, n_predict)
         }
+    }
+
+    /// The same request with a system message before the user message.
+    pub fn with_system(mut self, system: &'a str) -> Completion<'a> {
+        self.system = Some(system);
+        self
     }
 
     /// The same request, dropped as soon as `wanted` says its answer is not
@@ -403,6 +440,22 @@ mod tests {
             serde_json::json!({"source_lang_code": "ja", "target_lang_code": "ko"})
         );
         assert_eq!(body["stop"], serde_json::json!(["</s>"]));
+        Ok(())
+    }
+
+    #[test]
+    fn a_system_message_goes_before_the_user_message() -> Result<(), serde_json::Error> {
+        let request = Completion::new("user text", 64).with_system("system text");
+        let body = serde_json::to_value(ChatBody::from(&request))?;
+        assert_eq!(
+            body["messages"],
+            serde_json::json!([
+                {"role": "system", "content": "system text"},
+                {"role": "user", "content": "user text"}
+            ])
+        );
+        let wire: serde_json::Value = serde_json::from_str(&request_body(&request)?)?;
+        assert_eq!(wire["messages"], body["messages"]);
         Ok(())
     }
 

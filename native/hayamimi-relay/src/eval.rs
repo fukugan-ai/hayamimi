@@ -19,7 +19,7 @@ use crate::edit_answer::translation_of;
 use crate::lang::Lang;
 use crate::llm::{Completion, Llm, LlmError};
 use crate::logging::{Level, LogEvent, LogSink};
-use crate::pipeline::{MAX_TOKENS, edit_prompt_to, language_name, translate_prompt_to};
+use crate::pipeline::{MAX_TOKENS, edit_system_to, language_name, translate_prompt_to};
 use crate::reach::{ERROR_CODE, STAGE};
 use crate::style::{Calques, JaStyle};
 use crate::target::Target;
@@ -191,6 +191,13 @@ impl<'a, L: Llm> Translator<'a, L> {
         self.llm.complete(&Completion::new(prompt, MAX_TOKENS))
     }
 
+    /// E: T's own `prompt` as the user message, and the draft with what to
+    /// keep in the system message before it.
+    fn ask_edit(&self, prompt: &str, system: &str) -> Result<String, LlmError> {
+        self.llm
+            .complete(&Completion::new(prompt, MAX_TOKENS).with_system(system))
+    }
+
     /// V on `text`, the translation of line `line` of its file; a hedge
     /// disagreement is logged under the line's number.
     fn verdict(
@@ -252,15 +259,16 @@ impl<'a, L: Llm> Translator<'a, L> {
         src: &str,
         sink: &mut dyn LogSink,
     ) -> Result<Option<String>, LlmError> {
-        let first = self.ask(&translate_prompt_to(Lang::Ja, target, src))?;
+        let prompt = translate_prompt_to(Lang::Ja, target, src);
+        let first = self.ask(&prompt)?;
         if contains_eos(&first) {
             sink.emit(held_event(target, line, ["form", "-"]));
             return Ok(None);
         }
         let draft = first.trim();
         let draft_verdict = self.verdict(line, src, draft, target, sink);
-        let prompt = edit_prompt_to(Lang::Ja, target, src, draft, &self.calques, &self.ja_style);
-        let second = self.ask(&prompt)?;
+        let system = edit_system_to(Lang::Ja, target, draft, &self.calques, &self.ja_style);
+        let second = self.ask_edit(&prompt, &system)?;
         let edited = translation_of(&second, language_name(Lang::Ja.other()));
         let edited_verdict = self.verdict(line, src, edited, target, sink);
         let settled = settled_text(

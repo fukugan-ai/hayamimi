@@ -336,6 +336,33 @@ Python と Rust の対は、run の前の読みのどちらかの `utilization.g
 前の窓が `final` なしで、次の窓に `final` が 2 件以上在る回の数です。
 Rust の run は `null` で、数えていないことを表します。
 
+## 早い終わりの保留と、訳の最初の依頼を log で読む
+
+`asr.endpoint.held`（info）は、早い終わりの候補が文を読んだのに確定せず、無音を待った回に 1 行出ます。
+項目は `reason`、`span_ms`、`min_ms` です。
+`reason` が `incomplete` なら文が完結していない候補で、`too_short` なら完結していても声が `min_ms` に満たない候補です。
+0 件の判定は、同じ command の中で、必ず出る event も数えます。
+
+```bash
+for r in incomplete too_short; do
+  printf '%s ' $r; grep '"event":"asr.endpoint.held"' <hayamimi の stdout を残した file> | grep -c "\"reason\":\"$r\""
+done
+grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
+```
+
+`asr.endpoint.decided` は確定文ごとに出るので、保留の数の対照になります。
+
+`hayamimi-relay live` は、`relay.serve.started` を出す前に、訳の server（`--llm`）へ短い依頼を 1 本だけ送ります。
+返れば `translate.warmup.sent`（info。`dependency`、`duration_ms`）、返らなければ `translate.warmup.failed`（warn。`dependency`、`duration_ms`、`detail`、`error_code`）が 1 行出て、起動は続きます。
+`detail` は失敗の種類（`transport`、`status 503` の形）だけで、address は載りません。
+
+```bash
+grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.started)"' <relay の stdout を残した file>
+```
+
+出力の順は、warm-up の event、`relay.serve.started` です。
+訳の server をまだ起こしていない run では `translate.warmup.failed` が出ます。`detail` は `transport` です。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash

@@ -36,7 +36,7 @@ use crate::edit_answer::translation_of;
 use crate::lang::Lang;
 use crate::llm::{Completion, Llm, LlmError, Wanted};
 use crate::logging::{Level, LogEvent, LogSink};
-use crate::style::{Calques, JaStyle};
+use crate::style::{Calques, JaStyle, Pattern};
 use crate::target::Target;
 use crate::verify::{HoldReason, Verdict, Verifier, contains_eos};
 use crate::watched::Watched;
@@ -291,73 +291,60 @@ fn translate_prompt_between(from: &str, to: &str, text: &str) -> String {
     format!("Translate the following {from} text into {to}.\n\n {text}")
 }
 
-/// The first part of the prompt for E: what to do, in which languages.
-fn edit_instruction(from: &str, to: &str) -> String {
+/// The first part of the system message of E: T's draft, and what E keeps.
+fn edit_note(from: &str, to: &str, draft: &str) -> String {
     format!(
-        "Below is a {from} sentence from a live conversation and a draft {to} translation.\n\
-         Rewrite the draft so that it reads as natural spoken {to}: natural word order, \
-         connectives and tone. Do not change facts, numbers, proper names, negation or \
-         uncertainty. Output only the rewritten translation.\n"
+        "A draft {to} translation of the user's {from} text is: {draft}\n\
+         It may contain errors. Keep the facts, numbers, proper names, negation and \
+         uncertainty of the {from} text."
     )
 }
 
-/// The last part of the prompt for E: the source, the draft, and where the
-/// answer goes.
-fn edit_material(from: &str, to: &str, text: &str, draft: &str) -> String {
-    format!("\n{from}:\n{text}\n\nDraft {to}:\n{draft}\n\nRewritten {to}:\n")
+/// One line of the system message of E: a literal wording and the natural one.
+fn push_avoid(system: &mut String, pattern: &Pattern) {
+    // Writing to a String cannot fail.
+    let _ = write!(
+        system,
+        "\nAvoid \"{}\"; write \"{}\".",
+        pattern.literal, pattern.natural
+    );
 }
 
-/// The prompt for E into `target`. The style notes exist for Japanese and
-/// English output only; into another language the instruction stands alone.
-pub fn edit_prompt_to(
+/// The system message of E into `target`. The style notes exist for Japanese
+/// and English output only; into another language the note stands alone.
+/// The user message of the same request is T's own prompt
+/// ([`translate_prompt_to`]), so that E reads the source the way T did.
+pub fn edit_system_to(
     src_lang: Lang,
     target: &Target,
-    text: &str,
     draft: &str,
     calques: &Calques,
     ja_style: &JaStyle,
 ) -> String {
     if target.lang() == Some(src_lang.other()) {
-        return edit_prompt(src_lang, text, draft, calques, ja_style);
+        return edit_system(src_lang, draft, calques, ja_style);
     }
-    let from = language_name(src_lang);
-    let mut prompt = edit_instruction(from, target.name);
-    prompt.push_str(&edit_material(from, target.name, text, draft));
-    prompt
+    edit_note(language_name(src_lang), target.name, draft)
 }
 
-/// The prompt for E. It carries the source and the draft, and for Japanese
-/// output the style note from `ja_style.toml`.
-pub fn edit_prompt(
-    src_lang: Lang,
-    text: &str,
-    draft: &str,
-    calques: &Calques,
-    ja_style: &JaStyle,
-) -> String {
+/// The system message of E for the live pair. It carries the draft, and for
+/// Japanese output the style note from `ja_style.toml`; the wordings to avoid
+/// stand at its end.
+pub fn edit_system(src_lang: Lang, draft: &str, calques: &Calques, ja_style: &JaStyle) -> String {
     let (from, to) = (language_name(src_lang), language_name(src_lang.other()));
-    let mut prompt = edit_instruction(from, to);
-    match src_lang.other() {
+    let mut system = edit_note(from, to, draft);
+    let patterns = match src_lang.other() {
         Lang::Ja => {
-            prompt.push_str(&format!("Style: {}\n", ja_style.note));
-            for pattern in &ja_style.patterns {
-                prompt.push_str(&format!(
-                    "Avoid \"{}\"; write \"{}\".\n",
-                    pattern.literal, pattern.natural
-                ));
-            }
+            // Writing to a String cannot fail.
+            let _ = write!(system, "\nStyle: {}", ja_style.note);
+            &ja_style.patterns
         }
-        Lang::En => {
-            for pattern in &calques.patterns {
-                prompt.push_str(&format!(
-                    "Avoid \"{}\"; write \"{}\".\n",
-                    pattern.literal, pattern.natural
-                ));
-            }
-        }
+        Lang::En => &calques.patterns,
+    };
+    for pattern in patterns {
+        push_avoid(&mut system, pattern);
     }
-    prompt.push_str(&edit_material(from, to, text, draft));
-    prompt
+    system
 }
 
 fn embedded_calques() -> Result<Calques, String> {
@@ -798,11 +785,11 @@ impl<L: Llm> Pipeline<L> {
         }
     }
 
-    /// The prompt for E with T's translation `draft`. Only a line of the
-    /// live pair reaches E.
-    fn edit_prompt_for(&self, request: &Ctx<'_>, draft: &str) -> String {
+    /// The system message for E with T's translation `draft`. Only a line of
+    /// the live pair reaches E.
+    fn edit_system_for(&self, request: &Ctx<'_>, draft: &str) -> String {
         let (calques, ja_style) = (self.calques.current(), self.ja_style.current());
-        edit_prompt(request.src_lang, request.text, draft, calques, ja_style)
+        edit_system(request.src_lang, draft, calques, ja_style)
     }
 
     /// E, the second V, and the settled translation.
@@ -816,10 +803,11 @@ impl<L: Llm> Pipeline<L> {
     ) -> Translation {
         let edit_started = Instant::now();
         observer.stage(Stage::Edit);
-        let prompt = self.edit_prompt_for(request, &draft.text);
+        let prompt = translate_prompt(request.src_lang, request.text);
+        let system = self.edit_system_for(request, &draft.text);
         let edited = match self
             .llm
-            .complete(&Completion::new(&prompt, EDIT_MAX_TOKENS))
+            .complete(&Completion::new(&prompt, EDIT_MAX_TOKENS).with_system(&system))
         {
             Ok(text) => text,
             Err(error) => {
@@ -1153,6 +1141,8 @@ mod tests {
     struct Scripted {
         answers: RefCell<Vec<Result<String, LlmError>>>,
         prompts: RefCell<Vec<String>>,
+        /// The system message of each request, in the order asked.
+        systems: RefCell<Vec<Option<String>>>,
         n_predicts: RefCell<Vec<u32>>,
     }
 
@@ -1161,6 +1151,7 @@ mod tests {
             Scripted {
                 answers: RefCell::new(answers),
                 prompts: RefCell::new(Vec::new()),
+                systems: RefCell::new(Vec::new()),
                 n_predicts: RefCell::new(Vec::new()),
             }
         }
@@ -1174,6 +1165,9 @@ mod tests {
     impl Llm for &Scripted {
         fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError> {
             self.prompts.borrow_mut().push(request.prompt.to_owned());
+            self.systems
+                .borrow_mut()
+                .push(request.system.map(str::to_owned));
             self.n_predicts.borrow_mut().push(request.n_predict);
             let mut answers = self.answers.borrow_mut();
             if answers.is_empty() {
@@ -1251,36 +1245,84 @@ mod tests {
         Ok(())
     }
 
-    /// The final path: T's request is the spelled-out prompt, and E's is not
-    /// given the space.
+    /// What E's system message begins with when T answered "Hello." to
+    /// "こんにちは。".
+    const EN_DRAFT_NOTE: &str = "A draft English translation of the user's Japanese text is: Hello.\nIt may contain errors. Keep the facts, numbers, proper names, negation and uncertainty of the Japanese text.";
+
+    /// The final path: T's request is one user message, the spelled-out
+    /// prompt. E's is two: T's own prompt as the user message, and the draft
+    /// with what to keep in a system message before it.
     #[test]
-    fn the_final_path_asks_t_with_the_space_and_e_without_it()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn the_final_path_asks_t_in_one_message_and_e_in_two() -> Result<(), Box<dyn std::error::Error>>
+    {
         let script = Scripted::saying("Hello.", "Hello.");
         run_traced(&script, &request("こんにちは。"))?;
         let prompts = script.prompts.borrow();
-        assert_eq!(prompts.len(), 2);
-        assert_eq!(prompts[0], JA_HELLO_PROMPT);
-        assert!(prompts[1].starts_with(
-            "Below is a Japanese sentence from a live conversation and a draft English translation.\n"
-        ));
-        assert!(prompts[1].ends_with(
-            "\nJapanese:\nこんにちは。\n\nDraft English:\nHello.\n\nRewritten English:\n"
-        ));
-        assert!(!prompts[1].contains("\n\n "), "{}", prompts[1]);
+        let systems = script.systems.borrow();
+        assert_eq!(*prompts, [JA_HELLO_PROMPT, JA_HELLO_PROMPT]);
+        assert_eq!(systems[0], None);
+        let Some(system) = systems[1].as_deref() else {
+            return Err(String::from("E was asked without a system message").into());
+        };
+        assert!(system.starts_with(EN_DRAFT_NOTE), "{system}");
+        assert!(!system.contains("Rewritten"), "{system}");
+        Ok(())
+    }
+
+    /// The wordings to avoid stand at the end of E's system message, one per
+    /// line, after the note.
+    #[test]
+    fn the_calques_stand_at_the_end_of_the_english_edit_system() -> Result<(), String> {
+        let calques = Calques::embedded()?;
+        let system = edit_system(Lang::Ja, "Hello.", &calques, &JaStyle::embedded()?);
+        let mut expected = String::from(EN_DRAFT_NOTE);
+        for pattern in &calques.patterns {
+            expected.push_str(&format!(
+                "\nAvoid \"{}\"; write \"{}\".",
+                pattern.literal, pattern.natural
+            ));
+        }
+        assert!(!calques.patterns.is_empty());
+        assert_eq!(system, expected);
         Ok(())
     }
 
     #[test]
-    fn the_edit_prompt_carries_source_draft_and_the_japanese_style() -> Result<(), String> {
-        let prompt = edit_prompt(
-            Lang::En,
-            "Hi.",
-            "やあ。",
-            &Calques::embedded()?,
-            &JaStyle::embedded()?,
+    fn the_edit_system_carries_the_draft_and_the_japanese_style() -> Result<(), String> {
+        let style = JaStyle::embedded()?;
+        let system = edit_system(Lang::En, "やあ。", &Calques::embedded()?, &style);
+        assert!(system.starts_with(
+            "A draft Japanese translation of the user's English text is: やあ。\nIt may contain errors."
+        ));
+        assert!(system.contains(&format!("\nStyle: {}", style.note)));
+        let last = style
+            .patterns
+            .last()
+            .ok_or("ja_style.toml holds no pattern")?;
+        assert!(system.ends_with(&format!(
+            "\nAvoid \"{}\"; write \"{}\".",
+            last.literal, last.natural
+        )));
+        Ok(())
+    }
+
+    /// Into a language outside the live pair the note stands alone, and into
+    /// the other language of the pair it is the pair's.
+    #[test]
+    fn the_edit_system_into_a_named_target_follows_the_pair_only_for_the_pair() -> Result<(), String>
+    {
+        let (calques, style) = (Calques::embedded()?, JaStyle::embedded()?);
+        let zh = Target::from_code("zh").ok_or("zh is not in the table")?;
+        let alone = edit_system_to(Lang::Ja, &zh, "你好。", &calques, &style);
+        assert_eq!(
+            alone,
+            "A draft Chinese translation of the user's Japanese text is: 你好。\nIt may contain errors. Keep the facts, numbers, proper names, negation and uncertainty of the Japanese text."
         );
-        assert!(prompt.contains("Hi.") && prompt.contains("やあ。") && prompt.contains("Style:"));
+        let en = Target::from_code("en").ok_or("en is not in the table")?;
+        assert_eq!(
+            edit_system_to(Lang::Ja, &en, "Hello.", &calques, &style),
+            edit_system(Lang::Ja, "Hello.", &calques, &style)
+        );
         Ok(())
     }
 

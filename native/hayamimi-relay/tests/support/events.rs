@@ -283,17 +283,20 @@ pub struct Call<'a> {
     pub text: &'a str,
 }
 
-/// Reads the stage and the source text off a prompt of the pipeline, and for
-/// an edit the draft too.
-pub fn read_prompt(prompt: &str) -> Option<(Stage, &str, &str)> {
-    if let Some(rest) = prompt.strip_prefix("Translate the following ") {
-        let (_, text) = rest.split_once("\n\n ")?;
+/// Reads the stage and the source text off a request of the pipeline, and for
+/// an edit the draft too. Both stages carry T's prompt as the user message;
+/// an edit also has the system message that holds the draft.
+pub fn read_prompt<'a>(
+    prompt: &'a str,
+    system: Option<&'a str>,
+) -> Option<(Stage, &'a str, &'a str)> {
+    let rest = prompt.strip_prefix("Translate the following ")?;
+    let (_, text) = rest.split_once("\n\n ")?;
+    let Some(system) = system else {
         return Some((Stage::Translate, text, ""));
-    }
-    let (before, after) = prompt.rsplit_once("\n\nDraft ")?;
-    let (_, text) = before.rsplit_once(":\n")?;
-    let (_, tail) = after.split_once(":\n")?;
-    let (draft, _) = tail.split_once("\n\nRewritten ")?;
+    };
+    let (_, tail) = system.split_once(" text is: ")?;
+    let (draft, _) = tail.split_once("\nIt may contain errors.")?;
     Some((Stage::Edit, text, draft))
 }
 
@@ -360,8 +363,8 @@ impl FakeLlm {
         self
     }
 
-    fn answer(&self, prompt: &str) -> Result<String, LlmError> {
-        let Some((stage, text, draft)) = read_prompt(prompt) else {
+    fn answer(&self, prompt: &str, system: Option<&str>) -> Result<String, LlmError> {
+        let Some((stage, text, draft)) = read_prompt(prompt, system) else {
             return Err(LlmError::Body(String::from(
                 "a prompt the test does not know",
             )));
@@ -389,7 +392,7 @@ pub struct SharedLlm(pub Arc<FakeLlm>);
 
 impl Llm for SharedLlm {
     fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError> {
-        self.0.answer(request.prompt)
+        self.0.answer(request.prompt, request.system)
     }
 }
 

@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
-use hayamimi_asr::{Final, Reason, ResidentEvent, SessionReport, ShortHold};
+use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport};
 use hayamimi_relay::logging::{Level, LogEvent};
 use serde_json::Value;
 
@@ -247,10 +247,11 @@ pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
     )
 }
 
-/// `asr.endpoint.held`: an early notice read a complete sentence from
-/// `hold.span_ms` of speech, less than `min_ms`, and left the end to the
-/// main detector's silence.
-pub fn endpoint_held_line(strings: &Strings, hold: &ShortHold) -> String {
+/// `asr.endpoint.held`: an early notice read a sentence from `hold.span_ms`
+/// of speech and left the end to the main detector's silence, because the
+/// sentence was not complete (`reason` is `incomplete`) or the speech was
+/// shorter than `min_ms` (`too_short`).
+pub fn endpoint_held_line(strings: &Strings, hold: &EarlyHold) -> String {
     event_line(
         strings,
         Level::Info,
@@ -258,6 +259,7 @@ pub fn endpoint_held_line(strings: &Strings, hold: &ShortHold) -> String {
         "asr",
         None,
         &[
+            ("reason", Value::from(hold.reason.name())),
             ("span_ms", millis(hold.span_ms)),
             ("min_ms", Value::from(EARLY_MIN_SEGMENT_MS)),
         ],
@@ -419,6 +421,7 @@ pub fn print(line: &str) {
 mod tests {
     use super::*;
     use crate::notice;
+    use hayamimi_asr::endpoint::Hold;
     use hayamimi_asr::ort_runtime::NodeCounts;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
@@ -701,16 +704,26 @@ mod tests {
     }
 
     #[test]
-    fn a_held_endpoint_event_names_the_span_and_the_minimum_without_the_text()
+    fn a_held_endpoint_event_names_the_reason_the_span_and_the_minimum_without_the_text()
     -> Result<(), Box<dyn std::error::Error>> {
-        let line = endpoint_held_line(&strings()?, &ShortHold { span_ms: 480.5 });
-        assert!(!line.contains('\n'));
-        let event = parsed(&line)?;
-        assert_eq!(event["event"], "asr.endpoint.held");
-        assert_eq!(event["level"], "info");
-        assert_eq!(event["span_ms"], 480.5);
-        assert_eq!(event["min_ms"], 1000);
-        assert!(event["error_code"].is_null());
+        for (reason, name) in [
+            (Hold::TooShort, "too_short"),
+            (Hold::Incomplete, "incomplete"),
+        ] {
+            let hold = EarlyHold {
+                reason,
+                span_ms: 480.5,
+            };
+            let line = endpoint_held_line(&strings()?, &hold);
+            assert!(!line.contains('\n'));
+            let event = parsed(&line)?;
+            assert_eq!(event["event"], "asr.endpoint.held");
+            assert_eq!(event["level"], "info");
+            assert_eq!(event["reason"], name);
+            assert_eq!(event["span_ms"], 480.5);
+            assert_eq!(event["min_ms"], 1000);
+            assert!(event["error_code"].is_null());
+        }
         Ok(())
     }
 

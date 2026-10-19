@@ -267,6 +267,16 @@ pub enum Hold {
     TooShort,
 }
 
+impl Hold {
+    /// The name the log gives the reason.
+    pub fn name(self) -> &'static str {
+        match self {
+            Hold::Incomplete => "incomplete",
+            Hold::TooShort => "too_short",
+        }
+    }
+}
+
 /// Whether a sentence read in `lang` from `samples` samples of speech is kept
 /// at an early notice. `None` means it is finalised there. The silence rule of
 /// the main detector does not ask.
@@ -428,6 +438,12 @@ mod tests {
     #[test]
     fn a_complete_sentence_with_no_speech_is_too_short() {
         assert_eq!(early_hold("ja", "はい。", 0), Some(Hold::TooShort));
+    }
+
+    #[test]
+    fn holds_are_named_for_the_log() {
+        assert_eq!(Hold::Incomplete.name(), "incomplete");
+        assert_eq!(Hold::TooShort.name(), "too_short");
     }
 
     #[test]

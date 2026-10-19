@@ -50,9 +50,9 @@ pub fn log_sessions(strings: &Strings, engine: &Engine) {
 
 /// Says what the recognizers and the route did since the last call: models
 /// loaded and dropped in the log, tiers that gave way on the three channels,
-/// and the sentences the early path kept for being too short in the log.
+/// and the sentences the early path kept, with the reason, in the log.
 pub fn tell_resident(strings: &Strings, hub: &Hub, engine: &mut Engine) {
-    for hold in engine.take_short_holds() {
+    for hold in engine.take_early_holds() {
         log::print(&log::endpoint_held_line(strings, &hold));
     }
     for event in engine.take_resident_events() {
