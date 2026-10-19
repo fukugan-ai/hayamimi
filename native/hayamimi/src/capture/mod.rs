@@ -309,6 +309,24 @@ mod tests {
     }
 
     #[test]
+    fn mic_chunks_notices_stop_event_without_audio() -> Result<(), CaptureError> {
+        // A device that opens and never delivers a buffer: dropping the source
+        // sets the stop flag, which the thread sees at its next poll, so the
+        // drop is bounded by the poll and does not wait for audio.
+        let running = spawn_source("test", |control| {
+            control.opened("fake mic");
+            control.hold();
+            Ok(())
+        })?;
+        std::thread::sleep(Duration::from_millis(50));
+        let started = Instant::now();
+        drop(running);
+        let took = started.elapsed();
+        assert!(took < Duration::from_secs(1), "the drop took {took:?}");
+        Ok(())
+    }
+
+    #[test]
     fn a_source_that_fails_after_opening_is_marked_lost() -> Result<(), CaptureError> {
         let running = spawn_source("test", |control| {
             control.opened("fake device");

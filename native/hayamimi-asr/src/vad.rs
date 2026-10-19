@@ -226,4 +226,22 @@ mod tests {
         let said = Vad::open(Path::new("no-such-models"), VadSettings::default()).err();
         assert!(matches!(said, Some(AsrError::MissingModel(_))), "{said:?}");
     }
+
+    #[test]
+    fn build_vad_raises_not_exits_when_model_missing() {
+        // Both doors to the detector answer with the missing file, by name,
+        // before the sherpa-onnx constructor sees the path.
+        let models = Path::new("no-such-models");
+        let wanted = models.join(VAD_FILE);
+        let config = silero_config(models, VadSettings::default()).err();
+        assert!(
+            matches!(&config, Some(AsrError::MissingModel(path)) if *path == wanted),
+            "{config:?}"
+        );
+        let opened = Vad::open(models, VadSettings::default()).err();
+        assert!(
+            matches!(&opened, Some(AsrError::MissingModel(path)) if *path == wanted),
+            "{opened:?}"
+        );
+    }
 }

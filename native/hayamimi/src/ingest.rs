@@ -343,4 +343,226 @@ mod tests {
         drop(first);
         assert!(Lease::take(&busy).is_some());
     }
+
+    // The upgrade handshake, judged on the real router over a loopback socket.
+
+    use std::io::{Read, Write};
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+
+    use hayamimi_eval::ws;
+    use hayamimi_relay::lang::Lang;
+
+    use crate::feed::{self, AudioRx};
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    /// The worked example of RFC 6455 section 1.3.
+    const RFC_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+    const RFC_ACCEPT: &str = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
+    /// A second key and its accept value, so that the answer is computed from the key.
+    const OTHER_KEY: &str = "x3JJHMbDL1EzLkh9GBhXDw==";
+    const OTHER_ACCEPT: &str = "HSmrc0sMlYUkAGmm5OPpG2HaGWk=";
+
+    /// An `/ingest` server on a free loopback port; the receiver keeps the queue open.
+    fn serve_ingest() -> Result<(SocketAddr, AudioRx), Box<dyn std::error::Error>> {
+        let (audio, queue) = feed::channel();
+        let strings = Arc::new(Strings::embedded(Lang::En)?);
+        let state = IngestState::new(Hub::new(), audio, strings);
+        let address = crate::server::serve(router(state), crate::server::bind(0)?, "ingest-unit")?;
+        Ok((address, queue))
+    }
+
+    /// The status, the accept value and the head of the answer to `request`.
+    fn answer_to(
+        address: SocketAddr,
+        request: &str,
+    ) -> Result<(u16, Option<String>, String), Box<dyn std::error::Error>> {
+        let mut stream = TcpStream::connect(address)?;
+        stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+        stream.write_all(request.as_bytes())?;
+        let mut head = Vec::new();
+        let mut byte = [0_u8; 1];
+        while !head.ends_with(b"\r\n\r\n") {
+            stream.read_exact(&mut byte)?;
+            head.push(byte[0]);
+        }
+        let head = String::from_utf8_lossy(&head).into_owned();
+        let (status, accept) = ws::parse_upgrade_response(&head)?;
+        Ok((status, accept, head))
+    }
+
+    /// A request that asks for an upgrade of `path`, with `key` when there is one.
+    fn upgrade_of(path: &str, key: Option<&str>) -> String {
+        let key_line = key.map_or_else(String::new, |key| format!("Sec-WebSocket-Key: {key}\r\n"));
+        format!(
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n\
+             Connection: Upgrade\r\n{key_line}Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+    }
+
+    #[test]
+    fn compute_accept_key_matches_rfc_example() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        let (status, accept, _) = answer_to(address, &upgrade_of("/ingest", Some(RFC_KEY)))?;
+        assert_eq!(status, 101);
+        assert_eq!(accept.as_deref(), Some(RFC_ACCEPT));
+        // The value follows the key: another key gets its own answer.
+        let (_, other, _) = answer_to(address, &upgrade_of("/ingest", Some(OTHER_KEY)))?;
+        assert_eq!(other.as_deref(), Some(OTHER_ACCEPT));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_handshake_request_extracts_path_and_key() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        // The key is read: the answer is the one for this key.
+        let (status, accept, _) = answer_to(address, &upgrade_of("/ingest", Some(RFC_KEY)))?;
+        assert_eq!((status, accept.as_deref()), (101, Some(RFC_ACCEPT)));
+        // The path is read: the same request for another path is not upgraded.
+        let (status, accept, _) = answer_to(address, &upgrade_of("/elsewhere", Some(RFC_KEY)))?;
+        assert_eq!((status, accept), (404, None));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_handshake_request_rejects_non_websocket() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        let plain = "GET /ingest HTTP/1.1\r\nHost: localhost\r\n\r\n";
+        let (status, accept, _) = answer_to(address, plain)?;
+        assert_eq!((status, accept), (400, None));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_handshake_request_rejects_missing_key() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        let (status, accept, _) = answer_to(address, &upgrade_of("/ingest", None))?;
+        assert_eq!((status, accept), (400, None));
+        Ok(())
+    }
+
+    #[test]
+    fn build_handshake_response_contains_correct_accept() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        let (_, _, head) = answer_to(address, &upgrade_of("/ingest", Some(RFC_KEY)))?;
+        assert!(head.starts_with("HTTP/1.1 101"), "{head}");
+        let lowered = head.to_ascii_lowercase();
+        assert!(lowered.contains("upgrade: websocket"), "{head}");
+        assert!(head.contains(RFC_ACCEPT), "{head}");
+        Ok(())
+    }
+
+    #[test]
+    fn build_handshake_request_roundtrips_through_parse() -> TestResult {
+        let (address, _queue) = serve_ingest()?;
+        let request = ws::upgrade_request("127.0.0.1", address.port(), "/ingest", RFC_KEY);
+        let (status, accept, _) = answer_to(address, &request)?;
+        assert_eq!((status, accept.as_deref()), (101, Some(RFC_ACCEPT)));
+        // The path the builder wrote is the one the server routed.
+        let other = ws::upgrade_request("127.0.0.1", address.port(), "/elsewhere", RFC_KEY);
+        let (status, _, _) = answer_to(address, &other)?;
+        assert_eq!(status, 404);
+        Ok(())
+    }
+
+    // The frame codec the clients of `/ingest` speak (the server side is axum's).
+
+    use hayamimi_relay::ws_client::{
+        Frame, OP_BINARY, OP_CLOSE, OP_TEXT, decode_frame, encode_frame,
+    };
+
+    const OP_PING: u8 = 0x9;
+    const MASK: [u8; 4] = [0x12, 0x34, 0x56, 0x78];
+
+    /// The frame at the front of `wire` and how many bytes it used.
+    fn first_frame(wire: &[u8]) -> Result<(Frame, usize), Box<dyn std::error::Error>> {
+        decode_frame(wire)?.ok_or_else(|| "the buffer holds no whole frame".into())
+    }
+
+    #[test]
+    fn frame_roundtrip_unmasked_binary() -> TestResult {
+        // More than 125 bytes, so the 16-bit length form is used.
+        let payload: Vec<u8> = (0..=255_u8).cycle().take(1024).collect();
+        let wire = encode_frame(OP_BINARY, &payload, None);
+        assert_eq!(wire[1], 126, "the 16-bit length marker, no mask bit");
+        let (frame, used) = first_frame(&wire)?;
+        assert_eq!(frame.opcode, OP_BINARY);
+        assert_eq!(frame.payload, payload);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_roundtrip_masked_text() -> TestResult {
+        let payload = br#"{"sr": 16000, "format": "pcm_s16le", "channels": 1}"#;
+        let wire = encode_frame(OP_TEXT, payload, Some(MASK));
+        let (frame, used) = first_frame(&wire)?;
+        assert_eq!(frame.opcode, OP_TEXT);
+        assert_eq!(frame.payload, payload);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_masked_bytes_differ_from_plaintext_on_wire() -> TestResult {
+        // An all-zero payload would show a missing mask as itself.
+        let payload = [0_u8; 32];
+        let wire = encode_frame(OP_BINARY, &payload, Some(MASK));
+        let header = 2 + 4;
+        assert_ne!(&wire[header..], &payload[..]);
+        assert_eq!(first_frame(&wire)?.0.payload, payload);
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_incomplete_returns_none() -> TestResult {
+        let wire = encode_frame(OP_BINARY, &[b'x'; 50], Some(MASK));
+        assert_eq!(decode_frame(&wire[..5])?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_two_frames_in_one_buffer() -> TestResult {
+        let mut wire = encode_frame(OP_TEXT, b"one", Some(MASK));
+        let first_len = wire.len();
+        wire.extend(encode_frame(OP_TEXT, b"two", Some(MASK)));
+        let (first, used_first) = first_frame(&wire)?;
+        assert_eq!(
+            (first.opcode, first.payload.as_slice()),
+            (OP_TEXT, &b"one"[..])
+        );
+        assert_eq!(used_first, first_len);
+        let (second, used_second) = first_frame(&wire[used_first..])?;
+        assert_eq!(
+            (second.opcode, second.payload.as_slice()),
+            (OP_TEXT, &b"two"[..])
+        );
+        assert_eq!(used_first + used_second, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_large_payload_uses_64bit_length() -> TestResult {
+        // Past 65535 bytes the 127 marker and the 8-byte length are used.
+        let payload = vec![b'z'; 70_000];
+        let wire = encode_frame(OP_BINARY, &payload, Some(MASK));
+        assert_eq!(wire[1] & 0x7f, 127);
+        let (frame, used) = first_frame(&wire)?;
+        assert_eq!(frame.opcode, OP_BINARY);
+        assert_eq!(frame.payload.len(), 70_000);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_close_and_ping_opcodes_roundtrip() -> TestResult {
+        for opcode in [OP_CLOSE, OP_PING] {
+            let wire = encode_frame(opcode, b"", Some(MASK));
+            let (frame, _) = first_frame(&wire)?;
+            assert_eq!(frame.opcode, opcode);
+            assert!(frame.payload.is_empty());
+        }
+        Ok(())
+    }
 }

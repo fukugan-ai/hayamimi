@@ -303,4 +303,33 @@ mod tests {
         let said = read_wav(Path::new("no-such-file.wav"));
         assert!(matches!(said, Err(AsrError::Wav(_))), "{said:?}");
     }
+
+    #[test]
+    fn resample_linear_identity_when_rates_match() {
+        let samples: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        assert_eq!(resample_linear(&samples, 16_000, 16_000), samples);
+    }
+
+    #[test]
+    fn resample_linear_upsamples_to_expected_length() {
+        // One second at 8 kHz is one second at 16 kHz.
+        let out = resample_linear(&[0.0_f32; 8_000], 8_000, 16_000);
+        assert_eq!(out.len(), 16_000);
+    }
+
+    #[test]
+    fn resample_linear_downsamples_to_expected_length() {
+        let out = resample_linear(&[0.0_f32; 48_000], 48_000, 16_000);
+        assert_eq!(out.len(), 16_000);
+    }
+
+    #[test]
+    fn resample_linear_preserves_a_ramp_shape() {
+        // A linear ramp resampled linearly stays a ramp from 0 to 1.
+        let ramp: Vec<f32> = (0..1600).map(|i| i as f32 / 1599.0).collect();
+        let out = resample_linear(&ramp, 16_000, 8_000);
+        assert_eq!(out.len(), 800);
+        assert!(out[0].abs() < 1e-3, "{}", out[0]);
+        assert!((out[799] - 1.0).abs() < 1e-2, "{}", out[799]);
+    }
 }

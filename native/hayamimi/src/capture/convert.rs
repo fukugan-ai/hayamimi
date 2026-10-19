@@ -245,4 +245,48 @@ mod tests {
         assert_eq!(windows.len(), 31);
         assert!(windows.iter().all(|window| window.len() == WINDOW));
     }
+
+    // What `/ingest` does to a binary frame: 16-bit PCM bytes to mono floats.
+
+    fn pcm16_bytes(samples: &[i16]) -> Vec<u8> {
+        samples
+            .iter()
+            .flat_map(|sample| sample.to_le_bytes())
+            .collect()
+    }
+
+    fn assert_close(got: &[f32], want: &[f32]) {
+        assert_eq!(got.len(), want.len(), "{got:?} against {want:?}");
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() <= 1e-6, "{g} against {w}");
+        }
+    }
+
+    #[test]
+    fn decode_pcm16_mono_roundtrip() {
+        let source = [0_i16, 16384, -16384, 32767, -32768];
+        let out = downmix(&pcm16_to_f32(&pcm16_bytes(&source)), 1);
+        let expected: Vec<f32> = source.iter().map(|s| f32::from(*s) / 32768.0).collect();
+        assert_close(&out, &expected);
+    }
+
+    #[test]
+    fn decode_pcm16_drops_trailing_odd_byte() {
+        let mut bytes = pcm16_bytes(&[100, 200]);
+        bytes.push(0x7f);
+        assert_eq!(downmix(&pcm16_to_f32(&bytes), 1).len(), 2);
+    }
+
+    #[test]
+    fn decode_pcm16_averages_stereo_to_mono() {
+        // Interleaved L/R pairs of (1000, -1000) and (2000, -2000) average to 0.
+        let bytes = pcm16_bytes(&[1000, -1000, 2000, -2000]);
+        let out = downmix(&pcm16_to_f32(&bytes), 2);
+        assert_close(&out, &[0.0, 0.0]);
+    }
+
+    #[test]
+    fn decode_pcm16_empty_input() {
+        assert!(downmix(&pcm16_to_f32(&[]), 1).is_empty());
+    }
 }

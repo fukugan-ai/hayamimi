@@ -389,4 +389,103 @@ mod tests {
         stats.add_final(&done(100.0));
         assert_eq!(stats.summary_event()["stats"]["max_latency_ms"], 300.0);
     }
+
+    // The loop with no engine: it reads the queue and counts audio, which is
+    // all the stop flag and the end of the input have to be judged on.
+
+    use std::sync::{Arc, mpsc};
+
+    use hayamimi_asr::itn::Overrides;
+    use hayamimi_asr::replace::Replacements;
+    use hayamimi_asr::vad::VadSettings;
+    use hayamimi_relay::lang::Lang;
+
+    use crate::control::{Initial, Live};
+    use crate::feed;
+
+    /// Runs the loop on `audio` until it ends and returns the audio seconds of its summary.
+    fn seconds_of_a_run(audio: AudioRx, stop: &AtomicBool) -> Result<f64, String> {
+        let hub = Hub::new();
+        let mut events = hub.subscribe_live();
+        let strings = Strings::embedded(Lang::En)?;
+        let (commands, received) = mpsc::channel();
+        let controls = Controls::new(
+            Live::new(Initial {
+                replacements: Replacements::default(),
+                overrides: Overrides::default(),
+                punctuate: false,
+                can_punctuate: false,
+                vad: Sensitivity::starting(VadSettings::default()),
+            }),
+            commands,
+        );
+        let session = Session {
+            engine: None,
+            guard: None,
+            hub: &hub,
+            strings: &strings,
+            controls: &controls,
+            audio,
+            commands: received,
+            stop,
+            partial: false,
+            live: false,
+            source: "file",
+        };
+        session.run().map_err(|error| error.to_string())?;
+        while let Ok(text) = events.try_recv() {
+            let event: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+            if event["type"] == "session_summary" {
+                return event["stats"]["total_audio_s"]
+                    .as_f64()
+                    .ok_or_else(|| String::from("the summary has no total_audio_s"));
+            }
+        }
+        Err(String::from("the run published no session_summary"))
+    }
+
+    #[test]
+    fn run_stream_stops_mid_wav_when_stop_event_is_set() -> Result<(), String> {
+        // Five seconds of paced audio; the stop flag is set 150 ms in from another thread.
+        let (tx, rx) = feed::channel();
+        let player = feed::play_wav(vec![0.0; 5 * SAMPLE_RATE as usize], true, tx);
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopper = {
+            let stop = Arc::clone(&stop);
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(150));
+                stop.store(true, Ordering::Relaxed);
+            })
+        };
+        let started = Instant::now();
+        let seconds = seconds_of_a_run(rx, &stop)?;
+        let took = started.elapsed();
+        stopper
+            .join()
+            .map_err(|_| String::from("the stopper panicked"))?;
+        // The player notices that the loop is gone on its next send and ends.
+        player
+            .join()
+            .map_err(|_| String::from("the player panicked"))?;
+        assert!(took < Duration::from_secs(2), "the run took {took:?}");
+        assert!(seconds > 0.0 && seconds < 5.0, "{seconds}");
+        Ok(())
+    }
+
+    #[test]
+    fn run_stream_without_stop_event_runs_to_completion() -> Result<(), String> {
+        let (tx, rx) = feed::channel();
+        let player = feed::play_wav(vec![0.0; SAMPLE_RATE as usize / 5], false, tx);
+        let stop = AtomicBool::new(false);
+        let seconds = seconds_of_a_run(rx, &stop)?;
+        player
+            .join()
+            .map_err(|_| String::from("the player panicked"))?;
+        // The last window is padded to a whole one, so the total may pass the
+        // raw length by less than one window.
+        let window_seconds = WINDOW as f64 / f64::from(SAMPLE_RATE);
+        assert!(seconds >= 0.2, "{seconds}");
+        assert!(seconds < 0.2 + window_seconds, "{seconds}");
+        Ok(())
+    }
 }
