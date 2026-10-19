@@ -277,6 +277,39 @@ mod tests {
     }
 
     #[test]
+    fn preroll_prepends_context() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let out = history.with_preroll(30_000, &[0.0; 10]);
+        assert_eq!(out.len(), 16_000 + 10);
+        assert_eq!(out[0], 30_000.0 - 16_000.0);
+    }
+
+    #[test]
+    fn preroll_never_bleeds_into_previous_segment() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        // The first segment runs 20_000..24_000.
+        let first = history.with_preroll(20_000, &[0.0; 4_000]);
+        assert_eq!(first.len(), 16_000 + 4_000);
+        // A second later start would reach back to 9_000; it stops at 24_000.
+        let second = history.with_preroll(25_000, &[0.0; 10]);
+        assert_eq!(second.len(), 1_000 + 10);
+        assert_eq!(second[0], 24_000.0);
+    }
+
+    #[test]
+    fn preroll_respects_rolling_buffer_offset() {
+        let mut history = History::new();
+        history.push(&ramp(0, 500_000));
+        // 30 s (480_000 samples) are kept, so the first 20_000 are gone.
+        assert_eq!(history.offset, 20_000);
+        let out = history.with_preroll(40_000, &[0.0; 10]);
+        assert_eq!(out.len(), 16_000 + 10);
+        assert_eq!(out[0], 40_000.0 - 16_000.0);
+    }
+
+    #[test]
     fn the_same_rate_passes_through() {
         assert_eq!(resample_linear(&[0.0, 1.0], 16_000, 16_000), [0.0, 1.0]);
     }

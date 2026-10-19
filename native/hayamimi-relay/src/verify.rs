@@ -672,6 +672,27 @@ mod tests {
     }
 
     #[test]
+    fn digits_pass_when_source_has_no_ascii_digits() {
+        let said = check("午後三時から始まります", "It starts at 3 pm", Lang::Ja);
+        assert_eq!(said, Ok(Verdict::Ok));
+    }
+
+    #[test]
+    fn digits_pass_on_exact_and_superset() {
+        assert_eq!(check("3時です", "It is 3:00", Lang::Ja), Ok(Verdict::Ok));
+        assert_eq!(
+            check("500円です", "It costs 500 yen", Lang::Ja),
+            Ok(Verdict::Ok)
+        );
+    }
+
+    #[test]
+    fn digits_fail_on_mangled_number() {
+        let said = check("500万円です", "It costs 5 pounds", Lang::Ja);
+        assert_eq!(said, Ok(Verdict::Held(HoldReason::Number)));
+    }
+
+    #[test]
     fn a_changed_amount_is_held_for_number() {
         let said = check(
             "予算は五百万円を想定しています。",

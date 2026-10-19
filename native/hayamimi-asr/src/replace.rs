@@ -145,6 +145,34 @@ mod tests {
     }
 
     #[test]
+    fn load_replacements_formats() -> Result<(), Box<dyn std::error::Error>> {
+        let scratch = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../target/unit-tmp"))
+            .join(format!("replace-{}", std::process::id()));
+        std::fs::create_dir_all(&scratch)?;
+        let file = scratch.join("dict.txt");
+        std::fs::write(&file, "# comment\nA=B\nC\tD\nE→F\n\n")?;
+        let loaded = Replacements::load(&file);
+        std::fs::remove_dir_all(&scratch)?;
+        let loaded = loaded?;
+        let pairs: Vec<(&str, &str)> = loaded
+            .pairs()
+            .iter()
+            .map(|(wrong, right)| (wrong.as_str(), right.as_str()))
+            .collect();
+        assert_eq!(pairs, [("A", "B"), ("C", "D"), ("E", "F")]);
+        Ok(())
+    }
+
+    #[test]
+    fn load_replacements_empty_path() {
+        // No dictionary configured means no pairs, and the text passes unchanged.
+        let none = Replacements::default();
+        assert!(none.is_empty());
+        assert!(Replacements::parse("").is_empty());
+        assert_eq!(none.apply("A=B"), "A=B");
+    }
+
+    #[test]
     fn a_missing_file_is_an_io_error() {
         let said = Replacements::load(Path::new("no-such-dictionary.txt"));
         assert!(matches!(said, Err(AsrError::Io(_))), "{said:?}");
