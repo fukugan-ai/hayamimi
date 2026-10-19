@@ -5,7 +5,11 @@
 //! 。 ? ! (or their full-width forms), the form before the mark is a sentence
 //! ending and not a connective. An English sentence is complete when it ends
 //! in . ? ! and its last word does not go on. Other languages are never
-//! judged, so an early candidate in them is not used.
+//! judged, so an early candidate in them is not used. A complete sentence is
+//! finalised at an early notice only when the speech behind it is long enough.
+
+use crate::audio::SAMPLE_RATE;
+use crate::vad::EARLY_MIN_SEGMENT_MS;
 
 /// Sentence endings that can close a Japanese sentence.
 const JA_FINAL: [&str; 17] = [
@@ -249,6 +253,30 @@ pub fn is_complete(lang: &str, text: &str) -> bool {
     }
 }
 
+/// The shortest speech an early notice may finalise, in samples.
+const EARLY_MIN_SAMPLES: usize = EARLY_MIN_SEGMENT_MS as usize * SAMPLE_RATE as usize / 1000;
+
+/// Why an early notice kept the sentence it read instead of finalising it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hold {
+    /// The sentence is not complete.
+    Incomplete,
+    /// The sentence is complete, but the speech behind it is shorter than
+    /// [`EARLY_MIN_SEGMENT_MS`]: a short pause inside a word or a phrase ends
+    /// a stretch of voice that is not yet a sentence.
+    TooShort,
+}
+
+/// Whether a sentence read in `lang` from `samples` samples of speech is kept
+/// at an early notice. `None` means it is finalised there. The silence rule of
+/// the main detector does not ask.
+pub fn early_hold(lang: &str, text: &str, samples: usize) -> Option<Hold> {
+    if !is_complete(lang, text) {
+        return Some(Hold::Incomplete);
+    }
+    (samples < EARLY_MIN_SAMPLES).then_some(Hold::TooShort)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,6 +391,43 @@ mod tests {
         state.hold("kept", 1000, 900);
         state.clear();
         assert_eq!(state, State::default());
+    }
+
+    // Speech lengths at 16 kHz: 999 ms, 1000 ms and 1001 ms.
+    const MS_999: usize = 15_984;
+    const MS_1000: usize = 16_000;
+    const MS_1001: usize = 16_016;
+
+    #[test]
+    fn a_complete_sentence_is_kept_below_one_second_and_finalised_from_one_second() {
+        for (lang, text) in [("ja", "言ったろう。"), ("en", "It is raining.")] {
+            assert_eq!(
+                early_hold(lang, text, MS_999),
+                Some(Hold::TooShort),
+                "{lang}"
+            );
+            assert_eq!(early_hold(lang, text, MS_1000), None, "{lang}");
+            assert_eq!(early_hold(lang, text, MS_1001), None, "{lang}");
+        }
+    }
+
+    #[test]
+    fn a_sentence_that_is_not_complete_is_kept_whatever_its_length() {
+        for samples in [0, MS_999, MS_1000, MS_1001, 10 * MS_1000] {
+            assert_eq!(
+                early_hold("ja", "雨が降っていますが。", samples),
+                Some(Hold::Incomplete)
+            );
+            assert_eq!(
+                early_hold("zh", "今天下雨了。", samples),
+                Some(Hold::Incomplete)
+            );
+        }
+    }
+
+    #[test]
+    fn a_complete_sentence_with_no_speech_is_too_short() {
+        assert_eq!(early_hold("ja", "はい。", 0), Some(Hold::TooShort));
     }
 
     #[test]

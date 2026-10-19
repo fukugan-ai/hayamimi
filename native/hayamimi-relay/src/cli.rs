@@ -427,14 +427,11 @@ fn pipeline_factory(llm_url: String) -> (MakePipeline<Reach<HttpLlm>>, Watch) {
     (make, watch)
 }
 
-/// Says where the translations are served, and that the port moved when it did.
-fn announce_serving(
-    requested: u16,
-    address: SocketAddr,
-    sink: &mut dyn LogSink,
-    strings: &Strings,
-) {
-    let moved = requested != 0 && address.port() != requested;
+/// The event that says where the translations are served and which
+/// llama-servers they are asked of, with the key of the line printed beside
+/// it. It is the port-moved warning when the requested port was taken.
+fn serving_event(live: &Live, address: SocketAddr) -> (LogEvent, &'static str) {
+    let moved = live.serve != 0 && address.port() != live.serve;
     let (event, key) = if moved {
         (
             LogEvent::new(Level::Warn, "server.fallback.port", "transport")
@@ -447,11 +444,18 @@ fn announce_serving(
             "serving_at",
         )
     };
-    sink.emit(
-        event
-            .with("port", address.port())
-            .with("scope", lan::scope_of(address.ip())),
-    );
+    let event = event
+        .with("port", address.port())
+        .with("scope", lan::scope_of(address.ip()))
+        .with("llm", live.llm.as_str())
+        .with("llm_other", live.llm_other.as_str());
+    (event, key)
+}
+
+/// Says where the translations are served, and that the port moved when it did.
+fn announce_serving(live: &Live, address: SocketAddr, sink: &mut dyn LogSink, strings: &Strings) {
+    let (event, key) = serving_event(live, address);
+    sink.emit(event);
     eprintln!("{} http://{address}/events", strings.cli_text(key));
     announce_lan(address, strings);
 }
@@ -584,7 +588,7 @@ fn run_relay(live: &Live, now: i64, strings: &Strings) -> u8 {
     for code in started.skipped() {
         eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
     }
-    announce_serving(live.serve, started.address(), &mut sink, strings);
+    announce_serving(live, started.address(), &mut sink, strings);
     // The relay works in threads of its own and ends with the process.
     loop {
         std::thread::park();
@@ -799,6 +803,84 @@ mod tests {
             serve_host_of(&["live", "--serve-host"]),
             Err(CliError::MissingValue)
         );
+    }
+
+    fn live_of(list: &[&str]) -> Result<Live, String> {
+        match parse_args(&args(list)) {
+            Ok(Command::Run(live)) => Ok(live),
+            other => Err(format!("not a live command line: {other:?}")),
+        }
+    }
+
+    fn address(port: u16) -> SocketAddr {
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)
+    }
+
+    fn text_field(event: &LogEvent, key: &str) -> Option<String> {
+        event
+            .fields
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    }
+
+    #[test]
+    fn the_start_event_names_the_two_translators_it_was_given() -> Result<(), String> {
+        let live = live_of(&[
+            "live",
+            "--llm",
+            "http://127.0.0.1:1",
+            "--llm-other",
+            "http://127.0.0.1:2",
+            "--serve",
+            "8835",
+        ])?;
+        let (event, key) = serving_event(&live, address(8835));
+        assert_eq!(
+            (event.event.as_str(), key),
+            ("relay.serve.started", "serving_at")
+        );
+        assert_eq!(
+            text_field(&event, "llm").as_deref(),
+            Some("http://127.0.0.1:1")
+        );
+        assert_eq!(
+            text_field(&event, "llm_other").as_deref(),
+            Some("http://127.0.0.1:2")
+        );
+        assert_eq!(event.fields.get("port"), Some(&serde_json::json!(8835)));
+        assert_eq!(text_field(&event, "scope").as_deref(), Some("loopback"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_start_event_names_the_default_translators_when_none_is_given() -> Result<(), String> {
+        let (event, _) = serving_event(&live_of(&["live"])?, address(DEFAULT_SERVE));
+        assert_eq!(text_field(&event, "llm").as_deref(), Some(DEFAULT_LLM));
+        assert_eq!(
+            text_field(&event, "llm_other").as_deref(),
+            Some(DEFAULT_LLM_OTHER)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_port_moved_warning_names_the_translators_too() -> Result<(), String> {
+        let live = live_of(&["live", "--llm", "http://127.0.0.1:1", "--serve", "8835"])?;
+        let (event, key) = serving_event(&live, address(8836));
+        assert_eq!(
+            (event.event.as_str(), key),
+            ("server.fallback.port", "port_moved")
+        );
+        assert_eq!(
+            text_field(&event, "llm").as_deref(),
+            Some("http://127.0.0.1:1")
+        );
+        assert_eq!(
+            text_field(&event, "llm_other").as_deref(),
+            Some(DEFAULT_LLM_OTHER)
+        );
+        Ok(())
     }
 
     #[test]
@@ -1095,6 +1177,7 @@ mod tests {
                 "relay.serve.started",
                 "server.fallback.port",
                 "translate.edit.held",
+                "translate.draft.held",
                 "translate.send.ok",
                 "translate.send.failed",
                 "translate.deliver.failed",

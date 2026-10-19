@@ -6,7 +6,8 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use hayamimi_asr::{Final, Reason, ResidentEvent, SessionReport};
+use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
+use hayamimi_asr::{Final, Reason, ResidentEvent, SessionReport, ShortHold};
 use hayamimi_relay::logging::{Level, LogEvent};
 use serde_json::Value;
 
@@ -23,6 +24,7 @@ pub const SESSION_PLACED: &str = "gpu.session.placed";
 pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const ENDPOINT_DECIDED: &str = "asr.endpoint.decided";
+pub const ENDPOINT_HELD: &str = "asr.endpoint.held";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
@@ -241,6 +243,23 @@ pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
             ("id", Value::from(done.id)),
             ("rule", Value::from(done.endpoint.rule.name())),
             ("silence_ms", Value::from(done.endpoint.silence_ms)),
+        ],
+    )
+}
+
+/// `asr.endpoint.held`: an early notice read a complete sentence from
+/// `hold.span_ms` of speech, less than `min_ms`, and left the end to the
+/// main detector's silence.
+pub fn endpoint_held_line(strings: &Strings, hold: &ShortHold) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        ENDPOINT_HELD,
+        "asr",
+        None,
+        &[
+            ("span_ms", millis(hold.span_ms)),
+            ("min_ms", Value::from(EARLY_MIN_SEGMENT_MS)),
         ],
     )
 }
@@ -568,6 +587,7 @@ mod tests {
                 DEVICE_UNAVAILABLE,
                 UTTERANCE_TIMED,
                 ENDPOINT_DECIDED,
+                ENDPOINT_HELD,
                 PUNCT_FAILED,
                 SPEAKER_FAILED,
                 FINAL_PUBLISHED,
@@ -677,6 +697,20 @@ mod tests {
         assert_eq!(event["rule"], "silence");
         assert_eq!(event["silence_ms"], 300);
         assert!(event.get("id").is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn a_held_endpoint_event_names_the_span_and_the_minimum_without_the_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = endpoint_held_line(&strings()?, &ShortHold { span_ms: 480.5 });
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.endpoint.held");
+        assert_eq!(event["level"], "info");
+        assert_eq!(event["span_ms"], 480.5);
+        assert_eq!(event["min_ms"], 1000);
+        assert!(event["error_code"].is_null());
         Ok(())
     }
 

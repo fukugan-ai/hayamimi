@@ -287,7 +287,7 @@ pub struct Call<'a> {
 /// an edit the draft too.
 pub fn read_prompt(prompt: &str) -> Option<(Stage, &str, &str)> {
     if let Some(rest) = prompt.strip_prefix("Translate the following ") {
-        let (_, text) = rest.split_once("\n\n")?;
+        let (_, text) = rest.split_once("\n\n ")?;
         return Some((Stage::Translate, text, ""));
     }
     let (before, after) = prompt.rsplit_once("\n\nDraft ")?;

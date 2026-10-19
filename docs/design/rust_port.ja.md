@@ -383,7 +383,10 @@ T と E を直列に待つと、訳の遅れはその 2 倍になる。
 5. **並べて走らせる物**：llama-server の slot を 4 にする（mic の確定、loopback の確定、速報、E）。認識（ORT）と訳（llama.cpp）は同じ GPU を時間で分け合う。負荷の下での `L` は RP-3 で測る。ライブの対の lane は T を頼む thread と E を頼む thread の 2 本を持ち、次の行の T は前の行の E の応答を待たずに頼む（RP-47）。確定の訳は音源ごとに行の着いた順に出る。T と E と速報の依頼は slot の数（4）を超えて同時に出さず、空くまで中継の中で待たせる（待った時は `translate.slot.waited` を debug で出す）。`--translate` の別の言語の lane は E が無いので 1 本のままである。
 6. **llama-server の置き場**：Windows の native の CUDA 版に置く（会話字幕の設計 3.7）。model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置き、正本の WSL の `/mnt/h3-models` から写す（2.3。Windows から直に読めないため）。写した file の sha256 を同じ directory の `manifest.json` に記録する（記録で、起動の条件にしない）。hooks の `guard_commands.rs` は、`llama-` で始まる実行 file の名前を含む command を WSL の build の鮮度で refuse する（`problems` の中の `LLAMA_EXECUTABLE` の検査）。Windows の llama-server は PowerShell から起こし、WSL の shell からは起こさない（10 の H20）。
 
-**訳の依頼の形**：中継は T と E を llama-server の `/v1/chat/completions` に、user の message 1 つ（T は model card の形「Translate the following {Japanese|English} text into {English|Japanese}.\n\n{原文}」）で頼み、`temperature` 0、`stop: ["</s>"]`、`cache_prompt: true` を付ける（S14）。
+**訳の依頼の形**：中継は T と E を llama-server の `/v1/chat/completions` に、user の message 1 つ（T は model の example script の形「Translate the following {Japanese|English} text into {English|Japanese}.\n\n {原文}」）で頼み、`temperature` 0、`stop: ["</s>"]`、`cache_prompt: true` を付ける（S14）。
+T の prompt は、空行（`\n\n`）の直後に半角空白を 1 つ置いてから原文を続ける。
+同じ repository の `test.py`（https://huggingface.co/cyberagent/CAT-Translate-3.3b）がこの形で prompt を組むからで、README の例の文字列は空白を持たないが、README の形に戻さない。
+数字を含む 4 文を 3 回ずつ（12 回）流すと、空白なしは q6 と f16 のどちらでも 12 回とも原文に無い数字（100、101、100%）を訳に書き、空白ありは q6 と f16 のどちらでも 0 回だった。
 `temperature` 0 でも出力は決まらない。同じ 38 行を同じ依頼で 2 回打つと、出力の違う行が依頼の形によって 4〜14 行あった（10 の H66）。だから本物の model で打つ受入は、同じ入力が同じ訳を返すことを前提にしない。
 chat template は llama-server が GGUF の metadata から当てる。
 `/completion` に平文の `prompt` を渡す形を採らないのは、model の chat template（`<|user|>`、`<|assistant|>` の語）が入らず、CAT-Translate を測った probe（`testdata/probe1_cat-translate-3.3b.log`、`/v1/chat/completions` で測った）と違う入力を model に渡すからである。
@@ -624,6 +627,7 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `asr.model.loaded` | 認識器を memory に読み込んだとき（info） | `model`（tier の名前）、`load_ms` |
 | `asr.final.dropped` | session の言語の文字を持たない 1〜2 字の確定文を出さなかったとき（info。8 の R3e） | `id`、`reason`（`off_script`） |
 | `asr.endpoint.decided` | 確定文ごとに、どの規則で区切ったか（info。3.17、8 の R8v） | `id`、`rule`（`early`、`silence`、`max_speech`、`flush`）、`silence_ms` |
+| `asr.endpoint.held` | 早い終わりの候補が完結した文を読んだが、声が `EARLY_MIN_SEGMENT_MS` に満たず、確定せず持った時（info。3.17） | `span_ms`（読んだ声の長さ）、`min_ms` |
 | `asr.model.evicted` | `--max-resident` の上限のため、最も使われていない認識器を手放したとき。新しい認識器を作る前に出す（info） | `model` |
 | `asr.lang.unknown` | SenseVoice の結果の `lang` の tag を読めないとき。言語は不明として続ける（warn） | `error_code` |
 | `gpu.memory.unreadable` | GPU の memory を読めないとき。予算なしで続ける（warn） | `error_code` |
@@ -796,6 +800,16 @@ ja の声の後ろには、確率が 0.35 と 0.5 の間に留まる区間が長
 早い detector の threshold を 0.65 にするのは、終わりの線（`threshold − 0.15`）を 0.50 にするためである。
 始まりはその detector から取らないので、0.6 の probe で出た始まりの遅れはこの形では起きない。
 完結の判定を挟むのは、0.12 秒の無音で区切ると、文の途中の息継ぎで行が割れるからである（0.6 の probe で、0.30 秒の無音でも割れが 4 から 6 に増えた）。
+完結した文でも、声が 1000 ms に満たない候補では確定しない（`vad.rs` の `EARLY_MIN_SEGMENT_MS`）。
+声の長さは、確定の線（線が無ければ A の声の始まり）から候補の sample までで測り、足りない候補は完結でない候補と同じに、解いた文を持っておいて A の無音を待つ（方針 5）。
+短い候補を確定しないのは、B が語の中の短い無音（促音の前後など）でも「声が終わった」と知らせ、その時点の 0.4 から 0.5 秒の切れ端が語尾の表（`た`、`う`、`る` ほか）に当たると完結と判定されて、語の途中の切れ端が 1 つの文として確定し、続きが別の行に割れるからである。
+`docs/results/rp32/rs1` から `rs3` の 3 回の記録では、`rule` が `early` の `final` のうち `t1_s − t0_s` が 1000 ms に満たない物は run ごとに 9、10、10 件で、文面は「一分間で降った。」「言ったろう。」「はい。」の 3 種だけである（1000 ms 以上 1500 ms 未満は「アピアはサモアの首都です。」の 1 種）。
+持っておく代わりに、1000 ms に満たない発話は早い終わりの利得（A の無音 0.30 秒と B の無音 0.12 秒の差、約 0.18 秒）を失う。
+長さで持った候補は `asr.endpoint.held`（info。`span_ms`、`min_ms`）を 1 件出す。`silence`、`max_speech`、`flush` の規則は長さを見ない。
+効いたかは RP-32 の `finals` が 2 以上の標本の割合と `L` の p50、p95 で測る。
+採らない形は 2 つである。B の無音を 0.12 秒より上げる形は、早い終わりの知らせを A の区切りに近づけ、R8v が縮める `d` を戻す（3.16 の採らない形と同じ評議の判定、VETO）。
+語尾の表から `た`、`る` を外す形は、文末が `た`、`る` の完結が全部外れ、秒数の余裕が薄い発話の確定が A の無音まで遅れる。
+
 候補で解いた文を `final` に使ってよいのは、候補で解く経路が確定と同じだからで、速報（ITN と句読点を通さない文）とは別物である。
 完結でない候補の文を持っておくのは、待った後に同じ音声を解き直す時間（復号の p50 で ja 135 ms、en 306 ms）を `L` から外すためである。
 Silero の 1 回は 30 ms 以上の塊で CPU の 1 thread 1 ms 未満なので（S8）、2 本目の detector の重さは `L` に対して無視できる見込みである（NOT VERIFIED。R8v の手番 1 の `vad_ms` で測る）。
@@ -916,11 +930,12 @@ T の 1 回は約 223 ms（prompt 17 ms、19 token × 10.3 ms、HTTP 約 10 ms�
 
 決めは次のとおりである。
 
-1. **結ぶ鍵**：音源、`id`、文字列の 3 つが合う時だけ使い回す。文字列は、`final` の文字列が速報の文字列と同じか、速報の文字列の後ろに `。` を 1 字足した物と同じ時に合う。`？` と `！` を足した形は合わない。問いか言い切りかが変わり、訳の文末と V の推量の読みが変わるからである。
+1. **結ぶ鍵**：音源、`id`、文字列の 3 つが合う時だけ使い回す。文字列は、`final` の文字列が速報の文字列と同じか、速報の文字列の後ろに `。` を 1 字足した物と同じ時に合う。`？` と `！` を足した形は合わない。問いか言い切りかが変わり、訳の文末と V の推量の読みが変わるからである。日本語が元の行（`final` の `lang` が `ja`）は、比べる前に両方の文字列から半角空白を取り除く。認識器は Latin の語と仮名の間の空白を、速報と `final` で付けたり付けなかったりし、空白 1 つの違いで T を頼み直す（約 300 ms）からである。英語が元の行は取り除かない。英語では空白が語の切れ目で、取り除くと別の語の並びが同じに見える。
 2. **速報の答えを捨てない**：`final` が来た時、走っている速報の依頼の文字列が 1 の鍵で合えば、その依頼を止めずに、答えをその行に渡す。合わなければ今のとおり止める。待っている（worker がまだ取っていない）速報の文字列が合う時は、それを mailbox から外し、lane が自分で T を頼む。行に渡すと決めた依頼は、次の発話の速報が来ても止めない。
 3. **lane の受け方**：lane は slot を取る前に mailbox に鍵を渡す。答えが在ればそれを受け、合う依頼が走っていればその答えを待ち、どちらも無ければ今のとおり slot を取って T を頼む。速報の依頼が失敗したか打ち切られた時は、待っていた lane が T を頼む。slot を持ったまま待たないのは、待たれている速報の依頼も slot を 1 本使っており、slot 4 本（3.6 の 5）の中で互いを待つ形になるからである。
 4. **V は確定文を原文にして掛ける**：受けた T の答えは、`draft` の T の答えの後ろの処理（`pipeline.rs:635-650`。終わりの印の検査、observer、V）と同じ関数に通し、V の原文は `final` の文字列にする。速報で掛けた V の判定は使わない。`。` 1 字の違いでも、V が原文から読む物（数、否定、推量、名前、形）が変わりうるからである。V は 1 行につき多くて 2 回（T の答えと E の答え）のままである。V を通れば今と同じ先の訳（`of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` は `final` の文字列の sha256）を出し、落ちれば先の訳を出さずにすぐ E を頼む。
 5. **log**：使い回した行ごとに `translate.draft.reused`（info）を 1 件出す。項目は `id`、`source`、`match`（`same` か `closing_mark`）、`state`（`done` か `running`）、`waited_ms`、`verdict`（`ok` か `held`）で、文字列は載せない。その行の `translate.line.ok` と `translate.line.held` の `t_ms` は、待った時間（`waited_ms` と同じ値）にする。
+   T の訳が V に落ち、E の訳が通った行は、確定の前に `translate.draft.held`（info）を 1 件出す。項目は `id`、`source`、`hold_reason`（T の側の理由）で、文字列は載せない。`translate.line.ok` は T が落ちた理由を持たないので、T が落ちた行の数はこの event で数える。T が通った行と、E も落ちた行（`translate.line.held` が `t_hold_reason` を持つ）には出さない。
 6. **変えない物**：速報の訳を出す条件と打ち切りの形（3.6 の 3）、wire の形、`final` の文字列が合わない時の挙動、E と V の依頼の形。
 
 使い回しが効く機構は次のとおりである。

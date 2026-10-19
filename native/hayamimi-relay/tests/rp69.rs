@@ -6,6 +6,8 @@
 //! `partial` is the answer T would give the line. The line asks T nothing,
 //! V judges the answer against the `final`'s own text, and E follows at once.
 //! A `final` of another text, another `id` or another source asks T as before.
+//! A Japanese `final` is compared with the text in progress without its
+//! half-width spaces; an English one is compared as it stands.
 //!
 //! The recognizer and the translator are fakes (`tests/support/events.rs`).
 //! The translator answers a T request after 300 ms and an E request after
@@ -19,10 +21,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
+use hayamimi_relay::lang::Lang;
+use hayamimi_relay::line::{Line, Source};
 use hayamimi_relay::llm::{Completion, Llm, LlmError};
 use hayamimi_relay::logging::{LogEvent, LogSink};
-use hayamimi_relay::partial::PartialTranslation;
-use hayamimi_relay::pipeline::{Pipeline, PipelineConfig, sha256_hex};
+use hayamimi_relay::partial::{Job, Mailbox, PartialTranslation};
+use hayamimi_relay::pipeline::{LineKind, Pipeline, PipelineConfig, ReuseMatch, sha256_hex};
 use hayamimi_relay::relay::{Lanes, MakePipeline};
 use hayamimi_relay::verify_dump::{SourceLog, VerifyDump};
 use serde_json::{Value, json};
@@ -1023,4 +1027,126 @@ fn field_of(events: &[LogEvent], key: &str) -> Option<Value> {
         return None;
     };
     field(event, key).cloned()
+}
+
+// ---- half-width spaces in a Japanese text -----------------------------------------------
+
+/// How a `final` of `closing` in `lang` relates to the last text in progress
+/// `partial` whose request has ended with an answer: `None` when the line
+/// cannot take the answer over.
+fn matched_as(lang: Lang, partial: &str, closing: &str) -> Option<ReuseMatch> {
+    let (source, id) = (Source::File, "file-2");
+    let mailbox = Mailbox::new();
+    mailbox.post(Job {
+        source,
+        id: id.to_owned(),
+        src_lang: lang,
+        text: partial.to_owned(),
+    });
+    let (_, wanted) = mailbox.take();
+    mailbox.begin(source, wanted.generation());
+    mailbox.close(&Line {
+        kind: LineKind::Final,
+        id: id.to_owned(),
+        source,
+        lang: Some(lang),
+        text: closing.to_owned(),
+        span: None,
+    });
+    mailbox.finish(source, wanted.generation(), Some(String::from("ai")));
+    mailbox.claim(source, id).map(|reuse| reuse.matched)
+}
+
+/// T-RP-69-026: a Japanese `final` that differs from the text in progress only
+/// in half-width spaces takes the answer, as the same text.
+#[test]
+fn a_japanese_final_that_differs_only_in_spaces_is_the_same_text() {
+    for (partial, closing) in [
+        ("TELASA で独占", "TELASAで独占"),
+        ("TELASAで独占", "TELASA で独占"),
+        ("TELASA  で 独占", "TELASAで独占"),
+    ] {
+        assert_eq!(
+            matched_as(Lang::Ja, partial, closing),
+            Some(ReuseMatch::Same),
+            "{partial:?} {closing:?}"
+        );
+    }
+}
+
+/// T-RP-69-027: one `。` added on top of a difference in spaces still closes
+/// the text in progress; so does the `。` alone.
+#[test]
+fn a_japanese_final_that_adds_a_closing_mark_and_differs_in_spaces_closes_the_text() {
+    for (partial, closing) in [
+        ("TELASA で独占", "TELASAで独占。"),
+        ("TELASAで独占", "TELASA で独占。"),
+        ("TELASAで独占", "TELASA で独占 。"),
+        ("TELASAで独占", "TELASAで独占。"),
+    ] {
+        assert_eq!(
+            matched_as(Lang::Ja, partial, closing),
+            Some(ReuseMatch::ClosingMark),
+            "{partial:?} {closing:?}"
+        );
+    }
+}
+
+/// T-RP-69-028: the negative control. In English a space separates words, so
+/// a text that differs in spaces is another text and T is asked again.
+#[test]
+fn an_english_final_that_differs_in_spaces_is_another_text() {
+    for (partial, closing) in [
+        ("ab c", "a bc"),
+        ("buy a car", "buy  a car"),
+        ("buy a car", "buyacar"),
+    ] {
+        assert_eq!(
+            matched_as(Lang::En, partial, closing),
+            None,
+            "{partial:?} {closing:?}"
+        );
+    }
+    assert_eq!(
+        matched_as(Lang::En, "buy a car", "buy a car"),
+        Some(ReuseMatch::Same)
+    );
+}
+
+/// T-RP-69-029: spaces are not the only thing compared. A Japanese `final`
+/// with other letters, another mark, or a `。` that is not the last character
+/// is another text.
+#[test]
+fn a_japanese_final_with_other_letters_is_another_text() {
+    for closing in [
+        "TELASAで配信",
+        "TELASA で配信。",
+        "TELASAで独占？",
+        "TELASAで独占。。",
+        "TELASAで独占。 まで",
+        "TELASAで独",
+    ] {
+        assert_eq!(
+            matched_as(Lang::Ja, "TELASA で独占", closing),
+            None,
+            "{closing:?}"
+        );
+    }
+}
+
+/// T-RP-69-030: the relay's whole path. The `final` has a space the text in
+/// progress lacks, and a `。`; T is not asked for it and the answer is reused.
+#[test]
+fn a_final_with_a_space_and_a_closing_mark_reuses_the_answer() -> TestResult {
+    let rig = Rig::start(Translator::new())?;
+    let spaced = format!("{} {}。", &body(1)[..6], &body(1)[6..]);
+    let seen = rig.answered_then_final(2, &body(1), &spaced);
+    assert!(seen.settled().is_some());
+    assert_eq!(rig.llm.count(Kind::T, &spaced), 0);
+    assert_eq!(rig.llm.count(Kind::T, &body(1)), 1);
+    assert_eq!(
+        field_of(&reused_for(&rig, "mic-2"), "match"),
+        Some(json!("closing_mark"))
+    );
+    Ok(())
 }

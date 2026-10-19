@@ -155,6 +155,9 @@ pub const EARLY_THRESHOLD: f32 = 0.65;
 pub const EARLY_MIN_SILENCE: f32 = 0.12;
 /// The early detector's silence in milliseconds, for the log.
 pub const EARLY_MIN_SILENCE_MS: u32 = 120;
+/// The shortest stretch of speech, in milliseconds, that a notice of the early
+/// detector may finalise. A shorter one is kept for the main detector's silence.
+pub const EARLY_MIN_SEGMENT_MS: u32 = 1000;
 
 /// What the early detector is set to when the main one is set to `main`.
 fn early_sensitivity(main: Sensitivity) -> Sensitivity {

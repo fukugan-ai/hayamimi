@@ -186,7 +186,7 @@ fn a_request_names_the_language_in_one_user_message() -> TestResult {
     let first: Value = serde_json::from_slice(request_body(&requests[0]))?;
     assert_eq!(
         first["messages"][0]["content"],
-        "Translate the following Japanese text into English.\n\n猫が寝ています。"
+        "Translate the following Japanese text into English.\n\n 猫が寝ています。"
     );
     assert_eq!(first["messages"].as_array().map(Vec::len), Some(1));
     assert_eq!(first["stop"], serde_json::json!(["</s>"]));
@@ -197,6 +197,39 @@ fn a_request_names_the_language_in_one_user_message() -> TestResult {
         panic!("the second request has no user message: {second}");
     };
     assert!(edit.contains("Rewritten English:"), "{edit}");
+    Ok(())
+}
+
+/// T's request has one space between the blank line and the source; E's has
+/// none, and still ends in the labelled sections it always did.
+#[test]
+fn eval_asks_t_with_a_space_after_the_blank_line_and_e_without_one() -> TestResult {
+    let server = scripted_server(vec![Row {
+        source: "猫が寝ています。",
+        translation: "The cat sleeps.",
+        edit: "The cat is sleeping.",
+    }])?;
+    let pairs = pairs_dir(&[("en.ja.txt", "猫が寝ています。\n")])?;
+    let out = TempDir::new("r8f-out")?;
+    run_eval(&server, &pairs, &out, &mut MemorySink::default())?;
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    let first: Value = serde_json::from_slice(request_body(&requests[0]))?;
+    let Some(translate) = first["messages"][0]["content"].as_str() else {
+        panic!("the first request has no user message: {first}");
+    };
+    assert!(translate.ends_with("\n\n 猫が寝ています。"), "{translate}");
+    let second: Value = serde_json::from_slice(request_body(&requests[1]))?;
+    let Some(edit) = second["messages"][0]["content"].as_str() else {
+        panic!("the second request has no user message: {second}");
+    };
+    assert!(
+        edit.ends_with(
+            "\nJapanese:\n猫が寝ています。\n\nDraft English:\nThe cat sleeps.\n\nRewritten English:\n"
+        ),
+        "{edit}"
+    );
+    assert!(!edit.contains("\n\n "), "{edit}");
     Ok(())
 }
 
