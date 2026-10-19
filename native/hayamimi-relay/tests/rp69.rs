@@ -178,7 +178,7 @@ impl Translator {
     }
 
     fn serve(&self, request: &Completion<'_>) -> Result<String, LlmError> {
-        let Some((stage, text, draft)) = read_prompt(request.prompt) else {
+        let Some((stage, text, draft)) = read_prompt(request.prompt, request.system) else {
             return Err(LlmError::Body(String::from(
                 "a prompt the test does not know",
             )));

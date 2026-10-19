@@ -38,7 +38,7 @@ pub use error::AsrError;
 pub use fallback::{Fallback, Gpu, Reason, Stage, To};
 pub use ort_runtime::check_library;
 pub use pipeline::{
-    DEFAULT_MAX_RESIDENT, Demotion, Engine, Final, SessionReport, Settings, ShortHold, Stages,
+    DEFAULT_MAX_RESIDENT, Demotion, EarlyHold, Engine, Final, SessionReport, Settings, Stages,
     Timings,
 };
 pub use recognizer::LangTag;

@@ -1,11 +1,12 @@
 //! The translation inside E's answer.
 //!
-//! The prompt for E ends in labelled sections: the source (`<language>:`),
-//! the draft (`Draft <language>:`) and the place where the answer goes
-//! (`Rewritten <language>:`). A model sometimes writes the sections back
-//! instead of only the rewritten text. Such an answer holds a Japanese or an
-//! English sentence somewhere, so the form check of V passes it, and the
-//! template would reach the subtitle.
+//! The request for E is T's own prompt with the draft in a system message, so
+//! its answer is the translation alone and carries no label. A model may still
+//! write labelled sections back (`<language>:`, `Draft <language>:`,
+//! `Rewritten <language>:`). Such an answer holds a Japanese or an English
+//! sentence somewhere, so the form check of V passes it, and the template
+//! would reach the subtitle. This guard strips them and leaves an answer
+//! without labels as it is.
 //!
 //! [`translation_of`] returns the text behind the last draft or rewritten
 //! label of the answer. A label is the keyword and the name of the language of
@@ -132,6 +133,19 @@ mod tests {
     #[test]
     fn a_plain_translation_is_returned_trimmed() {
         assert_eq!(translation_of(&format!("  {JA}\n"), TO), JA);
+    }
+
+    /// The answers the model gave to the request of E (draft in a system
+    /// message, T's prompt as the user message): the translation alone.
+    #[test]
+    fn answers_to_the_card_form_request_are_returned_as_they_are() {
+        for text in [
+            "But Mr. Suruga is 91 years old. His running is becoming more powerful.",
+            "Last week, the Ministry of Economy, Trade and Industry announced that Apple had reported an additional 34 incidents of overheating that were deemed not serious.",
+        ] {
+            assert_eq!(translation_of(text, "English"), text);
+            assert_eq!(translation_of(&format!("\n {text} \n"), "English"), text);
+        }
     }
 
     #[test]

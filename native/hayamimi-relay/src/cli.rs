@@ -17,7 +17,7 @@ use crate::fx::{self, AtomicFileStore, FetchOptions, RATES_FILE_NAME};
 use crate::hub;
 use crate::lan::{self, LanUrl};
 use crate::lang::Lang;
-use crate::llm::HttpLlm;
+use crate::llm::{HttpLlm, Llm};
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
 use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
@@ -28,6 +28,7 @@ use crate::send_config::SendFile;
 use crate::srt_command::{self, SrtPlan};
 use crate::strings::Strings;
 use crate::verify_dump::VerifyDump;
+use crate::warmup;
 
 /// The streams `run` follows when none is named: the microphone's recognizer
 /// and the loopback's recognizer, on the ports the recognizers serve on.
@@ -460,6 +461,33 @@ fn announce_serving(live: &Live, address: SocketAddr, sink: &mut dyn LogSink, st
     announce_lan(address, strings);
 }
 
+/// Sends the translator its first request, then says where the translations
+/// are served. A first request that fails is logged and the run goes on.
+fn announce_when_warm<L: Llm>(
+    llm: &L,
+    live: &Live,
+    address: SocketAddr,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) {
+    warmup::warm_up(llm, sink);
+    announce_serving(live, address, sink, strings);
+}
+
+/// The start-up path of `live`: the first request goes to the translator at
+/// `live.llm` with the time limit of [`warmup::TIMEOUT`], which is longer than
+/// a live subtitle may wait because a translator that has just started answers
+/// its first request late. Then the serving is announced.
+pub fn announce_after_first_request(
+    live: &Live,
+    address: SocketAddr,
+    sink: &mut dyn LogSink,
+    strings: &Strings,
+) {
+    let first = HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT);
+    announce_when_warm(&first, live, address, sink, strings);
+}
+
 /// Says the URL a client on the LAN opens, when the server is not on the loopback.
 fn announce_lan(address: SocketAddr, strings: &Strings) {
     match lan::lan_url(address, "/events") {
@@ -588,7 +616,7 @@ fn run_relay(live: &Live, now: i64, strings: &Strings) -> u8 {
     for code in started.skipped() {
         eprintln!("{} {code}", strings.cli_text("eval_target_skipped"));
     }
-    announce_serving(live, started.address(), &mut sink, strings);
+    announce_after_first_request(live, started.address(), &mut sink, strings);
     // The relay works in threads of its own and ends with the process.
     loop {
         std::thread::park();
@@ -861,6 +889,65 @@ mod tests {
             text_field(&event, "llm_other").as_deref(),
             Some(DEFAULT_LLM_OTHER)
         );
+        Ok(())
+    }
+
+    /// A translator that records what it is asked and answers or fails.
+    struct FirstRequest {
+        asked: std::cell::RefCell<Vec<String>>,
+        fails: bool,
+    }
+
+    impl Llm for FirstRequest {
+        fn complete(
+            &self,
+            request: &crate::llm::Completion<'_>,
+        ) -> Result<String, crate::llm::LlmError> {
+            self.asked.borrow_mut().push(request.prompt.to_owned());
+            if self.fails {
+                Err(crate::llm::LlmError::Status(503))
+            } else {
+                Ok(String::from("Hello."))
+            }
+        }
+    }
+
+    /// The names of the events the relay logged, in order, for one start.
+    fn names_logged_when_warm(fails: bool) -> Result<(Vec<String>, Vec<String>), String> {
+        let llm = FirstRequest {
+            asked: std::cell::RefCell::new(Vec::new()),
+            fails,
+        };
+        let mut sink = crate::logging::MemorySink::default();
+        announce_when_warm(
+            &llm,
+            &live_of(&["live"])?,
+            address(DEFAULT_SERVE),
+            &mut sink,
+            &Strings::embedded(Lang::En)?,
+        );
+        let names = sink
+            .events
+            .iter()
+            .map(|event| event.event.clone())
+            .collect();
+        Ok((names, llm.asked.take()))
+    }
+
+    #[test]
+    fn the_first_request_goes_out_once_before_the_relay_says_it_serves() -> Result<(), String> {
+        let (names, asked) = names_logged_when_warm(false)?;
+        assert_eq!(names, [warmup::SENT_EVENT, "relay.serve.started"]);
+        assert_eq!(asked, [warmup::prompt()]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_first_request_that_fails_does_not_stop_the_relay_from_saying_it_serves()
+    -> Result<(), String> {
+        let (names, asked) = names_logged_when_warm(true)?;
+        assert_eq!(names, [warmup::FAILED_EVENT, "relay.serve.started"]);
+        assert_eq!(asked, [warmup::prompt()]);
         Ok(())
     }
 
@@ -1175,6 +1262,8 @@ mod tests {
                 "translate.lane.failed",
                 "translate.publish.failed",
                 "relay.serve.started",
+                warmup::SENT_EVENT,
+                warmup::FAILED_EVENT,
                 "server.fallback.port",
                 "translate.edit.held",
                 "translate.draft.held",

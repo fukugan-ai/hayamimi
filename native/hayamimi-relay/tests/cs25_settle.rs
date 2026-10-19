@@ -32,7 +32,7 @@ const T_ANSWER: &str = "The budget is assumed to be 5,000,000 yen.";
 const E_ANSWER: &str = "The budget is assumed to be 5,000,000 yen in total.";
 const E_WRONG: &str = "The budget is assumed to be 1,500,000 yen.";
 
-/// Answers T with `t` and E (its prompt carries the draft) with `e`.
+/// Answers T with `t` and E (its system message carries the draft) with `e`.
 struct Scripted {
     t: &'static str,
     e: &'static str,
@@ -40,7 +40,7 @@ struct Scripted {
 
 impl Llm for Scripted {
     fn complete(&self, request: &Completion<'_>) -> Result<String, LlmError> {
-        let answer = if request.prompt.contains("Draft ") {
+        let answer = if request.system.is_some() {
             self.e
         } else {
             self.t

@@ -122,12 +122,25 @@ pub struct Timings {
     pub l_dec_ms: f64,
 }
 
-/// An early notice that read a complete sentence and kept it, because the
-/// speech behind it was shorter than [`crate::vad::EARLY_MIN_SEGMENT_MS`].
+/// An early notice that read a sentence and kept it instead of finalising it:
+/// the sentence was not complete, or the speech behind it was shorter than
+/// [`crate::vad::EARLY_MIN_SEGMENT_MS`].
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ShortHold {
+pub struct EarlyHold {
+    /// Why the sentence was kept.
+    pub reason: Hold,
     /// The speech the sentence was read from, in milliseconds.
     pub span_ms: f64,
+}
+
+impl EarlyHold {
+    /// The hold of a sentence read from `samples` samples of speech.
+    fn new(reason: Hold, samples: usize) -> EarlyHold {
+        EarlyHold {
+            reason,
+            span_ms: samples_ms(samples),
+        }
+    }
 }
 
 /// One finished utterance.
@@ -184,8 +197,8 @@ struct Route {
     draft: DraftClock,
     /// What the early detector has finalised inside the voice in progress.
     early: State<Solved>,
-    /// The sentences the early path kept for being too short, until they are taken.
-    short_holds: Vec<ShortHold>,
+    /// The sentences the early path kept, until they are taken.
+    early_holds: Vec<EarlyHold>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -352,7 +365,7 @@ fn open_route(
         vad_ms: 0.0,
         draft: DraftClock::new(),
         early: State::default(),
-        short_holds: Vec::new(),
+        early_holds: Vec::new(),
     }))
 }
 
@@ -519,13 +532,13 @@ impl Engine {
             .collect()
     }
 
-    /// The complete sentences the early path kept for being too short since
-    /// the last call. An engine with no route has none.
-    pub fn take_short_holds(&mut self) -> Vec<ShortHold> {
+    /// The sentences the early path kept since the last call, each with the
+    /// reason. An engine with no route has none.
+    pub fn take_early_holds(&mut self) -> Vec<EarlyHold> {
         self.route
             .as_mut()
             .into_iter()
-            .flat_map(|route| std::mem::take(&mut route.short_holds))
+            .flat_map(|route| std::mem::take(&mut route.early_holds))
             .collect()
     }
 
@@ -749,11 +762,7 @@ impl Engine {
             return Ok(None);
         };
         if let Some(hold) = endpoint::early_hold(&solved.lang, &solved.text, span) {
-            if hold == Hold::TooShort {
-                route.short_holds.push(ShortHold {
-                    span_ms: samples_ms(span),
-                });
-            }
+            route.early_holds.push(EarlyHold::new(hold, span));
             route.early.hold(solved, now, floor);
             return Ok(None);
         }
@@ -1248,10 +1257,22 @@ mod tests {
     }
 
     #[test]
-    fn an_engine_with_no_route_has_no_short_holds() -> Result<(), AsrError> {
+    fn an_engine_with_no_route_has_no_early_holds() -> Result<(), AsrError> {
         let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
-        assert!(engine.take_short_holds().is_empty());
+        assert!(engine.take_early_holds().is_empty());
         Ok(())
+    }
+
+    /// A sentence kept as incomplete is counted like one kept as too short,
+    /// with its reason and the length of the speech it was read from.
+    #[test]
+    fn a_hold_carries_its_reason_and_the_speech_it_was_read_from() {
+        let incomplete = EarlyHold::new(Hold::Incomplete, 8_000);
+        assert_eq!(incomplete.reason, Hold::Incomplete);
+        assert_eq!(incomplete.span_ms, 500.0);
+        let short = EarlyHold::new(Hold::TooShort, 15_984);
+        assert_eq!(short.reason, Hold::TooShort);
+        assert_eq!(short.span_ms, 999.0);
     }
 
     #[test]
