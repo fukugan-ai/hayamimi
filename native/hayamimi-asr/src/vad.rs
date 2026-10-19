@@ -139,10 +139,30 @@ impl Sensitivity {
 /// of the whole input.
 pub struct Vad {
     detector: VoiceActivityDetector,
+    /// The early detector: the same model at a higher threshold and a short
+    /// silence, fed the same windows. Only its notices that a stretch of voice
+    /// ended are used; it is never flushed inside a stream.
+    early: Option<VoiceActivityDetector>,
     models: PathBuf,
     sensitivity: Sensitivity,
     offset: usize,
     fed: usize,
+}
+
+/// The early detector's cutoff: its end line is 0.15 below, at 0.50.
+pub const EARLY_THRESHOLD: f32 = 0.65;
+/// The early detector's silence in seconds.
+pub const EARLY_MIN_SILENCE: f32 = 0.12;
+/// The early detector's silence in milliseconds, for the log.
+pub const EARLY_MIN_SILENCE_MS: u32 = 120;
+
+/// What the early detector is set to when the main one is set to `main`.
+fn early_sensitivity(main: Sensitivity) -> Sensitivity {
+    Sensitivity {
+        threshold: EARLY_THRESHOLD,
+        min_silence: EARLY_MIN_SILENCE,
+        max_speech: main.max_speech,
+    }
 }
 
 impl Vad {
@@ -150,6 +170,7 @@ impl Vad {
         let sensitivity = Sensitivity::starting(settings);
         Ok(Vad {
             detector: build(models, sensitivity)?,
+            early: None,
             models: models.to_path_buf(),
             sensitivity,
             offset: 0,
@@ -157,10 +178,39 @@ impl Vad {
         })
     }
 
-    /// Feeds one window of `WINDOW` samples.
+    /// [`Vad::open`] with the early detector as well.
+    pub fn open_with_early(models: &Path, settings: VadSettings) -> Result<Self, AsrError> {
+        let mut vad = Self::open(models, settings)?;
+        vad.early = Some(build(models, early_sensitivity(vad.sensitivity))?);
+        Ok(vad)
+    }
+
+    /// Whether the early detector is open.
+    pub fn has_early(&self) -> bool {
+        self.early.is_some()
+    }
+
+    /// Feeds one window of `WINDOW` samples to both detectors.
     pub fn accept(&mut self, window: &[f32]) {
         self.detector.accept_waveform(window);
+        if let Some(early) = &self.early {
+            early.accept_waveform(window);
+        }
         self.fed += window.len();
+    }
+
+    /// The stretches of voice the early detector finished since the last call,
+    /// positioned on the timeline of the whole input. Empty without an early
+    /// detector. Taken every window, so that its queue does not grow.
+    pub fn take_early(&self) -> Result<Vec<Segment>, AsrError> {
+        let Some(early) = &self.early else {
+            return Ok(Vec::new());
+        };
+        let mut found = take_segments(early)?;
+        for segment in &mut found {
+            segment.start += self.offset;
+        }
+        Ok(found)
     }
 
     /// Whether the detector is inside speech that has not been cut yet.
@@ -168,9 +218,13 @@ impl Vad {
         self.detector.detected()
     }
 
-    /// Ends the speech in progress, so that it is queued as a segment.
+    /// Ends the speech in progress, so that it is queued as a segment. Both
+    /// detectors are flushed; the caller rebuilds them straight after.
     pub fn flush(&self) {
         self.detector.flush();
+        if let Some(early) = &self.early {
+            early.flush();
+        }
     }
 
     /// The segments finished since the last call, positioned on the timeline of the whole input.
@@ -198,6 +252,9 @@ impl Vad {
     /// one cannot be built.
     pub fn rebuild(&mut self, sensitivity: Sensitivity) -> Result<(), AsrError> {
         self.detector = build(&self.models, sensitivity)?;
+        if self.early.is_some() {
+            self.early = Some(build(&self.models, early_sensitivity(sensitivity))?);
+        }
         self.sensitivity = sensitivity;
         self.offset = self.fed;
         Ok(())
@@ -219,6 +276,21 @@ mod tests {
         let settings = VadSettings::default();
         assert_eq!(settings.min_silence, 0.30);
         assert_eq!(settings.max_speech, 12.0);
+    }
+
+    #[test]
+    fn the_early_detector_is_set_one_step_above_the_main_one() {
+        let early = early_sensitivity(Sensitivity::starting(VadSettings::default()));
+        assert_eq!(early.threshold, EARLY_THRESHOLD);
+        assert_eq!(early.min_silence, EARLY_MIN_SILENCE);
+        assert_eq!(early.max_speech, 12.0);
+        assert_eq!((EARLY_MIN_SILENCE * 1000.0) as u32, EARLY_MIN_SILENCE_MS);
+    }
+
+    #[test]
+    fn a_missing_model_is_refused_for_the_early_open_as_well() {
+        let said = Vad::open_with_early(Path::new("no-such-models"), VadSettings::default()).err();
+        assert!(matches!(said, Some(AsrError::MissingModel(_))), "{said:?}");
     }
 
     #[test]

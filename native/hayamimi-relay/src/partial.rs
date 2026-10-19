@@ -9,16 +9,31 @@
 //! One translation runs at a time. A newer text of a source makes the older
 //! one useless, so a [`Mailbox`] keeps the newest text of each source and the
 //! request for the older one is dropped. The `final` of a source does the same
-//! for the text of the utterance it closed.
+//! for the text of the utterance it closed, with one exception: when the
+//! `final` only closes the last text (it is the same text, or the same with a
+//! `。` added), the translation of that text is the translation T would give
+//! the line, so the request is kept, and the lane of the line takes its answer
+//! with [`Mailbox::claim`] instead of asking T again.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use crate::lang::Lang;
 use crate::line::{Line, SOURCES, Source};
 use crate::llm::Wanted;
 use crate::logging::{Level, LogEvent, LogSink};
-use crate::pipeline::{LineKind, LineRequest};
+use crate::pipeline::{LineKind, LineRequest, Reuse, ReuseMatch, ReuseState};
+
+/// How long a line waits for the request of its text in progress before it
+/// asks T itself. A request ends within the translator's own time limit, so
+/// this only guards against a worker that is gone.
+const CLAIM_WAIT_MAX: Duration = Duration::from_secs(5);
+
+/// How many claimed translations are kept for lanes that have not collected
+/// them yet; the oldest goes first. A line that is never translated (its
+/// language, or only another route) leaves its claim here.
+const TAKEN_MAX: usize = 8;
 
 /// Whether the relay translates the text of an utterance in progress.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,6 +71,50 @@ struct Pending {
     order: u64,
     /// What the source's counter read when the text was left.
     generation: u64,
+    /// Set when a line takes the answer over; see [`Tracked::pin`].
+    pin: Arc<AtomicBool>,
+}
+
+/// How far the translation of a text in progress got.
+enum Phase {
+    /// Left in the mailbox; no worker has taken it.
+    Waiting,
+    /// The worker is asking T.
+    Running,
+    /// The request ended: T's answer as the translator gave it, or `None`
+    /// when it gave none or the request was dropped.
+    Done(Option<String>),
+}
+
+/// The last text left for a source, and how its translation stands.
+struct Tracked {
+    id: String,
+    text: String,
+    generation: u64,
+    phase: Phase,
+    /// Set when a line takes the answer over: the request then goes on though
+    /// a newer text or the `final` moved the counter.
+    pin: Arc<AtomicBool>,
+}
+
+/// A translation a `final` took over, until the lane of its line collects it.
+struct Taken {
+    source: Source,
+    matched: ReuseMatch,
+    tracked: Tracked,
+}
+
+/// How the text of a `final` relates to the text in progress it closes: the
+/// same text, or the same with one `。` added. Any other text, or a text of
+/// another `id`, is not that utterance's translation.
+fn closes(line: &Line, tracked: &Tracked) -> Option<ReuseMatch> {
+    if line.id != tracked.id || matches!(tracked.phase, Phase::Waiting | Phase::Done(None)) {
+        return None;
+    }
+    if line.text == tracked.text {
+        return Some(ReuseMatch::Same);
+    }
+    (line.text.strip_suffix('。') == Some(tracked.text.as_str())).then_some(ReuseMatch::ClosingMark)
 }
 
 /// What the screen has drawn of one source's translated text in progress. The
@@ -103,9 +162,45 @@ fn common_prefix<'a>(left: &'a str, right: &str) -> &'a str {
 struct State {
     drawn: [Drawn; SOURCES],
     pending: [Option<Pending>; SOURCES],
-    /// The last text left for each source, so that the same text twice asks nothing new.
-    last: [Option<String>; SOURCES],
+    /// The last text left for each source, so that the same text twice asks
+    /// nothing new, and how its translation stands.
+    last: [Option<Tracked>; SOURCES],
+    /// Translations a `final` took over, the oldest first.
+    taken: Vec<Taken>,
     left: u64,
+}
+
+impl State {
+    /// The translation of `generation` of `source`, wherever it stands now.
+    fn tracked_mut(&mut self, source: Source, generation: u64) -> Option<&mut Tracked> {
+        let slot = source.index();
+        if self.last[slot]
+            .as_ref()
+            .is_some_and(|tracked| tracked.generation == generation)
+        {
+            return self.last[slot].as_mut();
+        }
+        self.taken
+            .iter_mut()
+            .filter(|taken| taken.source == source)
+            .map(|taken| &mut taken.tracked)
+            .find(|tracked| tracked.generation == generation)
+    }
+
+    /// Keeps a translation for the lane of its line; the oldest one still
+    /// kept is let go when too many wait.
+    fn hand_over(&mut self, taken: Taken) {
+        if self.taken.len() >= TAKEN_MAX {
+            self.taken.remove(0);
+        }
+        self.taken.push(taken);
+    }
+
+    fn position(&self, source: Source, id: &str) -> Option<usize> {
+        self.taken
+            .iter()
+            .position(|taken| taken.source == source && taken.tracked.id == id)
+    }
 }
 
 fn locked(state: &Mutex<State>) -> MutexGuard<'_, State> {
@@ -116,10 +211,24 @@ fn locked(state: &Mutex<State>) -> MutexGuard<'_, State> {
     }
 }
 
+/// Waits on `signal` for at most `limit`, and gives the lock back.
+fn waited_on<'a>(
+    signal: &Condvar,
+    state: MutexGuard<'a, State>,
+    limit: Duration,
+) -> MutexGuard<'a, State> {
+    match signal.wait_timeout(state, limit) {
+        Ok((guard, _)) => guard,
+        Err(poisoned) => poisoned.into_inner().0,
+    }
+}
+
 /// The newest text of every source, waiting for the one worker that translates.
 pub struct Mailbox {
     state: Mutex<State>,
     wake: Condvar,
+    /// Signalled when a request ends, for the lanes waiting for its answer.
+    finished: Condvar,
     /// One counter per source. A request is wanted while its source's counter
     /// reads what it read when the request was made.
     generations: [Arc<AtomicU64>; SOURCES],
@@ -130,6 +239,7 @@ impl Mailbox {
         Mailbox {
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
+            finished: Condvar::new(),
             generations: std::array::from_fn(|_| Arc::new(AtomicU64::new(0))),
         }
     }
@@ -140,17 +250,28 @@ impl Mailbox {
     pub fn post(&self, job: Job) {
         let slot = job.source.index();
         let mut state = locked(&self.state);
-        if state.last[slot].as_deref() == Some(job.text.as_str()) {
+        if state.last[slot]
+            .as_ref()
+            .is_some_and(|tracked| tracked.text == job.text)
+        {
             return;
         }
-        state.last[slot] = Some(job.text.clone());
         state.left += 1;
         let order = state.left;
         let generation = self.generations[slot].fetch_add(1, Ordering::AcqRel) + 1;
+        let pin = Arc::new(AtomicBool::new(false));
+        state.last[slot] = Some(Tracked {
+            id: job.id.clone(),
+            text: job.text.clone(),
+            generation,
+            phase: Phase::Waiting,
+            pin: Arc::clone(&pin),
+        });
         state.pending[slot] = Some(Pending {
             job,
             order,
             generation,
+            pin,
         });
         drop(state);
         self.wake.notify_one();
@@ -159,12 +280,95 @@ impl Mailbox {
     /// The utterance of `source` ended: the text in progress is of no use any
     /// more, waiting or running.
     pub fn retire(&self, source: Source) {
+        self.end(source, None);
+    }
+
+    /// `line`, a `final`, ended the utterance of its source. The text in
+    /// progress is of no use any more, unless the line only closes it (see
+    /// [`closes`]) and a worker has taken it: then its request goes on and its
+    /// answer is the line's, collected with [`Mailbox::claim`]. A text no
+    /// worker has taken is dropped, and the lane of the line asks T itself.
+    pub fn close(&self, line: &Line) {
+        self.end(line.source, Some(line));
+    }
+
+    fn end(&self, source: Source, line: Option<&Line>) {
         let slot = source.index();
         let mut state = locked(&self.state);
         self.generations[slot].fetch_add(1, Ordering::AcqRel);
         state.pending[slot] = None;
-        state.last[slot] = None;
         state.drawn[slot] = Drawn::default();
+        let Some(tracked) = state.last[slot].take() else {
+            return;
+        };
+        let Some(matched) = line.and_then(|line| closes(line, &tracked)) else {
+            return;
+        };
+        tracked.pin.store(true, Ordering::Release);
+        state.hand_over(Taken {
+            source,
+            matched,
+            tracked,
+        });
+    }
+
+    /// The worker holds a server slot and is about to send the request of
+    /// `generation`: from now on a `final` that only closes its text may take
+    /// the request over. Before this the request is dropped unsent.
+    pub fn begin(&self, source: Source, generation: u64) {
+        if let Some(tracked) = locked(&self.state).tracked_mut(source, generation) {
+            tracked.phase = Phase::Running;
+        }
+    }
+
+    /// The request of `generation` for `source` ended with `answer` (`None`
+    /// when the translator gave none or the request was dropped). A line that
+    /// waits for it is woken.
+    pub fn finish(&self, source: Source, generation: u64, answer: Option<String>) {
+        let mut state = locked(&self.state);
+        if let Some(tracked) = state.tracked_mut(source, generation) {
+            tracked.phase = Phase::Done(answer);
+        }
+        drop(state);
+        self.finished.notify_all();
+    }
+
+    /// The answer of the text in progress that the `final` `id` of `source`
+    /// closed ([`Mailbox::close`]), waiting for it if the request still runs.
+    /// `None` when there is none to take: the line asks T itself.
+    pub fn claim(&self, source: Source, id: &str) -> Option<Reuse> {
+        let started = Instant::now();
+        let mut state = locked(&self.state);
+        let at = state.position(source, id)?;
+        let asked = match state.taken[at].tracked.phase {
+            Phase::Done(_) => ReuseState::Done,
+            Phase::Waiting | Phase::Running => ReuseState::Running,
+        };
+        loop {
+            let at = state.position(source, id)?;
+            if matches!(state.taken[at].tracked.phase, Phase::Done(_)) {
+                break;
+            }
+            let left = CLAIM_WAIT_MAX.saturating_sub(started.elapsed());
+            if left.is_zero() {
+                state.taken.remove(at);
+                return None;
+            }
+            state = waited_on(&self.finished, state, left);
+        }
+        let at = state.position(source, id)?;
+        let Taken {
+            matched, tracked, ..
+        } = state.taken.remove(at);
+        let Phase::Done(Some(answer)) = tracked.phase else {
+            return None;
+        };
+        Some(Reuse {
+            answer,
+            matched,
+            state: asked,
+            waited: started.elapsed(),
+        })
     }
 
     /// Whether the translation `text` of `id` may be shown for `source`
@@ -183,7 +387,8 @@ impl Mailbox {
                 && let Some(pending) = state.pending[slot].take()
             {
                 let counter = Arc::clone(&self.generations[slot]);
-                return (pending.job, Wanted::new(counter, pending.generation));
+                let wanted = Wanted::pinned(counter, pending.generation, pending.pin);
+                return (pending.job, wanted);
             }
             state = match self.wake.wait(state) {
                 Ok(guard) => guard,
@@ -296,7 +501,7 @@ impl Route {
         if line.kind != LineKind::Final {
             return;
         }
-        mailbox.retire(line.source);
+        mailbox.close(line);
         self.next = Next::after(line);
     }
 
@@ -623,6 +828,173 @@ mod tests {
         route.note_line(&line(LineKind::Final, "mic-1", Source::Mic));
         route.partial("こんにち", &mut sink);
         assert!(sink.events.is_empty());
+    }
+
+    fn final_line(id: &str, text: &str) -> Line {
+        Line {
+            text: text.to_owned(),
+            ..line(LineKind::Final, id, Source::Mic)
+        }
+    }
+
+    /// A mailbox whose worker has taken the text `text` of `mic-2` and sends it.
+    fn running(text: &str) -> (Mailbox, Wanted) {
+        let (mailbox, wanted) = taken(text);
+        mailbox.begin(Source::Mic, wanted.generation());
+        (mailbox, wanted)
+    }
+
+    /// A mailbox whose worker has taken the text but holds no slot yet.
+    fn taken(text: &str) -> (Mailbox, Wanted) {
+        let mailbox = Mailbox::new();
+        mailbox.post(job(Source::Mic, "mic-2", text));
+        let (_, wanted) = mailbox.take();
+        (mailbox, wanted)
+    }
+
+    #[test]
+    fn a_final_before_the_worker_holds_a_slot_stops_the_request() {
+        let (mailbox, wanted) = taken("あい");
+        mailbox.close(&final_line("mic-2", "あい。"));
+        assert!(!wanted.still());
+        mailbox.begin(Source::Mic, wanted.generation());
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_none());
+    }
+
+    #[test]
+    fn a_final_that_only_closes_the_text_keeps_its_request_and_takes_its_answer() {
+        let (mailbox, wanted) = running("あい");
+        mailbox.close(&final_line("mic-2", "あい。"));
+        assert!(wanted.still() && !wanted.newest());
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        let reuse = mailbox.claim(Source::Mic, "mic-2");
+        assert!(reuse.as_ref().is_some_and(|reuse| {
+            reuse.answer == "ai"
+                && reuse.matched == ReuseMatch::ClosingMark
+                && reuse.state == ReuseState::Done
+        }));
+    }
+
+    #[test]
+    fn the_same_text_is_matched_as_the_same() {
+        let (mailbox, wanted) = running("あい");
+        mailbox.close(&final_line("mic-2", "あい"));
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        let reuse = mailbox.claim(Source::Mic, "mic-2");
+        assert!(reuse.is_some_and(|reuse| reuse.matched == ReuseMatch::Same));
+    }
+
+    #[test]
+    fn a_text_a_worker_has_not_taken_is_dropped_by_its_final() {
+        let mailbox = Mailbox::new();
+        mailbox.post(job(Source::Mic, "mic-2", "あい"));
+        mailbox.close(&final_line("mic-2", "あい。"));
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_none());
+        mailbox.post(job(Source::Loopback, "loopback-1", "Hi"));
+        assert_eq!(mailbox.take().0.source, Source::Loopback);
+    }
+
+    #[test]
+    fn a_final_of_other_text_or_another_id_stops_the_request() {
+        for closing in [
+            final_line("mic-2", "あいう。"),
+            final_line("mic-2", "あい。。"),
+            final_line("mic-2", "あい？"),
+            final_line("mic-2", "あい、"),
+            final_line("mic-3", "あい。"),
+        ] {
+            let (mailbox, wanted) = running("あい");
+            mailbox.close(&closing);
+            assert!(!wanted.still(), "{} {}", closing.id, closing.text);
+            mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+            assert!(mailbox.claim(Source::Mic, &closing.id).is_none());
+        }
+    }
+
+    #[test]
+    fn a_request_that_ended_without_an_answer_claims_nothing() {
+        let (mailbox, wanted) = running("あい");
+        mailbox.close(&final_line("mic-2", "あい。"));
+        mailbox.finish(Source::Mic, wanted.generation(), None);
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_none());
+    }
+
+    #[test]
+    fn a_claim_is_given_once() {
+        let (mailbox, wanted) = running("あい");
+        mailbox.close(&final_line("mic-2", "あい。"));
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_some());
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_none());
+    }
+
+    #[test]
+    fn a_claim_waits_for_the_request_that_still_runs() -> Result<(), String> {
+        let (mailbox, wanted) = running("あい");
+        let mailbox = Arc::new(mailbox);
+        mailbox.close(&final_line("mic-2", "あい。"));
+        let waiting = Arc::clone(&mailbox);
+        let claimer = std::thread::spawn(move || waiting.claim(Source::Mic, "mic-2"));
+        std::thread::sleep(Duration::from_millis(100));
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        let reuse = claimer
+            .join()
+            .map_err(|_| String::from("claimer panicked"))?;
+        let Some(reuse) = reuse else {
+            return Err(String::from("nothing was claimed"));
+        };
+        assert_eq!(
+            (reuse.answer.as_str(), reuse.state),
+            ("ai", ReuseState::Running)
+        );
+        assert!(
+            reuse.waited >= Duration::from_millis(80),
+            "{:?}",
+            reuse.waited
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_next_text_does_not_stop_a_claimed_request() {
+        let (mailbox, wanted) = running("あい");
+        mailbox.close(&final_line("mic-2", "あい。"));
+        mailbox.post(job(Source::Mic, "mic-3", "う"));
+        assert!(wanted.still());
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_some());
+        assert_eq!(mailbox.take().0.text, "う");
+    }
+
+    #[test]
+    fn a_final_of_another_source_leaves_the_request_of_this_one() {
+        let (mailbox, wanted) = running("あい");
+        let loopback = Line {
+            source: Source::Loopback,
+            ..final_line("mic-2", "あい。")
+        };
+        mailbox.close(&loopback);
+        assert!(wanted.still());
+        assert!(mailbox.claim(Source::Loopback, "mic-2").is_none());
+    }
+
+    #[test]
+    fn the_claims_kept_for_lanes_that_never_come_are_bounded() {
+        let mailbox = Mailbox::new();
+        for number in 0..TAKEN_MAX + 3 {
+            let id = format!("mic-{number}");
+            mailbox.post(job(Source::Mic, &id, &format!("あ{number}")));
+            let (_, wanted) = mailbox.take();
+            mailbox.begin(Source::Mic, wanted.generation());
+            mailbox.close(&final_line(&id, &format!("あ{number}。")));
+            mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("a")));
+        }
+        assert!(mailbox.claim(Source::Mic, "mic-0").is_none());
+        assert!(
+            mailbox
+                .claim(Source::Mic, &format!("mic-{}", TAKEN_MAX + 2))
+                .is_some()
+        );
     }
 
     #[test]

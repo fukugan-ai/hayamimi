@@ -39,7 +39,7 @@ use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
 use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
 use crate::pipeline::{
-    Drafted, NoObserver, Observer, PartialOutcome, Pipeline, Staged, Translation,
+    Drafted, LineKind, NoObserver, Observer, PartialOutcome, Pipeline, Reuse, Staged, Translation,
 };
 use crate::reach::{Change, Watch};
 use crate::slots::{Held, LLAMA_SLOTS, ServerSlots};
@@ -223,6 +223,9 @@ struct LaneParts<L: Llm> {
     /// The slots of the server the live pair is translated on; `None` for a
     /// lane of another language, which has a server of its own.
     slots: Option<Arc<ServerSlots>>,
+    /// Where the answer for a text in progress that a `final` only closes
+    /// waits for the line; `None` when the text in progress is not translated.
+    mailbox: Option<Arc<Mailbox>>,
 }
 
 /// A line that has been through T, on its way to the thread that asks E.
@@ -280,8 +283,20 @@ fn with_observer<L: Llm, R>(
     }
 }
 
+/// The answer for the text in progress that the `final` of `job` only closes,
+/// when the line is of the live pair and there is one. Waits for a request
+/// that still runs; holds no slot of the server while it does.
+fn reusable_answer<L: Llm>(parts: &LaneParts<L>, job: &Job) -> Option<Reuse> {
+    if job.route != Route::Pair || job.line.kind != LineKind::Final {
+        return None;
+    }
+    let mailbox = parts.mailbox.as_deref()?;
+    mailbox.claim(job.line.source, &job.line.id)
+}
+
 /// Asks T for the line of `job`, along its route, and publishes the draft
-/// when there is one.
+/// when there is one. A line whose text only closes its last text in progress
+/// takes the answer of that text over and does not ask T.
 fn draft_line<L: Llm>(
     pipeline: &mut Pipeline<L>,
     parts: &LaneParts<L>,
@@ -292,6 +307,11 @@ fn draft_line<L: Llm>(
     let request = job.line.request(job.src_lang, now_epoch);
     let mut drafts = sink.clone();
     let mut show_draft = |draft: Translation| publish(&parts.hub, &draft, &mut drafts);
+    if let Some(reuse) = reusable_answer(parts, job) {
+        return with_observer(parts, &job.line.id, |observer| {
+            pipeline.draft_staged_reusing(&request, observer, &mut show_draft, &reuse, sink)
+        });
+    }
     let _slot = parts
         .slots
         .as_deref()
@@ -450,9 +470,12 @@ fn run_partials<L: Llm>(
         let (job, wanted) = mailbox.take();
         let request = job.request(clock.now_epoch());
         let _slot = take_slot(slots, request.id, "partial", &mut sink);
-        let outcome = pipeline.translate_partial(&request, &wanted, &mut sink);
+        mailbox.begin(job.source, wanted.generation());
+        let (outcome, answer) = pipeline.translate_partial_kept(&request, &wanted, &mut sink);
+        // A line that took the request over waits for this; hand it the answer first.
+        mailbox.finish(job.source, wanted.generation(), answer);
         if let PartialOutcome::Shown(translation) = outcome
-            && wanted.still()
+            && wanted.newest()
         {
             show_partial(mailbox, hub, &job, &translation, &mut sink);
         }
@@ -506,6 +529,8 @@ struct Router<L: Llm + 'static> {
     /// The slots of the live pair's server, shared by its lanes and the
     /// translation of the text in progress.
     llama: Arc<ServerSlots>,
+    /// The text in progress and its answers; `None` when it is not translated.
+    mailbox: Option<Arc<Mailbox>>,
     sink: SharedSink,
 }
 
@@ -519,6 +544,7 @@ impl<L: Llm + 'static> Router<L> {
             clock: self.clock,
             verify_dump: self.verify_dump.clone(),
             slots: matches!(route, Route::Pair).then(|| Arc::clone(&self.llama)),
+            mailbox: self.mailbox.clone(),
         });
         let sink = self.sink.clone();
         std::thread::spawn(move || run_lane(receiver, parts, route, sink));
@@ -846,6 +872,7 @@ pub fn start_handle<L: Llm + 'static>(
         clock,
         verify_dump: config.verify_dump,
         llama,
+        mailbox: mailbox.clone(),
         sink: sink.clone(),
     };
     std::thread::Builder::new()

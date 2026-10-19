@@ -5,6 +5,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use hayamimi_asr::DEFAULT_MAX_RESIDENT;
+use hayamimi_asr::endpoint::Mode as Endpoint;
 use hayamimi_asr::route::{Policy, is_routable};
 
 use crate::inputs::{Input, IoArgs};
@@ -45,6 +46,8 @@ pub struct Args {
     pub models: PathBuf,
     pub min_silence: f32,
     pub max_speech: f32,
+    /// How the end of an utterance is decided (`--endpoint`).
+    pub endpoint: Endpoint,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -72,6 +75,7 @@ pub enum ArgError {
     MissingValue,
     BadNumber,
     ModeUnsupported,
+    EndpointUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -86,6 +90,7 @@ impl ArgError {
             ArgError::MissingValue => keys::MISSING_VALUE,
             ArgError::BadNumber => keys::BAD_NUMBER,
             ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
+            ArgError::EndpointUnsupported => keys::ENDPOINT_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -156,6 +161,15 @@ fn mode_of(text: &str) -> Result<Mode, ArgError> {
     }
 }
 
+/// `--endpoint`: how the end of an utterance is decided.
+fn endpoint_of(text: &str) -> Result<Endpoint, ArgError> {
+    match text {
+        "early" => Ok(Endpoint::Early),
+        "silence" => Ok(Endpoint::Silence),
+        _ => Err(ArgError::EndpointUnsupported),
+    }
+}
+
 /// `--lang`: a language that has a recognizer of its own.
 fn lang_of(text: &str) -> Result<String, ArgError> {
     if is_routable(text) {
@@ -185,6 +199,7 @@ impl Args {
             models: PathBuf::from(DEFAULT_MODELS),
             min_silence: DEFAULT_MIN_SILENCE,
             max_speech: DEFAULT_MAX_SPEECH,
+            endpoint: Endpoint::Early,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -205,6 +220,7 @@ impl Args {
             "--models" => self.models = PathBuf::from(value_of(rest)?),
             "--min-silence" => self.min_silence = positive_seconds(value_of(rest)?)?,
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
+            "--endpoint" => self.endpoint = endpoint_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -274,6 +290,24 @@ mod tests {
         assert_eq!(parsed.min_silence, 0.30);
         assert_eq!(parsed.max_speech, 12.0);
         assert_eq!(parsed.models, PathBuf::from("models"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_endpoint_is_early_unless_silence_is_asked_for() -> Result<(), ArgError> {
+        assert_eq!(run(&["--wav", "a.wav"])?.endpoint, Endpoint::Early);
+        let silence = run(&["--wav", "a.wav", "--endpoint", "silence"])?;
+        assert_eq!(silence.endpoint, Endpoint::Silence);
+        let early = run(&["--wav", "a.wav", "--endpoint", "early"])?;
+        assert_eq!(early.endpoint, Endpoint::Early);
+        assert_eq!(
+            run(&["--wav", "a.wav", "--endpoint", "late"]).err(),
+            Some(ArgError::EndpointUnsupported)
+        );
+        assert_eq!(
+            run(&["--wav", "a.wav", "--endpoint"]).err(),
+            Some(ArgError::MissingValue)
+        );
         Ok(())
     }
 

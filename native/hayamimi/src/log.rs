@@ -22,6 +22,7 @@ pub const SESSION_CREATED: &str = "gpu.session.created";
 pub const SESSION_PLACED: &str = "gpu.session.placed";
 pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
+pub const ENDPOINT_DECIDED: &str = "asr.endpoint.decided";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
@@ -228,6 +229,22 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
     )
 }
 
+/// `asr.endpoint.decided`: which rule ended one utterance, and the silence it waited for.
+pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        ENDPOINT_DECIDED,
+        "asr",
+        None,
+        &[
+            ("id", Value::from(done.id)),
+            ("rule", Value::from(done.endpoint.rule.name())),
+            ("silence_ms", Value::from(done.endpoint.silence_ms)),
+        ],
+    )
+}
+
 /// `asr.feed.waited`: the window whose feed made utterance `id` had waited
 /// `wait` on the queue before the loop took it, with `backlog` windows still
 /// queued behind it.
@@ -424,6 +441,10 @@ mod tests {
             },
             punct_error: None,
             speaker_audio: Vec::new(),
+            endpoint: hayamimi_asr::endpoint::Decision {
+                rule: hayamimi_asr::endpoint::Rule::Silence,
+                silence_ms: 300,
+            },
         }
     }
 
@@ -546,6 +567,7 @@ mod tests {
                 SESSION_PLACED,
                 DEVICE_UNAVAILABLE,
                 UTTERANCE_TIMED,
+                ENDPOINT_DECIDED,
                 PUNCT_FAILED,
                 SPEAKER_FAILED,
                 FINAL_PUBLISHED,
@@ -642,6 +664,19 @@ mod tests {
         assert_eq!(event["requested"], "v2");
         assert_eq!(event["used"], "v3");
         assert_eq!(event["stage"], "recognizer");
+        Ok(())
+    }
+
+    #[test]
+    fn an_endpoint_event_names_the_rule_and_the_silence_without_the_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = endpoint_decided_line(&strings()?, &finished());
+        assert!(!line.contains("本文"));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.endpoint.decided");
+        assert_eq!(event["rule"], "silence");
+        assert_eq!(event["silence_ms"], 300);
+        assert!(event.get("id").is_some());
         Ok(())
     }
 

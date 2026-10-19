@@ -12,6 +12,7 @@ pub mod cluster;
 pub mod decode;
 pub mod diarize;
 pub mod embedder;
+pub mod endpoint;
 pub mod error;
 pub mod fallback;
 pub mod hungarian;

@@ -8,17 +8,25 @@
 
 mod support;
 
+use std::collections::BTreeMap;
+
+use hayamimi_asr::endpoint::Rule;
+use hayamimi_asr::vad::EARLY_MIN_SILENCE_MS;
 use hayamimi_eval::compare::{
-    check_percentiles, check_translated_share, comparison_threshold, read_samples, translated_share,
+    TranslatedShare, check_percentiles, check_translated_share, comparison_threshold, read_samples,
+    translated_share,
 };
 use hayamimi_eval::latency::{Sample, Stat, Window, build_samples, parse_event};
 use serde_json::Value;
 use support::e2e::columns_of;
 use support::rp32::{
-    AltReport, AltRun, Implementation, check_alternated_runs, check_columns_written, check_dir,
-    l_comparison_set, load_alternated, load_hundredths, missing_files, pairs_to_read,
-    parse_load_file, parse_pairs_text, render_columns, rp32_dir,
+    AltReport, AltRun, Implementation, LOAD_OK, SHARE_COLUMN_PYTHON, SHARE_COLUMN_RUST,
+    alternated_report, check_alternated_runs, check_columns_written, check_dir, check_ports_held,
+    check_share_columns_written, f32_sample, l_comparison_set, load_alternated, load_hundredths,
+    load_runs, missing_files, missing_rule_files, pairs_to_read, parse_load_file, parse_pairs_text,
+    render_columns, render_line_counts, render_share_columns, rp32_dir, scratch_dir, write_f32_dir,
 };
+use support::rp32_rules::{closing_rules, decided_rules, rule_named, silence_line_ms};
 use support::{Failure, TestResult, base};
 
 const R8E: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/results/r8e");
@@ -99,35 +107,13 @@ fn the_recorded_r8e_run_is_below_20_of_23() -> TestResult {
 
 // ---- RP-32 judgement of runs measured one after the other (T 4.42) ----
 
-const LOAD_OK: &str = "0.50 0.50 0.50 1/300 1000";
-
-/// F32: `t_end` 0, `L_asr` 700 + u ms, `L` 1000 + 10u + k ms (utterance u, pair k).
-/// The silence gap is 600 + u ms, over the 300 ms limit, so every sample is valid.
-fn f32_sample(utt: u32, k: u32) -> Sample {
-    Sample {
-        repeat: 1,
-        utt,
-        t_start_us: 0,
-        t_end_us: 0,
-        t_partial_us: None,
-        t_partial_tr_us: None,
-        t_final_us: Some(i64::from(700 + utt) * 1000),
-        t_tr_us: Some(i64::from(1000 + 10 * utt + k) * 1000),
-        finals: 1,
-        text: String::new(),
-        translation: None,
-        final_latency_ms: Some(100.0),
-        cer_dist: 0,
-        cer_denom: 0,
-    }
-}
-
 fn f32_run(implementation: Implementation, k: u32) -> AltRun {
     AltRun {
         implementation,
         load_before: Some(String::from(LOAD_OK)),
         load_after: Some(String::from(LOAD_OK)),
         samples: (1..=19).map(|utt| f32_sample(utt, k)).collect(),
+        rules: None,
     }
 }
 
@@ -483,38 +469,15 @@ fn a_directory_without_the_runs_names_the_files_it_lacks() {
         && why.contains("load2.txt")),);
 }
 
-/// Writes the F32 runs of `pairs` pairs into a scratch directory under the
-/// build tree and returns it: `py<N>.jsonl`, `rs<N>.jsonl` (Rust equals
-/// Python) and `load<N>.txt` per pair, and `pairs_txt` as `pairs.txt` when given.
-/// `name` keeps the tests that run side by side apart.
+/// The F32 runs of `pairs` pairs in a scratch directory under the build tree
+/// (see `write_f32_dir`); `name` keeps the tests that run side by side apart.
 fn f32_dir(
     name: &str,
     pairs: u32,
     pairs_txt: Option<&str>,
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../target/rp32-test-dirs")
-        .join(name);
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir)?;
-    }
-    std::fs::create_dir_all(&dir)?;
-    for k in 1..=pairs {
-        let mut load = String::new();
-        for run in [format!("py{k}"), format!("rs{k}")] {
-            let samples: Vec<String> = (1..=19)
-                .map(|utt| serde_json::to_string(&f32_sample(utt, k)))
-                .collect::<Result<_, _>>()?;
-            std::fs::write(dir.join(format!("{run}.jsonl")), samples.join("\n") + "\n")?;
-            for when in ["before", "after"] {
-                load.push_str(&format!("{run} {when} 00:00:00 {LOAD_OK}\n"));
-            }
-        }
-        std::fs::write(dir.join(format!("load{k}.txt")), load)?;
-    }
-    if let Some(text) = pairs_txt {
-        std::fs::write(dir.join("pairs.txt"), text)?;
-    }
+    let dir = scratch_dir("rp32-test-dirs", name)?;
+    write_f32_dir(&dir, pairs, pairs_txt)?;
     Ok(dir)
 }
 
@@ -621,10 +584,13 @@ fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
     let dir = rp32_dir();
     let count = pairs_to_read(&dir)?;
     let runs = load_alternated(&dir, count.pairs)?;
+    check_ports_held(&dir, count.pairs)?;
     let said = check_alternated_runs(&runs, count.recorded);
     if let Ok(report) = &said {
         println!("rp32 python:\n{}", render_columns(&report.python));
         println!("rp32 rust:\n{}", render_columns(&report.rust));
+        println!("rp32 share:\n{}", render_share_columns(report));
+        println!("rp32 lines:\n{}", render_line_counts(report));
         println!(
             "rp32: {} of {} utterances not slower; loads after {:?}",
             report.not_slower,
@@ -633,5 +599,616 @@ fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
         );
     }
     assert!(said.is_ok(), "{said:?}");
+    Ok(())
+}
+
+// ---- the translated share of the pooled Rust samples (T 4.42, 037 to 046) ----
+
+/// Takes the translation away from the samples of `run` whose utterance is in
+/// `utts`: a `final` stays, `t_tr` goes (the shape RP-31 reads as a held draft).
+fn without_translation(run: &mut AltRun, utts: std::ops::RangeInclusive<u32>) {
+    for sample in run.samples.iter_mut().filter(|s| utts.contains(&s.utt)) {
+        sample.t_tr_us = None;
+    }
+}
+
+/// S50: of the 57 valid Rust samples, 50 are translated (run k = 3 lost u = 13 to 19).
+fn s50_runs() -> Vec<AltRun> {
+    let mut runs = f32_runs();
+    without_translation(&mut runs[5], 13..=19);
+    runs
+}
+
+/// S49: S50 and the Rust sample of k = 2, u = 19 without a translation.
+fn s49_runs() -> Vec<AltRun> {
+    let mut runs = s50_runs();
+    without_translation(&mut runs[3], 19..=19);
+    runs
+}
+
+/// What `check_translated_share` says about a share below 20 / 23.
+const SHARE_REASON: &str = "valid samples have a translation, 20 of 23 are needed";
+
+/// T-RP-32-037: 50 of 57 reaches 20 / 23 (50 x 23 = 1150 >= 57 x 20 = 1140).
+#[test]
+fn fifty_translated_of_57_valid_samples_pass_the_share() -> TestResult {
+    let report = check_alternated_runs(&s50_runs(), None)?;
+    assert_eq!(report.rust.l, stat(50, 1091, 1182));
+    assert_eq!(report.python.l, stat(57, 1102, 1191));
+    assert_eq!((report.comparison_set.len(), report.not_slower), (19, 19));
+    assert_eq!(report.rust_share, share_of(57, 50));
+    Ok(())
+}
+
+fn share_of(valid: usize, translated: usize) -> TranslatedShare {
+    TranslatedShare { valid, translated }
+}
+
+/// T-RP-32-038: 49 of 57 is one under (49 x 23 = 1127 < 1140). `L`, the
+/// percentiles and the paired comparison all pass, so the share is the only reason.
+#[test]
+fn forty_nine_translated_of_57_valid_samples_fail_the_share_alone() {
+    let said = check_alternated_runs(&s49_runs(), None);
+    rejected(
+        &said,
+        "49 of 57 valid samples have a translation, 20 of 23 are needed",
+    );
+    assert!(said.is_err_and(|why| !why.contains("p50")
+        && !why.contains("p95")
+        && !why.contains("not slower")),);
+}
+
+/// T-RP-32-039: the share, both percentiles and the paired comparison are all
+/// listed; none hides another.
+#[test]
+fn a_short_share_is_listed_beside_the_other_failures() {
+    let mut runs = s49_runs();
+    for index in [1, 3, 5] {
+        for utt in 1..=19 {
+            bump(&mut runs[index], utt, 30);
+        }
+    }
+    let said = check_alternated_runs(&runs, None);
+    rejected(&said, "49 of 57 valid samples have a translation");
+    rejected(&said, "p50 rust 1121 ms > python 1102 ms");
+    rejected(&said, "p95 rust 1211 ms > python 1191 ms");
+    rejected(
+        &said,
+        "0 of 19 utterances are not slower than python, 17 are needed",
+    );
+}
+
+/// A Rust sample of `utt` and `repeat` in the shape of F32 (`L_asr` 700 + u ms,
+/// a decode of `decode_ms`), translated.
+fn extra_sample(utt: u32, repeat: u32, decode_ms: f64) -> Sample {
+    Sample {
+        repeat,
+        final_latency_ms: Some(decode_ms),
+        ..f32_sample(utt, 1)
+    }
+}
+
+/// The decode that leaves a silence gap of `gap_ms` for utterance `utt`.
+fn decode_for_gap(utt: u32, gap_ms: f64) -> f64 {
+    f64::from(700 + utt) - gap_ms
+}
+
+/// T-RP-32-040: samples that are not valid stay out of the denominator: five
+/// without a `final`, three whose silence gap is 299.999 ms (the limit is 300).
+#[test]
+fn samples_that_are_not_valid_stay_out_of_the_denominator() -> TestResult {
+    let mut runs = s50_runs();
+    for utt in 1..=5 {
+        runs[1].samples.push(Sample {
+            t_final_us: None,
+            t_tr_us: None,
+            ..extra_sample(utt, 2, 100.0)
+        });
+    }
+    for utt in 6..=8 {
+        runs[1]
+            .samples
+            .push(extra_sample(utt, 2, decode_for_gap(utt, 299.999)));
+    }
+    let report = check_alternated_runs(&runs, None)?;
+    assert_eq!(report.rust_share, share_of(57, 50));
+    // The limit itself (300.000 ms) is valid: the same sample one micro-unit short is not.
+    let mut at_the_limit = s50_runs();
+    at_the_limit[1]
+        .samples
+        .push(extra_sample(6, 2, decode_for_gap(6, 300.0)));
+    assert_eq!(
+        check_alternated_runs(&at_the_limit, None)?.rust_share,
+        share_of(58, 51)
+    );
+    Ok(())
+}
+
+/// T-RP-32-041: the denominator counts samples, not the `final`s tied to them.
+#[test]
+fn the_denominator_counts_samples_not_finals() -> TestResult {
+    let mut runs = s50_runs();
+    for run in runs
+        .iter_mut()
+        .filter(|r| r.implementation == Implementation::Rust)
+    {
+        for sample in &mut run.samples {
+            sample.finals = 2;
+        }
+    }
+    check_alternated_runs(&runs, None)?;
+    Ok(())
+}
+
+/// F32L: three pairs of 23 utterances x 5 repeats. Every `L` is 1000 ms, every
+/// sample valid (`L_asr` 700 ms, a decode of 300 ms).
+fn f32l_run(implementation: Implementation) -> AltRun {
+    let samples = (1..=23)
+        .flat_map(|utt| (1..=5).map(move |repeat| (utt, repeat)))
+        .map(|(utt, repeat)| Sample {
+            repeat,
+            utt,
+            t_final_us: Some(700_000),
+            t_tr_us: Some(1_000_000),
+            final_latency_ms: Some(300.0),
+            ..f32_sample(utt, 1)
+        })
+        .collect();
+    AltRun {
+        implementation,
+        load_before: Some(String::from(LOAD_OK)),
+        load_after: Some(String::from(LOAD_OK)),
+        samples,
+        rules: None,
+    }
+}
+
+fn f32l_runs() -> Vec<AltRun> {
+    (0..3)
+        .flat_map(|_| {
+            [
+                f32l_run(Implementation::Python),
+                f32l_run(Implementation::Rust),
+            ]
+        })
+        .collect()
+}
+
+/// F32L with 45 Rust samples untranslated: two each for u = 1 to 22, one for u = 23.
+fn f32l_with_45_untranslated() -> Vec<AltRun> {
+    let mut runs = f32l_runs();
+    for sample in &mut runs[1].samples {
+        let drops = if sample.utt <= 22 { 2 } else { 1 };
+        if sample.repeat <= drops {
+            sample.t_tr_us = None;
+        }
+    }
+    runs
+}
+
+/// T-RP-32-043: 300 of 345 is exactly 20 / 23 (300 x 23 = 6900 = 345 x 20).
+#[test]
+fn three_hundred_of_345_valid_samples_pass_the_share_exactly() -> TestResult {
+    let report = check_alternated_runs(&f32l_with_45_untranslated(), None)?;
+    assert_eq!((report.comparison_set.len(), report.not_slower), (23, 23));
+    Ok(())
+}
+
+/// T-RP-32-044: one more untranslated sample (299 of 345) is under.
+#[test]
+fn two_hundred_ninety_nine_of_345_valid_samples_fail_the_share() {
+    let mut runs = f32l_with_45_untranslated();
+    for sample in runs[1]
+        .samples
+        .iter_mut()
+        .filter(|s| s.utt == 23 && s.repeat == 2)
+    {
+        sample.t_tr_us = None;
+    }
+    let said = check_alternated_runs(&runs, None);
+    rejected(
+        &said,
+        "299 of 345 valid samples have a translation, 20 of 23 are needed",
+    );
+    assert!(said.is_err_and(|why| !why.contains("p50")
+        && !why.contains("p95")
+        && !why.contains("not slower")),);
+}
+
+/// T-RP-32-042 (PY49): Python's own share is short (49 of 57) and is written
+/// beside Rust's, but the judgement reads Rust's share only.
+#[test]
+fn a_short_python_share_is_recorded_and_not_judged() -> TestResult {
+    let mut runs = f32_runs();
+    without_translation(&mut runs[0], 1..=8);
+    let report = check_alternated_runs(&runs, None)?;
+    assert_eq!(report.python.l, stat(49, 1113, 1191));
+    assert_eq!(report.rust.l, stat(57, 1102, 1191));
+    assert_eq!((report.comparison_set.len(), report.not_slower), (11, 11));
+    assert_eq!(report.python_share, share_of(57, 49));
+    assert_eq!(report.rust_share, share_of(57, 57));
+    let text = render_share_columns(&report);
+    assert!(
+        text.contains(&format!("{SHARE_COLUMN_RUST} 57 / 57")),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("{SHARE_COLUMN_PYTHON} 49 / 57")),
+        "{text}"
+    );
+    Ok(())
+}
+
+/// The `rs1` to `rs3` rows of the recorded dir counted straight from the JSON
+/// (the `jq` of T-RP-32-045): the rows with a `final` whose silence gap reaches
+/// 300 ms, and those among them with a `t_tr_us`.
+fn recorded_rust_share() -> Result<(usize, usize), Box<dyn std::error::Error>> {
+    let (mut valid, mut translated) = (0, 0);
+    for number in 1..=3 {
+        let text = std::fs::read_to_string(rp32_dir().join(format!("rs{number}.jsonl")))?;
+        for line in text.lines().filter(|line| !line.trim().is_empty()) {
+            let row: Value = serde_json::from_str(line)?;
+            if !row_has_a_valid_gap(&row) {
+                continue;
+            }
+            valid += 1;
+            translated += usize::from(row.get("t_tr_us").is_some_and(|t| !t.is_null()));
+        }
+    }
+    Ok((valid, translated))
+}
+
+/// `.t_final_us != null and ((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 300`.
+fn row_has_a_valid_gap(row: &Value) -> bool {
+    let number = |key: &str| row.get(key).and_then(Value::as_f64);
+    match (
+        number("t_final_us"),
+        number("t_end_us"),
+        number("final_latency_ms"),
+    ) {
+        (Some(t_final), Some(t_end), Some(latency)) => {
+            (t_final - t_end) / 1000.0 - latency >= 300.0
+        }
+        _ => false,
+    }
+}
+
+/// T-RP-32-045: the recorded runs hold 277 translated of 300 valid Rust samples,
+/// which reaches 20 / 23 (277 x 23 = 6371 >= 6000). Whether the dir passes the
+/// other checks or not, the share is not among its reasons.
+#[test]
+fn the_recorded_rp32_dir_has_enough_translated_samples() -> TestResult {
+    let counted = recorded_rust_share()?;
+    assert_eq!(counted, (300, 277));
+    assert!(counted.1 * 23 >= counted.0 * 20);
+    let dir = rp32_dir();
+    let count = pairs_to_read(&dir)?;
+    // No rule is read: the count is the one at the 300 ms line, as `jq` counts it.
+    let report = alternated_report(&load_runs(&dir, count.pairs)?, count.recorded)?;
+    assert_eq!(report.rust_share, share_of(300, 277));
+    let text = render_share_columns(&report);
+    assert!(
+        text.contains(&format!("{SHARE_COLUMN_RUST} 277 / 300")),
+        "{text}"
+    );
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .err()
+            .is_none_or(|why| !why.contains(SHARE_REASON)),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-046: an output without a translated-share column is refused, by
+/// the name of the column that is missing.
+#[test]
+fn a_missing_translated_share_column_is_rejected() -> TestResult {
+    let report = check_alternated_runs(&s50_runs(), None)?;
+    let text = render_share_columns(&report);
+    check_share_columns_written(&text)?;
+    for heading in [SHARE_COLUMN_RUST, SHARE_COLUMN_PYTHON] {
+        let said = check_share_columns_written(&without_a_column(&text, heading));
+        assert!(said.is_err_and(|why| why.contains(heading)), "{heading}");
+    }
+    Ok(())
+}
+
+// ---- the line of a Rust sample follows the rule that closed it (T-RP-32-047 on) ----
+
+/// The early detector's silence in milliseconds, from the constant the server logs.
+fn early_ms() -> f64 {
+    f64::from(EARLY_MIN_SILENCE_MS)
+}
+
+/// The F32 runs whose first Rust run records a rule for each sample: the base
+/// samples closed by the silence rule, and one more Rust sample (repeat 2,
+/// utterance 6) closed by `rule` with a silence gap of `gap_ms`.
+fn report_with_extra(rule: Rule, gap_ms: f64) -> Result<AltReport, Failure> {
+    let mut runs = f32_runs();
+    let mut rules: BTreeMap<(u32, u32), Rule> =
+        (1..=19).map(|utt| ((1, utt), Rule::Silence)).collect();
+    runs[1]
+        .samples
+        .push(extra_sample(6, 2, decode_for_gap(6, gap_ms)));
+    rules.insert((2, 6), rule);
+    runs[1].rules = Some(rules);
+    alternated_report(&runs, None)
+}
+
+/// Whether the extra sample of [`report_with_extra`] counts as valid: the Rust
+/// share holds 58 valid samples instead of the 57 of the base.
+fn extra_is_valid(rule: Rule, gap_ms: f64) -> Result<bool, Failure> {
+    Ok(report_with_extra(rule, gap_ms)?.rust_share.valid == 58)
+}
+
+/// T-RP-32-047: a sample the early rule closed is valid from the early line up,
+/// at the line and 1 ms over, and not 1 ms or 0.001 ms under.
+#[test]
+fn an_early_sample_is_valid_from_the_early_line() -> TestResult {
+    let line = early_ms();
+    assert!(!extra_is_valid(Rule::Early, line - 1.0)?);
+    assert!(!extra_is_valid(Rule::Early, line - 0.001)?);
+    assert!(extra_is_valid(Rule::Early, line)?);
+    assert!(extra_is_valid(Rule::Early, line + 1.0)?);
+    Ok(())
+}
+
+/// T-RP-32-048: a sample the silence rule closed is valid from `min_silence` up.
+#[test]
+fn a_silence_sample_is_valid_from_min_silence() -> TestResult {
+    let line = MIN_SILENCE_MS as f64;
+    assert!(!extra_is_valid(Rule::Silence, line - 1.0)?);
+    assert!(!extra_is_valid(Rule::Silence, line - 0.001)?);
+    assert!(extra_is_valid(Rule::Silence, line)?);
+    assert!(extra_is_valid(Rule::Silence, line + 1.0)?);
+    Ok(())
+}
+
+/// T-RP-32-049: the limit on speech and a flush wait for no silence of their own
+/// and are held to `min_silence`, not to the early line.
+#[test]
+fn a_max_speech_or_flush_sample_is_held_to_min_silence() -> TestResult {
+    let line = MIN_SILENCE_MS as f64;
+    for rule in [Rule::MaxSpeech, Rule::Flush] {
+        assert!(!extra_is_valid(rule, early_ms())?, "{rule:?}");
+        assert!(!extra_is_valid(rule, line - 1.0)?, "{rule:?}");
+        assert!(extra_is_valid(rule, line)?, "{rule:?}");
+    }
+    Ok(())
+}
+
+/// T-RP-32-050: an early sample whose gap is between the two lines is valid on
+/// its own line, invalid on `min_silence`, and counted as gained by `early`.
+#[test]
+fn an_early_sample_between_the_lines_is_gained() -> TestResult {
+    let report = report_with_extra(Rule::Early, early_ms() + 1.0)?;
+    assert_eq!(report.rust_share.valid, 58);
+    assert_eq!(report.flat.rust_share.valid, 57);
+    assert_eq!(report.gained.get("early"), Some(&1));
+    assert_eq!(report.gained.values().sum::<usize>(), 1);
+    Ok(())
+}
+
+/// T-RP-32-051: a silence sample under `min_silence` is invalid on both lines,
+/// and nothing is gained.
+#[test]
+fn a_silence_sample_under_min_silence_gains_nothing() -> TestResult {
+    let report = report_with_extra(Rule::Silence, early_ms() + 1.0)?;
+    assert_eq!(report.rust_share.valid, 57);
+    assert_eq!(report.flat.rust_share.valid, 57);
+    assert_eq!(report.gained.values().sum::<usize>(), 0);
+    Ok(())
+}
+
+/// T-RP-32-052: a run that records rules refuses a sample with a `final` and
+/// no rule, by run and utterance; it is not read as `min_silence`.
+#[test]
+fn a_sample_with_a_final_and_no_rule_is_refused() {
+    let mut runs = f32_runs();
+    let rules: BTreeMap<(u32, u32), Rule> = (1..=18).map(|utt| ((1, utt), Rule::Silence)).collect();
+    runs[1].rules = Some(rules);
+    let said = alternated_report(&runs, None);
+    rejected(
+        &said,
+        "run 2: repeat 1 utt 19 has a final and no recorded rule",
+    );
+}
+
+/// T-RP-32-053: the line of each rule, and the names the log gives.
+#[test]
+fn the_line_of_a_rule_comes_from_the_early_constant_or_min_silence() {
+    let early = i64::from(EARLY_MIN_SILENCE_MS);
+    assert_eq!(silence_line_ms(Rule::Early, MIN_SILENCE_MS), early);
+    for rule in [Rule::Silence, Rule::MaxSpeech, Rule::Flush] {
+        assert_eq!(silence_line_ms(rule, MIN_SILENCE_MS), MIN_SILENCE_MS);
+    }
+    assert_eq!(rule_named("early"), Some(Rule::Early));
+    assert_eq!(rule_named("max_speech"), Some(Rule::MaxSpeech));
+    for bad in ["Early", "", "silence ", "none"] {
+        assert_eq!(rule_named(bad), None, "{bad:?}");
+    }
+}
+
+fn decided(id: u64, rule: &str) -> String {
+    format!(
+        "{{\"event\":\"asr.endpoint.decided\",\"id\":{id},\"rule\":\"{rule}\",\"silence_ms\":0}}\n"
+    )
+}
+
+/// T-RP-32-054: only the decided lines are read; a duplicate id, a rule the
+/// server does not have, and a decided line that is not JSON are refused.
+#[test]
+fn the_decided_lines_are_read_and_the_bad_ones_refused() -> TestResult {
+    let log = format!(
+        "{{\"event\":\"asr.ready\"}}\nnot json at all\n{}{}",
+        decided(1, "early"),
+        decided(2, "silence")
+    );
+    let found = decided_rules(&log)?;
+    assert_eq!(found.len(), 2);
+    assert_eq!(found.get(&1), Some(&Rule::Early));
+    assert_eq!(found.get(&2), Some(&Rule::Silence));
+    let twice = decided_rules(&(decided(3, "early") + &decided(3, "early")));
+    assert!(twice.is_err_and(|why| why.contains("twice for id 3")));
+    let unknown = decided_rules(&decided(4, "quick"));
+    assert!(unknown.is_err_and(|why| why.contains("id 4") && why.contains("not a rule")));
+    let broken = decided_rules("{\"event\":\"asr.endpoint.decided\",\"id\":");
+    assert!(broken.is_err_and(|why| why.contains("not JSON")));
+    Ok(())
+}
+
+fn final_line(id: &str, t_us: i64) -> String {
+    format!("{{\"event\":{{\"id\":\"{id}\",\"text\":\"x\",\"type\":\"final\"}},\"t_us\":{t_us}}}\n")
+}
+
+/// T-RP-32-055: every `final` with no decided line is named with the run, and
+/// the ones that have a line are not.
+#[test]
+fn every_final_without_a_decided_line_is_named_with_its_run() {
+    let samples = [f32_sample(1, 1), f32_sample(2, 1), f32_sample(3, 1)];
+    let events = final_line("mic-1", 701_000)
+        + &final_line("mic-2", 702_000)
+        + &final_line("mic-3", 703_000);
+    let said = closing_rules("rs1", &samples, &events, &decided(1, "early"));
+    assert!(
+        said.as_ref().is_err_and(|why| why.contains("rs1")
+            && why.contains("mic-2, mic-3")
+            && !why.contains("mic-1")),
+        "{said:?}"
+    );
+}
+
+/// T-RP-32-056: the rule of a sample is the rule of the `final` received when the
+/// sample closed; two `final`s at that moment with different rules are refused.
+#[test]
+fn the_closing_final_of_a_sample_gives_its_rule() -> TestResult {
+    let samples = [f32_sample(1, 1), f32_sample(2, 1)];
+    let events = final_line("mic-1", 701_000) + &final_line("mic-2", 702_000);
+    let log = decided(1, "early") + &decided(2, "silence");
+    let rules = closing_rules("rs1", &samples, &events, &log)?;
+    assert_eq!(rules.get(&(1, 1)), Some(&Rule::Early));
+    assert_eq!(rules.get(&(1, 2)), Some(&Rule::Silence));
+    let same_moment = final_line("mic-1", 701_000) + &final_line("mic-2", 701_000);
+    let split = closing_rules("rs1", &samples[..1], &same_moment, &log);
+    assert!(split.is_err_and(|why| why.contains("different rules")));
+    let nothing = closing_rules("rs1", &samples[..1], &final_line("mic-1", 5), &log);
+    assert!(nothing.is_err_and(|why| why.contains("no final arrived")));
+    Ok(())
+}
+
+/// The F32 dir whose first Rust run has utterance 5 closed by `rule` and a
+/// silence gap of 200 ms: the early line and not `min_silence` is over it.
+fn dir_with_gap_200_closed_by(
+    name: &str,
+    rule: &str,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let dir = f32_dir(name, 3, None)?;
+    let samples = dir.join("rs1.jsonl");
+    let mut lines = Vec::new();
+    for line in std::fs::read_to_string(&samples)?.lines() {
+        let mut row: Value = serde_json::from_str(line)?;
+        if row.get("utt").and_then(Value::as_i64) == Some(5) {
+            row["final_latency_ms"] = Value::from(505.0);
+        }
+        lines.push(row.to_string());
+    }
+    std::fs::write(&samples, lines.join("\n") + "\n")?;
+    let log = dir.join("rs1.hayamimi.stdout.log");
+    let text = std::fs::read_to_string(&log)?;
+    let from = "\"id\":5,\"rule\":\"silence\"";
+    assert!(text.contains(from), "the F32 log lost its id 5 line");
+    std::fs::write(
+        &log,
+        text.replace(from, &format!("\"id\":5,\"rule\":\"{rule}\"")),
+    )?;
+    Ok(dir)
+}
+
+/// T-RP-32-057: a directory is read end to end. The same 200 ms gap is valid
+/// when the log says the early rule closed the utterance and invalid when it
+/// says the silence rule did.
+#[test]
+fn a_dir_judges_the_gap_by_the_rule_its_log_names() -> TestResult {
+    let early = dir_with_gap_200_closed_by("t057-early", "early")?;
+    let report = alternated_report(&load_alternated(&early, 3)?, None)?;
+    assert_eq!(report.rust_share.valid, 57);
+    assert_eq!(report.flat.rust_share.valid, 56);
+    assert_eq!(report.gained.get("early"), Some(&1));
+    let silence = dir_with_gap_200_closed_by("t057-silence", "silence")?;
+    let report = alternated_report(&load_alternated(&silence, 3)?, None)?;
+    assert_eq!(report.rust_share.valid, 56);
+    assert_eq!(report.gained.values().sum::<usize>(), 0);
+    Ok(())
+}
+
+/// T-RP-32-058: a Rust run whose log lacks the decided line of one `final` is
+/// refused with the run and the id, and no value is printed.
+#[test]
+fn a_dir_with_an_unjoined_final_is_refused_by_run_and_id() -> TestResult {
+    let dir = f32_dir("t058", 3, None)?;
+    let log = dir.join("rs2.hayamimi.stdout.log");
+    let kept: Vec<String> = std::fs::read_to_string(&log)?
+        .lines()
+        .filter(|line| !line.contains("\"id\":7,"))
+        .map(str::to_owned)
+        .collect();
+    std::fs::write(&log, kept.join("\n") + "\n")?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref().is_err_and(|why| why.contains("rs2")
+            && why.contains("mic-7")
+            && !why.contains("mic-8")
+            && !why.contains("p50")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-059: a Rust run without its stdout log is refused by the file's name.
+#[test]
+fn a_dir_without_a_hayamimi_stdout_log_is_refused_by_name() -> TestResult {
+    let dir = f32_dir("t059", 3, None)?;
+    assert!(missing_rule_files(&dir, 3).is_empty());
+    std::fs::remove_file(dir.join("rs2.hayamimi.stdout.log"))?;
+    assert_eq!(missing_rule_files(&dir, 3), vec!["rs2.hayamimi.stdout.log"]);
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref()
+            .is_err_and(|why| why.contains("rs2.hayamimi.stdout.log") && !why.contains("p50")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// T-RP-32-060: the counts at both lines are written, with the margin over the
+/// threshold in words: 2 over at 19 of 19, 0 at 17 of 19.
+#[test]
+fn both_counts_and_the_margin_are_written() -> TestResult {
+    let all = check_alternated_runs(&f32_runs(), None)?;
+    let text = render_line_counts(&all);
+    assert!(text.contains("not slower, 300 ms line: 19 / 19"), "{text}");
+    assert!(
+        text.contains("not slower, per-row line: 19 / 19 (17 needed, margin 2)"),
+        "{text}"
+    );
+    let edge = check_alternated_runs(&slower_utterances(&[1, 2]), None)?;
+    let text = render_line_counts(&edge);
+    assert!(
+        text.contains("17 / 19 (17 needed, margin 0: one utterance swapped fails)"),
+        "{text}"
+    );
+    let early = report_with_extra(Rule::Early, early_ms() + 1.0)?;
+    let text = render_line_counts(&early);
+    assert!(
+        text.contains("not on the 300 ms line: 1 (early 1,"),
+        "{text}"
+    );
+    assert!(
+        text.contains("quality python: two or more finals 0 / 57"),
+        "{text}"
+    );
+    assert!(text.contains("no final 0"), "{text}");
     Ok(())
 }

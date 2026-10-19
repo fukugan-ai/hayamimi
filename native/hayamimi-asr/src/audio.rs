@@ -130,6 +130,23 @@ impl History {
         self.buffer.range(from..).copied().collect()
     }
 
+    /// The audio from absolute sample `from` to `to`, clamped to what the
+    /// history still holds. Nothing is moved.
+    pub fn slice(&self, from: usize, to: usize) -> Vec<f32> {
+        let low = from.max(self.offset) - self.offset;
+        let high = to.saturating_sub(self.offset).min(self.buffer.len());
+        if low >= high {
+            return Vec::new();
+        }
+        self.buffer.range(low..high).copied().collect()
+    }
+
+    /// Records that the audio up to `end` is spoken for, so that the pre-roll
+    /// of the next segment does not reach back into it.
+    pub fn mark_segment_end(&mut self, end: usize) {
+        self.last_segment_end = self.last_segment_end.max(end);
+    }
+
     /// The segment with up to a second of real audio in front of it, clamped
     /// by the previous segment's end and by what the history still holds.
     pub fn with_preroll(&mut self, start: usize, segment: &[f32]) -> Vec<f32> {
@@ -185,6 +202,31 @@ mod tests {
         assert_eq!(out.len(), 16_000 + 4);
         assert_eq!(out[0], 14_000.0);
         assert_eq!(out[16_000], 7.0);
+    }
+
+    #[test]
+    fn a_slice_is_clamped_to_what_the_history_holds() {
+        let mut history = History::new();
+        history.push(&ramp(0, 100));
+        assert_eq!(history.slice(10, 13), vec![10.0, 11.0, 12.0]);
+        assert_eq!(history.slice(98, 500), vec![98.0, 99.0]);
+        assert!(history.slice(50, 50).is_empty());
+        assert!(history.slice(200, 300).is_empty());
+    }
+
+    #[test]
+    fn a_marked_segment_end_stops_the_next_preroll() {
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        history.mark_segment_end(14_500);
+        let out = history.with_preroll(15_000, &[7.0; 4]);
+        assert_eq!(out.len(), 500 + 4);
+        assert_eq!(out[0], 14_500.0);
+        // A mark below the recorded end changes nothing: the second pre-roll
+        // stops at the end of the first segment (15_004).
+        history.mark_segment_end(1);
+        let again = history.with_preroll(30_000, &[7.0; 4]);
+        assert_eq!(again.len(), 14_996 + 4);
     }
 
     #[test]

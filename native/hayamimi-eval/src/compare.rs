@@ -83,7 +83,11 @@ fn silence_gap_micros(sample: &Sample) -> Option<i64> {
     Some(l_asr_us * 1000 - ms_to_micros(l_dec_ms))
 }
 
-/// Whether the sample's `L_asr` is the recognizer's: the server's silence fits inside it.
+/// Whether the sample's `L_asr` is the recognizer's: the silence the rule that
+/// closed it waited for fits inside it. `min_silence_ms` is the line of this
+/// sample, so a caller that knows the closing rule of each sample passes the
+/// line of that rule (RP-32); a caller that knows none passes the run's
+/// `--min-silence` for every sample.
 pub fn is_valid_l_asr(sample: &Sample, min_silence_ms: i64) -> bool {
     silence_gap_micros(sample).is_some_and(|gap| gap >= min_silence_ms * 1_000_000)
 }
@@ -114,9 +118,9 @@ impl TranslatedShare {
     }
 }
 
-/// Counts the valid samples of a run and those among them with a translation.
-pub fn translated_share(samples: &[Sample], min_silence_ms: i64) -> TranslatedShare {
-    let valid = valid_samples(samples, min_silence_ms);
+/// Counts the samples of `valid` (already judged valid, each against its own
+/// line) and those among them with a translation.
+pub fn share_of_valid(valid: &[&Sample]) -> TranslatedShare {
     TranslatedShare {
         valid: valid.len(),
         translated: valid
@@ -126,6 +130,11 @@ pub fn translated_share(samples: &[Sample], min_silence_ms: i64) -> TranslatedSh
     }
 }
 
+/// Counts the valid samples of a run and those among them with a translation.
+pub fn translated_share(samples: &[Sample], min_silence_ms: i64) -> TranslatedShare {
+    share_of_valid(&valid_samples(samples, min_silence_ms))
+}
+
 /// The share of valid samples with a translation reaches 20 / 23. A run
 /// below it fails however small its `L` is: a translation the checker stops
 /// leaves no `L`, so a fast `L` over the rest proves nothing.
@@ -133,7 +142,11 @@ pub fn check_translated_share(
     samples: &[Sample],
     min_silence_ms: i64,
 ) -> Result<TranslatedShare, EvalError> {
-    let share = translated_share(samples, min_silence_ms);
+    check_share(translated_share(samples, min_silence_ms))
+}
+
+/// [`check_translated_share`] over a share that is already counted.
+pub fn check_share(share: TranslatedShare) -> Result<TranslatedShare, EvalError> {
     if share.valid == 0 {
         return Err(invalid(
             "the run has no valid sample: an empty run is not a pass",
@@ -472,6 +485,18 @@ mod tests {
         // The boundary moves with the count: 40 of 46 is exactly 20 / 23.
         assert!(check_translated_share(&run_of(46, 40), SILENCE_MS).is_ok());
         assert!(check_translated_share(&run_of(46, 39), SILENCE_MS).is_err());
+    }
+
+    #[test]
+    fn a_share_counted_beforehand_is_judged_like_one_counted_here() {
+        let run = run_of(23, 20);
+        let valid: Vec<&Sample> = run.iter().collect();
+        assert_eq!(share_of_valid(&valid), translated_share(&run, SILENCE_MS));
+        assert!(check_share(share_of_valid(&valid)).is_ok());
+        let short = run_of(23, 19);
+        let valid: Vec<&Sample> = short.iter().collect();
+        assert!(check_share(share_of_valid(&valid)).is_err());
+        assert!(check_share(share_of_valid(&[])).is_err());
     }
 
     #[test]

@@ -63,6 +63,10 @@ fn utterance() -> Final {
         },
         punct_error: None,
         speaker_audio: Vec::new(),
+        endpoint: hayamimi_asr::endpoint::Decision {
+            rule: hayamimi_asr::endpoint::Rule::Silence,
+            silence_ms: 300,
+        },
     }
 }
 

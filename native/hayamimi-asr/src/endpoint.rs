@@ -1,0 +1,376 @@
+//! The end of an utterance: which rule ended it, and whether a sentence read
+//! at the early detector's notice is complete enough to be finalised then.
+//!
+//! The tables are constants. A Japanese sentence is complete when it ends in
+//! 。 ? ! (or their full-width forms), the form before the mark is a sentence
+//! ending and not a connective. An English sentence is complete when it ends
+//! in . ? ! and its last word does not go on. Other languages are never
+//! judged, so an early candidate in them is not used.
+
+/// Sentence endings that can close a Japanese sentence.
+const JA_FINAL: [&str; 17] = [
+    "です",
+    "ます",
+    "ました",
+    "でした",
+    "ません",
+    "ない",
+    "なかった",
+    "ている",
+    "ていた",
+    "た",
+    "だ",
+    "ね",
+    "よ",
+    "か",
+    "う",
+    "る",
+    "い",
+];
+
+/// Connective forms: a Japanese sentence that ends in one of these goes on.
+const JA_CONNECTIVE: [&str; 14] = [
+    "が",
+    "けど",
+    "けれど",
+    "けれども",
+    "て",
+    "で",
+    "し",
+    "から",
+    "ので",
+    "のに",
+    "ば",
+    "たら",
+    "と",
+    "ながら",
+];
+
+/// Words an English sentence does not end on.
+const EN_CONTINUATION: [&str; 22] = [
+    "and", "but", "so", "because", "the", "a", "an", "to", "of", "or", "that", "with", "for", "in",
+    "on", "at", "by", "if", "when", "as", "than", "then",
+];
+
+/// How the end of an utterance is decided.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// The early detector may finalise a complete sentence before the silence rule.
+    Early,
+    /// Only the silence rule of the main detector ends an utterance.
+    Silence,
+}
+
+/// The rule that ended one utterance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rule {
+    /// A complete sentence at a notice of the early detector.
+    Early,
+    /// The main detector's silence.
+    Silence,
+    /// The main detector's limit on continuous speech.
+    MaxSpeech,
+    /// The speech in progress was cut by a flush.
+    Flush,
+}
+
+impl Rule {
+    /// The name the log gives the rule.
+    pub fn name(self) -> &'static str {
+        match self {
+            Rule::Early => "early",
+            Rule::Silence => "silence",
+            Rule::MaxSpeech => "max_speech",
+            Rule::Flush => "flush",
+        }
+    }
+}
+
+/// What ended an utterance, for the log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Decision {
+    pub rule: Rule,
+    /// The silence the rule waited for, in milliseconds; 0 for a limit or a flush.
+    pub silence_ms: u32,
+}
+
+/// A confirmed sentence inside the voice the main detector is still in: the
+/// sample the text was finalised at, and where the early detector's stretch of
+/// voice ended (any later stretch of voice starts after it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Line {
+    pub at: usize,
+    pub floor: usize,
+}
+
+/// The sentence read at a candidate that was not complete, kept so that it is
+/// not read again when the main detector ends the utterance where it stands.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Held<T> {
+    pub solved: T,
+    /// The sample the audio was read up to.
+    pub range_end: usize,
+    /// Where the early detector's stretch of voice ended.
+    pub floor: usize,
+    /// Whether the early detector read another stretch of voice since.
+    pub voice_after: bool,
+}
+
+/// What to do with a segment the main detector hands over.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Plan<T> {
+    /// Read it whole, as without the early detector.
+    Whole,
+    /// Read only what follows the line, as one segment starting there.
+    Rest(usize),
+    /// Everything in it is finalised already, or is silence: make no final.
+    Drop,
+    /// Use the sentence that was kept; the segment starts at the sample given.
+    Held(Held<T>, usize),
+}
+
+/// The early path's memory between two windows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct State<T> {
+    line: Option<Line>,
+    line_voice_after: bool,
+    held: Option<Held<T>>,
+}
+
+impl<T> Default for State<T> {
+    fn default() -> Self {
+        State {
+            line: None,
+            line_voice_after: false,
+            held: None,
+        }
+    }
+}
+
+impl<T> State<T> {
+    /// The line the voice in progress has been finalised up to.
+    pub fn line(&self) -> Option<Line> {
+        self.line
+    }
+
+    /// The early detector finished a stretch of voice that starts at `start`.
+    pub fn note_voice(&mut self, start: usize) {
+        if self.line.is_some_and(|line| start >= line.floor) {
+            self.line_voice_after = true;
+        }
+        if let Some(held) = self.held.as_mut().filter(|held| start >= held.floor) {
+            held.voice_after = true;
+        }
+    }
+
+    /// A complete sentence was finalised at `at`; nothing kept before it is of use.
+    pub fn confirm(&mut self, at: usize, floor: usize) {
+        self.line = Some(Line { at, floor });
+        self.line_voice_after = false;
+        self.held = None;
+    }
+
+    /// A sentence that is not complete was read up to `range_end`.
+    pub fn hold(&mut self, solved: T, range_end: usize, floor: usize) {
+        self.held = Some(Held {
+            solved,
+            range_end,
+            floor,
+            voice_after: false,
+        });
+    }
+
+    /// Forgets the line and the kept sentence.
+    pub fn clear(&mut self) {
+        *self = State::default();
+    }
+
+    /// What to do with the segment `seg_start..seg_end` of the main detector.
+    /// The state is cleared: the next utterance starts afresh. `tolerance` is
+    /// how far the segment's end may be from the end of the kept sentence's range.
+    pub fn plan(&mut self, seg_start: usize, seg_end: usize, tolerance: usize) -> Plan<T> {
+        let line = self.line.take();
+        let voice_after = std::mem::take(&mut self.line_voice_after);
+        let held = self
+            .held
+            .take()
+            .filter(|held| !held.voice_after && held.range_end.abs_diff(seg_end) <= tolerance);
+        match line {
+            Some(line) if line.at > seg_start => {
+                if seg_end <= line.at || !voice_after {
+                    Plan::Drop
+                } else if let Some(held) = held {
+                    Plan::Held(held, line.at)
+                } else {
+                    Plan::Rest(line.at)
+                }
+            }
+            _ => match held {
+                Some(held) => Plan::Held(held, seg_start),
+                None => Plan::Whole,
+            },
+        }
+    }
+}
+
+fn is_terminal(ch: char) -> bool {
+    matches!(ch, '。' | '？' | '！' | '.' | '?' | '!')
+}
+
+fn ja_complete(text: &str) -> bool {
+    let trimmed = text.trim_end();
+    if !trimmed.chars().last().is_some_and(is_terminal) {
+        return false;
+    }
+    let body = trimmed.trim_end_matches(is_terminal);
+    !JA_CONNECTIVE.iter().any(|tail| body.ends_with(tail))
+        && JA_FINAL.iter().any(|tail| body.ends_with(tail))
+}
+
+fn en_complete(text: &str) -> bool {
+    let trimmed = text.trim_end();
+    if !trimmed.chars().last().is_some_and(is_terminal) {
+        return false;
+    }
+    trimmed
+        .trim_end_matches(is_terminal)
+        .split_whitespace()
+        .next_back()
+        .map(str::to_lowercase)
+        .is_some_and(|word| !EN_CONTINUATION.contains(&word.as_str()))
+}
+
+/// Whether `text`, read in `lang`, is a complete sentence. Only ja and en are judged.
+pub fn is_complete(lang: &str, text: &str) -> bool {
+    match lang {
+        "ja" => ja_complete(text),
+        "en" => en_complete(text),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_japanese_sentence_is_complete_with_a_sentence_ending_and_no_connective() {
+        assert!(is_complete("ja", "今日は雨です。"));
+        assert!(is_complete("ja", "本当ですか？"));
+        assert!(!is_complete("ja", "雨が降っていますが。"));
+        assert!(!is_complete("ja", "今日は雨です"));
+        assert!(!is_complete("ja", "そして、"));
+        assert!(!is_complete("ja", ""));
+    }
+
+    #[test]
+    fn an_english_sentence_is_complete_when_its_last_word_does_not_go_on() {
+        assert!(is_complete("en", "It is raining."));
+        assert!(is_complete("en", "Is it raining?"));
+        assert!(!is_complete("en", "It is raining and."));
+        assert!(!is_complete("en", "It is raining"));
+        assert!(!is_complete("en", "."));
+    }
+
+    #[test]
+    fn a_language_outside_ja_and_en_is_never_complete() {
+        assert!(!is_complete("zh", "今天下雨了。"));
+        assert!(!is_complete("", "It is raining."));
+    }
+
+    const TOLERANCE: usize = 512;
+
+    #[test]
+    fn a_segment_with_nothing_kept_is_read_whole() {
+        let mut state: State<&str> = State::default();
+        assert_eq!(state.plan(0, 1000, TOLERANCE), Plan::Whole);
+    }
+
+    #[test]
+    fn a_segment_after_a_line_with_no_voice_after_it_makes_no_final() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        assert_eq!(state.plan(0, 1200, TOLERANCE), Plan::Drop);
+        assert_eq!(state.line(), None);
+    }
+
+    #[test]
+    fn voice_after_the_line_makes_the_rest_one_segment() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        state.note_voice(900);
+        assert_eq!(state.plan(0, 2000, TOLERANCE), Plan::Rest(800));
+    }
+
+    #[test]
+    fn voice_that_starts_before_the_floor_is_not_voice_after() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        state.note_voice(699);
+        assert_eq!(state.plan(0, 2000, TOLERANCE), Plan::Drop);
+    }
+
+    #[test]
+    fn a_segment_that_starts_after_the_line_is_the_next_utterance() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        assert_eq!(state.plan(900, 2000, TOLERANCE), Plan::Whole);
+        assert_eq!(state.line(), None);
+    }
+
+    #[test]
+    fn a_kept_sentence_is_used_when_the_segment_ends_within_a_window_of_its_range() {
+        let mut state: State<&str> = State::default();
+        state.hold("kept", 1000, 900);
+        assert_eq!(
+            state.plan(100, 1000 + TOLERANCE, TOLERANCE),
+            Plan::Held(
+                Held {
+                    solved: "kept",
+                    range_end: 1000,
+                    floor: 900,
+                    voice_after: false
+                },
+                100
+            )
+        );
+    }
+
+    #[test]
+    fn a_kept_sentence_is_not_used_when_the_range_differs_or_voice_came_after() {
+        let mut far: State<&str> = State::default();
+        far.hold("kept", 1000, 900);
+        assert_eq!(far.plan(100, 1000 + TOLERANCE + 1, TOLERANCE), Plan::Whole);
+        let mut later: State<&str> = State::default();
+        later.hold("kept", 1000, 900);
+        later.note_voice(900);
+        assert_eq!(later.plan(100, 1000, TOLERANCE), Plan::Whole);
+    }
+
+    #[test]
+    fn a_kept_sentence_after_a_line_is_the_rest() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        state.note_voice(900);
+        state.hold("rest", 1500, 1400);
+        assert!(matches!(state.plan(0, 1500, TOLERANCE), Plan::Held(_, 800)));
+    }
+
+    #[test]
+    fn clearing_forgets_the_line_and_the_kept_sentence() {
+        let mut state: State<&str> = State::default();
+        state.confirm(800, 700);
+        state.hold("kept", 1000, 900);
+        state.clear();
+        assert_eq!(state, State::default());
+    }
+
+    #[test]
+    fn rules_are_named_for_the_log() {
+        let names: Vec<&str> = [Rule::Early, Rule::Silence, Rule::MaxSpeech, Rule::Flush]
+            .iter()
+            .map(|rule| rule.name())
+            .collect();
+        assert_eq!(names, ["early", "silence", "max_speech", "flush"]);
+    }
+}
