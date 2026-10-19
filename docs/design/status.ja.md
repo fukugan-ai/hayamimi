@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `a9fb7d5`（2026-10-15 に `git ls-remote origin refs/heads/main` で引いた `origin/main`）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `a7f4db6`（2026-10-20 の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -17,7 +17,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 
 | 残っている物 | 今の状態 | 持ち主 | 止めている物 | 根拠 |
 |---|---|---|---|---|
-| RP-32：Python と Rust を同じ負荷で交互に 3 対流す（E2E-1 の正式な判定） | 速度は、行ごとの線で 19 発話中 17 発話が Python より遅くない（必要は 17、余裕は 0 で、1 発話が入れ替わると落ちる）。300 ms の線では 16 / 19。Python の基準は 2026-10-15 の `py1`〜`py3` に固定し、流し直さない。品質は、どちらも Rust のほうが Python より悪い。`final` が 2 つ以上の発話の割合は Rust 27.83 %、Python 8.70 %。CER は Rust 14.20 %、Python 12.95 %。数は前の席の申告で、この文書は打ち直していない。記録は `docs/results/rp32/` | root-cause の席 | 品質の差（`final` の割れ方と CER）の原因が未特定であること | `3ba5ef2`、`0900a32`、`e745bd3`、`docs/results/rp32/` |
+| RP-32：Python と Rust を同じ負荷で交互に 3 対流す（E2E-1 の正式な判定） | 速度は、行ごとの線で 19 発話中 18 発話が Python より遅くない（必要は 17、余裕は 1）。300 ms の線では 16 / 19。この 2 つは `rp32` の `--ignored` の出力である。Python の基準は 2026-10-15 の `py1`〜`py3` に固定し、流し直さない。品質は、どちらも Rust のほうが Python より悪い。`final` が 2 つ以上の発話の割合は Rust 22.61 %、Python 8.70 %。CER は Rust 13.15 %、Python 12.95 %。品質の数は E2E の席の申告で、この文書は打ち直していない。記録は `docs/results/rp32/` | root-cause の席 | 発話 22 の `L` が Python より 103 ms 遅いことと、E の拒否文 3 件の原因が未特定であること | `a7f4db6`、`0900a32`、`e745bd3`、`docs/results/rp32/` |
 | RP-33：T が V に落ちた行の最初の訳の段ごとの列 | 可（2026-10-16 の Rust の 3 対）。数は前の席の申告で、この文書は打ち直していない。記録は `docs/results/rp32/` | なし | なし | `fccce49`、`3ba5ef2`、`docs/results/rp32/` |
 | RP-69：速報の訳を `final` で使い回す | 評議 GO・case 行を書いている | 評議の席 | 3.18 の評議 | `rust_port.ja.md` の 3.18、6 の RP-69 |
 | RP-70：末尾の `。` を足しただけの文の訳を使い回してよいことの品質の確認 | 評議 GO・case 行を書いている | 評議の席 | 3.18 の評議 | `rust_port.ja.md` の 3.18、6 の RP-70 |

@@ -211,7 +211,7 @@ fn count_of_type(rows: &[Value], kind: &str) -> usize {
 }
 
 /// The `final` events of each recorded Rust run `rs1` to `rs3`, in run order.
-const RECORDED_FINALS: [usize; 3] = [149, 149, 149];
+const RECORDED_FINALS: [usize; 3] = [141, 141, 141];
 
 /// T-RP-72-011: the recorded RP-32 runs hold `RECORDED_FINALS` `final` events
 /// and no `fallback` each, and the directory's refusal (it has one, for the
