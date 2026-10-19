@@ -12,7 +12,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, WINDOW, windows};
 use crate::decode::{Recognizers, ResidentEvent};
-use crate::endpoint::{self, Decision, Mode, Plan, Rule, State};
+use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
@@ -122,6 +122,14 @@ pub struct Timings {
     pub l_dec_ms: f64,
 }
 
+/// An early notice that read a complete sentence and kept it, because the
+/// speech behind it was shorter than [`crate::vad::EARLY_MIN_SEGMENT_MS`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShortHold {
+    /// The speech the sentence was read from, in milliseconds.
+    pub span_ms: f64,
+}
+
 /// One finished utterance.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Final {
@@ -176,6 +184,8 @@ struct Route {
     draft: DraftClock,
     /// What the early detector has finalised inside the voice in progress.
     early: State<Solved>,
+    /// The sentences the early path kept for being too short, until they are taken.
+    short_holds: Vec<ShortHold>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -221,6 +231,11 @@ fn span_seconds(segment: &Segment) -> (f64, f64) {
     let rate = f64::from(SAMPLE_RATE);
     let start = segment.start as f64 / rate;
     (start, start + segment.samples.len() as f64 / rate)
+}
+
+/// The milliseconds `samples` samples last.
+fn samples_ms(samples: usize) -> f64 {
+    samples as f64 * 1000.0 / f64::from(SAMPLE_RATE)
 }
 
 fn cpu_report(model: String) -> SessionReport {
@@ -337,6 +352,7 @@ fn open_route(
         vad_ms: 0.0,
         draft: DraftClock::new(),
         early: State::default(),
+        short_holds: Vec::new(),
     }))
 }
 
@@ -500,6 +516,16 @@ impl Engine {
             .as_mut()
             .into_iter()
             .flat_map(|route| route.router.take_notices())
+            .collect()
+    }
+
+    /// The complete sentences the early path kept for being too short since
+    /// the last call. An engine with no route has none.
+    pub fn take_short_holds(&mut self) -> Vec<ShortHold> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| std::mem::take(&mut route.short_holds))
             .collect()
     }
 
@@ -715,13 +741,19 @@ impl Engine {
         if samples.is_empty() {
             return Ok(None);
         }
-        let Some(solved) = self.solve(&samples, now.saturating_sub(from))? else {
+        let span = now.saturating_sub(from);
+        let Some(solved) = self.solve(&samples, span)? else {
             return Ok(None);
         };
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
-        if !endpoint::is_complete(&solved.lang, &solved.text) {
+        if let Some(hold) = endpoint::early_hold(&solved.lang, &solved.text, span) {
+            if hold == Hold::TooShort {
+                route.short_holds.push(ShortHold {
+                    span_ms: samples_ms(span),
+                });
+            }
             route.early.hold(solved, now, floor);
             return Ok(None);
         }
@@ -1188,6 +1220,38 @@ mod tests {
             samples: Vec::new(),
         };
         assert_eq!(span_seconds(&segment), (0.0, 0.0));
+    }
+
+    /// The minimum length is a rule of the early path; the main detector's
+    /// silence ends a segment shorter than it the same way as a longer one.
+    #[test]
+    fn a_segment_shorter_than_the_early_minimum_is_still_ended_by_the_silence_rule() {
+        let main = Sensitivity {
+            threshold: 0.5,
+            min_silence: 0.30,
+            max_speech: 12.0,
+        };
+        let short = Segment {
+            start: 0,
+            samples: vec![0.0; 8_000],
+        };
+        let decision = decision_of(&short, main, false);
+        assert_eq!(decision.rule, Rule::Silence);
+        assert_eq!(decision.silence_ms, 300);
+    }
+
+    #[test]
+    fn samples_are_counted_in_milliseconds_at_16_khz() {
+        assert_eq!(samples_ms(0), 0.0);
+        assert_eq!(samples_ms(16_000), 1000.0);
+        assert_eq!(samples_ms(15_984), 999.0);
+    }
+
+    #[test]
+    fn an_engine_with_no_route_has_no_short_holds() -> Result<(), AsrError> {
+        let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
+        assert!(engine.take_short_holds().is_empty());
+        Ok(())
     }
 
     #[test]

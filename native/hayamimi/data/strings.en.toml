@@ -6,6 +6,7 @@
 "gpu.session.placed" = "Model nodes placed"
 "asr.utterance.timed" = "Utterance finished"
 "asr.endpoint.decided" = "The end of an utterance was decided"
+"asr.endpoint.held" = "A complete sentence was too short to end the utterance early; it waits for the silence"
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.speaker.failed" = "The speaker mark failed; the text went on without it"
 "asr.final.published" = "The final subtitle was sent to the event stream"
