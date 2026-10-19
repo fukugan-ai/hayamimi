@@ -133,6 +133,7 @@ loopback でない address で待つと、stderr に LAN の URL が 1 行出ま
 文の後ろに URL が続く形で、`hayamimi` は頁の URL（`http://<LAN の address>:8833/`）、`hayamimi-relay` は `/events` の URL（`http://<LAN の address>:8835/events`）です。
 同じ時に、`hayamimi` は log の event `server.lan.opened`（warn、`port` だけを持つ）を stdout に出します。
 `hayamimi-relay` は `relay.serve.started` の `scope` が `lan` になります（loopback のときは `loopback`）。
+同じ event は、訳を頼む llama-server の address を `llm`（ja と en の組）と `llm_other`（組の外の言語）に持ちます。
 
 URL の address は、待つ address によって決まります。
 

@@ -270,7 +270,7 @@ pub(crate) fn language_name(lang: Lang) -> &'static str {
     }
 }
 
-/// The prompt for T, in the form the model card recommends.
+/// The prompt for T, in the form of the model's own example script.
 pub fn translate_prompt(src_lang: Lang, text: &str) -> String {
     translate_prompt_between(
         language_name(src_lang),
@@ -284,8 +284,11 @@ pub fn translate_prompt_to(src_lang: Lang, target: &Target, text: &str) -> Strin
     translate_prompt_between(language_name(src_lang), target.name, text)
 }
 
+/// Every prompt for T is built here. The single space after the blank line is
+/// part of the form the model's example script builds; without it the model
+/// has been seen to write digits the source does not contain.
 fn translate_prompt_between(from: &str, to: &str, text: &str) -> String {
-    format!("Translate the following {from} text into {to}.\n\n{text}")
+    format!("Translate the following {from} text into {to}.\n\n {text}")
 }
 
 /// The first part of the prompt for E: what to do, in which languages.
@@ -1228,12 +1231,44 @@ mod tests {
         })
     }
 
+    /// The prompt for T on "こんにちは。", spelled out: one space after the
+    /// blank line, then the source.
+    const JA_HELLO_PROMPT: &str =
+        "Translate the following Japanese text into English.\n\n こんにちは。";
+
     #[test]
     fn the_translate_prompt_follows_the_model_card() {
+        assert_eq!(translate_prompt(Lang::Ja, "こんにちは。"), JA_HELLO_PROMPT);
+    }
+
+    #[test]
+    fn the_prompt_for_a_named_target_has_the_same_space() -> Result<(), String> {
+        let target = Target::from_code("en").ok_or("en is not in the table")?;
         assert_eq!(
-            translate_prompt(Lang::Ja, "こんにちは。"),
-            "Translate the following Japanese text into English.\n\nこんにちは。"
+            translate_prompt_to(Lang::Ja, &target, "こんにちは。"),
+            JA_HELLO_PROMPT
         );
+        Ok(())
+    }
+
+    /// The final path: T's request is the spelled-out prompt, and E's is not
+    /// given the space.
+    #[test]
+    fn the_final_path_asks_t_with_the_space_and_e_without_it()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::saying("Hello.", "Hello.");
+        run_traced(&script, &request("こんにちは。"))?;
+        let prompts = script.prompts.borrow();
+        assert_eq!(prompts.len(), 2);
+        assert_eq!(prompts[0], JA_HELLO_PROMPT);
+        assert!(prompts[1].starts_with(
+            "Below is a Japanese sentence from a live conversation and a draft English translation.\n"
+        ));
+        assert!(prompts[1].ends_with(
+            "\nJapanese:\nこんにちは。\n\nDraft English:\nHello.\n\nRewritten English:\n"
+        ));
+        assert!(!prompts[1].contains("\n\n "), "{}", prompts[1]);
+        Ok(())
     }
 
     #[test]
@@ -1596,6 +1631,14 @@ mod tests {
         );
         assert!(shown.annotations.is_empty() && shown.skipped.is_empty());
         assert_eq!(shown.src_sha256, sha256_hex("こんにちは。"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_text_in_progress_is_asked_with_the_space() -> Result<(), Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Ok(String::from("Hello."))]);
+        translated_in_progress(&script, "こんにちは。")?;
+        assert_eq!(*script.prompts.borrow(), [JA_HELLO_PROMPT]);
         Ok(())
     }
 

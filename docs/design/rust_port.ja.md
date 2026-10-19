@@ -383,7 +383,10 @@ T と E を直列に待つと、訳の遅れはその 2 倍になる。
 5. **並べて走らせる物**：llama-server の slot を 4 にする（mic の確定、loopback の確定、速報、E）。認識（ORT）と訳（llama.cpp）は同じ GPU を時間で分け合う。負荷の下での `L` は RP-3 で測る。ライブの対の lane は T を頼む thread と E を頼む thread の 2 本を持ち、次の行の T は前の行の E の応答を待たずに頼む（RP-47）。確定の訳は音源ごとに行の着いた順に出る。T と E と速報の依頼は slot の数（4）を超えて同時に出さず、空くまで中継の中で待たせる（待った時は `translate.slot.waited` を debug で出す）。`--translate` の別の言語の lane は E が無いので 1 本のままである。
 6. **llama-server の置き場**：Windows の native の CUDA 版に置く（会話字幕の設計 3.7）。model の GGUF は `%LOCALAPPDATA%\hayamimi\models\llm\` に置き、正本の WSL の `/mnt/h3-models` から写す（2.3。Windows から直に読めないため）。写した file の sha256 を同じ directory の `manifest.json` に記録する（記録で、起動の条件にしない）。hooks の `guard_commands.rs` は、`llama-` で始まる実行 file の名前を含む command を WSL の build の鮮度で refuse する（`problems` の中の `LLAMA_EXECUTABLE` の検査）。Windows の llama-server は PowerShell から起こし、WSL の shell からは起こさない（10 の H20）。
 
-**訳の依頼の形**：中継は T と E を llama-server の `/v1/chat/completions` に、user の message 1 つ（T は model card の形「Translate the following {Japanese|English} text into {English|Japanese}.\n\n{原文}」）で頼み、`temperature` 0、`stop: ["</s>"]`、`cache_prompt: true` を付ける（S14）。
+**訳の依頼の形**：中継は T と E を llama-server の `/v1/chat/completions` に、user の message 1 つ（T は model の example script の形「Translate the following {Japanese|English} text into {English|Japanese}.\n\n {原文}」）で頼み、`temperature` 0、`stop: ["</s>"]`、`cache_prompt: true` を付ける（S14）。
+T の prompt は、空行（`\n\n`）の直後に半角空白を 1 つ置いてから原文を続ける。
+同じ repository の `test.py`（https://huggingface.co/cyberagent/CAT-Translate-3.3b）がこの形で prompt を組むからで、README の例の文字列は空白を持たないが、README の形に戻さない。
+数字を含む 4 文を 3 回ずつ（12 回）流すと、空白なしは q6 と f16 のどちらでも 12 回とも原文に無い数字（100、101、100%）を訳に書き、空白ありは q6 と f16 のどちらでも 0 回だった。
 `temperature` 0 でも出力は決まらない。同じ 38 行を同じ依頼で 2 回打つと、出力の違う行が依頼の形によって 4〜14 行あった（10 の H66）。だから本物の model で打つ受入は、同じ入力が同じ訳を返すことを前提にしない。
 chat template は llama-server が GGUF の metadata から当てる。
 `/completion` に平文の `prompt` を渡す形を採らないのは、model の chat template（`<|user|>`、`<|assistant|>` の語）が入らず、CAT-Translate を測った probe（`testdata/probe1_cat-translate-3.3b.log`、`/v1/chat/completions` で測った）と違う入力を model に渡すからである。
