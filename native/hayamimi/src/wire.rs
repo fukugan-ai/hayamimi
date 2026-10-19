@@ -153,6 +153,24 @@ mod tests {
     }
 
     #[test]
+    fn final_event_carries_audio_s_lid_ms_decode_ms() {
+        let mut done = finished();
+        done.text = String::from("hello in ja");
+        done.audio_seconds = 1.0;
+        done.timings.lid_ms = 12.0;
+        done.timings.decode_ms = 34.0;
+        done.timings.punct_ms = 0.0;
+        done.timings.itn_ms = 0.0;
+        let event = final_event(&done, "mic");
+        assert_eq!(event["text"], "hello in ja");
+        assert_eq!(event["lang"], "ja");
+        assert_eq!(event["tier"], "rz");
+        assert_eq!(event["audio_s"], 1.0);
+        assert_eq!(event["lid_ms"], 12.0);
+        assert_eq!(event["decode_ms"], 34.0);
+    }
+
+    #[test]
     fn a_partial_carries_only_its_type_and_text() {
         let event = partial_event("こんに");
         assert_eq!(event, json!({"type": "partial", "text": "こんに"}));

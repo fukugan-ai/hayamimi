@@ -413,4 +413,47 @@ mod tests {
         hub.publish(&serde_json::json!({"type": "partial", "text": "x"}));
         assert!(live.try_recv().is_ok());
     }
+
+    #[test]
+    fn eventhub_publish_delivers_to_subscriber_in_order() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let hub = Hub::new();
+        let mut live = hub.subscribe_live();
+        hub.publish(&serde_json::json!({"type": "partial", "text": "a"}));
+        hub.publish(&serde_json::json!({"type": "partial", "text": "b"}));
+        let first: Value = serde_json::from_str(&live.try_recv()?)?;
+        let second: Value = serde_json::from_str(&live.try_recv()?)?;
+        assert_eq!(first["text"], "a");
+        assert_eq!(second["text"], "b");
+        assert!(live.try_recv().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn eventhub_unsubscribe_stops_delivery() -> Result<(), Box<dyn std::error::Error>> {
+        let hub = Hub::new();
+        let gone = hub.subscribe_live();
+        let mut kept = hub.subscribe_live();
+        assert_eq!(hub.sender.receiver_count(), 2);
+        // A receiver that is dropped is a client that has left.
+        drop(gone);
+        assert_eq!(hub.sender.receiver_count(), 1);
+        hub.publish(&serde_json::json!({"type": "partial", "text": "x"}));
+        assert!(kept.try_recv()?.contains("\"text\":\"x\""));
+        Ok(())
+    }
+
+    #[test]
+    fn eventhub_multiple_listeners_all_receive_the_event() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let hub = Hub::new();
+        let mut a = hub.subscribe_live();
+        let mut b = hub.subscribe_live();
+        hub.publish(&serde_json::json!({"type": "session_reset"}));
+        for receiver in [&mut a, &mut b] {
+            assert!(receiver.try_recv()?.contains("session_reset"));
+            assert!(receiver.try_recv().is_err());
+        }
+        Ok(())
+    }
 }

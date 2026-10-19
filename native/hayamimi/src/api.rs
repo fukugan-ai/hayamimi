@@ -475,6 +475,116 @@ mod tests {
         );
     }
 
+    fn vad_of(body: &str) -> Result<VadChange, BadRequest> {
+        parse_config(body.as_bytes())?
+            .vad
+            .ok_or_else(|| BadRequest::new("the body names no vad"))
+    }
+
+    fn starting() -> Sensitivity {
+        Sensitivity {
+            threshold: 0.5,
+            min_silence: 0.35,
+            max_speech: 12.0,
+        }
+    }
+
+    #[test]
+    fn live_vad_set_sensitivity_rejects_invalid_values() {
+        let cases: [(&str, &str); 13] = [
+            (r#"{"vad":{"threshold":"abc"}}"#, "threshold"),
+            (r#"{"vad":{"threshold":true}}"#, "threshold"),
+            (r#"{"vad":{"threshold":-1}}"#, "threshold"),
+            (r#"{"vad":{"threshold":0}}"#, "threshold"),
+            (r#"{"vad":{"threshold":5.0}}"#, "threshold"),
+            (r#"{"vad":{"min_silence":"abc"}}"#, "min_silence"),
+            (r#"{"vad":{"min_silence":true}}"#, "min_silence"),
+            (r#"{"vad":{"min_silence":-0.1}}"#, "min_silence"),
+            (r#"{"vad":{"min_silence":0}}"#, "min_silence"),
+            (r#"{"vad":{"max_speech":"abc"}}"#, "max_speech"),
+            (r#"{"vad":{"max_speech":true}}"#, "max_speech"),
+            (r#"{"vad":{"max_speech":-1}}"#, "max_speech"),
+            (r#"{"vad":{"max_speech":0}}"#, "max_speech"),
+        ];
+        for (body, key) in cases {
+            let said = refused(parse_config(body.as_bytes()));
+            assert!(said.is_some_and(|text| text.contains(key)), "{body}");
+        }
+    }
+
+    #[test]
+    fn live_vad_set_sensitivity_accepts_valid_values() -> Result<(), BadRequest> {
+        let only = |threshold, min_silence, max_speech| VadChange {
+            threshold,
+            min_silence,
+            max_speech,
+        };
+        let cases = [
+            (r#"{"vad":{"threshold":0.1}}"#, only(Some(0.1), None, None)),
+            (r#"{"vad":{"threshold":1.0}}"#, only(Some(1.0), None, None)),
+            (r#"{"vad":{"threshold":1}}"#, only(Some(1.0), None, None)),
+            (
+                r#"{"vad":{"min_silence":0.01}}"#,
+                only(None, Some(0.01), None),
+            ),
+            (r#"{"vad":{"min_silence":5}}"#, only(None, Some(5.0), None)),
+            (r#"{"vad":{"max_speech":0.5}}"#, only(None, None, Some(0.5))),
+            (r#"{"vad":{"max_speech":30}}"#, only(None, None, Some(30.0))),
+        ];
+        for (body, expected) in cases {
+            assert_eq!(vad_of(body)?, expected, "{body}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn live_vad_set_sensitivity_none_is_always_a_noop_no_change() -> Result<(), BadRequest> {
+        let nulls = vad_of(r#"{"vad":{"threshold":null,"min_silence":null,"max_speech":null}}"#)?;
+        assert_eq!(nulls, VadChange::default());
+        assert_eq!(nulls.apply(starting()), starting());
+        // A `vad` member left out entirely changes nothing either.
+        assert_eq!(parse_config(b"{}")?.vad, None);
+        Ok(())
+    }
+
+    #[test]
+    fn live_vad_set_sensitivity_partial_args_keep_other_values() -> Result<(), BadRequest> {
+        let changed = vad_of(r#"{"vad":{"min_silence":0.5}}"#)?.apply(starting());
+        assert_eq!(
+            changed,
+            Sensitivity {
+                threshold: 0.5,
+                min_silence: 0.5,
+                max_speech: 12.0
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn live_vad_composes_pending_updates_and_keeps_last_explicit_value() -> Result<(), BadRequest> {
+        let bodies = [
+            r#"{"vad":{"threshold":0.7}}"#,
+            r#"{"vad":{"min_silence":0.6}}"#,
+            r#"{"vad":{"threshold":0.8,"min_silence":null}}"#,
+            r#"{"vad":{}}"#,
+        ];
+        // The loop applies each change to the pending settings in turn.
+        let mut pending = starting();
+        for body in bodies {
+            pending = vad_of(body)?.apply(pending);
+        }
+        assert_eq!(
+            pending,
+            Sensitivity {
+                threshold: 0.8,
+                min_silence: 0.6,
+                max_speech: 12.0
+            }
+        );
+        Ok(())
+    }
+
     #[test]
     fn pairs_are_written_as_an_object_in_order() -> Result<(), serde_json::Error> {
         let pairs = vec![
