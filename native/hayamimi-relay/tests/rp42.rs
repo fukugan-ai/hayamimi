@@ -4,6 +4,9 @@
 //! translation. The two translations V was handed go to the developer's file
 //! (`VerifyDump`) one row each, only when the caller names the file.
 //!
+//! A line whose T was withheld and whose E passed goes out, and logs the
+//! reason of T once in `translate.draft.held`.
+//!
 //! A fake llama-server answers T with the first scripted text and E with the
 //! second, so each text goes through V exactly as the model's answer would.
 
@@ -18,7 +21,7 @@ use hayamimi_relay::follow::Backoff;
 use hayamimi_relay::hub;
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::llm::HttpLlm;
-use hayamimi_relay::logging::{LogEvent, MemorySink, SharedSink};
+use hayamimi_relay::logging::{Level, LogEvent, MemorySink, SharedSink};
 use hayamimi_relay::pipeline::{
     LineKind, LineRequest, NoObserver, Observer, Pipeline, PipelineConfig, Status, Translation,
 };
@@ -388,5 +391,60 @@ fn rp42_live_without_verify_text_names_no_file() -> TestResult {
     assert_eq!(with.verify_text.as_deref(), Some(named.as_path()));
     start_and_stop(&with)?;
     assert!(named.exists());
+    Ok(())
+}
+
+/// The `translate.draft.held` events of `events`.
+fn draft_held(events: &[LogEvent]) -> Vec<&LogEvent> {
+    events
+        .iter()
+        .filter(|event| event.event == "translate.draft.held")
+        .collect()
+}
+
+/// E's translation that keeps the number and the negation of `SOURCE`.
+const E_PASSES: &str = "Five were not there.";
+
+/// T-RP-42-010: V withheld T's translation and E's passed. The line goes out,
+/// and one `translate.draft.held` says why T fell, without any text.
+#[test]
+fn rp42_a_line_whose_t_was_held_and_e_passed_logs_the_draft_held() -> TestResult {
+    let (line, events) = run_line(SOURCE, T_NO_NEGATION, E_PASSES, &mut NoObserver)?;
+    assert_eq!(line.status, Status::Ok);
+    assert_eq!(line.text, E_PASSES);
+    let held = draft_held(&events);
+    let [event] = held.as_slice() else {
+        return Err(format!("{} draft.held events, not 1", held.len()).into());
+    };
+    assert_eq!(event.level, Level::Info);
+    assert_eq!(field(event, "id"), Some(&json!(ID)));
+    assert_eq!(field(event, "source"), Some(&json!("file")));
+    assert_eq!(field(event, "hold_reason"), Some(&json!("negation")));
+    assert_no_text_in_the_log(&events, &[T_NO_NEGATION, E_PASSES]);
+    Ok(())
+}
+
+/// T-RP-42-011: the control. When T passed V too, nothing is said about T.
+#[test]
+fn rp42_a_line_whose_t_passed_logs_no_draft_held() -> TestResult {
+    let (line, events) = run_line(
+        PLAIN_SOURCE,
+        PLAIN_TRANSLATION,
+        PLAIN_TRANSLATION,
+        &mut NoObserver,
+    )?;
+    assert_eq!(line.status, Status::Ok);
+    assert!(draft_held(&events).is_empty());
+    Ok(())
+}
+
+/// T-RP-42-012: a line whose T and E were both held says it in
+/// `translate.line.held` (`t_hold_reason`); the draft is not held twice.
+#[test]
+fn rp42_a_line_held_on_both_passes_logs_no_draft_held() -> TestResult {
+    let (line, events) = run_line(SOURCE, T_NO_NEGATION, E_NO_NUMBER, &mut NoObserver)?;
+    assert_eq!(line.status, Status::Held);
+    assert!(draft_held(&events).is_empty());
+    the_held_event(&events)?;
     Ok(())
 }

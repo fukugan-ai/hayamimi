@@ -1616,7 +1616,11 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 | T-RP-42-008 | 中継の `RelayConfig` の dev 用の file を持たせない（`None`）run。001 と同じ行を流す | `--verify-text` を渡さない | 作らない | 一時の dir にも他の場所にも file が作られず、`translate.line.held` は T の側の理由つきで 1 件（specified、RP-42 の「起こす側が path を渡した時だけ」、10 の H56） | 陰性 | `a_relay_without_a_named_file_writes_none` |
 | T-RP-42-009 | `hayamimi-relay live` の引数の解釈：`--verify-text` を付けない引数と、`--verify-text <path>` を付けた引数 | 起こす側が path を渡した時だけ（引数から `RelayConfig` まで） | 付けた時だけ Some | 付けない引数は dev 用の file の指定が無く、付けた引数は `<path>` を持つ（specified、8 の R8o の「`--verify-text <file>` を付けた時だけ」、10 の H56。008 は `RelayConfig` から先、これは引数から `RelayConfig` まで） | 境界 | `live_without_verify_text_names_no_file` |
 
-実装済みの行は 001 から 005 で、006 から 009 は未実装である（実装の席が足す）。009 は `cli.rs` の引数の解釈（`verify_text: Option<PathBuf>`）を読む。
+| T-RP-42-010 | `SOURCE`、T は `Five were there.`（否定を落とす）、E は `Five were not there.`（V を通る） | T が V に止められ、E が通る | 1 件 | `status` が `ok`、`text` が E の文。`translate.draft.held`（info）がちょうど 1 件で、`id`、`source`（`file`）、`hold_reason`（`negation`）を持つ。どの event の JSON にも T の文と E の文が入らない（specified、D 3.18 の 5 の log） | 陽性 | `a_line_whose_t_was_held_and_e_passed_logs_the_draft_held` |
+| T-RP-42-011 | `PLAIN_SOURCE`、T も E も `Five people are there.` | T が V を通る | 0 件 | `status` が `ok`、`translate.draft.held` が 0 件（specified、同上） | 陰性（対照） | `a_line_whose_t_passed_logs_no_draft_held` |
+| T-RP-42-012 | 001 と同じ（T も E も V に止められる） | 両方止まる | 0 件 | `status` が `held`、`translate.draft.held` が 0 件、`translate.line.held` が 1 件（specified、同上。この行の T の理由は `t_hold_reason` が持つ） | 陰性 | `a_line_held_on_both_passes_logs_no_draft_held` |
+
+実装済みの行は 001 から 005 と 010 から 012 で、006 から 009 は未実装である（実装の席が足す）。009 は `cli.rs` の引数の解釈（`verify_text: Option<PathBuf>`）を読む。
 陰性の build（T の側の理由を載せない build）で落ちる行は 001、003、006 である。log に止めた訳の本文を載せる build は 001、005 が落ちる。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
@@ -2165,7 +2169,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 ### 4.67 RP-69（`final` が最後の速報を閉じるだけなら、速報の訳を使い回す）
 
 **未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
-test：`native/hayamimi-relay/tests/rp69.rs`。受入 test の名前は `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation`。25 本のうち実走の行は無く、`--ignored` を付けずに通る。
+test：`native/hayamimi-relay/tests/rp69.rs`。受入 test の名前は `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation`。30 本のうち実走の行は無く、`--ignored` を付けずに通る。
 command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp69`。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（この file の形）。引数の形は実装の席が決める。
 設計は D 3.18 の「部分訳の使い回し」と D 6 の RP-69 である。
@@ -2205,6 +2209,13 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 | T-RP-69-023 | 001 の `final` の訳の event と、004（`X？`）の `final` の訳のうち `stage` が `t` の event の、key の集合を比べる | wire の形 | 同じ | 2 つの event の key の集合が等しく、`status` が `ok`、`settled` が偽、`of` が `final`。使い回しで wire に key が増えも減りもしない（pseudo、同じ test の中の使い回さない行。specified、D 3.18 の 6「wire の形」を変えない） | 陽性 | `a_reused_translation_has_the_same_wire_keys_as_a_fresh_one` |
 | T-RP-69-024 | 既存の `native/hayamimi-relay/tests/r8d_partial.rs` の `the_final_of_the_utterance_drops_the_text_in_progress` | 速報と違う文字列の `final` | 通ったまま | 実装の後も通る。速報の依頼が走っている間に違う文字列の `final` が来ると、依頼は打ち切られる。新しい関数は足さず、この既存の test を回帰として数える（specified、D 3.18 の「数えた結果」の 3 行目と 6「文字列が合わない時の挙動」）。実装の席は、`partial.rs` の module の doc comment の「`final` は閉じた発話の速報を捨てる」を同じ commit で書き替える | 陽性 | `the_final_of_the_utterance_drops_the_text_in_progress` |
 | T-RP-69-025 | 受入：001 から 003、013、018、020、021 の形を 1 本に通す | 全体 | 通る | (a) 001（T 0 本、50 ms 以内、`closing_mark`）、(b) 013（T 全部で 1 本、打ち切らない、`running`）、(c) 018（E を 50 ms 以内に頼む、先の訳を出さない）、(d) 020（V の原文が `X。`）、(e) 021（V は 1 行に 2 回以下）が、1 回の test の中ですべて成り立つ（specified、D 6 の RP-69）。陽性欄の `X？` と `id` の違う `final` は 004 と 008 が持つ | 陽性 | `rp69_a_final_that_only_closes_the_last_partial_reuses_its_translation` |
+| T-RP-69-026 | `Mailbox` に日本語の速報 `TELASA で独占` と `TELASAで独占`（空白の有無が逆）と `TELASA  で 独占` を置き、答えが着いた後に、空白だけが違う日本語の `final` を閉じる | 日本語が元の行。空白だけが違う | 使い回す | `claim` が `Some`、`match` が `same`（specified、D 3.18 の 1「日本語が元の行は半角空白を取り除いて比べる」） | 陽性 | `a_japanese_final_that_differs_only_in_spaces_is_the_same_text` |
+| T-RP-69-027 | 026 の速報に、空白の違いと `。` 1 字が重なる `final`（`TELASAで独占。`、`TELASA で独占。`、`TELASA で独占 。`）と、空白が同じで `。` だけ足した `final` | 日本語が元の行。空白の違いと句点が重なる | 使い回す | 4 つとも `claim` が `Some`、`match` が `closing_mark`（specified、同上） | 境界、陽性 | `a_japanese_final_that_adds_a_closing_mark_and_differs_in_spaces_closes_the_text` |
+| T-RP-69-028 | 英語が元の行の速報 `ab c` に `a bc`、`buy a car` に `buy  a car` と `buyacar` の `final` | 英語が元の行。空白が語の切れ目 | 使い回さない | 3 つとも `claim` が `None`。同じ文字列の `final` は `same`（対照）（specified、同上「英語が元の行は取り除かない」） | 陰性 | `an_english_final_that_differs_in_spaces_is_another_text` |
+| T-RP-69-029 | 026 の速報 `TELASA で独占` に、本文の違う `final`（`TELASAで配信`、`TELASA で配信。`）、別の句読点（`TELASAで独占？`）、`。` が 2 字（`TELASAで独占。。`）、`。` が末尾でない（`TELASAで独占。 まで`）、文字が足りない（`TELASAで独` ） | 日本語が元の行。空白の他が違う | 使い回さない | 6 つとも `claim` が `None`（specified、同上。空白を取り除いても、それ以外の違いは合わせない） | 陰性、境界 | `a_japanese_final_with_other_letters_is_another_text` |
+| T-RP-69-030 | F69。速報 `X`（4 字）の訳が出た後に、`X` の途中に半角空白を 1 つ入れて `。` を足した `final`（`mic-2`）を送る | 全体の経路。日本語の音源の `final` | 使い回す | 原文がその `final` の文字列の T の依頼は 0 本、`X` の T の依頼は 1 本。`translate.draft.reused` が 1 件で `match` が `closing_mark`。行は settle する（specified、同上） | 陽性 | `a_final_with_a_space_and_a_closing_mark_reuses_the_answer` |
+
+026 から 030 は実装済みで、`--ignored` を付けずに通る。026 から 029 は偽の認識器も server も使わず、`Mailbox` の `post`、`take`、`begin`、`close`、`finish`、`claim` を直に呼ぶ。陰性の build（空白を取り除かずに比べる build）で落ちる行は 026、027、030 である。
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
 

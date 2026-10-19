@@ -840,7 +840,12 @@ impl<L: Llm> Pipeline<L> {
         let v_ms = draft.ms[2] + verify_started.elapsed().as_millis();
         let ms = [draft.ms[0], e_ms, v_ms];
         match verdict {
-            Verdict::Ok => self.settle(request, text, Pass::E, ms, observer, sink),
+            Verdict::Ok => {
+                if let Some(event) = draft_held_event(request, &draft) {
+                    sink.emit(event);
+                }
+                self.settle(request, text, Pass::E, ms, observer, sink)
+            }
             // An answer that still carries the end marker means `stop` did not
             // take effect; the line is withheld, not rescued by the draft.
             Verdict::Held(reason) if draft.passed() && !contains_eos(&text) => {
@@ -1083,6 +1088,18 @@ fn reused_event(request: &Ctx<'_>, reuse: &Reuse, passed: bool) -> LogEvent {
         .with("state", reuse.state.as_str())
         .with("waited_ms", u64::try_from(reuse.waited.as_millis()).ok())
         .with("verdict", if passed { "ok" } else { "held" })
+}
+
+/// V withheld T's translation and E's passed: the line goes out, and its
+/// `translate.line.ok` does not say why T fell. `None` when T passed.
+fn draft_held_event(request: &Ctx<'_>, draft: &Draft) -> Option<LogEvent> {
+    let reason = draft.hold_reason()?;
+    Some(
+        LogEvent::new(Level::Info, "translate.draft.held", "service")
+            .with("id", request.id)
+            .with("source", request.source)
+            .with("hold_reason", reason.as_str()),
+    )
 }
 
 /// A log event of the text in progress. These come about twice a second, so

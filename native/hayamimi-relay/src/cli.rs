@@ -1095,6 +1095,7 @@ mod tests {
                 "relay.serve.started",
                 "server.fallback.port",
                 "translate.edit.held",
+                "translate.draft.held",
                 "translate.send.ok",
                 "translate.send.failed",
                 "translate.deliver.failed",

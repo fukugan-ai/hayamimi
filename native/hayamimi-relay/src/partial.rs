@@ -11,9 +11,10 @@
 //! request for the older one is dropped. The `final` of a source does the same
 //! for the text of the utterance it closed, with one exception: when the
 //! `final` only closes the last text (it is the same text, or the same with a
-//! `。` added), the translation of that text is the translation T would give
-//! the line, so the request is kept, and the lane of the line takes its answer
-//! with [`Mailbox::claim`] instead of asking T again.
+//! `。` added; a Japanese line is compared without its half-width spaces), the
+//! translation of that text is the translation T would give the line, so the
+//! request is kept, and the lane of the line takes its answer with
+//! [`Mailbox::claim`] instead of asking T again.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -104,17 +105,48 @@ struct Taken {
     tracked: Tracked,
 }
 
+/// Whether two texts are the same once the half-width spaces are left out.
+/// A recognizer puts a space between a Latin word and the kana beside it in
+/// one text and not in the other (`TELASA で` and `TELASAで`).
+fn same_without_spaces(left: &str, right: &str) -> bool {
+    fn letters(text: &str) -> impl Iterator<Item = char> + '_ {
+        text.chars().filter(|c| *c != ' ')
+    }
+    letters(left).eq(letters(right))
+}
+
+/// Whether `left` and `right` are the same text. Spaces are left out only for
+/// a Japanese line: in English they separate the words, and dropping them
+/// would make two different texts equal.
+fn same_text(left: &str, right: &str, japanese: bool) -> bool {
+    if japanese {
+        same_without_spaces(left, right)
+    } else {
+        left == right
+    }
+}
+
 /// How the text of a `final` relates to the text in progress it closes: the
-/// same text, or the same with one `。` added. Any other text, or a text of
+/// same text, or the same with one `。` added; a Japanese line is compared
+/// without its spaces (see [`same_text`]). Any other text, or a text of
 /// another `id`, is not that utterance's translation.
 fn closes(line: &Line, tracked: &Tracked) -> Option<ReuseMatch> {
     if line.id != tracked.id || matches!(tracked.phase, Phase::Waiting | Phase::Done(None)) {
         return None;
     }
-    if line.text == tracked.text {
+    let japanese = line.lang == Some(Lang::Ja);
+    if same_text(&line.text, &tracked.text, japanese) {
         return Some(ReuseMatch::Same);
     }
-    (line.text.strip_suffix('。') == Some(tracked.text.as_str())).then_some(ReuseMatch::ClosingMark)
+    let closed = if japanese {
+        line.text.trim_end_matches(' ')
+    } else {
+        line.text.as_str()
+    };
+    closed
+        .strip_suffix('。')
+        .is_some_and(|opened| same_text(opened, &tracked.text, japanese))
+        .then_some(ReuseMatch::ClosingMark)
 }
 
 /// What the screen has drawn of one source's translated text in progress. The
