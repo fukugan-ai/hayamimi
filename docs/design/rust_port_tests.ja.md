@@ -2394,7 +2394,6 @@ sherpa-onnx の C API は確率を返さないので、この probe だけが窓
 
 ### 4.73 RP-80（CI が cargo を打ち、Python を打たず、未実装の行の数を毎回出す）
 
-**未実装。** この節の行はどれも、test の file も関数も repo に無い。R11c の席が足す。
 test：`native/hayamimi-eval/tests/rp80.rs`。受入 test の名前は `rp80_ci_runs_cargo_and_no_python`。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp80`。実走の行（018、019）はこれに `-- --ignored` を足す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（017 だけは受入 test の名前の全部）。fixture は `native/hayamimi-eval/tests/fixtures/rp80_*/` の dir に置き、`include_str!` で渡す。
@@ -2403,8 +2402,8 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 `check_workflow(workflow_yml, ci_probe_md, test_binaries)` は 3 つを確かめる。
 `workflow_yml` は `.github/workflows/test.yml` の text、`ci_probe_md` は `docs/results/r11/ci_probe.md` の text、`test_binaries` は `native/<crate>/tests/*.rs` の（crate の名前、file の拡張子を除いた名前）の対の集合である。
 
-1. **語の検査**：`python|pip |pytest|setup-python`（設計の `grep -c -E` の式）に当たる行が 0。コメントの行も数える（grep は行の種類を見ない）。
-2. **外した binary の検査**：test の step が `--test <名前>` で並べた binary の集合を U とする（`--test` が無ければ全部）。`--exclude <crate>` で外した crate の binary も外した物に数える。外した binary は 1 本ずつ `ci_probe.md` に名前と理由を持ち、理由は `testdata/` か `models/` を読むことである。
+1. **語の検査**：各行から数の step の test の名前 `rp19_python_cases_are_ported` の 1 つだけを除き、残りが `python|pip |pytest|setup-python`（設計の `grep -c -E` の式）に当たる行が 0。除く名前はこの 1 つだけで、ほかの名前の中の `python` は除かない。コメントの行も数える（grep は行の種類を見ない）。
+2. **外した binary の検査**：test の step が `--test <名前>` で並べた binary の集合を U とする（`--test` が無ければ全部）。`--exclude <crate>` で外した crate の binary も外した物に数える。外した binary は 1 本ずつ `ci_probe.md` に名前と理由を持ち、理由は `testdata/` か `models/` を読むことである。clone で落ちる原因はこのほかに 3 つ在り、binary を外す理由にはしない（`docs/results/r11/ci_probe.md`）。`rp17` が compile の時に `env!` で `SHERPA_ONNX_LIB_DIR` を読むことは、先の step が `cargo build --release -p sherpa-onnx-sys` で変数を渡して扱う。`hayamimi-asr` の 4 本の unit test が `libonnxruntime.so.1` を開くことは、test の名前の `--skip` で扱う。`--test` を並べると cargo が lib、bin、example の target を選ばなくなることは、`--lib --bins --examples` で扱う。
 3. **未実装の数の step**：`cargo test --release --jobs 2 -p hayamimi-eval --test rp19 -- --exact rp19_python_cases_are_ported` を打つ step が在り、その step が `continue-on-error: true` を持つ。
 4. **例外の数の step**：3 の隣に、同じ形で `cargo test --release --jobs 2 -p hayamimi-eval --test rp81 -- --exact rp81_owned_exceptions_are_gone` を打つ step が在り、その step も `continue-on-error: true` を持つ（持ち主ごとの RP-81 の例外の数を log に出す）。
 
@@ -2428,7 +2427,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-80-014 | F80 の `ci_probe.md` の `rp03` の理由を、`testdata/` を含む文と、`models/` を含む文に替えた 2 つ | 理由の 2 つの種類。013 の隣 | どちらか | どちらも `Ok`（specified、同上） | 境界、陽性 | `an_excluded_binary_with_a_testdata_or_models_reason_is_accepted` |
 | T-RP-80-015 | F80 の test の step を `--test` の並びから `--workspace --exclude hayamimi-eval` に替える | crate 単位で外した形。`hayamimi-eval` の binary 4 本が外れる | 外した binary 1 本ずつ | `Err` で `ci_probe.md` に無い `rp02`、`rp19`、`rp80` を名指す（`rp03` は在る）（derived、D 6 の RP-80 の「外した test の binary は 1 本ずつ」。crate ごと外せば 1 本ずつの言い逃れになる） | 境界、陰性 | `an_excluded_crate_hides_no_binary_from_the_probe_note` |
 | T-RP-80-016 | F80 の `rp19` の行を `test_binaries` から除く（`native/hayamimi-eval/tests/rp19.rs` が無い形） | 数の step が指す test の file が無い | file が在る | `Err` で `rp19` が無いことを言う（derived、3 の step の `--test rp19` が空振りする。`cargo` は存在しない test の指定で落ちるが、`continue-on-error` がそれを隠す） | 境界、陰性 | `a_count_step_without_its_test_file_is_rejected` |
-| T-RP-80-017 | 受入：repo の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md`、`native/*/tests/*.rs` の実物 | 全体。001 から 016 と 020、021 の判定を実物に掛ける | 3 つとも成立 | `Ok`。pseudo：`rg -c -e 'python\|pip \|pytest\|setup-python' .github/workflows/test.yml` が出力なしで rc 1（0 行）。R11 の前の木では 4（002） | 陽性、陰性 | `rp80_ci_runs_cargo_and_no_python` |
+| T-RP-80-017 | 受入：repo の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md`、`native/*/tests/*.rs` の実物 | 全体。001 から 016 と 020、021 の判定を実物に掛ける | 3 つとも成立 | `Ok`。pseudo：`sed 's/rp19_python_cases_are_ported//g' .github/workflows/test.yml \| grep -c -E 'python\|pip \|pytest\|setup-python'` が 0（名前を除かない数は 2 で、2 行とも数の step の名前。2026-10-20、`ddacac4`）。R11 の前の木（`archive/python-before-r11`）では同じ式で 4（002） | 陽性、陰性 | `rp80_ci_runs_cargo_and_no_python` |
 | T-RP-80-018 | 実走：`git clone --no-local <repo> ~/.cache/hayamimi-r11/ci-probe`（`testdata/` と `models/` の無い clone）で、workflow の `run:` の行を同じ順に打つ | 実走。clone に `testdata/` も `models/` も無い | 全部 rc 0 | clone に `ls -d testdata models` が rc 2 で両方無いことを先に確かめ、`run:` の行が全部 rc 0（specified、D 6 の RP-80。worktree は本体の `testdata/` を引くので使わない）。cargo の席は同時 2 席までで、`--jobs 2` | 陽性 | `the_run_lines_pass_in_a_clone_without_testdata_or_models` |
 | T-RP-80-019 | 実走：018 の clone で、`ci_probe.md` が挙げる binary を 1 本だけ単独で打つ（`cargo test --release --jobs 2 -p hayamimi-eval --test rp03`） | 検知の道具の陽性対照。外した理由が本当に落ちる | rc が 0 でない | rc が 0 でなく、落ちた理由が `testdata/` か `models/` の無いことを言う（specified、D 7 の RP-80「clone で落ちる binary」。外した理由が偽なら 018 は何も外せていない） | 陽性、陰性 | `an_excluded_binary_really_fails_in_a_clone_without_testdata_or_models` |
 | T-RP-80-020 | F80 から 4 の step を取り除く | 例外の数の step が無い | step 1 本 | `Err` で例外の数の step が無いことを言う（specified、D 6 の RP-80 の陰性の case「RP-81 の例外の数の step を持たない workflow」）。3 の step は在るので、数の step が 1 本在るだけでは通らない | 陰性 | `a_workflow_without_the_owned_exceptions_step_is_rejected` |
