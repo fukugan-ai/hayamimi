@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use crate::error::EvalError;
 use crate::log;
+use crate::machine;
 use crate::sse::Listener;
 use crate::wav::SAMPLE_RATE;
 use crate::ws::{self, FrameReader, Handshake, Incoming, OP_CLOSE, OP_TEXT};
@@ -128,6 +129,8 @@ pub struct Ingest {
     origin: Instant,
     stop: Arc<AtomicBool>,
     ready: Arc<AtomicBool>,
+    /// Set from outside to stop sending and to cut the drain short.
+    halt: Arc<AtomicBool>,
     reader: JoinHandle<Result<Collected, EvalError>>,
 }
 
@@ -251,6 +254,7 @@ fn connect_at(
         origin,
         stop,
         ready,
+        halt: Arc::new(AtomicBool::new(false)),
         reader,
     })
 }
@@ -277,6 +281,13 @@ pub(crate) fn wait_ready(
 }
 
 impl Ingest {
+    /// Watches `halt`: once it is set, [`Ingest::play`] sends no more chunks and
+    /// [`Ingest::finish`] does not wait out the drain.
+    pub fn halt_on(mut self, halt: Arc<AtomicBool>) -> Ingest {
+        self.halt = halt;
+        self
+    }
+
     /// Sends the config message and waits for the server's `ready`.
     pub fn start(&mut self) -> Result<(), EvalError> {
         self.stream
@@ -293,11 +304,14 @@ impl Ingest {
 
     /// Sends `plan` paced to real time from now. Returns, for each chunk,
     /// the microseconds since the connection's origin at which its last
-    /// byte had been written.
+    /// byte had been written. A halt ends the list at the last chunk sent.
     pub fn play(&mut self, plan: &Plan, audio: &[i16]) -> Result<Vec<i64>, EvalError> {
         let begun = Instant::now();
         let mut sent_us = Vec::with_capacity(plan.chunks.len());
         for chunk in &plan.chunks {
+            if self.halt.load(Ordering::Relaxed) {
+                break;
+            }
             let due = begun
                 + Duration::from_micros(chunk.end as u64 * 1_000_000 / u64::from(SAMPLE_RATE));
             if let Some(wait) = due.checked_duration_since(Instant::now()) {
@@ -312,9 +326,10 @@ impl Ingest {
         Ok(sent_us)
     }
 
-    /// Waits `drain` for late events, closes, and returns everything heard.
+    /// Waits `drain` for late events (less when halted), closes, and returns
+    /// everything heard.
     pub fn finish(self, drain: Duration) -> Result<Received, EvalError> {
-        std::thread::sleep(drain);
+        machine::pause(drain, &self.halt);
         // The server may already have closed; a failed close frame is not news.
         let _ = (&self.stream).write_all(&ws::client_frame(OP_CLOSE, &[]));
         self.stop.store(true, Ordering::Relaxed);

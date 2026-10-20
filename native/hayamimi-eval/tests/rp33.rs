@@ -14,7 +14,7 @@ use std::path::Path;
 use hayamimi_eval::compare::read_samples;
 use hayamimi_eval::latency::{Sample, Stat};
 use serde_json::{Value, json};
-use support::rp32::rp32_dir;
+use support::rp32::{check_gate_of_dir, rp32_dir};
 use support::rp33::{
     FAILED_DRAFT, Line, StageColumns, check_columns_written, check_first_translation,
     check_passed_draft_l, check_rows_add_up, jsonl_rows, load_real_runs, recount, recount_run,
@@ -379,6 +379,8 @@ fn a_slower_passed_draft_l_after_a_is_rejected() -> TestResult {
 #[test]
 #[ignore = "reads the runs in docs/results/rp32/"]
 fn rp33_first_translation_after_a_failed_draft_beats_python() -> TestResult {
+    let gate = check_gate_of_dir(&rp32_dir())?;
+    println!("{}", gate.render());
     let (rust, python) = load_real_runs(&rp32_dir())?;
     let said = check_first_translation(&rust, &python);
     if let Ok(columns) = &said {

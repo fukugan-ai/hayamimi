@@ -22,6 +22,7 @@ use hayamimi_relay::follow::SseParser;
 use crate::error::EvalError;
 use crate::ingest::{CONNECT_TIMEOUT, EVENTS_PATH, Heard, is_type, micros_since, wait_ready};
 use crate::log;
+use crate::machine;
 
 /// The event a server keeps for a client that connects late.
 const READY_EVENT: &str = "session_start";
@@ -145,6 +146,8 @@ fn request(host: &str, port: u16) -> Result<BufReader<ureq::BodyReader<'static>>
 /// An open `/events` stream and the thread reading it.
 pub struct Listener {
     shared: Arc<Shared>,
+    /// Set from outside to cut the drain short.
+    halt: Arc<AtomicBool>,
 }
 
 impl Listener {
@@ -161,7 +164,16 @@ impl Listener {
         let shared = Arc::new(Shared::default());
         let reading = Arc::clone(&shared);
         std::thread::spawn(move || read_stream(body, origin, &reading));
-        Ok(Listener { shared })
+        Ok(Listener {
+            shared,
+            halt: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    /// Watches `halt`: once it is set, [`Listener::finish`] does not wait out the drain.
+    pub fn halt_on(mut self, halt: Arc<AtomicBool>) -> Listener {
+        self.halt = halt;
+        self
     }
 
     /// Waits for the server's kept `session_start`.
@@ -176,9 +188,10 @@ impl Listener {
         Ok(())
     }
 
-    /// Waits `drain` for late events, stops, and returns everything heard.
+    /// Waits `drain` for late events (less when halted), stops, and returns
+    /// everything heard.
     pub fn finish(self, drain: Duration) -> Result<Heard, EvalError> {
-        std::thread::sleep(drain);
+        machine::pause(drain, &self.halt);
         let events = self.shared.stop();
         Ok(Heard {
             events,
