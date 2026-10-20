@@ -10,6 +10,10 @@
 //! the part that talks to the browser (`app`); without it the pages render to a
 //! string, which is how they are tested.
 //!
+//! `lanes` is not a page of the bundle: it picks the lines of the two-lane
+//! subtitle band of the desktop overlay window out of the same `Model`, and
+//! draws them.
+//!
 //! # Building and serving the bundle
 //!
 //! ```text
@@ -32,6 +36,7 @@
 
 pub mod css;
 pub mod dashboard;
+pub mod lanes;
 pub mod model;
 pub mod overlay;
 pub mod parts;

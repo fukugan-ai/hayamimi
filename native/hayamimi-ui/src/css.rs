@@ -91,6 +91,41 @@ html, body { overflow: hidden; }
 }
 "#;
 
+/// The family a Japanese line of the lanes is drawn in. The window that hosts
+/// the lanes declares an `@font-face` under this name from its font file.
+pub const LANES_FONT_JA: &str = "cinecaption";
+/// The family an English line of the lanes is drawn in; declared like the one above.
+pub const LANES_FONT_EN: &str = "UDEV Gothic 35";
+
+/// The lanes. A lane is as tall as its rows (`--rows`, set by the page), a row
+/// is one line of text 1.5 times the font size high, and the newest row sits at
+/// the lane's bottom. A row longer than the band is cut with an ellipsis rather
+/// than wrapped, so the band keeps the height its window was given.
+pub const LANES: &str = r#"
+html, body { overflow: hidden; }
+.lane {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  height: calc(var(--rows) * 1.5em); overflow: hidden;
+  line-height: 1.5; color: #fff;
+}
+#lane-upper { font-size: 36px; }
+#lane-lower { font-size: 26px; color: rgba(255, 255, 255, 0.8); }
+.line {
+  flex: none; height: 1.5em; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  -webkit-text-stroke: 2px #000; paint-order: stroke fill;
+}
+.t-ja { font-family: "cinecaption", "Yu Gothic UI", "Meiryo", sans-serif; }
+.t-en { font-family: "UDEV Gothic 35", "Yu Gothic UI", "Meiryo", sans-serif; }
+.t-xx { font-family: "Yu Gothic UI", "Meiryo", sans-serif; }
+.line.held { opacity: 0.6; }
+.faint { opacity: 0.5; }
+.mark {
+  display: inline-block; vertical-align: middle; margin-right: 0.5em; padding: 0 0.4em;
+  font-size: 0.5em; line-height: 1.4; border: 1px dashed currentColor; -webkit-text-stroke: 0;
+}
+"#;
+
 /// The dashboard.
 pub const DASHBOARD: &str = r#"
 .dash { height: 100vh; display: flex; flex-direction: column; overflow: hidden;
@@ -159,6 +194,11 @@ pub fn overlay() -> String {
     [BASE, OVERLAY].concat()
 }
 
+/// The sheet of the lanes page.
+pub fn lanes() -> String {
+    [BASE, LANES].concat()
+}
+
 /// The sheet of the dashboard page.
 pub fn dashboard() -> String {
     [BASE, TOKENS, MOTION, PARTS, DASHBOARD].concat()
@@ -187,11 +227,42 @@ mod tests {
 
     #[test]
     fn no_sheet_names_a_host_or_fetches_anything() {
-        for sheet in [overlay(), dashboard(), transcript()] {
+        for sheet in [overlay(), lanes(), dashboard(), transcript()] {
             for needle in ["http:", "https:", "//", "@import", "url("] {
                 assert!(!sheet.contains(needle), "{needle}");
             }
         }
+    }
+
+    #[test]
+    fn the_lanes_sheet_is_transparent_names_both_fonts_and_the_lane_boxes() {
+        let sheet = lanes();
+        assert!(sheet.contains("background: transparent"));
+        assert!(!sheet.contains("var(--ink"));
+        for family in [LANES_FONT_JA, LANES_FONT_EN] {
+            assert!(
+                sheet.contains(&format!("font-family: \"{family}\"")),
+                "{family}"
+            );
+        }
+        for rule in [
+            "#lane-upper { font-size: 36px; }",
+            "#lane-lower { font-size: 26px;",
+        ] {
+            assert!(sheet.contains(rule), "{rule}");
+        }
+        // A row is 1.5 times the font size high, and a lane is its rows high.
+        assert!(sheet.contains("height: 1.5em"));
+        assert!(sheet.contains("height: calc(var(--rows) * 1.5em)"));
+        // A row never wraps, so the band keeps the height of its window.
+        for rule in [
+            "white-space: nowrap",
+            "overflow: hidden",
+            "text-overflow: ellipsis",
+        ] {
+            assert!(sheet.contains(rule), "{rule}");
+        }
+        assert!(sheet.contains("white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"));
     }
 
     #[test]

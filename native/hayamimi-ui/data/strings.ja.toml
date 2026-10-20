@@ -32,5 +32,9 @@ proper_noun = "固有名の不一致"
 form = "形の不一致"
 unavailable = "翻訳器に届かない"
 
+[ui.lanes]
+held_mark = "原文"
+untranslated_mark = "訳なし"
+
 [ui.fallback]
 badge = "代替で動作中"

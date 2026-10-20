@@ -132,7 +132,7 @@ fn board_words() -> Result<Vec<(String, String, String)>, Failure> {
 #[test]
 fn the_words_of_both_tables_are_the_words_of_section_11_of_the_board() -> Result<(), Failure> {
     let rows = board_words()?;
-    assert_eq!(rows.len(), 24, "{rows:?}");
+    assert_eq!(rows.len(), 26, "{rows:?}");
     let ja = Strings::embedded(Locale::Ja)?;
     let en = Strings::embedded(Locale::En)?;
     for (key, written_ja, written_en) in &rows {

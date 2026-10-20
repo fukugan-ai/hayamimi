@@ -32,5 +32,9 @@ proper_noun = "Proper noun differs"
 form = "Malformed output"
 unavailable = "Translator unreachable"
 
+[ui.lanes]
+held_mark = "Original"
+untranslated_mark = "No translation"
+
 [ui.fallback]
 badge = "Running on fallback"
