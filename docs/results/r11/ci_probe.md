@@ -44,11 +44,6 @@ The CPU archive that the build script downloads ships `libonnxruntime.so` only, 
 They are skipped by name: `a_missing_model_directory_leaves_every_stage_out_and_the_engine_silent`,
 `an_engine_with_no_route_has_no_early_holds`, `an_engine_with_no_route_has_no_recognizers_to_report`,
 `with_no_stage_on_the_gpu_there_is_nothing_to_give_back`.
-Three tests of `hayamimi` (`rp16`) hide the GPU and expect the reason `no_device`.
-That reason needs a driver library that loads and reports no device.
-A GitHub runner has no `libcuda.so.1`, so the stage reports `driver_unreadable` and the three tests fail with `reason of `gpu.device.unavailable` is not no_device`.
-They are skipped by name: `missing_cuda_build_falls_through_to_the_cpu_build`, `hidden_gpu_translate_server_starts_on_cpu_with_a_reason`,
-`rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`.
 The first run on Windows is not measured here.
 
 ## Programs the test step needs first
@@ -76,3 +71,19 @@ Windows is not measured here.
 The tree is this branch merged with the branches of R12a1 and R12a2, because `rp80` and `rp19` need the files of both.
 `rp17` does not compile without `SHERPA_ONNX_LIB_DIR` (`env!` in `native/hayamimi-gpu/tests/rp17.rs`), and clippy, the rp19 listing and the test step compile it, so the fetch step sets the variable once for the later steps.
 Case 019 (`an_excluded_binary_really_fails_in_a_clone_without_testdata_or_models`) passes in the same clone.
+
+## The reason the three `rp16` tests expect on a runner
+
+`rp16` decides the expected `reason` of `gpu.device.unavailable` without asking `hayamimi`.
+`nvidia-smi -L` that exits 0 gives `no_device`, and an `nvidia-smi` that is not found gives `driver_unreadable`.
+Any other outcome fails the test with the exit code or the error kind and the path.
+`missing_cuda_build_falls_through_to_the_cpu_build`, `hidden_gpu_translate_server_starts_on_cpu_with_a_reason` and `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so` run without `--skip` and take that value.
+
+Run 39426202113 (pull request, head `8db3502`): `unit (ubuntu-latest)` (job 118639278793) and `unit (windows-latest)` (job 118639279086) both succeed.
+The three tests, T-RP-16-052 to 062 and the other `rp16` tests print `ok` on both runners.
+The only `FAILED` lines are `rp19_python_cases_are_ported` and `rp81_owned_exceptions_are_gone`, the two steps that are allowed to fail.
+
+A pass says that the `reason` the run printed equals the expected one.
+A pass does not print either value, so the value is derived, not read.
+The hosted runner has no GPU, so `nvidia-smi` is not found, the expected value is `driver_unreadable`, and the pass means `hayamimi` printed `driver_unreadable` (NOT VERIFIED on both runners: no step lists `nvidia-smi` or the driver library).
+On `windows-latest` the same pass is also what a present `nvidia-smi.exe` that exits 0 would give together with `no_device`, so the arm taken there is NOT VERIFIED.

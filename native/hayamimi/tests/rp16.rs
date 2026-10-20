@@ -7,6 +7,9 @@
 
 mod support;
 
+use std::io;
+use std::process::{Command, Stdio};
+
 use hayamimi_app::llama::plan::Build;
 use serde_json::Value;
 use support::llama::{Launch, Session, health};
@@ -18,6 +21,13 @@ const UNAVAILABLE: &str = "gpu.device.unavailable";
 const FALLBACK: &str = "gpu.fallback.cpu";
 const CREATED: &str = "gpu.session.created";
 const ERROR_CODE: &str = "HAYAMIMI_GPU_DEVICE_UNAVAILABLE";
+
+/// The driver is there and the device is hidden or absent.
+const NO_DEVICE: &str = "no_device";
+/// No driver library can be read.
+const DRIVER_UNREADABLE: &str = "driver_unreadable";
+/// The command that tells a machine with a driver from one without.
+const SMI: &str = "nvidia-smi";
 
 /// A GPU stage of the design table and the model it builds.
 type GpuStage = (&'static str, &'static str);
@@ -85,12 +95,8 @@ fn check_subtitles(wire: &[Value]) -> Result<(), Failure> {
     Ok(())
 }
 
-/// One `gpu.device.unavailable` event, with its error code and the reason `no_device`.
-fn check_unavailable_once(all: &[Value]) -> Result<(), Failure> {
-    check_unavailable_for(all, "no_device")
-}
-
 /// One `gpu.device.unavailable` event, with its error code and the reason `reason`.
+/// A wrong reason is reported with both the value found and the value wanted.
 fn check_unavailable_for(all: &[Value], reason: &str) -> Result<(), Failure> {
     let found = named(all, UNAVAILABLE);
     if found.len() != 1 {
@@ -99,10 +105,52 @@ fn check_unavailable_for(all: &[Value], reason: &str) -> Result<(), Failure> {
     if text_of(found[0], "error_code") != Some(ERROR_CODE) {
         return Err(format!("error_code of `{UNAVAILABLE}` is not {ERROR_CODE}"));
     }
-    if text_of(found[0], "reason") != Some(reason) {
-        return Err(format!("reason of `{UNAVAILABLE}` is not {reason}"));
+    match text_of(found[0], "reason") {
+        Some(said) if said == reason => Ok(()),
+        said => Err(format!(
+            "reason of `{UNAVAILABLE}` is {said:?}, want {reason}"
+        )),
     }
-    Ok(())
+}
+
+/// How `nvidia-smi -L` came out: its exit code, or why it did not start.
+type SmiStart = io::Result<i32>;
+
+/// The `reason` the machine this runs on should report, decided from how
+/// `nvidia-smi -L` started and without asking `hayamimi`. Exit 0 means a
+/// driver is there and the device is hidden (`no_device`); no such command
+/// means no driver (`driver_unreadable`). Any other outcome gives no
+/// expectation, and the message names it with the command's path.
+fn expected_reason(start: &SmiStart, path: &str) -> Result<&'static str, Failure> {
+    match start {
+        Ok(0) => Ok(NO_DEVICE),
+        Ok(code) => Err(format!(
+            "`{path} -L` ended with exit code {code}; the reason to expect is unknown"
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(DRIVER_UNREADABLE),
+        Err(error) => Err(format!(
+            "`{path} -L` did not start ({:?}); the reason to expect is unknown",
+            error.kind()
+        )),
+    }
+}
+
+/// Starts `nvidia-smi -L` once and waits for it.
+fn smi_start() -> SmiStart {
+    let status = Command::new(SMI)
+        .arg("-L")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+    status
+        .code()
+        .ok_or_else(|| io::Error::other("ended by a signal"))
+}
+
+/// The reason to expect from the machine the test runs on.
+fn expected_reason_here() -> Result<&'static str, Failure> {
+    expected_reason(&smi_start(), SMI)
 }
 
 /// Each loaded GPU stage moved to the CPU once in the log and once on `/events`.
@@ -142,14 +190,15 @@ fn check_names_nvidia_smi(output: &Output) -> Result<(), Failure> {
     }
 }
 
-/// A run with the GPU hidden: exit 0, subtitles, one device event, each loaded
-/// stage moved to the CPU once, every session on the CPU, the check command named.
-fn check_no_gpu_run(run: &Run) -> Result<(), Failure> {
+/// A run with the GPU hidden: exit 0, subtitles, one device event with the
+/// reason `reason`, each loaded stage moved to the CPU once, every session on
+/// the CPU, the check command named.
+fn check_no_gpu_run(run: &Run, reason: &str) -> Result<(), Failure> {
     let output = &run.served.output;
     check_exit_zero(output)?;
     check_subtitles(&run.served.wire)?;
     let all = events(&output.stdout)?;
-    check_unavailable_once(&all)?;
+    check_unavailable_for(&all, reason)?;
     check_stages_moved(&all, &run.served.wire, &run.loaded)?;
     check_every_session_on_cpu(&all)?;
     check_names_nvidia_smi(output)
@@ -214,18 +263,26 @@ fn log_line(name: &str, fields: &str) -> String {
     format!("{{\"event\":\"{name}\"{fields}}}\n")
 }
 
-fn unavailable_line() -> String {
+fn unavailable_line_for(reason: &str) -> String {
     log_line(
         UNAVAILABLE,
-        &format!(",\"error_code\":\"{ERROR_CODE}\",\"reason\":\"no_device\""),
+        &format!(",\"error_code\":\"{ERROR_CODE}\",\"reason\":\"{reason}\""),
+    )
+}
+
+fn unavailable_line() -> String {
+    unavailable_line_for(NO_DEVICE)
+}
+
+fn fallback_line_for(stage: &str, reason: &str) -> String {
+    log_line(
+        FALLBACK,
+        &format!(",\"stage\":\"{stage}\",\"reason\":\"{reason}\""),
     )
 }
 
 fn fallback_line(stage: &str) -> String {
-    log_line(
-        FALLBACK,
-        &format!(",\"stage\":\"{stage}\",\"reason\":\"no_device\""),
-    )
+    fallback_line_for(stage, NO_DEVICE)
 }
 
 fn created_line(model: &str, provider: &str) -> String {
@@ -235,8 +292,12 @@ fn created_line(model: &str, provider: &str) -> String {
     )
 }
 
+fn wire_fallback_for(stage: &str, reason: &str) -> Value {
+    serde_json::json!({"type": "fallback", "stage": stage, "reason": reason, "to": "cpu"})
+}
+
 fn wire_fallback(stage: &str) -> Value {
-    serde_json::json!({"type": "fallback", "stage": stage, "reason": "no_device", "to": "cpu"})
+    wire_fallback_for(stage, NO_DEVICE)
 }
 
 fn wire_final() -> Value {
@@ -258,21 +319,36 @@ fn run_of(code: i32, stdout: &str, stderr: &str, wire: Vec<Value>) -> Run {
 }
 
 /// The log of T-RP-16-001: the device event, a CPU session, the stage moved.
+fn hidden_stdout_for(reason: &str) -> String {
+    unavailable_line_for(reason)
+        + &created_line("punct_bert.onnx", "cpu")
+        + &fallback_line_for("punct", reason)
+}
+
 fn hidden_stdout() -> String {
-    unavailable_line() + &created_line("punct_bert.onnx", "cpu") + &fallback_line("punct")
+    hidden_stdout_for(NO_DEVICE)
+}
+
+fn hidden_wire_for(reason: &str) -> Vec<Value> {
+    vec![wire_final(), wire_fallback_for("punct", reason)]
 }
 
 fn hidden_wire() -> Vec<Value> {
-    vec![wire_final(), wire_fallback("punct")]
+    hidden_wire_for(NO_DEVICE)
+}
+
+/// The run of T-RP-16-001 on a machine whose device event says `reason`.
+fn hidden_run_for(reason: &str) -> Run {
+    run_of(
+        0,
+        &hidden_stdout_for(reason),
+        "check with: nvidia-smi\n",
+        hidden_wire_for(reason),
+    )
 }
 
 fn hidden_run() -> Run {
-    run_of(
-        0,
-        &hidden_stdout(),
-        "check with: nvidia-smi\n",
-        hidden_wire(),
-    )
+    hidden_run_for(NO_DEVICE)
 }
 
 fn visible_run(stdout: &str, wire: Vec<Value>) -> Run {
@@ -284,12 +360,23 @@ fn names(said: Result<(), Failure>, what: &str) -> bool {
     said.is_err_and(|text| text.contains(what))
 }
 
+/// Whether the check failed with a message that names both `first` and `second`.
+fn names_both(said: Result<(), Failure>, first: &str, second: &str) -> bool {
+    said.is_err_and(|text| text.contains(first) && text.contains(second))
+}
+
+/// Whether `expected_reason` gave no reason and its message names every word of `what`.
+fn refuses_naming(said: Result<&str, Failure>, what: &[&str]) -> bool {
+    said.err()
+        .is_some_and(|text| what.iter().all(|word| text.contains(word)))
+}
+
 // ---- cases ----
 
 /// T-RP-16-001
 #[test]
 fn no_gpu_run_with_all_required_signals_passes() -> TestResult {
-    check_no_gpu_run(&hidden_run())?;
+    check_no_gpu_run(&hidden_run(), NO_DEVICE)?;
     Ok(())
 }
 
@@ -298,7 +385,7 @@ fn no_gpu_run_with_all_required_signals_passes() -> TestResult {
 fn zero_unavailable_events_is_rejected() {
     let stdout = created_line("punct_bert.onnx", "cpu") + &fallback_line("punct");
     let run = run_of(0, &stdout, "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), UNAVAILABLE));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), UNAVAILABLE));
 }
 
 /// T-RP-16-003
@@ -306,7 +393,7 @@ fn zero_unavailable_events_is_rejected() {
 fn two_unavailable_events_is_rejected() {
     let stdout = unavailable_line() + &hidden_stdout();
     let run = run_of(0, &stdout, "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), UNAVAILABLE));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), UNAVAILABLE));
 }
 
 /// T-RP-16-004
@@ -314,21 +401,21 @@ fn two_unavailable_events_is_rejected() {
 fn cuda_session_after_missing_gpu_is_rejected() {
     let stdout = hidden_stdout() + &created_line("encoder.onnx", "cuda");
     let run = run_of(0, &stdout, "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), "encoder.onnx"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "encoder.onnx"));
 }
 
 /// T-RP-16-005
 #[test]
 fn nonzero_exit_code_is_rejected() {
     let run = run_of(2, &hidden_stdout(), "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), "want 0"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "want 0"));
 }
 
 /// T-RP-16-006
 #[test]
 fn stderr_without_nvidia_smi_is_rejected() {
     let run = run_of(0, &hidden_stdout(), "no device\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), "nvidia-smi"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "nvidia-smi"));
 }
 
 /// T-RP-16-007
@@ -365,14 +452,14 @@ fn gpu_present_run_that_falls_back_is_rejected() {
 fn missing_fallback_log_event_for_a_loaded_stage_is_named() {
     let stdout = unavailable_line() + &created_line("punct_bert.onnx", "cpu");
     let run = run_of(0, &stdout, "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), "punct"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "punct"));
 }
 
 /// T-RP-16-012
 #[test]
 fn missing_events_fallback_for_a_loaded_stage_is_named() {
     let run = run_of(0, &hidden_stdout(), "nvidia-smi\n", vec![wire_final()]);
-    assert!(names(check_no_gpu_run(&run), "/events"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "/events"));
 }
 
 /// T-RP-16-013
@@ -380,7 +467,7 @@ fn missing_events_fallback_for_a_loaded_stage_is_named() {
 fn duplicate_fallback_event_for_a_stage_is_rejected() {
     let stdout = hidden_stdout() + &fallback_line("punct");
     let run = run_of(0, &stdout, "nvidia-smi\n", hidden_wire());
-    assert!(names(check_no_gpu_run(&run), "punct"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "punct"));
 }
 
 /// T-RP-16-014
@@ -390,7 +477,7 @@ fn unloaded_gpu_stage_needs_no_fallback_event() -> TestResult {
     let run = hidden_run();
     let all = events(&run.served.output.stdout)?;
     assert!(log_events_of(&all, FALLBACK, "lid").is_empty());
-    check_no_gpu_run(&run)?;
+    check_no_gpu_run(&run, NO_DEVICE)?;
     Ok(())
 }
 
@@ -421,7 +508,7 @@ fn no_gpu_run_that_also_loads_the_identifier_passes() -> TestResult {
         "nvidia-smi\n",
         routed_hidden_wire(),
     ));
-    check_no_gpu_run(&run)?;
+    check_no_gpu_run(&run, NO_DEVICE)?;
     Ok(())
 }
 
@@ -430,7 +517,7 @@ fn no_gpu_run_that_also_loads_the_identifier_passes() -> TestResult {
 fn missing_identifier_fallback_log_event_is_named() {
     let stdout = hidden_stdout() + &created_line("tiny-encoder.onnx", "cpu");
     let run = routed(run_of(0, &stdout, "nvidia-smi\n", routed_hidden_wire()));
-    assert!(names(check_no_gpu_run(&run), "lid"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "lid"));
 }
 
 /// T-RP-16-020
@@ -442,7 +529,7 @@ fn missing_identifier_events_fallback_is_named() {
         "nvidia-smi\n",
         hidden_wire(),
     ));
-    assert!(names(check_no_gpu_run(&run), "lid"));
+    assert!(names(check_no_gpu_run(&run, NO_DEVICE), "lid"));
 }
 
 /// T-RP-16-021
@@ -461,6 +548,69 @@ fn gpu_present_run_with_the_identifier_on_cpu_is_rejected() {
         created_line("punct_bert.onnx", "cuda") + &created_line("tiny-encoder.onnx", "cpu");
     let run = routed(visible_run(&stdout, vec![wire_final()]));
     assert!(names(check_gpu_run(&run), "lid"));
+}
+
+// ---- the reason a machine should report ----
+
+const SMI_PATH: &str = "/usr/bin/nvidia-smi";
+
+/// T-RP-16-052
+#[test]
+fn expected_reason_is_no_device_when_nvidia_smi_exits_zero() {
+    assert!(matches!(expected_reason(&Ok(0), SMI), Ok(NO_DEVICE)));
+}
+
+/// T-RP-16-053
+#[test]
+fn expected_reason_is_driver_unreadable_when_nvidia_smi_is_not_found() -> TestResult {
+    let found = expected_reason(&Err(io::ErrorKind::NotFound.into()), SMI)?;
+    assert_eq!(found, DRIVER_UNREADABLE);
+    assert_ne!(found, NO_DEVICE);
+    Ok(())
+}
+
+/// T-RP-16-054
+#[test]
+fn expected_reason_names_a_nonzero_nvidia_smi_exit() {
+    let said = expected_reason(&Ok(1), SMI);
+    assert!(refuses_naming(said, &["exit code 1"]));
+}
+
+/// T-RP-16-055
+#[test]
+fn expected_reason_names_a_permission_denied_launch_and_its_path() {
+    let start = Err(io::ErrorKind::PermissionDenied.into());
+    let said = expected_reason(&start, SMI_PATH);
+    assert!(refuses_naming(said, &["PermissionDenied", SMI_PATH]));
+}
+
+/// T-RP-16-056
+#[test]
+fn expected_reason_names_any_other_launch_error_kind() {
+    let start = Err(io::ErrorKind::Other.into());
+    let said = expected_reason(&start, SMI_PATH);
+    assert!(refuses_naming(said, &["Other", SMI_PATH]));
+}
+
+/// T-RP-16-057
+#[test]
+fn no_gpu_run_with_driver_unreadable_reason_passes_when_expected() -> TestResult {
+    check_no_gpu_run(&hidden_run_for(DRIVER_UNREADABLE), DRIVER_UNREADABLE)?;
+    Ok(())
+}
+
+/// T-RP-16-058
+#[test]
+fn driver_unreadable_reason_is_rejected_when_the_driver_is_present() {
+    let said = check_no_gpu_run(&hidden_run_for(DRIVER_UNREADABLE), NO_DEVICE);
+    assert!(names_both(said, DRIVER_UNREADABLE, NO_DEVICE));
+}
+
+/// T-RP-16-059
+#[test]
+fn no_device_reason_is_rejected_when_the_driver_is_absent() {
+    let said = check_no_gpu_run(&hidden_run(), DRIVER_UNREADABLE);
+    assert!(names_both(said, NO_DEVICE, DRIVER_UNREADABLE));
 }
 
 // ---- real runs ----
@@ -495,7 +645,8 @@ fn hidden_gpu_run(locale: &str) -> Result<Run, Failure> {
 #[test]
 #[ignore = "runs the hayamimi binary"]
 fn hidden_gpu_falls_back_to_cpu_with_a_reason() -> TestResult {
-    check_no_gpu_run(&hidden_gpu_run("C.UTF-8")?)?;
+    let reason = expected_reason_here()?;
+    check_no_gpu_run(&hidden_gpu_run("C.UTF-8")?, reason)?;
     Ok(())
 }
 
@@ -553,10 +704,11 @@ fn binary_run_identifies_the_language() -> TestResult {
 #[test]
 #[ignore = "runs the hayamimi binary"]
 fn rp16_no_gpu_falls_back_to_cpu_and_says_so() -> TestResult {
+    let reason = expected_reason_here()?;
     let ja = hidden_gpu_run("ja_JP.UTF-8")?;
     let c = hidden_gpu_run("C.UTF-8")?;
-    check_no_gpu_run(&ja)?;
-    check_no_gpu_run(&c)?;
+    check_no_gpu_run(&ja, reason)?;
+    check_no_gpu_run(&c, reason)?;
     // Windows takes the language from the system, which `LANG` does not change.
     #[cfg(unix)]
     check_stderr_languages(&ja.served.output.stderr, &c.served.output.stderr)?;
@@ -740,17 +892,26 @@ fn translate_run(code: i32, stdout: &str, stderr: &str, args: Option<&str>) -> T
 }
 
 /// The log of T-RP-16-018: the device event, the fallback, a server with no layer on the GPU.
-fn cpu_stdout() -> String {
-    unavailable_line() + &translate_fallback_line("no_device") + &started_line("cuda", 0)
+fn cpu_stdout_for(reason: &str) -> String {
+    unavailable_line_for(reason) + &translate_fallback_line(reason) + &started_line("cuda", 0)
 }
 
-fn cpu_run() -> TranslateRun {
+fn cpu_stdout() -> String {
+    cpu_stdout_for(NO_DEVICE)
+}
+
+/// The run of T-RP-16-038 on a machine whose device event says `reason`.
+fn cpu_run_for(reason: &str) -> TranslateRun {
     translate_run(
         0,
-        &cpu_stdout(),
+        &cpu_stdout_for(reason),
         "check with: nvidia-smi\n",
         Some(ARGS_ON_CPU),
     )
+}
+
+fn cpu_run() -> TranslateRun {
+    cpu_run_for(NO_DEVICE)
 }
 
 fn gpu_run(stdout: &str, args: &str) -> TranslateRun {
@@ -860,6 +1021,27 @@ fn session_failed_run_needs_the_fallback_but_no_device_event() -> TestResult {
     Ok(())
 }
 
+/// T-RP-16-060
+#[test]
+fn translate_run_with_driver_unreadable_reason_passes_when_expected() -> TestResult {
+    check_translate_on_cpu(&cpu_run_for(DRIVER_UNREADABLE), DRIVER_UNREADABLE)?;
+    Ok(())
+}
+
+/// T-RP-16-061
+#[test]
+fn translate_run_with_the_wrong_device_reason_is_rejected() {
+    let said = check_translate_on_cpu(&cpu_run_for(DRIVER_UNREADABLE), NO_DEVICE);
+    assert!(names_both(said, DRIVER_UNREADABLE, NO_DEVICE));
+}
+
+/// T-RP-16-062
+#[test]
+fn translate_run_with_no_device_reason_is_rejected_when_the_driver_is_absent() {
+    let said = check_translate_on_cpu(&cpu_run(), DRIVER_UNREADABLE);
+    assert!(names_both(said, NO_DEVICE, DRIVER_UNREADABLE));
+}
+
 // ---- real runs of the translation server (the stand-in server) ----
 
 fn hidden_translate(name: &str, locale: &str, builds: &[Build]) -> Result<Session, Failure> {
@@ -869,8 +1051,9 @@ fn hidden_translate(name: &str, locale: &str, builds: &[Build]) -> Result<Sessio
 /// T-RP-16-049
 #[test]
 fn hidden_gpu_translate_server_starts_on_cpu_with_a_reason() -> TestResult {
+    let reason = expected_reason_here()?;
     let session = hidden_translate("hidden", "C.UTF-8", &[Build::Cuda, Build::Cpu])?;
-    check_translate_on_cpu(&TranslateRun::of(&session.launch), "no_device")?;
+    check_translate_on_cpu(&TranslateRun::of(&session.launch), reason)?;
     assert_eq!(health(session.launch.port)?, "ok");
     Ok(())
 }
@@ -878,9 +1061,10 @@ fn hidden_gpu_translate_server_starts_on_cpu_with_a_reason() -> TestResult {
 /// T-RP-16-050
 #[test]
 fn missing_cuda_build_falls_through_to_the_cpu_build() -> TestResult {
+    let reason = expected_reason_here()?;
     let session = hidden_translate("nocuda", "C.UTF-8", &[Build::Cpu])?;
     let run = TranslateRun::of(&session.launch);
-    check_translate_on_cpu(&run, "no_device")?;
+    check_translate_on_cpu(&run, reason)?;
     check_failed_once(&events(&run.output.stdout)?, "cuda", "missing_build")?;
     assert_eq!(health(session.launch.port)?, "ok");
     Ok(())
@@ -899,11 +1083,12 @@ fn visible_gpu_translate_server_does_not_fall_back() -> TestResult {
 /// translation server starts on the CPU and says so, in both languages.
 #[test]
 fn rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so() -> TestResult {
+    let reason = expected_reason_here()?;
     let builds = [Build::Cuda, Build::Cpu];
     let ja = hidden_translate("accept-ja", "ja_JP.UTF-8", &builds)?;
     let c = hidden_translate("accept-c", "C.UTF-8", &builds)?;
-    check_translate_on_cpu(&TranslateRun::of(&ja.launch), "no_device")?;
-    check_translate_on_cpu(&TranslateRun::of(&c.launch), "no_device")?;
+    check_translate_on_cpu(&TranslateRun::of(&ja.launch), reason)?;
+    check_translate_on_cpu(&TranslateRun::of(&c.launch), reason)?;
     // Windows takes the language from the system, which `LANG` does not change.
     #[cfg(unix)]
     check_stderr_languages(&ja.launch.output.stderr, &c.launch.output.stderr)?;
