@@ -13,10 +13,12 @@ use sha2::{Digest, Sha256};
 
 pub mod der_logs;
 pub mod e2e;
+pub mod machine;
 pub mod rp32;
 pub mod rp32_rules;
 pub mod rp33;
 pub mod rp70;
+pub mod s83;
 pub mod stages;
 
 /// What a `check_*` function returns for a wrong input: a message that

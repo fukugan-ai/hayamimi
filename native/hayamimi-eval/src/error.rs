@@ -34,7 +34,18 @@ pub enum EvalError {
     Invalid(String),
     /// The machine has no output device to play the recording to.
     NoOutputDevice,
+    /// A run was refused before its first byte of audio: the machine is busy.
+    MachineRefused(String),
+    /// A run was stopped part-way because a build started on the machine.
+    MachineAborted(String),
 }
+
+/// The exit code of a command that failed for any reason but the machine.
+const EXIT_FAILED: u8 = 1;
+/// The exit code of a run refused before it sent audio.
+pub const EXIT_REFUSED: u8 = 2;
+/// The exit code of a run stopped by a build that started during it.
+pub const EXIT_ABORTED: u8 = 3;
 
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -51,6 +62,8 @@ impl fmt::Display for EvalError {
             EvalError::Manifest(message) => write!(f, "manifest: {message}"),
             EvalError::Invalid(message) => write!(f, "{message}"),
             EvalError::NoOutputDevice => write!(f, "no output device is available"),
+            EvalError::MachineRefused(why) => write!(f, "the machine is busy: {why}"),
+            EvalError::MachineAborted(why) => write!(f, "a build started during the run: {why}"),
         }
     }
 }
@@ -81,6 +94,15 @@ impl EvalError {
             source,
         }
     }
+
+    /// The exit code of the process that stopped on this error.
+    pub fn exit_code(&self) -> u8 {
+        match self {
+            EvalError::MachineRefused(_) => EXIT_REFUSED,
+            EvalError::MachineAborted(_) => EXIT_ABORTED,
+            _ => EXIT_FAILED,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -102,6 +124,14 @@ mod tests {
         };
         let error = EvalError::json(Path::new("m.json"), source);
         assert!(error.to_string().starts_with("m.json: not valid JSON"));
+    }
+
+    #[test]
+    fn a_busy_machine_exits_with_2_a_build_during_the_run_with_3_and_the_rest_with_1() {
+        assert_eq!(EvalError::MachineRefused(String::new()).exit_code(), 2);
+        assert_eq!(EvalError::MachineAborted(String::new()).exit_code(), 3);
+        assert_eq!(EvalError::NoOutputDevice.exit_code(), 1);
+        assert_eq!(EvalError::Invalid(String::new()).exit_code(), 1);
     }
 
     #[test]

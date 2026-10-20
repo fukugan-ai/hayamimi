@@ -9,7 +9,7 @@
 mod support;
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use hayamimi_asr::endpoint::Rule;
 use hayamimi_asr::vad::EARLY_MIN_SILENCE_MS;
@@ -18,14 +18,16 @@ use hayamimi_eval::compare::{
     translated_share,
 };
 use hayamimi_eval::latency::{Sample, Stat, Window, build_samples, parse_event};
-use serde_json::Value;
+use serde_json::{Value, json};
 use support::e2e::columns_of;
+use support::machine::{f83_rows, text_of};
 use support::rp32::{
     AltReport, AltRun, Implementation, LOAD_OK, SHARE_COLUMN_PYTHON, SHARE_COLUMN_RUST,
     alternated_report, check_alternated_runs, check_columns_written, check_dir, check_ports_held,
-    check_share_columns_written, f32_sample, l_comparison_set, load_alternated, load_hundredths,
-    load_runs, missing_files, missing_rule_files, pairs_to_read, parse_load_file, parse_pairs_text,
-    render_columns, render_line_counts, render_share_columns, rp32_dir, scratch_dir, write_f32_dir,
+    check_share_columns_written, f32_sample, f83_for, l_comparison_set, load_alternated,
+    load_hundredths, load_runs, missing_files, missing_rule_files, pairs_to_read, parse_load_file,
+    parse_pairs_text, render_columns, render_line_counts, render_pre_gate, render_share_columns,
+    rp32_dir, scratch_dir, write_f32_dir,
 };
 use support::rp32_rules::{closing_rules, decided_rules, rule_named, silence_line_ms};
 use support::{Failure, TestResult, base};
@@ -115,6 +117,8 @@ fn f32_run(implementation: Implementation, k: u32) -> AltRun {
         load_after: Some(String::from(LOAD_OK)),
         samples: (1..=19).map(|utt| f32_sample(utt, k)).collect(),
         rules: None,
+        dir: PathBuf::new(),
+        machine: f83_for(implementation),
     }
 }
 
@@ -254,12 +258,35 @@ fn an_unreadable_load_line_is_rejected_not_read_as_zero() {
 }
 
 #[test]
-fn the_load_after_a_run_is_recorded_but_not_judged() -> TestResult {
+fn the_one_minute_load_after_a_run_is_recorded_but_not_judged() -> TestResult {
     let mut runs = f32_runs();
     runs[3].load_before = Some(String::from("1.99 0.50 0.50 1/300 1000"));
     runs[3].load_after = Some(String::from("9.99 0.50 0.50 1/300 1000"));
     let report = check_alternated_runs(&runs, None)?;
     assert_eq!(report.loads_after[3], 999);
+    Ok(())
+}
+
+/// T-RP-32-047: the gate of RP-83 is called. The second Rust run (the fourth)
+/// has a `load15` of 2.50 in its first row; it alone is named.
+#[test]
+fn a_rust_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate() -> TestResult {
+    check_alternated_runs(&f32_runs(), None)?;
+    let mut runs = f32_runs();
+    let mut rows = f83_rows();
+    rows[0]["load15"] = json!("2.50");
+    runs[3].machine = Some(text_of(&rows));
+    let said = check_alternated_runs(&runs, None);
+    assert!(
+        said.as_ref().is_err_and(|why| {
+            why.contains("rs2")
+                && why.contains("load15")
+                && why.contains("2.50")
+                && !why.contains("rs1")
+                && !why.contains("rs3")
+        }),
+        "{said:?}"
+    );
     Ok(())
 }
 
@@ -592,6 +619,7 @@ fn rp32_alternated_runs_under_the_same_load_beat_python() -> TestResult {
         println!("rp32 rust:\n{}", render_columns(&report.rust));
         println!("rp32 share:\n{}", render_share_columns(report));
         println!("rp32 lines:\n{}", render_line_counts(report));
+        println!("rp32 gate:\n{}", render_pre_gate(report));
         println!(
             "rp32: {} of {} utterances not slower; loads after {:?}",
             report.not_slower,
@@ -761,6 +789,8 @@ fn f32l_run(implementation: Implementation) -> AltRun {
         load_after: Some(String::from(LOAD_OK)),
         samples,
         rules: None,
+        dir: PathBuf::new(),
+        machine: f83_for(implementation),
     }
 }
 

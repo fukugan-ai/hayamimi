@@ -36,12 +36,14 @@ use hayamimi_eval::compare::{
     is_valid_l_asr, read_samples, share_of_valid,
 };
 use hayamimi_eval::latency::Sample;
+use hayamimi_eval::machine::FILE_SUFFIX as MACHINE_SUFFIX;
 use hayamimi_eval::percentile::nearest_rank;
 use serde_json::Value;
 
 use super::e2e::{Columns, MIN_SILENCE_MS, columns_over};
+use super::machine::{GateReport, RunInput, check_runs, f83_text};
 use super::rp32_rules::{RULES, closing_rules, silence_line_ms};
-use super::{Failure, RESULTS, read};
+use super::{Failure, REPO, RESULTS, read};
 
 /// A run starts only under a 1 minute load below this, in hundredths (2.00).
 const LOAD_LIMIT_HUNDREDTHS: i64 = 200;
@@ -68,6 +70,12 @@ pub struct AltRun {
     /// `Some`: each sample is judged against the line of its rule, and a sample
     /// with a `final` and no entry here is refused.
     pub rules: Option<BTreeMap<(u32, u32), Rule>>,
+    /// Where `<run>.jsonl` stands. A Rust run with no machine file passes the
+    /// gate only when this directory, its name and its samples file are one of
+    /// the records measured before the gate (`machine::PRE_GATE`).
+    pub dir: PathBuf,
+    /// The text of `<run>.machine.jsonl` (RP-83); `None` when the file does not stand.
+    pub machine: Option<String>,
 }
 
 /// The pooled Rust counts with every sample judged against `min_silence`.
@@ -106,6 +114,8 @@ pub struct AltReport {
     pub python_share: TranslatedShare,
     /// The 1 minute load after each run, in hundredths. Recorded, not judged.
     pub loads_after: Vec<i64>,
+    /// The Rust runs let through the gate (RP-83) as records of before it.
+    pub pre_gate: Vec<String>,
     pub flat: FlatCounts,
     /// Rust samples valid against their own line and not against
     /// `min_silence`, by the name of the rule that closed them (every rule is
@@ -179,9 +189,32 @@ fn recorded_load(line: &Option<String>, number: usize, when: &str) -> Result<i64
     load_hundredths(line).map_err(|why| format!("run {number}, load {when}: {why}"))
 }
 
-/// Every run was started under a load below 2.00 and both records are readable;
-/// the loads after each run, in order.
-fn check_loads(runs: &[AltRun]) -> Result<Vec<i64>, Failure> {
+/// What `check_loads` found: the loads after each run, and the runs let
+/// through the gate as records of before it.
+struct Loads {
+    after: Vec<i64>,
+    pre_gate: Vec<String>,
+}
+
+/// The runs as RP-83 takes them, named `py1`, `rs1`, `py2`, ... in the order
+/// they were measured. The order has been checked.
+fn gate_inputs(runs: &[AltRun]) -> Vec<RunInput> {
+    run_names(runs.len() / 2)
+        .into_iter()
+        .zip(runs)
+        .map(|((name, implementation), run)| RunInput {
+            dir: run.dir.clone(),
+            name,
+            rust: implementation == Implementation::Rust,
+            machine: run.machine.clone(),
+        })
+        .collect()
+}
+
+/// Every run was started under a 1 minute load below 2.00, both records are
+/// readable, and every Rust run passes the gate of RP-83: the machine records
+/// are judged here, and the loads after each run are only handed back.
+fn check_loads(runs: &[AltRun]) -> Result<Loads, Failure> {
     let mut after = Vec::new();
     for (index, run) in runs.iter().enumerate() {
         let number = index + 1;
@@ -195,7 +228,11 @@ fn check_loads(runs: &[AltRun]) -> Result<Vec<i64>, Failure> {
         }
         after.push(recorded_load(&run.load_after, number, "after")?);
     }
-    Ok(after)
+    let gate = check_runs(Path::new(REPO), &gate_inputs(runs))?;
+    Ok(Loads {
+        after,
+        pre_gate: gate.exempt,
+    })
 }
 
 /// Which silence line a sample is judged against.
@@ -350,7 +387,10 @@ pub fn alternated_report(
 ) -> Result<AltReport, Failure> {
     check_order(runs)?;
     check_pair_count(runs.len() / 2, recorded_pairs)?;
-    let loads_after = check_loads(runs)?;
+    let Loads {
+        after: loads_after,
+        pre_gate,
+    } = check_loads(runs)?;
     let (python, rust) = (
         pooled(runs, Implementation::Python)?,
         pooled(runs, Implementation::Rust)?,
@@ -373,6 +413,7 @@ pub fn alternated_report(
         rust_share: share_of_valid(&rust_valid),
         python_share: share_of_valid(&python_valid),
         loads_after,
+        pre_gate,
         flat: FlatCounts {
             not_slower: not_slower(&comparison_set, &python_medians, &medians(&rust_flat)?),
             rust_share: share_of_valid(&rust_flat),
@@ -536,6 +577,15 @@ pub fn render_line_counts(report: &AltReport) -> String {
         quality_line("rust", &report.rust_quality),
     ]
     .join("\n")
+}
+
+/// The line that names the Rust runs let through the gate of RP-83 as records
+/// of before it.
+pub fn render_pre_gate(report: &AltReport) -> String {
+    GateReport {
+        exempt: report.pre_gate.clone(),
+    }
+    .render()
 }
 
 /// The output names both translated-share columns.
@@ -771,9 +821,39 @@ pub fn load_runs(dir: &Path, pairs: usize) -> Result<Vec<AltRun>, Failure> {
             samples: read_samples(&dir.join(format!("{name}.jsonl")))
                 .map_err(|why| why.to_string())?,
             rules: None,
+            dir: dir.to_path_buf(),
+            machine: read_machine_file(dir, &name)?,
         });
     }
     Ok(runs)
+}
+
+/// The text of `<name>.machine.jsonl` in `dir`; `None` when the file does not stand.
+fn read_machine_file(dir: &Path, name: &str) -> Result<Option<String>, Failure> {
+    let path = dir.join(format!("{name}.{MACHINE_SUFFIX}"));
+    if !path.is_file() {
+        return Ok(None);
+    }
+    read(&path).map(Some)
+}
+
+/// The machine record of an F32 run: a Rust run has the clean F83 record, a
+/// Python baseline has none (it is not judged).
+pub fn f83_for(implementation: Implementation) -> Option<String> {
+    (implementation == Implementation::Rust).then(f83_text)
+}
+
+/// RP-83 over the Rust runs of the real measurement in `dir`, as many pairs as
+/// `pairs.txt` records. Used by the suites that read these runs and are not
+/// RP-32 itself.
+pub fn check_gate_of_dir(dir: &Path) -> Result<GateReport, Failure> {
+    let pairs = pairs_to_read(dir)?.pairs;
+    let mut inputs = Vec::new();
+    for n in 1..=pairs {
+        let name = format!("rs{n}");
+        inputs.push(RunInput::rust(dir, &name, read_machine_file(dir, &name)?));
+    }
+    check_runs(Path::new(REPO), &inputs)
 }
 
 /// The rule of every sample of the Rust run `name` of `dir`.
@@ -882,8 +962,9 @@ fn f32_stdout() -> String {
 }
 
 /// Writes the F32 runs of `pairs` pairs into `dir`: `py<N>.jsonl`, `rs<N>.jsonl`
-/// (Rust equals Python), `load<N>.txt` and the clean `rs<N>.events.jsonl` and
-/// `rs<N>.hayamimi.stdout.log` per pair, and `pairs_txt` as `pairs.txt` when given.
+/// (Rust equals Python), `load<N>.txt` and the clean `rs<N>.events.jsonl`,
+/// `rs<N>.hayamimi.stdout.log` and `rs<N>.machine.jsonl` (F83) per pair, and
+/// `pairs_txt` as `pairs.txt` when given.
 pub fn write_f32_dir(
     dir: &Path,
     pairs: u32,
@@ -901,6 +982,7 @@ pub fn write_f32_dir(
             }
         }
         std::fs::write(dir.join(format!("load{k}.txt")), load)?;
+        std::fs::write(dir.join(format!("rs{k}.{MACHINE_SUFFIX}")), f83_text())?;
         std::fs::write(dir.join(format!("rs{k}.events.jsonl")), f32_events())?;
         std::fs::write(dir.join(format!("rs{k}.hayamimi.stdout.log")), f32_stdout())?;
     }
