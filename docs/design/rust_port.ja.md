@@ -717,7 +717,7 @@ designer に渡す物は、3 頁の URL と query（`?show=final`、`?show=parti
 | `docs/design/` の今の設計（diarization、translate、translate_m2m、punct_ja、mobile_quantization） | ある判断に至った調査の記録で、当時の file を指すのは正しい。冒頭に、実行時の置き場が R11 で Rust の module に替わったことを 1 行足す（R11a2） |
 | mobile の Dart の comment（写した元の Python の名指し）と mobile の README | R11b で、対応する Rust の module の path に書き替える。挙動は変えない。Dart の文字列（test の名前、skip の文、`mobile/lib/main.dart` の画面の文）は実行される文字列なので書き替えず、RP-81 の例外に名指す（画面の文を替えるのは画面の席の仕事である）。`mobile/hayamimi_core/CHANGELOG.md` は版ごとの記録で、`test/fixtures/punct_ja_parity.json` の `_generated_by` は fixture を作った道具の記録なので、どちらも残す |
 | `tests/golden/ja/golden.json` の `_generated_by` と `cli` | golden を作った時の道具と command の記録で、RP-2 の期待値と同じ時に書かれた。値を書き替えると記録が偽になるので残す |
-| `docs/spec/ja_pipeline_spec.json` | `hayamimi config dump` の出力で作り直す（R13-10）。`config` の値は、次の 3 つのほかは変えない（RP-19 の 1 行）。`itn.module` は、消えた file の path（`scripts/itn_cjk.py`）から `hayamimi-asr::itn` へ替える。消えた file の path は値として偽で、RP-81 の式にも当たるからである。`vad.min_silence_duration`（0.35 から 0.30）と `punctuation.intra_op_num_threads`（4 から 2）は、実装の値へ替わる。dump は Rust の実の値を出し、spec はその出力で作り直すからである。作り直した spec の差は、R13-10 の実装が出す差の一覧と照合する（検証の席が数える）。dump が宣言した値をそのまま出す項目は、実装の値が動いても差に出ない（10 の H135）。R13-10 が入るまで `generated_by` は消えた script を指したまま残り、RP-81 はこの file を例外として名指す |
+| `docs/spec/ja_pipeline_spec.json` | `hayamimi config dump` の出力で作り直す（R13-10）。`config` の値は、次の 3 つのほかは変えない（RP-19 の 1 行）。`itn.module` は、消えた file の path（`scripts/itn_cjk.py`）から `hayamimi-asr::itn` へ替える。消えた file の path は値として偽で、RP-81 の式にも当たるからである。`vad.min_silence_duration`（0.35 から 0.30）と `punctuation.intra_op_num_threads`（4 から 2）は替わる。実装の値だからである。dump と spec の差がこの 3 つの例外だけであることを、R13-10 の検証の席が数える。dump が宣言した値をそのまま出す項目は、実装の値が動いても差に出ない（10 の H135）。R13-10 が入るまで `generated_by` は消えた script を指したまま残り、RP-81 はこの file を例外として名指す |
 
 完了の条件は RP-81 である。
 
@@ -2324,7 +2324,7 @@ rp19 は、名前を持つ行のうち list に無い行（未実装の行）を
 file の名前は、固定の一覧の持ち主の札で決める。
 
 - 札を 1 つの R13 の slice が丸ごと持つ時は `<札>.txt` とする（`R12e.txt`、`R12x.txt`、`R12s1.txt`、`R12s2.txt`）。
-- 札を複数の R13 の slice が分けて持つ時は `<札>.<R13 の slice>.txt` とする（`R12b.R13-1.txt`）。分けて持つ札は `R12b`、`R12c`、`R12d`、`R12f`、`R12g`、`R12h` の 6 つである（「R11 の後の組」の表の 2 列目）。
+- 札を複数の R13 の slice が分けて持つ時は `<札>.<R13 の slice>.txt` とする（`R12b.R13-1.txt`）。分けて持つ札は `R12b`、`R12c`、`R12d`、`R12f`、`R12g`、`R12h` の 6 つである（「R11 の後の組」の表の 2 列目を一覧の札へ読み替えて数えた。`R12w0〜R12w4` は一覧の `R12w`、`R12u1` は一覧に無い）。
 - 1 つの R13 の slice が札を複数持つ時は、札ごとに 1 file を書く（R13-10 は `R12s1.txt` と `R12s2.txt`、R13-11 は `R12t1.txt`〜`R12t3.txt` と `R12b.R13-11.txt`）。
 
 file を書くのは、その名前の札を持つ slice だけである。
@@ -2700,7 +2700,7 @@ R11c の前の 6 本は、R12a1 が G0 を待つほかは互いを待たず、ca
 
 | slice | 中身 | 書く file（他の slice と重ならない） | 受入 ID | 受入 test の名前 | 依存 | 見積り |
 |---|---|---|---|---|---|---|
-| G0 | T の 5.3 の 15 行を `写さない：Python の口（<在り処か機構>）` に、`/ingest` の codec の 13 行の置き場を `hayamimi-eval/src/ws.rs` に書き替える。RP-80 と RP-81 の case 行と、RP-19 の陰性対照の case 行 4 つ（写した後に消した、写した名前を `rp19_ported/` に書かない、固定の一覧に行を足した、ほかの slice の行を自分の file に書いた。8 の RP-19 の小節）を置く。test-designer の席、cargo なし | `docs/design/rust_port_tests.ja.md` | RP-19（T-RP-19-006、007 と陰性対照の 4 行）、RP-80、RP-81 | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`、`rp80_ci_runs_cargo_and_no_python`、`rp81_no_document_names_a_removed_python_file` | なし | 45 分（推測。28 行と case 行） |
+| G0 | T の 5.3 の 15 行を `写さない：Python の口（<在り処か機構>）` に、`/ingest` の codec の 13 行の置き場を `hayamimi-eval/src/ws.rs` に書き替える。RP-80 と RP-81 の case 行と、RP-19 の陰性対照の case 行 4 つ（写した後に消した、写した名前を `rp19_ported/` に書かない、固定の一覧に行を足した、ほかの札の行を自分の file に書いた。8 の RP-19 の小節）を置く。test-designer の席、cargo なし | `docs/design/rust_port_tests.ja.md` | RP-19（T-RP-19-006、007 と陰性対照の 4 行）、RP-80、RP-81 | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`、`rp80_ci_runs_cargo_and_no_python`、`rp81_no_document_names_a_removed_python_file` | なし | 45 分（推測。28 行と case 行） |
 | R12a1 | rp19。作りかけ `c56bfd7` の `rp19.rs` 432 行を載せ、未実装の行を毎回数え直し、固定の一覧から `rp19_ported/` の名前を引いた集合と同じであることを確かめる形に直す（8 の RP-19 の小節の 3 つ）。一覧は merge の直前の main で 1 回だけ書き、その sha256 と行の数を `NOT_YET_AT_R11_SHA256` と `NOT_YET_AT_R11_ROWS` に置く。`rp19_ported/` の file は作らない（無い dir は空として読む） | `native/hayamimi-eval/tests/rp19.rs`、`native/hayamimi-eval/tests/rp19_not_yet_at_r11.tsv` | RP-19 | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`、`rp19_python_cases_are_ported` | G0（通るのに要る。書くのは並べてよい） | 55 分（作る slice の表の見積り、推測）＋検証と merge 7〜20 分（実績） |
 | R12a2 | rp09。作りかけ `c56bfd7` の `rp09.rs` 245 行を載せ、Windows で 10 分の run を打つ | `native/hayamimi/tests/rp09.rs` | RP-9 | `rp09_no_python_at_run_time` | なし | 40 分（同じ表の見積り、推測）＋ Windows の run 10 分＋検証と merge 7〜20 分 |
 | R11a1 | README の対、`CONTRIBUTING.md`、`THIRD_PARTY_NOTICES.md`、`LICENSE` の 26 行目、`docs/README` の対（`docs/eval/`、`docs/results/` と範囲の段落を付けた file の Python の command は R11 より前の版で打つ物だと書く索引の 1 行）。置き換えの完了の定義と R11 の入口を引く 18 行（10 の H110）と、索引の 1 行のうち tag `archive/python-before-r11` を名指す文は、この席が R11c の branch の上で書き、R11c と同じ commit に入れる。ほかの行は自分の commit で入れる。書き方は「R11 の前の文書の扱い」。cargo なし | `README.md`、`README.ja.md`、`CONTRIBUTING.md`、`THIRD_PARTY_NOTICES.md`、`LICENSE`、`docs/README.md`、`docs/README.ja.md`、`docs/design/status.ja.md` と `docs/design/status.md`（H110 の 12 行だけ） | RP-81 | `rp81_no_document_names_a_removed_python_file` | なし（18 行と tag の文は R11c と同時） | 75 分（推測。7 file、広げた RP-81 の式で 65 件（`/` だけの式では 43 件、`\` と `demo/` を足して 53 件、dir の無い名前を足して 65 件）と 18 行。README は `readme-writing.md` の工程） |
@@ -2766,7 +2766,10 @@ R11 の入口と置き換えの完了の定義を書いた行なので、R11c �
 同じ file を書く組は依存で順を固定する。R13-1 → R13-13（`server.rs`）、R13-5b → R13-13（`session.rs`、`wire.rs`）、R13-10 → R13-11（`args.rs`）、R13-10 → R13-13（`native/hayamimi/src/lib.rs`）の 4 組である。
 新しい module の `mod` の行は、その crate の `lib.rs` を書く slice だけが足す（`hayamimi-asr` は R13-12、`hayamimi-eval` は R13-8、`hayamimi` は R13-10、その後の R13-13）。
 各 slice は、表の「書く file」に加えて、自分の写した名前の file を `native/hayamimi-eval/tests/rp19_ported/` に作って書く。
-file の名前は表の 2 列目の札で決め、札を丸ごと持つ slice は `<札>.txt`（R13-6 は `R12e.txt`）、札を分けて持つ slice は `<札>.<R13 の slice>.txt`（R13-1 は `R12b.R13-1.txt`）とする（8 の RP-19 の小節）。
+file の名前は、固定の一覧 `rp19_not_yet_at_r11.tsv` の持ち主の札で決める。表の 2 列目の綴りは一覧の札と同じではないので、2 列目を一覧の札へ読み替えてから名付ける。
+札を丸ごと持つ slice は `<札>.txt`（R13-6 は `R12e.txt`）、札を分けて持つ slice は `<札>.<R13 の slice>.txt`（R13-1 は `R12b.R13-1.txt`）とする（8 の RP-19 の小節）。
+R13-13 の 2 列目の `R12w0〜R12w4` は `R12w` の中の段で、一覧の札は `R12w`（17 行）だけなので、R13-13 の file は `R12w.txt` である。
+R13-8 の 2 列目の `R12u1` と `R12u2` のうち、一覧に札として在るのは `R12u2`（4 行）だけで、`R12u1` の行は一覧に無い。そこで R13-8 の file は `R12u2.txt` と `R12d.R13-8.txt` で、`R12u1` の file は作らない。
 この file を書くのはその slice だけで、固定の一覧と `rp19.rs` はどの R13 の slice も書かない。
 `<札>.txt` の file は今の `rp19.rs` の読み（`.txt` の前の全部を札とする）で通る。`<札>.<R13 の slice>.txt` の file は、`rp19.rs` の読みを最初の `.` より前に替える変更が main に入ってから入れる（10 の H134）。
 test の置き場（5.3 の 4 列目）は、その slice が書く file に置き直してよく、置き直した行は G0 の後の T の席が同じ手番で 5.3 を直す。
@@ -2795,7 +2798,7 @@ r12c の `native/hayamimi/src/ingest.rs` の 222 行（手書きの codec）は�
 | R13-14 | なし（文書） | RP-19 の行は持たない。`docs/guide/` の embedding と tuning の対を Rust の code から書き直し、範囲の段落を外す（「R11 の前の文書の扱い」）。cargo なし | `docs/guide/embedding.md`、`embedding.ja.md`、`tuning.md`、`tuning.ja.md`、`native/hayamimi-eval/tests/rp81.rs` の例外の表の 4 行。mobile の Python の class `Refiner` を引く 11 行（`mobile/README.md` の 2、`mobile/hayamimi_core/README.md` の 1、`mobile/hayamimi_core/lib/live/live_transcriber.dart` の 4、`refine_pass.dart` の 4）を、R13-13 の `native/hayamimi/src/refine.rs` を引く comment に書き替える | RP-81 | `rp81_no_document_names_a_removed_python_file` | R13-1〜R13-13（書く振る舞いが全部 Rust に在ってから書く） | 90 分（推測。4 file。README と同じ `readme-writing.md` の翻訳の工程） |
 
 R13-1〜R13-13 の行の和は 18 + 8 + 19 + 13 + 9 + 10 + 14 + 19 + 6 + 10 + 3 + 22 + 4 + 17 = 172 である。
-`rp19_not_yet_at_r11.tsv` の持ち主の列は、この表の 2 列目の R12 の札（19 種）を持ち、R13 の slice の名前を持たない（8 の RP-19 の小節）。
+`rp19_not_yet_at_r11.tsv` の持ち主の列は、R12 の札（19 種）を持ち、R13 の slice の名前を持たない（8 の RP-19 の小節）。この表の 2 列目の綴りは一覧の札と同じではない（`R12w0〜R12w4` は一覧では `R12w`、`R12u1` は一覧に無い）。`rp19_ported/` の file の名前は一覧の札で決める。
 R13-13 の `live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates` は `vad.rs` に置かず、`refine.rs` の test に置く（`vad.rs` を書くのは R13-2 だけ）。
 R13-11 は `ort` の CUDA の実行 provider に `error_on_failure()` を付け、登録できなかった時は 3.15 の `<domain>.fallback.<落ち先>` の event を自分で出す。付けないと `ort` は黙って CPU で動く（S43）。
 R12y（RP-35）は RP-19 の行を持たず、`hayamimi-relay` の `cli.rs` と `eval.rs` だけを書くので、この組と並べてよい。
