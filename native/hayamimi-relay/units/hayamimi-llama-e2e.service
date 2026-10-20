@@ -29,9 +29,13 @@
 # Start  : systemctl --user start hayamimi-llama-e2e.service
 # Check  : curl -s http://127.0.0.1:18084/health      (loading: 503, ready: {"status":"ok"})
 #          curl -s http://127.0.0.1:18084/props       (model_path, total_slots, default_generation_settings.n_ctx)
-#          ~/source/llama.cpp/build-cuda120/bin/llama-server --version
+#          (the build is the build_info field of /props)
 #          nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits   (after /health is ok)
-# Priority: sudo -n renice -n -5 -p "$(systemctl --user show -p MainPID --value hayamimi-llama-e2e.service)"
+# Priority: renice changes one thread, so every thread of the server is raised.
+#          pid=$(systemctl --user show -p MainPID --value hayamimi-llama-e2e.service)
+#          MainPID 0 means the unit is not running: do not renice anything.
+#          for t in /proc/$pid/task/*; do sudo -n renice -n -5 -p "${t##*/}"; done
+#          ps -L -o tid=,ni= -p "$pid"        (every thread must show -5)
 #          A client that measures runs as `sudo -n nice -n -5 <command>`. When
 #          `sudo -n` fails, do not start the window.
 # Stop   : systemctl --user stop hayamimi-llama-e2e.service
@@ -42,7 +46,7 @@
 #          systemctl --user start hayamimi-llama-other.service
 #          curl -s http://127.0.0.1:18081/health      (ready: {"status":"ok"})
 #
-# The binary is not rebuilt for a window; record its `--version` and /props.
+# The binary is not rebuilt for a window; record /props, whose build_info names the build.
 [Unit]
 Description=llama-server for hayamimi-relay, E2E window translation (CAT-Translate-3.3b Q8_0, 127.0.0.1:18084)
 StartLimitIntervalSec=60
