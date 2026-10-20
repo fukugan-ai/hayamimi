@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `28990a2`（2026-10-20 の `design/python-removal` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `1d6cae2`（2026-10-20 の `feat/ov-s1` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -292,7 +292,9 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | 片づけの道具（`scripts/tidy-branches.sh` の `verify/` の規則） | 検証済み。`tidy-branches.sh` は、main と同じ位置の `verify/` の branch を、main-lock が空いているときに外す | `f0ba4f5`（merge の commit は `git log --merges -1 -- scripts/tidy-branches.sh` で引く） | 書いていない席の検証は記録に無い。merge の席（release-clerk）が merge の前に `tests/tidy_branches_verify.sh` を打ち直した | `tests/tidy_branches_verify.sh` が `cases=15 failures=0`。陰性対照は、lock を誰かが持つ、lock が古い、main-lock の binary が無い、自分の commit を持つ、worktree が持つ、`verify/` の外の branch の 6 つ | 対象は main と同じ位置の `verify/` の branch だけで、`verify/` の外の着手前の branch は今までどおり残す。lock が空かどうかは `main-lock check` の答えだけで読む |
 | R11（Python を消す） | 入口の条件待ち。RP-13 は満たし、RP-19 は 187 本が未実装（R12a〜R12g） | なし | なし | RP-9、RP-19 は未実行 | 3.2 の 3 つの条件 |
 | 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 単独の 1 run で受入 test が PASS。E2E-1 の正式な判定は RP-32 の交互の 3 対で出す。結果は冒頭の表の RP-32 の行 | `dfa85d6`（受入 test は `9103c95`） | 実装の席の申告（git の外）。設計の席は打ち直していない | E2E-1、E2E-2 の受入 test は PASS。数は上の E2E の行 | RP-32 の品質の差の原因。実機のマイクに人が話した ja は機械では確かめられない |
-| Python を消す設計（`design/python-removal`、`rust_port.ja.md` の 3.2 と 8） | 設計は merge 済み。実装は未着手。R11 は評議の GO が `state.json` に在るまで R11c を始めない（H101） | `28990a2` | 文書だけの branch。木（`8b8041d`）の workspace の test は受付の実測で rc=0、suites 116、passed 2719、failed 0、ignored 117（log は repo の外）。評議の GO は `c83176b` の形 | 消すのは R11 だけで、R11 に入る条件は 3 つ。組は R11a1、R11a2、R11b、R11c。rp19 と rp09 は R12a1、R12a2。置き換えの完了の定義と R11 の入口を引く 18 行（H110）は、R11c と同じ commit で書き替える | 作りかけの 7 つの tag は build も test も通していない（H102）。CI が GitHub で走るかは未確認（H103）。RP-14 の通過は status に記録が無い（H105） |
+| Python を消す設計（`design/python-removal`、`rust_port.ja.md` の 3.2 と 8） | 設計は merge 済み。実装は未着手。R11 は評議の GO が `state.json` に在るまで R11c を始めない（H101） | `28990a2` | 文書だけの branch。木（`8b8041d`）の workspace の test は受付の実測で rc=0、suites 116、passed 2719、failed 0、ignored 117（log は repo の外）。評議の GO は `7dbf415`（RP-81 の入口の PAUSE を閉じた commit） | 消すのは R11 だけで、R11 に入る条件は 3 つ。組は R11a1、R11a2、R11b、R11c。rp19 と rp09 は R12a1、R12a2。置き換えの完了の定義と R11 の入口を引く 18 行（H110）は、R11c と同じ commit で書き替える | 作りかけの 7 つの tag は build も test も通していない（H102）。CI が GitHub で走るかは未確認（H103）。RP-14 の通過は status に記録が無い（H105） |
+| R11 の前の文書の組のうち G0、R11a1、R11a2、R11b（`docs/r11-g0`、`docs/r11a1`、`docs/r11a2`、`docs/r11b`） | 4 本が merge 済み。残りは R12a1 と R12a2 | `01ce0f7`、`49eef7f`、`e999000`、`9544240`（4 本を載せた木は `9e26fb3`、`1d6cae2`） | 文書と comment だけの branch。木の workspace の test と clippy は受付の実測で、test が rc=0、suites 121、passed 2836、failed 0、ignored 117、clippy が rc=0（log は repo の外）。前の suites 116、passed 2719 から増えたのは `hayamimi-ui` の 5 suite の 117 本（board 3、overlay_parity 8、rp12_pages 10、w7_limit 5、unittests 91）で、抜けた suite は 0 | G0 は RP-80 と RP-81 の case 行。R11a1 は README と文書の Python の command を Rust に替える。R11a2 と R11b は文書と Dart の comment | R11c（Python の 78 本を消す）は R12a1 と R12a2 の後。RP-14 の通過の記録が無い（H105） |
+| 重ね窓の設計（`design/overlay`）と OV-S1（`feat/ov-s1`） | 設計と OV-S1 は merge 済み。重ね窓の設計の差分 `130fbc9`、OV-S2、OV-T は未 merge | `4708711`（設計）、`59e2c32`（OV-S1）、`1d6cae2`（これらを載せた main） | 同じ木の test が上の数。OV-S1 は `hayamimi-ui` の `lanes.rs`（重ね窓の段の部品）と、その sheet が折り返さないことの検査 | 重ね窓として動くのは OV-S2 以降。CS-10〜CS-12 は未通過 | 130fbc9、OV-S2、OV-T が未 merge（持ち主は重ね窓の席） |
 
 作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
