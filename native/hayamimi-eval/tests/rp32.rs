@@ -29,7 +29,9 @@ use support::rp32::{
     parse_pairs_text, render_columns, render_line_counts, render_pre_gate, render_share_columns,
     rp32_dir, scratch_dir, write_f32_dir,
 };
-use support::rp32_rules::{closing_rules, decided_rules, rule_named, silence_line_ms};
+use support::rp32_rules::{
+    closing_rules, decided, decided_rules, final_line, rule_named, silence_line_ms,
+};
 use support::{Failure, TestResult, base};
 
 const R8E: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/results/r8e");
@@ -1062,12 +1064,6 @@ fn the_line_of_a_rule_comes_from_the_early_constant_or_min_silence() {
     }
 }
 
-fn decided(id: u64, rule: &str) -> String {
-    format!(
-        "{{\"event\":\"asr.endpoint.decided\",\"id\":{id},\"rule\":\"{rule}\",\"silence_ms\":0}}\n"
-    )
-}
-
 /// T-RP-32-054: only the decided lines are read; a duplicate id, a rule the
 /// server does not have, and a decided line that is not JSON are refused.
 #[test]
@@ -1088,10 +1084,6 @@ fn the_decided_lines_are_read_and_the_bad_ones_refused() -> TestResult {
     let broken = decided_rules("{\"event\":\"asr.endpoint.decided\",\"id\":");
     assert!(broken.is_err_and(|why| why.contains("not JSON")));
     Ok(())
-}
-
-fn final_line(id: &str, t_us: i64) -> String {
-    format!("{{\"event\":{{\"id\":\"{id}\",\"text\":\"x\",\"type\":\"final\"}},\"t_us\":{t_us}}}\n")
 }
 
 /// T-RP-32-055: every `final` with no decided line is named with the run, and
@@ -1171,6 +1163,34 @@ fn a_dir_judges_the_gap_by_the_rule_its_log_names() -> TestResult {
     let report = alternated_report(&load_alternated(&silence, 3)?, None)?;
     assert_eq!(report.rust_share.valid, 56);
     assert_eq!(report.gained.values().sum::<usize>(), 0);
+    Ok(())
+}
+
+/// T-RP-32-048: two `final`s that arrive at the moment a sample closed, ended
+/// by different rules, are refused with the run and both ids named. No line is
+/// chosen, and no value is printed.
+#[test]
+fn two_finals_with_different_rules_at_one_t_us_are_rejected_naming_both_ids() -> TestResult {
+    let dir = f32_dir("t048", 3, None)?;
+    let events = dir.join("rs1.events.jsonl");
+    let text = std::fs::read_to_string(&events)?;
+    let from = "\"id\":\"mic-4\",\"text\":\"x\",\"type\":\"final\"},\"t_us\":704000";
+    assert!(text.contains(from), "the F32 events lost their mic-4 line");
+    let to = "\"id\":\"mic-4\",\"text\":\"x\",\"type\":\"final\"},\"t_us\":703000";
+    std::fs::write(&events, text.replace(from, to))?;
+    let log = dir.join("rs1.hayamimi.stdout.log");
+    let text = std::fs::read_to_string(&log)?;
+    let from = "\"id\":3,\"rule\":\"silence\"";
+    assert!(text.contains(from), "the F32 log lost its id 3 line");
+    std::fs::write(&log, text.replace(from, "\"id\":3,\"rule\":\"early\""))?;
+    let said = check_dir(&dir);
+    assert!(
+        said.as_ref().is_err_and(|why| why.contains("rs1")
+            && why.contains("mic-3")
+            && why.contains("mic-4")
+            && !why.contains("p50")),
+        "{said:?}"
+    );
     Ok(())
 }
 

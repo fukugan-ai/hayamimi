@@ -1,0 +1,4 @@
+{"event":"asr.endpoint.decided","id":1,"rule":"silence","silence_ms":300}
+{"event":"asr.endpoint.decided","id":2,"rule":"silence","silence_ms":300}
+{"event":"asr.endpoint.decided","id":3,"rule":"silence","silence_ms":300}
+{"event":"asr.endpoint.decided","id":4,"rule":"silence","silence_ms":300}

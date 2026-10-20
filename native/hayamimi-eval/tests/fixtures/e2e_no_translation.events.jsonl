@@ -2,3 +2,5 @@
 {"event":{"id":"loopback-1","lang":"en","text":"a","type":"final"},"t_us":2300000}
 {"event":{"id":"loopback-1","lang":"ja","of":"final","stage":"t","status":"held","text":"","type":"translation"},"t_us":2350000}
 {"event":{"id":"loopback-1","lang":"ja","of":"partial","stage":"t","status":"ok","text":"あ","type":"translation"},"t_us":2360000}
+{"event":{"id":"loopback-2","lang":"en","text":"b","type":"final"},"t_us":2400000}
+{"event":{"id":"loopback-3","lang":"en","text":"c","type":"final"},"t_us":2500000}

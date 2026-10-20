@@ -279,7 +279,7 @@ fn judge_rows(name: &str, rows: &[Row]) -> Vec<String> {
 
 /// `dir` below the repository root, or `None` when `dir` cannot be resolved or
 /// stands outside it.
-fn below_root(repo_root: &Path, dir: &Path) -> Option<PathBuf> {
+pub fn below_root(repo_root: &Path, dir: &Path) -> Option<PathBuf> {
     let root = repo_root.canonicalize().ok()?;
     let full = dir.canonicalize().ok()?;
     full.strip_prefix(&root).ok().map(Path::to_path_buf)

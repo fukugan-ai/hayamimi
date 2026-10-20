@@ -98,18 +98,38 @@ fn number_of(id: &str) -> Option<u64> {
         .and_then(|(_, number)| number.parse().ok())
 }
 
-/// The rule of each `final` as `(t_us, rule)`. Every `final` that has no
-/// decided line is named with the run, all of them and not the first only.
+/// A `final` joined to the rule that ended it: its id, the time the tool
+/// received it, and the rule.
+struct Closing {
+    id: String,
+    t_us: i64,
+    rule: Rule,
+}
+
+impl Closing {
+    /// `mic-3 (early)`: the id with the name of its rule.
+    fn spelled(&self) -> String {
+        format!("{} ({})", self.id, self.rule.name())
+    }
+}
+
+/// The rule of each `final`, with its id and the time it was received. Every
+/// `final` that has no decided line is named with the run, all of them and
+/// not the first only.
 fn joined_finals(
     run: &str,
     finals: &[(String, i64)],
     decided: &BTreeMap<u64, Rule>,
-) -> Result<Vec<(i64, Rule)>, Failure> {
+) -> Result<Vec<Closing>, Failure> {
     let mut joined = Vec::new();
     let mut unjoined = Vec::new();
     for (id, t_us) in finals {
         match number_of(id).and_then(|number| decided.get(&number)) {
-            Some(rule) => joined.push((*t_us, *rule)),
+            Some(rule) => joined.push(Closing {
+                id: id.clone(),
+                t_us: *t_us,
+                rule: *rule,
+            }),
             None => unjoined.push(id.as_str()),
         }
     }
@@ -123,29 +143,32 @@ fn joined_finals(
 }
 
 /// The rule of the `final` the tool received at `t_final_us`. Two `final`s at
-/// that moment with different rules cannot be told apart and are refused.
+/// that moment with different rules cannot be told apart and are refused, each
+/// named by its id with its rule.
 fn closing_rule(
     run: &str,
     sample: &Sample,
     t_final_us: i64,
-    finals: &[(i64, Rule)],
+    finals: &[Closing],
 ) -> Result<Rule, Failure> {
     let place = format!("{run}: repeat {} utt {}", sample.repeat, sample.utt);
-    let mut here = finals
+    let here: Vec<&Closing> = finals
         .iter()
-        .filter(|(t_us, _)| *t_us == t_final_us)
-        .map(|(_, rule)| *rule);
-    let Some(first) = here.next() else {
+        .filter(|closing| closing.t_us == t_final_us)
+        .collect();
+    let Some(first) = here.first() else {
         return Err(format!(
             "{place}: no final arrived at t_final_us {t_final_us}"
         ));
     };
-    if here.any(|rule| rule != first) {
+    if here.iter().any(|closing| closing.rule != first.rule) {
+        let spelled: Vec<String> = here.iter().map(|closing| closing.spelled()).collect();
         return Err(format!(
-            "{place}: finals with different rules arrived at t_final_us {t_final_us}"
+            "{place}: finals with different rules arrived at t_final_us {t_final_us}: {}",
+            spelled.join(", ")
         ));
     }
-    Ok(first)
+    Ok(first.rule)
 }
 
 /// The rule that closed each sample of the Rust run `run` that has a `final`,
@@ -169,4 +192,16 @@ pub fn closing_rules(
         rules.insert((sample.repeat, sample.utt), rule);
     }
     Ok(rules)
+}
+
+// ---- the rows the tests build ----
+
+/// A decided line of a server's stdout: `id` ended by `rule`.
+pub fn decided(id: u64, rule: &str) -> String {
+    format!("{{\"event\":\"{DECIDED}\",\"id\":{id},\"rule\":\"{rule}\",\"silence_ms\":0}}\n")
+}
+
+/// A `final` line of an events file: the `final` `id`, received at `t_us`.
+pub fn final_line(id: &str, t_us: i64) -> String {
+    format!("{{\"event\":{{\"id\":\"{id}\",\"text\":\"x\",\"type\":\"final\"}},\"t_us\":{t_us}}}\n")
 }

@@ -22,7 +22,8 @@ Only the samples and events jsonl of a run are kept here.
 
 ## Counted by the acceptance tests
 
-Valid samples are those of 3.1 with `--min-silence` 300 ms.
+A sample is valid when `L_asr - L_dec` reaches the line of the rule that closed it, as in RP-32. A Rust sample closed by the `early` rule has a line of 120 ms (`EARLY_MIN_SILENCE_MS`); every other Rust sample, and every Python sample, has `--min-silence` (300 ms). The rule comes from `<run>.hayamimi.stdout.log` (`asr.endpoint.decided`), joined to the `final` of the events file by `t_us` and the number in its `id`. The tests refuse a `final` with no `decided` line, an `id` that has two, and two `final` at one `t_us` with different rules.
+The runs below were measured by builds without the early rule and have no stdout log. They are listed by directory, name and sha256 (`e2e1` and `e2e2` of this directory, `rs1` and `e2e2c` of `docs/results/r8h_verify/`) and are counted with every sample at 300 ms; the test output says so. A Rust run that is not on that list, or is listed under another sha256, is refused for the missing log.
 
 | run | valid | translated | L p50 / p95 (ms) |
 |---|---|---|---|
@@ -50,7 +51,7 @@ The other remains of a run stay outside git, in the work directory.
 
 `e1pre` is a record only and is not used for the verdict of RP-67.
 The load average of the 15 minutes before the run was 3.50, and the load average of the 5 minutes after it was 3.88. Both are above the line of 2.50 that RP-83 sets, and there is no `machine.jsonl` for the run.
-With `--min-silence` 120 ms, 74 of the 75 samples are valid and all 74 have a translation: `L` p50 666 ms, p95 1318 ms. Four samples are over 1200 ms. With 300 ms, the line of the acceptance test, 35 samples are valid: `L` p50 891 ms, p95 2879 ms.
+With the line of each sample (120 ms for the 39 samples closed by `early`, 300 ms for the others), 74 of the 75 samples are valid and all 74 have a translation: `L` p50 666 ms, p95 1318 ms. Four samples are over 1200 ms. With every sample at 300 ms, 35 samples are valid: `L` p50 891 ms, p95 2879 ms. The acceptance tests print both counts for a run that has a stdout log, and `the_l9_record_counts_74_samples_by_the_per_sample_line_and_35_by_300_ms` pins them.
 The value of en for RP-67 comes from window E1, which is run again after R8x-1.
 
 ## 採らない手段 (not taken)
