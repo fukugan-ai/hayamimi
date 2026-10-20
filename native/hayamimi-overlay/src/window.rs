@@ -54,6 +54,8 @@ pub struct Target {
     /// The scale the band was laid out at: the monitor's, times the probe's zoom.
     pub scale: f64,
     pub monitor: Option<String>,
+    /// The band was laid on the whole monitor because its work area could not be read.
+    pub full_screen: bool,
 }
 
 /// Why no place could be worked out.
@@ -110,14 +112,36 @@ pub fn target(
     sink: &mut dyn LogSink,
 ) -> Result<Target, Failure> {
     let monitor = monitor_for(window, &config.monitor, said, sink).ok_or(Failure::NoMonitor)?;
-    let work_area = win::work_area(monitor.hmonitor()).ok_or(Failure::NoWorkArea)?;
+    let (area, full_screen) =
+        choose_area(win::work_area(monitor.hmonitor()), || screen_rect(&monitor))?;
     let scale = place::effective_scale(monitor.scale_factor(), zoom_percent);
-    let band = place::band(work_area, scale, config).map_err(Failure::Place)?;
+    let band = place::band(area, scale, config).map_err(Failure::Place)?;
     Ok(Target {
         rect: place::to_physical(band, scale),
         scale,
         monitor: monitor.name(),
+        full_screen,
     })
+}
+
+/// The area the band is laid in: the work area when it was read, else the
+/// whole monitor (`screen`, asked only then). The flag says the latter.
+fn choose_area(
+    work: Option<PhysicalRect>,
+    screen: impl FnOnce() -> Option<PhysicalRect>,
+) -> Result<(PhysicalRect, bool), Failure> {
+    if let Some(area) = work {
+        return Ok((area, false));
+    }
+    screen().map(|area| (area, true)).ok_or(Failure::NoWorkArea)
+}
+
+/// The whole of a monitor in physical px; `None` when it has no area.
+fn screen_rect(monitor: &MonitorHandle) -> Option<PhysicalRect> {
+    let (at, size) = (monitor.position(), monitor.size());
+    let right = at.x.checked_add_unsigned(size.width)?;
+    let bottom = at.y.checked_add_unsigned(size.height)?;
+    place::rect_from_edges(at.x, at.y, right, bottom)
 }
 
 /// Whether the window already stands on `rect`.
@@ -172,11 +196,26 @@ pub fn topmost_failed(code: i32) -> LogEvent {
         .with_error("TOPMOST_FAILED")
 }
 
-/// No place could be worked out for the window.
-pub fn place_failed(failure: Failure) -> LogEvent {
-    LogEvent::new(Level::Error, "overlay.window.place_failed", "browser")
+/// No place could be worked out for the window. `fatal` is the first showing,
+/// which ends the process; later the window keeps the rectangle it has.
+pub fn place_failed(failure: Failure, fatal: bool) -> LogEvent {
+    let level = if fatal { Level::Error } else { Level::Warn };
+    LogEvent::new(level, "overlay.window.place_failed", "browser")
         .with("reason", failure.reason())
         .with_error("PLACE_FAILED")
+}
+
+/// The work area could not be read, so the band stands on the whole monitor.
+pub fn work_area_unread() -> LogEvent {
+    LogEvent::new(Level::Warn, "overlay.window.place_failed", "browser")
+        .with("reason", Failure::NoWorkArea.reason())
+        .with("placed_on", "full_screen")
+        .with_error("PLACE_FAILED")
+}
+
+/// Whether the read-back of the extended style says the window is click-through.
+pub fn click_through_read_ok(read: Result<bool, u32>) -> bool {
+    read == Ok(true)
 }
 
 #[cfg(test)]
@@ -193,7 +232,67 @@ mod tests {
             },
             scale: 1.5,
             monitor: Some(r"\\.\DISPLAY2".to_owned()),
+            full_screen: false,
         }
+    }
+
+    const WORK: PhysicalRect = PhysicalRect {
+        x: 0,
+        y: 0,
+        width: 3840,
+        height: 2088,
+    };
+    const SCREEN: PhysicalRect = PhysicalRect {
+        x: 0,
+        y: 0,
+        width: 3840,
+        height: 2160,
+    };
+
+    #[test]
+    fn the_work_area_is_used_when_it_was_read_and_the_screen_is_not_asked() {
+        let chosen = choose_area(Some(WORK), || None);
+        assert_eq!(chosen, Ok((WORK, false)));
+    }
+
+    #[test]
+    fn the_whole_screen_stands_in_when_the_work_area_was_not_read() {
+        let chosen = choose_area(None, || Some(SCREEN));
+        assert_eq!(chosen, Ok((SCREEN, true)));
+    }
+
+    #[test]
+    fn no_area_at_all_is_the_no_work_area_failure() {
+        assert_eq!(choose_area(None, || None), Err(Failure::NoWorkArea));
+    }
+
+    #[test]
+    fn a_failure_is_an_error_at_the_first_showing_and_a_warning_after()
+    -> Result<(), serde_json::Error> {
+        let first = value_of(&place_failed(Failure::NoMonitor, true))?;
+        let later = value_of(&place_failed(Failure::NoMonitor, false))?;
+        assert_eq!(first["level"], "error");
+        assert_eq!(later["level"], "warn");
+        assert_eq!(first["reason"], "no_monitor");
+        assert_eq!(later["error_code"], "HYM_BROWSER_PLACE_FAILED");
+        Ok(())
+    }
+
+    #[test]
+    fn the_unread_work_area_is_a_warning_that_says_where_the_band_went()
+    -> Result<(), serde_json::Error> {
+        let said = value_of(&work_area_unread())?;
+        assert_eq!(said["level"], "warn");
+        assert_eq!(said["reason"], "no_work_area");
+        assert_eq!(said["placed_on"], "full_screen");
+        Ok(())
+    }
+
+    #[test]
+    fn only_a_style_read_with_both_bits_is_click_through() {
+        assert!(click_through_read_ok(Ok(true)));
+        assert!(!click_through_read_ok(Ok(false)));
+        assert!(!click_through_read_ok(Err(5)));
     }
 
     fn value_of(event: &LogEvent) -> Result<serde_json::Value, serde_json::Error> {
@@ -219,6 +318,7 @@ mod tests {
             monitor: None,
             ..target()
         };
+        assert!(!nameless.full_screen);
         assert!(value_of(&opened(&nameless))?["monitor"].is_null());
         Ok(())
     }

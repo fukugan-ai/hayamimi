@@ -1,5 +1,6 @@
 //! The Win32 calls tao has no door for: the work area of a monitor, the DWM
-//! border of the window and the lift to the front of the topmost band. Every
+//! border of the window, the read-back of its click-through styles and the lift
+//! to the front of the topmost band. Every
 //! `unsafe` block of the crate is in this file, one call to each.
 
 #![allow(unsafe_code)]
@@ -16,7 +17,8 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, HMONITOR, MONITORINFO};
 use windows::Win32::System::SystemInformation::OSVERSIONINFOW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetWindowPos,
+    GWL_EXSTYLE, GetWindowLongPtrW, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SetWindowPos, WS_EX_LAYERED, WS_EX_TRANSPARENT,
 };
 
 use crate::place::{PhysicalRect, rect_from_edges};
@@ -87,6 +89,30 @@ pub fn raise_topmost(hwnd: isize) -> Result<(), i32> {
     raised.map_err(|error| error.code().0)
 }
 
+/// The extended style of the window. The error is the system's code; the
+/// style of a live window is never 0, so a 0 is a failed read.
+fn ex_style(hwnd: isize) -> Result<u32, u32> {
+    // SAFETY: the call takes the handle by value and no pointer; a handle that is gone makes it return 0 with the error set.
+    let style = unsafe { GetWindowLongPtrW(hwnd_of(hwnd), GWL_EXSTYLE) };
+    if style == 0 {
+        return Err(windows::core::Error::from_win32().code().0 as u32);
+    }
+    Ok(style as u32)
+}
+
+/// Whether an extended style carries both bits that make a window click-through.
+fn click_through_bits(style: u32) -> bool {
+    let wanted = WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0;
+    style & wanted == wanted
+}
+
+/// Reads the window's extended style back and says whether it is click-through
+/// (`WS_EX_TRANSPARENT` and `WS_EX_LAYERED` both set). tao's own call returns
+/// `Ok` in every case, so this is the only way to know.
+pub fn click_through_set(hwnd: isize) -> Result<bool, u32> {
+    ex_style(hwnd).map(click_through_bits)
+}
+
 /// The build number of Windows, from the system itself and not from the
 /// manifest the process carries. `None` when the call fails.
 pub fn windows_build() -> Option<u32> {
@@ -97,4 +123,24 @@ pub fn windows_build() -> Option<u32> {
     // SAFETY: `info` is a live OSVERSIONINFOW whose size field is set, as RtlGetVersion requires.
     let status = unsafe { RtlGetVersion(&mut info) };
     status.is_ok().then_some(info.dwBuildNumber)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_click_through_bits_are_needed() {
+        let both = WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0;
+        assert!(click_through_bits(both));
+        assert!(click_through_bits(both | 0x8));
+        assert!(!click_through_bits(WS_EX_TRANSPARENT.0));
+        assert!(!click_through_bits(WS_EX_LAYERED.0));
+        assert!(!click_through_bits(0));
+    }
+
+    #[test]
+    fn a_handle_that_is_not_a_window_is_an_error_not_a_click_through() {
+        assert!(click_through_set(0).is_err());
+    }
 }

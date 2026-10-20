@@ -567,6 +567,12 @@ file を書き替えると、再起動せずに 1 秒ほどで帯が置き直さ
 読めない内容に書き替えたときは前の内容のまま動き、`table.load.failed` が log に 1 回出ます。
 字形の file を設定に書かないと、その字形は宣言されず、機械に同じ名前の字形があればそれで、無ければ Yu Gothic UI で描かれます。
 書いた file が読めないときは `overlay.font.missing` が log に 1 回出ます。
+字形の path を消した（または変えた）ときは、窓の頁がその字形を取り除いてから、path が在る時だけ読み直します。
+消した字形は Yu Gothic UI に戻り、`overlay.font.missing` は出ません。
+
+作業領域が読めないときは、画面全体を使って帯を置き、`overlay.window.place_failed`（warn、`placed_on` が `full_screen`）を 1 回出します。
+画面が 1 枚も無いとき、または窓がクリックを通さない状態のとき（`overlay.window.click_through_failed`）は、窓を見せずに終了コード 1 で終わります。
+読めない行が流れに混ざったときの `events.line.skipped` は、流れごとに 1 分に 1 回までで、その間に読めなかった行の数が `skipped` に入ります。
 
 字が窓の下で切れないかは、3 行の試しで測れます。窓が 1 つ開き、`overlay.layout.measured` を log に出します。
 

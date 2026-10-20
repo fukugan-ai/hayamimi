@@ -36,12 +36,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
 use crate::config::{self, Args, OverlayConfig, Probe};
 use crate::feed::{Deliver, Feed};
-use crate::fonts::{self, Reported, Slot};
+use crate::fonts::{self, FontState, Reported, Slot};
 use crate::log::{self, FileSink};
 use crate::probe;
 use crate::rendered::RenderLog;
 use crate::win;
-use crate::window::{self, Target};
+use crate::window::{self, Failure, Target};
 
 /// The longest the window goes without reading the settings, lifting itself
 /// to the front and looking at the clock.
@@ -53,7 +53,7 @@ pub struct Startup {
     pub args: Args,
     pub sink: SharedSink,
     pub initial: OverlayConfig,
-    pub config: Arc<Mutex<Option<Watched<OverlayConfig>>>>,
+    pub config: Arc<Mutex<Watched<OverlayConfig>>>,
     pub events: Arc<Mutex<Option<UnboundedReceiver<UiEvent>>>>,
     pub model: Model,
     pub words: Strings,
@@ -122,7 +122,8 @@ fn start_feed(args: &Args, sink: &SharedSink) -> Result<Reading, String> {
 
 fn prepare(args: Args) -> Result<Startup, String> {
     let mut sink = open_sink(&args)?;
-    let watched = config::open(args.config.clone().or_else(config::default_path), &mut sink)?;
+    let opened = config::open(args.config.clone().or_else(config::default_path), &mut sink);
+    let watched = opened.inspect_err(|reason| sink.emit(no_settings_event(reason)))?;
     let words = Strings::embedded(Locale::detect()).map_err(|error| error.to_string())?;
     let model = match args.probe {
         Some(_) => probe::model().map_err(|error| error.to_string())?,
@@ -131,7 +132,7 @@ fn prepare(args: Args) -> Result<Startup, String> {
     let (feed, receiver) = start_feed(&args, &sink)?;
     Ok(Startup {
         initial: watched.current().clone(),
-        config: Arc::new(Mutex::new(Some(watched))),
+        config: Arc::new(Mutex::new(watched)),
         events: Arc::new(Mutex::new(receiver)),
         args,
         sink,
@@ -245,10 +246,10 @@ fn Root() -> Element {
             fonts_in_use,
             wake: shell_wake,
             clock,
-            watched: None,
-            reported: Reported::default(),
+            reported: Rc::new(RefCell::new(Reported::default())),
             said_monitors: HashSet::new(),
             topmost_failing: false,
+            on_full_screen: false,
             font_version: 0,
         };
         spawn(shell.drive());
@@ -297,21 +298,18 @@ struct Shell {
     fonts_in_use: Rc<RefCell<OverlayConfig>>,
     wake: Arc<Wake>,
     clock: Clock,
-    watched: Option<Watched<OverlayConfig>>,
-    reported: Reported,
+    /// Shared with the tasks that wait for the page's answer to a font reload.
+    reported: Rc<RefCell<Reported>>,
     said_monitors: HashSet<String>,
     topmost_failing: bool,
+    /// The band stands on the whole monitor; said when it starts to.
+    on_full_screen: bool,
     font_version: u32,
 }
 
 impl Shell {
     async fn drive(mut self) {
-        let taken = lock(&self.startup.config).take();
-        let Some(watched) = taken else {
-            self.give_up(failure_event("overlay.window.no_settings", "NO_SETTINGS"));
-        };
-        self.watched = Some(watched);
-        self.open();
+        self.open().await;
         loop {
             self.look_after();
             let wait = self.wait();
@@ -338,20 +336,28 @@ impl Shell {
         self.probe().map_or(100, |probe| probe.zoom_percent)
     }
 
-    fn current(&self) -> Option<OverlayConfig> {
-        self.watched
-            .as_ref()
-            .map(|watched| watched.current().clone())
+    fn current(&self) -> OverlayConfig {
+        lock(&self.startup.config).current().clone()
     }
 
-    /// Shows the window for the first time: click-through, no border, in
-    /// place, then visible, then said.
-    fn open(&mut self) {
+    /// Whether the window is click-through, read back from the system; the
+    /// probe `--probe-click-through-unset` makes the read find it unset.
+    async fn click_through_stands(&self) -> bool {
+        let unset = self.probe().is_some_and(|probe| probe.click_through_unset);
+        let hwnd = self.window.hwnd();
+        let read = click_through_reader(unset);
+        click_through_holds(|| read(hwnd), CLICK_THROUGH_GAP).await
+    }
+
+    /// Shows the window for the first time: click-through (read back), no
+    /// border, in place, then visible, then said.
+    async fn open(&mut self) {
         let zoom = self.zoom_percent();
         if zoom != 100 {
             self.window.set_zoom_level(f64::from(zoom) / 100.0);
         }
-        if self.window.set_ignore_cursor_events(true).is_err() {
+        if self.window.set_ignore_cursor_events(true).is_err() || !self.click_through_stands().await
+        {
             self.give_up(failure_event(
                 "overlay.window.click_through_failed",
                 "CLICK_THROUGH_FAILED",
@@ -360,93 +366,96 @@ impl Shell {
         if !win::hide_border(self.window.hwnd()) {
             self.sink().emit(window::border_kept(win::windows_build()));
         }
-        let Some(target) = self.place() else {
-            self.give_up(failure_event("overlay.window.place_failed", "PLACE_FAILED"));
+        let target = match self.place() {
+            Ok(target) => target,
+            Err(failure) => self.give_up(window::place_failed(failure, true)),
         };
         self.window.set_visible(true);
         self.sink().emit(window::opened(&target));
-        let current = self.current();
-        if let Some(config) = current {
-            self.reported.check(&config, &mut self.startup.sink);
-        }
+        let config = self.current();
+        self.reported
+            .borrow_mut()
+            .check(&config, &mut self.startup.sink);
         if let Some(probe) = self.probe() {
             spawn(measure(probe, self.startup.sink.clone()));
         }
     }
 
     /// Puts the window on the band the settings in use give, if it is not
-    /// there. `None` when no place could be worked out; that is logged.
-    fn place(&mut self) -> Option<Target> {
-        let config = self.current()?;
+    /// there. When the work area cannot be read the band goes on the whole
+    /// monitor, said when that starts.
+    fn place(&mut self) -> Result<Target, Failure> {
+        let config = self.current();
         let zoom = self.zoom_percent();
-        let worked_out = window::target(
+        let target = window::target(
             &self.window,
             &config,
             zoom,
             &mut self.said_monitors,
             &mut self.startup.sink,
-        );
-        let target = match worked_out {
-            Ok(target) => target,
-            Err(failure) => {
-                self.sink().emit(window::place_failed(failure));
-                return None;
-            }
-        };
+        )?;
+        if target.full_screen && !self.on_full_screen {
+            self.sink().emit(window::work_area_unread());
+        }
+        self.on_full_screen = target.full_screen;
         if !window::stands_on(&self.window, target.rect) {
             window::place_on(&self.window, target.rect);
         }
-        Some(target)
+        Ok(target)
+    }
+
+    /// Places the window again after it ran; a failure is said and the window
+    /// keeps the rectangle it has.
+    fn replace(&mut self) {
+        if let Err(failure) = self.place() {
+            self.sink().emit(window::place_failed(failure, false));
+        }
     }
 
     /// One round of keeping: the settings, the band, the front of the screen.
     fn look_after(&mut self) {
         self.reread_settings();
         if self.wake.moved.swap(false, Ordering::SeqCst) {
-            self.place();
+            self.replace();
         }
         self.lift();
     }
 
     fn reread_settings(&mut self) {
-        let Some(watched) = self.watched.as_mut() else {
-            return;
+        let (keys, config) = {
+            let mut watched = lock(&self.startup.config);
+            let keys = config::refresh(&mut watched, &mut self.startup.sink);
+            (keys, watched.current().clone())
         };
-        let keys = config::refresh(watched, &mut self.startup.sink);
         if keys.is_empty() {
             return;
         }
-        let config = watched.current().clone();
         if self.rows.peek().upper != config.upper_rows
             || self.rows.peek().lower != config.lower_rows
         {
             self.rows.set(rows_of(&config));
         }
-        self.reported.check(&config, &mut self.startup.sink);
         let fonts_changed = Slot::ALL.iter().any(|slot| keys.contains(&slot.key()));
         *self.fonts_in_use.borrow_mut() = config.clone();
         if fonts_changed {
-            self.ask_for_fonts_again(&config);
+            self.ask_for_fonts_again(config);
         }
-        self.place();
+        self.replace();
     }
 
-    fn ask_for_fonts_again(&mut self, config: &OverlayConfig) {
+    /// Runs the reload script in the page. What each slot became comes back
+    /// from the page; a slot in `error` is reported once, and only an `eval`
+    /// that never answers is a failed reload.
+    fn ask_for_fonts_again(&mut self, config: OverlayConfig) {
         self.font_version += 1;
-        let script = fonts::reload_script(config, self.font_version);
-        if script.is_empty() {
-            return;
-        }
-        let sink = self.startup.sink.clone();
+        let script = fonts::reload_script(&config, self.font_version);
+        let reported = Rc::clone(&self.reported);
+        let mut sink = self.startup.sink.clone();
         spawn(async move {
-            let mut sink = sink;
             let mut eval = document::eval(&script);
-            if let Err(error) = eval.recv::<serde_json::Value>().await {
-                sink.emit(
-                    LogEvent::new(Level::Warn, "overlay.font.reload_failed", "browser")
-                        .with("reason", error.to_string())
-                        .with_error("FONT_RELOAD_FAILED"),
-                );
+            match eval.recv::<Vec<FontState>>().await {
+                Ok(states) => reported.borrow_mut().from_page(&states, &config, &mut sink),
+                Err(error) => sink.emit(reload_failed_event(&error.to_string())),
             }
         });
     }
@@ -500,6 +509,45 @@ fn failure_event(event: &str, reason: &str) -> LogEvent {
     LogEvent::new(Level::Error, event, "browser").with_error(reason)
 }
 
+/// Not even the built-in settings could be made; a defect of the build.
+fn no_settings_event(reason: &str) -> LogEvent {
+    failure_event("overlay.window.no_settings", "NO_SETTINGS").with("reason", reason)
+}
+
+/// The page did not answer the font reload.
+fn reload_failed_event(reason: &str) -> LogEvent {
+    LogEvent::new(Level::Warn, "overlay.font.reload_failed", "browser")
+        .with("reason", reason)
+        .with_error("FONT_RELOAD_FAILED")
+}
+
+/// How many times the click-through styles are read back, and the wait between reads.
+const CLICK_THROUGH_READS: u32 = 10;
+const CLICK_THROUGH_GAP: Duration = Duration::from_millis(50);
+
+/// The read-back of the styles; with `unset` it finds them unset, which is
+/// what a window that cannot be clicked through would show.
+fn click_through_reader(unset: bool) -> fn(isize) -> Result<bool, u32> {
+    if unset {
+        |_| Ok(false)
+    } else {
+        win::click_through_set
+    }
+}
+
+/// Reads the styles back until they stand, at most `CLICK_THROUGH_READS`
+/// times. The wait is a timer of the runtime, so that the thread of the event
+/// loop goes on while the job tao posted to it runs.
+async fn click_through_holds(read: impl Fn() -> Result<bool, u32>, gap: Duration) -> bool {
+    for _ in 0..CLICK_THROUGH_READS {
+        if window::click_through_read_ok(read()) {
+            return true;
+        }
+        tokio::time::sleep(gap).await;
+    }
+    false
+}
+
 /// Asks the page for its measures and writes them as one event.
 async fn measure(probe: Probe, mut sink: SharedSink) {
     let mut eval = document::eval(&probe::script());
@@ -514,5 +562,97 @@ async fn measure(probe: Probe, mut sink: SharedSink) {
                 .with("reason", reason)
                 .with_error("LAYOUT_FAILED"),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    const GAP: Duration = Duration::from_millis(1);
+
+    fn run<F: Future>(work: F) -> Result<F::Output, std::io::Error> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()?;
+        Ok(runtime.block_on(work))
+    }
+
+    /// A read that counts itself and finds the styles standing from the `stands_from`-th read on.
+    fn counted(reads: &Cell<u32>, stands_from: u32) -> Result<bool, u32> {
+        reads.set(reads.get() + 1);
+        Ok(reads.get() >= stands_from)
+    }
+
+    #[test]
+    fn styles_that_stand_at_the_first_read_end_the_wait_there() -> Result<(), std::io::Error> {
+        let reads = Cell::new(0);
+        assert!(run(click_through_holds(|| counted(&reads, 1), GAP))?);
+        assert_eq!(reads.get(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn styles_that_stand_only_at_the_tenth_read_still_hold() -> Result<(), std::io::Error> {
+        let reads = Cell::new(0);
+        assert!(run(click_through_holds(|| counted(&reads, 10), GAP))?);
+        assert_eq!(reads.get(), 10);
+        Ok(())
+    }
+
+    #[test]
+    fn styles_that_never_stand_do_not_hold_after_ten_reads() -> Result<(), std::io::Error> {
+        let reads = Cell::new(0);
+        assert!(!run(click_through_holds(|| counted(&reads, 11), GAP))?);
+        assert_eq!(reads.get(), CLICK_THROUGH_READS);
+        Ok(())
+    }
+
+    #[test]
+    fn a_read_that_fails_every_time_does_not_hold() -> Result<(), std::io::Error> {
+        let held = run(click_through_holds(|| Err(5), GAP))?;
+        assert!(!held);
+        Ok(())
+    }
+
+    #[test]
+    fn the_unset_probe_reads_no_mark_whatever_the_window() {
+        assert_eq!(click_through_reader(true)(1), Ok(false));
+    }
+
+    #[test]
+    fn a_window_whose_styles_read_unset_ends_the_process_without_showing_it()
+    -> Result<(), std::io::Error> {
+        let unset = click_through_reader(true);
+        let held = run(click_through_holds(|| unset(1), GAP))?;
+        assert!(!held);
+        Ok(())
+    }
+
+    #[test]
+    fn no_settings_is_an_error_with_its_code_and_the_reason() {
+        let line = no_settings_event("builtin failed").to_json_line();
+        assert!(line.contains(r#""level":"error""#), "{line}");
+        assert!(
+            line.contains(r#""event":"overlay.window.no_settings""#),
+            "{line}"
+        );
+        assert!(
+            line.contains(r#""error_code":"HYM_BROWSER_NO_SETTINGS""#),
+            "{line}"
+        );
+        assert!(line.contains(r#""reason":"builtin failed""#), "{line}");
+    }
+
+    #[test]
+    fn a_reload_that_never_answers_is_a_warning_with_its_own_code() {
+        let line = reload_failed_event("closed").to_json_line();
+        assert!(line.contains(r#""level":"warn""#), "{line}");
+        assert!(
+            line.contains(r#""error_code":"HYM_BROWSER_FONT_RELOAD_FAILED""#),
+            "{line}"
+        );
     }
 }

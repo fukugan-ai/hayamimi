@@ -184,6 +184,7 @@ mod tests {
         let probe = Probe {
             zoom_percent: 125,
             shrink_px: 12,
+            click_through_unset: false,
         };
         let line = measured_event(&measure, probe)?.to_json_line();
         let value: serde_json::Value = serde_json::from_str(&line)?;

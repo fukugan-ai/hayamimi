@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 use hayamimi_relay::logging::{Level, LogEvent};
 use hayamimi_ui::lanes::{Lane, LaneLine, LaneView, LineState};
-use serde_json::Value;
 
 /// The lines last drawn, with the state each was drawn in.
 #[derive(Default)]
@@ -53,13 +52,13 @@ fn state_name(state: LineState) -> &'static str {
     }
 }
 
-/// `stage` is `null`: the stage of a translation (`t` or `e`) is on the wire,
-/// but the `Model` the lanes are cut from does not keep it.
+/// There is no `stage` field: the wire carries the stage of a translation but
+/// `hayamimi-ui` does not read it, so the field could only ever be empty. The
+/// relay's log has the stage, by `id`.
 fn event_of(line: &LaneLine) -> LogEvent {
     LogEvent::new(Level::Info, "overlay.line.rendered", "browser")
         .with("id", line.id.as_str())
         .with("lane", lane_name(line.lane))
-        .with("stage", Value::Null)
         .with(
             "settled",
             matches!(line.state, LineState::Settled | LineState::Held),
@@ -74,6 +73,7 @@ mod tests {
     use hayamimi_ui::lanes::{LaneRows, view};
     use hayamimi_ui::model::Model;
     use hayamimi_ui::wire::parse;
+    use serde_json::Value;
 
     use super::*;
 
@@ -143,7 +143,7 @@ mod tests {
         let event = &events[0];
         assert_eq!(field(event, "id"), Some(&Value::from("mic-4")));
         assert_eq!(field(event, "lane"), Some(&Value::from("lower")));
-        assert_eq!(field(event, "stage"), Some(&Value::Null));
+        assert_eq!(field(event, "stage"), None);
         assert_eq!(field(event, "held"), Some(&Value::from(false)));
         assert_eq!(field(event, "translated"), Some(&Value::from(true)));
         Ok(())

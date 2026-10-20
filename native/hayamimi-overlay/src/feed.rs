@@ -10,6 +10,7 @@
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use hayamimi_relay::follow::{Backoff, follow_while};
 use hayamimi_relay::logging::{Level, LogEvent, LogSink, SharedSink};
@@ -84,9 +85,10 @@ fn run(reader: Reader) {
         deliver,
         mut sink,
     } = reader;
+    let mut skips = SkipCount::default();
     let mut on_event = |data: &str, sink: &mut dyn LogSink| {
         if running.load(Ordering::SeqCst) {
-            hand_over(data, endpoint, &deliver, sink);
+            hand_over(data, endpoint, &deliver, &mut skips, sink);
         }
     };
     follow_while(
@@ -98,17 +100,55 @@ fn run(reader: Reader) {
     );
 }
 
-fn hand_over(data: &str, endpoint: usize, deliver: &Deliver, sink: &mut dyn LogSink) {
+fn hand_over(
+    data: &str,
+    endpoint: usize,
+    deliver: &Deliver,
+    skips: &mut SkipCount,
+    sink: &mut dyn LogSink,
+) {
     match wire::parse(data) {
         Ok(event) => deliver(event),
-        Err(_) => sink.emit(skipped(endpoint)),
+        Err(_) => {
+            if let Some(count) = skips.note(Instant::now()) {
+                sink.emit(skipped(endpoint, count));
+            }
+        }
     }
 }
 
-fn skipped(endpoint: usize) -> LogEvent {
+/// A stream says that it skipped lines at most this often.
+const SKIP_REPORT_EVERY: Duration = Duration::from_millis(60_000);
+
+/// The lines of one stream that could not be read, counted between reports.
+#[derive(Default)]
+struct SkipCount {
+    last_report: Option<Instant>,
+    pending: u64,
+}
+
+impl SkipCount {
+    /// Notes one line that could not be read, at `now`. When a report is due
+    /// (the first, or one `SKIP_REPORT_EVERY` after the last) returns how
+    /// many lines it covers: this one and those since the last report.
+    fn note(&mut self, now: Instant) -> Option<u64> {
+        self.pending += 1;
+        let due = self
+            .last_report
+            .is_none_or(|at| now.duration_since(at) >= SKIP_REPORT_EVERY);
+        if !due {
+            return None;
+        }
+        self.last_report = Some(now);
+        Some(std::mem::take(&mut self.pending))
+    }
+}
+
+fn skipped(endpoint: usize, count: u64) -> LogEvent {
     LogEvent::new(Level::Warn, "events.line.skipped", "transport")
         .with("endpoint", endpoint)
         .with("reason", "not_a_message")
+        .with("skipped", count)
 }
 
 #[cfg(test)]
@@ -226,7 +266,42 @@ mod tests {
         let event = receiver.recv_timeout(PATIENCE)?;
         assert_eq!(id_of(&event), Some("loopback-2"));
         assert_eq!(tap.named("events.line.skipped"), 1);
+        let line = tap
+            .kept()
+            .iter()
+            .find(|event| event.event == "events.line.skipped")
+            .map(LogEvent::to_json_line);
+        assert!(
+            line.as_deref()
+                .is_some_and(|line| line.contains(r#""skipped":1"#)),
+            "{line:?}"
+        );
         Ok(())
+    }
+
+    #[test]
+    fn the_first_unreadable_line_is_reported_at_once_with_a_count_of_one() {
+        let start = Instant::now();
+        assert_eq!(SkipCount::default().note(start), Some(1));
+    }
+
+    #[test]
+    fn lines_within_a_minute_are_held_and_counted_into_the_next_report() {
+        let start = Instant::now();
+        let mut skips = SkipCount::default();
+        assert_eq!(skips.note(start), Some(1));
+        assert_eq!(skips.note(start + Duration::from_millis(10)), None);
+        assert_eq!(skips.note(start + Duration::from_millis(59_999)), None);
+        assert_eq!(skips.note(start + Duration::from_millis(60_000)), Some(3));
+        assert_eq!(skips.note(start + Duration::from_millis(60_001)), None);
+    }
+
+    #[test]
+    fn each_stream_has_its_own_count() {
+        let start = Instant::now();
+        let (mut one, mut two) = (SkipCount::default(), SkipCount::default());
+        assert_eq!(one.note(start), Some(1));
+        assert_eq!(two.note(start + Duration::from_millis(5)), Some(1));
     }
 
     #[test]

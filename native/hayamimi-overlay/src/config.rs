@@ -184,6 +184,9 @@ pub struct Probe {
     pub zoom_percent: u32,
     /// CSS px the window is made shorter than the band; a negative control.
     pub shrink_px: u32,
+    /// The read-back of the click-through styles is made to find them unset; a
+    /// negative control for the exit taken when the window cannot be clicked through.
+    pub click_through_unset: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -227,6 +230,7 @@ struct Raw {
     probe: bool,
     zoom: Option<u32>,
     shrink: Option<u32>,
+    click_through_unset: bool,
 }
 
 fn value_of(
@@ -279,6 +283,7 @@ impl Raw {
                 number_of("--probe-shrink", rest)?,
                 "--probe-shrink",
             )?,
+            "--probe-click-through-unset" => self.click_through_unset = true,
             other => return Err(ArgError::Unknown(other.to_owned())),
         }
         Ok(())
@@ -307,6 +312,7 @@ impl Raw {
                 zoom_percent,
                 // DEFAULT: a probe that is not told to shrink the window leaves it at the height of the band
                 shrink_px: self.shrink.unwrap_or(0),
+                click_through_unset: self.click_through_unset,
             }),
         })
     }
@@ -317,6 +323,9 @@ impl Raw {
         }
         if self.shrink.is_some() {
             return Err(ArgError::OnlyWithProbe("--probe-shrink"));
+        }
+        if self.click_through_unset {
+            return Err(ArgError::OnlyWithProbe("--probe-click-through-unset"));
         }
         let mut streams = self.events;
         if streams.is_empty() {
@@ -582,8 +591,20 @@ udev_gothic_bold = 'C:\fonts\c.ttf'
             args.probe,
             Some(Probe {
                 zoom_percent: 100,
-                shrink_px: 0
+                shrink_px: 0,
+                click_through_unset: false
             })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_unset_click_through_probe_is_taken_with_a_probe_only() -> Result<(), ArgError> {
+        let args = parse_args(words("--layout-probe --probe-click-through-unset"))?;
+        assert!(args.probe.is_some_and(|probe| probe.click_through_unset));
+        assert_eq!(
+            parse_args(words("--probe-click-through-unset")),
+            Err(ArgError::OnlyWithProbe("--probe-click-through-unset"))
         );
         Ok(())
     }
@@ -597,7 +618,8 @@ udev_gothic_bold = 'C:\fonts\c.ttf'
             args.probe,
             Some(Probe {
                 zoom_percent: 150,
-                shrink_px: 12
+                shrink_px: 12,
+                click_through_unset: false
             })
         );
         assert_eq!(args.config, Some(PathBuf::from("c.toml")));

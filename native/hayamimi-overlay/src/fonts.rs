@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 use hayamimi_relay::logging::{Level, LogEvent, LogSink};
 use hayamimi_ui::css::{LANES_FONT_EN, LANES_FONT_JA};
+use serde::Deserialize;
 
 use crate::config::OverlayConfig;
 
@@ -108,28 +109,85 @@ pub fn font_face_css(config: &OverlayConfig) -> String {
         .collect()
 }
 
+/// The id of the `<style>` that carries the rules in the page.
+const STYLE_ID: &str = "hym-fonts";
+
 /// What goes into the `<head>` of the page: the rules, in a `<style>`.
 pub fn head(config: &OverlayConfig) -> String {
-    format!("<style>\n{}</style>", font_face_css(config))
+    format!(
+        "<style id=\"{STYLE_ID}\">\n{}</style>",
+        font_face_css(config)
+    )
 }
 
-/// The script that makes the page ask again for the fonts the settings name,
-/// after the settings changed. `version` is added to each URL so that the page
-/// does not answer from what it already fetched. A face added later wins over
-/// one declared earlier under the same family. Empty when no font is named.
+/// The slot whose settings key is `key`.
+fn slot_of_key(key: &str) -> Option<Slot> {
+    Slot::ALL.into_iter().find(|slot| slot.key() == key)
+}
+
+fn reload_entry(slot: Slot, config: &OverlayConfig, version: u32) -> String {
+    format!(
+        "{{ key: \"{}\", family: \"{}\", weight: \"{}\", named: {}, url: \"{}?v={version}\" }}",
+        slot.key(),
+        slot.family(),
+        slot.weight(),
+        slot.path(config).is_some(),
+        slot.url()
+    )
+}
+
+/// The page's side of a reload: the faces of the slots are taken out of
+/// `document.fonts` (the `<style>` first, since a face that CSS declared cannot
+/// be deleted by hand), each slot with a file is added again under the new
+/// version, and what became of every slot is sent back.
+const RELOAD_BODY: &str = r#"
+document.getElementById("hym-fonts")?.remove();
+window.hymFaces = window.hymFaces ?? {};
+const states = [];
+for (const slot of slots) {
+  const old = window.hymFaces[slot.key];
+  if (old) { document.fonts.delete(old); delete window.hymFaces[slot.key]; }
+  if (!slot.named) { states.push({ key: slot.key, status: "removed" }); continue; }
+  const face = new FontFace(slot.family, `url("${slot.url}")`, { weight: slot.weight });
+  try {
+    await face.load();
+    document.fonts.add(face);
+    window.hymFaces[slot.key] = face;
+    states.push({ key: slot.key, status: "loaded" });
+  } catch (reason) {
+    states.push({ key: slot.key, status: "error" });
+  }
+}
+dioxus.send(states);
+"#;
+
+/// The script that makes the page ask again for the fonts, after the settings
+/// changed. `version` is added to each URL so that the page does not answer
+/// from what it already fetched. It names all three slots: one the settings no
+/// longer name is taken out of the page. The page answers with one
+/// `FontState` for each slot.
 pub fn reload_script(config: &OverlayConfig, version: u32) -> String {
-    Slot::ALL
+    let slots: Vec<String> = Slot::ALL
         .into_iter()
-        .filter(|slot| slot.path(config).is_some())
-        .map(|slot| {
-            format!(
-                "try {{ const face = new FontFace(\"{}\", 'url(\"{}?v={version}\")', {{ weight: '{}' }}); await face.load(); document.fonts.add(face); }} catch (error) {{}}\n",
-                slot.family(),
-                slot.url(),
-                slot.weight()
-            )
-        })
-        .collect()
+        .map(|slot| reload_entry(slot, config, version))
+        .collect();
+    format!("const slots = [{}];{RELOAD_BODY}", slots.join(", "))
+}
+
+/// What became of a slot in the page.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    Loaded,
+    Error,
+    Removed,
+}
+
+/// One slot's answer to a reload.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct FontState {
+    pub key: String,
+    pub status: Status,
 }
 
 /// The answer to one request of the page for a file.
@@ -209,6 +267,28 @@ impl Reported {
             }
         }
     }
+
+    /// Emits `overlay.font.missing` for each slot the page answered `error`
+    /// for, once for each file the settings name. A slot that is not named, or
+    /// whose key is unknown, says nothing.
+    pub fn from_page(
+        &mut self,
+        states: &[FontState],
+        config: &OverlayConfig,
+        sink: &mut dyn LogSink,
+    ) {
+        for state in states.iter().filter(|state| state.status == Status::Error) {
+            let Some(slot) = slot_of_key(&state.key) else {
+                continue;
+            };
+            let Some(path) = slot.path(config) else {
+                continue;
+            };
+            if self.seen.insert((slot, path.to_owned())) {
+                sink.emit(missing(slot));
+            }
+        }
+    }
 }
 
 fn missing(slot: Slot) -> LogEvent {
@@ -273,30 +353,113 @@ mod tests {
     }
 
     #[test]
-    fn the_reload_script_asks_again_for_each_named_font_under_a_new_version() -> Result<(), Failure>
-    {
+    fn the_reload_script_names_every_slot_and_asks_again_only_for_the_named_ones()
+    -> Result<(), Failure> {
         let mut config = config::builtin()?;
-        assert_eq!(reload_script(&config, 3), "");
         named(&mut config, Slot::Cinecaption, Path::new("a.ttf"));
         let script = reload_script(&config, 3);
         assert!(
-            script.contains(r#"new FontFace("cinecaption", 'url("/hymfont/ja?v=3")'"#),
+            script.contains(
+                r#"{ key: "cinecaption", family: "cinecaption", weight: "400", named: true, url: "/hymfont/ja?v=3" }"#
+            ),
             "{script}"
         );
-        assert!(script.contains("document.fonts.add(face)"), "{script}");
-        assert_eq!(script.matches("new FontFace").count(), 1);
+        assert!(
+            script.contains(
+                r#"key: "udev_gothic", family: "UDEV Gothic 35", weight: "400", named: false"#
+            ),
+            "{script}"
+        );
+        assert!(script.contains(r#"key: "udev_gothic_bold""#), "{script}");
         Ok(())
     }
 
     #[test]
-    fn the_head_wraps_the_rules_in_a_style_element() -> Result<(), Failure> {
+    fn the_reload_script_takes_a_face_out_before_it_adds_one_and_hides_no_failure() {
+        let script = reload_script_of_nothing();
+        let delete = script.find("document.fonts.delete(old)");
+        let add = script.find("document.fonts.add(face)");
+        assert!(delete.is_some() && add.is_some(), "{script}");
+        assert!(delete < add, "{script}");
+        assert!(
+            script.contains(r#"getElementById("hym-fonts")"#),
+            "{script}"
+        );
+        assert!(script.contains("dioxus.send(states)"), "{script}");
+        assert!(!script.contains("catch (error) {}"), "{script}");
+        assert!(!script.contains("catch {}"), "{script}");
+    }
+
+    fn reload_script_of_nothing() -> String {
+        match config::builtin() {
+            Ok(config) => reload_script(&config, 1),
+            Err(error) => format!("the built-in settings failed: {error}"),
+        }
+    }
+
+    #[test]
+    fn the_head_wraps_the_rules_in_a_style_element_the_reload_can_find() -> Result<(), Failure> {
         let mut config = config::builtin()?;
         named(&mut config, Slot::UdevGothic, Path::new("c.ttf"));
         let head = head(&config);
         assert!(
-            head.starts_with("<style>") && head.ends_with("</style>"),
+            head.starts_with(r#"<style id="hym-fonts">"#) && head.ends_with("</style>"),
             "{head}"
         );
+        assert!(RELOAD_BODY.contains(STYLE_ID));
+        Ok(())
+    }
+
+    #[test]
+    fn the_page_answer_reads_as_a_state_for_each_slot() -> Result<(), Failure> {
+        let states: Vec<FontState> = serde_json::from_str(
+            r#"[{"key":"cinecaption","status":"loaded"},{"key":"udev_gothic","status":"error"},{"key":"udev_gothic_bold","status":"removed"}]"#,
+        )?;
+        let statuses: Vec<Status> = states.iter().map(|state| state.status).collect();
+        assert_eq!(statuses, [Status::Loaded, Status::Error, Status::Removed]);
+        assert!(
+            serde_json::from_str::<Vec<FontState>>(r#"[{"key":"a","status":"gone"}]"#).is_err()
+        );
+        Ok(())
+    }
+
+    fn state(key: &str, status: Status) -> FontState {
+        FontState {
+            key: key.to_owned(),
+            status,
+        }
+    }
+
+    #[test]
+    fn a_slot_the_page_answers_error_for_is_reported_once_per_file() -> Result<(), Failure> {
+        let mut config = config::builtin()?;
+        named(&mut config, Slot::UdevGothic, Path::new("x.ttf"));
+        let states = [state("udev_gothic", Status::Error)];
+        let mut sink = MemorySink::default();
+        let mut reported = Reported::default();
+        reported.from_page(&states, &config, &mut sink);
+        reported.from_page(&states, &config, &mut sink);
+        assert_eq!(sink.events.len(), 1);
+        let line = sink.events[0].to_json_line();
+        assert!(line.contains(r#""event":"overlay.font.missing""#), "{line}");
+        assert!(line.contains(r#""key":"udev_gothic""#), "{line}");
+        assert!(!line.contains("x.ttf"), "{line}");
+        Ok(())
+    }
+
+    #[test]
+    fn loaded_removed_unnamed_and_unknown_slots_are_not_reported() -> Result<(), Failure> {
+        let mut config = config::builtin()?;
+        named(&mut config, Slot::Cinecaption, Path::new("a.ttf"));
+        let states = [
+            state("cinecaption", Status::Loaded),
+            state("udev_gothic", Status::Removed),
+            state("udev_gothic_bold", Status::Error),
+            state("no_such_slot", Status::Error),
+        ];
+        let mut sink = MemorySink::default();
+        Reported::default().from_page(&states, &config, &mut sink);
+        assert!(sink.events.is_empty());
         Ok(())
     }
 
