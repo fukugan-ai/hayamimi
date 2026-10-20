@@ -81,6 +81,7 @@ The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-
 R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
 R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
 The not-implemented marks of the RP-83 to RP-87 tests moved from single rows to the header of each whole test (owners: R8x-1, R8x-3, R8x-4 and R8x-6).
+The acceptance test of RP-86 (R8x-6b: `rp86.rs`, T-RP-86-001 to 053) is added to the remaining work (L16b), which makes the remaining count 42.
 
 ### Related documents
 
