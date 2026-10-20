@@ -73,7 +73,7 @@ The R13-17 acceptance test (checking that the validity line of each `final` foll
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
 The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
-The offline gate of policy B (H100) failed. The rule of B is fixed and the gate is run again exactly once. The completion date (the night of 10-26 to the small hours of 10-27) assumes B passes, so it is issued again after B is settled.
+The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). Next, the offline gate of C and D (R8x-5) is run against the current rule, to measure whether D helps the two slow utterances. The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5.
 
 ### Related documents
 
