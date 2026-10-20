@@ -73,10 +73,11 @@ The R13-17 acceptance test (checking that the validity line of each `final` foll
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
 The clean-up tool can also remove a verify tree stacked on an earlier verify merge, when merging it into main leaves main's tree as it is and it has no ordinary commit that main lacks (`fix/tidy-tree-equal`).
-The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
-The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). Next, the offline gate of C and D (R8x-5) is run against the current rule, to measure whether D helps the two slow utterances. The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5.
+The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-6, window E2 and window E3 are on hold.
+The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5 (below).
 The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
-The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in, so R8x-5 can be issued.
+The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in.
+The offline gate of C and D (R8x-5) was run against the current rule and failed: with C and D, the splits by the early path alone rise from 4 to 6 on lat-ja and from 9 to 26 on held-out ja, and the candidates finalised with voice going on after them rise from 9 to 18 on held-out ja. D finalises one of the two slow utterances (22) 192 ms earlier and does not act on the other (16). The record is `docs/results/r8v/extra.md`.
 
 ### Related documents
 

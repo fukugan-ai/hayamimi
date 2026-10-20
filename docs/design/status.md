@@ -153,7 +153,7 @@ The replacements that shrink `d` uniformly across all samples (1218 ms with opti
 Speculative decoding (S3 of RP-71) made the translation p50 29 % slower, so it is not placed on the path to 1200 ms.
 RP-78 (L7) is not placed on the path to 1200 ms either.
 The combination's margin is 2 samples; if the wait of the widened key grows to 250 ms, it breaks the line at 1230 ms (H117 of `rust_port.ja.md`).
-Whether it passes without B is first looked at in the offline gate of R8x-5 (whether D helps utterances 16 and 22); the council then sets the line once, and the ja runs of RP-86 and RP-67 in window E3 (PL-3 below) decide it.
+Whether it passes without B is first looked at in the offline gate of R8x-5 (whether D helps utterances 16 and 22; the gate failed, L15); the council then sets the line once, and the ja runs of RP-86 and RP-67 in window E3 (PL-3 below) decide it.
 
 ### What remains
 
@@ -181,7 +181,7 @@ Whether it passes without B is first looked at in the offline gate of R8x-5 (whe
 | L12 | R8x-1: the gate of an E2E run (RP-83; the 15-minute load average before, the 5-minute load average after, and cargo and rustc during the run) | Direct (before every E2E window) | None | cargo (`hayamimi-eval`) | 60 min | 3.19 of `rust_port.ja.md` |
 | L13 | R8x-2: create `rp67.rs` (not in the repository). `rp79.rs` is stopped | Direct | L12 | cargo (`hayamimi-eval`) | 51 min (the 51 min of `rp79.rs` drops out) | Same as above |
 | L14 | R8x-4: widening the reuse key (RP-85) | Direct | None | cargo (`hayamimi-relay`). The quality probe takes about 20 min on the llama-server on 8080 | 60 min and 20 min | Same as above |
-| L15 | R8x-5: the offline gate of C and D ((0) of RP-86; run against the current rule, measuring whether D helps utterances 16 and 22). The next item to run | Direct | None | cargo (CPU) | 60 min | Same as above |
+| L15 | R8x-5: the offline gate of C and D ((0) of RP-86; run against the current rule, measuring whether D helps utterances 16 and 22). Done. The gate failed (splits by the early path alone in lat-ja: X 6 against W 4; candidates finalised with voice after them in held-out ja: 18 against 9; splits there: 26 against 9). D finalises utterance 22 192 ms earlier and does not act on utterance 16. Record: `docs/results/r8v/extra.md` | Direct | None | cargo (CPU) | 60 min | Same as above |
 | L16 | R8x-6: C and D (RP-86) | Direct | L15 meets its line | cargo (`hayamimi-asr`, `hayamimi`, `hayamimi-eval`) | 90 min | Same as above |
 | L17 | Window E3: the W and X runs (RP-86, the speed of RP-85, RP-84, ja of RP-67) | Direct | L5, L14, L16, L13 | The E2E window and the GPU. No seat runs cargo during the window | About 2 hours 20 min | Same as above |
 | O1 | The board of the overlay window (designer), and a design that puts a slice row in 8 [to be corrected from the design seat's reply] | Direct (goal and FR-9) | 3.12 of the conversation-subtitles design | The design seat, the designer seat | About 4 hours for the board and design (from the record of R6, board to merge) | 3.12, CS-10 to CS-12 |

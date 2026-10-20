@@ -151,7 +151,7 @@ en は今の build で `L` を測っていない（E2E-2 の 1303 ms は前の b
 推測デコード（RP-71 の S3）は訳の p50 を 29 % 遅くしたので、1200 ms の道に置かない。
 RP-78（L7）も 1200 ms の道に置かない。
 組の余裕は 2 標本で、鍵の広げの待ちが 250 ms に延びると 1230 ms で線を割る（`rust_port.ja.md` の H117）。
-B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 22 に効くか）で見て、評議が線を 1 回だけ決め、窓 E3 の RP-86 と RP-67 の ja の run（下の PL-3）で決まる。
+B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 22 に効くか。門は落ちた、L15）で見て、評議が線を 1 回だけ決め、窓 E3 の RP-86 と RP-67 の ja の run（下の PL-3）で決まる。
 
 ### 残っている物
 
@@ -179,7 +179,7 @@ B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 2
 | L12 | R8x-1：E2E の run の門（RP-83。前の 15 分平均と後の 5 分平均の load、run の間の cargo と rustc） | 直接（E2E の窓の全部の前） | なし | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.19 |
 | L13 | R8x-2：`rp67.rs` を作る（repo に無い）。`rp79.rs` は止める | 直接 | L12 | cargo（`hayamimi-eval`） | 51 分（`rp79.rs` の 51 分が外れる） | 同上 |
 | L14 | R8x-4：使い回しの鍵の広げ（RP-85） | 直接 | なし | cargo（`hayamimi-relay`）。品質の probe は 8080 の llama-server で約 20 分 | 60 分と 20 分 | 同上 |
-| L15 | R8x-5：C と D の offline の門（RP-86 の (0)。今の規則を相手に打ち、D が発話 16 と 22 に効くかを測る）。次に打つ物 | 直接 | なし | cargo（CPU） | 60 分 | 同上 |
+| L15 | R8x-5：C と D の offline の門（RP-86 の (0)。今の規則を相手に打ち、D が発話 16 と 22 に効くかを測る）。済み。門は落ちた（lat-ja の B だけの割れが W 4 に対し X 6、held-out ja の後ろに声が続く確定が 9 に対し 18、割れが 9 に対し 26）。D は発話 22 を 192 ms 早く確定し、発話 16 には効かない。記録は `docs/results/r8v/extra.md` | 直接 | なし | cargo（CPU） | 60 分 | 同上 |
 | L16 | R8x-6：C と D（RP-86） | 直接 | L15 が線を満たす | cargo（`hayamimi-asr`、`hayamimi`、`hayamimi-eval`） | 90 分 | 同上 |
 | L17 | 窓 E3：W と X の run（RP-86、RP-85 の速さ、RP-84、RP-67 の ja） | 直接 | L5、L14、L16、L13 | E2E の窓と GPU。窓の間はどの席も cargo を打たない | 約 2 時間 20 分 | 同上 |
 | O1 | 重ね窓の板（designer）、slice の行を 8 に置く設計【設計の席の返答で直す】 | 直接（goal と FR-9） | 会話字幕の設計 3.12 | 設計の席、designer の席 | 板と設計で約 4 時間（R6 の板から merge までの実績） | 3.12、CS-10〜CS-12 |
