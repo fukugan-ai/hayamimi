@@ -76,6 +76,7 @@ The clean-up tool can also remove a verify tree stacked on an earlier verify mer
 The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
 The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). Next, the offline gate of C and D (R8x-5) is run against the current rule, to measure whether D helps the two slow utterances. The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5.
 The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
+The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in, so R8x-5 can be issued.
 
 ### Related documents
 
