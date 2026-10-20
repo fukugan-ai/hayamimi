@@ -44,7 +44,19 @@ The CPU archive that the build script downloads ships `libonnxruntime.so` only, 
 They are skipped by name: `a_missing_model_directory_leaves_every_stage_out_and_the_engine_silent`,
 `an_engine_with_no_route_has_no_early_holds`, `an_engine_with_no_route_has_no_recognizers_to_report`,
 `with_no_stage_on_the_gpu_there_is_nothing_to_give_back`.
+Three tests of `hayamimi` (`rp16`) hide the GPU and expect the reason `no_device`.
+That reason needs a driver library that loads and reports no device.
+A GitHub runner has no `libcuda.so.1`, so the stage reports `driver_unreadable` and the three tests fail with `reason of `gpu.device.unavailable` is not no_device`.
+They are skipped by name: `missing_cuda_build_falls_through_to_the_cpu_build`, `hidden_gpu_translate_server_starts_on_cpu_with_a_reason`,
+`rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`.
 The first run on Windows is not measured here.
+
+## Programs the test step needs first
+
+`rp27` runs `rg` (ripgrep) to count imports, and the runner does not carry it, so the workflow installs it (`apt-get` on Linux, `choco` on Windows).
+`r8g_media` starts the stand-in programs `fake_recognizer` and `fake_ffmpeg` from `target/release/examples/`.
+`cargo test --examples` builds them as test executables with a hash in the name, not at that path, so the workflow builds them with `cargo build --release --workspace --examples` before the test step.
+A local target that had once run `cargo build --all-targets` already held them, which is why the clone run passed.
 
 ## Result of the `run:` lines
 
