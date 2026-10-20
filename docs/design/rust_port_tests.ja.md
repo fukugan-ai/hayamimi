@@ -2323,6 +2323,23 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 
 **この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
 
+### 4.71 VAD の窓ごとの確率の probe
+
+判定の code は変えない。
+VAD の model を `ort` で開き、512 sample の窓ごとの確率を `lat-ja.wav` と `lat-en.wav` で出す。
+sherpa-onnx の C API は確率を返さないので、この probe だけが窓ごとの確率を出す。
+実走の command は `cd native && cargo test -j 2 --release -p hayamimi-asr --test vad_trace_probe -- --ignored --nocapture` で、出力は行の頭の語（`MODEL`、`GAP`、`NOISE`、`TRACE`、`FALL`、`CONTROL`）で分かれる。
+
+| case | 入力 | 期待値 | 置き場 | test の名前 |
+|---|---|---|---|---|
+| 実走 | `models/silero_vad.onnx`、`lat-ja.wav`、`lat-en.wav` | `MODEL` の行に tensor の名前と形と layout が出る。0 だけの 20 秒の流れで確率が 0.5 を超えない（超えれば Err）。元の音と、manifest の終わりの後の 0 の連なりを -60 dBFS の白色雑音に替えた音の両方で、発話ごとの `FALL` の行が出る | `hayamimi-asr/tests/vad_trace_probe.rs` | `vad_window_probabilities`（`#[ignore]`） |
+| layout | tensor の名前 | `x`、`h`、`c` と `prob`、`new_h`、`new_c` を LSTM の layout とする。ほかの 2 つの layout は名前で見分け、流さずに Err にする | 同上 | `the_lstm_names_give_the_lstm_layout`、`the_state_only_names_give_the_state_only_layout`、`the_rate_and_lstm_names_give_their_own_layout`、`other_names_give_no_layout` |
+| 雑音 | 0 の連なり | 512 sample 以上の 0 の連なりだけを置き換え、短い連なりと発話の中は変えない。雑音の RMS が -60 dBFS の 0.2 dB 以内 | 同上 | `only_long_zero_runs_inside_a_gap_become_noise`、`zero_runs_shorter_than_the_minimum_are_left_alone`、`noise_has_the_requested_level` |
+| 位置 | 窓の確率と manifest の終わり | 落ちる位置は、終わり以後に始まる最初の窓の開始から manifest の終わりを引いた ms。窓の置き場（発話の中か後か）は、直前に始まった発話で決める | 同上 | `a_fall_is_counted_from_the_manifest_end`、`a_window_is_placed_by_the_utterance_that_started_last` |
+| 入力 | 順序の崩れた manifest | 順序の崩れ、重なり、入力の外を Err にする | 同上 | `spans_out_of_order_or_outside_the_input_are_refused` |
+
+`--ignored` の無い run では、実走の 1 本を除く 10 本が通る。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
