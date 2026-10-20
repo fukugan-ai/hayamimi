@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73、RP-80、RP-81。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73、RP-79（呼ぶことの確かめの 1 行だけ）、RP-80、RP-81、RP-83〜RP-87。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -1294,7 +1294,7 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 | T-RP-32-011 | 001 で 4 番目の run の前の load の記録が無い | 前の記録の欠け | `Err` | `Err` で 4 番目の run を名指し。値は出さない（specified、RP-32 の陰性欄「load の記録が無い run」） | 陰性 | `a_run_without_a_load_before_record_is_rejected` |
 | T-RP-32-012 | 001 で 4 番目の run の後の load の記録が無い | 後の記録の欠け | `Err` | `Err` で 4 番目の run を名指し（specified、3.16 の 4 の「各 run の前と後の `/proc/loadavg`」） | 陰性 | `a_run_without_a_load_after_record_is_rejected` |
 | T-RP-32-013 | 001 で 4 番目の run の前の load の行が `n/a` | 読めない値 | `Err` | `Err`。読めない値を 0 と読んで 2 未満に通さない（implicit） | 境界、陰性 | `an_unreadable_load_line_is_rejected_not_read_as_zero` |
-| T-RP-32-014 | 001 で 4 番目の run の前の load が `1.99`、後が `9.99` | 後の load | `Ok` | `Ok`。後の load は記録だけで、上限は前の load にだけ在る（specified、RP-32 の「各 run の前の 1 分の load」）。出力に後の load の値が残る | 境界 | `the_load_after_a_run_is_recorded_but_not_judged` |
+| T-RP-32-014 | 001 で 4 番目の run の前の load の行が `1.99 0.50 0.50 1/300 1000`、後の行が `9.99 0.50 0.50 1/300 1000`（後の 1 分の欄だけが高い） | 後の 1 分の load。run 自身が押し上げる欄 | `Ok` | `Ok`。後の 1 分の load は記録だけで判定しない（specified、RP-83 の (1) が後の欄で見るのは 5 分平均だけ。run 自身が 1 分の値を押し上げるので、3.19 の「E2E の run の門」は後の値に 5 分平均を使う）。出力に後の 1 分の値 999 が残る。後の 5 分平均と前の 15 分平均の 2.50 の線と、run の間の `cargo` と `rustc` は RP-83 が判定する（T-RP-83-005、007、009）。この行は RP-83 と矛盾しない | 境界 | `the_one_minute_load_after_a_run_is_recorded_but_not_judged` |
 | T-RP-32-015 | F32 で Rust の `L` の 29 番目（u = 10、k = 2）を +1 ms | p50 の順位に当たる標本 | `Err` | `Err` で p50 を名指し。Rust の 29 番目は 1103 ms で Python の 1102 ms を超える（specified、RP-32。nearest-rank の式 (p × n + 99) / 100） | 境界、陰性 | `p50_one_millisecond_over_at_the_29th_sample_is_rejected` |
 | T-RP-32-016 | F32 で Rust の `L` の 30 番目（u = 10、k = 3）だけを +1 ms | p50 の順位の次 | `Ok` | `Ok`。29 番目は 1102 ms のまま（derived、nearest-rank。順位が p50 を決める） | 境界 | `p50_is_decided_by_the_29th_sample_only` |
 | T-RP-32-017 | F32 で Rust の `L` の 55、56、57 番目（u = 19 の 3 つ）を +1 ms | p95 の順位に当たる標本 | `Err` | `Err` で p95 を名指し。Rust の 55 番目は 1192 ms で Python の 1191 ms を超える。p50 は通る（specified、RP-32） | 境界、陰性 | `p95_one_millisecond_over_at_the_55th_sample_is_rejected` |
@@ -1309,7 +1309,7 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 | T-RP-32-026 | R0 の Python 同士の 2 run（`testdata/baseline/lat_ja_0.35_1.jsonl` と `_2.jsonl`）を、順を問わない 1 対として渡す | Python 同士の対 | 列が出る | `L` の標本の数が 95 と 94、列は 023 と同じ 6 つ以上。有効の判定は 350 ms（pseudo、jq。`select(.t_final_us != null)` と `((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 350` と `.t_tr_us != null` の数を数えた値。RB-5 の分割と同じ式）。この 1 対は合否の判定には掛けない（RP-32 の陽性欄の「Python 同士の 2 run の対から同じ列を出せる」） | 陽性 | `python_against_python_pair_yields_the_same_columns` |
 | T-RP-32-027 | 026 の 2 run に、`_1` を Rust として渡した 1 対 | 同じ run を 2 回 | 差 0 | `L` の p50 と p95 の差が 0 で、`Ok`（pseudo。同じ入力は差を持たない） | 陽性 | `the_same_run_against_itself_has_no_difference` |
 | T-RP-32-028 | R8e の Rust の run（RP-31 の 018 の数え方）と R0 の Python の run（`lat_ja_0.30_1`）を 1 対として列を出す。対の数と load は掛けない。有効の判定は両方 `min_silence` 300 ms | 実物の記録 | `L` の欄の値 | Rust の `L` が p50 1533 ms、p95 2752 ms（n 66）。Python の `L` が p50 1481 ms、p95 2008 ms（n 95）。Rust の p50 と p95 のどちらも Python を超える（pseudo、jq。有効の判定は `((t_final − t_end) / 1000 − final の latency_ms) >= 300`）。数え方を直した後も残る差を、判定の道具が「超える」と読む確かめ | 陰性 | `the_recorded_r8e_gap_is_read_as_slower_than_python` |
-| T-RP-32-029 | 実走：Python、Rust、Python、Rust、Python、Rust の 6 run と、各 run の前後の `/proc/loadavg` | 実走 | 実走 | 001 の形で `Ok`（specified、RP-32） | 陽性 | `rp32_alternated_runs_under_the_same_load_beat_python` |
+| T-RP-32-029 | 実走：Python、Rust、Python、Rust、Python、Rust の 6 run と、各 run の前後の `/proc/loadavg` | 実走 | 実走 | 001 の形で `Ok`（specified、RP-32）。この実走が読む `docs/results/rp32/` の Rust の `rs1`〜`rs3` は `<run>.machine.jsonl` を持たない門の前の記録で、3.19 の「門の前の記録」の一覧（dir、run の名前、`<run>.jsonl` の sha256）に当たるので、RP-83 の判定から外れる。実走の出力に、3 run を門の前の記録として外したことが在る（specified、RP-83 の (6)）。RP-32 の最後の判定（窓 E4）は、門の後に流した新しい run で出す | 陽性 | `rp32_alternated_runs_under_the_same_load_beat_python` |
 | T-RP-32-030 | F32 の 3 対（6 run、順は 001 と同じ）を置いた dir。`pairs.txt` は無い | `pairs.txt` が無い 3 対 | `Ok` | `Ok`。無い dir は 3 対として読む（specified、D 3.16 の 4 の「順と置き場」。dir の file の名前は実装の席が決める） | 境界、陽性 | `a_dir_without_pairs_txt_is_read_as_three_pairs` |
 | T-RP-32-031 | 030 から 3 対目（5、6 番目の run）を除いた 4 本の dir。`pairs.txt` は無い | `pairs.txt` が無い 2 対 | `Err` | `Err` で 3 対目が欠けていることを名指し。無い dir は 3 対として読むので、在る数に合わせて 2 対とは読まない（specified、D 3.16 の 4 の「順と置き場」）。030 の陰性の対照 | 境界、陰性 | `a_dir_without_pairs_txt_and_two_pairs_is_missing_the_third` |
 | T-RP-32-032 | 031 の dir に、中身が `2` の 1 行の `pairs.txt` を足す | 2 と書いた 2 対 | `Ok` | `Ok`。在る dir はその数の対を読む（specified、D 3.16 の 4 の「順と置き場」）。005 と同じ 2 対を、dir の読み方から通す | 境界、陽性 | `pairs_txt_of_2_accepts_two_pairs` |
@@ -1326,6 +1326,7 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 | T-RP-32-043 | F32 とは別の入力 **F32L**：Python と Rust の 3 対（6 run）が、23 発話 × 5 回 = 115 標本を持つ。全標本の `L` は 1000 ms、有効の作り方は F32 と同じ。Rust の 3 run を合わせて訳の取れない標本を 45 にする（発話 1〜22 が各 2 標本、発話 23 が 1 標本。どの発話にも訳の取れた標本が残る） | 設計の標本の大きさでの下限。有効 345、訳の取れた 300 | 20 / 23 以上 | `Ok`。300 × 23 = 6900 = 345 × 20 で等号。`L` の p50 と p95 は Rust も 1000 ms で Python 以下。比較集合 23 発話、閾値 (23 × 20 + 22) / 23 = 20 に対して 23 発話すべてで Rust が Python 以下（derived、345 × 20 / 23 = 300 を awk で割り切れることを確かめた） | 境界、陽性 | `three_hundred_of_345_valid_samples_pass_the_share_exactly` |
 | T-RP-32-044 | 043 に、発話 23 の 2 つ目の標本も訳の取れない標本にする（訳の取れた 299） | 043 の 1 つ下 | 同上 | `Err`。訳の取れた標本 299、有効な標本 345 を名指す（299 × 23 = 6877 < 6900）。`L` と対の比較は通り、載る理由はこの 1 つだけ（specified、RP-32 の陰性欄）。043 と 044 は訳の取れた数だけが 1 違い、割合の比べを整数で行うことと、等号を通すことを両側から固定する | 境界、陰性 | `two_hundred_ninety_nine_of_345_valid_samples_fail_the_share` |
 | T-RP-32-045 | `docs/results/rp32/` の 3 対（実物の記録）を `check_dir` に渡す。Rust の 3 run を合わせた有効な標本と、そのうち `t_tr_us` が null でない標本の数を `jq` で数える（`min_silence` 300 ms） | 実物の記録の割合。この dir は `fallback` の event を持たない | 有効 252、訳の取れた 249 | 判定の `Result` がどちらでも、載る理由に訳の取れた割合は無い。出力の割合の列は Rust の 249 / 252 を出す。249 × 23 = 5727 ≥ 252 × 20 = 5040（pseudo、`jq`：`select(.t_final_us != null and ((.t_final_us - .t_end_us) / 1000 - .final_latency_ms) >= 300)` の数と、その中の `.t_tr_us != null` の数を `rs1`〜`rs3` で数えた。2026-10-20 に 84 / 83、84 / 83、84 / 83 を数えた）。判定の他の理由（対の比較 14 / 19）は、この行が見ない | 陽性 | `the_recorded_rp32_dir_has_enough_translated_samples` |
+| T-RP-32-047 | 001 の 6 run のうち Rust の 3 run が、T-RP-83-001 の形の `<run>.machine.jsonl` を持つ。2 番目の Rust の run（4 番目）の行 1 の `load15` を `"2.50"` にする | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で 4 番目の run の名前、`load15`、`2.50` を名指す。ほかの 2 つの Rust の run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。support を呼び忘れた判定は `Ok` を返して、ここで落ちる。3 run 全部が内側の形が陽性対照）。fixture の 3 run は門の前の記録の一覧に当たらない一時 dir に置く | 陰性 | `a_rust_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 | T-RP-32-046 | 037 の出力から、訳の取れた割合の列を除いた出力 | 列の欠け | `Err` | `Err` で訳の取れた割合の列を名指す。Rust の割合の列も Python の割合の列も、設計が挙げる列である（specified、RP-32 の「別の列に出す」。024 と 025 の形。列の見出しの綴りは実装の席が決め、test はその綴りを 1 か所に持つ） | 陰性 | `a_missing_translated_share_column_is_rejected` |
 
 **T-RP-32-037 から 046 は未実装。実装の席が足す**（D 3.18 の「測り方の直し」の順 1。製品の code は変えない）。10 本とも fixture を読み、`--ignored` を付けずに通る。`check_alternated_runs` に `check_translated_share`（`native/hayamimi-eval/src/compare.rs`）を Rust の 3 run を合わせた標本へ掛ける 1 行と割合の列が入るまで、今の main で落ちるのは 038（`Ok` になる）、039（載る理由が 3 つで割合が無い）、042、045（割合の列が無い）、044（`Ok` になる）、046（列を調べる関数が無い）である。037、040、041、043 は割合を見ない今の main でも通り、割合を足した後で通ったままであることを固定する側である。
@@ -1338,8 +1339,8 @@ load の 1 行は `/proc/loadavg` の書式（`0.50 0.50 0.50 1/300 1000`）で�
 
 - 「訳」の段（`final` から `t_tr` まで）と `L_tr`（`t_tr − t_final`）は、3.1 の定義では同じ値である。設計が 2 つを別の列に挙げる意図が、別の測り方（たとえば中継の log の時刻）なら、その測り方。023 は同じ値を 2 列に出す形で書いた。
 - 対の比較の「発話ごとの 5 回の中央値」は、3 対を合わせると 1 発話 15 標本になる。F32 は 1 発話 3 標本（1 回 × 3 対）で、中央値を 3 つから取る。比較集合の「Python の全 run」を 3 つの run のそれぞれと読んだ（021）。
-- 後の load は記録だけにした（014）。設計は後の load の上限を書かない。
-- 「他の席が cargo の build を打たない」ことは、前の load が 2 未満であることでしか見えない。build が run の途中に始まっても、前の load には出ない。
+- 後の 1 分の load は記録だけにした（014）。後の 5 分平均の 2.50 未満と前の 15 分平均の 2.50 未満は RP-83 の判定で、4.75 の T-RP-83-004 から 007 が持つ。RP-83 の実装が入った後は、F32 の Rust の run が `<run>.machine.jsonl`（F83 の形）を持つ形にする。持たないと Rust の run が「file の無い run」で落ち、001 から 046 が通らなくなる（R8x-1 の席が `f32_runs()` に足す）。
+- 「他の席が cargo の build を打たない」ことは、前の 1 分の load が 2 未満であることでは見えない。build が run の途中に始まっても、前の load には出ない。run の間の `cargo` と `rustc` の数は RP-83 が `<run>.machine.jsonl` の全行で見る（4.75 の T-RP-83-009 から 013）。
 - 順は Python が先頭（003）。設計は「Python、Rust、Python、Rust … の順」と書く。
 - 訳の取れない標本の数を合否に使わない。028 の差は、数え方を直しても Rust が Python を超える。
 - dir の中の run と load の file の名前。設計は `pairs.txt` と `load<N>.txt` の名前だけを書く。030 から 036 の fixture の dir は、実装の席が名前を決めて置く。
@@ -1373,7 +1374,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-33-013 | 012 の Rust の 3 つの列の合計 | 母数 | 47 + 19 = 66 | V を通った行 47 と落ちた行 19 の和が全行 66 と等しい。どちらにも入らない有効な行を作らない（derived、分け方の定義） | 境界 | `passed_and_failed_rows_add_up_to_all_rows` |
 | T-RP-33-014 | A を作った時だけ。A の前の run の V を通った行の `L` が 1000〜1009 ms の 10 行（n = 10 で p50 は 5 番目、p95 は 10 番目）。A の後の run が同じ値 | V を通った行の `L`（等号） | `Ok` | `Ok`（specified、RP-33 の「A を作った時は…A の前の run 以下」） | 境界、陽性 | `a_passed_draft_l_equal_to_before_a_passes` |
 | T-RP-33-015 | 014 で A の後の run の 5 番目の行（1004 ms）を 1005 ms にする。10 番目の行を 1010 ms にした別の入力も作る | p50 の順位、p95 の順位 | `Err` | 5 番目が 1005 ms になる入力は `Err` で p50 を名指し。10 番目が 1010 ms になる入力は `Err` で p95 を名指し。1 番目だけを 1001 ms にした入力は `Ok`（specified、RP-33） | 境界、陰性 | `a_slower_passed_draft_l_after_a_is_rejected` |
-| T-RP-33-016 | 実走：RP-32 の Rust の run の `/events`（B の後の run）。A を作った後は A の前の run も | 実走 | 実走 | 001 の形で、全行の「訳」の段が Python 以下（specified、RP-33） | 陽性 | `rp33_first_translation_after_a_failed_draft_beats_python` |
+| T-RP-33-016 | 実走：RP-32 の Rust の run の `/events`（B の後の run）。A を作った後は A の前の run も | 実走 | 実走 | 001 の形で、全行の「訳」の段が Python 以下（specified、RP-33）。この実走が読む `docs/results/rp32/` の Rust の `rs1`〜`rs3` は、門の前の記録の一覧に当たる run で、RP-83 の判定から外れる。出力に、外したことが在る（specified、RP-83 の (6)） | 陽性 | `rp33_first_translation_after_a_failed_draft_beats_python` |
 
 A を作る条件（3.16 の 2）のうち、ID の合否に入る物は 014 と 015 だけである。残りの 3 つは A を作る時の前提で、測り方は次の表のとおり（A を作った時だけ足す。今は走らせない）。
 
@@ -2082,14 +2083,15 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-66-053 | A の final を `The cat sat on the map. And then it left.`（`mat` を `map` と誤認）にし、参照 E に写す | 認識の誤りを含む合わせ | 印の位置 | `.` が参照の 6 語目の後と 10 語目の後に写る。編集距離の最小の合わせで `map` と `mat` が対になる（derived、D の数え方の 9 の「数え方の 8 の合わせ」） | 陽性 | `marks_of_the_final_sentence_are_carried_over_through_the_edit_alignment` |
 | T-RP-66-054 | **en の手の確かめ（ja）**：割れ 5 件。(1) J5、e = 11、A の final は J5 と同じ。(2) J5、e = 11、A の final は `今日は天気がいいですね明日は雨です。`。(3) J5、e = 13、A の final は `今日は天気がいいですね明日。は雨です。`。(4) J5、e = 9、A の final は J5 と同じ。(5) J4、e = 11、後ろの文 `ん`、A の final は J4 と同じ | 参照の `。` による仕分けと A の final の `。` による仕分けの一致 | 一致 3、不一致 2 | 一致 3 件（(1)(4)(5)）、不一致 2 件（(2)(3)）を別の欄に出す。(2) は参照で本物、A で文の途中。(3) は参照で文の途中、A で本物。不一致が多い時の上限は評議が手番 1b の後に固定する。この行は上限と比べず、2 つの数だけを確かめる（specified、D の数え方の 9。一致の件数と一致しなかった件数を並べて記録する） | 陽性、陰性 | `reference_and_final_sentence_sortings_are_compared_and_both_counts_are_written` |
 | T-RP-66-055 | 054 の 5 件を、A の final を全部参照と同じにして仕分ける | 全て一致 | 一致 5、不一致 0 | 一致 5、不一致 0（derived。054 で不一致 2 を数えた同じ道具が、一致する入力で 0 を返す対照） | 陰性、境界 | `identical_sortings_give_no_disagreement` |
-| T-RP-66-056 | **文の途中の切断の率**：ja の R8v を合わせた有効 200 標本（F66J の 2 本）に、文の途中の割れ 3 件と本物 2 件と尾の雑音 1 件。もう 1 つの run は文の途中 0 件 | 率の式 | 0.015 と 0 | 率 = 3 ÷ 200 = 0.015。0 件の run は 0（derived、D 6 の RP-66 の「文の途中と仕分けた割れの数 ÷ 有効な標本の数」。本物と尾の雑音は分子に入らない）。この行は率の値だけを確かめる。判定は 057 | 陽性、境界 | `the_mid_sentence_cut_rate_counts_only_mid_sentence_splits_over_valid_samples` |
-| T-RP-66-057 | 上限 U を置いた後の 056 の形。文の途中の割れが ⌊U × 200⌋ 件の run と、1 件多い run | 上限の両側 | 前者は `Ok`、後者は `Err` | 前者は `Ok`（率 ≤ U の等号側）、後者は `Err` で文の途中の切断の率を名指し。U の値は評議が手番 1b の後に固定する。値が固定されるまで、この行の数は書かない（specified、D 6 の RP-66 の「上限以下」） | 境界、陰性 | `the_mid_sentence_cut_rate_limit_is_inclusive` |
-| T-RP-66-058 | 完結の判定を常に真にした build の run を模した入力。文の途中の割れが ⌊U × 200⌋ + 1 件以上 | 毎回の候補で確定する | `Err` | `Err` で文の途中の切断の率を名指し。割れの数（`finals` が 2 以上の標本の数）は記録だけで、これでは落ちない（specified、D 6 の RP-66 の陰性欄）。U は評議が手番 1b の後に固定する | 陰性 | `an_always_complete_build_fails_on_the_mid_sentence_cut_rate` |
+| T-RP-66-056 | **文の途中の切断の率**：ja の R8v を合わせた枠の全標本 230（F66J の 2 本。有効 200 + final なし 30）に、文の途中の割れ 3 件と本物 2 件と尾の雑音 1 件。もう 1 つの run は文の途中 0 件 | 率の式 | 3 ÷ 230 と 0 | 率 = 3 ÷ 230（約 0.01304）。分母は有効な標本の 200 ではなく枠の全標本の 230 で、3 ÷ 200 = 0.015 と読む実装は落ちる。0 件の run は 0（derived、D 3.19 の RP-86 の (2) 「率の分母は枠の全標本」と D 6 の RP-66 の「文の途中と仕分けた割れの数 ÷ 標本の数」。本物と尾の雑音は分子に入らない）。この行は率の値だけを確かめる。判定は 057 | 陽性、境界 | `the_mid_sentence_cut_rate_counts_only_mid_sentence_splits_over_all_framed_samples` |
+| T-RP-66-057 | 上限 U を置いた後の 056 の形。文の途中の割れが ⌊U × 230⌋ 件の run と、1 件多い run（枠の全標本 230） | 上限の両側 | 前者は `Ok`、後者は `Err` | 前者は `Ok`（率 ≤ U の等号側）、後者は `Err` で文の途中の切断の率を名指し。U の値は評議が手番 1b の後に固定する。値が固定されるまで、この行の数は書かない（specified、D 6 の RP-66 の「上限以下」） | 境界、陰性 | `the_mid_sentence_cut_rate_limit_is_inclusive` |
+| T-RP-66-058 | 完結の判定を常に真にした build の run を模した入力。文の途中の割れが ⌊U × 230⌋ + 1 件以上（枠の全標本 230） | 毎回の候補で確定する | `Err` | `Err` で文の途中の切断の率を名指し。割れの数（`finals` が 2 以上の標本の数）は記録だけで、これでは落ちない（specified、D 6 の RP-66 の陰性欄）。U は評議が手番 1b の後に固定する | 陰性 | `an_always_complete_build_fails_on_the_mid_sentence_cut_rate` |
 | T-RP-66-059 | 割れた標本の訳の chrF：(1) 前の文の訳と後ろの文の訳をつないだ物が、A の 1 つの final の訳と同じ文字列。(2) 共通する字が 1 つも無い文字列 | 記録だけの欄 | 100 と 0。判定に入らない | (1) の chrF は 100、(2) は 0 を出力に書く。どちらの値でも他の判定は変わらず `Ok` のまま（derived、chrF の定義。D の数え方の 8 は「合否に入れない」） | 陽性、境界 | `the_chrf_of_split_translations_is_recorded_and_not_judged` |
 | T-RP-66-060 | **最後の final の遅れ**：10 発話。発話 k の `end_sample` は 10 秒、k = 1〜10 の最後の final の検出が 100k ms 後。ただし発話 3 は final が 2 つで、最初が 300 ms 後、最後（B だけの割れの後ろの文）が 800 ms 後 | 割れた発話の遅れ | p50 600、p95 1000 | 遅れの列は 100、200、800、400、500、600、700、800、900、1000。小さい順に 100、200、400、500、600、700、800、800、900、1000。p50 は (50 × 10 + 99) / 100 = 5 番目で 600 ms、p95 は (95 × 10 + 99) / 100 = 10 番目で 1000 ms（derived、D の数え方の 10。最初の final の 300 ms で取ると p50 は 500 ms になる） | 陽性、陰性 | `delay_is_taken_at_the_last_final_of_the_utterance` |
 | T-RP-66-061 | 060 の発話 3 を final 1 つ（300 ms 後）にした run | 割れの無い発話 | p50 500、p95 1000 | 遅れの列は 100〜1000 の 10 個。p50 は 5 番目の 500 ms、p95 は 10 番目の 1000 ms（derived）。060 との差が最後の final の効き目 | 境界 | `an_unsplit_utterance_is_delayed_at_its_only_final` |
 | T-RP-66-062 | 060 の発話 10 を、A の segment が 1 つも触れない発話にする | 母数から外す発話 | n 9、除外 1 | n は 9。遅れの列は 100、200、800、400、500、600、700、800、900 で、小さい順の 5 番目は 600 ms（p50）、9 番目は 900 ms（p95。(95 × 9 + 99) / 100 = 9）。除外した発話の数 1 を別の欄に書く（derived、D の数え方の 10。除外を遅れ 0 と読まない） | 境界、陰性 | `an_utterance_no_segment_touched_is_left_out_and_counted_apart` |
 | T-RP-66-063 | 060 の発話の列と、A だけの検出の時刻の列（発話 k が 100k + 50 ms 後。割れ無し）を同じ関数に渡す | 比べる相手は同じ数え方の A だけの値 | 2 つの列 | R8v の列は p50 600、p95 1000。A だけの列は 150、250、…、1050 の 10 個で p50 5 番目の 550、p95 10 番目の 1050 を並べて出す（derived、D の数え方の 10。同じ nearest-rank） | 陽性 | `the_a_only_delay_is_counted_the_same_way_and_written_beside` |
+| T-RP-66-064 | 001 の ja の 4 run（Rust の run。それぞれ T-RP-83-001 の形の `<run>.machine.jsonl` を持つ）で、4 番目の run（R8v の 2 本目）の `<run>.machine.jsonl` の行 1 の `load15` を `"2.50"` にする | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で 4 番目の run の名前、`load15`、`2.50` を名指す。ほかの 3 run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。判定の関数が RP-83 の support を呼び忘れた test は、ここで `Ok` を返して落ちる。4 run 全部が内側の 001 が陽性対照） | 陰性 | `a_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 | T-RP-66-029 | 001 の ja で、4 番目の run の前の load を `1.99 0.50 0.50 1/300 1000` にする | load の上側の境界の手前 | `Ok` | `Ok`（specified、6 の RP-66 の「RP-32 と同じ」と RP-32 の「2 未満」。199 < 200） | 境界、陽性 | `a_load_of_1_99_before_a_run_passes` |
 | T-RP-66-030 | 029 の load を `2.00 0.50 0.50 1/300 1000` にする | 境界の値 | `Err` | `Err` で 4 番目の run を名指し（specified、RP-32。200 は 2 未満でない） | 境界、陰性 | `a_load_of_2_00_before_a_run_is_rejected` |
 | T-RP-66-031 | 001 の ja で、先頭の 1 対だけ（main、R8v の 2 本） | 対が 1 つ | `Err` | `Err` で対の数が 2 でないことを名指し（specified、6 の RP-66 の「言語ごとに 2 対」） | 境界、陰性 | `one_pair_per_language_is_rejected` |
@@ -2151,6 +2153,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-67-016 | **S2**：main の記録（014 の 2 本）。陰性対照として、ja の 1 標本の `d` を 250 ms にした main の run | main の run で 0.12 秒と 0.30 秒の有効の数 | 一致なら `Ok`、差が出たら `Err` | 記録は ja が 100 と 100、en が 75 と 75 で、0.12〜0.30 秒に入る標本は 0 件で `Ok`（pseudo、jq。`select(.t_final_us != null and d >= 120)` と `>= 300` を数えた。評議の打ち直しと同じ値。2026-10-15 に打った）。250 ms の標本を入れた run は 0.12 秒で 100、0.30 秒で 99 になり、`Err` で main の run の有効の数が合わないことを名指す（評議の S2。差が出たら落とす） | 陽性、陰性、境界 | `main_runs_count_the_same_valid_samples_at_120_and_300_ms_for_the_l_verdict` |
 | T-RP-67-017 | **S3**：n 93 の run。88 標本は `d` 500 ms で `L` 900 ms。4 標本は `d` 500 ms で `L` 1201 ms。1 標本は `d` 250 ms で `L` 1500 ms（訳が取れている） | 0.12 秒でだけ有効な標本が 1 つ。数え方で判定が割れる | `Err` と並べた記録 | 0.12 秒の判定は n 93 で 5 件が 1200 ms 超、89 番目が 1201 ms で `Err`。0.30 秒で数えると n 92、4 件が超えて 88 番目が 900 ms になり通る。出力に 0.12 秒でだけ有効な標本の数 1 とその `L` 1500 ms を別に書き、`L` の p95 を 0.12 秒の値 1201 ms と 0.30 秒の値 900 ms の両方で並べる（derived、(95 × 93 + 99) / 100 = 89 と (95 × 92 + 99) / 100 = 88。評議の S3。0.30 秒で数える build はここで合格してしまうので落ちる） | 陰性、境界 | `a_slow_sample_valid_only_at_120_ms_counts_and_both_p95_values_are_written` |
 | T-RP-67-018 | **S4**：n 93 の訳の取れた標本（全部 `L` 900 ms）に、訳の取れない有効な標本 7（`t_tr_us` が null）を足した run | 訳の取れない有効な標本 | `Ok` と数 | `Ok`。出力に訳の取れない有効な標本の数 7 が別の欄で出る。7 標本は n に入らない（010 と同じ）（derived、評議の S4。実物の記録は ja が 7、en が 5。jq の `select(.t_final_us != null and .t_tr_us == null)`） | 陽性 | `valid_samples_without_a_translation_are_counted_apart` |
+| T-RP-67-019 | T-RP-67-001 の ja の run（Rust。n = 93）に T-RP-83-001 の形の `<run>.machine.jsonl` を付け、行 1 の `load15` を `"2.50"` にする。en の run は内側の形の file を持つ | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で ja の run の名前、`load15`、`2.50` を名指す。en の run の名前は名指さない。`L` の p95 が 900 ms で線の内側でも `Ok` を返さない（specified、3.19 の「E2E の run の門」の 5。判定の関数が support を呼び忘れた test は、ここで落ちる。ja も en も内側の形の 001 が陽性対照） | 陰性 | `a_rust_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 | T-RP-67-015 | 実走：`docs/results/rp67/` の `e2e1.jsonl`（23 発話 × 5 回）と `e2e2.jsonl`（15 発話 × 5 回） | 実走 | 実走 | 両言語で `L` の p95 ≤ 1200 ms で `Ok`、`d`、復号、訳の p50 と p95 も出す（specified、6 の RP-67）。ja は訳の p95 の下限があるので R8v だけでは届かない（H69）。記録が置かれるまでは走らせない | 陽性 | `rp67_speech_end_to_translation_p95_is_within_1200_ms` |
 
 **この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
@@ -2524,6 +2527,392 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - 大文字や `-` を含む名前（`scripts/Foo.py`、`scripts/a-b.py`）は式に当たらない。消す 78 本にそのような名前は無いので、行にしていない。
 - 消した名前を末尾に含む別の名前（`my_download_models.py`）が、dir を伴わない名前の検査に当たるかは、設計に書いていないので行にしていない。
 - 文字コードが UTF-8 でない tracked file の読み方。`git ls-files` の 145 file は `grep -lE` と `rg -l` が同じ数で、今の木に binary の当たりは無い。
+
+### 4.75 RP-83（E2E の run の門）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-1 の席が足す。
+test：`native/hayamimi-eval/tests/rp83.rs`。受入 test の名前は `rp83_a_run_under_a_busy_machine_or_beside_a_build_is_refused`。実走の行は無く、全部の行が fixture を読み、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp83`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（041 だけは受入 test の名前の全部）。判定の関数の名前と引数の形は実装の席が決める。行は「run の列（名前、Rust か Python か、`<run>.machine.jsonl` の text か無し）を渡す」形で書く。
+設計は D 3.19 の「E2E の run の門」と、D 6 と 7 の RP-83、D 10 の H118 と H124 である。
+
+**読み方**：
+
+- 「行 i」は `<run>.machine.jsonl` の i 行目（1 始まり）。「最初の行」は行 1、「最後の行」は最後の行。
+- 負荷の値（`load1`、`load5`、`load15`）は、`/proc/loadavg` の text の 2 桁の小数を **JSON の文字列** で持つ（`"2.00"`）。10 の -2 乗の整数に読んで比べる（`"2.00"` は 200）。JSON の数は、文字列でない値として読めない値に入り、落ちる（D 3.19 の「E2E の run の門」の 4）。`t_us`、`cargo`、`rustc` は JSON の整数。
+- 以下の行の「`load15` を `2.50` にする」のような書き方は、file の中では `"load15":"2.50"` の文字列の意味である。
+- run の列の 1 つは（dir、名前、Rust か Python か、`<run>.machine.jsonl` の text か無し）で、判定は dir の `<名前>.jsonl` を読んで sha256 を取る（門の前の記録の一覧に当たるかを見るため）。fixture の run の dir は `target/` の下の一時 dir で、`<名前>.jsonl` は任意の 1 行の text でよい。一覧に当たるかを見る行（045 から 048、051、052）だけが、repo の `docs/results/` の実物の `<名前>.jsonl` を読む。
+- 「名指す」は、`Err` の text が run の名前、欄の名前、値の文字列（`2.50` の形）の全部を含むこと。
+- `stream` の行（030 から 040、043、044）は、実際の `/proc` を読ませない。test 自身が `cargo` の下で走り、実際の `/proc` には `cargo` の process が必ず在って、どの行も拒まれるからである。`--proc-root` に fixture の dir を渡す。
+- 欄の名前（`load1`、`load5`、`load15`、`cargo`、`rustc`、`t_us`）は設計が挙げる。`stream.machine.refused` の `reason` と値を載せる欄の綴りは設計に無いので、test はその綴りを 1 か所の定数に持つ（4.1）。
+
+**F83**（式で作る。実測のふりをしない）：Rust の run `rs1` の `rs1.machine.jsonl`。5 行で、`t_us` は 0、5000000、10000000、15000000、20000000。全行が `load1` `"0.50"`、`load5` `"0.50"`、`load15` `"0.50"`（JSON の文字列）、`cargo` 0、`rustc` 0。
+
+**S83**（`stream` を起こす行の組）：
+
+- 子の process は `env!("CARGO_BIN_EXE_hayamimi-eval")` を `stream --host 127.0.0.1 --port <偽の /ingest> --wav <wav> --manifest <manifest> --repeat 1 --gap-ms 0 --drain-s 1 --out <dir>/s83.jsonl --proc-root <proc-root>` で起こす。`<dir>` と `<proc-root>` は `target/` の下の一時 dir（`/tmp` は使わない）。
+- `<proc-root>` は `loadavg`（`0.50 0.50 0.50 1/300 1000` の 1 行。行ごとに書き換える）を持ち、既定では pid の dir を持たない。pid の dir は `<proc-root>/<pid>/comm`（中身は名前と改行 1 つ）の形で足す。
+- wav は 16 kHz の無音。長さは 030 から 038 が 1 秒、039 と 040 が 12 秒。manifest は 1 発話（開始 0、終わりは wav の長さ）。
+- 偽の `/ingest` は test 自身の listener（port 0。OS が割り当てる）で、ws の handshake を済ませ、binary frame の payload の byte を数える。固定の port を取らない。
+- 040 だけは `--drain-s 11` にする（drain の間の行を見るため）。ほかの行は `--drain-s 1`。
+- 資源と時間：GPU、DB、他の port は使わない。`stream` は実時間で送るので、040 が約 24 秒（12 秒 + 11 秒 + 起動）、039 が約 13 秒、ほかは 3 秒以内（wav の長さ + `--drain-s` 1 秒）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-83-001 | F83 の `rs1` そのまま | 全欄が基準の内側 | `Ok` | `Ok`（specified、RP-83 の (1)） | 陽性 | `a_clean_run_passes` |
+| T-RP-83-002 | 001 で行 1 の `load1` を `1.99` にする | `load1` の線の 1 つ手前 | `load1` < 2.00 | `Ok`（specified、RP-83 の (1)。199 < 200） | 境界、陽性 | `a_first_row_load1_of_1_99_passes` |
+| T-RP-83-003 | 001 で行 1 の `load1` を `2.00` にする | `load1` の線の値 | 同上 | `Err` で `rs1`、`load1`、`2.00` を名指す（specified、RP-83 の (1)。200 は 2.00 未満でない。T-RP-32-009 と同じ境界） | 境界、陰性 | `a_first_row_load1_of_2_00_is_rejected` |
+| T-RP-83-004 | 001 で行 1 の `load15` を `2.49` にする | `load15` の線の 1 つ手前 | `load15` < 2.50 | `Ok`（specified、RP-83 の (1)。249 < 250） | 境界、陽性 | `a_first_row_load15_of_2_49_passes` |
+| T-RP-83-005 | 001 で行 1 の `load15` を `2.50` にする | `load15` の線の値 | 同上 | `Err` で `rs1`、`load15`、`2.50` を名指す（specified、同上。前の 15 分平均） | 境界、陰性 | `a_first_row_load15_of_2_50_is_rejected` |
+| T-RP-83-006 | 001 で最後の行（行 5）の `load5` を `2.49` にする | 後の `load5` の線の 1 つ手前 | `load5` < 2.50 | `Ok`（specified、RP-83 の (1)。249 < 250） | 境界、陽性 | `a_last_row_load5_of_2_49_passes` |
+| T-RP-83-007 | 001 で最後の行の `load5` を `2.50` にする | 後の `load5` の線の値 | 同上 | `Err` で `rs1`、`load5`、`2.50` を名指す（specified、同上。後の 5 分平均） | 境界、陰性 | `a_last_row_load5_of_2_50_is_rejected` |
+| T-RP-83-008 | 001 で、行 1 の `load5` を `9.99`、行 5 の `load1` と `load15` を `9.99`、行 2 から行 4 の `load1`、`load5`、`load15` を `9.99` にする | 判定に入らない欄 | 判定に入らない | `Ok`（specified、RP-83 の (1) が挙げる欄は、行 1 の `load1` と `load15`、最後の行の `load5` だけ。後の 1 分は run 自身が押し上げる値で、3.19 は判定に使わない。T-RP-32-014 の後の 1 分と同じ向き） | 境界 | `loads_the_gate_does_not_judge_may_be_high` |
+| T-RP-83-009 | 001 で行 3 の `cargo` を `1` にする（ほかの行は 0） | run の途中の build（1 行だけ） | `cargo` が全行で 0 | `Err` で `rs1`、`cargo`、`1` を名指す（specified、RP-83 の (1) の「全行の `cargo` と `rustc` が 0」と、設計の陰性の case「途中の 1 行だけ `cargo` が 1」。前の 1 分の load では見えない形） | 陰性 | `a_cargo_in_one_middle_row_is_rejected` |
+| T-RP-83-010 | 001 で行 3 の `rustc` を `1` にする | `rustc` の側 | `rustc` が全行で 0 | `Err` で `rs1`、`rustc`、`1` を名指す（specified、同上） | 陰性 | `a_rustc_in_one_middle_row_is_rejected` |
+| T-RP-83-011 | 001 で行 1 の `cargo` を `1` にする | 最初の行も全行に入る | 同上 | `Err` で `rs1`、`cargo`、`1` を名指す（specified、同上。(2) の拒みと同じ条件を (1) も持つ） | 境界、陰性 | `a_cargo_in_the_first_row_is_rejected` |
+| T-RP-83-012 | 001 で最後の行の `rustc` を `1` にする | 最後の行も全行に入る | 同上 | `Err` で `rs1`、`rustc`、`1` を名指す（specified、同上） | 境界、陰性 | `a_rustc_in_the_last_row_is_rejected` |
+| T-RP-83-013 | 001 で行 3 の `cargo` を `2` にする | 0 以外の別の値 | 同上 | `Err` で `cargo` と `2` を名指す（derived、条件は 0 であること。1 だけを落とす判定にしない） | 境界、陰性 | `two_cargo_processes_are_rejected_as_well` |
+| T-RP-83-014 | 001 で `t_us` を 0、5000000、10000000、25000000、30000000 にする（行 3 と行 4 の間が 15000000） | 行の間の線ちょうど | 15 秒以下 | `Ok`（specified、RP-83 の (1)「行の間が 15 秒以下」。等号側） | 境界、陽性 | `a_gap_of_exactly_15_seconds_passes` |
+| T-RP-83-015 | 001 で `t_us` を 0、5000000、10000000、25000001、30000001 にする（行 3 と行 4 の間が 15000001） | 線の 1 µs 上 | 同上 | `Err` で `rs1` と間の値 `15000001` を名指す（specified、同上。最小の桁 1 つ分だけ外れた値） | 境界、陰性 | `a_gap_of_15_seconds_and_one_microsecond_is_rejected` |
+| T-RP-83-016 | 001 で `t_us` を 0、5000000、10000000、30000000、35000000 にする（行 3 と行 4 の間が 20 秒） | 大きい隙間（設計の陰性の case） | 同上 | `Err` で `rs1` と間の値 `20000000` を名指す（specified、RP-83 の陰性の case「行の間が 20 秒の fixture」） | 陰性 | `a_gap_of_20_seconds_is_rejected` |
+| T-RP-83-017 | 001 の 2 入力。(a) `t_us` を 0、15000001、20000001、25000001、30000001 にする（行 1 と行 2 の間が 15000001）。(b) `t_us` を 0、5000000、10000000、15000000、30000001 にする（行 4 と行 5 の間が 15000001） | 隙間が最初の組と最後の組に在る | 15 秒以下 | どちらも `Err` で `15000001` を名指す（specified、RP-83 の (1)。「行の間」は隣り合う全部の組。隙間を行 2 から行 4 の間だけで見る判定は (a)(b) で落ちる） | 境界、陰性 | `a_gap_at_either_end_of_the_file_is_rejected` |
+| T-RP-83-018 | 001 で `t_us` を 0、5000000、10000000、10000000、15000000 にする（行 3 と行 4 の間が 0） | 行の間の下側の境界 | 15 秒以下 | `Ok`（derived、RP-83 の (1)「行の間が 15 秒以下」。間が 0 の組も 15 秒以下に入る） | 境界、陽性 | `two_rows_at_the_same_time_pass` |
+| T-RP-83-019 | 2 run の列：`py1`（Python。file 無し）と `rs1`（F83） | Python の基準の run | 掛けない | `Ok`（specified、RP-83 の (1)「Python の基準の run には掛けない」。`py1` は流し直さないので file を持たない） | 陽性 | `a_python_run_without_a_machine_file_is_not_judged` |
+| T-RP-83-020 | 1 run の列：`rs1`（Rust。file 無し。dir は一時 dir で、`rs1.jsonl` の sha256 は門の前の記録の一覧に無い） | Rust の run の file の欠け。一覧に当たらない run | file が在る | `Err` で `rs1` と file が無いことを名指す（specified、RP-83 の (1)「file の無い run」と 3.19 の「門の前の記録」の「一覧に無い run は、file が無ければ落ちる」。確かめられないので通さない側に倒す） | 陰性 | `a_rust_run_without_a_machine_file_is_rejected` |
+| T-RP-83-021 | `py1`（Python）に、行 1 の `load15` が `3.14` の file を付けた物 | Python の run は file が在っても掛けない | 掛けない | `Ok`（specified、同上。判定は run の実装で決まり、file の有無では決まらない） | 境界 | `a_python_run_is_not_judged_even_when_it_has_a_file` |
+| T-RP-83-022 | 3 run の列：`rs1`（F83）、`rs2`（001 で行 1 の `load15` を `2.50`）、`rs3`（F83） | 1 本だけが外れる | run ごと | `Err` で `rs2`、`load15`、`2.50` を名指す。`rs1` と `rs3` は名指さない（specified、RP-83 の (1)「run の名前と外れた値を挙げて」） | 陰性 | `only_the_failing_run_is_named` |
+| T-RP-83-023 | `docs/results/rp32/` の Rust の 3 run を写した 3 run の列。行 1 と行 5 の `load1 load5 load15` は `rs1` が `1.36 1.99 2.02` と `1.27 1.80 1.84`、`rs2` が `0.69 1.51 1.73` と `1.81 1.66 1.64`、`rs3` が `1.17 1.48 1.58` と `2.05 2.18 1.97`。行 2 から行 4 は行 1 と同じ値。`cargo` と `rustc` は 0 | 実物の記録の値（前の 15 分平均 1.58〜2.02、後の 5 分 1.66〜2.18。`rs3` の後の 1 分 2.05 は 2.00 以上） | 線の内側 | `Ok`（specified、RP-83 の陽性の case。pseudo：`awk '$1 ~ /^rs/ && $2=="before"{print $1,$4,$5,$6} $1 ~ /^rs/ && $2=="after"{print $1,$4,$5,$6}' docs/results/rp32/load1.txt docs/results/rp32/load2.txt docs/results/rp32/load3.txt` が上の 6 行。2026-10-20 に打った。後の 1 分が 2.05 の `rs3` が通ることで、後の 1 分を判定に使わないことも固定する） | 陽性 | `the_recorded_rp32_rust_loads_pass` |
+| T-RP-83-024 | e-card-form の 3 run を写した 3 run の列。行 1 と行 5 の `load1 load5 load15` は `rs1` が `1.77 2.48 3.14` と `3.01 3.45 3.49`、`rs2` が `1.78 2.53 3.03` と `3.40 3.17 3.15`、`rs3` が `1.89 2.65 2.95` と `3.28 3.59 3.48`。ほかは 023 と同じ形 | 実物の記録の値。前の 1 分は 1.77〜1.89 で 2.00 未満（RP-32 の線を通る）。前の 15 分平均 2.95〜3.14、後の 5 分 3.17〜3.59 | 線の外側 | `Err` で `rs1`、`rs2`、`rs3` と、`load15` の `3.14`、`3.03`、`2.95` を名指す。後の `load5` の値は名指しても名指さなくてもよい（specified、RP-83 の陰性の case。pseudo：`awk '$2=="before"{print $1,$4,$5,$6} $2=="after"{print $1,$4,$5,$6}' load1.rs.txt load2.rs.txt load3.rs.txt` を e-card-form の dir で打った 6 行。2026-10-20 に打った） | 陰性 | `the_recorded_ecard_form_loads_are_rejected_at_load15` |
+| T-RP-83-025 | 空の file（0 byte）の `rs1` | 行が 0 | 1 行以上 | `Err` で `rs1` と行が無いことを名指す（implicit、0 行を「外れが無い」と読んで通さない） | 境界、陰性 | `an_empty_machine_file_is_rejected` |
+| T-RP-83-026 | 001 の最後の行を途中で切った file（`{"t_us":20000000,"load1":"0.5` で終わる） | 書きかけの最後の行 | 全行が読める | `Err` で `rs1` と読めない行を名指す（implicit、読めた 4 行だけで通さない。最後の行は `load5` の判定に使う行なので、欠けると判定できない） | 陰性 | `a_machine_file_cut_in_its_last_row_is_rejected` |
+| T-RP-83-027 | 001 で行 3 から `rustc` の欄を除く | 欄の欠け | 全欄が在る | `Err` で `rs1` と `rustc` を名指す（implicit、欠けた欄を 0 と読んで通さない。T-RP-32-013 と同じ向き） | 陰性 | `a_row_without_a_rustc_field_is_rejected` |
+| T-RP-83-028 | 001 で行 1 の `load15` を JSON の数 `0.50`（引用符なし）にする。値は線の内側 | 文字列でない load（値は読めるが型が違う） | 3 つの load は JSON の文字列 | `Err` で `rs1` と `load15` を名指す（specified、RP-83 の (4)「load の 3 つは JSON の文字列で、文字列でない値は読めない値として落ちる」。数を読めるからと通す判定は、ここで落ちる。001 の文字列 `"0.50"` が通ることが陽性対照） | 境界、陰性 | `a_load_written_as_a_json_number_is_rejected` |
+| T-RP-83-029 | 2 行だけの file：`t_us` が 0 と 5000000、全欄が 0.50 と 0 | 判定できる最小の行数 | 線の内側 | `Ok`（derived、最初の行と最後の行が別の行で、全部の条件を読める最小の形） | 境界、陽性 | `a_machine_file_of_two_rows_passes` |
+| T-RP-83-030 | S83。`loadavg` を `2.00 0.50 0.50 1/300 1000` にして `stream` を起こす（pid の dir は無い） | 最初の行の `load1` の線の値 | `load1` < 2.00 | exit code 2。stderr に `stream.machine.refused` が 1 件（level `warn`）で、`reason` が `load1`、値が `2.00`。偽の `/ingest` が受けた音声の byte は 0。`s83.machine.jsonl` は 1 行で `load1` が 2.00（specified、RP-83 の (2)。1 行の file は「音声を送り始める前に 1 行」を書く、3.19 の「E2E の run の門」の 1 から導く） | 境界、陰性 | `a_first_row_load1_of_2_00_stops_the_stream_before_any_audio` |
+| T-RP-83-031 | S83。`loadavg` を `1.99 9.99 2.49 1/300 1000` にする | 3 つの線の 1 つ手前。判定に入らない `load5` は高い | 3 欄とも内側 | 始まる。exit code が 2 でも 3 でもない、`stream.machine.refused` と `stream.machine.aborted` が 0 件、偽の `/ingest` が受けた音声の byte が 1 以上。`s83.machine.jsonl` の行 1 は `load1` 1.99、`load15` 2.49（specified、RP-83 の (2)。拒む理由は `load1`、`load15`、build の 3 つだけ。exit code は音声が無音で `final` が来ないので 1 などになりうるが、2 と 3 ではない） | 境界、陽性 | `a_first_row_one_step_inside_every_line_starts_the_stream` |
+| T-RP-83-032 | S83。`loadavg` を `0.50 0.50 2.50 1/300 1000` にする | 最初の行の `load15` の線の値 | `load15` < 2.50 | exit code 2。`stream.machine.refused` が 1 件、`reason` が `load15`、値が `2.50`。音声の byte は 0（specified、RP-83 の (2)） | 境界、陰性 | `a_first_row_load15_of_2_50_stops_the_stream_before_any_audio` |
+| T-RP-83-033 | S83。`<proc-root>/4242/comm` を `cargo` と改行にする。`loadavg` は `0.50 0.50 0.50 1/300 1000` | 始める前の `cargo` | 0 | exit code 2。`stream.machine.refused` が 1 件、`reason` が `build`、値が `cargo` の 1。音声の byte は 0（specified、RP-83 の (2)。load が基準の内側でも build が在れば拒む） | 陰性 | `a_cargo_process_before_the_run_stops_the_stream` |
+| T-RP-83-034 | 033 で `comm` を `rustc` と改行にする | `rustc` の側 | 0 | 033 と同じ。値が `rustc` の 1（specified、同上） | 陰性 | `a_rustc_process_before_the_run_stops_the_stream` |
+| T-RP-83-035 | S83。`<proc-root>` に `4242/comm` = `cargo-nextest`、`4243/comm` = `mycargo`、`4244/comm` = `Cargo`、pid でない dir `sys/comm` = `cargo`（どれも改行つき）を置く | 数えない物（部分一致、大文字、pid でない dir） | `comm` が `cargo` か `rustc` に一致する pid の dir だけを数える | 始まる（031 と同じ 4 点）。`s83.machine.jsonl` の行 1 は `cargo` 0、`rustc` 0（specified、3.19 の「`/proc/<pid>/comm` がその名前に一致する process の数」。033 と 034 が数える側の陽性対照、この行が数えない側） | 境界、陽性 | `names_that_only_resemble_cargo_are_not_counted` |
+| T-RP-83-036 | 033 に `4243/comm` = `cargo` を足す（`cargo` の process が 2 つ） | 数が 2 | 0 | exit code 2。`reason` が `build`、値が `cargo` の 2（derived、「process の数」を数える。1 つと 2 つを同じ値にしない） | 境界、陰性 | `two_cargo_processes_before_the_run_are_counted_as_two` |
+| T-RP-83-037 | 存在しない旗 `--proc-rootx` を足して `stream` を起こす | exit code 2 が拒みでない場合（引数の誤りも 2） | 拒みの印は event | exit code は 2 だが `stream.machine.refused` は 0 件。偽の `/ingest` が受けた音声の byte は 0（derived、引数の誤りの exit code も 2 なので、拒みは exit code でなく event の 1 件で確かめる。030 から 034 の対照） | 陰性 | `a_usage_error_is_not_read_as_a_machine_refusal` |
+| T-RP-83-038 | `hayamimi-eval stream --help` | 既定の `--proc-root` | 既定は `/proc` | 出力に `--proc-root` と `[default: /proc]` が在る（specified、RP-83 の検査の欄「`--proc-root` の既定は `/proc`」。旗の名前と既定の値を 1 行で固定する） | 陽性 | `proc_root_defaults_to_proc` |
+| T-RP-83-039 | S83（wav は 12 秒）。始まった後、偽の `/ingest` が最初の音声を受けてから `<proc-root>/4242/comm` を `cargo` と改行にして足す | 送っている間に build が現れる | 次の行で止まる | exit code 3。足してから 8 秒以内に終わる（次の行は 5 秒ごと、残りは余裕 3 秒）。`stream.machine.aborted` が 1 件（level `warn`）で、`cargo` 1、`rustc` 0 の値を持ち、`stream.machine.refused` が 0 件。音声の byte は 040 の byte より小さい。`s83.machine.jsonl` の最後の行は `cargo` が 1 以上で、その file を RP-83 の判定に渡すと `Err` で `cargo` を名指す（specified、RP-83 の (3)。「次の行」は 5 秒ごとの行） | 陰性 | `a_cargo_process_during_the_run_aborts_the_stream_with_exit_code_3` |
+| T-RP-83-040 | 039 と同じで、`cargo` の dir を足さない（12 秒の wav を最後まで送り、`--drain-s 11` で 11 秒待つ） | 039 の陽性対照。drain の間の行 | build が無い。drain の間も行が書かれる | exit code が 2 でも 3 でもない。`stream.machine.aborted` が 0 件。音声の byte は 039 より大きい。`s83.machine.jsonl` は 5 行以上（送り始めの前、送っている間の行が 2 行以上、drain の間の行、最後）で、`t_us` が増え、隣り合う行の差は 15 秒以下。**`t_us` が 12000000（音声の終わり）を超える行が 2 行以上**。その file を判定に渡すと `Ok`（specified、RP-83 の (3) の「drain の間を含む」と「記録」の 1。5 秒ごとの行が drain の間も書かれていることと、実際に書いた file が判定を通ることを固定する。drain の間の定期の行が止まる実装でも、最後の行は 1 行あるので、2 行以上を条件にして、最後の行のほかに drain の間の定期の行が 1 行以上あることを見る） | 陽性 | `a_run_beside_no_build_writes_rows_through_the_drain_and_a_file_that_passes` |
+| T-RP-83-041 | 受入：023 の列、024 の列、009 の入力、016 の入力、020 の入力、042 の入力、045 の入力、046 の入力を順に判定に渡す（未実装、持ち主 R8x-1） | 全体 | 通る、落ちる、落ちる、落ちる、落ちる、落ちる、通る、落ちる | 023 は `Ok`。024 は `Err` で `load15` を名指す。009 は `Err` で `cargo` を名指す。016 は `Err` で間の値 `20000000` を名指す。020 は `Err` で file が無いことを名指す。042 は `Err` で行が 2 行未満であることを名指す。045 は `Ok` で、出力に門の前の記録として外した 5 run の名前が在る。046 は `Err` で `rs1` を名指す（specified、RP-83 の陽性の case 1 つと、陰性の case のうち判定の関数に渡す形、(4) と (6)。`comm` が `cargo` の偽の process を `--proc-root` に置く陰性の case は、子の process を起こすので受入の 1 本に入れず、033 が持つ） | 陽性、陰性 | `rp83_a_run_under_a_busy_machine_or_beside_a_build_is_refused` |
+| T-RP-83-042 | 001 の行 1 だけの file（1 行。`t_us` 0、全欄が基準の内側） | 行数の下限の下（029 の 2 行の 1 つ下） | 2 行以上 | `Err` で `rs1` と行が 2 行未満であることを名指す（specified、RP-83 の (4)「行が 2 行未満の file」。拒まれた run の file は 1 行なので、拒まれた run は判定を通らない。最初の行と最後の行が同じ行になる形を通す判定は、ここで落ちる。029 の 2 行が陽性対照） | 境界、陰性 | `a_machine_file_of_one_row_is_rejected` |
+| T-RP-83-043 | S83。`loadavg` を `2.00 0.50 2.50 1/300 1000` にし、`<proc-root>/4242/comm` を `cargo` と改行にする（`load1`、`load15`、build の 3 つが同時に外れる） | `reason` の順の先頭（`load1`） | `load1`、`load15`、build の順 | exit code 2。`stream.machine.refused` が 1 件で、`reason` が `load1`。event は `load1` `2.00`、`load15` `2.50`、`cargo` 1、`rustc` 0 の 4 つの値を持つ。音声の byte は 0。`s83.machine.jsonl` は 1 行（specified、RP-83 の (5)「`reason` は `load1`、`load15`、`build` の順で外れた最初の 1 つで、event は 4 つの値を持つ」と (2)） | 境界、陰性 | `the_refusal_reason_is_load1_when_all_three_fail` |
+| T-RP-83-044 | S83。`loadavg` を `0.50 0.50 2.50 1/300 1000` にし、`<proc-root>/4242/comm` を `cargo` と改行にする（`load15` と build が外れる） | `reason` の順の 2 番目（`load15`） | 同上 | 043 と同じで、`reason` が `load15`。event の値は `load1` `0.50`、`load15` `2.50`、`cargo` 1、`rustc` 0（specified、同上。033 は `load1` と `load15` が内側で build だけが外れる形なので、043、044、033 で `reason` の 3 つ全部が出る） | 境界、陰性 | `the_refusal_reason_is_load15_when_load15_and_build_fail` |
+| T-RP-83-045 | 一時 dir を repo の root に見立て、`docs/results/rp32/` の `rs1.jsonl`、`rs2.jsonl`、`rs3.jsonl` と、`docs/results/e2e/e2e1/` の `e2e1.jsonl`、`docs/results/e2e/e2e2/` の `e2e2.jsonl` を、repo の実物から同じ相対 path で写す。5 つの Rust の run（`<run>.machine.jsonl` は無し）の列を判定に渡す | 門の前の記録の一覧に当たる run | 一覧に当たる run は外れる | `Ok`。出力に、5 つの run の名前と、門の前の記録として外したことが在る（specified、3.19 の「門の前の記録」と RP-83 の (6)。一覧は dir と run の名前と `<run>.jsonl` の sha256 で、pseudo：`sha256sum docs/results/rp32/rs1.jsonl docs/results/rp32/rs2.jsonl docs/results/rp32/rs3.jsonl docs/results/e2e/e2e1/e2e1.jsonl docs/results/e2e/e2e2/e2e2.jsonl` の出力が一覧の sha256。test は sha256 を手で書かず、実物の file を写して渡す） | 陽性 | `the_pre_gate_records_are_exempt_and_the_output_says_so` |
+| T-RP-83-046 | 045 と同じだが、`rs1.jsonl` の写しの末尾に 1 byte（改行）を足す。5 つとも machine の file は無し | 名前が同じで sha256 が違う | 一覧に当たらない | `Err` で `rs1` と file が無いことを名指す。`rs2`、`rs3`、`e2e1`、`e2e2` は名指さない（specified、RP-83 の (6)「名前が同じで sha256 が違う run は外れない」。中身を差し替えた run を門の前の記録として通さない。045 が陽性対照） | 陰性 | `a_run_with_the_same_name_and_a_different_sha256_is_not_exempt` |
+| T-RP-83-047 | 045 の `rs1.jsonl` の写しを 2 通り置く。(a) dir を `docs/results/rp32/` でなく `docs/results/other/` にし、名前は `rs1`。(b) dir は `docs/results/rp32/` で、名前を `rs4`（中身は `rs1.jsonl` と同じ bytes）にする | 一覧の（dir、名前、sha256）の dir と名前 | 3 つ組が全部一致 | どちらも `Err` で、その run の名前と file が無いことを名指す（derived、RP-83 の (6) の一覧は 3 つ組。sha256 だけで外す判定は、中身が同じ bytes の (a)(b) を通してしまう） | 境界、陰性 | `an_exemption_needs_the_dir_and_the_name_as_well_as_the_sha256` |
+| T-RP-83-048 | 2 run の列：`rs1`（045 の写し。一覧に当たる。file 無し）と `rs4`（一覧に無い。file 無し） | 外れる run と外れない run の混在 | run ごと | `Err` で `rs4` と file が無いことを名指す。`rs1` は名指さない（derived、022 と同じ「外れた run だけを名指す」を、一覧に当たる run を含む列に掛ける） | 陰性 | `only_the_run_off_the_list_is_named_when_a_listed_run_is_present` |
+| T-RP-83-049 | 001 で行 1 の `load15` を文字列 `"n/a"` にする | 読めない値（文字列だが数に読めない） | 2 桁の小数に読める | `Err` で `rs1` と `load15` を名指す（implicit、読めない値を 0 と読んで線の内側に通さない。T-RP-32-013 と同じ向き。028 は型が違う側、この行は文字列の中身が違う側） | 境界、陰性 | `an_unreadable_load_is_rejected_not_read_as_zero` |
+| T-RP-83-051 | 045 の `rs1.jsonl` の写しに、`rs1.machine.jsonl` を付けた 2 入力。(a) T-RP-83-001 の形(内側)。(b) 001 で行 1 の `load15` を `"2.50"` にした形。`rs1` は一覧に当たる | 一覧に当たり、machine の file を持つ run | 免除は file が無いことだけに掛かる | (a) は `Ok`。(b) は `Err` で `rs1`、`load15`、`2.50` を名指す。免除の出力に `rs1` を載せない(specified、3.19 の「門の前の記録」と H127 の 7。file が在る run は一覧に当たっても他の run と同じに判定される。一覧に当たる run を file の有無によらず外す build は、(b) を通して落ちる) | 境界、陰性 | `a_listed_run_with_a_machine_file_is_judged_like_any_other` |
+| T-RP-83-052 | 045 の `rs1.jsonl` の写しだけの 1 run の列(Rust、file 無し、一覧に当たる) | 一覧に当たり、file を持たない run | 免除は file が無いことに掛かる | `Ok`。出力に `rs1` を門の前の記録として外したことが在る(specified、同上。051 の file が在る側と対) | 陽性 | `a_listed_run_without_a_machine_file_is_exempt` |
+| T-RP-83-050 | 001 で行 1 の `load1` を JSON の `null` にする | `null`（欄は在るが値が無い） | 3 つの load は JSON の文字列 | `Err` で `rs1` と `load1` を名指す（implicit、`null` を 0 と読んで線の内側に通さない。欄の欠け（027）とは別の形） | 境界、陰性 | `a_null_load_is_rejected_not_read_as_zero` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 一覧の dir を判定がどの基準で引くかと、それを渡す引数の形は H128(R8x-1 の席が決める)。045 から 047 と 051、052 は、repo の root に見立てた一時 dir を判定へ渡す形で書いた。
+- 途中の打ち切りで `rustc` の process が現れる形は走らせない（13 秒かかる行を増やさない）。`cargo` と `rustc` は同じ数え方（034 と 010、012）を通る。
+
+### 4.76 RP-84（認識器の初回の復号を起動の時に済ませる）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-3 の席が足す。
+test：`native/hayamimi-eval/tests/rp84.rs`。受入 test の名前は `rp84_the_first_utterance_decodes_as_fast_as_the_rest`。実走の行（T-RP-84-023）だけが `#[ignore]` を持ち、`docs/results/r8x/` の X の run を読む。記録が置かれるまでは走らせない。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp84`。実走の行はこれに `-- --ignored` を足す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（023 だけは受入 test の名前の全部）。判定の関数の名前と引数の形は実装の席が決める。行は「X の run の列（名前、標本の列、`hayamimi` の stdout の text）を渡す」形で書く。
+設計は D 3.19 の「認識器の初回の復号」と、D 6 と 7 の RP-84、D 10 の H117 のそばの ASSUMPTION（作業域）である。
+
+**数え方**：
+
+- `d = (t_final_us − t_end_us) / 1000 − final_latency_ms`。有効は `t_final_us` が在り `d ≥ 120 ms`（3.19 の「数えた結果」の有効。RP-66 の線と同じ。RP-84 の「他の有効な標本」もこの線で数える）。発話 1 の 1 回目（A）は、`final` が在れば `d` によらず比べる（`d` が 120 ms 未満でも比べる）。`final` が無ければ落ちる。
+- 比べる集合は、同じ run の有効な標本から「発話 1 の 1 回目」の 1 標本を除いた物。p95 と p50 は nearest-rank で、順位は (p × n + 99) / 100 の整数除算。
+- `final_latency_ms` は小数 6 桁まで持つので、10 の -6 乗の整数に読んで比べる。
+- stdout の行は 1 行 1 つの JSON で、`event` の値が `asr.warmup.decoded`、`asr.warmup.failed`、`asr.endpoint.decided` の行を数える。「前」は stdout の行の順である。
+
+**F84**（式で作る。実測のふりをしない）：X の run 1 本。枠 115 = 23 発話 × 5 回で、全標本が有効（`d` は 500 ms）。発話 1 の 1 回目を A とする。A のほかの 114 標本の `final_latency_ms` は、101、102、…、214 ms（j 番目が 100 + j ms）。したがって比べる集合は n = 114、p95 の順位は (95 × 114 + 99) / 100 = 109 で 209 ms、p50 の順位は (50 × 114 + 99) / 100 = 57 で 157 ms。
+**F84b**：F84 の 114 標本のうち 6 標本を、`d` 100 ms（終端不正）で `final_latency_ms` 5000 ms の標本にし、残りの 108 標本を 101〜208 ms にした物。有効な比べる集合は n = 108、p95 の順位は (95 × 108 + 99) / 100 = 103 で 203 ms。6 標本を集合に入れると n = 114 の 109 番目が 5000 ms になる。
+**L84**（stdout。式で作る）：1 行目 `asr.model.loaded`、2 行目 `asr.warmup.decoded`（`model`、`decode_ms`、`audio_s` を持つ）、3 行目以降 `asr.endpoint.decided`（`id` が 1 から 5、`rule`、`silence_ms`）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-84-001 | F84 の `x1`。A の `final_latency_ms` を 157 ms（比べる集合の p50）にする。stdout は L84 | 設計の陽性の case。A は p95 の内側 | A ≤ p95 | `Ok`（specified、RP-84 の陽性欄「発話 1 の 1 回目を同じ run の p50 に置いた fixture が通る」） | 陽性 | `a_first_utterance_at_the_p50_of_the_rest_passes` |
+| T-RP-84-002 | 001 で A を 209 ms（p95 ちょうど）にする | p95 の線の値 | A ≤ p95 | `Ok`（specified、RP-84 の「p95（nearest-rank）以下」。等号側） | 境界、陽性 | `a_first_utterance_exactly_at_the_p95_passes` |
+| T-RP-84-003 | 001 で A を 209.000001 ms にする | p95 の線の 1 桁上（10 の -6 乗ms） | 同上 | `Err` で `x1`、A の 209.000001、p95 の 209 を名指す（specified、同上。nearest-rank の 109 番目。補間した p95 は 208.35 付近で、209 を通さない build はここでなく 002 で落ちる） | 境界、陰性 | `a_first_utterance_one_step_over_the_p95_is_rejected` |
+| T-RP-84-004 | 001 で A を 209.5 ms にする | A を比べる集合に入れると通ってしまう値 | 比べる集合は A を除く | `Err` で A の 209.5 と p95 の 209 を名指す（derived、A を含めた n = 115 の p95 は順位 110 で 209.5 になり、A ≤ p95 が成り立って通る。「他の」標本の集合から A を除く） | 境界、陰性 | `the_first_utterance_is_not_part_of_the_set_it_is_compared_with` |
+| T-RP-84-005 | F84b の `x1`。A を 203 ms にする | 有効でない標本を集合に入れない（比べる側が通る） | 有効な標本だけ | `Ok`（specified、RP-84 の「他の有効な標本」。有効な比べる集合は n = 108 で p95 は 203 ms） | 境界、陽性 | `invalid_samples_are_left_out_of_the_set_a_first_utterance_is_compared_with` |
+| T-RP-84-006 | 005 で A を 210 ms にする | 同上（落ちる側） | 同上 | `Err` で A の 210 と p95 の 203 を名指す（specified、同上。6 標本を集合に入れた build は p95 が 5000 ms になって通してしまうので、この行で落ちる） | 陰性 | `invalid_samples_do_not_raise_the_limit_a_first_utterance_is_compared_with` |
+| T-RP-84-007 | 001 で A の標本の `t_final_us` を null にする（`final` なし） | A が無い | A の `final_latency_ms` が在る | `Err` で `x1` と A の `final` が無いことを名指す（implicit、無い A を「p95 以下」と読んで通さない） | 境界、陰性 | `a_first_utterance_without_a_final_is_rejected` |
+| T-RP-84-008 | 比べる集合が空の run：A だけが有効で、ほかの 114 標本は `t_final_us` が null | 母数 0 | 比べる集合が在る | `Err` で `x1` と比べる標本が無いことを名指す（implicit、空の p95 を作らず、0 件を通さない） | 境界、陰性 | `a_run_with_nothing_to_compare_with_is_rejected` |
+| T-RP-84-009 | e-card-form の `rs1` の標本（欄を絞った写し：`utt`、`repeat`、`t_end_us`、`t_final_us`、`final_latency_ms`）を `x1` の位置に置く。stdout は L84 | 今の記録。発話 1 の 1 回目が遅い | A ≤ p95 | `Err` で A の 988.338217 と p95 の 213.100368 を名指す（specified、RP-84 の陰性欄「今の記録を読むと、3 run とも発話 1 の 1 回目が p95 を超えて落ちる」。pseudo：`jq -s` で `t_final_us` が在り `d ≥ 120` の標本から A を除いた n = 97、順位 93。2026-10-20 に打った）。stdout は L84 なので、落ちる理由は p95 だけ | 陰性 | `the_recorded_rs1_first_utterance_is_over_the_p95` |
+| T-RP-84-010 | 009 の `rs2` と `rs3` | 今の記録の残り 2 run | 同上 | `rs2` は A の 682.495191 が p95 の 220.126125 を超え、`rs3` は A の 807.670646 が p95 の 204.686185 を超えて、どちらも `Err`（pseudo、同上。n はどちらも 97、順位 93） | 陰性 | `the_recorded_rs2_and_rs3_first_utterances_are_over_the_p95` |
+| T-RP-84-011 | 009 から 010 の 3 run で、A を比べる集合の p50 に置き換える（`rs1` が 117.679425、`rs2` が 124.455251、`rs3` が 126.553233） | 今の記録の形で A が速い | 同上 | 3 run とも `Ok`（specified、RP-84 の陽性欄を実物の形に当てた。pseudo、同上の `jq`。p50 の順位は 49。009 と 010 は A だけが落ちる理由であることを、この行が示す） | 陽性 | `the_recorded_runs_pass_when_the_first_utterance_is_at_their_p50` |
+| T-RP-84-012 | 001 の stdout で `asr.warmup.decoded` の行を `asr.endpoint.decided` の最初の行の直前に置く（L84 そのまま）と、間に別の event を 3 行挟んだ形の 2 入力 | `decoded` が最初の `decided` より前。隣と離れた形 | `decoded` が前 | 2 入力とも `Ok`（specified、RP-84 の「最初の `asr.endpoint.decided` より前の行に在る」） | 境界、陽性 | `a_warmup_decoded_before_the_first_endpoint_decision_passes` |
+| T-RP-84-013 | 001 の stdout で `asr.warmup.decoded` の行と最初の `asr.endpoint.decided` の行を入れ替える（`decoded` が 3 行目、最初の `decided` が 2 行目） | 1 行だけ後ろ | `decoded` が前 | `Err` で `x1` と `decoded` が最初の `decided` の後ろにあることを名指す（specified、RP-84 の陰性欄「`asr.warmup.decoded` を最初の `asr.endpoint.decided` の後ろに置いた fixture が落ちる」。順が 1 行違うだけの形） | 境界、陰性 | `a_warmup_decoded_after_the_first_endpoint_decision_is_rejected` |
+| T-RP-84-014 | 001 の stdout から `asr.warmup.decoded` の行を除く | 0 件 | ちょうど 1 件 | `Err` で `x1` と `decoded` が 0 件であることを名指す（specified、RP-84 の「1 件だけ」） | 境界、陰性 | `a_run_without_a_warmup_decoded_line_is_rejected` |
+| T-RP-84-015 | 001 の stdout に `asr.warmup.decoded` の行をもう 1 行足す（最初の `decided` の前に 2 件） | 2 件 | ちょうど 1 件 | `Err` で `x1` と `decoded` が 2 件であることを名指す（specified、同上。2 回復号しても 1 件に見せない） | 境界、陰性 | `two_warmup_decoded_lines_are_rejected` |
+| T-RP-84-016 | 001 の stdout に `asr.warmup.failed` の行を 1 つ足す（`decoded` は 1 件のまま） | 失敗が 1 件 | 0 件 | `Err` で `x1` と `failed` の 1 件を名指す。`decoded` の件数は名指さない（specified、RP-84 の「`asr.warmup.failed` が 0 件」。理由を `failed` だけに絞った入力） | 境界、陰性 | `a_warmup_failed_line_is_rejected_on_its_own` |
+| T-RP-84-017 | e-card-form の `rs1.hayamimi.stdout.log` の実物（`asr.endpoint.decided` が 141 行、`asr.warmup` を含む行が 0 行） | 今の記録の stdout。数える語の陽性対照 | `decoded` が 1 件 | `Err` で `decoded` が 0 件であることを名指す。同じ判定の中で `asr.endpoint.decided` を 141 件数え、数える語が当たることを示す（pseudo：`grep -c '"asr.endpoint.decided"' rs1.hayamimi.stdout.log` が 141、`grep -c 'asr.warmup'` が 0。`rs2` と `rs3` も 141 と 0。2026-10-20 に打った。0 件と「語を間違えた」を分ける） | 陽性、陰性 | `the_recorded_stdout_has_decisions_and_no_warmup_line` |
+| T-RP-84-018 | 2 run の列：`x1`（001 の形）と `x2`（006 の入力で A が p95 を超える） | 1 本だけが外れる | run ごと | `Err` で `x2` を名指す。`x1` は名指さない（specified、RP-84 の「各 run」） | 陰性 | `only_the_failing_run_is_named_for_the_first_utterance` |
+| T-RP-84-019 | 2 run の列：`x1` は A が p95 を超え、`x2` は `decoded` が最初の `decided` の後ろ | 2 本とも外れ、理由が別 | run ごと | `Err` で `x1` の A と `x2` の `decoded` の順の両方を名指す（derived、run ごとに理由を並べ、先に外れた理由で止めない） | 陰性 | `each_failing_run_is_named_with_its_own_reason` |
+| T-RP-84-020 | X の run が 0 本の列（`w1`、`w2` だけを渡す） | 空 | X の run が在る | `Err` で X の run が無いことを名指す（implicit、0 本を通さない。T-RP-67-011 と同じ向き） | 境界、陰性 | `a_set_with_no_x_run_is_rejected` |
+| T-RP-84-021 | `w1` の位置に F84 の run を置き、`x1` だけを RP-84 に渡す（W の run は読まない） | W の run を読まない | X の run だけ | `w1` の A が p95 を大きく超えていても `Ok`（specified、RP-84 の「窓 E3 の X の run」。W の run は初回の復号の確かめに使わない） | 境界、陽性 | `w_runs_are_not_read_for_the_first_utterance` |
+| T-RP-84-022 | 001 の stdout の `asr.warmup.decoded` の行から `decode_ms` を除き、`audio_s` を 1 にした物 | 受入の条件に無い欄 | 欄は判定しない | `Ok`（derived、RP-84 の期待値は `decoded` の件数と順と `failed` の件数だけ。`decode_ms` と `audio_s` は判定に入らない。10 秒の無音を復号したことは RP-84 が見ない、3.19 の方針と理由） | 境界 | `warmup_fields_other_than_the_event_name_are_not_judged` |
+| T-RP-84-023 | 実走：`docs/results/r8x/` の `x<N>.e2e1.jsonl` と `x<N>.e2e1.hayamimi.stdout.log`（未実装、持ち主 R8x-3） | 実走 | 実走 | 全 X の run で 001 の形（A ≤ p95、`decoded` が 1 件で最初の `decided` の前、`failed` が 0 件）で `Ok`（specified、RP-84）。窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp84_the_first_utterance_decodes_as_fast_as_the_rest` |
+| T-RP-84-024 | 001 の `x1` で A の `d` を 100 ms（120 ms 未満。`t_final_us` は在る）にする。(a) A の `final_latency_ms` を 157 ms にする。(b) A を 210 ms にする | A が有効の線に届かない形 | A は `final` が在れば `d` によらず比べる | (a) は `Ok`、(b) は `Err` で A の 210 と p95 の 209 を名指す（specified、3.19 の「数えた結果」と RP-84。A を「有効でないから比べない」と読む実装は (b) を通してしまうので、(b) で落ちる。比べる集合は A を除く有効な標本の n = 114 のまま） | 境界、陰性 | `a_first_utterance_below_the_validity_line_is_still_compared` |
+| T-RP-84-025 | 001 の stdout から `asr.endpoint.decided` の行を全部除く（`asr.model.loaded` と `asr.warmup.decoded` の 2 行だけ） | `decided` が 0 件 | 最初の `decided` が在る | `Err` で `x1` と `asr.endpoint.decided` が 0 件であることを名指す（specified、3.19 の「`decided` が 0 件の stdout は落ちる」。「最初の `decided` より前」が空で成り立つ形を通さない。017 の実物が `decided` を 141 件数えることが、数える語の陽性対照） | 境界、陰性 | `a_stdout_without_any_endpoint_decision_is_rejected` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 同じ run の p50 の集合。設計は「同じ run の p50」と書く。011 は比べる集合（A を除く有効な標本）の p50 を採った。
+- 009 から 011 の fixture は、e-card-form の標本を欄を絞って `native/hayamimi-eval/tests/fixtures/` に写す。写しの元は git の外（利用者の home の `.cache/hayamimi-e2e-20261019/e-card-form/`）で、test は元を読まない。
+- 初回の復号が 10 秒の無音であること（`audio_s` が 10）と、`decode_ms` の値は、RP-84 の期待値に無い。unit test の持ち主は R8x-3 の席だが、その受入 ID は無い。
+
+### 4.77 RP-85（数字の並びと `。` `、` の有無だけが違う速報の訳の使い回し）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-4 の席が足す。
+test：`native/hayamimi-relay/tests/rp85.rs`。受入 test の名前は `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`。実走の行（T-RP-85-031）と probe の行（T-RP-85-025）だけが `#[ignore]` を持つ。probe の行は 8080 の llama-server を使い、実走の行は窓 E3 の記録を読む。ほかの行は偽の認識器と偽の llama-server を使い、`--ignored` を付けずに通る。
+command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp85`。probe の行と実走の行はこれに `-- --ignored` を足す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（031 だけは受入 test の名前の全部）。引数の形は実装の席が決める。
+設計は D 3.19 の「使い回しの鍵の広げ」と、D 3.18 の 1 から 5、D 6 と 7 の RP-85、D 10 の H117 である。
+
+**F85**（偽の認識器と偽の llama-server。`tests/support/events.rs` の `FakeRecognizer`、`run_relay_partials`、`FakeLlm` と F69 と同じ形）：
+
+- **流れ**：F69 と同じ。先頭の確定文 L0（`mic-1`）の訳が出るまで待ち、対象の発話は次の `mic-2`。速報（`id` を持たない）の text を d、確定文の text を f と呼ぶ。行は `lang` が `ja` で、en の行だけ `en`。
+- **偽の server**：T の依頼に 300 ms 後、E は 100 ms 後に答える。T の答えは既定で原文の字写し（F69 と同じ）で、台本の答えを置く行は行の中に書く。
+- **実際の組**：d と f は e-card-form の記録（`rs1`〜`rs3` の events）から抜いた物で、図の `…` は実物では省かずに書く。**P7**（発話 7）：d は `千九百四十年八月十五日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました`、f は `1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。`。**P11**（発話 11）：d は `そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを`、f は `そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。`。**P20**（発話 20）：d は `言ったろヒーローよりもてめぇを信じる`、f は `言ったろ。ヒーローよりもてめぇを信じる。`。
+- **数え方**：「T の依頼の数」は、種類が T で、原文が指した文字列に等しい依頼の数（F69 と同じ）。`translate.draft.reused` は `id`、`source`、`match`、`state`、`waited_ms`、`verdict` の 6 項目を持つ（3.18 の 5。`match` に `normalized` が足される）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-85-001 | F85。P7 の d を速報で送り、速報の訳（台本の答え `On August 15, 1940, the Allies invaded southern France, and the invasion was called Operation Dragoon.`。この答えは変えない）が出るのを待つ。そのあとに f を `final`（`mic-2`）で送る | 数字の書き方だけが違い、f が `。` で終わる（設計の合う側の 1 組め） | 再使用 | 原文が f の T の依頼は 0 本、原文が d の T の依頼は 1 本。`translate.draft.reused` が 1 件で `match` が `normalized`、`verdict` が `ok`。`final` の訳は `of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` が f の sha256（specified、RP-85 の (1) と 3.19 の「使い回しの鍵の広げ」。台本の答えは実物の訳の形のままで、V の通りやすい形に変えて通さない。台本の答えが V を通ることは、V を直接呼ぶ 032 が先に確かめる） | 陽性 | `a_draft_with_other_numerals_is_reused_under_the_widened_key` |
+| T-RP-85-002 | F85。P11 の d を速報、f を `final` で送る（答えは字写し） | 句点が文の中に入り、f が `。` で終わる（設計の合う側の 2 組め） | 再使用 | 001 の形。`match` が `normalized`、`verdict` が `ok`、原文が f の T の依頼は 0 本（specified、RP-85 の (1)） | 陽性 | `a_draft_without_inner_marks_is_reused_under_the_widened_key` |
+| T-RP-85-003 | F85。P20 の d と f | 句点が文の最初の節の後と末尾に在る | 再使用 | 001 の形。`match` が `normalized`（specified、同上。(1) の 2 組め以外の同値類。f の文の中の `。` が d に無い） | 陽性 | `a_draft_without_the_inner_mark_after_the_first_clause_is_reused` |
+| T-RP-85-004 | F85。d が `ところで、昨日は雨でした`、f が `ところで昨日は雨でした。` | `、` だけが違う | 再使用 | 001 の形。`match` が `normalized`（specified、3.19 の「`。` と `、` を全部除いた物が同じ」。`、` の側の同値類） | 陽性 | `a_draft_with_a_comma_the_final_lacks_is_reused` |
+| T-RP-85-005 | F85。d が `被害は三件でした`、f が `被害は3件でした`（`。` を足さない） | 数字の書き方だけが違い、印は同じ | 再使用 | 001 の形。`match` が `normalized`（specified、3.19 の「数字の並びをそれぞれ 1 つの印に置き換え」。印の有無に頼らない側） | 境界、陽性 | `a_draft_differing_only_in_numerals_is_reused` |
+| T-RP-85-006 | F85。d と f が同じ文字列（`今日は晴れです`） | 今の鍵の `same`。広げた鍵より先 | `same` | `match` が `same`（`normalized` でない）。T の依頼は d の 1 本だけ（specified、RP-85 の陽性欄「RP-69 の今の case（`same` と `closing_mark`）が同じ test の binary で通る」。T-RP-69-003 と同じ入力） | 陽性 | `a_final_with_the_same_text_still_logs_same` |
+| T-RP-85-007 | F85。d が `今日は晴れです`、f が `今日は晴れです。` | 今の鍵の `closing_mark` | `closing_mark` | `match` が `closing_mark`（`normalized` でない）。T の依頼は d の 1 本だけ（specified、同上。T-RP-69-001 と同じ入力） | 陽性 | `a_final_that_only_adds_the_closing_mark_still_logs_closing_mark` |
+| T-RP-85-008 | F85。d が `ところで、昨日は雨でした`、f が `ところで、昨日は雨でした。` | 今の鍵にも広げた鍵にも合う。優先の確かめ | 今の鍵が先 | `match` が `closing_mark`（`normalized` でない）（derived、3.18 の 1 の鍵が先に合う物は値を変えない。3.19 は `closing_mark` の 2 つの値をそのままと書く） | 境界 | `a_pair_both_keys_match_logs_the_existing_value` |
+| T-RP-85-009 | F85。d が `これは本当ですか`、f が `これは本当ですか？` | `？` を足した形 | 再使用しない | `translate.draft.reused` が 0 件。原文が f の T の依頼が 1 本出る（specified、RP-85 の (1)「…ですか」と「…ですか？」は合わない。`？` は除かない、3.19。T-RP-69-004 と同じ向き） | 陰性 | `a_question_mark_added_by_the_final_keeps_the_pair_apart` |
+| T-RP-85-010 | F85。d が `すごいですね`、f が `すごいですね！` | `！` を足した形 | 再使用しない | 009 と同じ（specified、同上。`！` も除かない） | 陰性 | `an_exclamation_mark_added_by_the_final_keeps_the_pair_apart` |
+| T-RP-85-011 | F85。P7 の d の `連合国は` を `連合国が` にした d と、P7 の f | 文字の違う対（数字と印は合う） | 再使用しない | `translate.draft.reused` が 0 件。原文が f の T の依頼が 1 本（specified、RP-85 の (1)「文字の違う対（「連合国は」と「連合国が」）」） | 陰性 | `a_draft_with_a_different_letter_is_not_reused` |
+| T-RP-85-012 | F85。d が `三件と五件です`、f が `3件と5件と7件です。` | 数字の並びの数が違う（印に直すと `#件と#件です` と `#件と#件と#件です`） | 再使用しない | `translate.draft.reused` が 0 件。T の依頼が f で 1 本（derived、3.19「数字の並びをそれぞれ 1 つの印に置き換え」。並びの数が違う対を、数字を全部 1 つにまとめる build が合わせてしまわない） | 境界、陰性 | `a_pair_with_a_different_number_of_numerals_is_not_reused` |
+| T-RP-85-013 | F85（en）。(a) d が `In 1944 the allies landed`、f が `In 1940 the allies landed`。(b) d が `well we left`、f が `well, we left.` | en の行。数字だけ、印だけが違う | 再使用しない | 2 入力とも `translate.draft.reused` が 0 件で、T の依頼が f で 1 本（specified、RP-85 の (1)「en の行は合わない」。3.19「en の行には掛けない」。(a) は ja なら `normalized` で合う形で、en で合わないことを示す） | 陰性 | `an_english_line_is_never_matched_by_the_widened_key` |
+| T-RP-85-014 | F85。001 の f に、速報の `id` と別の `id`（`mic-3`）を付ける | 鍵の `id` が違う | 再使用しない | `translate.draft.reused` が 0 件（specified、3.18 の 1「音源、`id`、文字列の 3 つが合う時だけ」。広げた鍵が `id` の検査を外さない） | 陰性 | `the_widened_key_still_needs_the_same_id` |
+| T-RP-85-015 | F85。001 の f の `lang` を `en` にして送る（文字列は ja のまま） | 鍵が `lang` を見る | 再使用しない | `translate.draft.reused` が 0 件（specified、3.19「ja の行」。文字列でなく `lang` で広げた鍵を掛ける） | 境界、陰性 | `the_widened_key_follows_the_lang_of_the_final` |
+| T-RP-85-016 | F85。d が `被害は三件でした`（台本の答え `There were three cases of damage`）、f が `被害は4件でした。` | 数字の書き方が違い、数の値が違う（設計の (2)）。V が数で止める | V が止める | `translate.draft.reused` が 1 件で `match` が `normalized`、`state` が `done`、`verdict` が `held`。`translate.draft.held` が 1 件。E の依頼が 1 本で、`final` から T-RP-69-018 と同じ上限（`PROMPT`）以内に出る。先の訳（`of` が `final`、`stage` が `t`）は 0 件。そのあと E の訳（`settled` が真）が 1 件出る（specified、RP-85 の (2)。V の原文は f にする、3.18 の 4。V の原文が d だと「三件」の 3 が答えの `three` と合って通ってしまうので、この行で落ちる） | 陰性 | `a_reused_draft_with_another_number_is_stopped_by_v_and_e_is_asked` |
+| T-RP-85-017 | 016 で f を `被害は3件でした。` にする | 数の値が合う。016 の陽性対照 | V が通す | `translate.draft.reused` が 1 件、`match` が `normalized`、`verdict` が `ok`。`final` の訳は `of` が `final`、`stage` が `t`。E の依頼は T の後に 1 本（specified、同上。V が数字の書き方の違いだけでは止めないことを示し、016 の止まる理由が数の値であることを固定する） | 陽性 | `a_reused_draft_with_the_same_number_passes_v` |
+| T-RP-85-018 | `docs/results/r8x/rp85_pairs.jsonl`（作る）の実物 | 品質の probe の対の組。広げた鍵だけに合う対 | 対の数 5 | 5 行で、どの行も d と f が広げた鍵で合い、`same` と `closing_mark` に合わず、同じ対が 2 行に在らない。対は P7、P11、P20 と、`この町はウポル島にあり人口は四万人弱です` と `この町はウポル島にあり人口は4万人弱です。`、`一分間で沸騰する地域もあれば沸騰するまでに何分もかかる地域もあります` と `一分間で沸騰する地域もあれば。沸騰するまでに何分もかかる地域もあります。` の 5 つ（specified、RP-85 の probe の対の組「広げた鍵だけに合う最後の速報と確定文の対を重ねずに抜いた物」。pseudo：e-card-form の `rs1`〜`rs3` を 3.19 の置き換えの式の `wide` かつ `same` でない物、で絞った (`utt`、確定文、速報) の異なる組が 5。2026-10-20 に打った。発話は 2、5、7、11、20） | 陽性 | `the_pairs_file_holds_only_pairs_the_widened_key_alone_matches` |
+| T-RP-85-019 | 018 の fixture に、`closing_mark` で合う対（`これは雨です` と `これは雨です。`）を 1 行足した物 | 広げた鍵だけに合う物でない対 | 広げた鍵だけ | `Err` でその行を名指す（specified、RP-85 の probe の対の組。今の鍵で合う対を入れると、広げた鍵の効き目を測れない） | 陰性 | `a_pair_the_existing_key_matches_is_rejected_from_the_pairs_file` |
+| T-RP-85-020 | 018 の fixture に、同じ対を 2 行にした物 | 重なり | 重ねない | `Err` で重なった対を名指す（specified、同上「重ねずに」） | 境界、陰性 | `a_pair_listed_twice_is_rejected_from_the_pairs_file` |
+| T-RP-85-021 | 対の組の file が無い | file の欠け | file が在る | `Err` で path を名指す（implicit、空の組を「止まる行 0 ≤ 0」と読んで通さない。T の 4.1 の「結果の file が無い時は path を名指す」と同じ） | 陰性 | `a_missing_pairs_file_is_rejected_by_path` |
+| T-RP-85-022 | 止まる行の数の比べ：(d の答えで止まる数、f の答えで止まる数) が (0, 0)、(2, 2)、(1, 2)、(3, 2)、(1, 0) の 5 入力 | 等号と両側 | d の側 ≤ f の側 | (0, 0)、(2, 2)、(1, 2) は `Ok`。(3, 2) と (1, 0) は `Err` で 2 つの数を名指す（specified、RP-85 の (3)「確定文の T の答えに V を掛けた時以下」。等号は通す） | 境界 | `the_draft_stop_count_may_equal_but_not_exceed_the_final_stop_count` |
+| T-RP-85-023 | 数える側の対照：対（d が `被害は三件でした`、f が `被害は4件でした。`）。(a) 速報の T の答えを `There were three cases of damage`、確定文の T の答えを `There were 4 cases of damage` にする。(b) (a) の速報の T の答えを `There were 4 cases of damage` にする | V が止まる行を数える | 数は答えで決まる | (a) は d の側が 1、f の側が 0 で、比べる関数が `Err`。(b) は 0 と 0 で `Ok`（derived、V の数の検査が止める行を数える側が、止まった行を 0 と読まない。数える関数の陽性対照と陰性対照） | 陽性、陰性 | `the_stop_counter_counts_a_draft_answer_with_another_number` |
+| T-RP-85-024 | 品質の probe の対の数 0 | 母数 0 | 対が在る | `Err` で対が無いことを名指す（implicit、0 件の比べ「0 ≤ 0」を通さない） | 境界、陰性 | `a_probe_over_no_pairs_is_rejected` |
+| T-RP-85-025 | probe（8080 の llama-server）：018 の 5 対で、速報の文の T の答えに f を原文として V を掛けた時に止まる行の数 a と、f の T の答えに V を掛けた時に止まる行の数 b を数える | 実走（GPU の llama-server） | a ≤ b | `Ok`。a と b の値を出力に書く（specified、RP-85 の (3)。値は実走で決まる。a ≤ b だけを判定する）。8080 の llama-server が答えない時は、`Err` で接続の誤りを名指し、a ≤ b と読まない | 陽性 | `the_draft_answers_stop_no_more_often_than_the_final_answers` |
+| T-RP-85-026 | X の ja の 2 run（`x1`、`x2`）の fixture。中継の stdout に `translate.draft.reused` が `x1` で 3 件（`match` が `normalized` の 3 件）、`x2` で 1 件。発話 7 の 10 標本（各 run の 5 回）の訳の段（`t_tr_us − t_final_us`）は、9 標本が 120000 µs、1 標本が 182000 µs | 発話 7 の訳の段の p95 が線ちょうど。reuse の件数が最小の 1 | p95 ≤ 182 ms、各 run に 1 件以上 | `Ok`（specified、RP-85 の (4)。n = 10 の p95 の順位は (95 × 10 + 99) / 100 = 10 で最大の標本。182000 は 182 ms ちょうど） | 境界、陽性 | `x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass` |
+| T-RP-85-027 | 026 の 182000 µs の標本を 182001 µs にする | 線の 1 µs 上 | 同上 | `Err` で発話 7 の p95 の 182001 µs と 182 ms を名指す（specified、同上。最小の桁 1 つ分だけ外れた値） | 境界、陰性 | `utterance_7_one_microsecond_over_182_ms_is_rejected` |
+| T-RP-85-028 | 026 で `x2` の `normalized` の件を 0 にし、`same` と `closing_mark` の `translate.draft.reused` を 4 件にする | `normalized` が 0 件で、ほかの `match` は在る | 各 run に `normalized` が 1 件以上 | `Err` で `x2` と `normalized` が 0 件であることを名指す（specified、RP-85 の (4)「`match` が `normalized`」。`same` と `closing_mark` の件は数えない。数える語が当たることは 026 の `x1` の 3 件が示す） | 境界、陰性 | `a_run_without_a_normalized_reuse_is_rejected` |
+| T-RP-85-029 | 今の記録の発話 7 の形：e-card-form の `rs1`〜`rs3` の発話 7 の 15 標本（`t_final_us` と `t_tr_us` が在る標本の訳の段が 300.248〜370.819 ms）を X の位置に置き、`translate.draft.reused` を 0 件にする | 使い回していない発話 7 | p95 ≤ 182 ms | `Err` で発話 7 の p95 の 370.819 ms と、`normalized` が 0 件であることの両方を名指す（specified、RP-85 の (4)。pseudo：`jq -s` で 3 つの `rs<N>.jsonl` の `utt` が 7 で `t_final_us` と `t_tr_us` が在る 15 標本の `(t_tr_us - t_final_us) / 1000` の最小が 300.248、最大が 370.819、n = 15、順位 15。2026-10-20 に打った） | 陰性 | `the_recorded_utterance_7_is_over_182_ms_without_a_reuse` |
+| T-RP-85-030 | 発話 7 の訳の取れた標本が 0 件の X の run | 母数 0 | 標本が在る | `Err` で発話 7 の標本が無いことを名指す（implicit、空の p95 を通さない） | 境界、陰性 | `an_x_run_without_utterance_7_samples_is_rejected` |
+| T-RP-85-031 | 実走：`docs/results/r8x/` の X の ja の run（`x<N>.e2e1.jsonl`）と、その run の中継の stdout（`x<N>.e2e1.relay.stdout.log`）（未実装、持ち主 R8x-4） | 実走 | 実走 | 026 の形（各 run に `normalized` の reuse が 1 件以上、発話 7 の p95 が 182 ms 以下）で `Ok`（specified、RP-85 の (4)）。窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v` |
+| T-RP-85-032 | **(0) V を直接呼ぶ**：原文 `1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。`（P7 の f）と、答え `On August 15, 1940, the Allies invaded southern France, and the invasion was called Operation Dragoon.` を V に渡す。偽の認識器も偽の server も使わない | 実物の訳の形。日付が `八月十五日` と `August 15` で書き方が違う | V が通す | V の判定が通す（`verdict` が `ok` の側）（specified、RP-85 の (0)。001 の台本の答えと同じ文字列。通らない時は、R8x-4 は鍵を広げる変更を足さずに止まり、評議へ上げる。答えを V の通る形に変えて 001 を通さない。V が止める側の対照は 016 が持つ。この行は通る側だけを固定する） | 陽性 | `v_passes_the_scripted_answer_for_utterance_7` |
+
+**変異の確かめ**（検証の席が手で打つ。test の行ではない。設計の陰性欄）：
+
+- 鍵の関数を今の形（同じか `。` を足しただけ）に戻した build で、001 から 005 が `translate.draft.reused` 0 件で落ちる。
+- V の数の検査を外した build（または台本）で、016 が `verdict` `ok` になって落ちる。
+- 数字を全部 1 つの印にまとめる build で、012 が `normalized` で合って落ちる。
+- 広げた鍵を en にも掛ける build で、013 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 発話 7 の標本は `t_final_us` と `t_tr_us` が在る標本で、有効の線（`d ≥ 120 ms`）は掛けない（026 から 029）。対は（`utt`、確定文、速報）の組で重ねない（018 から 020）。
+- 016 の E の依頼の上限 `PROMPT` は T-RP-69-018 の定数に合わせた。値は RP-69 の実装が持つ。
+- 031 の `x<N>.e2e1.jsonl` の run が、RP-85 の (4) で 2 本（`x1`、`x2`）であること。設計は ja の W、X、W、X と書くので、X は 2 本である。
+
+### 4.78 RP-86（早い終わりの detector C と持った候補の短い無音の確定 D）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-5 の席が offline の log を作り、R8x-6 の席が test を足す。
+test：`native/hayamimi-eval/tests/rp86.rs`。受入 test の名前は `rp86_extra_early_notices_shorten_the_ja_wait_without_mid_sentence_splits`。実走の行（T-RP-86-047）だけが `#[ignore]` を持ち、`docs/results/r8v/` の offline の log と `docs/results/r8x/` の記録を読む。記録が置かれるまでは走らせない。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp86`。実走の行はこれに `-- --ignored` を足す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（047 だけは受入 test の名前の全部）。判定の関数の名前と引数の形は実装の席が決める。行は「dir（offline の log、run の file、stdout、events、machine）を渡す」形で書く。
+設計は D 3.19 の「割れを増やさない守りと、その測り」と、D 6 と 7 の RP-86、D 3.17 の「RP-66 と RP-67 の数え方」である。
+
+**数え方**（D 3.17 の数え方の 1、7、8 と RP-66 の T のとおり。この席は足さない）：
+
+- 標本の枠は ja が 1 run に 23 × 5 = 115 で、X の 2 本で 230、W の 2 本で 230。en が 1 run に 15 × 5 = 75。有効は `final` が在り `d ≥ 120`。`d` の p50、p95 は nearest-rank（順位は (p × n + 99) / 100 の整数除算）で、言語ごとに W の 2 本（en は 1 本）と X の 2 本（en は 1 本）をそれぞれ合わせた集まりで取る。run ごとの値は記録だけ。
+- 「文の途中」の割れは、RP-66 の T-RP-66-040 から 047 の仕分け（本物の文の切れ目、尾の雑音、文の途中）で数える。参照 J5 の前の文が e = 11 で本物、e = 9 で文の途中、参照 J4 の後ろの文が `ん` で尾の雑音。
+- 文の途中の切断の率は、文の途中の数 ÷ 枠の全標本（ja の X の 2 本で 230）。上限 10 % は整数で `文の途中の数 × 10 ≤ 枠の標本の数` と書く（230 の 10 % は 23 件。23 は通り、24 は落ちる）。
+- 品質の式は RP-66 の行のとおり：「final なし」の数と、訳の取れない有効な標本の数が W より増えない。ja の CER（X の 2 本の `cer_dist` の和 ÷ `cer_denom` の和）が W 以下。比べるときは、割り算を使わず `X の dist × W の denom ≤ W の dist × X の denom` で見る。
+- 時刻は µs の整数、`final_latency_ms` は 10 の -6 乗の整数に読んで比べる。
+
+**fixture**（式で作る。実測のふりをしない）：
+
+- **F86J**（ja の W の 2 本）：1 run は枠 115 = 有効 100 + final なし 15。2 本を合わせた有効 200 標本の k 番目（k = 1〜200、`d` の小さい順）の `d` は `400 + 4k` ms。奇数の k は 1 本目（`w1.e2e1`）、偶数の k は 2 本目（`w2.e2e1`）。したがって p50 は 100 番目の 800 ms、p95 は 190 番目の 1160 ms。有効の標本は全部 `L_dec` 100 ms、`L_tr` 300 ms、`finals` 1、`cer_dist` 1、`cer_denom` 50。final なしの 15 は `t_final_us` が null、`finals` 0、`cer_dist` 1、`cer_denom` 50（F66J と同じ）。2 本の `cer_dist` の和は 230、`cer_denom` の和は 11500。
+- **F86X**（ja の X の 2 本）：F86J の k 番目から 92 ms を引いた物（`x1.e2e1`、`x2.e2e1`）。p50 は 708 ms、p95 は 1068 ms。ほかの欄は F86J と同じ。
+- **F86E**（en）：W の 1 本（`w1.e2e2`）は F66E の式。75 有効で、k 番目の `d` は k ≤ 38 で 262 + k、39 ≤ k ≤ 72 で 520 − (72 − k)、73 ≤ k で 600 + 10 × (k − 73)。p50 は 38 番目の 300 ms、p95 は 72 番目の 520 ms。X の 1 本（`x1.e2e2`）は既定で W と同じ標本。
+- **F86L**（offline の log）：`extra-lat.log` と `extra-heldout-ja.log`。どちらも JSON の行で、1 行が 1 つの組（`set`）と 1 つの腕（`arm`）を持つ。`set` は `lat-ja`、`lat-en`、`heldout-ja`、`arm` は `W` か `X`、2 つの数は JSON の整数。`extra-lat.log` は lat-ja の 2 行、`extra-heldout-ja.log` は heldout-ja の 2 行。W の値は、lat-ja が `continuing_confirm`（後ろに声が続く確定）2、`b_only_split`（B だけの割れ）3、heldout-ja が 5 と 6。X の値は既定で W と同じ。例：`{"set":"lat-ja","arm":"W","continuing_confirm":2,"b_only_split":3}`。この数は式で置いた値で、probe の実測ではない。欄の欠けた行と読めない行は 0 件と読まず落ちる（RP-86 の (0)）。
+- **F86S**（X の ja の各 run の stdout と events）：`asr.endpoint.decided` が 20 行（`id` は 1〜20 の数）。`id` が 3、7、9 の行は `notice` が `c`、`id` が 12 の行は `rule` が `held_silence` で `notice` が `none`、残りは `notice` が `b` か `none`。events に `final` が 20 件（`id` は `mic-1`〜`mic-20`。text は全部 `今日は晴れです。`）。W の各 run の stdout は `c` と `held_silence` を持たない。
+- **F86M**：6 run（ja の `w1.e2e1`、`x1.e2e1`、`w2.e2e1`、`x2.e2e1`、en の `w1.e2e2`、`x1.e2e2`）がそれぞれ F83 の形の `<run>.machine.jsonl` を持つ。
+- **S86**（割れ）：「文の途中の割れ 1 件」は、有効な標本 1 つの `finals` を 2 にして、2 つの `final` の text を参照 J5 の先頭 9 字と残りにした物。本物は先頭 11 字と残り、尾の雑音は参照 J4 の先頭 11 字と `ん`。割れは別々の有効な標本に置く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-86-001 | F86J、F86X、F86E、F86L、F86S、F86M の dir そのまま（割れは 0 件） | 設計の陽性の case。(0) から (6) が全部内側 | 全部成立 | `Ok`（specified、RP-86 の陽性欄「offline の log が W と同じ数を持ち、X の ja の `d` を W の各標本から 92 ms 引き、割れを足さない組が (0)〜(6) を通る」。92 ms の引きは p95 の差 1160 − 1068 = 92 ms） | 陽性 | `a_run_set_shaped_like_the_design_passes_every_check` |
+| T-RP-86-002 | 001 で、F86L の X の 4 つの値を W より小さくする（lat-ja の X の行が `continuing_confirm` 1 と `b_only_split` 2、heldout-ja の X の行が 4 と 5） | X が W より小さい | 各値で X ≤ W | `Ok`（specified、RP-86 の (0)「W 以下」。等号は 001 が持つ） | 境界、陽性 | `x_counts_below_w_in_the_offline_log_pass` |
+| T-RP-86-003 | 001 で F86L の lat-ja の X の行の `continuing_confirm`（後ろに声が続く確定）を 3（W の 2 より 1 件多い）にする | 設計の陰性の case。lat-ja の確定 | X ≤ W | `Err` で lat-ja と「後ろに声が続く確定」の 3 と 2 を名指す。ほかの値は名指さない（specified、RP-86 の陰性欄、(0)） | 境界、陰性 | `one_more_continuing_confirm_in_lat_ja_is_rejected` |
+| T-RP-86-004 | 001 で F86L の heldout-ja の X の行の `continuing_confirm` を 6（W の 5 より 1 件多い）にする | held-out の確定 | 同上 | `Err` で held-out の ja と 6 と 5 を名指す（specified、同上。lat-ja が内側でも、held-out が外れれば落ちる） | 境界、陰性 | `one_more_continuing_confirm_in_the_heldout_is_rejected` |
+| T-RP-86-005 | 001 で F86L の lat-ja の X の行の `b_only_split`（B だけの割れ）を 4（W の 3 より 1 件多い）にする | lat-ja の割れ | 同上 | `Err` で lat-ja と「B だけの割れ」の 4 と 3 を名指す（specified、RP-86 の (0)） | 境界、陰性 | `one_more_b_only_split_in_lat_ja_is_rejected` |
+| T-RP-86-006 | 001 で F86L の heldout-ja の X の行の `b_only_split` を 7（W の 6 より 1 件多い）にする | held-out の割れ | 同上 | `Err` で held-out の ja と 7 と 6 を名指す（specified、同上） | 境界、陰性 | `one_more_b_only_split_in_the_heldout_is_rejected` |
+| T-RP-86-007 | 2 入力。(a) F86L の lat-ja の W の行と X の行の `b_only_split` を 0 と 0 にする。(b) 0 と 1 にする | 値が 0 の境界 | X ≤ W | (a) は `Ok`、(b) は `Err` で 1 と 0 を名指す（specified、同上。0 件の W に 1 件を足すと落ちる） | 境界 | `a_zero_baseline_allows_zero_and_rejects_one` |
+| T-RP-86-008 | 001 で `extra-lat.log` を除き、`x1.e2e1.jsonl` の中身を JSON でない文字列にする | log が無い時の順 | log が先 | `Err` で `extra-lat.log` の path を名指す。`x1.e2e1.jsonl` の読めなさは名指さない（specified、RP-86 の (0)「log が無い時は E2E の file を読まずに落ちる」。E2E の file を先に読むと読めなさで落ちるので、順が分かる） | 陰性 | `a_missing_offline_log_fails_before_any_e2e_file_is_read` |
+| T-RP-86-009 | 001 で `extra-heldout-ja.log` の heldout-ja の X の行から `b_only_split` の欄を除く（W の行は 6 のまま） | 値の欠け | 全値が在る | `Err` で heldout-ja の X の行と `b_only_split` が無いことを名指す（specified、RP-86 の (0)「欄の欠けた行は落ちる」。欠けた値を 0 と読んで W 以下に通さない） | 陰性 | `a_missing_counter_in_the_offline_log_is_rejected_not_read_as_zero` |
+| T-RP-86-010 | F86J と F86X（001 の ja） | 設計の差 92 ms | p95 の差 ≥ 60 ms、p50 ≤ W | `Ok`。出力に W の p50 800、p95 1160、X の p50 708、p95 1068、差 92 が並ぶ（specified、RP-86 の (1)。F86 の式から derived） | 陽性 | `x_92_ms_faster_at_every_sample_passes_the_ja_wait` |
+| T-RP-86-011 | 010 で X の各標本を F86J の対応する標本から 60 ms 引いた物（p95 は 1100 ms） | p95 の差の線ちょうど | 差 ≥ 60 ms | `Ok`（specified、RP-86 の (1)「60 ms 以上小さく」。等号側。p50 は 740 ms で 800 ms 以下） | 境界、陽性 | `a_p95_gain_of_exactly_60_ms_passes` |
+| T-RP-86-012 | 010 で X の各標本を 59.999 ms 引いた物（p95 は 1100.001 ms） | p95 の差の線の 1 桁下（10 の -3 乗ms） | 同上 | `Err` で ja の p95 の差 59.999 と 60 を名指す。p50 は名指さない（specified、同上。p50 は 740.001 ms で W 以下なので理由は p95 だけ） | 境界、陰性 | `a_p95_gain_of_59_999_ms_is_rejected` |
+| T-RP-86-013 | X の標本を、k ≤ 100 で F86J と同じ、k > 100 で `800 + 3 × (k − 100)` ms にした物（p50 は 800 ms、p95 は 1070 ms） | p50 が W と等しい。p95 の差は 90 ms | p50 ≤ W | `Ok`（specified、RP-86 の (1)「p50 が W 以下」。等号側） | 境界、陽性 | `an_x_p50_equal_to_w_passes` |
+| T-RP-86-014 | 013 で X の 100 番目を 800.001 ms にする（101 番目は 803 ms） | p50 の線の 1 桁上 | 同上 | `Err` で ja の p50 の 800.001 と 800 を名指す。p95 は名指さない（specified、同上。p95 の差は 90 ms で内側） | 境界、陰性 | `an_x_p50_one_step_over_w_is_rejected` |
+| T-RP-86-015 | X の 1 本目は有効 100 標本の `d` を全部 600 ms、2 本目は全部 1000 ms にする。W は F86J | 2 本を合わせる（run ごとでない） | 合わせた集まり | `Ok`。合わせた X の p50 は 100 番目の 600 ms、p95 は 190 番目の 1000 ms で、差 160 ms（specified、D 3.17 の数え方の 7、T-RP-66-039 と同じ向き。2 本目だけで取ると p50 が 1000 ms で W の 800 ms を超えるので、run ごとに判定する build はここで落ちる）。run ごとの値は記録だけに出す | 陽性、陰性 | `the_two_x_runs_are_judged_together_not_one_by_one` |
+| T-RP-86-016 | X の 2 本とも全標本の `t_final_us` を null にする | 有効が 0 件 | 有効が在る | `Err` で ja の X に有効な標本が無いことを名指す（implicit、空の p50 と p95 を作らず、0 件を通さない。T-RP-66-048 と同じ向き） | 境界、陰性 | `an_x_set_with_no_valid_sample_is_rejected` |
+| T-RP-86-017 | 010 の X の最小の標本（312 ms）を (a) 120 ms にした入力と、(b) 119 ms にした入力 | 有効の線 0.12 秒の両側 | `d ≥ 120` が有効 | (a) は有効 200、p50 708、p95 1068 で `Ok`。(b) は 119 ms を終端不正として数えず、有効 199、p50 712（100 番目 = F86X の 101 番目）、p95 1072（190 番目 = F86X の 191 番目）で `Ok`。出力の n と p50 と p95 で、線の位置が分かる（derived、F86X の式。D 3.17 の数え方の 3） | 境界 | `the_valid_line_is_120_ms_for_the_ja_wait` |
+| T-RP-86-018 | S86。W の 2 本に文の途中の割れを合わせて 23 件、X の 2 本にも 23 件（X は 1 本目に 12 件、2 本目に 11 件） | 設計の割れの数が等しい。枠 230 の 10 % ちょうど | X ≤ W かつ 率 ≤ 10 % | `Ok`（specified、RP-86 の (2)。X の率は 23 ÷ 230 = 10.0 % で、`23 × 10 ≤ 230`。分母が有効な標本の 200 なら 11.5 % になって落ちるので、分母が枠の全標本であることもここで固定する） | 境界、陽性 | `mid_sentence_cuts_at_the_ten_percent_cap_of_the_frame_pass` |
+| T-RP-86-019 | S86。2 入力。(a) W に文の途中の割れを 25 件、X に 24 件。(b) W に 30 件、X に 25 件 | W 以下だが 10 % を超える（評議の指摘。陰性対照） | 率 ≤ 10 % | どちらも `Err` で、X の率が 10 % を超えること（24 ÷ 230 = 10.43 %、25 ÷ 230 = 10.87 %）を名指す。「X が W より多い」とは名指さない（specified、RP-86 の (2)「X の文の途中の切断の率も ja 10 % 以下」。X ≤ W は (a) の 24 ≤ 25 と (b) の 25 ≤ 30 で成り立っているので、W との比べだけの判定は通してしまう。理由を絶対の上限だけに絞った入力） | 境界、陰性 | `x_below_w_but_over_ten_percent_of_the_frame_is_rejected` |
+| T-RP-86-020 | S86。2 入力。(a) W に 20 件、X に 21 件。(b) W に 0 件、X に 1 件 | X が W より 1 件多い。率は 10 % の内側（(a) は 9.13 %、(b) は 0.43 %） | X ≤ W | どちらも `Err` で、X の件数が W を超えること（21 と 20、1 と 0）を名指す。率の上限は名指さない（specified、RP-86 の (2)「X の 2 本の和で W の 2 本の和以下」。019 の対。比べの理由だけに絞った入力。割れを足した fixture が落ちる、設計の陰性の case） | 境界、陰性 | `one_more_mid_sentence_cut_than_w_is_rejected` |
+| T-RP-86-021 | S86。W に 0 件、X に 0 件 | 割れが無い | X ≤ W、率 ≤ 10 % | `Ok`（specified、同上。率は 0 ÷ 230 で、0 で割らない） | 境界、陽性 | `no_cut_in_either_arm_passes` |
+| T-RP-86-022 | S86。X の 2 本に割れを 30 件。内訳は文の途中 23、本物の文の切れ目 5、尾の雑音 2。W に文の途中を 23 件 | 割れの数は 10 % を超えるが、文の途中だけが分子 | 文の途中だけを数える | `Ok`（specified、D 3.17 の数え方の 8。本物と尾の雑音は文の途中に入らない。X の割れ 30 ÷ 230 = 13.0 % で、全部の割れを分子にする build は落ちる） | 境界、陽性 | `only_mid_sentence_cuts_count_toward_the_rate` |
+| T-RP-86-023 | en の X（`x1.e2e2`）に文の途中の割れを 10 件、W（`w1.e2e2`）に 0 件。ja は 001 のまま | en は文の途中の割れを判定に入れない | ja だけ | `Ok`（specified、RP-86 の (2)「ja 10 % 以下」と (4)。en の判定は `d` だけ。en の割れは記録に出す） | 境界、陽性 | `en_cuts_are_recorded_and_not_judged` |
+| T-RP-86-024 | 001 で X の 1 標本（`d` が最大の 1108 ms の標本）を `t_final_us` が null の標本にする。有効 199、「final なし」は 31（W は 30） | 「final なし」が 1 件多い | X ≤ W | `Err` で「final なし」の 31 と 30 を名指す。p50 と p95 は名指さない（specified、RP-86 の (3)、RP-66 の品質の式。`d` は 100 番目 708、190 番目 1068 で内側） | 境界、陰性 | `one_more_sample_without_a_final_than_w_is_rejected` |
+| T-RP-86-025 | 2 入力。(a) W の有効な標本のうち 2 標本、X の有効な標本のうち 2 標本の `t_tr_us` を null にする。(b) X の 3 標本にする | 訳の取れない有効な標本の数が等しい、1 件多い | X ≤ W | (a) は `Ok`、(b) は `Err` で 3 と 2 を名指す（specified、RP-86 の (3)、RP-66 の品質の式。`d` は内側） | 境界 | `valid_samples_without_a_translation_may_equal_but_not_exceed_w` |
+| T-RP-86-026 | 3 入力。X の 2 本の `cer_dist` の和が (a) 229、(b) 230、(c) 231。`cer_denom` の和は 11500。W は 230 と 11500 | CER が W より小さい、等しい、大きい | X ≤ W | (a) と (b) は `Ok`、(c) は `Err` で ja の CER を名指す（specified、RP-86 の (3)。等号は通す。割り算の丸めで外さず、`231 × 11500 ≤ 230 × 11500` の整数の比べで落とす） | 境界 | `ja_cer_may_equal_but_not_exceed_w` |
+| T-RP-86-027 | F86E。X の各標本を W の対応する標本と同じにする（001 の en） | en の差が 0 | W の +60 ms 以内 | `Ok`（specified、RP-86 の (4)） | 陽性 | `en_equal_to_w_passes` |
+| T-RP-86-028 | 027 で X の各標本に 60 ms を足した物（p50 は 360 ms、p95 は 580 ms） | W の +60 ms の線ちょうど | `X ≤ W + 60 ms` | `Ok`（specified、RP-86 の (4)「+60 ms 以内」。等号側。D 3.17 の数え方の 4 と同じ、ちょうど 60 は内） | 境界、陽性 | `en_exactly_60_ms_slower_than_w_passes` |
+| T-RP-86-029 | 028 で X の 72 番目だけを 580.001 ms にする（71 番目は 579 ms、73 番目は 660 ms） | p95 の線の 1 桁上 | 同上 | `Err` で en の p95 の 580.001 と W の 520 + 60 を名指す。p50 は名指さない（specified、同上。p50 は 360 ms で内側） | 境界、陰性 | `en_p95_one_step_over_w_plus_60_ms_is_rejected` |
+| T-RP-86-030 | 028 で X の 38 番目だけを 360.001 ms にする（37 番目は 359 ms、39 番目は 547 ms） | p50 の線の 1 桁上 | 同上 | `Err` で en の p50 の 360.001 と W の 300 + 60 を名指す。p95 は名指さない（specified、同上。p95 は 580 ms で内側） | 境界、陰性 | `en_p50_one_step_over_w_plus_60_ms_is_rejected` |
+| T-RP-86-031 | F86S の X の ja の 2 本そのまま。stdout の `id` は数、events の `id` は `mic-` つきの文字列 | 設計の (5) の陽性。`c` が各 run に 3 件、`held_silence` が 1 件。`id` の型が違っても結べる | `c` が各 run に 1 件以上、すべて結べる | `Ok`。出力に `c` の件数（各 run 3）、`held_silence` の件数（各 run 1）、結べた `id` の数（各 run 4）が並ぶ（specified、RP-86 の (5)。`ltrimstr("mic-")` と文字列化で結ぶ、D 3.19 の置き換えの式と同じ） | 陽性 | `x_runs_with_c_notices_and_held_silence_tied_to_finals_pass` |
+| T-RP-86-032 | 031 の `x2.e2e1` の `notice` が `c` の行を全部 `b` にする（`held_silence` は残す） | 2 本目だけ `c` が 0 件 | 各 run に 1 件以上 | `Err` で `x2.e2e1` と `c` が 0 件であることを名指す。`x1.e2e1` は名指さない（specified、RP-86 の (5)「X の ja の run ごとに `notice` が `c` の `asr.endpoint.decided` が 1 件以上」。「X の ja の run ごとに」。2 本を合わせた件数で読む build は、`x1.e2e1` の 3 件で通ってしまうので、ここで落ちる） | 境界、陰性 | `an_x_run_without_a_c_notice_is_rejected` |
+| T-RP-86-033 | 031 の X の 2 本の stdout の `asr.endpoint.decided` から `notice` の欄を除く（今の build の形） | 欄が無い | `c` が在る | `Err` で `c` が 0 件であることを名指す（specified、同上。今の build の記録を X の位置に置いた形。欄が無い行を `c` と数えない） | 陰性 | `a_stdout_without_the_notice_field_has_no_c_notice` |
+| T-RP-86-034 | 031 の `x1.e2e1` の stdout に、`id` が 21、`notice` が `c` の行を足す（events に `mic-21` の `final` は無い） | `c` の行が `final` と結べない | すべて結べる | `Err` で `x1.e2e1` と `id` の 21 を名指す（specified、RP-86 の (5)「`notice` が `c` の `id` がすべて `final` と結べ」。031 の結べる 3 件と対） | 境界、陰性 | `a_c_notice_that_ties_to_no_final_is_rejected` |
+| T-RP-86-035 | 031 の `x1.e2e1` の stdout に、`rule` が `held_silence` で `id` が 22 の行を足す（events に `mic-22` の `final` は無い） | `held_silence` の行が `final` と結べない | すべて結べる | `Err` で `x1.e2e1` と `id` の 22 を名指す（specified、RP-86 の (5)「`held_silence` と `notice` が `c` の `id` がすべて `final` と結べ」） | 境界、陰性 | `a_held_silence_that_ties_to_no_final_is_rejected` |
+| T-RP-86-036 | 031 の W の `w2.e2e1` の stdout に `notice` が `c` の行を 1 つ足す | W に `c` | W は 0 件 | `Err` で `w2.e2e1` と `c` の 1 件を名指す（specified、RP-86 の (5)「W の run には両方とも 0 件」） | 陰性 | `a_c_notice_in_a_w_run_is_rejected` |
+| T-RP-86-037 | 031 の W の `w1.e2e1` の stdout に `rule` が `held_silence` の行を 1 つ足す | W に `held_silence` | W は 0 件 | `Err` で `w1.e2e1` と `held_silence` の 1 件を名指す。`c` は名指さない（specified、同上。理由を `held_silence` だけに絞った入力） | 陰性 | `a_held_silence_in_a_w_run_is_rejected` |
+| T-RP-86-038 | 001 の W の ja の 2 本の stdout に `notice` が `b` の行と `none` の行を足し、X の stdout は 031 のまま | `c` でも `held_silence` でもない行は数えない | W は 0 件 | `Ok`（specified、同上。数える語が `c` と `held_silence` の 2 つだけであることを、W に `b` と `none` が在っても通ることで固定する。031 が数える側の陽性対照） | 境界、陽性 | `b_and_none_notices_in_a_w_run_are_not_counted` |
+| T-RP-86-039 | 001 の ja の X の位置（`x1.e2e1`、`x2.e2e1`）に W の run（`w1.e2e1`、`w2.e2e1` の標本と stdout）を置いた dir | 設計の陰性の case。X が W と同じ | (1) と (5) が落ちる | `Err` で ja の p95 の差が 0 ms で線の 60 ms に届かないことと、`c` が 0 件であることの両方を名指す（specified、RP-86 の陰性欄「X の位置に W の run を置いた dir が (1) と (5) で落ちる」。offline の log と machine は 001 のまま） | 陰性 | `w_runs_in_the_x_position_fail_the_wait_and_the_notice_checks` |
+| T-RP-86-040 | F86M の 6 run そのまま | 設計の (6) の陽性。全 run が RP-83 の判定を通る | 全 run が通る | `Ok`（specified、RP-86 の (6)。001 の machine） | 陽性 | `all_six_runs_pass_the_machine_check` |
+| T-RP-86-041 | 040 で `x2.e2e1` の行 1 の `load15` を `2.50` にする | X の 1 run が RP-83 の線の値 | RP-83 の判定 | `Err` で `x2.e2e1`、`load15`、`2.50` を名指す。ほかの 5 run は名指さない（specified、RP-86 の (6)。RP-83 の T-RP-83-005 と同じ判定を呼ぶ。呼び忘れた build はここで落ちる） | 境界、陰性 | `an_x_run_beside_a_busy_machine_is_rejected` |
+| T-RP-86-042 | 040 で `w1.e2e2`（en の W）の `<run>.machine.jsonl` を除く | machine の file の欠け | file が在る | `Err` で `w1.e2e2` と file が無いことを名指す（specified、RP-86 の (6) と RP-83 の「file の無い run も落ちる」） | 陰性 | `a_run_without_a_machine_file_is_rejected` |
+| T-RP-86-043 | 040 で `w2.e2e1` の行 3 の `cargo` を `1` にする | run の途中の build | RP-83 の判定 | `Err` で `w2.e2e1`、`cargo`、`1` を名指す（specified、同上。T-RP-83-009 と同じ判定） | 陰性 | `a_cargo_in_the_middle_of_a_w_run_is_rejected` |
+| T-RP-86-044 | 001 の dir から `x2.e2e1` の 3 つの file（標本、stdout、machine）を除く | X の ja が 1 本 | X の ja が 2 本 | `Err` で `x2.e2e1` が無いことを名指す（derived、RP-86 の (2)「X の 2 本の和」と D 3.17 の数え方の 7。1 本の p50 と p95 で通さない） | 境界、陰性 | `a_dir_with_one_x_ja_run_is_rejected` |
+| T-RP-86-045 | 001 の dir から `w2.e2e1` の 3 つの file を除く | W の ja が 1 本 | W の ja が 2 本 | `Err` で `w2.e2e1` が無いことを名指す（derived、同上。W の 2 本の和） | 境界、陰性 | `a_dir_with_one_w_ja_run_is_rejected` |
+| T-RP-86-046 | 001 の dir から `x1.e2e2` の 3 つの file を除く | X の en が 0 本 | X の en が 1 本 | `Err` で `x1.e2e2` が無いことを名指す（derived、RP-86 の (4)。en は W、X の 1 本ずつ） | 境界、陰性 | `a_dir_without_the_x_en_run_is_rejected` |
+| T-RP-86-047 | 実走：`docs/results/r8v/` の `extra-lat.log` と `extra-heldout-ja.log`、`docs/results/r8x/` の `w<N>.e2e1.jsonl`、`x<N>.e2e1.jsonl`、`w1.e2e2.jsonl`、`x1.e2e2.jsonl`、各 run の `hayamimi` の stdout、`<run>.events.jsonl`、`<run>.machine.jsonl`（未実装、持ち主 R8x-6） | 実走 | 実走 | 001 の形で `Ok`（specified、RP-86）。R8x-5 の log と窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp86_extra_early_notices_shorten_the_ja_wait_without_mid_sentence_splits` |
+| T-RP-86-048 | 001 で `extra-lat.log` の lat-ja の X の行を途中で切る（`{"set":"lat-ja","arm":"X","continuing_confirm":2,"b_` で終わる） | 読めない行 | 全行が読める | `Err` で `extra-lat.log` と読めない行を名指す（specified、RP-86 の (0)「欄の欠けた行と読めない行は落ちる」。読めた行だけで W 以下に通さない） | 境界、陰性 | `an_unreadable_row_in_the_offline_log_is_rejected` |
+| T-RP-86-049 | 001 で `extra-lat.log` の lat-ja の X の行の `continuing_confirm` を JSON の文字列 `"2"` にする | 数が JSON の整数でない | 2 つの数は JSON の整数 | `Err` で lat-ja の X の行と `continuing_confirm` を名指す（specified、RP-86 の (0)「2 つの数は JSON の整数」。文字列を数に読んで W 以下に通さない） | 境界、陰性 | `a_count_written_as_a_json_string_is_rejected` |
+| T-RP-86-050 | 031 の `x1.e2e1` で、events の `mic-12`（stdout で `rule` が `held_silence` の行に結ぶ `final`）の text を 3 入力にする。(a) `明日は雨ですが。`（接続の形 `が`）、(b) `雨なので。`（接続の形 `ので`）、(c) `雨ですけど？`（接続の形 `けど`。末尾が `？`） | held_silence の `final` が接続の形で終わる | 0 件 | 3 入力とも `Err` で `x1.e2e1`、`held_silence`、`mic-12` と、終わりの語（`が`、`ので`、`けど`）を名指す（specified、RP-86 の (5)「`。？！` を除いた text が `JA_CONNECTIVE` か `JA_PARTICLE` の語で終わる `held_silence` の `final` が 0 件」。(c) は `？` を除いてから見る。語は `native/hayamimi-asr/src/endpoint.rs` の `JA_CONNECTIVE`。`ので` は `で` でも終わるが、長い語を名指す） | 境界、陰性 | `a_held_silence_final_ending_in_a_connective_is_rejected` |
+| T-RP-86-051 | 031 の `x1.e2e1` で `mic-12` の text を 2 入力にする。(a) `これを。`（助詞 `を`）、(b) `ここまで。`（助詞 `まで`） | held_silence の `final` が助詞で終わる | 0 件 | 2 入力とも `Err` で `x1.e2e1`、`held_silence`、`mic-12` と、終わりの語（`を`、`まで`）を名指す（specified、同上。語は `JA_PARTICLE`。050 の接続の形と別の表の側） | 境界、陰性 | `a_held_silence_final_ending_in_a_particle_is_rejected` |
+| T-RP-86-052 | 031 の `x1.e2e1` で `mic-12` の text を `ところが今日は晴れです。` にする | 接続の形が文の途中に在り、終わりでない | 終わりの語だけを見る | `Ok`（specified、同上。部分一致で見る build は `が` で落とす。050 と 051 が落ちる側の陽性対照） | 境界、陽性 | `a_connective_inside_the_sentence_is_not_a_tail` |
+| T-RP-86-053 | 031 の `x1.e2e1` で `mic-12` の text は 031 のまま、`id` が 3 で `notice` が `c` の行の `final`（`mic-3`）の text を `明日は雨ですが。` にする | 接続の形で終わるが、`held_silence` の行でない `final` | `held_silence` の `final` だけを見る | `Ok`（specified、同上「`held_silence` の `final` が 0 件」。`c` の知らせで確定した `final` は数えない。050 が数える側） | 境界、陽性 | `only_held_silence_finals_are_checked_for_a_connective_or_particle_tail` |
+
+**変異の確かめ**（検証の席が手で打つ。test の行ではない。設計の陰性欄と評議の指摘）：
+
+- 文の途中の切断の率の絶対の上限を外し、W との比べだけにした build で、019 が落ちる。
+- 分母を有効な標本の数（200）にした build で、018 が落ちる。
+- 分子を割れの全部にした build で、022 が落ちる。
+- 2 本を合わせず run ごとに判定する build で、015 が落ちる。
+- `notice` の欄が無い行を `c` と数える build で、033 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- C と D の機構（threshold、終わりの線、`min_silence`、持った文の扱い、`--early-extra off` と `--endpoint silence` の開き方）は、4.79 の RP-87 が持つ。この節の 050 から 053 は、記録の `final` の text から終わりの語を測る側だけを持つ。
+- F86L の `lat-en` の行は記録だけで、判定に入れない(H127 の 8)。fixture は lat-ja と heldout-ja の行だけで書いた。
+- 交互の順（W、X、W、X）は記録に残らない。test は順を見ない。
+
+### 4.79 RP-87（C と D の機構：値、分かれ道、開く条件）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-6 の席が足す。
+test：`native/hayamimi-asr/tests/rp87.rs`。受入 test の名前は `rp87_c_and_d_fire_on_their_own_lines_and_d_never_ends_a_connective_or_particle_tail`。実走の行は無く、全部の行が合成した確率の列と持った候補の文を流し、model も音声も読まず、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-asr --test rp87`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（035 だけは受入 test の名前の全部）。公開の口の名前と引数の形は実装の席が決める。行は「確率の列（32 ms の window ごとの値）と持った候補を流し、知らせ、確定、`notice` の欄を読む」形で書く。
+設計は D 3.19 の「C と D の機構の受入」と、C と D の機構、D 6 と 7 の RP-87 である。
+
+**読み方**：
+
+- 1 window は 512 sample（32 ms）。`S(v, n)` は確率 v の window を n 個並べた列。声の部分は `S(0.95, 10)`（検出器だけを見る行）か `S(0.95, 40)`（確定まで見る行。1.28 秒で、早い確定の最短の声 1 秒を超える）。無音の部分は `S(0.20, n)`。
+- 終わりの知らせは、終わりの線より低い window が `min_silence`（0.12 秒 = 1920 sample）を超えるまで続いた時に出る。512 sample の window では ceil(1920 / 512) = 4 window である。したがって低い window が 3 個では出ず、4 個で出る（derived、3.17 の「区切りの時刻の式」の数え方）。
+- 声の始まりの線は「以上」、終わりの線は「未満」で読む。C は始まり 0.80、終わり 0.65。D は始まり 0.50、終わり 0.35。B は始まり 0.65、終わり 0.50（D 3.17 の方針 1）。
+- 「C の知らせ」「D の知らせ」「B の知らせ」は、その検出器が声の 1 区間の終わりを出すこと。持った候補は `State::hold` で置く文（`今日は晴れです。` を既定とし、持った範囲の終わりは window 40 の始まり = sample 20480）。
+- 接続の形(`JA_CONNECTIVE`)、助詞(`JA_PARTICLE`)、文末の語(`JA_FINAL`)は、`native/hayamimi-asr/src/endpoint.rs` の表で、公開にする(H127 の 3。R8x-6 の席)。test は表を直に読み、語を書き写さない。表の語数は今 14、10、17 で、test は語数が 0 でないことも確かめる(空の表で「全部の語」の行が通るのを防ぐ)。
+- 確率を直接受ける口の形は H126(R8x-6 の席が決める)。
+- 知らせの window の数え方の細部(最初の低い window を数えるか)は記録だけで、行は固定しない(H127 の 4)。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-87-001 | C に `S(0.95, 10)` と `S(0.20, 4)` | C の終わりの知らせが出る | 低い window が 4 個 | C の知らせが 1 件。声の区間の始まりは sample 0（specified、RP-87 の (1)「0.65 未満が 0.12 秒続いた所で知らせる」。4 window = 2048 sample は 1920 以上） | 陽性 | `c_notifies_after_four_low_windows` |
+| T-RP-87-002 | C に `S(0.95, 10)` と `S(0.20, 3)` | 低い window が 1 個足りない | 同上 | C の知らせが 0 件（specified、同上。3 window = 1536 sample は 1920 未満。001 の 1 つ下の境界） | 境界、陰性 | `c_does_not_notify_after_three_low_windows` |
+| T-RP-87-003 | C に `S(0.95, 10)`、`S(0.20, 3)`、`S(0.95, 1)`、`S(0.20, 3)` | 低い window の続きが途中で切れる | 続いた長さで数える | C の知らせが 0 件（derived、「0.12 秒続いた所」。2 回の 3 個を足して 6 個と数える build は 1 件出して落ちる） | 境界、陰性 | `c_counts_a_run_of_low_windows_not_their_total` |
+| T-RP-87-004 | C に `S(0.80, 10)` と `S(0.20, 4)` | 始まりの線の値 | 確率 ≥ 0.80 | C の知らせが 1 件（specified、RP-87 の (1)「0.80 以上で声を始め」。等号側。末尾が表に無い語の陽性対照にあたる、C の 0.80 ちょうど） | 境界、陽性 | `c_starts_speech_at_exactly_0_80` |
+| T-RP-87-005 | C に `S(0.79, 10)` と `S(0.20, 4)` | 始まりの線の 1 つ下 | 同上 | C の知らせが 0 件（specified、同上「0.79 で始めず」） | 境界、陰性 | `c_does_not_start_speech_at_0_79` |
+| T-RP-87-006 | C に `S(0.65, 10)` と `S(0.20, 4)` | C の threshold を 0.65 にした build が声と読む値 | 確率 ≥ 0.80 | C の知らせが 0 件（specified、RP-87 の (1) と陰性欄。C の threshold を B と同じ 0.65 にした build は、ここで 1 件出して落ちる。005 は 1 つ下、この行は B の線） | 陰性 | `c_does_not_start_speech_at_the_b_threshold_of_0_65` |
+| T-RP-87-007 | C に `S(0.95, 10)` と `S(0.65, 4)` | 終わりの線の値 | 確率 < 0.65 | C の知らせが 0 件（specified、RP-87 の (1)「0.65 ちょうどでは終わらない」） | 境界、陰性 | `c_does_not_end_speech_at_exactly_0_65` |
+| T-RP-87-008 | C に `S(0.95, 10)` と `S(0.64, 4)` | 終わりの線の 1 つ下 | 同上 | C の知らせが 1 件（specified、同上。007 の陽性対照） | 境界、陽性 | `c_ends_speech_below_0_65` |
+| T-RP-87-009 | 持った候補を置いて、D に `S(0.50, 10)` と `S(0.20, 4)` | D の始まりの線の値 | 確率 ≥ 0.50 | D の知らせが 1 件。持った候補が `held_silence` で確定する（specified、RP-87 の (2)「0.50 以上で声を始め」。等号側） | 境界、陽性 | `d_starts_speech_at_exactly_0_50` |
+| T-RP-87-010 | 持った候補を置いて、D に `S(0.49, 10)` と `S(0.20, 4)` | 始まりの線の 1 つ下 | 同上 | D の知らせが 0 件。確定は 0 件で、持った候補は残る（specified、同上） | 境界、陰性 | `d_does_not_start_speech_at_0_49` |
+| T-RP-87-011 | 持った候補を置いて、D に `S(0.95, 10)` と `S(0.35, 4)` | 終わりの線の値 | 確率 < 0.35 | D の知らせが 0 件。確定は 0 件（specified、RP-87 の (2)「0.35 未満が…知らせ」。0.35 ちょうどは未満でない） | 境界、陰性 | `d_does_not_end_speech_at_exactly_0_35` |
+| T-RP-87-012 | 持った候補を置いて、D に `S(0.95, 10)` と `S(0.34, 4)` | 終わりの線の 1 つ下 | 同上 | D の知らせが 1 件。`held_silence` で確定する（specified、同上。011 の陽性対照） | 境界、陽性 | `d_ends_speech_below_0_35` |
+| T-RP-87-013 | 持った候補を置いて、D に `S(0.95, 10)` と `S(0.20, 3)` | 低い window が 3 個 | 低い window が 4 個 | D の知らせが 0 件。確定は 0 件（specified、RP-87 の (2)「0.12 秒続いた所」。002 と同じ向き） | 境界、陰性 | `d_does_not_notify_after_three_low_windows` |
+| T-RP-87-014 | 持った候補を置かずに、D に `S(0.95, 10)` と `S(0.20, 4)`。確定の規則に流して持った候補が無い状態で D の知らせを渡す | 持った候補が無い | 持った候補が在る時だけ | 確定は 0 件。持った候補の状態は空のまま。後の A の区切りは `Plan::Whole` で読まれる（specified、RP-87 の (2)「持った候補が無い時は何もしない」。012 の陽性対照） | 陰性 | `d_does_nothing_without_a_held_candidate` |
+| T-RP-87-015 | 公開した `JA_CONNECTIVE` の語を test が直に読み、語ごとに `あす雨が降る` の後ろに語を付けて `。` で閉じた文(たとえば `あす雨が降るから。`)を持った候補にして、1 文ずつ D の知らせ(`S(0.95, 10)` と `S(0.20, 4)`)を渡す | 接続の形で終わる。公開した表の全部の語 | 接続の形と助詞では D で確定しない | 表の語数が 0 でなく、全部の文で確定は 0 件、持った候補は残り、後の A の区切りで解かれる。落ちたら語を名指す(specified、RP-87 の (3)「2 つの表の全部の語」と H127 の 3。表から語を落とした build は、その語で `held_silence` を出して落ちる。test が語を書き写さないので、表に語が足されればその語も試される) | 陰性 | `a_held_sentence_ending_in_any_connective_is_not_confirmed_by_d` |
+| T-RP-87-016 | 015 と同じで、公開した `JA_PARTICLE` の語を直に読んだ文 | 助詞で終わる。公開した表の全部の語 | 同上 | 表の語数が 0 でなく、全部の文で確定は 0 件、持った候補は残る。落ちたら語を名指す（specified、同上。015 の接続の形と別の表の側） | 陰性 | `a_held_sentence_ending_in_any_particle_is_not_confirmed_by_d` |
+| T-RP-87-017 | 015 と同じで、公開した `JA_FINAL` の語を直に読んだ文 | 表に無い、文の終わりの形。公開した表の全部の語 | D で確定する | 表の語数が 0 でなく、全部の文で `held_silence` が 1 件確定する。落ちたら語を名指す（specified、RP-87 の (3)「それ以外の末尾では `held_silence` で確定し」。接続の形と助詞だけを 015、016 で落とし、それ以外を通すことの陽性対照。末尾が表に無い語の `です` を含む） | 陽性 | `a_held_sentence_with_any_other_ending_is_confirmed_by_d` |
+| T-RP-87-018 | 持った候補を `今日は晴れです。` にして、D に `S(0.50, 10)` と `S(0.20, 4)` | 設計の陽性の case。末尾が表に無い語の `です` | D で確定する | `held_silence` で 1 件確定する。`final` の text は `今日は晴れです。`（specified、RP-87 の陽性欄「末尾が表に無い語（「です」）の持った文が `held_silence` で確定する」。017 の語の 1 つを取り出した形） | 陽性 | `a_held_sentence_ending_in_desu_is_confirmed_by_held_silence` |
+| T-RP-87-019 | 持った候補を 3 入力にして D の知らせを渡す。(a) `明日は雨ですが。`、(b) `雨ですけど？`、(c) `雨なので！` | 終わりに `。` `？` `！` が付く。印を除いてから末尾を見る | 印を除いた形の末尾 | 3 入力とも確定は 0 件（specified、3.19 の D「持った文の末尾（`。` `？` `！` を除いた形）」。印を除かずに末尾を見る build は、`。` で終わる文を表に当てられず、`held_silence` を出して落ちる） | 境界、陰性 | `the_marks_are_removed_before_the_tail_is_read` |
+| T-RP-87-020 | 持った候補を `ところが今日は晴れです。` にして D の知らせを渡す | 接続の形が文の途中に在り、末尾でない | 末尾の語だけを見る | `held_silence` で 1 件確定する（specified、同上。部分一致で見る build は `が` で止めて落ちる。015 の対） | 境界、陽性 | `a_connective_inside_the_sentence_does_not_stop_d` |
+| T-RP-87-021 | 持った範囲の終わりを sample 20480、D の知らせを window 70 の終わり（sample 36352）で渡す。持った候補は `今日は晴れです。` | 確定の時刻 | `t1_s` は持った範囲の終わり | 確定した `final` の `t1_s` が 20480。D の知らせの sample 36352 ではない（specified、3.19 の D「`t1_s` は持った範囲の終わりの sample」） | 境界、陽性 | `the_confirmed_final_ends_at_the_end_of_the_held_range` |
+| T-RP-87-022 | 持った候補を置き、持った範囲の終わり（sample 20480）より後（sample 24576）に B が声の始まりを読んだ後、D の知らせを渡す | B が D の知らせの前に声を読んだ | B が声を読んでいなければ確定 | 確定は 0 件。持った候補は捨てられ、後の A の区切りは持った候補を使わずに読まれる（`Plan::Held` でない）（specified、RP-87 の (4)） | 陰性 | `a_held_sentence_is_discarded_when_b_read_speech_before_the_d_notice` |
+| T-RP-87-023 | 022 の B の声の始まりを持った範囲の終わりより前（sample 16384）にする | B の声が持った範囲の中 | 持った範囲の終わりから後の声だけ | `held_silence` で 1 件確定する（specified、RP-87 の (4)「持った範囲の終わりから D の知らせまでに B が声の始まりを読んでいなければ」。022 の陽性対照。持った文自身の声は数えない） | 境界、陽性 | `speech_inside_the_held_range_does_not_discard_the_held_sentence` |
+| T-RP-87-024 | 1.28 秒の声 `S(0.95, 40)` の後に `S(0.60, 4)`、さらに `S(0.20, 4)`。確定の規則には、完結した文 `今日は晴れです。` を読ませる | C の知らせが B の知らせより先 | 先に来た知らせで解く | 最初の C の知らせで文が `rule` が `early` で確定する。`asr.endpoint.decided` 相当の `notice` が `c`（specified、RP-87 の (5)「C の知らせが B より先に来れば C で解き、`notice` が `c`」。0.60 は C の終わりの線 0.65 未満で B の終わりの線 0.50 以上なので、C が先に出る） | 陽性 | `a_c_notice_before_b_resolves_the_sentence_with_notice_c` |
+| T-RP-87-025 | 1.28 秒の声 `S(0.70, 40)` と `S(0.20, 4)`。完結した文 `今日は晴れです。` | 声が 0.80 に届かず C が始まらない | B の知らせで解く | `rule` が `early`、`notice` が `b`（specified、同上。C が先に来ない時は B のまま） | 陽性 | `a_b_only_notice_resolves_the_sentence_with_notice_b` |
+| T-RP-87-026 | 持った候補を置いて D の知らせで確定する（018 の形） | D で確定した発話の `notice` | `none` | `rule` が `held_silence`、`notice` が `none`（specified、3.19 の F86S の `held_silence` の行と RP-86 の (5)。D は `notice` の `c` でも `b` でもない） | 陽性 | `a_held_silence_decision_has_notice_none` |
+| T-RP-87-027 | 024 の C の知らせで確定した後に、`S(0.70, 6)` と `S(0.20, 4)` を流す（B は 0.65 以上で声を始め、C は 0.80 未満で始めない） | 確定の線の後の声の続き | 声の続きの読みは B の物だけ | 声の続きが「在る」と記録される（B の声の始まりを `note_voice` に渡した形）。後の A の区切りは `Plan::Rest` になる（specified、RP-87 の (5)「声の続きの読みは B の物だけを使う」。C の始まりを声の続きに使う build は、0.70 で C が始まらないので「無い」と読み、`Plan::Drop` にして落ちる） | 陽性、陰性 | `speech_continuing_after_a_c_notice_is_read_by_b_only` |
+| T-RP-87-028 | 024 の列そのもの（C の知らせの後に、B の知らせが来る） | C で確定した後に B が後から知らせる | 確定の線の規則に従う | B の知らせは新しい確定を作らない。確定は 1 件のまま（specified、3.19 の C「B が後から知らせても、C の候補で確定した後なら、今の確定の線の規則（3.17 の方針 4）に従う」。実装に当てて確かめていない、NOT VERIFIED、H129） | 境界、陰性 | `a_late_b_notice_after_a_c_confirmation_makes_no_second_final` |
+| T-RP-87-029 | `--early-extra off` に当たる設定で検出器を開き、001 の列、009 の列、024 の列を流す。モードは `Mode::Early` | C と D が開かない | C と D は開かない | C の知らせが 0 件、D の知らせが 0 件、`held_silence` が 0 件。B は開いていて、001 の列で B の知らせが 1 件（specified、RP-87 の (6)。B が開いていることが、C と D の 0 件を「検出器が全部止まっている」と読み違えない対照。`--early-extra off` でも C を開く build は C の知らせを出して落ちる） | 陰性 | `early_extra_off_opens_neither_c_nor_d` |
+| T-RP-87-030 | 029 と同じ設定の `--early-extra on` の形で、001 の列と 009 の列を流す。モードは `Mode::Early` | 開いた時 | C と D が開く | C の知らせが 1 件、D の知らせが 1 件（specified、RP-87 の (6)。029 の陽性対照。既定が `on`） | 陽性 | `early_extra_on_opens_c_and_d` |
+| T-RP-87-031 | `Mode::Silence`（`--endpoint silence` に当たる）で、001 の列と 009 の列と 024 の列を流す。それぞれの後ろに、A の区切りが出る `S(0.20, 12)` を足す | A だけが開く | B、C、D は開かない | B の知らせ、C の知らせ、D の知らせがどれも 0 件。A の区切りは `silence` の規則で出る（specified、RP-87 の (6)、3.19 の「`--endpoint silence` は今のとおり B、C、D のどれも開かない」。`--early-extra on` の設定でも開かない） | 陰性 | `silence_mode_opens_none_of_b_c_and_d` |
+| T-RP-87-032 | 検出器を開いて 400 window 流した後に `Vad::rebuild` を、A の threshold を 0.60 に替えた設定で呼び、001 の列、009 の列を流す | 4 本が同じ時に作り直される | 4 本の位置が同じ時計 | A、B、C、D の 4 本とも、再構築の後の最初の window を sample 400 × 512 として数え、知らせの位置が同じ基準で並ぶ（specified、RP-87 の (7)「`Vad::rebuild` が 4 本を同じ時に作り直す」。A と B だけを作り直す build は C と D の位置が 0 から数えた値になって落ちる） | 陽性、陰性 | `rebuild_resets_all_four_detectors_at_the_same_offset` |
+| T-RP-87-033 | 032 の再構築の後に 004、005、009、010 の列を流す | 作り直した C と D が、A の設定を引き継がない | C は 0.80 と 0.65、D は 0.50 と 0.35 | 004 と 009 は知らせが出て、005 と 010 は出ない（specified、RP-87 の (7) と (1)(2)。A の threshold 0.60 に引かれて C や D の線が動く build は落ちる） | 境界、陰性 | `rebuild_keeps_the_c_and_d_lines_independent_of_the_main_threshold` |
+| T-RP-87-034 | 検出器を開かずに、C と D の定数（始まりの線、終わりの線、`min_silence`）を公開の口から読む | 値の宣言 | C は 0.80、0.65、0.12 秒。D は 0.50、0.35、0.12 秒 | 6 つの値が上の通り（specified、RP-87 の (1)(2)。値を 1 か所の定数に持つことの確かめ。001 から 013 の列は、この定数と同じ値を前提にする） | 陽性 | `the_c_and_d_lines_are_declared_in_one_place` |
+| T-RP-87-035 | 受入：018、004、009、005、006、015、016、029 の入力を順に流す（未実装、持ち主 R8x-6） | 全体 | 陽性 3 つは成立、陰性 5 つは出ない | 018 は `held_silence` で確定し、004 は C の知らせが 1 件、009 は D の知らせが 1 件。005 と 006 は C の知らせが 0 件、015 と 016 は確定が 0 件、029 は C と D の知らせが 0 件（specified、RP-87 の陽性欄「末尾が表に無い語（「です」）の持った文が `held_silence` で確定する。C の 0.80 ちょうどで声が始まる」と陰性欄の 3 つ。C の threshold を 0.65 にした build は 005 と 006 で、D を接続の形と助詞にも使う build は 015 と 016 で、`--early-extra off` でも C を開く build は 029 で落ちる） | 陽性、陰性 | `rp87_c_and_d_fire_on_their_own_lines_and_d_never_ends_a_connective_or_particle_tail` |
+| T-RP-87-036 | 022 の B の声の始まりを、持った範囲の終わりちょうど(sample 20480)にして、D の知らせを渡す | B の声の始まりが持った範囲の終わりと一致する | 範囲の終わり以降の声は読んだ扱い | 確定は 0 件。持った候補は捨てられ、後の A の区切りは `Plan::Held` でない(specified、H127 の 6「B の声の始まりが持った範囲の終わりちょうどの時は B が声を読んだ扱いにし、持った文を捨てる」。範囲の終わりより後だけを読んだ扱いにする build は、`held_silence` を出して落ちる) | 境界、陰性 | `b_speech_starting_exactly_at_the_end_of_the_held_range_discards_the_held_sentence` |
+| T-RP-87-037 | 022 の B の声の始まりを、持った範囲の終わりの 1 sample 手前(sample 20479)にして、D の知らせを渡す | 036 の 1 つ手前 | 同上 | `held_silence` で 1 件確定する(derived、H127 の 6 の線は「持った範囲の終わりから」。1 sample 手前は範囲の中なので読んだ扱いにしない。036 の対) | 境界、陽性 | `b_speech_one_sample_before_the_end_of_the_held_range_does_not_discard_it` |
+| T-RP-87-038 | 1.28 秒の声 `S(0.95, 40)` の後に `S(0.20, 4)`。完結した文 `今日は晴れです。`。C と B が同じ window(声の後の 4 個目の低い window)で知らせる | C と B が同じ window | C の window が B の window より厳密に前の時だけ `c` | `rule` が `early`、`notice` が `b`(specified、H127 の 5「同じ window なら `b`」。同じ window を `c` と読む build はここで落ちる) | 境界、陰性 | `a_c_notice_in_the_same_window_as_b_resolves_with_notice_b` |
+| T-RP-87-039 | 1.28 秒の声 `S(0.95, 40)` の後に `S(0.60, 1)` と `S(0.20, 4)`。完結した文 `今日は晴れです。`。C は 0.60 を含む 4 個目(声の後の 4 個目)で、B はその次の window で知らせる | C が B より厳密に 1 window 前 | 同上 | `rule` が `early`、`notice` が `c`(specified、H127 の 5「厳密に前の時だけ `c`」。038 の 1 window 後ろの側の対。ずらしが 1 window でも `c` になることを固定する) | 境界、陽性 | `a_c_notice_one_window_before_b_resolves_with_notice_c` |
+
+**変異の確かめ**（検証の席が手で打つ。test の行ではない。設計の陰性欄）：
+
+- C の threshold を 0.65 にした build で、005 と 006 が落ちる。
+- D を接続の形と助詞の末尾にも使う build で、015 と 016 が落ちる。
+- `--early-extra off` でも C を開く build で、029 が落ちる。
+- 持った文の末尾を `。` `？` `！` を除かずに見る build で、019 が落ちる。
+- `Vad::rebuild` が A と B だけを作り直す build で、032 が落ちる。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 確率を直接受ける口の形は H126(R8x-6 の席が決める。決めるまで、この節の行は打てない)。
+- T-RP-87-028 の oracle は実装に当てていない(H129。検証の席が確かめる)。
+- 知らせの window の数え方の細部は記録だけ(H127 の 4)。001 と 002 は 4 個と 3 個の両側だけを固定する。
+
+### 4.80 RP-79（呼ぶことの確かめの 1 行）
+
+**未実装。** この節は、RP-79 の行のうち、E2E の run の門を呼ぶ確かめの 1 行だけを置く。RP-79 のほかの行は、この文書にまだ無い(H125。設計の席が依頼を出す)。
+test：`native/hayamimi-eval/tests/rp79.rs`。受入 test の名前は `rp79_widened_early_end_shortens_ja_wait_without_mid_sentence_splits`。この節の行は fixture を読み、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp79`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。設計は D 3.19 の「E2E の run の門」の 5 と、D 6 の RP-79 である。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-79-001 | S、W、S、W の 4 run（ja の `s1.e2e1`、`w1.e2e1`、`s2.e2e1`、`w2.e2e1`。Rust の run で、それぞれ T-RP-83-001 の形の `<run>.machine.jsonl` を持つ）の dir で、`w2.e2e1` の `<run>.machine.jsonl` の行 1 の `load15` を `"2.50"` にする | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で `w2.e2e1`、`load15`、`2.50` を名指す。ほかの 3 run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。判定の関数が RP-83 の support を呼び忘れた test は、ここで落ちる。4 run 全部が内側の形が陽性対照。fixture の dir は門の前の記録の一覧に当たらない一時 dir） | 陰性 | `a_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 
 ## 5. RP-19 の対応表
 
