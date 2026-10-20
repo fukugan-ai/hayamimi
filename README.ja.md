@@ -93,6 +93,7 @@ R8x-4（数字や中の記号だけが違う下書きを使い回す、RP-85）�
 R8x-2b（H88）の実装が入り、済みました。E2E-1とE2E-2の受入testは、標本を閉じた規則の線（`early` は120 ms、ほかは `--min-silence`。Pythonは常に `--min-silence`）で有効を数えます。規則は `<run>.hayamimi.stdout.log` から読みます。`decided` の行が無い `final`、同じidが2回出る `decided`、同じ `t_us` に規則の違う `final` が2つ在る標本は、runとidを名指して断ります。早い規則を持たないbuildの記録4本（`e2e1`、`e2e2`、`rs1`、`e2e2c`）はsha256の一覧に載せ、出力に断りを付けて300 msで数えます。RP-3の行（T-RP-3-022、023）は `rp03.rs` が無いので未実装のままです。残りは38本です。
 窓E1、E3'、E4のための訳のserverのunit（`native/hayamimi-relay/units/hayamimi-llama-e2e.service`、port 18084）の定義が入りました。unitを起こすのは窓の席で、まだ起こしていません。
 窓E1、E3'、E4は、常にこのunit（port 18084）の訳のserverを使うように、設計を直しました。8080は別のappが別のmodelで起こすことがあり、`L` の物差しが変わるためです。
+R8x-4の品質のprobe（RP-85の(3)）が当てる訳のserverも、8080から18084に替えました。
 
 ### 関連する文書
 
