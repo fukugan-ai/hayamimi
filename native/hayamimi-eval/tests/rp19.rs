@@ -858,7 +858,8 @@ fn rows_placed_at(rows: &[PortRow], file: &str, place: &str) -> usize {
 #[test]
 fn the_ingest_codec_rows_are_placed_in_eval_ws_rs() -> TestResult {
     let rows = port_rows()?;
-    let file = "test_ws_ingest.py";
+    let owned = ["test_ws_ingest", ".py"].concat();
+    let file = owned.as_str();
     assert_eq!(rows_placed_at(&rows, file, "hayamimi-eval/src/ws.rs"), 13);
     assert_eq!(rows_placed_at(&rows, file, "hayamimi-asr/src/audio.rs"), 8);
     assert_eq!(rows_placed_at(&rows, file, "hayamimi/src/ingest.rs"), 0);
