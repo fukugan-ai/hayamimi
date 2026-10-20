@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `03a459b`（2026-10-21 の `design/line-1600` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `fb08a2d`（2026-10-21 の `feat/r8x-3` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -180,7 +180,7 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | L2 | H100 の offline の門（方針 B の手順 2） | 済み。門は落ちた（`origin/feat/l2-shadow-gate` の `d024bbe`） | — | — | — | `rust_port.ja.md` の H130 |
 | L3 | `--early-complete nouns` と `asr.endpoint.widened` | 止める（B を組から外した） | — | — | 51 分が外れる | 同上 |
 | L4 | RP-79 の E2E（窓 E2） | 止める（同上） | — | — | 約 3 時間が外れる | 同上 |
-| L5 | 認識器の初回の復号を `/ingest` の前に済ませる（R8x-3、RP-84） | 直接 | なし（設計は 3.19） | cargo | 51 分 | `rust_port.ja.md` の 3.19 |
+| L5 | 認識器の初回の復号を `/ingest` の前に済ませる（R8x-3、RP-84）。済み（`fb08a2d`） | 直接 | なし（設計は 3.19） | cargo | 51 分 | `rust_port.ja.md` の 3.19 |
 | L6 | RP-71 の推測デコードの probe と E2E | 間接（完成の道に置かない。S3 は訳の p50 を 29 % 遅くした） | 3.18 の評議 | GPU。18081 と 18083 の llama-server は同時に載らない | 2 slice と E2E 1 時間（推測） | 3.18 |
 | L7 | RP-74 の見積りと RP-78 | 間接（1200 ms と 1000 ms の目標の道） | E2E の窓が閉じた後 | GPU、E2E の窓 | 3 slice（推測） | 3.5、RP-74、RP-78 |
 | L8 | 文の途中の切断の率を守って `d` を全標本で 310 ms 以上縮める設計と実装 | 間接（1000 ms の目標の道） | 設計の席と評議、L4 の結果 | 設計の席、cargo、RP-66 の E2E | 設計 1、評議 1、実装 3、RP-66 の run 1（推測） | この節の内訳 |
@@ -197,6 +197,7 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | L17 | 窓 E3'：E の初回、認識器の初回の復号、鍵の広げが入った 1 つの build で、ja を 2 本、en を 1 本（RP-85 の速さ、RP-84、RP-67 の ja と en）。W と X の対は置かない | 直接 | L5、L14、L13、L13b | E2E の窓と GPU。窓の間はどの席も cargo を打たない | 約 1 時間 20 分 | `rust_port.ja.md` の 3.19 |
 | L18 | R8y-1：`hayamimi` の log の queue（RP-88）。別枠の強化 | 間接。完成までの 39 本の外。E1 の流し直しで止まりが再び出たら完成の条件に上げ、その時は約 111 分と窓 20 分を足す | R8x-3（同じ `log.rs`） | cargo（`hayamimi`、`hayamimi-eval`） | 60 分（推測） | `rust_port.ja.md` の 3.20、H131 |
 | L19 | R8y-2：中継の log の queue（RP-88）。別枠の強化 | 間接。L18 と同じ（完成までの 39 本の外。E1 の流し直しで止まりが再び出たら完成の条件に上げ、その時は約 111 分と窓 20 分を足す） | L18 | cargo（`hayamimi-relay`） | 51 分（推測） | 同上 |
+| L20 | R11d：rp80 に、CI の `run:` の行で `--test`、`--skip`、`--exact`、`--ignored`、`--include-ignored` が前の語にくっついた形で落ちる検査を足す（RP-80）。くっつくと CI は緑のまま、その binary はほとんど何も走らせない | 間接。完成までの 39 本の外（別枠）。完成の 3 つの条件の合否は検証の席が手で打つ test で決まり、CI の緑を根拠にしないため。ただし同じ欠陥が 3 回出たので、`test.yml` を次に書く slice の merge より前に出す | T の RP-80 の case 行（test-designer の席）。`test.yml` を書く slice とは触る file が違うので並べて出せる | cargo（`hayamimi-eval`） | 30 分（推測）と検証と merge 7〜20 分 | `rust_port.ja.md` の 6 の RP-80、8 の R11d、H133 |
 | O1 | 重ね窓の板（designer）、slice の行を 8 に置く設計【設計の席の返答で直す】 | 直接（goal と FR-9） | 会話字幕の設計 3.12 | 設計の席、designer の席 | 板と設計で約 4 時間（R6 の板から merge までの実績） | 3.12、CS-10〜CS-12 |
 | O2 | 重ね窓の crate と CS-10〜CS-12【設計の席の返答で直す】 | 直接 | O1 | cargo、Windows の実機 | 3 slice（推測） | 同上 |
 | X1 | RP-69、RP-70、RP-72 の残り、RP-33 の記録 | 間接 | 3.18 の評議 | E2E の窓 | 状態が記録で割れている（PL-H3） | 3.18 |

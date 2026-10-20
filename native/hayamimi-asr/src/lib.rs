@@ -39,7 +39,7 @@ pub use fallback::{Fallback, Gpu, Reason, Stage, To};
 pub use ort_runtime::check_library;
 pub use pipeline::{
     DEFAULT_MAX_RESIDENT, Demotion, EarlyHold, Engine, Final, SessionReport, Settings, Stages,
-    Timings,
+    Timings, Warmup,
 };
 pub use recognizer::LangTag;
 pub use route::Tier;
