@@ -5,7 +5,7 @@ import 'package:hayamimi_core/punct/punct_ja_text.dart';
 
 /// The mark-placing half of the punctuation restorer, with the model's
 /// output supplied by hand. Everything here is a rule ported from
-/// `scripts/punct_ja.py`; the parity test proves the rules add up to the
+/// `native/hayamimi-asr/src/punct/rules.rs`; the parity test proves the rules add up to the
 /// same output, these tests say what each rule is.
 
 /// Builds a logits buffer of the shape [insertMarks] expects: two values

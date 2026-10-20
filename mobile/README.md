@@ -147,7 +147,7 @@ building on macOS.
 The Live screen can run a second decode pass — "清書" — over several
 already-finalized segments' audio at once, the same "re-decode with more
 context" trick the desktop pipeline's `Refiner` class uses
-(`scripts/realtime_transcribe.py`; measured ~23% relative CER better on
+(`native/hayamimi-asr/src/refine.rs`; measured ~23% relative CER better on
 real broadcast ja). This is re-decode only — no punctuation-restoration
 model is layered on top (a separate future task).
 
@@ -191,7 +191,7 @@ file Bench uses; push it the same way, see
 The Live screen can run a small in-app HTTP server so other apps on the
 same Wi-Fi network — an OBS browser source, a browser tab — can subscribe
 to this phone's live transcript. It speaks the exact same protocol as the
-desktop app's `scripts/subtitle_server.py`, so anything that already works
+desktop app's `native/hayamimi/src/server.rs`, so anything that already works
 against the desktop subtitle server works against the phone too:
 
 - `GET /events` — an SSE (`text/event-stream`) feed of JSON events, one
@@ -258,7 +258,7 @@ that.)
 Remote mode is the opposite of Live mode: instead of running ASR on the
 phone, the phone just captures mic audio and streams it to a hayamimi
 server running on a PC over the `/ingest` WebSocket endpoint
-(`scripts/ws_ingest.py`), and displays whatever subtitle events stream
+(`native/hayamimi/src/ingest.rs`), and displays whatever subtitle events stream
 back. This gets you the PC pipeline's full quality (multi-language routing,
 refine pass, translation, speaker labels) from a phone with no model files
 on it at all.
@@ -266,10 +266,11 @@ on it at all.
 ### 1. Start the server on the PC
 
 ```
-python scripts/realtime_transcribe.py --input ws --serve
+hayamimi --input ws --serve
 ```
 
-This starts two listeners:
+`hayamimi` is the Rust binary built from `native/` (build and run steps:
+`docs/guide/run_hayamimi.ja.md`). This starts two listeners:
 
 - `--serve` (default port **8833**): the HTTP dashboard/SSE feed at
   `http://<pc>:8833/` and `http://<pc>:8833/events`, same as any other run.
@@ -324,7 +325,7 @@ finalize and refine).
 
 - Only one audio-producing `/ingest` client is accepted by the server at a
   time; a second connection attempt gets a `{"type": "error", ...}` event
-  and is closed immediately (see `scripts/ws_ingest.py`).
+  and is closed immediately (see `native/hayamimi/src/ingest.rs`).
 - Like Live mode's broadcast server, mic streaming only runs while the app
   is foregrounded with the screen on — no Android background service backs
   it yet.

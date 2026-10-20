@@ -13,10 +13,9 @@
 ///
 /// **The fix, and where it comes from.** The desktop pipeline has kept a
 /// rolling buffer of recent audio since long before this package existed
-/// (`AudioHistory` / `PREROLL_S` in `scripts/realtime_transcribe.py`) and
-/// prepends up to one second of it to every segment it decodes; its
-/// `tests/test_asr_segment.py` pins the behaviour on the same fixture that
-/// regressed above. This file is that idea in Dart.
+/// (`History` / `PREROLL_SECONDS` in `native/hayamimi-asr/src/audio.rs`) and
+/// prepends up to one second of it to every segment it decodes. This file is
+/// that idea in Dart.
 ///
 /// Everything here is plain data/logic with no FFI or platform dependency,
 /// so it is unit tested directly (`test/preroll_test.dart`). The glue that

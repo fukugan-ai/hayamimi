@@ -9,8 +9,7 @@ import 'package:hayamimi_core/live/preroll.dart';
 /// Everything here runs at a made-up 100 Hz sample rate. The class only
 /// uses the rate to turn seconds into sample counts, and 100 makes the
 /// arithmetic readable — one second of "audio" is 100 samples, so a
-/// position and an index are the same number. The desktop tests this
-/// mirrors (`tests/test_units.py`) do the same.
+/// position and an index are the same number.
 void main() {
   const sampleRate = 100;
 

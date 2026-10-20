@@ -23,14 +23,15 @@ class PunctParityCase {
   /// `[CLS]` + one id per character + `[SEP]`, as Python built it.
   final List<int> inputIds;
 
-  /// What `scripts/punct_ja.py`'s `restore()` returned.
+  /// What the reference `restore()` returned when the fixture was recorded.
   final String expected;
 }
 
-/// The recorded output of `scripts/punct_ja.py`, replayed by the Dart
+/// The recorded output of the reference implementation, replayed by the Dart
 /// tests to prove the port agrees with it.
 ///
-/// Regenerate with `python scripts/make_punct_fixture.py`.
+/// The tool that recorded it is named by `_generated_by` in
+/// `test/fixtures/punct_ja_parity.json`.
 class PunctParityFixture {
   const PunctParityFixture({
     required this.model,

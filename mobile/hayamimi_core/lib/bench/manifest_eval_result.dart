@@ -1,7 +1,6 @@
 /// Outcome of decoding one manifest entry during a batch manifest eval.
 ///
-/// Mirrors the shape scripts/eval_accuracy.py expects when scoring a run:
-/// `wav`, `lang`, `ref` echo the manifest entry back so the PC-side scorer
+/// `wav`, `lang`, `ref` echo the manifest entry back so a PC-side scorer
 /// doesn't need the manifest file too, and `hyp`/timings are what the
 /// on-device recognizer produced.
 class ManifestEvalResult {

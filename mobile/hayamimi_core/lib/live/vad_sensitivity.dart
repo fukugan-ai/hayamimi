@@ -24,11 +24,11 @@ library;
 /// returned only the last sentence -- a caption that is wrong, not merely
 /// rough, with nothing in the output to say two sentences went missing.
 /// The desktop pipeline this package is the mobile port of does not have
-/// that problem because it does not use the stock values: it runs
-/// `--min-silence 0.35` and `--max-speech 12.0`
-/// (`scripts/realtime_transcribe.py`), and its own comment records that
-/// 0.35 s measured no worse for accuracy than 0.5 s while finalizing a
-/// segment 150 ms sooner. Re-running the same audio through this package
+/// that problem because it does not use the stock values: it sets
+/// `--min-silence` and `--max-speech` itself
+/// (`native/hayamimi/src/args.rs`). A 0.35 s silence measured no worse for
+/// accuracy than 0.5 s (`docs/results/benchmarks.md`, 改善イテレーション#9) while
+/// finalizing a segment 150 ms sooner. Re-running the same audio through this package
 /// with 0.35 s split it into three segments and all three sentences came
 /// out.
 ///

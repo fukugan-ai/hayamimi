@@ -5,7 +5,7 @@ import 'overlay_html.dart';
 import 'subtitle_event.dart';
 
 /// LAN-facing HTTP server that mirrors the desktop hayamimi subtitle feed
-/// (`scripts/subtitle_server.py`): an SSE stream at `/events` carrying the
+/// (`native/hayamimi/src/server.rs`): an SSE stream at `/events` carrying the
 /// same JSON event shape (`{"type": "final", "text": ..., "lang": ...,
 /// "speaker": ..., "latency_ms": ...}`), and a transparent overlay page at
 /// `/` suitable for an OBS browser source. Any device on the same LAN

@@ -76,9 +76,9 @@ class PunctJaTokens {
 
 /// Turns Japanese text into the model's character tokens.
 ///
-/// The reference implementation (`scripts/punct_ja.py`) reproduces Hugging
-/// Face's `BertJapaneseTokenizer`: NFKC-normalize, cut the text into
-/// morphemes with MeCab, then split each morpheme into characters. Dart has
+/// The model's own tokenizer is Hugging Face's `BertJapaneseTokenizer`:
+/// NFKC-normalize, cut the text into morphemes with MeCab, then split each
+/// morpheme into characters. Dart has
 /// no MeCab, and pulling a morphological analyzer into a mobile package to
 /// then throw the word boundaries away would be a large dependency for no
 /// effect.
@@ -90,11 +90,13 @@ class PunctJaTokens {
 /// unchanged, and the word boundaries are discarded a line later anyway.
 ///
 /// That equivalence is not assumed, it is checked:
-/// `scripts/make_punct_fixture.py` compares this rule against the real
-/// MeCab pipeline over every FLEURS ja sentence (punctuated and stripped)
-/// plus the fixture's synthetic cases, and refuses to write the fixture if
-/// they ever disagree. The recorded token ids are then replayed by
-/// `test/punct/punct_ja_parity_test.dart`.
+/// `test/fixtures/punct_ja_parity.json` records the token ids the real MeCab
+/// pipeline produced for FLEURS ja sentences (with the marks 、。？ removed)
+/// and for synthetic cases, and
+/// `test/punct/punct_ja_fixture_tokens_test.dart` and
+/// `test/punct/punct_ja_parity_test.dart` replay them against this rule. The
+/// desktop side applies the same reduced rule in
+/// `native/hayamimi-asr/src/punct/tokenizer.rs`.
 class PunctJaTokenizer {
   const PunctJaTokenizer(this.vocab);
 

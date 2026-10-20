@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 /// Builds the JSON text frame that must be the first message sent on a
-/// hayamimi `/ingest` WebSocket connection, per `scripts/ws_ingest.py`'s
-/// protocol: `{"sr": <rate>, "format": "pcm_s16le", "channels": <n>}`.
+/// hayamimi `/ingest` WebSocket connection, per the protocol of
+/// `native/hayamimi/src/ingest.rs`: `{"sr": <rate>, "format": "pcm_s16le", "channels": <n>}`.
 ///
 /// Everything sent after this handshake is raw little-endian PCM16 binary
 /// frames until the connection closes.

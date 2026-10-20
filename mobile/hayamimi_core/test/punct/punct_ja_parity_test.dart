@@ -7,15 +7,15 @@ import 'punct_parity_fixture.dart';
 import 'punct_test_paths.dart';
 
 /// End-to-end parity: the Dart port must return exactly what
-/// `scripts/punct_ja.py` returned for the same input, character for
-/// character, on real Japanese sentences.
+/// the recorded reference run (`test/fixtures/punct_ja_parity.json`) returned
+/// for the same input, character for character, on real Japanese sentences.
 ///
 /// This is the test that makes the port trustworthy — the unit tests below
 /// it only check that each piece behaves as written, not that the pieces
 /// add up to the same behaviour as the reference implementation.
 ///
 /// It needs two files the repository does not ship: the 182 MB float16
-/// model (a local artifact of `scripts/quantize_punct.py --variant fp16`)
+/// model (a local float16 conversion of the punctuation model)
 /// and an ONNX Runtime shared library. Without either, it skips with a
 /// reason naming what is missing, so a checkout without them stays green.
 void main() {

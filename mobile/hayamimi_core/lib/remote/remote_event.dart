@@ -2,7 +2,7 @@ import 'dart:convert';
 
 /// One subtitle event received over the `/ingest` WebSocket from a hayamimi
 /// server (`--input ws --serve`), wire-compatible with
-/// `scripts/subtitle_server.py`'s `publish()` schema — the same JSON the
+/// the events built in `native/hayamimi/src/wire.rs` — the same JSON the
 /// desktop SSE dashboard and OBS overlay consume.
 sealed class RemoteEvent {
   const RemoteEvent();

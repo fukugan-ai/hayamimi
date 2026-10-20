@@ -68,7 +68,7 @@ class _LivePageState extends State<LivePage> {
   String? _debugWavStreamError;
 
   // "Other app integration": an in-app HTTP server that mirrors the
-  // desktop hayamimi subtitle feed (scripts/subtitle_server.py) so an OBS
+  // desktop hayamimi subtitle feed (native/hayamimi/src/server.rs) so an OBS
   // browser source or browser on the same LAN can subscribe to this
   // phone's live transcript. See lib/server/.
   final _broadcastServer = SubtitleBroadcastServer();

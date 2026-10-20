@@ -11,7 +11,7 @@ const int defaultPunctNumThreads = 2;
 ///
 /// The problem: hayamimi's speech recognizer emits a bare run of
 /// characters. The desktop pipeline puts 、 and 。 back with
-/// `scripts/punct_ja.py` before anything sees the text, so desktop captions
+/// `native/hayamimi-asr/src/punct/` before anything sees the text, so desktop captions
 /// read as sentences; this package's refine ("清書") output arrived
 /// unpunctuated. Passing one of these to `LiveTranscriber.start` (or
 /// `HayamimiLive.start`) is what closes that gap — `null`, the default,

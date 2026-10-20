@@ -10,7 +10,7 @@ subtitles without pulling in that app's UI.
 It gives you three independent pieces, all speaking the same
 [`SubtitleEvent`](https://github.com/oboroge0/hayamimi/blob/main/mobile/hayamimi_core/lib/server/subtitle_event.dart)
 wire format (the same `partial`/`final`/`translation`/`refine` JSON shape
-the desktop `scripts/subtitle_server.py` and OBS overlay use):
+the desktop subtitle server (`native/hayamimi/src/server.rs`) and OBS overlay use):
 
 - **`HayamimiLive`** — on-device transcription: mic → Silero VAD → a
   [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) offline ASR model,
@@ -172,7 +172,7 @@ reaches `events` and therefore before `SubtitleBroadcastServer` or any other
 consumer sees it. The callback takes `(text, lang)` and returns the text to
 publish; `null` (the default) is a no-op. This is deliberately just an
 insertion point, not an implementation: CJK inverse-text-normalization
-(kanji numerals -> arabic digits, `scripts/itn_cjk.py` on the desktop side)
+(kanji numerals -> arabic digits, `native/hayamimi-asr/src/itn.rs` on the desktop side)
 and user find/replace dictionaries are not ported to Dart yet, so a host app
 that wants them today supplies its own `textTransform`.
 
@@ -201,8 +201,8 @@ await remote.disconnect();
 await remote.dispose();
 ```
 
-The server side is `python scripts/realtime_transcribe.py --input ws
---serve` from the main hayamimi repo — see its own docs for the two ports
+The server side is `hayamimi --input ws --serve` (the Rust binary built from
+`native/` in the main hayamimi repo) — see its own docs for the two ports
 involved (`--serve`'s HTTP/SSE dashboard vs. `--input ws`'s `/ingest`
 WebSocket). `HayamimiRemote` needs no model files and no
 `sherpa_onnx.initBindings()` call of its own — it does no local decoding.
@@ -210,7 +210,7 @@ WebSocket). `HayamimiRemote` needs no model files and no
 ### Broadcasting to the LAN: SubtitleBroadcastServer
 
 Either facade's events can be mirrored out over `SubtitleBroadcastServer`,
-which speaks the exact protocol `scripts/subtitle_server.py` does (so an
+which speaks the exact protocol `native/hayamimi/src/server.rs` does (so an
 OBS browser source or a browser tab that already works against the desktop
 app works against your embedding app too):
 
@@ -305,8 +305,8 @@ word — and the recognizer transcribes what it is given. On an Android
 emulator this package returned `昨日は昨日送りました` for `資料は昨日送りました`,
 and lost `あしたの` off the front of another sentence. Pre-roll prepends the
 audio recorded just before the onset, which is what the desktop pipeline
-has always done (`AudioHistory` / `PREROLL_S` in
-`scripts/realtime_transcribe.py`), clamped so two consecutive segments never
+has always done (`History` / `PREROLL_SECONDS` in
+`native/hayamimi-asr/src/audio.rs`), clamped so two consecutive segments never
 both contain the gap between them. The prepended audio is part of the
 segment from then on: it is what gets decoded, what `audio_s` counts, and
 what the refine buffer stores. Set it to `0` to decode exactly what the VAD
@@ -354,7 +354,8 @@ await live.setVadSensitivity(VadSensitivity(threshold: 0.4));
 
 **The defaults are the desktop pipeline's, not sherpa-onnx's.**
 `minSilenceSeconds` is **0.35s** and `maxSpeechSeconds` is **12.0s**,
-matching `scripts/realtime_transcribe.py`; `threshold` (0.5) and
+the values tuned for the desktop pipeline (`docs/results/benchmarks.md`,
+改善イテレーション#9); `threshold` (0.5) and
 `minSpeechSeconds` (0.25s) are sherpa-onnx's own, which the desktop leaves
 alone too. This changed because of what sherpa-onnx's stock 0.5s silence
 default did on an Android emulator: on a three-sentence Japanese recording
@@ -415,7 +416,7 @@ await live.resetSession(); // fresh conversation, same loaded models
 ### Japanese punctuation restoration
 
 On the desktop pipeline, the refine ("清書") pass hands its text through
-`scripts/punct_ja.py` before anything sees it, so desktop captions read as
+`native/hayamimi-asr/src/punct/` before anything sees it, so desktop captions read as
 sentences. This package had no equivalent, so its refine output arrived as
 an unbroken run of characters — the same words, no 、 and no 。. Issue
 [#15](https://github.com/oboroge0/hayamimi/issues/15) is about closing that
@@ -576,8 +577,9 @@ Two pieces of the reference implementation had no Dart equivalent:
   line later, so MeCab's only observable effect is that it drops
   whitespace. The Dart tokenizer therefore does "NFKC, drop whitespace,
   split into code points". That is not an assumption:
-  `scripts/make_punct_fixture.py` compares the two on every FLEURS ja
-  sentence and refuses to write its fixture if they ever disagree.
+  `test/fixtures/punct_ja_parity.json` records the ids the real tokenizer
+  built for its 51 cases, and `test/punct/punct_ja_fixture_tokens_test.dart`
+  requires the Dart ids to equal them.
 
 #### Punctuation platform status
 
@@ -594,8 +596,8 @@ Two pieces of the reference implementation had no Dart equivalent:
 `test/fixtures/punct_ja_parity.json` — 40 sentences from the FLEURS ja
 benchmark set with their punctuation stripped, plus 11 synthetic edge cases
 — and asserts the Dart output equals the recorded Python output character
-for character. Regenerate the fixture with
-`python scripts/make_punct_fixture.py`.
+for character. The tool that recorded the fixture is named by
+`_generated_by` in the fixture file.
 
 It needs the float16 model and an ONNX Runtime library, and **skips with a
 reason naming whichever is missing** rather than failing, so a checkout
@@ -614,8 +616,7 @@ runs, on this Windows x86 host, ONNX Runtime 1.27.1 from
 nothing about a phone.** ONNX Runtime's CPU provider has no float16 compute
 path on x86, so float16 tensors are cast to float32 and back on every
 operator; an ARM chip with a float16 vector unit is a different machine
-entirely. For scale only: the Python reference (`scripts/punct_ja.py`,
-ONNX Runtime 1.29.0, four intra-op threads, MeCab tokenization inside the
+entirely. For scale only: the Python reference (ONNX Runtime 1.29.0, four intra-op threads, MeCab tokenization inside the
 timed call) averaged 366.3 ms on the same 51 inputs and the same model on
 this host. The two measurements differ in runtime build, thread count and
 what the timed call includes, so the gap has not been attributed to
@@ -729,7 +730,7 @@ reporting a live session that is silently receiving nothing.
 Every `SubtitleEvent` this package emits — from `HayamimiLive.events`,
 `HayamimiRemote.events`, and re-broadcast verbatim by
 `SubtitleBroadcastServer` — carries a `type` discriminator and is
-wire-compatible with the desktop `scripts/subtitle_server.py`, so the same
+wire-compatible with the desktop subtitle stream (`native/hayamimi/src/wire.rs`), so the same
 OBS browser source or web client that already works against the desktop app
 works unmodified against this package. A type this package's own overlay
 page (`lib/server/overlay_html.dart`) doesn't recognize is simply ignored by
@@ -902,8 +903,7 @@ If you'd rather manage the files by hand (a CI step, a custom CDN, …),
   them from
   [`oboroge0/hayamimi-punct-ja-fp16`](https://huggingface.co/oboroge0/hayamimi-punct-ja-fp16)
   on Hugging Face (see the sizes and sha256 values in the table above).
-  That file is what `python scripts/quantize_punct.py --variant fp16` in
-  the main hayamimi repo produces from the upstream fp32 model, described in
+  That file is the upstream fp32 model converted to float16, described in
   [`docs/design/punct_ja.md`](https://github.com/oboroge0/hayamimi/blob/main/docs/design/punct_ja.md).
   There is no `ModelDownloader` entry for it yet — copy both files to
   wherever you pass as `JaPunctuation(modelPath: ..., vocabPath: ...)`, no
@@ -1025,8 +1025,8 @@ What this package does about it today, and what it doesn't:
   not the case where a single over-long *segment* was already truncated on
   the fast path, because then there is no better text to fall back to.
 - The desktop pipeline goes further: it splits a suspicious result in half
-  and retries each half (`_looks_truncated` / `_split_retry` in
-  `scripts/asr_engine.py`, v0.3.1). **That is not ported to this package
+  and retries each half (`looks_truncated` / `split_retry` in
+  `native/hayamimi-asr/src/decode.rs`). **That is not ported to this package
   yet.**
 
 ## API reference

@@ -1,7 +1,8 @@
 /// Which model tiers a routed live session loads.
 ///
-/// The desktop pipeline (`scripts/asr_engine.py`) has 4 tiers (ja, zh, en +
-/// EU langs via Parakeet-TDT-v3, everything else via Omnilingual). Mobile
+/// The desktop pipeline (`native/hayamimi-asr/src/route/tiers.rs`) sends ja,
+/// zh, ko/yue, en + EU langs (via Parakeet-TDT-v3) and everything else (via
+/// Omnilingual) to separate recognizers. Mobile
 /// starts with a deliberately smaller catalog: Parakeet-TDT-0.6B-v3-int8 is
 /// ~640MB on disk (see `docs/design/mobile_quantization.md`'s routing note), well over a
 /// phone-friendly budget, so English is served by SenseVoice's own

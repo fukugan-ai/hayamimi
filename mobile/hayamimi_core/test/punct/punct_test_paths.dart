@@ -35,9 +35,8 @@ class PunctTestPaths {
 
   /// The float16 punctuation model, or null if it has not been generated.
   ///
-  /// It is a local build artifact of
-  /// `python scripts/quantize_punct.py --variant fp16`, not something the
-  /// repository ships.
+  /// It is a local build artifact (a float16 conversion of the punctuation
+  /// model), not something the repository ships.
   static String? modelPath() {
     final Directory? root = repoRoot();
     if (root == null) return null;

@@ -132,7 +132,7 @@ class HayamimiLive {
   /// restoration if the session has it on, so a refine's text reaches it
   /// with 、 and 。 already in place. `null` (the default) is a no-op. This is
   /// deliberately just an insertion point -- e.g. for CJK ITN
-  /// (`scripts/itn_cjk.py` on the desktop side) or a user find/replace
+  /// (`native/hayamimi-asr/src/itn.rs` on the desktop side) or a user find/replace
   /// dictionary -- and does not itself implement any postprocessing.
   String Function(String text, String lang)? textTransform;
 

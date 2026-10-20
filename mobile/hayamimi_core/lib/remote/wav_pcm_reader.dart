@@ -33,7 +33,7 @@ class WavParseException implements Exception {
 ///
 /// Used by the Remote tab's debug "send test wav" button (see
 /// `remote_transcriber.dart`) to stream a pushed test file over the
-/// `/ingest` WebSocket exactly the way `scripts/ws_mic_client.py` does,
+/// `/ingest` WebSocket the way `hayamimi-eval stream` does,
 /// for testing on an emulator with no real microphone.
 WavPcm16 parseWavPcm16(Uint8List bytes) {
   if (bytes.length < 44) {
