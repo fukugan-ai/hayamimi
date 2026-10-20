@@ -559,7 +559,7 @@ fn the_run_lines_pass_in_a_clone_without_testdata_or_models() -> TestResult {
             continue;
         };
         // A package install needs the administrator and is not part of a clone's build.
-        if line.starts_with("sudo ") {
+        if line.starts_with("sudo ") || line.starts_with("choco ") {
             continue;
         }
         let passed = run_line(&clone.join("native"), line, &env_file)?;
