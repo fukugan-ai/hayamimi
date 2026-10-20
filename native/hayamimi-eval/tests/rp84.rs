@@ -17,8 +17,8 @@
 //! value one step over the limit is over it. Percentiles are nearest-rank.
 //!
 //! The fixture cases need no process and no models. The run over the records
-//! of the window E3 is `#[ignore]`: it reads `docs/results/r8x/x<N>.e2e1.jsonl`
-//! and `x<N>.e2e1.hayamimi.stdout.log`, and the W runs there are not read.
+//! of the window E3' is `#[ignore]`: it reads `docs/results/r8x/e3p<N>.e2e1.jsonl`
+//! and `e3p<N>.e2e1.hayamimi.stdout.log`; a run of any other name is not read.
 //!
 //! The recorded fixtures under `fixtures/rp84_recorded/` are three runs of a
 //! recording made before the start-up decode existed. The samples keep five
@@ -243,9 +243,9 @@ fn run_failures(run: &Run) -> Vec<String> {
     failures
 }
 
-/// `x` and digits: a run of the X set. The W runs are not read.
+/// `e3p` and digits: a run of the window E3'. Runs of other names are not read.
 fn is_x_run(name: &str) -> bool {
-    name.strip_prefix('x')
+    name.strip_prefix("e3p")
         .is_some_and(|number| !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()))
 }
 
@@ -253,7 +253,7 @@ fn is_x_run(name: &str) -> bool {
 fn judge_first_utterance(runs: &[Run]) -> Result<(), Failure> {
     let x_runs: Vec<&Run> = runs.iter().filter(|run| is_x_run(&run.name)).collect();
     if x_runs.is_empty() {
-        return Err(String::from("no X run to judge"));
+        return Err(String::from("no X run (e3p<N>) to judge"));
     }
     let failures: Vec<String> = x_runs.into_iter().flat_map(run_failures).collect();
     if failures.is_empty() {
@@ -273,7 +273,7 @@ fn rejection(runs: &[Run]) -> Result<String, Failure> {
     }
 }
 
-/// The runs of the window E3 under `dir`: `x<N>.e2e1.jsonl` with the stdout beside it.
+/// The runs of the window E3' under `dir`: `e3p<N>.e2e1.jsonl` with the stdout beside it.
 fn load_x_runs(dir: &Path) -> Result<Vec<Run>, Failure> {
     let entries = std::fs::read_dir(dir).map_err(|why| format!("{}: {why}", dir.display()))?;
     let mut names: Vec<String> = entries
@@ -425,23 +425,23 @@ fn first_mut(samples: &mut [Sample]) -> Result<&mut Sample, Failure> {
 
 #[test]
 fn a_first_utterance_at_the_p50_of_the_rest_passes() -> TestResult {
-    judge_first_utterance(&[good_run("x1")?])?;
+    judge_first_utterance(&[good_run("e3p1")?])?;
     Ok(())
 }
 
 #[test]
 fn a_first_utterance_exactly_at_the_p95_passes() -> TestResult {
-    let run = run_of("x1", f84(first("209.0", 500)?), &l84());
+    let run = run_of("e3p1", f84(first("209.0", 500)?), &l84());
     judge_first_utterance(&[run])?;
     Ok(())
 }
 
 #[test]
 fn a_first_utterance_one_step_over_the_p95_is_rejected() -> TestResult {
-    let run = run_of("x1", f84(first("209.000001", 500)?), &l84());
+    let run = run_of("e3p1", f84(first("209.000001", 500)?), &l84());
     let said = rejection(&[run])?;
     assert!(
-        said.contains("x1: the first utterance took 209.000001 ms"),
+        said.contains("e3p1: the first utterance took 209.000001 ms"),
         "{said}"
     );
     assert!(said.contains("over the p95 209 ms"), "{said}");
@@ -450,7 +450,7 @@ fn a_first_utterance_one_step_over_the_p95_is_rejected() -> TestResult {
 
 #[test]
 fn the_first_utterance_is_not_part_of_the_set_it_is_compared_with() -> TestResult {
-    let run = run_of("x1", f84(first("209.5", 500)?), &l84());
+    let run = run_of("e3p1", f84(first("209.5", 500)?), &l84());
     let said = rejection(&[run])?;
     assert!(said.contains("took 209.5 ms"), "{said}");
     assert!(
@@ -464,13 +464,13 @@ fn the_first_utterance_is_not_part_of_the_set_it_is_compared_with() -> TestResul
 fn invalid_samples_are_left_out_of_the_set_a_first_utterance_is_compared_with() -> TestResult {
     let samples = f84b(first("203.0", 500)?);
     assert_eq!(compared_with(&samples).len(), 108);
-    judge_first_utterance(&[run_of("x1", samples, &l84())])?;
+    judge_first_utterance(&[run_of("e3p1", samples, &l84())])?;
     Ok(())
 }
 
 #[test]
 fn invalid_samples_do_not_raise_the_limit_a_first_utterance_is_compared_with() -> TestResult {
-    let run = run_of("x1", f84b(first("210.0", 500)?), &l84());
+    let run = run_of("e3p1", f84b(first("210.0", 500)?), &l84());
     let said = rejection(&[run])?;
     assert!(said.contains("took 210 ms"), "{said}");
     assert!(
@@ -484,9 +484,9 @@ fn invalid_samples_do_not_raise_the_limit_a_first_utterance_is_compared_with() -
 fn a_first_utterance_without_a_final_is_rejected() -> TestResult {
     let mut samples = f84(first("157.0", 500)?);
     first_mut(&mut samples)?.t_final_us = None;
-    let said = rejection(&[run_of("x1", samples, &l84())])?;
+    let said = rejection(&[run_of("e3p1", samples, &l84())])?;
     assert!(
-        said.contains("x1: the first utterance has no final"),
+        said.contains("e3p1: the first utterance has no final"),
         "{said}"
     );
     Ok(())
@@ -498,14 +498,14 @@ fn a_run_with_nothing_to_compare_with_is_rejected() -> TestResult {
     for other in samples.iter_mut().filter(|sample| !is_first(sample)) {
         other.t_final_us = None;
     }
-    let said = rejection(&[run_of("x1", samples, &l84())])?;
-    assert!(said.contains("x1: no valid sample to compare"), "{said}");
+    let said = rejection(&[run_of("e3p1", samples, &l84())])?;
+    assert!(said.contains("e3p1: no valid sample to compare"), "{said}");
     Ok(())
 }
 
 #[test]
 fn a_first_utterance_below_the_validity_line_is_still_compared() -> TestResult {
-    let kept = run_of("x1", f84(first("157.0", 100)?), &l84());
+    let kept = run_of("e3p1", f84(first("157.0", 100)?), &l84());
     assert!(
         !kept
             .samples
@@ -513,7 +513,7 @@ fn a_first_utterance_below_the_validity_line_is_still_compared() -> TestResult {
             .any(|sample| is_first(sample) && is_valid(sample))
     );
     judge_first_utterance(&[kept])?;
-    let late = run_of("x1", f84(first("210.0", 100)?), &l84());
+    let late = run_of("e3p1", f84(first("210.0", 100)?), &l84());
     let said = rejection(&[late])?;
     assert!(
         said.contains("took 210 ms, over the p95 209 ms of the 114 others"),
@@ -530,9 +530,9 @@ fn a_first_utterance_below_the_validity_line_is_still_compared() -> TestResult {
 fn the_recorded_rs1_first_utterance_is_over_the_p95() -> TestResult {
     let samples = parse_samples(RS1)?;
     assert_eq!(compared_with(&samples).len(), 97);
-    let said = rejection(&[run_of("x1", samples, &l84())])?;
+    let said = rejection(&[run_of("e3p1", samples, &l84())])?;
     assert!(
-        said.contains("x1: the first utterance took 988.338217 ms"),
+        said.contains("e3p1: the first utterance took 988.338217 ms"),
         "{said}"
     );
     assert!(
@@ -546,8 +546,8 @@ fn the_recorded_rs1_first_utterance_is_over_the_p95() -> TestResult {
 #[test]
 fn the_recorded_rs2_and_rs3_first_utterances_are_over_the_p95() -> TestResult {
     let runs = [
-        run_of("x2", parse_samples(RS2)?, &l84()),
-        run_of("x3", parse_samples(RS3)?, &l84()),
+        run_of("e3p2", parse_samples(RS2)?, &l84()),
+        run_of("e3p3", parse_samples(RS3)?, &l84()),
     ];
     assert!(
         runs.iter()
@@ -555,12 +555,12 @@ fn the_recorded_rs2_and_rs3_first_utterances_are_over_the_p95() -> TestResult {
     );
     let said = rejection(&runs)?;
     assert!(
-        said.contains("x2: the first utterance took 682.495191 ms"),
+        said.contains("e3p2: the first utterance took 682.495191 ms"),
         "{said}"
     );
     assert!(said.contains("over the p95 220.126125 ms"), "{said}");
     assert!(
-        said.contains("x3: the first utterance took 807.670646 ms"),
+        said.contains("e3p3: the first utterance took 807.670646 ms"),
         "{said}"
     );
     assert!(said.contains("over the p95 204.686185 ms"), "{said}");
@@ -570,9 +570,9 @@ fn the_recorded_rs2_and_rs3_first_utterances_are_over_the_p95() -> TestResult {
 #[test]
 fn the_recorded_runs_pass_when_the_first_utterance_is_at_their_p50() -> TestResult {
     let cases = [
-        ("x1", RS1, "117.679425"),
-        ("x2", RS2, "124.455251"),
-        ("x3", RS3, "126.553233"),
+        ("e3p1", RS1, "117.679425"),
+        ("e3p2", RS2, "124.455251"),
+        ("e3p3", RS3, "126.553233"),
     ];
     let mut runs = Vec::new();
     for (name, text, p50) in cases {
@@ -592,7 +592,7 @@ fn the_recorded_runs_pass_when_the_first_utterance_is_at_their_p50() -> TestResu
 
 /// A run with the samples that pass and `events` on stdout.
 fn stdout_run(events: &[Value]) -> Result<Run, Failure> {
-    Ok(run_of("x1", f84(first("157.0", 500)?), events))
+    Ok(run_of("e3p1", f84(first("157.0", 500)?), events))
 }
 
 #[test]
@@ -610,7 +610,7 @@ fn a_warmup_decoded_after_the_first_endpoint_decision_is_rejected() -> TestResul
     swapped.extend((2..=5).map(decided));
     let said = rejection(&[stdout_run(&swapped)?])?;
     assert!(
-        said.contains("x1: asr.warmup.decoded stands after the first asr.endpoint.decided"),
+        said.contains("e3p1: asr.warmup.decoded stands after the first asr.endpoint.decided"),
         "{said}"
     );
     Ok(())
@@ -622,7 +622,7 @@ fn a_run_without_a_warmup_decoded_line_is_rejected() -> TestResult {
     events.extend((1..=5).map(decided));
     let said = rejection(&[stdout_run(&events)?])?;
     assert!(
-        said.contains("x1: asr.warmup.decoded is 0 lines, not 1"),
+        said.contains("e3p1: asr.warmup.decoded is 0 lines, not 1"),
         "{said}"
     );
     Ok(())
@@ -634,7 +634,7 @@ fn two_warmup_decoded_lines_are_rejected() -> TestResult {
     events.extend((1..=5).map(decided));
     let said = rejection(&[stdout_run(&events)?])?;
     assert!(
-        said.contains("x1: asr.warmup.decoded is 2 lines, not 1"),
+        said.contains("e3p1: asr.warmup.decoded is 2 lines, not 1"),
         "{said}"
     );
     Ok(())
@@ -646,7 +646,7 @@ fn a_warmup_failed_line_is_rejected_on_its_own() -> TestResult {
     events.extend((1..=5).map(decided));
     let said = rejection(&[stdout_run(&events)?])?;
     assert!(
-        said.contains("x1: asr.warmup.failed is 1 lines, not 0"),
+        said.contains("e3p1: asr.warmup.failed is 1 lines, not 0"),
         "{said}"
     );
     assert!(!said.contains(DECODED), "{said}");
@@ -665,12 +665,12 @@ fn the_recorded_stdout_has_decisions_and_no_warmup_line() -> TestResult {
     assert_eq!(count("asr.warmup"), 0);
     let run = Run {
         stdout: RS1_STDOUT.to_owned(),
-        ..good_run("x1")?
+        ..good_run("e3p1")?
     };
     let said = rejection(&[run])?;
     assert!(
         said.contains(
-            "x1: asr.warmup.decoded is 0 lines, not 1 (asr.endpoint.decided is 141 lines)"
+            "e3p1: asr.warmup.decoded is 0 lines, not 1 (asr.endpoint.decided is 141 lines)"
         ),
         "{said}"
     );
@@ -681,7 +681,7 @@ fn the_recorded_stdout_has_decisions_and_no_warmup_line() -> TestResult {
 fn a_stdout_without_any_endpoint_decision_is_rejected() -> TestResult {
     let said = rejection(&[stdout_run(&[loaded(), decoded()])?])?;
     assert!(
-        said.contains("x1: asr.endpoint.decided is 0 lines"),
+        said.contains("e3p1: asr.endpoint.decided is 0 lines"),
         "{said}"
     );
     assert!(!said.contains("not 1"), "{said}");
@@ -703,32 +703,32 @@ fn warmup_fields_other_than_the_event_name_are_not_judged() -> TestResult {
 
 #[test]
 fn only_the_failing_run_is_named_for_the_first_utterance() -> TestResult {
-    let late = run_of("x2", f84b(first("210.0", 500)?), &l84());
-    let said = rejection(&[good_run("x1")?, late])?;
+    let late = run_of("e3p2", f84b(first("210.0", 500)?), &l84());
+    let said = rejection(&[good_run("e3p1")?, late])?;
     assert!(
-        said.contains("x2: the first utterance took 210 ms"),
+        said.contains("e3p2: the first utterance took 210 ms"),
         "{said}"
     );
-    assert!(!said.contains("x1"), "{said}");
+    assert!(!said.contains("e3p1"), "{said}");
     Ok(())
 }
 
 #[test]
 fn each_failing_run_is_named_with_its_own_reason() -> TestResult {
-    let late = run_of("x1", f84(first("210.0", 500)?), &l84());
+    let late = run_of("e3p1", f84(first("210.0", 500)?), &l84());
     let mut swapped = vec![loaded(), decided(1), decoded()];
     swapped.extend((2..=5).map(decided));
     let misplaced = stdout_run(&swapped).map(|run| Run {
-        name: String::from("x2"),
+        name: String::from("e3p2"),
         ..run
     })?;
     let said = rejection(&[late, misplaced])?;
     assert!(
-        said.contains("x1: the first utterance took 210 ms"),
+        said.contains("e3p1: the first utterance took 210 ms"),
         "{said}"
     );
     assert!(
-        said.contains("x2: asr.warmup.decoded stands after the first asr.endpoint.decided"),
+        said.contains("e3p2: asr.warmup.decoded stands after the first asr.endpoint.decided"),
         "{said}"
     );
     Ok(())
@@ -744,7 +744,7 @@ fn a_set_with_no_x_run_is_rejected() -> TestResult {
 #[test]
 fn w_runs_are_not_read_for_the_first_utterance() -> TestResult {
     let slow = run_of("w1", f84(first("5000.0", 500)?), &l84());
-    judge_first_utterance(&[slow, good_run("x1")?])?;
+    judge_first_utterance(&[slow, good_run("e3p1")?])?;
     Ok(())
 }
 

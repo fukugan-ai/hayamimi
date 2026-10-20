@@ -2641,6 +2641,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 ### 4.76 RP-84（認識器の初回の復号を起動の時に済ませる）
 
 **実装済み**（`feat/r8x-3`）。25 行は `native/hayamimi-eval/tests/rp84.rs` の 25 本と 1 対 1 で、24 本が通り、023 は `#[ignore]` である。判定の関数は `judge_first_utterance(&[Run])`（`Run` は名前、標本、stdout の text）。X の run の名前は `x` と数字で、W の run は読まない。fixture は `tests/fixtures/rp84_recorded/`（`rs1`〜`rs3` の 5 欄の写しと、`rs1` の stdout の写し）に在る。
+実走の行（023）は窓 E3' の `e3p<N>.e2e1.jsonl` と `e3p<N>.e2e1.hayamimi.stdout.log` を読む。X の run の名前は `e3p` と数字で、fixture の run の名前も同じである。
 起動の run が `asr.warmup.decoded` を 1 件、`asr.model.loaded` の後かつ最初の `asr.endpoint.decided` の前に出し、`audio_s` が 10、`decode_ms` が 0 を超え、`asr.warmup.failed` が 0 件であることは、`native/hayamimi/tests/rp84_start.rs`（実走の 1 本が `#[ignore]`）が数える。
 test：`native/hayamimi-eval/tests/rp84.rs`。受入 test の名前は `rp84_the_first_utterance_decodes_as_fast_as_the_rest`。実走の行（T-RP-84-023）だけが `#[ignore]` を持ち、`docs/results/r8x/` の X の run を読む。記録が置かれるまでは走らせない。ほかの行は fixture を読み、`--ignored` を付けずに通る。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp84`。実走の行はこれに `-- --ignored` を足す。
