@@ -182,6 +182,8 @@ B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 2
 | L15 | R8x-5：C と D の offline の門（RP-86 の (0)。今の規則を相手に打ち、D が発話 16 と 22 に効くかを測る）。次に打つ物 | 直接 | なし | cargo（CPU） | 60 分 | 同上 |
 | L16 | R8x-6：C と D（RP-86） | 直接 | L15 が線を満たす | cargo（`hayamimi-asr`、`hayamimi`、`hayamimi-eval`） | 90 分 | 同上 |
 | L17 | 窓 E3：W と X の run（RP-86、RP-85 の速さ、RP-84、RP-67 の ja） | 直接 | L5、L14、L16、L13 | E2E の窓と GPU。窓の間はどの席も cargo を打たない | 約 2 時間 20 分 | 同上 |
+| L18 | R8y-1：`hayamimi` の log の queue（RP-88）。別枠の強化 | 間接。1200 ms の組の 40 本の外。E1 の流し直しで止まりが再び出たら完成の条件に上げ、その時は約 111 分と窓 20 分を足す | R8x-3（同じ `log.rs`） | cargo（`hayamimi`、`hayamimi-eval`） | 60 分（推測） | `rust_port.ja.md` の 3.20、H131 |
+| L19 | R8y-2：中継の log の queue（RP-88）。別枠の強化 | 間接。L18 と同じ（1200 ms の組の 40 本の外。E1 の流し直しで止まりが再び出たら完成の条件に上げ、その時は約 111 分と窓 20 分を足す） | L18 | cargo（`hayamimi-relay`） | 51 分（推測） | 同上 |
 | O1 | 重ね窓の板（designer）、slice の行を 8 に置く設計【設計の席の返答で直す】 | 直接（goal と FR-9） | 会話字幕の設計 3.12 | 設計の席、designer の席 | 板と設計で約 4 時間（R6 の板から merge までの実績） | 3.12、CS-10〜CS-12 |
 | O2 | 重ね窓の crate と CS-10〜CS-12【設計の席の返答で直す】 | 直接 | O1 | cargo、Windows の実機 | 3 slice（推測） | 同上 |
 | X1 | RP-69、RP-70、RP-72 の残り、RP-33 の記録 | 間接 | 3.18 の評議 | E2E の窓 | 状態が記録で割れている（PL-H3） | 3.18 |
