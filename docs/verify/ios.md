@@ -24,17 +24,17 @@ Windows 側では Xcode の操作そのものを検証できないため、本�
   約4.8倍速い — 想定通り ARM の int8 カーネルが効いた)。詳細・比較表は
   `docs/design/mobile_quantization.md` の「On-device (iPhone 15) verification」節。
 - **(b) マニフェスト一括評価**: 完了。`testdata/eval_real/`(15 ja + 15 en、
-  `scripts/make_realset.py --skip-eval` で Mac 上で再生成可能、公開HF
+  `hayamimi-eval fetch-set` で manifest に固定した行を取り直せる（Mac 上での動作は NOT VERIFIED）、公開HF
   データセット経由なので Windows 側の元データ不要)を実機に push して完走。
 - **(c) Live 実マイク**: 完了。文字起こし成功、発熱なし、UI もたつきなし。
 - **(d) 多言語ルーティング Live**: 完了(動作はした)。SenseVoice +
   whisper-tiny(LID)を実機に push、ja⇔en の言語バッジ切り替えを確認。
   ただし複数人が話している部屋での実施だったため、精度自体は参考値どまり
   — 静かな環境での単独話者での再検証が望ましい。`testdata/eval_real_zhko/`
-  (zh/ko 用、`scripts/make_realset_zhko.py --skip-eval` で同様に再生成可能)
+  (zh/ko 用、同じく `hayamimi-eval fetch-set` で取り直せる)
   も生成・push 済み。
 - **(e) Remote**: **オーナー判断で対象外**(このセッションではやらない)。
-  Mac 上で `python scripts/realtime_transcribe.py --input ws --serve
+  Mac 上で `hayamimi --input ws --serve
   --lang ja` は起動できた(`ws://<Mac IP>:8766/ingest`)が、この Mac の
   Wi-Fi (en0) の IP が通常のプライベート LAN 範囲外(`104.194.96.0/20`)で、
   iPhone から実際に届くか確認する前にオーナーが「Remote はやらなくていい」
@@ -204,9 +204,9 @@ Files アプリ経由**、または **Xcode の Devices and Simulators ウィン
 
 ### 3.1 必要ファイル一覧
 
-`mobile/README.md`・`docs/design/mobile_quantization.md`・`scripts/asr_engine.py` の実体から
+`mobile/README.md`・`docs/design/mobile_quantization.md`・`hayamimi-asr::recognizer` の実体から
 拾った、モデルディレクトリ名とファイル名（すべて `models/` 配下、
-`scripts/download_models.py` が取得するのと同じ構成）:
+`hayamimi models fetch` が取得するのと同じ構成）:
 
 | 用途 | ディレクトリ (PC 側 `models/` 配下) | 実機に置くファイル | 配置先 |
 |---|---|---|---|
@@ -230,7 +230,7 @@ Files アプリ経由**、または **Xcode の Devices and Simulators ウィン
   (`mobile/hayamimi_core/lib/routing/routing_profile.dart`,
   `mobile/lib/live/live_page.dart`)。ja 単独の検証だけなら不要。
 - モデル本体は `models/` が git 管理外のため、PC (Windows) 側で事前に
-  `python scripts/download_models.py --minimal` 相当を実行して手元に
+  `hayamimi models fetch --minimal` 相当を実行して手元に
   揃えておく必要がある（`--minimal` は ja/en コア一式、~1.1GB。
   SenseVoice/whisper-tiny も検証するなら `--minimal` 無しのフル実行、
   または個別ファイルの追加取得が要る）。
@@ -301,7 +301,7 @@ Documents に配置した上で一括デコードし、結果 JSON
 - PC 側の `docs/design/mobile_quantization.md` 記載の CER: fp32/int8 とも 5.50%（full_int8）。
   Android エミュレータでの同一検証: 6.19%（+0.69pp）。
 - iPhone 実機の結果 JSON を PC に持ち帰り
-  (`scripts/eval_accuracy.py` の `cer_ja`) でスコアリングし、この2つの
+  (`hayamimi-eval` の `cer` と `normalize_ja`) でスコアリングし、この2つの
   数値と比較する。1〜2pp 程度のズレは onnxruntime のカーネル差として
   想定内（`docs/design/mobile_quantization.md` の「On-emulator accuracy parity」節が同じ理屈で
   エミュレータの差を説明している）。
@@ -340,7 +340,7 @@ Live 画面の「Language routing」ドロップダウンを `ja + SenseVoice
 
 ### (e) Remote（Wi-Fi 越しに PC の hayamimi へ）
 
-1. PC (Windows) 側で `python scripts/realtime_transcribe.py --input ws --serve`
+1. PC (Windows) 側で `hayamimi --input ws --serve`
    を起動する。
 2. iPhone とその PC が**同じ Wi-Fi ネットワーク**にいることを確認する。
 3. **Remote** タブでサーバー URL を `ws://<PCのLAN IP>:8766/ingest` に設定し

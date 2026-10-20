@@ -30,7 +30,7 @@ benchmark set `docs/results/benchmarks.md` scores against; the reference text in
   is no shorter end to sample; the top of the range is chosen to cross the
   12 s `max_speech` VAD limit's neighbourhood without becoming a long-form
   test.
-- **`ja_085` and `ja_090` exercise the CJK ITN pass** (`scripts/itn_cjk.py`),
+- **`ja_085` and `ja_090` exercise the CJK ITN pass** (`hayamimi-asr::itn`),
   which is the stage most easily left out of a re-implementation. The
   recognizer emits `千九百四十年八月十五日` and `三十四件`; ITN rewrites them to
   `1940年八月15日` and `34件`. Note `八月` staying in kanji: a single bare
@@ -42,7 +42,7 @@ benchmark set `docs/results/benchmarks.md` scores against; the reference text in
   Pinning it means a change that fixes it is visible as a change.
 - **No clip's reference ends in `？`.** All 100 FLEURS ja references were
   checked and none contains a question mark at all — it is news and
-  encyclopedia prose. So the question-mark rule in `scripts/punct_ja.py` is
+  encyclopedia prose. So the question-mark rule in `hayamimi-asr::punct` is
   not covered here; the parity fixture on the `agent/feature/core-release`
   branch (`mobile/hayamimi_core/test/fixtures/punct_ja_parity.json`) covers
   it with synthetic cases instead.

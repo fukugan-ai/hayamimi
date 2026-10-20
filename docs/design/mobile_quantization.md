@@ -1,5 +1,8 @@
 # Mobile-Sized ja Model — INT8 Quantization of ReazonSpeech Zipformer
 
+This file records the investigation behind one decision.
+The desktop run-time home of the pipeline is now the Rust crates under `native/` (`hayamimi-asr` for recognition, punctuation and ITN), and the `scripts/` files named below are the ones that existed when the investigation was made.
+
 Split on 2026-09-03: this file is `docs/MOBILE.md` minus its three "Android
 emulator verification" runs, which moved verbatim to
 [`../verify/android_emulator.md`](../verify/android_emulator.md).

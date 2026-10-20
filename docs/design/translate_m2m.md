@@ -1,5 +1,9 @@
 # Japanese -> Multilingual Subtitle Translation (M2M-100)
 
+This file records the investigation behind one decision.
+Translation at run time is now done by a language model served through `hayamimi llama`, and the `scripts/` files named below are the ones that existed when the investigation was made.
+Not taken at run time: the M2M-100 model of this file, and any end-to-end model that translates from audio.
+
 `scripts/translate_m2m.py` provides `TranslatorM2M(target_lang)`, a small
 wrapper around a CTranslate2-converted M2M-100 418M multilingual model for
 translating live subtitle lines from Japanese into any of the ~100 target

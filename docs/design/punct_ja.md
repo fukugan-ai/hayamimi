@@ -1,5 +1,8 @@
 # Japanese Punctuation Restoration (`scripts/punct_ja.py`)
 
+This file records the investigation behind one decision.
+The run-time home of punctuation restoration is now the Rust module `hayamimi-asr::punct`, and the `scripts/` files named below are the ones that existed when the investigation was made.
+
 ## What was shipped
 
 A standalone `PunctuatorJa` class that inserts `。`(period) and `、`(comma)
