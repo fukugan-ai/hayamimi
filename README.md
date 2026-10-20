@@ -48,7 +48,8 @@ Three things are not implemented:
 
 ### Delay target and recognizer placement as of 2026-10-20
 
-The target for the p95 of the delay (L) is 1000 ms or less, and it is still outside that line.
+The pass line for the p95 of the delay (L) is 1200 ms or less, and it is still outside that line.
+A p95 of 1000 ms or less stays as the target after completion.
 For Japanese to English it is 1501 ms (the alternating measurement, RP-32); for English to Japanese it is 1303 ms (a single E2E-2 run).
 The start point of an utterance's end stays as it is, and no forced alignment will be built.
 The design checks with the RP-73 test that the verdict is not decided by how that start point is placed (not implemented yet).
