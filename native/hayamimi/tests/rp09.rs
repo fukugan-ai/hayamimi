@@ -15,8 +15,9 @@
 //! - Elsewhere: `hayamimi` plays a recorded clip to its end.
 //!
 //! The negative control (T-RP-9-011) starts a process named like an
-//! interpreter below a shell and asks the same check; it runs on Unix, where
-//! such a process is a renamed link.
+//! interpreter below a shell and asks the same check. The process is a renamed
+//! link to a shell on Unix and a renamed copy of the command interpreter on
+//! Windows.
 
 mod support;
 
@@ -383,32 +384,64 @@ fn rp09_no_python_at_run_time() -> TestResult {
     Ok(())
 }
 
-/// A program named like an interpreter: a link to `sleep` called `python3`.
-#[cfg(unix)]
-fn fake_interpreter() -> Result<String, Failure> {
+/// The directory of the stand-in interpreter.
+fn fake_dir() -> Result<std::path::PathBuf, Failure> {
     let dir = Path::new(LOGS).join("rp09-fake-python");
     std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let link = dir.join("python3");
+    Ok(dir)
+}
+
+/// A program named like an interpreter: a link to the system shell called
+/// `python3`. A shell does not look at the name it is started under, unlike a
+/// multi-call `sleep`, which ends at once under a name it does not know.
+#[cfg(unix)]
+fn fake_interpreter() -> Result<String, Failure> {
+    let shell = std::fs::canonicalize("/bin/sh").map_err(|e| format!("/bin/sh: {e}"))?;
+    let link = fake_dir()?.join("python3");
     // A link left by an earlier run is replaced; one that is not there is not an error.
     match std::fs::remove_file(&link) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(format!("{}: {e}", link.display())),
     }
-    std::os::unix::fs::symlink("/bin/sleep", &link)
-        .map_err(|e| format!("{}: {e}", link.display()))?;
+    std::os::unix::fs::symlink(&shell, &link).map_err(|e| format!("{}: {e}", link.display()))?;
     path_text(&link)
 }
 
-/// T-RP-9-011, with the stand-in program inside the test: a shell starts a
-/// process named `python3` and the check names it.
+/// A program named like an interpreter: a copy of the command interpreter
+/// called `python.exe`, which also runs under any name.
+#[cfg(windows)]
+fn fake_interpreter() -> Result<String, Failure> {
+    let copy = fake_dir()?.join("python.exe");
+    std::fs::copy(WINDOWS_SHELL, &copy).map_err(|e| format!("{}: {e}", copy.display()))?;
+    path_text(&copy)
+}
+
+#[cfg(windows)]
+const WINDOWS_SHELL: &str = r"C:\Windows\System32\cmd.exe";
+
+/// A shell that starts the stand-in and waits for it, a few seconds.
 #[cfg(unix)]
+fn shell_starting(fake: &str) -> Command {
+    let mut shell = Command::new("sh");
+    // The `; true` after each command keeps a shell from replacing itself with it.
+    shell.args(["-c", "\"$0\" -c 'sleep 2; true'; true", fake]);
+    shell
+}
+
+#[cfg(windows)]
+fn shell_starting(fake: &str) -> Command {
+    let mut shell = Command::new(WINDOWS_SHELL);
+    shell.args(["/c", fake, "/c", "ping", "-n", "8", "127.0.0.1"]);
+    shell
+}
+
+/// T-RP-9-011, with the stand-in program inside the test: a shell starts a
+/// process named like an interpreter and the check names it.
 #[test]
 fn build_spawning_python_is_rejected() -> TestResult {
     let fake = fake_interpreter()?;
-    // The `; true` keeps the shell from replacing itself with the last command.
-    let shell = Command::new("sh")
-        .args(["-c", "\"$0\" 2; true", fake.as_str()])
+    let shell = shell_starting(&fake)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

@@ -488,7 +488,19 @@ WSL では `hayamimi` が `ja_014.wav` を最後まで流す間だけ見ます�
 Windows で打つときは、`native\target\sherpa-gpu\windows\install\lib` を PATH の先頭に足します。
 `hayamimi.exe` は `sherpa-onnx-c-api.dll` を実行時に読むためです。
 2 つの process が待つ port は既定（`hayamimi` が 8833、`hayamimi-relay` が 8835）なので、打つ前に空いていることと、`hayamimi.exe` が 0 本であることを確かめます。
-process の一覧は `Get-CimInstance Win32_Process` を 1 回ずつ読むので、読む間隔は 1 秒より長くなります。
+process の一覧は、読むたびに `powershell` を起こして `Get-CimInstance Win32_Process` を 1 回読みます。
+待つ 1 秒に、その起動と取得の約 0.5 秒が足されるので、読む間隔は約 1.5 秒です（10 分で 407 回と 408 回）。
+
+何も流れない run は、子孫に Python が 0 でも根拠になりません。
+Windows の run では、次の 2 つを先に用意します。
+
+- 訳の server を起こします（user unit `llama-artisan@CAT-Translate-3.3b-Q8_0.service`、port 8080）。`http://127.0.0.1:8080/health` が 200 を返せば届いています。
+- `testdata\lat-ja.wav` を Windows の既定の再生 device で繰り返し鳴らします（`System.Media.SoundPlayer` の `Play()` を、test が終わるまで 200 秒ごとに呼びます）。`--input mix` の loopback に入ります。
+
+run の後に、log を数えます。
+`hayamimi` の log は `asr.final.published` が 1 件以上、`hayamimi-relay` の log は `relay.serve.started` が 1 件、`translate.line.ok` が 1 件以上です。
+`hayamimi` は server を起こしたことを log に出さないので、`hayamimi-relay` の `events.subscribe.opened`（`endpoint` が 0）と、run の間に `http://127.0.0.1:8833/` が 200 を返すことで確かめます。
+`events.subscribe.lost` の `endpoint` が 1 の行は、2 つ目の認識（port 8834）を起こしていないためで、異常ではありません。
 
 DLL の名前は、`dumpbin` を手で打って見ます。
 
