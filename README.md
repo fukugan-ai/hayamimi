@@ -48,8 +48,8 @@ Three things are not implemented:
 
 ### Delay target and recognizer placement as of 2026-10-20
 
-The pass line for the p95 of the delay (L) is 1200 ms or less, and it is still outside that line.
-A p95 of 1000 ms or less stays as the target after completion.
+The pass line for the p95 of the delay (L) is 1600 ms or less.
+A p95 of 1200 ms or less and of 1000 ms or less stay as targets after completion. 1200 ms is not reached yet.
 For Japanese to English it is 1501 ms (the alternating measurement, RP-32); for English to Japanese it is 1303 ms (a single E2E-2 run).
 The start point of an utterance's end stays as it is, and no forced alignment will be built.
 The design checks with the RP-73 test that the verdict is not decided by how that start point is placed (not implemented yet).
@@ -60,7 +60,7 @@ The placement changes only after RP-78 confirms that, in the split form (encoder
 
 The state of each slice is in the table in `docs/design/status.md`.
 The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
-The expected pass date for the 1200 ms line of L is the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. 40 slices remain. The target the coordinator works to is 2026-10-23. The fix of T-RP-32-014 (about 20 minutes) is not in the 40 and is counted separately.
+The expected completion date on the 1600 ms line of L is the evening to night of 2026-10-26. The upper bound stays at the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. This date holds only while the line is 1600 ms. 39 slices remain. The target the coordinator works to is 2026-10-23. The fix of T-RP-32-014 (about 20 minutes) is not in the 39 and is counted separately.
 Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
 The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
 172 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them.
@@ -73,17 +73,18 @@ The R13-17 acceptance test (checking that the validity line of each `final` foll
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
 The clean-up tool can also remove a verify tree stacked on an earlier verify merge, when merging it into main leaves main's tree as it is and it has no ordinary commit that main lacks (`fix/tidy-tree-equal`).
-The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
-The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). Next, the offline gate of C and D (R8x-5) is run against the current rule, to measure whether D helps the two slow utterances. The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5.
+The test definitions of RP-83 to RP-87 are in. The slices issued now are R8x-1, R8x-2a, R8x-2b, R8x-3 and R8x-4. `rp79.rs`, L3, R8x-6, R8x-6b, window E2 and window E3 (the W and X pairs) are stopped.
+The offline gate of policy B (H100) failed. B is taken out of the set that shrinks L, and no further re-run is asked for.
 The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
-The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in, so R8x-5 can be issued.
-The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set aimed at 1200 ms), are in. They are not implemented yet.
-R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
+The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in.
+The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set that shrinks L), are in. They are not implemented yet.
+R8y-1 is issued after R8x-3. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
 R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
-The not-implemented marks of the RP-83 to RP-87 tests moved from single rows to the header of each whole test (owners: R8x-1, R8x-3, R8x-4 and R8x-6).
-The acceptance test of RP-86 (R8x-6b: `rp86.rs`, T-RP-86-001 to 053) is added to the remaining work (L16b), which makes the remaining count 42.
-The T of R8x-6b now runs to T-RP-86-054, a row for the positive control (001 to 054).
-The implementation of R8x-1 (the gate of an E2E run, RP-83) is in and done. `hayamimi-eval stream` writes `<run>.machine.jsonl`, and the gate looks at the load before and after and at cargo and rustc during the run.
+The offline gate of C and D (R8x-5) was run against the current rule and failed: with C and D, the splits by the early path alone rise from 4 to 6 on lat-ja and from 9 to 26 on held-out ja, and the candidates finalised with voice going on after them rise from 9 to 18 on held-out ja. D finalises one of the two slow utterances (22) 192 ms earlier and does not act on the other (16). The record is `docs/results/r8v/extra.md`.
+By the council's verdict, C and D are both taken out. R8x-6, R8x-6b (`rp86.rs`), RP-86 and RP-87 are stopped (H132 of `rust_port.ja.md`).
+The pass line of RP-67 is now a p95 of 1600 ms or less. 1200 ms and 1000 ms stay as targets. 1200 ms is not reached yet; the estimate for the present set is a p95 of about 1473 ms. 1600 ms is a line that stops things getting worse, not a speed target.
+The remaining path is R8x-1, R8x-2a, R8x-2b, R8x-3, R8x-4, window E1, window E3' (2 runs of ja and 1 of en, about 1 hour 20 min) and window E4.
+The implementation of R8x-1 (the gate of an E2E run, RP-83) is in and done. `hayamimi-eval stream` writes `<run>.machine.jsonl`, and the gate looks at the load before and after and at cargo and rustc during the run. 39 slices remain.
 
 ### Related documents
 
