@@ -90,6 +90,7 @@ The implementation of R8x-3 (the first decode of the recognizer, RP-84) is in an
 The implementation of R8x-4 (reusing a draft that differs only in numerals or inner marks, RP-85) is in. The quality probe and the real run have not been run.
 Three counts in the design were corrected (448 to 443, 306 to 300). This is a docs-only change.
 The implementation of R8x-2b (H88) is in and done. The E2E-1 and E2E-2 acceptance tests now count a sample as valid against the line of the rule that closed it (120 ms for `early`, `--min-silence` for the others; Python always `--min-silence`), read from `<run>.hayamimi.stdout.log`. A `final` with no `decided` line, a `decided` id that stands twice, and two `final` at one `t_us` with different rules are refused by run and id. The four records of builds without the early rule (`e2e1`, `e2e2`, `rs1`, `e2e2c`) are listed by sha256 and counted at 300 ms with a note in the output. The RP-3 rows (T-RP-3-022, 023) stay not implemented because `rp03.rs` does not exist. 38 slices remain.
+The definition of the translation-server unit for windows E1, E3' and E4 (`native/hayamimi-relay/units/hayamimi-llama-e2e.service`, port 18084) is in. The window seat starts the unit, and it has not been started yet.
 
 ### Related documents
 
