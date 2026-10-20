@@ -2,9 +2,9 @@
 //! `/events`, a translator that answers from the text of the prompt, and a way
 //! to run the relay against them and read what it publishes.
 //!
-//! The recognizer serves the wire form of the Python server
-//! (`scripts/subtitle_server.py:379-388`: a close-delimited `HTTP/1.0`
-//! response whose body is `data: <json>` and a blank line per event) and the
+//! The recognizer serves the wire form of the recorded events
+//! (a close-delimited `HTTP/1.0` response whose body is `data: <json>` and a
+//! blank line per event) and the
 //! JSON of the recorded events (`testdata/baseline/wire/events.jsonl`, a
 //! `final` on line 2 and a `refine` on line 5) with the five items added.
 //! Nothing here leaves the loopback address.

@@ -65,10 +65,12 @@ outside `models/`), not by `hayamimi models fetch`.
 
 ## Python runtime dependencies
 
+These two tables list the dependencies of the Python version before R11. That version is in the tag `archive/python-before-r11`; the tree no longer holds it.
+
 | Package | License | Notes |
 |---|---|---|
 | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) | Apache-2.0 | ONNX Runtime-based inference for all ASR/VAD/speaker models above |
-| [onnxruntime](https://github.com/microsoft/onnxruntime) | MIT | used transitively by sherpa-onnx and `punct_ja.py` |
+| [onnxruntime](https://github.com/microsoft/onnxruntime) | MIT | used transitively by sherpa-onnx and the Python punctuation module |
 | [ctranslate2](https://github.com/OpenNMT/CTranslate2) | MIT | translation model inference |
 | [sentencepiece](https://github.com/google/sentencepiece) | Apache-2.0 | tokenization for translation models |
 | [numpy](https://numpy.org/) | BSD-3-Clause | |
@@ -80,7 +82,7 @@ outside `models/`), not by `hayamimi models fetch`.
 | [kiwipiepy](https://github.com/bab2min/kiwipiepy) | **LGPL-2.1-or-later** | Korean tokenizer, used only to fix SenseVoice's spacing on `ko` output; optional at runtime (falls through silently if not installed) -- kept as an **optional/dev extra**, not a hard runtime dependency, to avoid LGPL obligations on the core install |
 | [psutil](https://github.com/giampaolo/psutil) | BSD-3-Clause | memory diagnostics |
 
-### Dev / eval-only dependencies (`requirements-dev.txt`)
+### Dev / eval-only dependencies (the dev requirements list of the same tag)
 
 | Package | License |
 |---|---|

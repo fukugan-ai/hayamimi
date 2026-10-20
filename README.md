@@ -12,7 +12,7 @@ Statements such as "no GPU" remain in it and do not apply to the Rust version.
 ### What is being done here
 
 The Python runtime is being replaced with Rust (the Cargo workspace in `native/`), and inference uses the GPU (CUDA).
-The work is complete when Python is out of the runtime path and removed.
+The work is complete when Python is out of the runtime path and removed. The 78 Python files are removed (R11).
 Speed comes first; quality (recognition error rate and naturalness of translation) comes second.
 The speed measure is **L**: the delay from the end of an utterance to the appearance of its translated subtitle.
 L is measured at p50 (the median) and p95 (the delay within which 95% of utterances fall).
@@ -27,7 +27,7 @@ The values and conditions are under [Measured performance](#measured-performance
 Each check is a single run that played recorded audio.
 A check with a person speaking Japanese into a real microphone has not been done yet (NOT VERIFIED).
 
-Removing Python (R11) is waiting for its entry conditions, so Python is still in the tree.
+Removing Python (R11) is in: the 78 Python files and `requirements*.txt` are deleted, and the CI runs cargo. The version before the removal is in the tag `archive/python-before-r11`.
 The slices for recognition, language routing, speakers, audio capture, the subtitle server and screens, and the translation relay have passed verification by someone other than the implementer, and are merged.
 In the latest re-measurement the CPU (int8) was faster than the GPU for recognition, so recognition stays on the CPU.
 The machine load was high during that re-measurement, so the values are unverified and only the direction is used.
@@ -42,7 +42,7 @@ The translated subtitle and the start-up behave as follows.
 
 Three things are not implemented:
 
-- R11 (removing Python): 187 of the 386 rows of RP-19 (the check that Python test cases were ported to Rust tests) have no Rust test yet.
+- RP-19 (the check that Python test cases were ported to Rust tests; the table has 386 rows): the rows with no Rust test yet are ported by the R13 slices. A separate CI step prints the number of remaining rows on every run.
 - R12y: the arguments of `hayamimi-relay eval` (`--final`, `--heldout`, `--direction`) for scoring translations on a held-out set (an evaluation set never shown during tuning), and the refusal to use the same set twice.
 - Sending to YouTube Live caption ingestion: the conversation-subtitle design lists it as something not to build, and streaming uses the OBS subtitle page burned into the video instead.
 
