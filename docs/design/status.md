@@ -8,7 +8,7 @@ When the two differ in meaning, the Japanese is corrected first and this one aft
 This document lists what still stands between the project and completion, then gives the state of each slice.
 The first table is what remains; the table after it gives each slice's state, merge commit, where the verification comes from, how far its acceptance has passed, and the holes left.
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
-Commit hashes were checked with `git log --oneline`; main was at `c08626c` (the commit of `feat/unit-e2e` taken in by fast-forward, 2026-10-21, so there is no merge commit; the commit that adds this document sits one above it) when they were checked.
+Commit hashes were checked with `git log --oneline`; main was at `d85023f` (the commit of `docs/llm-18084` taken in by fast-forward, 2026-10-21, so there is no merge commit; the commit that adds this document sits one above it) when they were checked.
 
 ## What remains before completion
 
