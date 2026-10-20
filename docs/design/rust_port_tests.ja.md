@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73、RP-80、RP-81。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -865,7 +865,14 @@ fixture：`mobile/hayamimi_core/test/fixtures/punct_ja_parity.json`（`cases` �
 ### 4.29 RP-19（Python の test の case を Rust へ写したこと）
 
 test：`native/hayamimi-eval/tests/rp19.rs`。
-`check_port_table(table, listed_names)` は、5 の対応表の Rust の test の名前を `cargo test --release -- --list` の出力と突き合わせる。表で Rust の名前が `-` の行（写さない物）は、置き場の列に理由が在ることを確かめる。
+`check_port_table(table, listed_names)` は、5 の対応表の Rust の test の名前を `cargo test --release -- --list` の出力と突き合わせる。表で Rust の名前が `-` の行（写さない物）は、置き場の列に理由が在ることを確かめる。理由は 5 種で、5 つ目の `写さない：Python の口（<Rust の在り処、または持たない機構>）` は括弧の中が空でないことまで確かめる（5.2）。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp19`。`--ignored` を付ける行は 010 だけである。
+
+R11 の前の後退の検出（010 より後の行）は、次の 2 つの関数で受ける。
+`check_not_yet_set(table_names, listed_names, fixed, ported)` は、表の名前を持つ行のうち list に無い行の集合（未実装の行）が、固定の一覧 `fixed`（`rp19_not_yet_at_r11.tsv` の名前と slice の対）から、`ported`（`rp19_ported/<slice>.txt` の file 名と名前の対）の全名前を引いた集合とちょうど同じであること、と、`ported` の各名前が固定の一覧でその file の slice の行であることを確かめる。
+`check_fixed_list(tsv_text, pinned_sha256, pinned_rows)` は、固定の一覧の内容の sha256 と行の数が 2 つの定数と同じであることを確かめる。
+壊した入力は `native/hayamimi-eval/tests/fixtures/rp19_r11/` の file に置いて `include_str!` で渡す。基準の fixture は、表の名前が `alpha`（slice `R13-1`）、`beta`、`gamma`（どちらも `R13-6`）の 3 行、固定の一覧がその 3 行、list が `alpha` だけ、`rp19_ported/R13-1.txt` が `alpha` だけの状態（基準の状態）で、`ported` を作る関数は無い dir を空として読む。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。例外は 2 行で、010 は `rp19_` を付けた `rp19_python_cases_are_ported`、025 は受入 test の名前の全部である。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -875,10 +882,25 @@ test：`native/hayamimi-eval/tests/rp19.rs`。
 | T-RP-19-004 | fixture：list の名前を 1 つ変えた物 | 名前の食い違い | `Err` | `Err` でその名前を名指し（specified、RP-19 の陰性欄） | 陰性 | `renamed_test_in_list_is_named` |
 | T-RP-19-005 | fixture：表の 2 行が同じ Rust の名前 | 重複 | `Err` | `Err` でその名前を名指し（derived、1 つの名前が 2 つの case を持つと、片方が消えても気付けない） | 境界、陰性 | `duplicate_rust_name_in_table_is_rejected` |
 | T-RP-19-006 | fixture：Rust の名前が `-` で置き場の列が空の行 | 写さない行の理由 | `Err` | `Err` でその行の Python の case を名指し（derived、理由の無い「写さない」を許さない） | 陰性 | `unported_row_without_reason_is_rejected` |
-| T-RP-19-007 | fixture：Rust の名前が `-` で置き場の列に `写さない` の理由が在る行 | 写さない行 | `Ok` | `Ok`（derived） | 境界 | `unported_row_with_reason_is_accepted` |
+| T-RP-19-007 | fixture：Rust の名前が `-` で置き場の列に `写さない：<理由>`（5.2 の最初の 4 種のどれか）の理由が在る行 | 写さない行 | `Ok` | `Ok`（derived）。5 つ目の種類は 011 から 013 が持つ | 境界 | `unported_row_with_reason_is_accepted` |
 | T-RP-19-008 | `docs/spec/ja_pipeline_spec.json` の `config` と `<hy> config dump` から作り直した値 | 値の一致 | 差 0 | 差 0（specified、RP-19） | 陽性 | `ja_pipeline_spec_config_matches_dump` |
 | T-RP-19-009 | fixture：dump の 1 つの値を変えた物 | 値の食い違い | `Err` | `Err` でその key の path を名指し（specified、RP-19） | 陰性 | `changed_config_value_is_named` |
-| T-RP-19-010 | 実走：`cargo test --release -- --list` の実物と 5 の表 | 実走 | 実走 | 001 から 007 の判定を実物で通し、表の全行の Rust の test が全部通る（specified、RP-19） | 陽性 | `python_cases_are_ported` |
+| T-RP-19-010 | 実走：`cargo test --release -- --list` の実物と 5 の表 | 実走 | 実走 | 001 から 007 と 011 から 013 の判定を実物で通し、表の全行の Rust の test が全部通る（specified、RP-19）。未実装の行が 1 行でも在る間は落ち、slice ごとの数を出す（8 の「RP-19 の未実装 187 行の仕分けと slice」） | 陽性 | `python_cases_are_ported` |
+| T-RP-19-011 | fixture：Rust の名前が `-` で、置き場の列が `写さない：Python の口` だけの行 | 5 つ目の種類。見出しの語だけで、在り処も機構も無い | `Err` | `Err` でその行の Python の case を名指し（specified、RP-19 の「在り処も機構も無い行は許さない」。8 の「写さない行」の「ラベルだけで在り処も機構も無い行は (a) か (c) に戻す」） | 陰性 | `python_mouth_row_without_place_or_mechanism_is_rejected` |
+| T-RP-19-012 | fixture：置き場の列が `写さない：Python の口（）` の行 | 括弧は在るが中が空。011 の隣の境界 | `Err` | `Err` でその行の Python の case を名指し（specified、同上。括弧の記号だけでは在り処にならない） | 境界、陰性 | `python_mouth_row_with_empty_parentheses_is_rejected` |
+| T-RP-19-013 | fixture：置き場の列の括弧の中に、機構の文（5.3 の `run_stream_without_control_is_unaffected` の行と同じ文）が在る行 | 括弧の中が空でない。012 の 1 字先 | `Ok` | `Ok`（specified、RP-19 の 5 つ目の種類） | 境界、陽性 | `python_mouth_row_with_a_mechanism_is_accepted` |
+| T-RP-19-014 | 基準の状態から list の `alpha` を除く（`alpha` は `rp19_ported/R13-1.txt` に在る。写した後で test を消した形） | 写した後に消した。`ported` に在って list に無い名前 | `Err` | `Err` で `alpha` を名指す。表と list から数えた未実装の集合 {alpha, beta, gamma} が、固定の一覧 − ported の {beta, gamma} と違う（specified、8 の RP-19 の小節の 1 と、7 の RP-19（R12a1）の陰性の case「写した後に消した」） | 陰性 | `a_name_ported_and_then_deleted_from_the_list_is_rejected` |
+| T-RP-19-015 | 基準の状態から `rp19_ported/R13-1.txt` を空にする（`alpha` は list に在って通る） | 写した名前を `rp19_ported/` に書かない。list に在って `ported` に無い名前 | `Err` | `Err` で `alpha` を名指す。表と list から数えた未実装の集合 {beta, gamma} が、固定の一覧 − ported の {alpha, beta, gamma} と違う（specified、同小節の 1 と、7 の陰性の case「写した名前を `rp19_ported/` に書かない」） | 陰性 | `a_ported_name_missing_from_the_ported_files_is_rejected` |
+| T-RP-19-016 | 基準の状態の固定の一覧に、`delta` と slice `R13-6` の行を足した物。定数は基準の一覧の sha256 と 3 のまま | 一覧に行を足した。行の数 | `Err` | `Err` で行の数 4 と 3 の食い違いと、sha256 の食い違いを言う（specified、同小節の 3 と、7 の陰性の case「`rp19_not_yet_at_r11.tsv` に行を足した」） | 陰性 | `a_row_added_to_the_fixed_list_is_rejected` |
+| T-RP-19-017 | 基準の状態で `rp19_ported/R13-6.txt` に `alpha` を書く（固定の一覧で `alpha` の持ち主は `R13-1`）。`R13-1.txt` は空にする | ほかの slice の行を自分の file に書いた。`ported` の和は {alpha} で、検査 1 は通る形 | `Err` | `Err` で file `R13-6.txt`、名前 `alpha`、持ち主 `R13-1` を名指す（specified、同小節の 2 と、8 の「R11 までの組」の G0 の行の陰性の case「ほかの slice の行を自分の file に書いた」。検査 1 だけでは通るので、検査 2 を単独で測る） | 陰性 | `a_name_written_in_another_slices_file_is_rejected` |
+| T-RP-19-018 | 基準の状態で `rp19_ported/R13-1.txt` に `zeta`（固定の一覧に無い名前）を足す | 名前を変えた、または一覧に無い名前。検査 2 の持ち主が引けない側 | `Err` | `Err` で file `R13-1.txt` と名前 `zeta` を名指す（derived、固定の一覧の外の名前はどの slice の行でもない。017 の隣の同値類） | 境界、陰性 | `a_name_unknown_to_the_fixed_list_is_rejected_in_a_ported_file` |
+| T-RP-19-019 | 基準の状態の固定の一覧で、`gamma` の slice の綴りを 1 字変えた物（行の数は 3 のまま） | 行の数は同じで内容が違う。sha256 | `Err` | `Err` で sha256 の食い違いを言い、行の数の食い違いは言わない（specified、同小節の 3。行の数だけを見る検査はこの入力を通す） | 境界、陰性 | `a_changed_row_with_the_same_count_changes_the_digest` |
+| T-RP-19-020 | 基準の状態そのまま（`alpha` は写されて list に在り `R13-1.txt` に書かれ、`beta` と `gamma` は未実装） | 3 つの検査が全部通る状態 | `Ok` | `Ok`。未実装の集合が {beta, gamma}（specified、同小節。014 から 019 の陰性の対） | 陽性 | `the_baseline_state_passes` |
+| T-RP-19-021 | 基準の状態から `rp19_ported/` を取り除き、list を空にする | 写した名前が 0 件。`ported` の dir が無い | `Ok` | `Ok`。未実装の集合が固定の一覧と同じ {alpha, beta, gamma}（specified、8 の R12a1 の行「無い dir は空として読む」） | 境界 | `an_absent_ported_directory_reads_as_empty` |
+| T-RP-19-022 | list に 3 つとも在り、`R13-1.txt` に `alpha`、`R13-6.txt` に `beta` と `gamma` を書く | 未実装の行が 0 | `Ok` | `Ok`。未実装の集合が空で、固定の一覧 − ported も空（specified、同小節。`rp19_python_cases_are_ported` が通る状態） | 境界 | `a_fully_ported_state_passes` |
+| T-RP-19-023 | 5.3 の実物（この file の 5.3） | Python の口の行の数 | 15 | `写さない：Python の口（` で始まり括弧の中が空でない行がちょうど 15（specified、8 の「写さない行」の「15 行」）。pseudo：`sed -n '/^### 5.3/,$p' docs/design/rust_port_tests.ja.md \| rg -c '\| \x60-\x60 \| 写さない：Python の口（.'` が 15（実測 2026-10-20 11:4x。書き替える前の同じ式は出力なしで rc 1）。陽性対照：式の `Python の口（.` を `同上` に替えると 39 で、式が行に当たる（0 は「式が合わない」と「行が無い」を分けない） | 陽性 | `the_table_has_exactly_fifteen_python_mouth_rows` |
+| T-RP-19-024 | 5.3 の実物の `test_ws_ingest.py` の 21 行 | `/ingest` の codec の置き場 | 13 と 8 | 置き場が `hayamimi-eval/src/ws.rs` の行が 13、`hayamimi-asr/src/audio.rs` の行が 8、`hayamimi/src/ingest.rs` の行が 0（specified、8 の「187 行の仕分け」の「`/ingest` の手書きの codec 13 行」）。pseudo：`sed -n '/^### 5.3/,$p' docs/design/rust_port_tests.ja.md \| rg '^\| \x60test_ws_ingest\.py\x60 \|' \| rg -c 'hayamimi-eval/src/ws\.rs'` が 13、末尾の式を `hayamimi-asr/src/audio\.rs` に替えると 8、`hayamimi/src/ingest\.rs` に替えると出力なしで rc 1（実測 2026-10-20 11:4x）。8 の行が audio.rs に残ることが、置き直しが 13 行で止まる陽性対照 | 陽性、境界 | `the_ingest_codec_rows_are_placed_in_eval_ws_rs` |
+| T-RP-19-025 | 受入：merge の直前の main の `native/hayamimi-eval/tests/rp19_not_yet_at_r11.tsv`、`rp19_ported/`、5.3、`--list` の実物 | 全体。検査 1 から 3 | `Ok` | `Ok`。未実装の集合が固定の一覧 − ported と同じ（specified、RP-19）。pseudo：`wc -l < native/hayamimi-eval/tests/rp19_not_yet_at_r11.tsv` が 172 で、`sha256sum` の値が `NOT_YET_AT_R11_SHA256` と同じ。陽性対照は 020、陰性対照は 014 から 019 の 6 行 | 陽性、陰性 | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` |
 
 ### 4.30 RP-20（3.5 の表の全段の置き場が決まったこと）
 
@@ -2370,6 +2392,127 @@ sherpa-onnx の C API は確率を返さないので、この probe だけが窓
 
 `--ignored` の無い run では、実走の 1 本を除く 10 本が通る。
 
+### 4.73 RP-80（CI が cargo を打ち、Python を打たず、未実装の行の数を毎回出す）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R11c の席が足す。
+test：`native/hayamimi-eval/tests/rp80.rs`。受入 test の名前は `rp80_ci_runs_cargo_and_no_python`。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp80`。実走の行（018、019）はこれに `-- --ignored` を足す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（017 だけは受入 test の名前の全部）。fixture は `native/hayamimi-eval/tests/fixtures/rp80_*/` の dir に置き、`include_str!` で渡す。
+設計は D 6 の RP-80 と、8 の「R11 までの組」の R11c の行と CI の command の小節、D 10 の H103 である。
+
+`check_workflow(workflow_yml, ci_probe_md, test_binaries)` は 3 つを確かめる。
+`workflow_yml` は `.github/workflows/test.yml` の text、`ci_probe_md` は `docs/results/r11/ci_probe.md` の text、`test_binaries` は `native/<crate>/tests/*.rs` の（crate の名前、file の拡張子を除いた名前）の対の集合である。
+
+1. **語の検査**：`python|pip |pytest|setup-python`（設計の `grep -c -E` の式）に当たる行が 0。コメントの行も数える（grep は行の種類を見ない）。
+2. **外した binary の検査**：test の step が `--test <名前>` で並べた binary の集合を U とする（`--test` が無ければ全部）。`--exclude <crate>` で外した crate の binary も外した物に数える。外した binary は 1 本ずつ `ci_probe.md` に名前と理由を持ち、理由は `testdata/` か `models/` を読むことである。
+3. **未実装の数の step**：`cargo test --release --jobs 2 -p hayamimi-eval --test rp19 -- --exact rp19_python_cases_are_ported` を打つ step が在り、その step が `continue-on-error: true` を持つ。
+4. **例外の数の step**：3 の隣に、同じ形で `cargo test --release --jobs 2 -p hayamimi-eval --test rp81 -- --exact rp81_owned_exceptions_are_gone` を打つ step が在り、その step も `continue-on-error: true` を持つ（持ち主ごとの RP-81 の例外の数を log に出す）。
+
+**F80**（基準の fixture）：`test.yml` は matrix（`windows-latest`、`ubuntu-latest`）の job に、`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --jobs 2 -- -D warnings`、`cargo test --release --jobs 2 -p hayamimi-eval --test rp02 --test rp19 --test rp80 --test rp81` の step と、3 の step と 4 の step（どちらも `continue-on-error: true`）を持つ。`test_binaries` は `rp02`、`rp03`、`rp19`、`rp80` で、外した binary は `rp03` の 1 本。`ci_probe.md` は `rp03` の行に「`testdata/` を読む」の理由を持つ。python の語を含む行は 0。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-80-001 | F80 そのまま | 正しい workflow | 3 つとも成立 | `Ok`（specified、D 6 の RP-80 の期待値）。以後の陰性の行は、この fixture から 1 か所だけ変える | 陽性 | `a_workflow_that_runs_cargo_and_counts_the_unported_rows_passes` |
+| T-RP-80-002 | R11 の前の `test.yml`（`rp80_before_r11/test.yml` に複製。18 行） | 検知の道具の陽性対照。語に当たる行が在る | 当たる行 4 | `Err` で 14、16、17、18 行目を名指す（`setup-python`、`python-version`、`pip install`、`python -m pytest`）。pseudo：`rg -c -e 'python\|pip \|pytest\|setup-python' .github/workflows/test.yml` が 4（実測 2026-10-20 11:4x。同じ式を `nainaimono_zzz` に替えると出力なしで rc 1）（specified、D 6 の RP-80 の陽性対照「R11 の前の `test.yml` で grep が 4」） | 陽性 | `the_workflow_before_r11_has_four_python_lines_and_is_rejected` |
+| T-RP-80-003 | F80 に `- run: python -m pytest tests -q` の step を足す | `pytest` の step を残した形 | 当たる行 0 | `Err` でその行を名指す（specified、D 7 の RP-80 の陰性の case「`pytest` の step を残した workflow」） | 陰性 | `a_workflow_that_keeps_a_pytest_step_is_rejected` |
+| T-RP-80-004 | F80 に次の 3 行を別々に足した 3 つの workflow：`- run: pytest -q`、`- run: pip install x`、`- run: python3 x.py` | 式の選択肢ごとに 1 つ。どれも他の選択肢に当たらない形 | 当たる行 0 | 3 つとも `Err` でその行を名指す（specified、式の `pytest`、`pip `、`python`） | 陰性 | `each_python_word_alone_is_rejected` |
+| T-RP-80-005 | F80 に `shell: bash -o pipefail {0}` を足す | `pip` で始まる語（`pipefail`）。式の `pip ` は後ろの空白まで要る | 当たる行 0 | `Ok`（derived、式の `pip ` は空白を含む。検知の道具が語の途中に当たらない陰性対照） | 境界、陽性 | `a_word_that_only_starts_with_pip_is_not_python` |
+| T-RP-80-006 | F80 に `# no python here` の行を足す | コメントの行。語は在る | 当たる行 0 | `Err` でその行を名指す（derived、grep は行の種類を見ないので、設計の「grep が 0」は注釈の語も許さない） | 境界、陰性 | `a_comment_that_names_python_is_rejected_like_any_other_line` |
+| T-RP-80-007 | F80 から 3 の step を取り除く | 未実装の数の step が無い | step 1 本 | `Err` で数の step が無いことを言う（specified、D 7 の RP-80 の陰性の case「未実装の数の step を持たない workflow」） | 陰性 | `a_workflow_without_the_count_step_is_rejected` |
+| T-RP-80-008 | F80 から 3 の step を取り除き、test の step の末尾に `-- --skip rp19_python_cases_are_ported` を足す | 数を消して緑にした形 | step 1 本 | `Err` で数の step が無いことを言う。`--skip` だけでは通らない（specified、D 7 の RP-80 の陰性の case「`--skip` に書いて数の step を置かない workflow」） | 陰性 | `a_skip_without_the_count_step_is_rejected` |
+| T-RP-80-009 | F80 の 3 の step から `continue-on-error: true` を取り除く | 数の step が落ちて job を止める形 | `true` | `Err` で `continue-on-error` が無いことを言う（specified、D 6 の RP-80 の期待値「落ちても job を止めず」） | 陰性 | `a_count_step_that_stops_the_job_is_rejected` |
+| T-RP-80-010 | F80 の 3 の step の `--exact` の名前を `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` に替える | 別の test を指す。`continue-on-error` は在る | 名前 `rp19_python_cases_are_ported` | `Err` で名前の食い違いを言う（specified、D 6 の RP-80 の期待値の command。slice ごとの数を出すのは `rp19_python_cases_are_ported` だけである） | 境界、陰性 | `a_count_step_that_runs_another_test_is_rejected` |
+| T-RP-80-011 | F80 の `ci_probe.md` から `rp03` の行を取り除く | 外した binary が `ci_probe.md` に無い | 1 本ずつ名前 | `Err` で `rp03` を名指す（specified、D 7 の RP-80 の陰性の case「`ci_probe.md` に無い名前を挙げて落ちる」） | 陰性 | `an_excluded_binary_missing_from_the_probe_note_is_named` |
+| T-RP-80-012 | F80 の `ci_probe.md` の `rp03` の行の理由を空にする | 名前は在り、理由が無い | 理由 1 つ | `Err` で `rp03` を名指す（specified、D 6 の RP-80 の期待値「名前と理由」） | 境界、陰性 | `an_excluded_binary_without_a_reason_is_named` |
+| T-RP-80-013 | F80 の `ci_probe.md` の `rp03` の理由を「遅いので外す」にする | 理由が在るが `testdata/` も `models/` も読まない | `testdata/` か `models/` | `Err` で `rp03` を名指す（specified、D 6 の RP-80 の期待値「外す理由の無い binary を外さない」。外す理由は 8 の R11c の行の `testdata/` か `models/` を読むこと） | 境界、陰性 | `an_excluded_binary_with_another_reason_is_named` |
+| T-RP-80-014 | F80 の `ci_probe.md` の `rp03` の理由を、`testdata/` を含む文と、`models/` を含む文に替えた 2 つ | 理由の 2 つの種類。013 の隣 | どちらか | どちらも `Ok`（specified、同上） | 境界、陽性 | `an_excluded_binary_with_a_testdata_or_models_reason_is_accepted` |
+| T-RP-80-015 | F80 の test の step を `--test` の並びから `--workspace --exclude hayamimi-eval` に替える | crate 単位で外した形。`hayamimi-eval` の binary 4 本が外れる | 外した binary 1 本ずつ | `Err` で `ci_probe.md` に無い `rp02`、`rp19`、`rp80` を名指す（`rp03` は在る）（derived、D 6 の RP-80 の「外した test の binary は 1 本ずつ」。crate ごと外せば 1 本ずつの言い逃れになる） | 境界、陰性 | `an_excluded_crate_hides_no_binary_from_the_probe_note` |
+| T-RP-80-016 | F80 の `rp19` の行を `test_binaries` から除く（`native/hayamimi-eval/tests/rp19.rs` が無い形） | 数の step が指す test の file が無い | file が在る | `Err` で `rp19` が無いことを言う（derived、3 の step の `--test rp19` が空振りする。`cargo` は存在しない test の指定で落ちるが、`continue-on-error` がそれを隠す） | 境界、陰性 | `a_count_step_without_its_test_file_is_rejected` |
+| T-RP-80-017 | 受入：repo の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md`、`native/*/tests/*.rs` の実物 | 全体。001 から 016 と 020、021 の判定を実物に掛ける | 3 つとも成立 | `Ok`。pseudo：`rg -c -e 'python\|pip \|pytest\|setup-python' .github/workflows/test.yml` が出力なしで rc 1（0 行）。R11 の前の木では 4（002） | 陽性、陰性 | `rp80_ci_runs_cargo_and_no_python` |
+| T-RP-80-018 | 実走：`git clone --no-local <repo> ~/.cache/hayamimi-r11/ci-probe`（`testdata/` と `models/` の無い clone）で、workflow の `run:` の行を同じ順に打つ | 実走。clone に `testdata/` も `models/` も無い | 全部 rc 0 | clone に `ls -d testdata models` が rc 2 で両方無いことを先に確かめ、`run:` の行が全部 rc 0（specified、D 6 の RP-80。worktree は本体の `testdata/` を引くので使わない）。cargo の席は同時 2 席までで、`--jobs 2` | 陽性 | `the_run_lines_pass_in_a_clone_without_testdata_or_models` |
+| T-RP-80-019 | 実走：018 の clone で、`ci_probe.md` が挙げる binary を 1 本だけ単独で打つ（`cargo test --release --jobs 2 -p hayamimi-eval --test rp03`） | 検知の道具の陽性対照。外した理由が本当に落ちる | rc が 0 でない | rc が 0 でなく、落ちた理由が `testdata/` か `models/` の無いことを言う（specified、D 7 の RP-80「clone で落ちる binary」。外した理由が偽なら 018 は何も外せていない） | 陽性、陰性 | `an_excluded_binary_really_fails_in_a_clone_without_testdata_or_models` |
+| T-RP-80-020 | F80 から 4 の step を取り除く | 例外の数の step が無い | step 1 本 | `Err` で例外の数の step が無いことを言う（specified、D 6 の RP-80 の陰性の case「RP-81 の例外の数の step を持たない workflow」）。3 の step は在るので、数の step が 1 本在るだけでは通らない | 陰性 | `a_workflow_without_the_owned_exceptions_step_is_rejected` |
+| T-RP-80-021 | F80 の 4 の step から `continue-on-error: true` を取り除いた物と、4 の step の `--exact` の名前を `rp81_no_document_names_a_removed_python_file` に替えた物 | 4 の step の 2 つの崩し方。003 から 010 の 3 の step の対 | 在る | 2 つとも `Err`（specified、D 6 の RP-80「その隣に、同じ形で」。同じ形は `continue-on-error` と `--exact` の名前の両方） | 境界、陰性 | `an_owned_exceptions_step_in_a_wrong_form_is_rejected` |
+
+**初めての実行**：018 は clone の最初の release の build で、target の cache が無い。sherpa-onnx の archive は build script が網から取る（D 10 の H103）。時間は NOT VERIFIED。
+**始めてよい条件**：R12a1、R12a2、R11a1、R11a2、R11b が main に在り、評議の GO が state.json に在る（D 8 の「走らせる前の壊れ方」）。
+**承認を待って止まる command**：なし。clone の dir は `~/.cache/hayamimi-r11/ci-probe` に決め打ち、無ければ作る。
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- `windows-latest` と `ubuntu-latest` の matrix と `libasound2-dev` の step。D 8 の R11c の小節が書くが、RP-80 の期待値の列に無いので、行にしていない。
+- 数の step が log に slice ごとの数を出すこと。GitHub 上の最初の run を見るまで機械では当たらない（D 10 の H103）。fixture の行は `continue-on-error` と command の綴りまでを見る。
+- 016 は `--test rp19` の file が無い workflow を落とす行で、RP-80 の期待値の列に直接は無い。数の step が空振りして黙るのを防ぐ導出である。設計が不要と決めれば、この行を外す。
+
+### 4.74 RP-81（文書と comment が、消えた Python の file を名指さない）
+
+**未実装。** この節の行はどれも、test の file も関数も repo に無い。R11c の席が足す。
+test：`native/hayamimi-eval/tests/rp81.rs`。受入 test の名前は `rp81_no_document_names_a_removed_python_file`。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp81`。`--ignored` は付けない。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない（014 と 030 は受入 test の名前の全部）。fixture は検査の道具の例外に合わせ、`native/hayamimi-eval/tests/rp81_*/` の dir に置く。
+設計は D 3.9 と、D 6 と 7 の RP-81、8 の「R11 までの組」の R11a1、R11a2、R11b の行である。
+
+`check_python_names(files, removed, owned)` の `files` は、`git ls-files` が出す file の対（path、text）の一覧である。tracked でない file は一覧に入らない。`removed` は `rp81_removed_python.txt` の 78 行、`owned` は `rp81_owned_lines.tsv` の行（file、行の文字列、持ち主の slice）である。
+式は設計の `(scripts|demo)[/\\][a-z_0-9]+\.py|tests[/\\]test_[a-z_0-9]+\.py`（`/` と `\` の両方の区切りを読み、`demo/` を含む）と、dir を伴わない 78 本の file の名前（`download_models.py` の形。`removed` の各行の末尾の名前）を行ごとに当てる。当たった file が次のどれかなら通し、どれでもなければ `Err` でその file と行を名指す。
+
+- **記録の dir**：path の最初の部分が `docs/eval/`、`docs/design/`、`docs/results/` のどれかである（dir の部分の単位で比べる）。
+- **記録の file**：path が `mobile/hayamimi_core/CHANGELOG.md`、`tests/golden/ja/golden.json`、`mobile/hayamimi_core/test/fixtures/punct_ja_parity.json`、`docs/verify/android_emulator.md` のどれかとちょうど同じである。
+- **検査の道具**：path が `native/hayamimi-eval/tests/rp81.rs`、`native/hayamimi-eval/tests/rp81_removed_python.txt`、`native/hayamimi-eval/tests/rp81_owned_lines.tsv` のどれかとちょうど同じか、`native/hayamimi-eval/tests/rp81_*/` の dir の下（T の fixture の木）である。
+- **持ち主の在る例外（file、行の文字列）**：範囲の段落を付けて残す 6 file（`docs/spec/ja_pipeline.md`、`ja_pipeline.ja.md`、`docs/guide/embedding.md`、`embedding.ja.md`、`tuning.md`、`tuning.ja.md`）と `docs/spec/ja_pipeline_spec.json` の、当たる行。`owned` に（file、行の文字列）の対が在る行だけ通す。対に無い行が同じ file に増えるか、行の文字列が替わると `Err` でその file と行を名指す。
+- **残す文字列の対（file、文字列）**：実行される文字列の 6 つ。
+  1. `mobile/hayamimi_core/test/punct/punct_ja_fixture_tokens_test.dart`：`differently from scripts/punct_ja.py`
+  2. `mobile/hayamimi_core/test/punct/punct_ja_parity_test.dart`：`PunctuatorJa matches scripts/punct_ja.py`
+  3. 同じ file：`python scripts/quantize_punct.py --variant fp16`
+  4. `mobile/hayamimi_core/test/punct/punct_worker_load_test.dart`：`python scripts/quantize_punct.py --variant fp16`
+  5. と 6. `mobile/lib/main.dart`：画面の文の `scripts/eval_accuracy.py`（2 か所。2026-10-20 に 177 行目と 219 行目）
+
+対の file では、当たった行がその file の対の文字列を含むときだけ通す。同じ file の別の行（comment）の当たりは通さない。
+
+`check_removed_list(text, pinned_sha256, pinned_rows)` は、`rp81_removed_python.txt` の内容の sha256 と行の数が 2 つの定数（`REMOVED_PYTHON_SHA256`、`REMOVED_PYTHON_ROWS`。78）と同じであることと、全行が式の形に当たることを確かめる。`check_owned_lines(text, pinned_sha256, pinned_rows)` は `rp81_owned_lines.tsv` について `OWNED_LINES_SHA256`、`OWNED_LINES_ROWS` と同じであることを確かめる。`check_owned_exceptions_gone(text)` は tsv に行が 1 行でも在れば `Err` で持ち主ごとの数を言う。
+
+**F81**（基準の fixture）：`README.md`（`cargo run` の command だけ）、`docs/guide/embedding.md`（`scripts/x.sh` を 1 行）、`native/hayamimi/src/lib.rs`、`mobile/lib/main.dart`（残す文字列の 2 つだけ）、`docs/design/rust_port.ja.md`（`scripts/eval_engine.py` を 1 行）の対の一覧。`removed` は `scripts/download_models.py`、`demo/capture_events.py`、`tests/test_units.py` の 3 行（定数は 3 と、その 3 行の sha256）、`owned` は空である。持ち主の在る例外の行の case（023 から 026）は、`docs/guide/tuning.md` に `scripts/eval_engine.py` を含む 1 行を持つ木と、`owned` に（`docs/guide/tuning.md`、その行、`R13-14`）の 1 行を持つ tsv（定数は 1 と、その行の sha256）を F81 に足して使う。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-81-001 | F81 そのまま | 正しい木。記録の dir の当たりと残す文字列だけが在る | 当たる file のうち例外でない物 0 | `Ok`（specified、D 6 の RP-81 の期待値）。以後の行は、この fixture から 1 か所だけ変える | 陽性 | `a_tree_without_a_removed_python_name_passes` |
+| T-RP-81-002 | F81 の `docs/guide/embedding.md` に `scripts/x.py` を 1 行足す | 例外でない dir の当たり | 例外でない当たり 0 | `Err` で `docs/guide/embedding.md` を名指す（specified、D 7 の RP-81 の陰性の case「`docs/guide/` の md に `scripts/x.py` を 1 行足した木」） | 陰性 | `a_guide_that_names_a_removed_script_is_rejected_by_name` |
+| T-RP-81-003 | R11 の前の `README.md`（`rp81_before_r11/README.md` に複製）を F81 の `README.md` と入れ替える | 検知の道具の陽性対照。式に当たる行が在る | 当たる行 16 | `Err` で `README.md` を名指し、当たる行を 16 本挙げる。pseudo：`rg -c -e '(scripts\|demo)[/\\][a-z_0-9]+\.py\|tests[/\\]test_[a-z_0-9]+\.py' README.md` が 16（実測 2026-10-20 12:0x、c83176b の木。`/` だけの式では 11。式を `scripts/zzz_nonexistent_zzz\.py` に替えると出力なし）。dir を伴わない 78 本の名前も足した式では 20 になる（同じ実測。この行は形の式の 16 を固定し、名前の 4 行は 021 が持つ）（specified、D 6 の RP-81 の陽性対照「R11 の前の木で `README.md`（16 件）」） | 陽性 | `the_readme_before_r11_has_sixteen_hits_and_is_rejected` |
+| T-RP-81-004 | F81 の `docs/eval/a.md`、`docs/design/a.md`、`docs/results/a.md` のそれぞれに `scripts/x.py` を 1 行足した 3 つの木 | 記録の dir 3 つ。1 つずつ | 例外でない当たり 0 | 3 つとも `Ok`（specified、D 6 の RP-81 の期待値の最初の群） | 陽性 | `the_three_record_directories_may_name_a_python_file` |
+| T-RP-81-005 | F81 に `docs/evaluation/a.md`、`docs/designs/a.md`、`docs/results2/a.md` のそれぞれへ `scripts/x.py` を 1 行足した 3 つの木 | 記録の dir と名前の前半だけが同じ dir。004 の隣 | dir の部分の単位 | 3 つとも `Err` でその file を名指す（derived、「`docs/eval/` の下」は dir の部分の一致で、文字列の前方一致ではない） | 境界、陰性 | `a_directory_that_only_shares_a_prefix_is_not_a_record_directory` |
+| T-RP-81-006 | F81 の 4 つの記録の file のそれぞれに `scripts/x.py` を 1 行足した 4 つの木 | 記録の file 4 つ | path がちょうど同じ | 4 つとも `Ok`（specified、D 6 の RP-81 の期待値の記録の file） | 陽性 | `the_four_record_files_may_name_a_python_file` |
+| T-RP-81-007 | F81 の `mobile/CHANGELOG.md` と、repo の根の `CHANGELOG.md` に `scripts/x.py` を 1 行足した 2 つの木 | 記録の file と名前だけが同じ別の path。006 の隣 | path がちょうど同じ | 2 つとも `Err` でその file を名指す（derived、記録の file は path で名指す） | 境界、陰性 | `a_changelog_at_another_path_is_not_a_record_file` |
+| T-RP-81-008 | F81 の `mobile/lib/main.dart`、`mobile/hayamimi_core/test/punct/` の 3 file に、残す文字列の 6 つだけを置いた木 | 残す文字列の対 6 つ | 対の文字列を含む行 | `Ok`（specified、D 6 の RP-81 の期待値の「mobile の Dart の実行される文字列 6 つ」） | 陽性 | `the_six_kept_dart_strings_pass` |
+| T-RP-81-009 | 008 の `punct_ja_parity_test.dart` に、残す文字列を含まない comment の行（`///` に続けて `scripts/punct_ja.py` と書く行）を足す | 対の file の中の、対でない当たり。実物の同じ file は 2026-10-20 に 4 件（comment 2 + 残す 2）で、R11b の後は 2 件 | 対の文字列を含む行だけ | `Err` で `punct_ja_parity_test.dart` と足した行を名指す（specified、D 6 の RP-81「file と残す文字列の対の表で許す」。file ごと許すと comment が残る） | 境界、陰性 | `an_extra_hit_in_a_file_with_a_kept_string_is_rejected` |
+| T-RP-81-010 | 008 の `PunctuatorJa matches scripts/punct_ja.py` を `mobile/hayamimi_core/test/punct/punct_ja_text_test.dart` に移した木 | 残す文字列が別の file に在る | 対の file | `Err` でその file を名指す（specified、同上。対は file と文字列の組） | 境界、陰性 | `a_kept_string_in_another_file_is_rejected` |
+| T-RP-81-011 | F81 に `scripts/x.sh` と `tests/test_a.rs` を含む 1 行ずつを足した木 | 式に似て当たらない名前（拡張子が `.py` でない） | 例外でない当たり 0 | `Ok`（derived、式は `.py` まで要る。検知の道具が似た名前に当たらない陰性対照） | 境界、陽性 | `names_that_only_resemble_a_removed_python_file_pass` |
+| T-RP-81-012 | F81 の `README.md` に `scripts/a1_b2.py` の行と、`tests/test_a.py` の行を別々に足した 2 つの木 | 式の 2 つの選択肢。数字と下線を含む名前 | 例外でない当たり 0 | 2 つとも `Err` で `README.md` を名指す（specified、D 7 の RP-81 の式。`[a-z_0-9]+` が数字と下線を含む） | 境界、陰性 | `both_removed_path_forms_are_matched` |
+| T-RP-81-013 | F81 の `native/hayamimi/src/lib.rs` に `// ported from scripts/asr_engine.py` の comment を足す | source の comment。文書でない consumer | 例外でない当たり 0 | `Err` で `lib.rs` を名指す（specified、D 6 の RP-81 の題「文書と comment」。実物では `native/hayamimi-relay/tests/support/events.rs` の 6 行目の comment が 2026-10-20 に当たる（R11c が直す）） | 陰性 | `a_source_comment_naming_a_removed_script_is_rejected` |
+| T-RP-81-014 | 受入：`git ls-files` の実物の木（R11a1、R11a2、R11b、R11c の後） | 全体。001 から 013 と 015 から 029 の判定を実物に掛ける | 例外でない当たり 0 | `Ok`。pseudo：`git ls-files -z \| xargs -0 grep -lE '(scripts\|demo)[/\\][a-z_0-9]+\.py\|tests[/\\]test_[a-z_0-9]+\.py'` の出力の各 file が、記録の dir、記録の file、検査の道具（`rp81.rs`、`rp81_removed_python.txt`、`rp81_owned_lines.tsv`、fixture の木 `rp81_*/`）、持ち主の在る例外の file、残す文字列の対の file のどれかである（R11 の前の木では 145 file で、`.py` の外は 79 file。実測 2026-10-20 12:0x。`rg -l` でも 145） | 陽性、陰性 | `rp81_no_document_names_a_removed_python_file` |
+| T-RP-81-015 | 3 行の `removed` と、その sha256 と 3 を定数に持つ fixture | 一覧が 2 つの定数と合う | 定数 2 つ | `Ok`（specified、D 6 の RP-81「一覧が 2 つの定数と合う」） | 陽性 | `the_removed_python_list_matches_its_two_pins` |
+| T-RP-81-016 | 015 の `removed` に `scripts/extra.py` の 1 行を足した物（定数は 3 のまま） | 一覧に行が増えた | 行の数 3 | `Err` で行の数の食い違い（4 と 3）と sha256 の食い違いを言う（specified、同上。rp19 の固定の一覧と同じ形） | 陰性 | `a_removed_python_list_that_drifted_from_its_pins_is_rejected` |
+| T-RP-81-017 | 015 の 3 行（`scripts/download_models.py`、`demo/capture_events.py`、`tests/test_units.py`）。実物は `rp81_removed_python.txt` の 78 行 | 全行が式の形に当たる | 全行 | 3 行とも式に当たって `Ok`。実物は 78 行が全部当たる（specified、D 6 の RP-81。pseudo：`git ls-files '*.py' \| rg -c -e '(scripts\|demo)[/\\][a-z_0-9]+\.py\|tests[/\\]test_[a-z_0-9]+\.py'` が 78、`git ls-files '*.py' \| wc -l` も 78。実測 2026-10-20 12:0x。式の外の `tools/x.py` では出力なし） | 陽性 | `every_line_of_the_removed_python_list_is_matched_by_the_pattern` |
+| T-RP-81-018 | 015 の `removed` に式に当たらない path `tools/x.py` を 1 行足した物（定数もそれに合わせる） | 一覧の行が式を外れる。定数は合っている | 全行 | `Err` で `tools/x.py` を名指す（specified、D 7 の RP-81 の陰性の case「式に当たらない path を 1 行足した木」。式が消した file を名指せなくなる変更を止める） | 陰性 | `a_removed_list_line_the_pattern_misses_is_rejected` |
+| T-RP-81-019 | F81 の `README.md` に `scripts\x.py`、`.venv\Scripts\python scripts\realtime_transcribe.py`、`tests\test_a.py` を別々に足した 3 つの木 | `\` の区切り。`/` の 001 から 013 の対 | 区切り 2 種 | 3 つとも `Err` で `README.md` を名指す（specified、D 7 の RP-81 の陰性の case「`scripts\x.py` を 1 行足した木」。Windows の command を当てる） | 境界、陰性 | `a_backslash_path_to_a_removed_script_is_rejected` |
+| T-RP-81-020 | F81 の `README.md` に `demo/x.py`、`demo\x.py`、`demo/capture_events.py` を別々に足した 3 つの木 | `demo/` の dir。2 種の区切りと、消す file の実名 | dir 3 種（`scripts`、`demo`、`tests`） | 3 つとも `Err` で `README.md` を名指す（specified、D 7 の RP-81 の陰性の case「`demo/x.py` を足した木」） | 境界、陰性 | `a_demo_script_path_is_rejected` |
+| T-RP-81-021 | F81 の `README.md` に `python download_models.py` の行を足した木 | dir を伴わない消した file の名前。形の式には当たらない | `removed` の名前 | `Err` で `README.md` と `download_models.py` を名指す（specified、D 7 の RP-81 の陰性の case「dir の無い `download_models.py` を足した木」。実物の `README.md` は名前を足した式で 20 行、形の式で 16 行で、差の 4 行がこの形） | 陰性 | `a_bare_removed_file_name_is_rejected` |
+| T-RP-81-022 | F81 の `README.md` に `python my_tool.py` の行を足した木 | `removed` に無い名前。021 の隣 | `removed` の名前だけ | `Ok`（derived、名前の検査は 78 本の一覧の名前だけを当てる。検知の道具が `.py` の名前すべてに当たらない陰性対照） | 境界、陽性 | `a_bare_python_name_outside_the_removed_list_passes` |
+| T-RP-81-023 | F81 に足した `docs/guide/tuning.md` に、`owned` に無い当たりの行（`scripts/asr_engine.py` を含む 1 行）を足した木 | 持ち主の在る例外の file の、対に無い行 | 対に在る行だけ | `Err` で `docs/guide/tuning.md` と足した行を名指す（specified、D 7 の RP-81 の陰性の case「範囲の段落の file に tsv に無い当たりの行を 1 行足した木」。消し忘れと書き足しを隠さない） | 陰性 | `an_unlisted_line_in_an_owned_file_is_rejected` |
+| T-RP-81-024 | F81 の `owned` に在る行だけを持つ、6 file と `docs/spec/ja_pipeline_spec.json` の 7 つの木 | 持ち主の在る例外の file。対に在る行 | 対に在る行 | 7 つとも `Ok`（specified、D 6 の RP-81 の期待値の 3 つ目の種類） | 陽性 | `the_listed_lines_of_an_owned_file_pass` |
+| T-RP-81-025 | 024 の `docs/guide/tuning.md` の行の文字列を 1 字変えた木（`owned` は変えない） | 対の file は同じで、行の文字列が替わった。023 の隣 | 行の文字列 | `Err` で file と替わった行を名指す（specified、D 6 の RP-81「行の文字列が替わると落ちる」） | 境界、陰性 | `a_listed_line_whose_text_changed_is_rejected` |
+| T-RP-81-026 | F81 の `docs/spec/ja_pipeline_spec.json` に `owned` に無い当たりの行を足した木 | 記録の file から持ち主の在る例外に移った file | 対に在る行だけ | `Err` でその file を名指す（specified、D 6 の RP-81 の記録の file の一覧に `ja_pipeline_spec.json` が無く、持ち主は R13-10） | 境界、陰性 | `the_spec_json_is_owned_and_no_longer_a_record_file` |
+| T-RP-81-027 | 024 の `owned` の tsv に 1 行足した物（定数は 1 のまま） | tsv が定数から外れた | 行の数 1 | `Err` で行の数の食い違い（2 と 1）と sha256 の食い違いを言う（specified、D 6 の RP-81「sha256 と行の数を `OWNED_LINES_SHA256` と `OWNED_LINES_ROWS` に置く」） | 陰性 | `an_owned_lines_file_that_drifted_from_its_pins_is_rejected` |
+| T-RP-81-028 | F81 の `native/hayamimi-eval/tests/rp81.rs`、`rp81_removed_python.txt`、`rp81_owned_lines.tsv`、`native/hayamimi-eval/tests/rp81_a/x.md` のそれぞれに `scripts/x.py` を 1 行足した 4 つの木 | 検査の道具 3 つと fixture の木 | path がちょうど同じか dir の下 | 4 つとも `Ok`（specified、D 6 の RP-81 の期待値の 2 つ目の種類） | 陽性 | `the_checking_tool_files_may_name_a_python_file` |
+| T-RP-81-029 | F81 の `native/hayamimi-eval/tests/rp80.rs`、`native/hayamimi-eval/tests/rp81_a.rs`、`native/hayamimi/tests/rp81_a/x.md`、`native/hayamimi-eval/tests/rp81a/x.md` のそれぞれに `scripts/x.py` を 1 行足した 4 つの木 | 検査の道具に似た path。028 の隣 | path がちょうど同じか `rp81_*/` の dir の下 | 4 つとも `Err` でその file を名指す（derived、道具の例外は path と dir で名指す。名前の前半が同じだけの file と、別の crate の dir は通さない） | 境界、陰性 | `a_sibling_of_the_tool_files_is_not_exempt` |
+| T-RP-81-030 | 完了：repo の `native/hayamimi-eval/tests/rp81_owned_lines.tsv` の実物 | tsv の行が 0 | 行 0 | tsv に行が 0 で `Ok`。R11c の時点では行が在るので落ち、持ち主ごとの数を出す（specified、D 7 の RP-81（完了）の行。R13-10 と R13-14 が行を消した後に通る）。pseudo：`wc -l < native/hayamimi-eval/tests/rp81_owned_lines.tsv` が 0 | 陽性、陰性 | `rp81_owned_exceptions_are_gone` |
+| T-RP-81-031 | tsv の fixture：`R13-10` の行 1 つと `R13-14` の行 2 つ | 検知の道具の陽性対照。行が残る | 行 1 以上 | `Err` で `R13-10` が 1、`R13-14` が 2 と持ち主ごとの数を言う（specified、D 7 の RP-81（完了）の「持ち主ごとの数を出す」） | 陰性 | `a_remaining_owned_row_is_counted_per_owner` |
+| T-RP-81-032 | 空の tsv（0 byte） | 行が 0 の境界。031 の隣 | 行 0 | `Ok`（specified、同上。行が無ければ通る。027 の定数は 0 と空の内容の sha256） | 境界、陽性 | `an_empty_owned_lines_file_passes` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 大文字や `-` を含む名前（`scripts/Foo.py`、`scripts/a-b.py`）は式に当たらない。消す 78 本にそのような名前は無いので、行にしていない。
+- 消した名前を末尾に含む別の名前（`my_download_models.py`）が、dir を伴わない名前の検査に当たるかは、設計に書いていないので行にしていない。
+- 文字コードが UTF-8 でない tracked file の読み方。`git ls-files` の 145 file は `grep -lE` と `rg -l` が同じ数で、今の木に binary の当たりは無い。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
@@ -2412,7 +2555,9 @@ total 386
 - 置き場は `native/` の下の file で、その file の `#[cfg(test)] mod tests` に test を置く。`tests/` の下の file は、その crate の integration test である。file の名前は設計 3.3 の crate に合わせてこの席が置いた物で、module の割り方は実装の席が変えてよい（変えたら表の置き場の列も同じ手番で直す）。
 - Rust の名前が `-` の行は、Rust へ写さない case である。置き場の列に理由が在る。
   - `写さない：<理由>`：3.2 が消すと決めた script の test、設計で無くなる部品（翻訳 worker、翻訳器の pool、文ごとの訳の分割）、外が更新する model の sha256 を gate にする case、Python の実行時の package の import に固有の挙動（Rust には実行時の import が無い）の 4 種。写す先が無い。
-- 行の数は 386 で、Rust の名前を持つ行は 334、`写さない` が 52 である。RP-19 の期待値は、名前を持つ 334 行が list に在ることと、`写さない` の 52 行が理由を持つことである。`-` の行は T-RP-19-006 と T-RP-19-007 が理由の有無を確かめる。
+  - `写さない：Python の口（<Rust の在り処、または持たない機構>）`：5 つ目の種類。Rust が意図して持たない Python の口で、括弧の中に Rust の在り処（file、関数、受入 ID の行）か、持たない機構の理由を書く。見出しの語だけの行と、括弧の中が空の行は許さない（T-RP-19-011、T-RP-19-012）。
+- 行の数は 386 で、Rust の名前を持つ行は 319、`写さない` が 67 である。67 は上の 4 種の 52 と、Python の口の 15 の和である。RP-19 の期待値は、名前を持つ 319 行が list に在ることと、`写さない` の 67 行が理由を持つことである。`-` の行は T-RP-19-006、T-RP-19-007、T-RP-19-011 から T-RP-19-013 が理由の有無を確かめる。
+- 置き場が `hayamimi-eval/src/ws.rs` の行は、`test_ws_ingest.py` の `/ingest` の手書きの codec の 13 行である（`hayamimi` の `/ingest` は axum が受けて codec を持たない。T-RP-19-024）。
 
 ### 5.3 対応表
 
@@ -2440,9 +2585,9 @@ total 386
 | `test_asr_segment.py` | `test_a_non_suspicious_buffer_is_byte_identical_to_the_whole_decode` | `a_non_suspicious_buffer_is_byte_identical_to_the_whole_decode` | `hayamimi-asr/src/decode.rs` |
 | `test_asr_segment.py` | `test_pause_free_buffer_has_nothing_to_split` | `pause_free_buffer_has_nothing_to_split` | `hayamimi-asr/src/decode.rs` |
 | `test_asr_segment.py` | `test_live_path_preroll_keeps_utterance_initial_words` | `live_path_preroll_keeps_utterance_initial_words` | `hayamimi/src/stream.rs` |
-| `test_audio_capture.py` | `test_cli_rejects_loopback_on_non_windows_before_loading_models` | `cli_rejects_loopback_on_non_windows_before_loading_models` | `hayamimi/src/cli.rs` |
+| `test_audio_capture.py` | `test_cli_rejects_loopback_on_non_windows_before_loading_models` | `-` | 写さない：Python の口（3.15 は要る物が無いことで起動を止めないので、loopback の無い OS では取り込みの落とし（`capture.fallback.single` か `none`、RP-29 の R5 の行）で動き続け、拒む口を持たない） |
 | `test_audio_capture.py` | `test_microphone_device_selection_uses_input_only_case_insensitive_match` | `microphone_device_selection_uses_input_only_case_insensitive_match` | `hayamimi/src/capture.rs` |
-| `test_audio_capture.py` | `test_loopback_rejects_corrupt_channel_or_window_shapes` | `loopback_rejects_corrupt_channel_or_window_shapes` | `hayamimi/src/capture.rs` |
+| `test_audio_capture.py` | `test_loopback_rejects_corrupt_channel_or_window_shapes` | `-` | 写さない：Python の口（Rust の loopback は `wasapi` が返す型つきの format（channel の数と frame の数）から窓を組むので（`capture/windows.rs`、`capture/convert.rs`）、形の壊れた配列を受ける口が無い） |
 | `test_audio_capture.py` | `test_windows_com_scope_balances_every_success_result` | `windows_com_scope_balances_every_success_result` | 置き場：`native/hayamimi/src/capture.rs`（COM の初期化と後始末は `hayamimi` が自前の scope で持つ、設計 3.7） |
 | `test_audio_capture.py` | `test_windows_com_scope_uses_existing_changed_mode_apartment` | `windows_com_scope_uses_existing_changed_mode_apartment` | 置き場：同上 |
 | `test_audio_capture.py` | `test_windows_com_scope_rejects_other_hresult_failures` | `windows_com_scope_rejects_other_hresult_failures` | 置き場：同上 |
@@ -2454,11 +2599,11 @@ total 386
 | `test_audio_capture.py` | `test_put_latest_keeps_only_newest_bounded_items` | `put_latest_keeps_only_newest_bounded_items` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_aligned_speaker_match_discards_stale_and_retains_future` | `aligned_speaker_match_discards_stale_and_retains_future` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_wait_for_speaker_drains_packet_enqueued_as_done_becomes_true` | `wait_for_speaker_drains_packet_enqueued_as_done_becomes_true` | `hayamimi/src/capture.rs` |
-| `test_audio_capture.py` | `test_mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | `mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | `hayamimi/src/capture.rs` |
+| `test_audio_capture.py` | `test_mix_stall_drops_both_sides_symmetrically_and_keeps_time_alignment` | `-` | 写さない：Python の口（Rust の mix はマイクの窓を時計にして同じ時刻の speaker の窓を足し（`capture/combine.rs`）、speaker の側が詰まってもマイクの窓を捨てないので、両側を捨てる形を持たない） |
 | `test_audio_capture.py` | `test_mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate` | `mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate` | `hayamimi/src/capture.rs` |
 | `test_audio_capture.py` | `test_mix_does_not_retry_failed_soundcard_import_on_capture_thread` | `-` | 写さない：Python の実行時の package の import に固有（`soundcard` の import の再試行）。取り込みの装置が開けない時に止めずに落とす Rust の側の振る舞いは、RP-29 の R5 の行（`capture.fallback.none`）が持つ |
 | `test_audio_capture.py` | `test_mix_speaker_failure_falls_back_once_to_mic_only` | `mix_speaker_failure_falls_back_once_to_mic_only` | `hayamimi/src/capture.rs` |
-| `test_audio_capture.py` | `test_mix_microphone_failure_is_fatal_and_stops_speaker` | `mix_microphone_failure_is_fatal_and_stops_speaker` | `hayamimi/src/capture.rs` |
+| `test_audio_capture.py` | `test_mix_microphone_failure_is_fatal_and_stops_speaker` | `-` | 写さない：Python の口（3.15 はマイクが開けない時に在る音源だけで動かし、`capture/combine.rs` は speaker だけの窓をそのまま流すので、致命にする形を持たない） |
 | `test_diar_eval.py` | `test_parse_rttm_basic` | `parse_rttm_basic` | `hayamimi-eval/src/der.rs` |
 | `test_diar_eval.py` | `test_parse_rttm_ignores_non_speaker_lines_and_blanks` | `parse_rttm_ignores_non_speaker_lines_and_blanks` | `hayamimi-eval/src/der.rs` |
 | `test_diar_eval.py` | `test_parse_rttm_empty_file` | `parse_rttm_empty_file` | `hayamimi-eval/src/der.rs` |
@@ -2514,10 +2659,10 @@ total 386
 | `test_embed_runtime.py` | `test_eventhub_publish_delivers_to_subscriber_in_order` | `eventhub_publish_delivers_to_subscriber_in_order` | `hayamimi/src/events.rs` |
 | `test_embed_runtime.py` | `test_eventhub_replays_refine_events_to_new_subscribers` | `eventhub_replays_refine_events_to_new_subscribers` | `hayamimi/src/events.rs` |
 | `test_embed_runtime.py` | `test_eventhub_unsubscribe_stops_delivery` | `eventhub_unsubscribe_stops_delivery` | `hayamimi/src/events.rs` |
-| `test_embed_runtime.py` | `test_eventhub_add_listener_receives_the_raw_dict_synchronously` | `eventhub_add_listener_receives_the_raw_dict_synchronously` | `hayamimi/src/events.rs` |
+| `test_embed_runtime.py` | `test_eventhub_add_listener_receives_the_raw_dict_synchronously` | `-` | 写さない：Python の口（Rust の `Hub`（`server.rs`）は broadcast の channel で文字列の event を配り、同じ process の中で同期に呼ぶ listener の口を持たない。埋め込む側は `/events` の SSE を読む（3.8）） |
 | `test_embed_runtime.py` | `test_eventhub_multiple_listeners_all_receive_the_event` | `eventhub_multiple_listeners_all_receive_the_event` | `hayamimi/src/events.rs` |
-| `test_embed_runtime.py` | `test_eventhub_listener_exception_is_swallowed_and_reported_once` | `eventhub_listener_exception_is_swallowed_and_reported_once` | `hayamimi/src/events.rs` |
-| `test_embed_runtime.py` | `test_eventhub_a_second_broken_listener_gets_its_own_report` | `eventhub_a_second_broken_listener_gets_its_own_report` | `hayamimi/src/events.rs` |
+| `test_embed_runtime.py` | `test_eventhub_listener_exception_is_swallowed_and_reported_once` | `-` | 写さない：Python の口（同期の listener の口を持たないので（`eventhub_add_listener_receives_the_raw_dict_synchronously` の行）、listener が投げる例外も無い） |
+| `test_embed_runtime.py` | `test_eventhub_a_second_broken_listener_gets_its_own_report` | `-` | 写さない：Python の口（同期の listener の口を持たないので、2 つ目の壊れた listener も無い。配る口は `server.rs` の `Hub` の broadcast の channel だけである） |
 | `test_embed_runtime.py` | `test_final_event_carries_audio_s_lid_ms_decode_ms` | `final_event_carries_audio_s_lid_ms_decode_ms` | `hayamimi/src/stream.rs` |
 | `test_embed_runtime.py` | `test_final_event_switched_is_false_for_the_first_final` | `final_event_switched_is_false_for_the_first_final` | `hayamimi/src/stream.rs` |
 | `test_embed_runtime.py` | `test_final_event_switched_true_when_language_changes` | `final_event_switched_true_when_language_changes` | `hayamimi/src/stream.rs` |
@@ -2533,7 +2678,7 @@ total 386
 | `test_embed_runtime.py` | `test_set_lid_switch_confirm_accepts_valid_and_rejects_below_one` | `set_lid_switch_confirm_accepts_valid_and_rejects_below_one` | `hayamimi-asr/src/route.rs` |
 | `test_embed_runtime.py` | `test_set_min_switch_s_accepts_valid_and_rejects_negative` | `set_min_switch_s_accepts_valid_and_rejects_negative` | `hayamimi-asr/src/route.rs` |
 | `test_embed_runtime.py` | `test_set_punctuate_off_then_on_is_a_noop_when_already_loaded` | `set_punctuate_off_then_on_is_a_noop_when_already_loaded` | `hayamimi-asr/src/punct.rs` |
-| `test_embed_runtime.py` | `test_set_punctuate_reenable_after_degrade_clears_punct_for_retry` | `set_punctuate_reenable_after_degrade_clears_punct_for_retry` | `hayamimi-asr/src/punct.rs` |
+| `test_embed_runtime.py` | `test_set_punctuate_reenable_after_degrade_clears_punct_for_retry` | `-` | 写さない：Python の口（Rust は句読点の model を起動時に 1 回開き、開けなければ 3.15 の形で落として実行中に読み直さない。`Engine::set_punctuate` は on と off の切り替えだけで、再試行する状態を持たない） |
 | `test_embed_runtime.py` | `test_translator_pool_add_target_builds_once_and_emits_model_load` | `-` | 写さない：翻訳器の pool はこの設計で無くなり、`--translate` の言語は `hayamimi-relay` が llama-server で訳す（設計 3.6、R8f、RP-13、RP-19） |
 | `test_embed_runtime.py` | `test_translator_pool_add_target_is_idempotent` | `-` | 写さない：同上 |
 | `test_embed_runtime.py` | `test_translator_pool_remove_target_drops_it` | `-` | 写さない：同上 |
@@ -2566,18 +2711,18 @@ total 386
 | `test_embed_runtime.py` | `test_control_queue_poll_runs_queued_callables_in_fifo_order` | `control_queue_poll_runs_queued_callables_in_fifo_order` | `hayamimi/src/control.rs` |
 | `test_embed_runtime.py` | `test_control_queue_poll_with_nothing_queued_is_a_noop` | `control_queue_poll_with_nothing_queued_is_a_noop` | `hayamimi/src/control.rs` |
 | `test_embed_runtime.py` | `test_control_queue_poll_sets_the_event_after_running` | `control_queue_poll_sets_the_event_after_running` | `hayamimi/src/control.rs` |
-| `test_embed_runtime.py` | `test_control_queue_poll_sets_event_and_continues_past_a_raising_callable` | `control_queue_poll_sets_event_and_continues_past_a_raising_callable` | `hayamimi/src/control.rs` |
-| `test_embed_runtime.py` | `test_control_queue_task_runs_on_the_thread_that_calls_poll_not_the_submitter` | `control_queue_task_runs_on_the_thread_that_calls_poll_not_the_submitter` | `hayamimi/src/control.rs` |
-| `test_embed_runtime.py` | `test_run_stream_polls_control_once_per_chunk` | `run_stream_polls_control_once_per_chunk` | `hayamimi/src/stream.rs` |
-| `test_embed_runtime.py` | `test_run_stream_without_control_is_unaffected` | `run_stream_without_control_is_unaffected` | `hayamimi/src/stream.rs` |
+| `test_embed_runtime.py` | `test_control_queue_poll_sets_event_and_continues_past_a_raising_callable` | `-` | 写さない：Python の口（Rust の命令は closure ではなく data の `Command`（`control.rs`）で、投げる命令が無い。適用の失敗は `session.rs` の `apply` の `Result` で loop に返る） |
+| `test_embed_runtime.py` | `test_control_queue_task_runs_on_the_thread_that_calls_poll_not_the_submitter` | `-` | 写さない：Python の口（命令が closure でないので、走る thread を問う物が無い。命令を decode の loop で適用することは `run_stream_applies_a_submitted_task_on_the_decode_thread_not_the_submitter`（R12b）が持つ） |
+| `test_embed_runtime.py` | `test_run_stream_polls_control_once_per_chunk` | `-` | 写さない：Python の口（Rust の session の loop は窓ごとに届いた命令を全部適用する（`session.rs` の `apply_commands`）。1 窓に 1 回 poll する口は無い） |
+| `test_embed_runtime.py` | `test_run_stream_without_control_is_unaffected` | `-` | 写さない：Python の口（Rust の `Session` は命令の受け口を常に持ち、受け口の無い形が無い） |
 | `test_embed_runtime.py` | `test_run_stream_applies_a_submitted_task_on_the_decode_thread_not_the_submitter` | `run_stream_applies_a_submitted_task_on_the_decode_thread_not_the_submitter` | `hayamimi/src/stream.rs` |
-| `test_embed_runtime.py` | `test_config_and_reset_404_without_controls_attached` | `config_and_reset_404_without_controls_attached` | `hayamimi/src/server.rs` |
+| `test_embed_runtime.py` | `test_config_and_reset_404_without_controls_attached` | `-` | 写さない：Python の口（Rust の server は `/config` と `/reset` を session の命令の受け口へ常に結び（`routes.rs`）、受け口を付けない server の形が無い） |
 | `test_embed_runtime.py` | `test_get_config_reports_current_values` | `get_config_reports_current_values` | `hayamimi/src/server.rs` |
 | `test_embed_runtime.py` | `test_post_config_applies_a_subset_of_keys` | `post_config_applies_a_subset_of_keys` | `hayamimi/src/server.rs` |
 | `test_embed_runtime.py` | `test_post_config_invalid_value_returns_400_with_message` | `post_config_invalid_value_returns_400_with_message` | `hayamimi/src/server.rs` |
 | `test_embed_runtime.py` | `test_post_reset_calls_the_reset_function` | `post_reset_calls_the_reset_function` | `hayamimi/src/server.rs` |
 | `test_embed_runtime.py` | `test_post_reset_pending_returns_202` | `post_reset_pending_returns_202` | `hayamimi/src/server.rs` |
-| `test_embed_runtime.py` | `test_post_reset_without_reset_fn_returns_400` | `post_reset_without_reset_fn_returns_400` | `hayamimi/src/server.rs` |
+| `test_embed_runtime.py` | `test_post_reset_without_reset_fn_returns_400` | `-` | 写さない：Python の口（`/reset` は session の命令の受け口へ常に結ぶので、reset の関数の無い形が無い。loop が止まった時は `routes.rs` の `reset` が `applied(false)` を返す） |
 | `test_itn_cjk.py` | `test_only_applies_to_ja_zh_yue` | `only_applies_to_ja_zh_yue` | `hayamimi-asr/src/itn.rs` |
 | `test_itn_cjk.py` | `test_empty_text_is_a_noop` | `empty_text_is_a_noop` | `hayamimi-asr/src/itn.rs` |
 | `test_itn_cjk.py` | `test_magnitude_form_full_arithmetic_without_big_units` | `magnitude_form_full_arithmetic_without_big_units` | `hayamimi-asr/src/itn.rs` |
@@ -2614,7 +2759,7 @@ total 386
 | `test_lifecycle.py` | `test_engine_refuses_work_after_close` | `engine_refuses_work_after_close` | `hayamimi-asr/src/route.rs` |
 | `test_lifecycle.py` | `test_closed_engine_starts_no_new_background_work` | `closed_engine_starts_no_new_background_work` | `hayamimi-asr/src/route.rs` |
 | `test_lifecycle.py` | `test_closed_engine_is_collectable` | `closed_engine_is_collectable` | `hayamimi-asr/src/route.rs` |
-| `test_lifecycle.py` | `test_run_clip_leaves_no_engine_behind` | `run_clip_leaves_no_engine_behind` | `hayamimi/src/stream.rs` |
+| `test_lifecycle.py` | `test_run_clip_leaves_no_engine_behind` | `-` | 写さない：Python の口（Rust の `Engine` は持ち主の scope を出た時に `Drop` で手放され、process 全体から引く global や回収待ちの参照を持たない） |
 | `test_overlay_parity.py` | `test_overlay_html_matches_mobile_port` | `overlay_html_matches_mobile_port` | `hayamimi-ui/tests/overlay_parity.rs` |
 | `test_process_safety.py` | `test_routed_asr_init_raises_not_exits_when_lid_missing` | `routed_asr_init_raises_not_exits_when_lid_missing` | `hayamimi-asr/src/route.rs` |
 | `test_process_safety.py` | `test_build_lid_guarded_never_reaches_sherpa_onnx_when_missing` | `build_lid_guarded_never_reaches_sherpa_onnx_when_missing` | `hayamimi-asr/src/lid.rs` |
@@ -2783,19 +2928,19 @@ total 386
 | `test_units.py` | `test_lid_max_seconds_is_the_documented_knob` | `lid_max_seconds_is_the_documented_knob` | `hayamimi-asr/src/lid.rs` |
 | `test_units.py` | `test_tier_fallback_table_only_names_known_tiers` | `tier_fallback_table_only_names_known_tiers` | `hayamimi-asr/src/route.rs` |
 | `test_units.py` | `test_punct4_prefers_int8_when_present` | `punct4_prefers_int8_when_present` | `hayamimi-asr/src/punct.rs` |
-| `test_ws_ingest.py` | `test_compute_accept_key_matches_rfc_example` | `compute_accept_key_matches_rfc_example` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_parse_handshake_request_extracts_path_and_key` | `parse_handshake_request_extracts_path_and_key` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_parse_handshake_request_rejects_non_websocket` | `parse_handshake_request_rejects_non_websocket` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_parse_handshake_request_rejects_missing_key` | `parse_handshake_request_rejects_missing_key` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_build_handshake_response_contains_correct_accept` | `build_handshake_response_contains_correct_accept` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_build_handshake_request_roundtrips_through_parse` | `build_handshake_request_roundtrips_through_parse` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_frame_roundtrip_unmasked_binary` | `frame_roundtrip_unmasked_binary` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_frame_roundtrip_masked_text` | `frame_roundtrip_masked_text` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_frame_masked_bytes_differ_from_plaintext_on_wire` | `frame_masked_bytes_differ_from_plaintext_on_wire` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_decode_frame_incomplete_returns_none` | `decode_frame_incomplete_returns_none` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_decode_frame_two_frames_in_one_buffer` | `decode_frame_two_frames_in_one_buffer` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_decode_frame_large_payload_uses_64bit_length` | `decode_frame_large_payload_uses_64bit_length` | `hayamimi/src/ingest.rs` |
-| `test_ws_ingest.py` | `test_frame_close_and_ping_opcodes_roundtrip` | `frame_close_and_ping_opcodes_roundtrip` | `hayamimi/src/ingest.rs` |
+| `test_ws_ingest.py` | `test_compute_accept_key_matches_rfc_example` | `compute_accept_key_matches_rfc_example` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_parse_handshake_request_extracts_path_and_key` | `parse_handshake_request_extracts_path_and_key` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_parse_handshake_request_rejects_non_websocket` | `parse_handshake_request_rejects_non_websocket` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_parse_handshake_request_rejects_missing_key` | `parse_handshake_request_rejects_missing_key` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_build_handshake_response_contains_correct_accept` | `build_handshake_response_contains_correct_accept` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_build_handshake_request_roundtrips_through_parse` | `build_handshake_request_roundtrips_through_parse` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_frame_roundtrip_unmasked_binary` | `frame_roundtrip_unmasked_binary` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_frame_roundtrip_masked_text` | `frame_roundtrip_masked_text` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_frame_masked_bytes_differ_from_plaintext_on_wire` | `frame_masked_bytes_differ_from_plaintext_on_wire` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_decode_frame_incomplete_returns_none` | `decode_frame_incomplete_returns_none` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_decode_frame_two_frames_in_one_buffer` | `decode_frame_two_frames_in_one_buffer` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_decode_frame_large_payload_uses_64bit_length` | `decode_frame_large_payload_uses_64bit_length` | `hayamimi-eval/src/ws.rs` |
+| `test_ws_ingest.py` | `test_frame_close_and_ping_opcodes_roundtrip` | `frame_close_and_ping_opcodes_roundtrip` | `hayamimi-eval/src/ws.rs` |
 | `test_ws_ingest.py` | `test_decode_pcm16_mono_roundtrip` | `decode_pcm16_mono_roundtrip` | `hayamimi-asr/src/audio.rs` |
 | `test_ws_ingest.py` | `test_decode_pcm16_drops_trailing_odd_byte` | `decode_pcm16_drops_trailing_odd_byte` | `hayamimi-asr/src/audio.rs` |
 | `test_ws_ingest.py` | `test_decode_pcm16_averages_stereo_to_mono` | `decode_pcm16_averages_stereo_to_mono` | `hayamimi-asr/src/audio.rs` |
