@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
-use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport};
+use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
 use hayamimi_relay::logging::{Level, LogEvent};
 use serde_json::Value;
 
@@ -35,6 +35,8 @@ pub const MODEL_LOADED: &str = "asr.model.loaded";
 pub const MODEL_EVICTED: &str = "asr.model.evicted";
 pub const MEMORY_UNREADABLE: &str = "gpu.memory.unreadable";
 pub const LANG_UNKNOWN: &str = "asr.lang.unknown";
+pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
+pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
 pub const DEVICE_OPENED: &str = "capture.device.opened";
 pub const INGEST_CONNECTED: &str = "ingest.client.connected";
@@ -363,6 +365,35 @@ pub fn partial_failed_line(strings: &Strings) -> String {
     )
 }
 
+/// `asr.warmup.decoded`: the recognizer read the start-up silence once, before
+/// the first utterance. `decode_ms` is what that first decode took.
+pub fn warmup_decoded_line(strings: &Strings, warmed: &Warmup) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        WARMUP_DECODED,
+        "asr",
+        None,
+        &[
+            ("model", Value::from(warmed.tier.name())),
+            ("decode_ms", millis(warmed.decode_ms)),
+            ("audio_s", Value::from(warmed.audio_s)),
+        ],
+    )
+}
+
+/// `asr.warmup.failed`: the start-up decode failed; the run goes on without it.
+pub fn warmup_failed_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        WARMUP_FAILED,
+        "asr",
+        Some("HAYAMIMI_ASR_WARMUP_FAILED"),
+        &[],
+    )
+}
+
 /// `asr.engine.failed`: the route stopped on an error.
 pub fn engine_failed_line(strings: &Strings) -> String {
     event_line(
@@ -651,6 +682,8 @@ mod tests {
                 MODEL_EVICTED,
                 MEMORY_UNREADABLE,
                 LANG_UNKNOWN,
+                WARMUP_DECODED,
+                WARMUP_FAILED,
                 SERVER_LAN_OPENED,
                 notice::GPU_FALLBACK,
                 notice::MODEL_DISABLED,
@@ -666,6 +699,34 @@ mod tests {
                 );
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn the_start_up_decode_is_an_info_line_with_the_model_the_time_and_the_seconds()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let warmed = Warmup {
+            tier: Tier::Rz,
+            audio_s: 10,
+            decode_ms: 987.65432,
+        };
+        let event = parsed(&warmup_decoded_line(&strings()?, &warmed))?;
+        assert_eq!(event["event"], WARMUP_DECODED);
+        assert_eq!(event["level"], "info");
+        assert_eq!(event["model"], "rz");
+        assert_eq!(event["decode_ms"], 987.654);
+        assert_eq!(event["audio_s"], 10);
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_start_up_decode_is_a_warning_line_with_its_error_code()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let event = parsed(&warmup_failed_line(&strings()?))?;
+        assert_eq!(event["event"], WARMUP_FAILED);
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], "HAYAMIMI_ASR_WARMUP_FAILED");
         Ok(())
     }
 

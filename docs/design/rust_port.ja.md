@@ -873,6 +873,8 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `asr.endpoint.held` | 早い終わりの候補が文を読んだが、文が完結していないか、声が `EARLY_MIN_SEGMENT_MS` に満たず、確定せず持った時（info。3.17） | `reason`（`incomplete`、`too_short`）、`span_ms`（読んだ声の長さ）、`min_ms`、`tail`（`noun`、`honorific`、`particle`、`interjection`、`other`）、`shadow_complete`（下の影の印） |
 | `asr.model.evicted` | `--max-resident` の上限のため、最も使われていない認識器を手放したとき。新しい認識器を作る前に出す（info） | `model` |
 | `asr.lang.unknown` | SenseVoice の結果の `lang` の tag を読めないとき。言語は不明として続ける（warn） | `error_code` |
+| `asr.warmup.decoded` | 起動の時に、日本語の認識器が 10 秒の無音を 1 回読み終えた時。`asr.model.loaded` の後、音声を読む前に 1 件出す（info。3.19） | `model`、`decode_ms`、`audio_s` |
+| `asr.warmup.failed` | その復号に失敗した時。起動は止めず続ける（warn。3.19） | `error_code`（`HAYAMIMI_ASR_WARMUP_FAILED`） |
 | `gpu.memory.unreadable` | GPU の memory を読めないとき。予算なしで続ける（warn） | `error_code` |
 | `model.fallback.substitute` | 認識器が使えず、別の認識器が答えるとき（warn） | `requested`、`used`、`reason` |
 | `model.fallback.chunks` | 発話の検出器が使えず、長い音声を一定の長さで切るとき（warn） | `reason` |
@@ -1584,6 +1586,7 @@ row("now"; .), row("B"; B), row("B+first"; B|first), row("B+first+key"; B|first|
 10 秒にするのは、lat-ja の最も長い発話（約 9.6 秒）より長い入力で、ORT が中で取る作業域を先に取らせるためである（ASSUMPTION。0 の入力で同じ作業域が取られるかは RP-84 が最初の発話の復号で受ける）。
 起動は約 1 秒延びる見込みで、`asr.warmup.decoded` の `decode_ms` に出る。
 復号に失敗しても起動は止めず、`asr.warmup.failed`（warn）を出して続ける（3.15 の止めない形）。
+読むのは常駐の日本語の認識器（Rz）だけで、英語の tier は読まない。認識器の無い起動（route が無い）は、落ちた段が既に言われているので、どちらの event も出さない。
 
 **使い回しの鍵の広げ**：3.18 の 1 の鍵に、`Normalized` を 1 つ足す。
 ja の行で、確定文と速報の文字列の両方から半角空白を除き、数字の並び（`0-9`、`０-９`、`〇一二三四五六七八九十百千万億` の続き）をそれぞれ 1 つの印に置き換え、`。` と `、` を全部除いた物が同じ時に合う。
@@ -1700,7 +1703,7 @@ cargo の並列は 2（`~/.cargo/config.toml`）で、E2E の窓の間はどの�
 | R8x-1（RP-83 の門） | `native/hayamimi-eval/src/stream.rs`（記録、拒み、打ち切り）、`native/hayamimi-eval/tests/support/machine.rs`（作る）、`native/hayamimi-eval/tests/support/rp32.rs`（`check_loads` から呼ぶ）、`native/hayamimi-eval/tests/rp32.rs`（`the_load_after_a_run_is_recorded_but_not_judged` を RP-83 の判定に合わせて直す）、`native/hayamimi-eval/tests/rp83.rs`（作る）、`docs/results/e2e/README.md` の「Conditions of the run」 | T の直し。穴 9（一覧の dir を渡す引数の形、H128）を R8x-1 の席が決める | cargo（`hayamimi-eval`） | 60 分 |
 | R8x-2a（RP-67 の test） | `native/hayamimi-eval/tests/rp67.rs`（作る）。`rp79.rs` は B を外したので作らない（H130） | R8x-1（同じ support を読む） | cargo（`hayamimi-eval`） | 51 分 |
 | R8x-2b（H88 の code。E2E-1、E2E-2、RP-3 の標本ごとの線） | `native/hayamimi-eval/tests/support/e2e.rs`（Rust の標本の線を `rule` で選ぶ、`<run>.hayamimi.stdout.log` を読む、門の前の記録の一覧の例外）、`support/rp32_rules.rs`（`joined_finals` が `final` の `id` を残し、`closing_rule` が `id` を名指す）、`native/hayamimi-eval/tests/e2e1.rs`、`e2e2.rs`、`docs/results/e2e/README.md` の有効の文。T-E2E-1-016〜023、T-E2E-2-012〜016、T-RP-32-048 を実装する。T-RP-3-022 と 023 は `rp03.rs` が repo に無いので `（未実装）` のまま残し、`rp03.rs` を作る席が同じ線で作る（H88） | R8x-2a（同じ `support/e2e.rs`）、R8x-1（同じ README）。窓 E4 より前 | cargo（`hayamimi-eval`） | 51 分（推測） |
-| R8x-3（RP-84 の初回の復号） | `native/hayamimi-asr/src/recognizer.rs`（無音を 1 回復号する関数）、`asr.model.loaded` を出す所の直後の呼び出し、`native/hayamimi/src/log.rs`（`asr.warmup.decoded`、`asr.warmup.failed`）、`native/hayamimi-eval/tests/rp84.rs`（作る） | なし。`session.rs` を触るなら R13 の slice と順にする | cargo（`hayamimi-asr`、`hayamimi`） | 51 分 |
+| R8x-3（RP-84 の初回の復号。`feat/r8x-3`、実装済み） | `native/hayamimi-asr/src/recognizer.rs`（10 秒の無音 `warmup_silence`）、`native/hayamimi-asr/src/pipeline.rs`（`Engine::warm_up`。常駐の Rz を `decode_exact` で 1 回読む）、`native/hayamimi/src/run.rs`（`tell_resident` の直後の呼び出し `warm_recognizer`。`session.rs` は触らない）、`native/hayamimi/src/log.rs` と `data/strings.*.toml`（`asr.warmup.decoded`、`asr.warmup.failed`）、`native/hayamimi-eval/tests/rp84.rs` と `fixtures/rp84_recorded/`、`native/hayamimi/tests/rp84_start.rs`（起動の run が `decoded` を 1 件出すことを数える。`--ignored`）、`.github/workflows/test.yml`（`--test rp84 --test rp84_start`） | なし。`session.rs` を触るなら R13 の slice と順にする | cargo（`hayamimi-asr`、`hayamimi`） | 51 分 |
 | R8x-4（RP-85 の鍵の広げ） | `native/hayamimi-relay/src/partial.rs`（鍵）、`native/hayamimi-relay/src/pipeline.rs`（`ReuseMatch::Normalized`、`match` の値）、`native/hayamimi-relay/tests/rp85.rs`（作る） | なし | cargo（`hayamimi-relay`）。品質の probe は 8080 の llama-server（GPU、約 20 分、E2E の窓の外） | 60 分と probe 20 分 |
 | L2、L3（方針 B の手順 2 と 3） | L2 は済み（門が落ちた、H130）。L3（`--early-complete nouns`）は止める | — | — | — |
 | R8x-5（RP-86 の offline の門。今の規則を相手に打つ） | `native/hayamimi-asr/tests/r8v_probe.rs`（2 本の probe）、`docs/results/r8v/extra-lat.log`、`extra-heldout-ja.log`、`extra.md` | なし（probe の形は `origin/feat/l2-shadow-gate` の `d024bbe` の `r8v_probe.rs` を読む。この commit は main に無い）。穴 8（lat-en の行は記録だけ、H127）は決定済み | cargo（CPU） | 60 分 |
@@ -1966,7 +1969,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-78 | `rp78_split_recognizer_shortens_l_asr_without_slowing_translation` | `native/hayamimi-eval/tests/rp78.rs` | encoder が CPU で作られた split の run |
 | RP-79 | `rp79_widened_early_end_shortens_ja_wait_without_mid_sentence_splits`（止める。方針 B を 1200 ms の組から外した。10 の H130） | `native/hayamimi-eval/tests/rp79.rs`（作らない） | 止めたので置かない |
 | RP-83 | `rp83_a_run_under_a_busy_machine_or_beside_a_build_is_refused` | `native/hayamimi-eval/tests/rp83.rs`（作る） | e-card-form の 3 run の load を写した fixture、途中の 1 行だけ `cargo` が 1 の fixture、file の無い run、`comm` が `cargo` の偽の process |
-| RP-84 | `rp84_the_first_utterance_decodes_as_fast_as_the_rest` | `native/hayamimi-eval/tests/rp84.rs`（作る） | 今の記録（e-card-form の `rs1`〜`rs3`）、`asr.warmup.decoded` が最初の `asr.endpoint.decided` の後ろに在る fixture |
+| RP-84 | `rp84_the_first_utterance_decodes_as_fast_as_the_rest` | `native/hayamimi-eval/tests/rp84.rs` | 今の記録（e-card-form の `rs1`〜`rs3`）、`asr.warmup.decoded` が最初の `asr.endpoint.decided` の後ろに在る fixture |
 | RP-85 | `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v` | `native/hayamimi-relay/tests/rp85.rs`（作る） | 鍵を今の形に戻した build、V の数の検査を外した台本、文字の違う対、en の行 |
 | RP-86 | `rp86_extra_early_notices_shorten_the_ja_wait_without_mid_sentence_splits` | `native/hayamimi-eval/tests/rp86.rs`（作る） | X の「後ろに声が続く確定」を W より 1 件多くした offline の log、X の位置に W の run を置いた dir、X の割れに「文の途中」を 1 件足した fixture |
 | RP-87 | `rp87_c_and_d_fire_on_their_own_lines_and_d_never_ends_a_connective_or_particle_tail` | `native/hayamimi-asr/tests/rp87.rs`（作る） | C の threshold を 0.65 にした build、D を接続の形と助詞の末尾にも使う build、`--early-extra off` でも C を開く build |

@@ -2640,8 +2640,9 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 
 ### 4.76 RP-84（認識器の初回の復号を起動の時に済ませる）
 
-**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-3 の席が足す。
-test：`native/hayamimi-eval/tests/rp84.rs`。受入 test の名前は `rp84_the_first_utterance_decodes_as_fast_as_the_rest`（未実装、持ち主 R8x-3）。実走の行（T-RP-84-023）だけが `#[ignore]` を持ち、`docs/results/r8x/` の X の run を読む。記録が置かれるまでは走らせない。ほかの行は fixture を読み、`--ignored` を付けずに通る。
+**実装済み**（`feat/r8x-3`）。25 行は `native/hayamimi-eval/tests/rp84.rs` の 25 本と 1 対 1 で、24 本が通り、023 は `#[ignore]` である。判定の関数は `judge_first_utterance(&[Run])`（`Run` は名前、標本、stdout の text）。X の run の名前は `x` と数字で、W の run は読まない。fixture は `tests/fixtures/rp84_recorded/`（`rs1`〜`rs3` の 5 欄の写しと、`rs1` の stdout の写し）に在る。
+起動の run が `asr.warmup.decoded` を 1 件、`asr.model.loaded` の後かつ最初の `asr.endpoint.decided` の前に出し、`audio_s` が 10、`decode_ms` が 0 を超え、`asr.warmup.failed` が 0 件であることは、`native/hayamimi/tests/rp84_start.rs`（実走の 1 本が `#[ignore]`）が数える。
+test：`native/hayamimi-eval/tests/rp84.rs`。受入 test の名前は `rp84_the_first_utterance_decodes_as_fast_as_the_rest`。実走の行（T-RP-84-023）だけが `#[ignore]` を持ち、`docs/results/r8x/` の X の run を読む。記録が置かれるまでは走らせない。ほかの行は fixture を読み、`--ignored` を付けずに通る。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp84`。実走の行はこれに `-- --ignored` を足す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（023 だけは受入 test の名前の全部）。判定の関数の名前と引数の形は実装の席が決める。行は「X の run の列（名前、標本の列、`hayamimi` の stdout の text）を渡す」形で書く。
 設計は D 3.19 の「認識器の初回の復号」と、D 6 と 7 の RP-84、D 10 の H117 のそばの ASSUMPTION（作業域）である。
@@ -2681,7 +2682,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-84-020 | X の run が 0 本の列（`w1`、`w2` だけを渡す） | 空 | X の run が在る | `Err` で X の run が無いことを名指す（implicit、0 本を通さない。T-RP-67-011 と同じ向き） | 境界、陰性 | `a_set_with_no_x_run_is_rejected` |
 | T-RP-84-021 | `w1` の位置に F84 の run を置き、`x1` だけを RP-84 に渡す（W の run は読まない） | W の run を読まない | X の run だけ | `w1` の A が p95 を大きく超えていても `Ok`（specified、RP-84 の「窓 E3 の X の run」。W の run は初回の復号の確かめに使わない） | 境界、陽性 | `w_runs_are_not_read_for_the_first_utterance` |
 | T-RP-84-022 | 001 の stdout の `asr.warmup.decoded` の行から `decode_ms` を除き、`audio_s` を 1 にした物 | 受入の条件に無い欄 | 欄は判定しない | `Ok`（derived、RP-84 の期待値は `decoded` の件数と順と `failed` の件数だけ。`decode_ms` と `audio_s` は判定に入らない。10 秒の無音を復号したことは RP-84 が見ない、3.19 の方針と理由） | 境界 | `warmup_fields_other_than_the_event_name_are_not_judged` |
-| T-RP-84-023 | 実走：`docs/results/r8x/` の `x<N>.e2e1.jsonl` と `x<N>.e2e1.hayamimi.stdout.log` | 実走 | 実走 | 全 X の run で 001 の形（A ≤ p95、`decoded` が 1 件で最初の `decided` の前、`failed` が 0 件）で `Ok`（specified、RP-84）。窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp84_the_first_utterance_decodes_as_fast_as_the_rest`（未実装、持ち主 R8x-3） |
+| T-RP-84-023 | 実走：`docs/results/r8x/` の `x<N>.e2e1.jsonl` と `x<N>.e2e1.hayamimi.stdout.log` | 実走 | 実走 | 全 X の run で 001 の形（A ≤ p95、`decoded` が 1 件で最初の `decided` の前、`failed` が 0 件）で `Ok`（specified、RP-84）。窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp84_the_first_utterance_decodes_as_fast_as_the_rest` |
 | T-RP-84-024 | 001 の `x1` で A の `d` を 100 ms（120 ms 未満。`t_final_us` は在る）にする。(a) A の `final_latency_ms` を 157 ms にする。(b) A を 210 ms にする | A が有効の線に届かない形 | A は `final` が在れば `d` によらず比べる | (a) は `Ok`、(b) は `Err` で A の 210 と p95 の 209 を名指す（specified、3.19 の「数えた結果」と RP-84。A を「有効でないから比べない」と読む実装は (b) を通してしまうので、(b) で落ちる。比べる集合は A を除く有効な標本の n = 114 のまま） | 境界、陰性 | `a_first_utterance_below_the_validity_line_is_still_compared` |
 | T-RP-84-025 | 001 の stdout から `asr.endpoint.decided` の行を全部除く（`asr.model.loaded` と `asr.warmup.decoded` の 2 行だけ） | `decided` が 0 件 | 最初の `decided` が在る | `Err` で `x1` と `asr.endpoint.decided` が 0 件であることを名指す（specified、3.19 の「`decided` が 0 件の stdout は落ちる」。「最初の `decided` より前」が空で成り立つ形を通さない。017 の実物が `decided` を 141 件数えることが、数える語の陽性対照） | 境界、陰性 | `a_stdout_without_any_endpoint_decision_is_rejected` |
 
