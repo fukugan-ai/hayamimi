@@ -2323,7 +2323,7 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 
 **この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
 
-### 4.71 VAD の窓ごとの確率の probe
+### 4.72 VAD の窓ごとの確率の probe
 
 判定の code は変えない。
 VAD の model を `ort` で開き、512 sample の窓ごとの確率を `lat-ja.wav` と `lat-en.wav` で出す。
