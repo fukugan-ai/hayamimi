@@ -87,6 +87,7 @@ The remaining path is R8x-1, R8x-2a, R8x-2b, R8x-3, R8x-4, window E1, window E3'
 The implementation of R8x-1 (the gate of an E2E run, RP-83) is in and done. `hayamimi-eval stream` writes `<run>.machine.jsonl`, and the gate looks at the load before and after and at cargo and rustc during the run. 39 slices remain.
 The design that makes RP-80 fail when a CI flag is glued to the word before it (such as `x--test`; R11d, H133) is in. When a flag is glued, CI stays green while that binary runs almost nothing. It is not implemented yet, and it is a separate track outside the 39.
 The implementation of R8x-3 (the first decode of the recognizer, RP-84) is in and done. The decode of the first utterance now finishes before `/ingest`. The remaining count has not been recounted.
+The implementation of R8x-4 (reusing a draft that differs only in numerals or inner marks, RP-85) is in. The quality probe and the real run have not been run.
 
 ### Related documents
 
