@@ -59,6 +59,7 @@ The placement changes only after RP-78 confirms that, in the split form (encoder
 
 The state of each slice is in the table in `docs/design/status.md`.
 The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
+Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
 
 ### Related documents
 
