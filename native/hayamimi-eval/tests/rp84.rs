@@ -742,7 +742,7 @@ fn a_set_with_no_x_run_is_rejected() -> TestResult {
 }
 
 #[test]
-fn w_runs_are_not_read_for_the_first_utterance() -> TestResult {
+fn runs_not_named_e3p_are_not_read_for_the_first_utterance() -> TestResult {
     let slow = run_of("w1", f84(first("5000.0", 500)?), &l84());
     judge_first_utterance(&[slow, good_run("e3p1")?])?;
     Ok(())
