@@ -10,6 +10,14 @@
 //! The Python words are searched line by line, comment lines included. The name
 //! of the test that counts the unported rows (`rp19_python_cases_are_ported`)
 //! holds one of the words and is taken out of a line before the search.
+//!
+//! The value of every `run:` is checked for two shapes that make a green job
+//! run less than it says. A flag (`--test`, `--skip`, `--exact`, `--ignored`,
+//! `--include-ignored`) with text in front of it inside one word is read by
+//! cargo as part of that word, so the flag does nothing. A word is cut at a
+//! half-width space or a tab, as the shell cuts it. A value that starts with
+//! `|` or `>` puts the command on the lines below, which this reader does not
+//! read, so it is rejected instead of passed unseen.
 
 mod support;
 
@@ -22,6 +30,9 @@ use support::{Failure, REPO, TestResult, read};
 const WORKFLOW_BASE: &str = include_str!("fixtures/rp80_base/test.yml");
 const PROBE_BASE: &str = include_str!("fixtures/rp80_base/ci_probe.md");
 const WORKFLOW_BEFORE_R11: &str = include_str!("fixtures/rp80_before_r11/test.yml");
+/// The workflow as `git show 270a3bd:.github/workflows/test.yml` prints it: line
+/// 41 has a `--skip` glued to the name before it.
+const WORKFLOW_AT_270A3BD: &str = include_str!("fixtures/rp80_at_270a3bd/test.yml");
 
 /// The words the design searches for, as a plain substring search.
 const PYTHON_WORDS: [&str; 4] = ["python", "pip ", "pytest", "setup-python"];
@@ -33,6 +44,16 @@ const RP81_COUNT: (&str, &str) = ("rp81", "rp81_owned_exceptions_are_gone");
 /// What a reason in `ci_probe.md` has to say for a binary left out of the CI.
 const REASON_WORDS: [&str; 2] = ["testdata/", "models/"];
 const CLONE_FROM_HOME: &str = ".cache/hayamimi-r11/ci-probe";
+/// The flags of cargo and of the test binary that a `run:` line is read for.
+const FLAGS: [&str; 5] = [
+    "--test",
+    "--skip",
+    "--exact",
+    "--ignored",
+    "--include-ignored",
+];
+/// A `run:` value that starts with one of these keeps its text on the next lines.
+const BLOCK_MARKS: [char; 2] = ['|', '>'];
 
 /// A test binary: the crate that owns it and its target name.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -51,17 +72,20 @@ fn binary(krate: &str, name: &str) -> Binary {
 /// One step of the workflow.
 struct Step<'a> {
     run: Option<&'a str>,
+    /// The line number (from 1) of the `run:` that gave `run`.
+    run_line: usize,
     continue_on_error: bool,
 }
 
 fn parse_steps(workflow: &str) -> Vec<Step<'_>> {
     let mut steps: Vec<Step<'_>> = Vec::new();
-    for line in workflow.lines() {
+    for (index, line) in workflow.lines().enumerate() {
         let trimmed = line.trim();
         let content = match trimmed.strip_prefix("- ") {
             Some(rest) => {
                 steps.push(Step {
                     run: None,
+                    run_line: 0,
                     continue_on_error: false,
                 });
                 rest
@@ -73,6 +97,7 @@ fn parse_steps(workflow: &str) -> Vec<Step<'_>> {
         };
         if let Some(command) = content.strip_prefix("run:") {
             step.run = Some(command.trim());
+            step.run_line = index + 1;
         } else if content == "continue-on-error: true" {
             step.continue_on_error = true;
         }
@@ -101,6 +126,51 @@ fn python_lines(workflow: &str) -> Vec<String> {
         })
         .map(|(index, line)| format!("line {}: {}", index + 1, line.trim()))
         .collect()
+}
+
+/// The words of a `run:` value that hold a flag with text in front of it. A
+/// word ends at a half-width space or a tab; any other space is part of it.
+fn glued_words(run: &str) -> Vec<&str> {
+    run.split([' ', '\t'])
+        .filter(|word| {
+            FLAGS
+                .iter()
+                .any(|&flag| word.match_indices(flag).any(|(at, _)| at > 0))
+        })
+        .collect()
+}
+
+/// One message per `run:` that this check cannot pass: a block value, or a
+/// word with a glued flag. Each names the line of the `run:`.
+fn run_line_problems(steps: &[Step<'_>]) -> Vec<String> {
+    let mut problems = Vec::new();
+    for step in steps {
+        let Some(run) = step.run else {
+            continue;
+        };
+        let line = step.run_line;
+        if run.starts_with(BLOCK_MARKS) {
+            problems.push(format!(
+                "line {line}: multi-line `run: {run}` is not supported"
+            ));
+            continue;
+        }
+        for word in glued_words(run) {
+            problems.push(format!(
+                "line {line}: `{word}` has a flag glued to the text before it"
+            ));
+        }
+    }
+    problems
+}
+
+fn check_run_lines(steps: &[Step<'_>]) -> Result<(), Failure> {
+    let problems = run_line_problems(steps);
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems.join("\n"))
+    }
 }
 
 /// The steps that run `--test <test>` with `--exact`.
@@ -215,6 +285,7 @@ fn check_workflow(workflow: &str, note: &str, binaries: &[Binary]) -> Result<(),
         return Err(format!("the workflow names Python:\n{}", python.join("\n")));
     }
     let steps = parse_steps(workflow);
+    check_run_lines(&steps)?;
     check_count_step(&steps, RP19_COUNT)?;
     check_count_step(&steps, RP81_COUNT)?;
     if !binaries
@@ -485,6 +556,127 @@ fn an_owned_exceptions_step_in_a_wrong_form_is_rejected() -> TestResult {
     );
     let wrong_name = edit(WORKFLOW_BASE, COUNT_STEP_81, &other)?;
     rejected(judge_workflow(&wrong_name), &["rp81"])
+}
+
+// ---------------------------------------------------------------------------
+// A flag glued to the word before it, and a `run:` whose text is not on its line.
+// ---------------------------------------------------------------------------
+
+/// The test step of F80 up to the point where the cases below change it.
+const SKIP_TAIL: &str = "--test rp80 --test rp81 -- --skip rp19_python_cases_are_ported --skip an_engine_has_no_recognizer_to_warm";
+
+fn workflow_with_test_tail(tail: &str) -> Result<String, Failure> {
+    edit(WORKFLOW_BASE, TEST_STEP_TAIL, &format!("{tail}\n"))
+}
+
+fn real_workflow() -> Result<String, Failure> {
+    read(&Path::new(REPO).join(".github/workflows/test.yml"))
+}
+
+#[test]
+fn a_workflow_with_every_flag_after_a_space_passes_the_glued_flag_check() -> TestResult {
+    let real = real_workflow()?;
+    for workflow in [WORKFLOW_BASE, real.as_str()] {
+        accepted(check_run_lines(&parse_steps(workflow)))?;
+    }
+    // One space taken out of the real text is caught, so the check reads this input.
+    let planted = edit(&real, " --test ", "--test ")?;
+    rejected(check_run_lines(&parse_steps(&planted)), &["glued"])
+}
+
+#[test]
+fn a_skip_glued_to_the_previous_name_is_rejected() -> TestResult {
+    let spaced = workflow_with_test_tail(&format!("{SKIP_TAIL} --skip with_no_stage"))?;
+    accepted(judge_workflow(&spaced))?;
+    let glued = workflow_with_test_tail(&format!("{SKIP_TAIL}--skip with_no_stage"))?;
+    rejected(judge_workflow(&glued), &["warm--skip"])
+}
+
+#[test]
+fn a_test_flag_glued_to_the_previous_name_is_rejected() -> TestResult {
+    let workflow = edit(
+        WORKFLOW_BASE,
+        "--test rp19 --test rp80",
+        "--test rp19--test rp80",
+    )?;
+    rejected(judge_workflow(&workflow), &["rp19--test"])
+}
+
+#[test]
+fn an_exact_glued_to_the_previous_name_is_rejected() -> TestResult {
+    let glued = COUNT_STEP_19.replace(
+        "rp19_python_cases_are_ported\n",
+        "rp19_python_cases_are_ported--exact x\n",
+    );
+    let workflow = edit(WORKFLOW_BASE, COUNT_STEP_19, &glued)?;
+    let verdict = judge_workflow(&workflow);
+    // The glued flag is named before the step's `--exact` name is compared.
+    if verdict
+        .as_ref()
+        .is_err_and(|said| said.contains("another test"))
+    {
+        return Err("the name check spoke before the glued-flag check".into());
+    }
+    rejected(verdict, &["ported--exact"])
+}
+
+#[test]
+fn a_flag_at_the_start_of_a_line_or_after_a_space_is_not_glued() -> TestResult {
+    for added in [
+        "--test rp80",
+        "      - run: cargo test -- --skip x",
+        "      - run: cargo test -- --ignored",
+        "      - run: --test rp80",
+    ] {
+        accepted(judge_workflow(&format!("{WORKFLOW_BASE}{added}\n")))?;
+    }
+    Ok(())
+}
+
+#[test]
+fn a_glued_flag_outside_a_run_line_is_not_checked() -> TestResult {
+    for added in [
+        "      # note: rp19--skip is not used",
+        "      - name: run rp80--test again",
+    ] {
+        accepted(judge_workflow(&format!("{WORKFLOW_BASE}{added}\n")))?;
+    }
+    Ok(())
+}
+
+#[test]
+fn the_recorded_workflow_with_a_glued_skip_is_rejected() -> TestResult {
+    let problems = run_line_problems(&parse_steps(WORKFLOW_AT_270A3BD));
+    if problems.len() != 1 {
+        return Err(format!("expected one glued word, found {problems:?}").into());
+    }
+    rejected(
+        judge_workflow(WORKFLOW_AT_270A3BD),
+        &["line 41", "warm--skip"],
+    )
+}
+
+#[test]
+fn a_multi_line_run_is_rejected_and_its_line_is_named() -> TestResult {
+    let next = WORKFLOW_BASE.lines().count() + 1;
+    let body = "          cargo test -p hayamimi-eval --test rp80\n";
+    for mark in ["|", ">", "|-"] {
+        let workflow = format!("{WORKFLOW_BASE}      - run: {mark}\n{body}");
+        let line = format!("line {next}:");
+        rejected(judge_workflow(&workflow), &[line.as_str(), "multi-line"])?;
+    }
+    let named = format!("{WORKFLOW_BASE}      - name: block\n        run: |\n{body}");
+    let line = format!("line {}:", next + 1);
+    rejected(judge_workflow(&named), &[line.as_str(), "multi-line"])
+}
+
+#[test]
+fn a_tab_before_a_flag_is_not_glued_but_a_no_break_space_is() -> TestResult {
+    let pair = "--test rp80 --test rp81";
+    let tabbed = edit(WORKFLOW_BASE, pair, "--test rp80\t--test rp81")?;
+    accepted(judge_workflow(&tabbed))?;
+    let no_break = edit(WORKFLOW_BASE, pair, "--test rp80\u{a0}--test rp81")?;
+    rejected(judge_workflow(&no_break), &["rp80\u{a0}--test"])
 }
 
 // ---------------------------------------------------------------------------
