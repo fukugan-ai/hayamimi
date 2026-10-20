@@ -207,6 +207,10 @@ pub enum ReuseMatch {
     Same,
     /// The text in progress with one `。` added.
     ClosingMark,
+    /// A Japanese text that differs from the text in progress only in how
+    /// numerals are written and in the `。` `、` inside it. V judges the
+    /// answer against the `final`, so a number that changed is held there.
+    Normalized,
 }
 
 impl ReuseMatch {
@@ -214,6 +218,7 @@ impl ReuseMatch {
         match self {
             ReuseMatch::Same => "same",
             ReuseMatch::ClosingMark => "closing_mark",
+            ReuseMatch::Normalized => "normalized",
         }
     }
 }

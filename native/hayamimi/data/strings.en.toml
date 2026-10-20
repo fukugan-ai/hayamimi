@@ -23,6 +23,8 @@
 "asr.model.loaded" = "A recognizer was loaded"
 "asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
 "asr.lang.unknown" = "The language tag of a SenseVoice result could not be read; the language is unknown"
+"asr.warmup.decoded" = "The recognizer read ten seconds of silence once before the first utterance"
+"asr.warmup.failed" = "The start-up decode of the recognizer failed; the run goes on without it"
 "gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"
 "model.fallback.substitute" = "A recognizer is not usable; another one answers in its place"
 "model.fallback.chunks" = "The voice detector is not usable; long audio is cut into fixed chunks"

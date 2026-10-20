@@ -11,9 +11,10 @@
 //! request for the older one is dropped. The `final` of a source does the same
 //! for the text of the utterance it closed, with one exception: when the
 //! `final` only closes the last text (it is the same text, or the same with a
-//! `。` added; a Japanese line is compared without its half-width spaces), the
-//! translation of that text is the translation T would give the line, so the
-//! request is kept, and the lane of the line takes its answer with
+//! `。` added; a Japanese line is compared without its half-width spaces, and
+//! also when only its numerals or the `。` `、` inside it are written
+//! differently), the translation of that text is the translation T would give
+//! the line, so the request is kept, and the lane of the line takes its answer with
 //! [`Mailbox::claim`] instead of asking T again.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -126,27 +127,84 @@ fn same_text(left: &str, right: &str, japanese: bool) -> bool {
     }
 }
 
+/// What stands for every run of numerals in [`widened`]. A digit never
+/// survives the reading, so no other character of a text can be this one.
+const NUMERAL_MARK: char = '0';
+
+/// The kanji numerals the recognizer writes before ITN turns them into digits.
+const KANJI_NUMERALS: &str = "〇一二三四五六七八九十百千万億";
+
+/// The marks a recognizer puts inside a Japanese text in one place and not in
+/// another.
+const INNER_MARKS: [char; 2] = ['。', '、'];
+
+fn is_numeral(c: char) -> bool {
+    c.is_ascii_digit() || ('０'..='９').contains(&c) || KANJI_NUMERALS.contains(c)
+}
+
+/// A Japanese text as the widened key reads it. A draft is the recognizer's
+/// text before ITN and a `final` is the text after it, so the two differ in
+/// how numerals are written (`千九百四十` and `1940`) and where marks stand
+/// (`んですこれを` and `んです。これを。`). Half-width spaces are left out, each
+/// run of numerals becomes one [`NUMERAL_MARK`], and the `。` `、` that have
+/// text after them are left out. The marks that end the text stay, so a text
+/// that ends in `、` or in two `。` is not read as one that ends in none or in
+/// one; `？` and `！` stay too, since they tell a question from a statement.
+/// A mark between two numerals ends the run: `3、5` is not `35`.
+fn widened(text: &str) -> String {
+    let squeezed: String = text.chars().filter(|c| *c != ' ').collect();
+    let (body, tail) = squeezed.split_at(squeezed.trim_end_matches(INNER_MARKS).len());
+    let mut read = String::with_capacity(squeezed.len());
+    let mut in_numerals = false;
+    for c in body.chars() {
+        if INNER_MARKS.contains(&c) {
+            in_numerals = false;
+        } else if !is_numeral(c) {
+            in_numerals = false;
+            read.push(c);
+        } else if !in_numerals {
+            in_numerals = true;
+            read.push(NUMERAL_MARK);
+        }
+    }
+    read.push_str(tail);
+    read
+}
+
 /// How the text of a `final` relates to the text in progress it closes: the
-/// same text, or the same with one `。` added; a Japanese line is compared
-/// without its spaces (see [`same_text`]). Any other text, or a text of
-/// another `id`, is not that utterance's translation.
+/// same text, the same with one `。` added, or (a Japanese line only) the same
+/// once numerals and the `。` `、` inside the text are read alike (see
+/// [`widened`]). A Japanese line is compared without its spaces (see
+/// [`same_text`]). `None` for any other text: its translation is not the one
+/// T would give the `final`.
+pub fn reuse_match(closing: &str, in_progress: &str, japanese: bool) -> Option<ReuseMatch> {
+    if same_text(closing, in_progress, japanese) {
+        return Some(ReuseMatch::Same);
+    }
+    let closed = if japanese {
+        closing.trim_end_matches(' ')
+    } else {
+        closing
+    };
+    let opened = closed.strip_suffix('。');
+    if opened.is_some_and(|opened| same_text(opened, in_progress, japanese)) {
+        return Some(ReuseMatch::ClosingMark);
+    }
+    let body = match opened {
+        Some(opened) => opened,
+        None => closed,
+    };
+    (japanese && widened(body) == widened(in_progress)).then_some(ReuseMatch::Normalized)
+}
+
+/// How a `final` relates to the last text in progress of its utterance. A
+/// text of another `id`, or one whose request gave no answer, is not that
+/// utterance's translation.
 fn closes(line: &Line, tracked: &Tracked) -> Option<ReuseMatch> {
     if line.id != tracked.id || matches!(tracked.phase, Phase::Waiting | Phase::Done(None)) {
         return None;
     }
-    let japanese = line.lang == Some(Lang::Ja);
-    if same_text(&line.text, &tracked.text, japanese) {
-        return Some(ReuseMatch::Same);
-    }
-    let closed = if japanese {
-        line.text.trim_end_matches(' ')
-    } else {
-        line.text.as_str()
-    };
-    closed
-        .strip_suffix('。')
-        .is_some_and(|opened| same_text(opened, &tracked.text, japanese))
-        .then_some(ReuseMatch::ClosingMark)
+    reuse_match(&line.text, &tracked.text, line.lang == Some(Lang::Ja))
 }
 
 /// What the screen has drawn of one source's translated text in progress. The
@@ -1027,6 +1085,97 @@ mod tests {
                 .claim(Source::Mic, &format!("mic-{}", TAKEN_MAX + 2))
                 .is_some()
         );
+    }
+
+    #[test]
+    fn numerals_in_any_script_read_as_one_mark_each() {
+        assert_eq!(widened("千九百四十年八月十五日"), "0年0月0日");
+        assert_eq!(widened("1940年八月15日"), "0年0月0日");
+        assert_eq!(widened("１９４０年"), "0年");
+        assert_eq!(widened("三件と五件"), "0件と0件");
+        assert_eq!(widened("今日は晴れです"), "今日は晴れです");
+        assert_eq!(widened(""), "");
+    }
+
+    #[test]
+    fn a_mark_between_numerals_ends_the_run_and_a_space_does_not() {
+        assert_eq!(widened("3、5件"), "00件");
+        assert_eq!(widened("35件"), "0件");
+        assert_eq!(widened("3 5件"), "0件");
+    }
+
+    #[test]
+    fn marks_with_text_after_them_go_and_the_marks_that_end_the_text_stay() {
+        assert_eq!(
+            widened("言ったろ。ヒーローよりも、信じる。"),
+            "言ったろヒーローよりも信じる。"
+        );
+        assert_eq!(widened("あい、"), "あい、");
+        assert_eq!(widened("あい。。"), "あい。。");
+        assert_eq!(widened("あい？"), "あい？");
+        assert_eq!(widened("あ、？"), "あ？");
+    }
+
+    fn matched(text: &str, closing: &str) -> Option<ReuseMatch> {
+        reuse_match(closing, text, true)
+    }
+
+    #[test]
+    fn a_normalized_match_hands_the_answer_over_like_the_other_two() {
+        let (mailbox, wanted) = running("被害は三件でした");
+        mailbox.close(&final_line("mic-2", "被害は4件でした。"));
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        let reuse = mailbox.claim(Source::Mic, "mic-2");
+        assert!(reuse.is_some_and(|reuse| reuse.matched == ReuseMatch::Normalized));
+    }
+
+    #[test]
+    fn numerals_and_inner_marks_alone_make_a_normalized_match() {
+        for (text, closing) in [
+            ("被害は三件でした", "被害は3件でした"),
+            ("被害は三件でした", "被害は3件でした。"),
+            ("言ったろヒーロー", "言ったろ。ヒーロー。"),
+            ("ところで、昨日", "ところで昨日。"),
+        ] {
+            assert_eq!(
+                matched(text, closing),
+                Some(ReuseMatch::Normalized),
+                "{closing}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_existing_keys_are_tried_first() {
+        assert_eq!(matched("あい", "あい"), Some(ReuseMatch::Same));
+        assert_eq!(matched("あ、い", "あ、い。"), Some(ReuseMatch::ClosingMark));
+    }
+
+    #[test]
+    fn other_letters_other_counts_and_other_end_marks_are_no_match() {
+        for (text, closing) in [
+            ("三件と五件です", "3件と5件と7件です。"),
+            ("連合国は", "連合国が。"),
+            ("あい", "あい。。"),
+            ("あい", "あい、"),
+            ("あい", "あい？"),
+            ("あい", "あい！"),
+            ("3、5件", "35件"),
+        ] {
+            assert_eq!(matched(text, closing), None, "{closing}");
+        }
+    }
+
+    #[test]
+    fn an_english_line_is_never_a_normalized_match() {
+        let (mailbox, wanted) = running("In 1944 the allies landed");
+        mailbox.finish(Source::Mic, wanted.generation(), Some(String::from("ai")));
+        let closing = Line {
+            lang: Some(Lang::En),
+            ..final_line("mic-2", "In 1940 the allies landed")
+        };
+        mailbox.close(&closing);
+        assert!(mailbox.claim(Source::Mic, "mic-2").is_none());
     }
 
     #[test]
