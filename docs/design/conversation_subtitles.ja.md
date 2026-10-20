@@ -11,7 +11,7 @@
 作る物は次の 5 つである。
 
 - **訳の中継**（`hayamimi-relay live`）：2 つの認識 process の確定文と清書を受け、訳す、自然に直す、原文と照合する、の 3 段を通し、単位の換算を書き添えて、1 本の字幕の流れにまとめる。
-- **重ね窓**（`hayamimi-overlay`）：中継の流れを読み、透明で最前面の窓に出す。
+- **重ね窓**（`hayamimi-overlay`）：2 つの認識の確定文と中継の訳を読み、`id` で結んで、透明で最前面の窓に出す（11）。
 - **OBS の字幕頁**：重ね窓と同じ画面部品を web 向けに組み、中継が配る。自分の発話の英訳だけを映す。
 - **SRT の書き出し**（`hayamimi-relay srt`）：動画ファイルから、同じ 3 段と換算を通した SRT を書く。
 - **為替の取得**（`hayamimi-relay fx-fetch`）：1 日 1 回、朝に公開の参照値を取り、file に保存する。
@@ -126,7 +126,9 @@ CAT の数の取り違えは量子化によるものではなく、model 自体�
 ### 3.2 訳の中継を 1 か所に置く
 
 2 つの認識 process の event は、訳の中継 1 本が受ける。
-中継が `id` で行と訳を結び、1 本の字幕の流れ（SSE）として重ね窓と OBS の字幕頁へ配る。
+中継は訳を `id` 付きの 1 本の流れ（SSE）として配る。
+重ね窓は、この訳の流れと 2 つの認識の確定文の流れを読み、`id` で行と訳を結ぶ（11.3）。
+結ぶ所は `hayamimi-ui` の `Model` の 1 か所である。
 相手への送信（OBS、Zoom、Teams）も中継が行う。
 
 ### 3.3 event に足す項目
@@ -515,7 +517,8 @@ DPI は monitor ごとに追う（per-monitor DPI aware）。
 
 **字が切れない条件**：行の高さは字の大きさの 1.5 倍、帯の下に字の大きさの 0.3 倍の余白を置く。
 窓の高さは「表示する行数 × 行の高さ + 余白」を CSS px で計算し、拡大率を掛けて物理 px にする。
-拡大率 100%、125%、150%、200% のどれでも、各行の要素で `scrollHeight` が `clientHeight` 以下であること（CS-11）。
+拡大率 100%、125%、150%、200% のどれでも、各行の要素で `scrollHeight` が `clientHeight` 以下であり、各行と各段の要素の `getBoundingClientRect().bottom` が窓の `innerHeight` 以下であること（CS-11）。
+前者は行の箱の中のはみ出しを、後者は箱が窓の下端を越えて切れることを捕まえる。
 
 ### 3.13 SRT の書き出し
 
@@ -566,7 +569,8 @@ cue は `final` の行から作り、`refine` の行は使わない。
 - **言語モデルに単位を換算させる、または照合させる**：試しで言語モデルが数を取り違えた（2.3）。数を扱う段は規則と表で決める。
 - **E の訳だけを待ってから出す**：T と E を直列に待つと、訳の遅れが 2 倍になる。速度を先に取り、T の訳を照合してから先に出す（3.4）。
 - **調整用の 40 行で合否を出す**：表を直す席が同じ行で合格を作れてしまう。合否は held-out で出す。
-- **重ね窓が 2 つの port を直接読む**：行と訳を結ぶ所が 2 か所に分かれる。中継 1 本で結ぶ。
+- **重ね窓が中継の訳の流れだけを読む**：中継は `final` を流さず、`held` の行と訳さない行の原文が届かない（11.3）。
+- **行と訳を結ぶ code を重ね窓に別に書く**：結ぶ所が今の頁と 2 か所に分かれる。重ね窓も `Model` の 1 か所で結ぶ（11.3）。
 - **遠隔の会議（`meeting`、`media`）で、マイクとスピーカー出力を 1 本に混ぜて言語判定で分ける**：話者を言語判定で推すことになり、音源で分けるより確かでない。遠隔の会議では音源が 2 つ在るので、音源で分ける（3.1）。対面の場面では音源が 1 本のマイクしか無く、音源で分けられないので、発話ごとの言語判定で分ける（10）。
 - **loopback を常に `en` に固定する**：日本語の動画で英語の認識器に日本語が入る（3.1）。
 - **YouTube Live の字幕取り込みへ送る**：OBS の焼き込みで配信に字幕が載る。
@@ -586,13 +590,14 @@ loopback ─────▶ 認識 --scene（hayamimi、GPU）──┤
                               訳の中継（Rust、Windows）
            T ─▶ V ─▶ 先の訳 ─▶ E ─▶ V ─▶ 確定の訳 ─▶ 換算 ◀── fx_rates.json ◀── fx-fetch（毎朝 07:30、GET 1 本）
            │                                        │
-  llama-server（Windows、CUDA）                      ├─▶ SSE ─▶ 重ね窓（先の訳を描き、確定の訳で置き換える）
+  llama-server（Windows、CUDA）                      ├─▶ SSE（訳）─▶ 重ね窓 ◀─ SSE（確定文）─ 2 つの認識（id で結び、先の訳を確定の訳で置き換える。11）
                                                     ├─▶ SSE ─▶ OBS の字幕頁（自分の段だけ）─▶ OBS 仮想カメラ
                                                     └─▶ Zoom 字幕 API / Teams CART（確定の訳だけ。token か link が在るとき）
 動画ファイル ─▶ hayamimi-relay srt ─▶ 認識（hayamimi、子 process）─▶ T ─▶ V ─▶ E ─▶ V ─▶ 確定の訳 ─▶ 換算 ─▶ <名>.<言語>.srt
 ```
 
-認識は GPU の `hayamimi` が行い、訳と照合と換算と画面と送信は Rust の中継の 1 か所を通る。
+認識は GPU の `hayamimi` が行い、訳と照合と換算と送信は Rust の中継の 1 か所を通る。
+重ね窓は、中継の訳と認識の確定文を読み、`hayamimi-ui` の `Model` の 1 か所で行と訳を結ぶ。
 
 ## 6. 受入 ID
 
@@ -624,9 +629,9 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CS-7 | 発話の終わりから重ね窓に訳が出るまで（負荷下） | Zoom の会議、OBS、2 つの認識、llama-server を同時に動かし 10 分流し `cargo test --release --test cs07 -- --ignored` | `overlay.line.rendered` の時刻 − `end_wall_ms` の p95 が 2000 ms 以下 | 同じ式で 1 音源、無負荷の値も出る | 認識に 2 秒の遅れを入れた run で落ちる |
 | CS-8 | 訳の末尾に `</s>` が残らない | `cargo test --release --test cs08` | T と E の依頼に `stop: ["</s>"]` が入り、`</s>` で終わる応答を受けたら `form` で STOP | `</s>` の無い応答は通る | `stop` を外した偽の依頼 |
 | CS-9 | loopback の言語の規則 | 日本語の wav を loopback へ `--scene media` と `--scene meeting` で流し `cargo test --release --test cs09 -- --ignored` | media：`lang` が `ja`、その `id` の `translation` が 0 件で原文の行が出る。meeting：`lang` が `en` | 英語の wav では media でも en→ja が出る | 言語判定を外した build で落ちる |
-| CS-10 | 2 つの音源が 1 枚の重ね窓に並ぶ | CS-1 と CS-2 を同時に流し `cargo test --release --test cs10 -- --ignored` | `mic-` と `loopback-` の `id` が両方描かれ、上の段に loopback、下の段に mic | 片方だけ流すと片方だけ出る | 中継を止めると 0 件 |
-| CS-11 | 字が切れない、枠と影が出ない | 拡大率 100、125、150、200% で `hayamimi-overlay --layout-probe` を起こし `cargo test --release --test cs11 -- --ignored` | 各行で `scrollHeight ≤ clientHeight`。窓の外周 8 px の画素が、窓を出す前の画面と全部一致 | 100% の値 | 余白を 0 にした build では 150% で落ちる |
-| CS-12 | 字形 | `cargo test --release --test cs12` | 和の行が cinecaption、英の行が UDEV Gothic 35。cinecaption に無い字の数を出し、Yu Gothic UI で描くことを確かめる。file を外すと `overlay.font.missing` が 1 件 | 字形の file が在るとき | path を壊した設定 |
+| CS-10 | 2 つの音源が 1 枚の重ね窓に並ぶ | CS-1 と CS-2 を同時に流し `cargo test --release --test cs10 -- --ignored` | `mic-` と `loopback-` の `id` が両方、訳つき（`overlay.line.rendered` の `translated` が真）で描かれ、上の段に loopback、下の段に mic | 片方だけ流すと片方だけ出る | loopback の認識を止めると、`loopback-` の `id` の描画が 0 件（中継を止めても原文と「訳なし」で出るので、陰性には使わない。11.3） |
+| CS-11 | 字が切れない、枠と影が出ない | 拡大率 100、125、150、200% で `hayamimi-overlay --layout-probe` を起こし `cargo test --release -p hayamimi-overlay --test cs11 -- --ignored`（拡大率の写し方は 11.8） | `overlay.layout.measured` の各行で `scrollHeight ≤ clientHeight`、各行と各段で `bottom ≤ inner_height`。窓の外周 8 px の画素が、窓を出す前の画面と全部一致 | 100% の値 | `--probe-shrink 12` で窓の高さを 12 CSS px 縮めた実の process では、下の段の `bottom > inner_height` になって落ちる |
+| CS-12 | 字形 | `hayamimi-overlay --layout-probe` を起こし `cargo test --release -p hayamimi-overlay --test cs12 -- --ignored` | `overlay.layout.measured` の `fonts` に、cinecaption と UDEV Gothic 35 が `status: loaded` で在り、和の行の `font_family` の先頭が cinecaption、英の行が UDEV Gothic 35。試しの行のうち cinecaption に無い字の数（`missing_glyphs`）を出す。file を外すと `overlay.font.missing` が 1 件で、その字形が `status: error` になる（11.3） | 字形の file が在るとき | path を壊した設定 |
 | CS-13 | OBS の字幕頁が透明で、自分の段だけを映す（OBS は使わない） | 前提：`chrome-headless-shell --default-background-color=00000000 --screenshot http://127.0.0.1:<port>/obs` で撮り、字幕の帯の外の画素の alpha を数える。本体：中継へ `mic-1` と `loopback-1` の試しの event を入れ、`chrome-headless-shell --dump-dom http://127.0.0.1:<port>/obs` | 帯の外の画素の alpha が全部 0。dump に `mic-1` の行が在り、`loopback-1` の行が無い | `mic-1`、帯の中の画素の alpha が 0 でない | `loopback-1`。背景に色を付けた頁では alpha が 0 にならず落ちる |
 | CS-14 | 動画から SRT が同じ directory に出る | `<relay> srt <英語の試しの mp4>` と `<relay> srt <日本語の試しの mp4>` の後に `cargo test --release --test cs14 -- --ignored` | 英語の動画：`.ja.srt` と `.en.srt` ができ、cue の数が清書の行の数と同じ、時刻が `t0_s` と `t1_s` に合う、`held` の cue に印がある。日本語の動画：`.ja.srt` だけで `.en.srt` が無い | 英語の mp4 | 日本語の mp4 で `.en.srt` が無いこと、音声の無い mp4 で 0 cue のまま止まって知らせること |
 | CS-15 | 既存の SRT で、取り出しの前に止まる | 同じ mp4 で 2 回目を打ち `cargo test --release --test cs15 -- --ignored` | `srt.output.exists` が出て、`srt.extract.started` が 0 件、file の sha256 が 1 回目と同じ | 1 回目では `srt.extract.started` が出る | file を消した run では止まらない |
@@ -689,8 +694,8 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 23 | CS-7 | `cs07_speech_end_to_overlay_p95_under_load` | `native/hayamimi-relay/tests/cs07.rs` | 2 秒遅れる認識 |
 | 24 | CS-9 | `cs09_loopback_language_follows_the_scene` | `native/hayamimi-relay/tests/cs09.rs` | 言語判定を外した build |
 | 25 | CS-29 | `cs29_third_language_shows_source_only` | `native/hayamimi-relay/tests/cs29.rs` | 言語を `en` に固定した run |
-| 26 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | 中継の停止 |
-| 27 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | 余白 0 の build |
+| 26 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | loopback の認識の停止 |
+| 27 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | `--probe-shrink 12` の実の process |
 | 28 | CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
 | 29 | CS-13 | `cs13_obs_page_shows_only_my_lane` | `native/hayamimi-relay/tests/cs13.rs` | `loopback-1` の行 |
 | 30 | CS-14 | `cs14_video_yields_srt_files_by_line_language` | `native/hayamimi-relay/tests/cs14.rs` | 日本語の mp4 の `.en.srt` |
@@ -1439,3 +1444,438 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H27** `source: file` の行は、3.12 の OBS の字幕頁（mic の段だけ）にも、Zoom と Teams への送信（3.10）にも出ない。対面と配信を同時に行う場面は、この節の外である。
 - **Q4** 閉じた。`source` は `file` で通し（10.3）、10.4 の最後の落ち先は `ja` とする。
 - **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、10.9.1 の手順で IP-S3 の前に置き直す。置き直した線を `--mode fast` が満たさない時と、IP-S3 の run が置き直した線に落ちた時は、ボタンの補助を足すか、判定器を替えるかを評議の席が決める。
+
+## 11. 重ね窓（`hayamimi-overlay`）の作り方
+
+3.12 は窓の条件と並べ方を決めているが、窓をどう作り、どの流れを読み、どこで止まらずに落ちるかは決めていない。
+この節がそれを決め、実装の席に出せる slice に割る。
+画面の見た目の詰め（色、字の縁、段の間隔）は designer の席が持ち、この節は要素、寸法、条件、受入だけを持つ。
+
+### 11.1 結論
+
+作る物は次の 2 つである。
+
+- **段の画面部品**（`hayamimi-ui` の `lanes`）：今の `Model` から、上の段（loopback の新しい 2 行）と下の段（mic の新しい 1 行）を取り出す純粋な関数と、それを描く Dioxus の部品。OS にも窓にも依らない。
+- **窓の crate**（`native/hayamimi-overlay`、Windows だけ）：Dioxus desktop（tao と wry）で、枠なし、透明、最前面、クリック素通しの窓を開き、2 つの認識の `/events`（確定文）と中継の `/events`（訳）を native の thread で読み、段の部品を描く。
+
+作らない物は次の 4 つである。
+
+- 窓を掴んで動かす mode。窓はクリックを素通しするので掴めない。置き場は設定 file の値で決まり、file を書き替えれば再起動せずに動く（11.4）。
+- 速報の訳の段。3.3 のとおり、重ね窓は確定文の訳だけを出す。
+- `source: file` の行の段。対面の場面は今の頁が出す（10.5）。
+- OBS の字幕頁（CS-13）。同じ段の部品を使うが、別の slice である。
+
+### 11.2 数えた結果
+
+数えた日時は 2026-10-20 10:4x JST、範囲は `30fda6e` の `git ls-files`（`native/target` は git の外）である。
+
+| 数えた物 | pattern | 結果 | 陽性対照 |
+|---|---|---|---|
+| 重ね窓を描く既存の物 | `git ls-files \| grep -i overlay` | 5 本。`native/hayamimi-ui/src/overlay.rs`（OBS の browser source の頁 `/`、139 行）、`native/hayamimi-ui/tests/overlay_parity.rs`（その頁を mobile の Dart と同じに保つ test）、`native/hayamimi/data/pages/overlay.html`、`mobile/hayamimi_core/lib/server/overlay_html.dart`、`tests/test_overlay_parity.py`。どれも頁で、OS の窓ではない | 同じ式を `-c` にして 5 |
+| OS の窓の属性を扱う code | `git ls-files \| xargs grep -liE 'topmost\|transparentcolor\|WS_EX_\|SetLayeredWindow\|always_on_top\|click.?through\|overrideredirect'` | 0 本（何も印字せず、xargs の rc 123） | 同じ形の式で `transparent\|最前面\|透明` は 17 本、`overlay` は 36 本に当たる |
+| 窓の試し（試し 2） | `state.json` の `probe2_result` と、その crate | Dioxus 0.7.10 の desktop（lock は tao 0.34.8、wry 0.53.5、windows 0.61.3）で、`with_decorations(false)`、`with_transparent(true)`、`with_always_on_top(true)`、`Config::with_background_color((0,0,0,0))`、`set_ignore_cursor_events(true)` の 5 つで、透明、最前面、クリック素通しが Windows の上で働いた（`testdata/probe2_1〜3_*.png`）。残った弱さは、150% で字の下が切れた（窓の高さを物理 px の定数で置いた）、窓の周りに薄い縁と影が出た、の 2 つ | `probe2_3_after_click.png` で、窓の下の notepad が前に来ている |
+| 段に使える既存の部品 | `hayamimi-ui/src/model.rs` | `Model::apply` が `id` で訳を確定文に結び（`attach_to_final`、`model.rs:300-317`）、行が来る前の訳を 5 秒待ち（`ORPHAN_HOLD_MS`、`model.rs:22`）、同じ `id` と言語の訳を `settled_row` で置き換える（`upsert`、`model.rs:387-400`）。時計を読まず、時刻を引数で受ける（`model.rs:1-6`）。`dioxus` の `macro`、`html`、`hooks`、`signals` だけに依り、WASM の部品（`web.rs`、`app.rs`）は `web` feature の中にある（`Cargo.toml`、`lib.rs:45-51`） | `FinalRow` を組む所は `model.rs:239` の 1 か所（`rg -n 'FinalRow \{'` で 2 件、もう 1 件は型の宣言） |
+| そのまま使えない所 | `overlay.rs:79-100`、`model.rs:60-69` | 今の `/` は箱 1 つに確定文 1 行と速報 1 行を描き、6 秒で消える（`OVERLAY_HOLD_MS`）。mobile の Dart と同じ形に縛られている（`overlay_parity.rs` の頭）。3.12 の 2 段、8 秒、`held` の印は持たない。`FinalRow` は最後に変わった時刻を持たない | `overlay_parity.rs` が `OVERLAY_HOLD_MS` を読む |
+| 中継が流す物 | `rg -n 'publish' native/hayamimi-relay/src` | `translation` と `fallback` だけ（`relay.rs:204-206`、`:706`、`:721`、`deliver.rs:327`、`:335`）。`final` は流さない（10.2 と同じ） | `hub.rs:263` の test が `translation` を流す |
+| 認識の流れの既定 | `hayamimi-relay/src/cli.rs:35-38` | `DEFAULT_EVENTS` は `http://127.0.0.1:8833/events` と `:8834/events` | 同じ file の `:213` が既定を使う |
+| SSE を読み続ける既存の部品 | `hayamimi-relay/src/follow.rs` | `follow_while`（`:234`）が切れたら待って繋ぎ直す（`Backoff::STANDARD` は 250 ms から倍で 5 秒まで、`:28-34`）。`hayamimi-relay` は lib で、`pub mod follow`、`logging`、`watched` を持つ（`lib.rs:36`、`:43`、`:66`） | `follow.rs` の test `events_of` |
+| 再起動なしの読み直し | `hayamimi-relay/src/watched.rs` | `Watched<T>` が変わった file を読み直し、読めない内容では前の内容を使い続けて warn を 1 回出す（`:1-5`） | CX-11 が同じ部品を測る |
+| 機械 | `powershell.exe` の `[System.Windows.Forms.Screen]::AllScreens` と `CurrentBuild` | monitor は 1 枚（`\\.\DISPLAY2`、DPI を知らない process から 2560×1440、作業領域 2560×1392。物理 3840×2160 なので 150%）。Windows の build は 26300 | 同じ command が作業領域を返す |
+
+外の事実は次のとおりである（取得 2026-10-20）。
+
+| 番号 | 事実 | 出所 |
+|---|---|---|
+| S14 | Dioxus の安定版は 0.7.10（2026-07-30）、最新は 0.8.0-alpha.3（2026-10-16、pre-release）。学びの頁は 0.7 | https://crates.io/api/v1/crates/dioxus 、https://dioxuslabs.com/learn/0.7/ |
+| S15 | dioxus-desktop 0.7.10 の `Config` は `with_window(WindowBuilder)`、`with_background_color((u8,u8,u8,u8))`、`with_custom_head(String)`、`with_disable_context_menu(bool)`、`with_on_window(...)` を持つ。`DesktopService` は `tao::window::Window` へ `Deref` し、crate は `use_window`、`use_wry_event_handler`、`use_asset_handler`、`LogicalSize`、`LogicalPosition` を出す | https://docs.rs/dioxus-desktop/latest/dioxus_desktop/struct.Config.html 、https://docs.rs/dioxus-desktop/0.7.10/dioxus_desktop/index.html 、https://docs.rs/dioxus-desktop/0.7.10/dioxus_desktop/struct.DesktopService.html |
+| S16 | tao の `WindowBuilder` は `with_transparent`、`with_always_on_top`、`with_decorations`、`with_position`、`with_inner_size`、`with_focused` を持つ。`Window::set_ignore_cursor_events(bool) -> Result<(), ExternalError>` に Windows の注は無い。`set_visible_on_all_workspaces` は Windows で使えない。最新は 0.37.1 | https://docs.rs/tao/latest/tao/window/struct.WindowBuilder.html 、https://docs.rs/tao/latest/tao/window/struct.Window.html |
+| S17 | tao の Windows の拡張は `with_undecorated_shadow`（枠なしの窓の影。既定で隠す。出すと上端に 1 px の線が出る）、`with_skip_taskbar`、`with_window_classname`、`hwnd()` を持つ。0.34.8 にも同じ 2 つが在る | https://docs.rs/tao/latest/x86_64-pc-windows-msvc/tao/platform/windows/trait.WindowBuilderExtWindows.html 、https://docs.rs/tao/latest/x86_64-pc-windows-msvc/tao/platform/windows/trait.WindowExtWindows.html 、https://docs.rs/tao/0.34.8/x86_64-pc-windows-msvc/tao/platform/windows/trait.WindowBuilderExtWindows.html |
+| S18 | `ScaleFactorChanged` は、拡大率の違う画面へ動かした時と拡大率を変えた時に来て、callback の後に窓は `new_inner_size` の大きさになる | https://docs.rs/tao/0.34.8/x86_64-pc-windows-msvc/tao/event/enum.WindowEvent.html |
+| S19 | `WS_EX_LAYERED`（0x00080000）、`WS_EX_TRANSPARENT`（0x00000020）、`WS_EX_TOPMOST`（0x00000008）、`WS_EX_TOOLWINDOW`（0x00000080、taskbar と Alt+Tab に出ない）、`WS_EX_NOACTIVATE`（0x08000000）。layered の窓に `WS_EX_TRANSPARENT` があると、窓の形を無視してマウスの event を下の窓へ渡す。最前面の窓は最前面でない窓のすべてより上に在るが、最前面の窓どうしの順は z-order の list で決まる | https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles 、https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features |
+| S20 | `DwmSetWindowAttribute` の `DWMWA_BORDER_COLOR` に `DWMWA_COLOR_NONE`（0xFFFFFFFE）を渡すと窓の縁を描かない。`DWMWA_WINDOW_CORNER_PREFERENCE` は角の丸めの希望。どちらも Windows 11 build 22000 から | https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute |
+
+### 11.3 方針と理由
+
+**窓の属性**は tao の口で付け、tao に口が無い 3 つだけを Win32 で足す。
+
+| 条件（3.12） | 付け方 | 理由 |
+|---|---|---|
+| 枠と題名の帯が無い | `with_decorations(false)` と `with_resizable(false)` | S16。試し 2 で働いた。tao 0.34.8 は style に `WS_CAPTION \| WS_CLIPSIBLINGS \| WS_SYSMENU` を無条件に付け（`platform_impl/windows/window_state.rs:244`）、resizable なら `WS_SIZEBOX` も付ける（`:246-247`）。枠が無いのは、枠なしの窓で `WM_NCCALCSIZE` が 0 を返し、非クライアント領域を 0 にするからである（`event_loop.rs:2124` から）。したがって枠の無さは style の bit ではなく、client の矩形と窓の矩形が同じ大きさであることで測る（OV-1）。`with_resizable(false)` は、縁を掴んで大きさを変える枠の bit を付けないためである |
+| 背景が透明 | `with_transparent(true)` と `Config::with_background_color((0,0,0,0))`、頁の `html, body` の `background: transparent` | WebView2 の背景も透明にしないと、窓だけ透けて webview が塗る。試し 2 で 3 つ揃えて働いた |
+| 常に最前面 | `with_always_on_top(true)`。加えて 1 秒ごとに Win32 の `SetWindowPos(HWND_TOPMOST, SWP_NOMOVE \| SWP_NOSIZE \| SWP_NOACTIVATE)` で最前面の帯の先頭へ上げ直す | S19 のとおり、最前面の窓どうしでは後から上がった窓が上になる。会議の app が自分の窓を最前面にすると、上げ直さない窓は下に回る。`SWP_NOACTIVATE` なので focus は動かない |
+| クリックを下へ素通し | 頁を描いた直後に `set_ignore_cursor_events(true)` | S16、S19。tao が layered と transparent の印を付ける形で、試し 2 で働いた。印が付いたかは OV-1 が OS から読み戻す |
+| 窓の影と 1 px の縁が無い | `with_undecorated_shadow(false)` を明示し、Win32 で `DWMWA_BORDER_COLOR` に `DWMWA_COLOR_NONE`、`DWMWA_WINDOW_CORNER_PREFERENCE` に丸めない値を渡す | 試し 2 の縁は、tao の影の既定（隠す、S17）では消えなかった。Windows 11 の DWM が枠なしの窓にも縁と丸い角を描くためと読む（ASSUMPTION。CS-11 の外周 8 px で確かめる）。build 22000 より前の Windows では属性が効かず、縁が残る。そのときは `overlay.window.border_kept` を warn で 1 回出して、窓は出す |
+| 閉じる手段は taskbar の項目だけ | `with_skip_taskbar` を使わず、`WS_EX_TOOLWINDOW` も付けない。taskbar の「ウィンドウを閉じる」が `CloseRequested` になり、process は終わる | S19。tool window は taskbar に出ない |
+| 起動しても focus を奪わない | `with_focused(false)` | 会議の最中に起こしても、打っている窓から入力を取らない |
+| per-monitor DPI | 窓の大きさと位置を `LogicalSize` と `LogicalPosition`（CSS px と同じ単位）で渡し、`ScaleFactorChanged` と `Moved` を `use_wry_event_handler` で受けたら 11.4 の式で置き直す | 試し 2 は物理 px の定数で高さを置いたので、150% で字が窓からはみ出た。WebView2 は拡大率で CSS px を拡げるので、窓も同じ単位で決めれば揃う（S18） |
+| DPI を知る順 | tao は event loop を作る時に `become_dpi_aware`（`platform_impl/windows/dpi.rs:20`、`event_loop.rs:190`）を呼び、process を per-monitor v2 にする。作業領域（`GetMonitorInfoW`）は event loop を作った後にだけ読む。窓は `with_visible(false)` で作り、作業領域を読む前の大きさには意味を持たせない（幅は作業領域から決まるので、読む前には決められない）。作業領域を最初に読むのは、event loop が回り始めた後の最初の UI の刻み（`use_hook` で起こす。11.3 の 1000 ms の刻みの 1 回目は待たずに即座に打つ）で、そこで 11.4 の矩形に置き、`set_visible(true)` で見せ、`overlay.window.opened` を出す。以後は `Moved`、`ScaleFactorChanged`、設定の読み直しの時に置き直す。test は `overlay.window.opened` が出るまで窓を読まない | DPI を知る前に読んだ作業領域は、拡大率で割られた値になる（11.2 の 2560×1392 は DPI を知らない process の値）。test の process も同じ理由で、先頭で `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` を呼んでから矩形を読む（OV-4、CS-11） |
+
+Win32 で足す 3 つ（作業領域、DWM の縁、最前面の上げ直し）は、`hayamimi-overlay/src/win.rs` の 1 file に閉じ込める。
+tao と dioxus-desktop が依存に持つ `windows` crate（試し 2 の lock で 0.61.3）の `GetMonitorInfoW`、`DwmSetWindowAttribute`、`SetWindowPos` を呼ぶ。
+crate は `#![deny(unsafe_code)]` とし、`win.rs` だけが `#[allow(unsafe_code)]` を持ち、1 つの呼び出しに 1 つの `unsafe` block と `SAFETY:` を置く。
+作業領域を Win32 から取るのは、tao の `MonitorHandle` が画面全体の大きさしか返さず、taskbar を除いた領域を返さないからである。
+画面全体の下端に帯を置くと taskbar に隠れる。
+
+**読む流れ**は 3 本である。
+2 つの認識の `/events`（`--events`、既定は `DEFAULT_EVENTS` と同じ `:8833` と `:8834`）が確定文を、中継の `/events`（`--relay`、既定 `:8835`）が訳と `fallback` を運ぶ。
+3 本とも `hayamimi_relay::follow::follow_while` で読み、届いた 1 行を `hayamimi_ui::wire::parse` で `UiEvent` にし、1 本の channel で UI の側へ渡す。
+UI の側は 1 つの `Model` に `apply` する。
+行と訳を結ぶ所は `Model::attach_to_final` の 1 か所のままで、今の頁（10.5 の `?relay=`）と同じ code を通る。
+
+中継の流れだけで足りない理由は、中継が `final` を流さないからである（11.2）。
+`held` の行は原文を描くが、`held` の `translation` の `text` は空である（3.3）。
+media の日本語の行と第三の言語の行は、`translation` が 1 件も来ない（CS-9、CS-29）。
+どちらも原文は認識の `final` にしか無い。
+結ぶ所は `Model` の 1 か所なので、今の頁と重ね窓で結び方が分かれることは無い（4 の 2 行）。
+
+**段の規則**は `hayamimi-ui/src/lanes.rs` が持ち、窓にも OBS の字幕頁にも同じ関数を使う。
+
+- 段は行の `id` の頭で決める。`loopback-` は上の段、`mic-` は下の段で、`file-` と `id` の無い行はどちらにも出さない。
+- 上の段は新しい 2 行、下の段は新しい 1 行を出す。
+- 行が描く訳は、行の原文の言語の逆の言語の訳だけである（`ja` の行は `lang: en`、`en` の行は `lang: ja`。中継の `Lang::other` と同じ向き）。`FinalRow::trs` にほかの言語の訳が在っても描かない。
+- 行に訳が付いたら訳を描く。先の訳（`settled: false`）を先に描き、確定の訳が来たら同じ行の中で置き換える（`upsert`）。
+- 訳が `held` なら原文を描き、不透明度 0.6 で頭に「原文」の印を付ける（3.12）。
+- 訳さない行（上の段で `lang` が `en` でない行、下の段で `lang` が `ja` でない行）は、確定文が着いた時に原文を描く（media の原文、第三の言語）。
+- 訳す行で、確定文から `TR_WAIT_MS`（3000 ms、仮の値）たっても訳が 1 件も来なければ、原文を描き「訳なし」の印を付ける。中継が止まっていても字幕が出続けるためである。訳が後から来れば訳で置き換える。
+- 行は最後に変わった時刻（確定文が着いた時、訳が付いた時、置き換わった時）から 8000 ms で消える（3.12）。そのため `FinalRow` に `updated_ms` を 1 つ足し、`on_final` と `attach_to_final` で書く。今の頁の描き方は変えない。
+- 印の文言は `hayamimi-ui/data/strings.<locale>.toml` に key を足して取る（`lanes.held_mark`、`lanes.untranslated_mark`）。
+
+**繋ぎ直し**は `follow_while` に任せる。
+切れた流れは 250 ms から倍で 5 秒まで待って繋ぎ直し、その間も他の 2 本と描いた行はそのまま残る。
+認識の `/events` は繋ぎ直した client に過去の `final` を送り直さない（3.13）ので、切れている間の確定文は出ない。
+その間に着いた訳は `ORPHAN_HOLD_MS` の 5 秒待って捨てる（今の `Model` のまま）。
+中継は繋ぎ直した client に効いている `fallback` を最初に送る（3.3）。
+
+**設定**は `%APPDATA%\hayamimi\overlay.toml` に置き、`Watched` で再起動せずに読み直す。
+
+```toml
+monitor = ""          # tao の MonitorHandle::name()。空なら主の画面
+width_ratio = 0.8     # 作業領域の幅に対する帯の幅
+bottom_gap_px = 0     # 作業領域の下端から帯の下端までの CSS px
+upper_rows = 2
+lower_rows = 1
+cinecaption = 'C:\path\cinecaption2.28.ttf'
+udev_gothic = 'C:\path\UDEVGothic35-Regular.ttf'
+udev_gothic_bold = 'C:\path\UDEVGothic35-Bold.ttf'
+```
+
+file が無いときは上の既定で動く（値はこの節と 3.12 が決める）。
+
+読み直しは次の形で行う。
+
+- `config.rs` が `hayamimi_relay::watched::Watched<OverlayConfig>` を `table` 名 `overlay` で開き、`OverlayConfig` は `PartialEq` を持つ。
+- UI の thread の 1 つの刻み（1000 ms ごと。11.3 の最前面の上げ直しと同じ刻み）が `refresh` を呼ぶ。`Watched` は 2 秒より新しい file の中身を byte で比べるので、書き替えは次の刻みで読まれ、窓の置き直しまで 1000 ms と描き直しの 1 frame で済む（OV-4 の 3000 ms に収まる）。
+- 読めない内容のとき、`Watched` が `table.load.failed`（`table: overlay`、warn、同じ理由で 1 回）を出して前の内容を使い続ける（`watched.rs:150-161`）。`config.rs` はこの失敗を言い直さず、別の名の失敗の event は作らない。失敗の観測は `table.load.failed` の `table: overlay` 1 つとする。
+- `refresh` の前と後で `current()` が違えば、`config.rs` が `overlay.config.reloaded`（info、変わった key の名だけ。値は出さない）を 1 件出し、窓を 11.4 の式で置き直す。
+`monitor` の名の画面が無いときは主の画面に出し、`overlay.monitor.missing` を warn で 1 回出す。
+画面の抜き差しは `ScaleFactorChanged` か `Moved` が来た時と、設定を読み直した時に置き直す。
+
+**字形**は `use_asset_handler` で設定の path の file を webview へ渡し、`with_custom_head` の `@font-face` から読む。
+file が読めないときは Yu Gothic UI で描き、`overlay.font.missing` を warn で 1 回出す（3.12）。
+webview の中で asset handler の URL を `@font-face` が読めるかは確かめていない（9 の H9、11.10 の H28）。
+読めたかどうかは、Rust の側の推測ではなく webview に言わせる。
+`--layout-probe` の時、頁は `document.fonts.ready` を待ってから `document.fonts` の各 `FontFace` の `family` と `status`（`loaded`、`error`、`unloaded`）、各行の要素の `getComputedStyle(...).fontFamily` と、試しの行の字のうち cinecaption に無い字の数（`document.fonts.check` で 1 字ずつ数える）を `document::eval` で Rust へ返し、`overlay.layout.measured` の `fonts`、`font_family`、`missing_glyphs` に載せる。
+CS-12 はこの 3 つを読む。
+
+**log** は JSONL で `observability-log/v1` の形にし、`--log <path>` の file へ書く。
+既定は `%LOCALAPPDATA%\hayamimi\logs\overlay.jsonl` である。
+窓の process は Windows の GUI subsystem で動き、stdout を持たないので、規範の stdout の形が取れない（11.10 の Q-OV5）。
+log は `hayamimi-relay` の `logging`（`LogEvent`、`ERROR_PREFIX` の `HYM`、`logging.rs:19`）で組み、`log.rs` が file へ書く sink を持つ。
+file は規範の既定どおり、1 日か 256 MiB の早い方で回す。
+回す時は同じ directory の一時 file に書き終えてから `overlay-<YYYY-MM-DD>-<n>.jsonl` へ rename し、圧縮した古い file は 30 日で消す。
+回し方と消し方は `log.rs` の 1 か所に置き、`overlay.log.rotated`（info）を新しい file の最初の行に出す。
+
+`overlay.*` の event の `component` は、規範の共通の allow-list の `browser`（webview を持つ窓の部品）とする。
+`events.subscribe.*` は `follow` が付ける `component` のまま、`table.load.failed` は `Watched` が付ける `storage` のままである。
+失敗の `error_code` は `HYM_BROWSER_<REASON>` の形で、`<REASON>` は `FONT_MISSING`、`MONITOR_MISSING`、`BORDER_KEPT`、`TOPMOST_FAILED`、`LOG_ROTATE_FAILED` の 5 つとする。
+
+出す event は次のとおりである。
+
+| event | level | いつ | 項目 |
+|---|---|---|---|
+| `overlay.window.opened` | info | 最初の置き直し（作業領域を読んで 11.4 の矩形にした後）で窓を見せた時に 1 回。test はこの行を待ってから窓を読む | 窓の物理の矩形、拡大率、monitor の名 |
+| `overlay.line.rendered` | info | 行の描かれた状態が変わって描き終えた時ごと（初めて出た時、先の訳を描いた時、確定の訳で置き換えた時、`held` の原文にした時、「訳なし」にした時）。同じ状態のままの描き直しでは出さない | `id`、段（`upper` \| `lower`）、`stage`（`t` \| `e` \| `null`）、`settled`、`held`、`translated`（訳を描いたか）、`state`（`source` \| `draft` \| `settled` \| `held` \| `untranslated`）。CS-1 と CS-7 は、その `id` の `state` が `draft` か `settled` になった最初の行の `timestamp` を描いた時刻とする |
+| `overlay.layout.measured` | info | `--layout-probe` の時、`overlay.window.opened` と `document.fonts.ready` の後に 1 回 | `inner_height`、`zoom`、`probe_shrink`、`fonts`、`missing_glyphs`。行ごとに `id`、`scroll_height`、`client_height`、`bottom`、`font_family`。段ごとに `lane`、`bottom`（どれも CSS px） |
+| `overlay.config.reloaded` | info | 読み直して値が変わった時 | 変わった key の名 |
+| `overlay.monitor.missing` | warn | 名の画面が無く主の画面に出した時、名ごとに 1 回 | 名 |
+| `overlay.font.missing` | warn | 字形の file が読めない時、file ごとに 1 回 | 字形の名（path は出さない） |
+| `overlay.window.border_kept` | warn | DWM の縁の属性が効かない時、1 回 | Windows の build |
+| `overlay.topmost.failed` | warn | 上げ直しの `SetWindowPos` が失敗した時、続く失敗の最初の 1 回 | OS の error の番号 |
+| `overlay.log.rotated` | info | log を回した時 | 前の file の行数 |
+
+字幕の本文、設定の path、字形の path は log に出さない。
+
+**起動の形**は次のとおりである。
+
+```
+hayamimi-overlay.exe [--events <url>]... [--relay <url>] [--config <overlay.toml>] [--log <path>]
+hayamimi-overlay.exe --layout-probe [--zoom <percent>] [--log <path>]
+```
+
+`--layout-probe` は流れを読まず、字の下が最も伸びる試しの 3 行（上の段 2 行、下の段 1 行、和と英）を描き、`overlay.layout.measured` を出す。
+測る物は 2 つの層に分ける。
+行の箱の中のはみ出しは各行の `scrollHeight` と `clientHeight` で、箱が窓の下端を越えて切れることは、各行と各段（`lane-upper`、`lane-lower`）の要素の `getBoundingClientRect().bottom` と `window.innerHeight` で測る（CSS px）。
+試し 2 の切れは後者の形だったので、後者を欠かせない。
+
+`--probe-shrink <px>` は `--layout-probe` の時だけ受け、窓の高さを 11.4 の `H` から `<px>` CSS px 縮めて出す。
+試験の陰性対照のための引数で、`--layout-probe` の無い起動では引数の誤りとして rc 2 で止まる。
+CS-11 は `12` を使う。帯の下の余白は `0.3 × 36 = 10.8` CSS px なので、それより大きく縮めれば下の段の行の箱が窓の下端を越え、`bottom > inner_height` になるからである。
+`--zoom` は webview の拡大を変え、機械の拡大率を変えずに 100、125、200% を写す（ASSUMPTION：webview の拡大と画面の拡大率で行の割り付けが同じになる。11.10 の H29）。
+
+**Linux の build を壊さない**：dioxus の `desktop` feature は Linux で webkit2gtk を求める。
+WSL の席は `native/` の workspace を Linux で build し test する。
+したがって `hayamimi-overlay` の dioxus の `desktop`、`windows` crate への依存は `[target.'cfg(windows)'.dependencies]` に置き、Windows 以外の `main` は「Windows だけで動く」と言って rc 2 で終わる。
+純粋な部品（`place.rs` の割り付けの式、`config.rs` の読み）は OS に依らず、Linux でも test が走る。
+
+### 11.4 帯の割り付け
+
+帯の大きさと位置は CSS px（`LogicalSize`）で決め、拡大率 `s` を掛けた物理 px は OS に任せる。
+
+- 行の高さ `h = 1.5 × 字の大きさ`（3.12）。上の段は 36 px、下の段は 26 px。
+- 帯の高さ `H = upper_rows × 54 + lower_rows × 39 + 0.3 × 36`（既定では 108 + 39 + 10.8 = 157.8 CSS px）。
+- 帯の幅 `W = width_ratio × 作業領域の幅`（作業領域は物理 px を `s` で割って CSS px にする）。
+- 帯の左上は、作業領域の横の中央に `W` を置き、下端を作業領域の下端から `bottom_gap_px` 上に合わせる。
+
+この機械の既定では、作業領域が物理 3840×2088（2560×1392 の 1.5 倍、ASSUMPTION：DPI を知る process から読む値。OV-4 の test が先頭で `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` を呼んでから `GetMonitorInfoW` で読み直す）、`W = 2048`、`H = 157.8` CSS px、物理で 3072×237 になる。
+作業領域は、窓の process でも event loop を作った後（tao が `become_dpi_aware` を呼んだ後）に読む（11.3 の DPI を知る順）。
+式は 11.4.1 の `place::band` の 1 か所に置き、窓と OV-4 の test の期待値は、この節の数から test の側で別に計算する。
+
+#### 11.4.1 slice の間の契約
+
+OV-S2 と OV-T は、OV-S1 と OV-S2 の次の型と関数をこの名と形で前提にする。
+名か形を変えるときは、この表を先に書き替える。
+
+`hayamimi-ui`（OV-S1）：
+
+```rust
+// model.rs: a field added to the existing row, written by on_final and attach_to_final.
+pub struct FinalRow { /* existing fields */ pub updated_ms: u64 }
+
+// lanes.rs
+pub const LANE_HOLD_MS: u64 = 8000;
+pub const TR_WAIT_MS: u64 = 3000;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lane { Upper, Lower }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineState { Source, Draft, Settled, Held, Untranslated }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LaneRows { pub upper: usize, pub lower: usize }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LaneLine {
+    pub id: String,
+    pub lane: Lane,
+    pub state: LineState,
+    pub lang: String,          // the language of the source line
+    pub source_text: String,   // drawn for Source, Held and Untranslated
+    pub tr: Option<TrRow>,     // drawn for Draft and Settled; the opposite language only
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LaneView { pub upper: Vec<LaneLine>, pub lower: Vec<LaneLine> } // oldest first
+
+/// The lines the two lanes show at `now_ms`. Pure: no clock, no I/O.
+pub fn view(model: &Model, rows: LaneRows, now_ms: u64) -> LaneView;
+
+/// The earliest time after `now_ms` at which `view` returns something else
+/// (a wait of TR_WAIT_MS ends or a line reaches LANE_HOLD_MS); None when nothing waits.
+pub fn next_change(model: &Model, rows: LaneRows, now_ms: u64) -> Option<u64>;
+
+/// Draws `view(&model.read(), rows, now_ms())`. Props are `Clone + PartialEq`.
+#[component]
+pub fn LanesPage(model: Signal<Model>, rows: LaneRows, now_ms: Signal<u64>) -> Element;
+```
+
+`css.rs` に `pub fn lanes() -> String` を足す。
+`css.rs` は `@font-face` の family 名を `pub const LANES_FONT_JA: &str = "cinecaption";` と `pub const LANES_FONT_EN: &str = "UDEV Gothic 35";` で持ち、`lanes()` の sheet はこの 2 つの名で字形を指す。OV-S2 の `fonts.rs` は `@font-face` をこの 2 つの名で宣言し、名を別に書かない。
+`LanesPage` は印の文言を `use_context::<Words>()` で引くので、OV-S2 の root の部品は `LanesPage` を描く前に `use_context_provider` で `Words` を提供する（今の頁の `app.rs:21` と同じ形）。
+帯の幅より長い行は折り返さず、行の末尾を `…` で切る（`white-space: nowrap`、`overflow: hidden`、`text-overflow: ellipsis`）。行の高さが変わらないので、11.4 の `H` は行の長さに依らない。
+`LanesPage` は要素に `id` を付ける：段は `lane-upper`、`lane-lower`、行は `line-<id>`。CS-11 と CS-12 の `document::eval` はこの `id` で行を引く。
+
+`hayamimi-overlay`（OV-S2。lib の公開物。test が使う）：
+
+```rust
+// config.rs
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OverlayConfig {
+    pub monitor: String,            // empty: the primary monitor
+    pub width_ratio: f64,           // 0 < width_ratio <= 1
+    pub bottom_gap_px: f64,         // CSS px, >= 0
+    pub upper_rows: usize,          // 1..=4
+    pub lower_rows: usize,          // 1..=4
+    pub cinecaption: Option<std::path::PathBuf>,
+    pub udev_gothic: Option<std::path::PathBuf>,
+    pub udev_gothic_bold: Option<std::path::PathBuf>,
+}
+pub fn builtin() -> Result<OverlayConfig, String>;          // the defaults of 11.3
+pub fn parse(bytes: &[u8]) -> Result<OverlayConfig, String>; // missing keys take builtin(); a value out of range is Err
+
+// place.rs
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PhysicalRect { pub x: i32, pub y: i32, pub width: u32, pub height: u32 }
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LogicalRect { pub x: f64, pub y: f64, pub width: f64, pub height: f64 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaceError { ZeroScale, EmptyWorkArea, RatioOutOfRange, RowsOutOfRange }
+/// The band of 11.4 on `work_area` (physical px of a per-monitor-aware read) at `scale`.
+pub fn band(work_area: PhysicalRect, scale: f64, config: &OverlayConfig) -> Result<LogicalRect, PlaceError>;
+
+pub const WINDOW_CLASS: &str = "hayamimi-overlay"; // passed to with_window_classname
+```
+
+`OverlayConfig` の既定を `builtin()` の外に置かない（`Default` を実装しない）。
+したがって serde の `#[serde(default)]` は使えず、`parse` は 2 段で読む。
+1 段目は全部の key を `Option` で持つ部分読みの型（`config.rs` の中だけの `PartialConfig`、`#[serde(deny_unknown_fields)]`）に読む。
+2 段目で、`None` の key を `builtin()` の値で埋め、範囲を確かめて `OverlayConfig` にする。
+埋める所は key ごとに 1 行で、その直上に `// DEFAULT: an absent key takes the value of the defaults table in 11.3 of the design` の形の注を置く（`rust-forbidden-forms` の `DEFAULT:` の規律）。
+
+実装の席に渡す 2 点：
+
+- **log の圧縮**：11.3 の「圧縮した古い file」は、`log.rs` が回した直後に、前の file を同じ directory で gzip にし（`flate2` を `[dependencies]` に足す。OV-S2 の Cargo.toml の表の 1 行目に含める）、書き終えてから元の file を消す。30 日より古い `.jsonl.gz` を消すのも、同じ回す時の `log.rs` である。外の道具や予定の task には任せない。
+- **`build_revision`**：`hayamimi_relay::logging::BUILD_REVISION`（`logging.rs:21`）は `hayamimi-relay-<版>` を名乗る。`log.rs` は `pub const BUILD_REVISION: &str = concat!("hayamimi-overlay-", env!("CARGO_PKG_VERSION"));` を持ち、書く前に `LogEvent` の `build_revision` をこの値に替える。`hayamimi-eval/src/log.rs:11` と `:22` が同じ形で替えている前例である。
+
+### 11.5 採らない手段
+
+- **中継に確定文も流す口を足し、重ね窓は 1 本だけ読む**（11.7 の方針 B）：中継の `hub.rs` と `relay.rs` を先に直す slice が 1 つ増え、E2E の席が使っている中継を動かす。結ぶ所は今の `Model` の 1 か所で足りる。
+- **中継の `/events` へ `final` を流し直す**：`hayamimi-eval stream` が同じ発話の `final` を 2 回数える（10.2）。
+- **今の `/` の頁（`overlay.rs`）を窓に載せる**：mobile の Dart と同じ形に縛られ（`overlay_parity.rs`）、2 段、8 秒、`held` の印を持たない。直すと parity の test が落ちる。
+- **Win32 だけで窓を作り、字を DirectWrite で描く**：画面は Dioxus の決まりに反し、`@font-face` の字形と段の部品を作り直すことになる。
+- **browser を `--app` で開いて重ねる**：browser の窓は最前面にもクリック素通しにもできない。
+- **画面全体の大きさから帯を置く（作業領域を引かない）**：taskbar に帯の下が隠れる。taskbar の高さを定数で引くと、自動で隠す taskbar と縦置きの taskbar で外れる。
+- **最前面を前面の窓の変化の hook（`SetWinEventHook`）で守る**：callback の thread と解除の管理が増える。1 秒ごとの上げ直しは 1 回の system call で、外れても 1 秒で戻る。
+- **`WS_EX_NOACTIVATE` を付ける**：tao に口が無く、クリックは既に素通しなので、効く場面が起動の一瞬だけである。`with_focused(false)` で足りるかは OV-5 で測る。
+- **拡大率を変えて CS-11 を測る**：画面の拡大率を変えるのは利用者の画面を動かすことになる。`--zoom` で写す（11.10 の H29）。
+
+### 11.6 構造
+
+```
+hayamimi :8833 /events ─┐ final（mic-<n>）
+hayamimi :8834 /events ─┤ final（loopback-<n>）
+hayamimi-relay :8835 ───┤ translation（id で結ぶ）、fallback
+                        │  follow_while × 3（native の thread。切れたら 250 ms〜5 s で繋ぎ直す）
+                        ▼
+                wire::parse ─▶ channel ─▶ Model::apply（hayamimi-ui。id で結ぶ 1 か所）
+                                              │
+                         lanes::view(&Model, now) ─▶ 上の段 2 行 / 下の段 1 行（8 s で消える）
+                                              │
+            Dioxus desktop（tao + wry、WebView2）─▶ 枠なし・透明・最前面・素通しの窓
+                    ▲                                  ▲
+        overlay.toml（Watched）           win.rs（作業領域、DWM の縁、1 秒ごとの最前面）
+```
+
+3 本の流れは 1 つの `Model` に入り、段は純粋な関数で取り出し、窓の属性は tao と `win.rs` の 2 か所だけが持つ。
+
+### 11.7 方針の比べ
+
+| 方針 | 中身 | ただし | 採るか |
+|---|---|---|---|
+| A | Dioxus desktop の窓。tao の口で 5 つの属性、`win.rs` で作業領域と DWM の縁と最前面の上げ直し。3 本の流れを native で読み、`Model` で結ぶ | 4 の「重ね窓が中継の訳の流れだけを読む」を採らず、重ね窓は 3 本を読む（評議の判定で決まった。1、3.2、4、5 の行は直した）。`unsafe` を 1 file に持つ。窓の crate は Windows でだけ build と test ができる | **採る**（この節の案） |
+| B | A と同じ窓で、中継に確定文と訳を流す別の口（例 `/lines`）を足し、重ね窓は 1 本だけ読む | 中継の slice が先に要り、重ね窓の着手が 1 日ほど遅れる（推測）。E2E の席が使う中継を動かす。原文を運ぶ口がもう 1 つ増える | 採らない。結ぶ所は A でも 1 か所で、中継を動かす分だけ遅い |
+| C | 窓を作らず、今の頁を OBS の projector か browser で重ねる | 最前面とクリック素通しが得られず、3.12 の窓の条件を満たさない | 採らない |
+
+A を採るのは、試し 2 で窓の 3 つの属性が既に働いており、残った弱さ（字の下が切れる、縁と影）の原因が割り付けの単位と DWM の縁に絞れているからである。
+足すのは、既存の `Model`、`follow`、`Watched` を繋ぐ code と、割り付けの式と、Win32 の 3 つの呼び出しだけである。
+
+### 11.8 受入 ID と test の名前
+
+`cargo test` は Windows の `native\` で `x86_64-pc-windows-msvc` の target に打つ（3.8）。
+`--ignored` の test は窓を開くので、利用者が画面を使っていない時に、検証の席が打つ。
+窓の属性は、窓の process の自己申告ではなく、test の process が `FindWindowW`（class 名 `hayamimi_overlay::WINDOW_CLASS`、`with_window_classname` で付ける）で引いた HWND から OS に読み直す。
+test の process は、何かを読む前に `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` を呼ぶ（11.3 の DPI を知る順）。
+読み直しの Win32 呼び出しは `native/hayamimi-overlay/tests/support/win.rs` に置く。
+この file の `unsafe` も `win.rs` と同じ規律に従う：1 つの呼び出しに 1 つの `unsafe` block、その直前に、その呼び出しが健全である理由（HWND が生きている理由、buffer の長さ、所有）を書いた `SAFETY:` を置く。
+
+相手の窓は notepad にせず、test が自分で作る素朴な Win32 の窓（class 名 `hayamimi-ov-target`）にする。
+Windows 11 の tab の付いた notepad は単一の instance で動き、起こした process と窓の pid が合わないことがあるためである。
+`tests/support/win.rs` は、この窓を test の process の中の 1 本の thread で作り、message loop を回し、`WM_LBUTTONDOWN` の回数を atomic に数える。
+窓は閉じる時に確認を出さないので、入力を待って止まる物は無い。
+
+前面を替える操作（`SetForegroundWindow`）は、Windows の前面の lock（前面を持たない process からの切り替えを拒む）に当たると効かない。
+OV-3 と OV-5 は、陰性対照で測りが効いたかを先に確かめ、効かなかった時は合格にも不合格にもせず、「測りが効かない」を理由に `Err` で落ちて、その時の前面の窓の class 名を出す。
+
+| ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
+|---|---|---|---|---|---|
+| CS-10 | 2 つの音源が 1 枚の重ね窓に並ぶ | 6.2 のまま | 6.2 のまま（`translated` が真の `overlay.line.rendered` を数える） | 6.2 のまま | 6.2 のまま（loopback の認識を止める） |
+| CS-11 | 字が切れない、枠と影が出ない | `hayamimi-overlay --layout-probe --zoom <100\|125\|150\|200>` を 4 回起こし、`cargo test --release -p hayamimi-overlay --test cs11 -- --ignored` | 6.2 の期待値。窓を出す前と出した後の画面を撮り（DPI を知る process から）、帯の外周 8 px の画素が全部一致。`overlay.layout.measured` の全行で `scrollHeight ≤ clientHeight`、全行と 2 つの段で `bottom ≤ inner_height`。test は `overlay.window.opened` を待ってから `overlay.layout.measured` を読む | 帯の中の画素が、出す前の画面と違う。`inner_height` が 11.4 の `H` と ±1 CSS px で一致する | 同じ 4 つの拡大率で `--layout-probe --probe-shrink 12` の実の process を起こすと、どの拡大率でも下の段の `bottom > inner_height` になり、test の判定が落ちる（測りが窓の下端の切れを見えている）。縮めた run でも落ちなければ「測りが効かない」で落ちる |
+| CS-12 | 字形 | 6.2 のまま | 6.2 のまま | 6.2 のまま | 6.2 のまま |
+| OV-1 | 窓の属性が OS から読める | `hayamimi-overlay --layout-probe` を起こし、`cargo test --release -p hayamimi-overlay --test ov01 -- --ignored` | 拡張 style に `WS_EX_TOPMOST`、`WS_EX_LAYERED`、`WS_EX_TRANSPARENT` が在り、`WS_EX_TOOLWINDOW` が無い。style に `WS_SIZEBOX` が無い（`with_resizable(false)`）。枠の無さは style の bit で測らず、`GetClientRect` の幅と高さが `GetWindowRect` の幅と高さに等しい（非クライアント領域が 0）ことで測る。`IsWindowVisible` が真 | 同じ読み手で、test の素朴な窓（`WS_OVERLAPPEDWINDOW` で作る）を読むと、client の矩形が窓の矩形より小さく、`WS_SIZEBOX` が在る | test の素朴な窓に同じ期待値を当てると落ちる |
+| OV-2 | クリックが下の窓へ届く | test の素朴な窓を帯の下に置き、帯の中央へ `SendInput` で左クリックし、`cargo test --release -p hayamimi-overlay --test ov02 -- --ignored` | 素朴な窓の `WM_LBUTTONDOWN` の数が 1 増え、その間に重ね窓が一度も前面にならない（`GetForegroundWindow` を 50 ms ごとに 1000 ms 読む） | 帯の外の、素朴な窓の点を押しても数が 1 増える | 帯の上に 2 つめの素朴な窓を重ねて同じ点を押すと、2 つめの数が増え、1 つめの数は増えない |
+| OV-3 | 最前面が保たれる | test の素朴な窓を `SetWindowPos(target, HWND_TOPMOST)` で最前面にし、直後と 2000 ms 後に z-order を読む。`cargo test --release -p hayamimi-overlay --test ov03 -- --ignored` | `EnumWindows` の順（上から）で、2000 ms 後の読みで重ね窓が素朴な窓より前 | 素朴な窓を最前面でない窓のまま前面にした時は、直後から重ね窓が前 | 最前面にした直後の読みで素朴な窓が前であること（測りが入れ替わりを見えている）。直後の読みで既に重ね窓が前なら、上げ直しと測りが区別できないので「測りが効かない」で落ちる |
+| OV-4 | 帯の位置と大きさ、設定の読み直し | `cargo test --release -p hayamimi-overlay --test ov04 -- --ignored` | `GetWindowRect` が、`GetMonitorInfoW` の作業領域とこの節の 11.4 の数から test が計算した矩形と ±1 物理 px で一致（test は先頭で per-monitor v2 にする）。`overlay.toml` の `width_ratio` を 0.6 に書き替えると 3000 ms 以内に幅が変わり、`overlay.config.reloaded` が 1 件。壊れた toml に書き替えると矩形が変わらず、`table.load.failed`（`table: overlay`）が 1 件。無い `monitor` の名で起こすと主の画面に出て `overlay.monitor.missing` が 1 件 | 書き替えの前の矩形が既定の式と一致 | 画面全体（作業領域でない）から計算した矩形とは一致しない（taskbar の高さだけずれる） |
+| OV-5 | 起動しても focus を奪わない | test の素朴な窓を前面にしてから `hayamimi-overlay --layout-probe` を起こし、2000 ms 後に `cargo test --release -p hayamimi-overlay --test ov05 -- --ignored` | 前面の窓が起動の前と後で同じ素朴な窓 | 起動の前の読みで素朴な窓が前面 | test が `SW_SHOW` と `SetForegroundWindow` で 2 つめの素朴な窓を出すと前面が替わること（測りが前面の変化を見えている）。替わらなければ前面の lock に当たっており、「測りが効かない」で落ちる |
+| OV-6 | 段の規則（窓も GPU も要らない。Linux でも走る） | `cargo test --release -p hayamimi-ui --test ov06`。同じ slice で `--test board` も通し直す（OV-S1 が `tests/board.rs` の key の数を 26 にし、`docs/design/r6_board.ja.md` の 11 節に 2 行を足す） | 11.3 の段の規則の 8 項目がそれぞれ成り立つ。とくに、1 行目の訳が 1200 ms 遅れても 1 行目の `id` の行に付く。先の訳が確定の訳で同じ行の中で置き換わる。`held` は原文と印。訳さない行は確定文の着いた時に原文。訳の来ない行は 3000 ms で原文と「訳なし」。8000 ms で消える | 2 行の loopback と 1 行の mic が段に分かれて出る | 最新の行に訳を貼る作り、`file-` の行を出す作り、6000 ms で消す作りで、それぞれ落ちる |
+| OV-7 | 流れが切れても止まらず、繋ぎ直すと出る | 偽の認識の `/events` 2 本と偽の中継の `/events` を test が立て、`hayamimi-overlay` を `--events` と `--relay` で向けて起こし、`cargo test --release -p hayamimi-overlay --test ov07 -- --ignored` | 偽の中継を止めて 1000 ms 後に立て直すと、立て直した後の訳の `id` の `overlay.line.rendered` が 6000 ms 以内に出る。止めている間に着いた確定文のうち訳す行は、3000 ms で原文と「訳なし」で描かれる。process は落ちない | 止めない run で、全行の `overlay.line.rendered` が出る | 偽の中継を立て直さない run では、立て直した後の行の訳が出ない |
+| OV-8 | Linux の build に窓の依存が入らない | WSL の `native/` で `cargo tree -p hayamimi-overlay --target x86_64-unknown-linux-gnu -e normal` | 出力に `tao`、`wry`、`webview2-com`、`windows` が 0 件 | 同じ command を `--target x86_64-pc-windows-msvc` で打つと `tao` と `wry` が 1 件以上 | 依存を `[dependencies]` に置いた manifest では Linux の出力に `tao` が出る |
+
+| ID | 受入 test の名前 | 置き場 | 陰性の case |
+|---|---|---|---|
+| CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | loopback の認識の停止 |
+| CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | `--probe-shrink 12` の実の process |
+| CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
+| OV-1 | `ov01_window_styles_read_back_from_the_os` | `native/hayamimi-overlay/tests/ov01.rs` | test の素朴な窓の矩形と style |
+| OV-2 | `ov02_a_click_on_the_band_reaches_the_window_below` | `native/hayamimi-overlay/tests/ov02.rs` | 帯の上に重ねた 2 つめの素朴な窓 |
+| OV-3 | `ov03_overlay_climbs_back_above_a_new_topmost_window` | `native/hayamimi-overlay/tests/ov03.rs` | 最前面にした直後の読み |
+| OV-4 | `ov04_band_sits_on_the_work_area_and_follows_the_config` | `native/hayamimi-overlay/tests/ov04.rs` | 画面全体から計算した矩形 |
+| OV-5 | `ov05_opening_the_overlay_keeps_the_foreground` | `native/hayamimi-overlay/tests/ov05.rs` | 2 つめの素朴な窓で前面が替わること |
+| OV-6 | `ov06_lanes_split_join_replace_and_expire` | `native/hayamimi-ui/tests/ov06.rs` | 最新の行に貼る作り |
+| OV-7 | `ov07_a_dropped_stream_comes_back_without_a_restart` | `native/hayamimi-overlay/tests/ov07.rs` | 立て直さない run |
+| OV-8 | `ov08_linux_dependency_tree_has_no_window_crates` | `native/hayamimi-overlay/tests/ov08.rs`（`cargo tree` を子 process で打ち、出力を数える） | `[dependencies]` に置いた manifest |
+
+各 ID の下の case 行（`T-OV-<n>-nnn`）は test-designer の席が、この節の下に書く。
+
+### 11.9 slice
+
+2 つの slice が同じ file を書かないように割る。
+OV-S1、OV-S2、OV-T は並べて書き始められる。
+OV-S2 と OV-T は 11.4.1 の契約をこの名と形で前提にして書く。
+merge の順は OV-S1、OV-S2、OV-T である（OV-T は両方の後）。
+`native/hayamimi-overlay/Cargo.toml` の持ち主は OV-S2 だけで、OV-T が要る依存と feature も OV-S2 が書く。
+量は実績が無いので推測で、`hayamimi-ui` の `src/` が 2,6xx 行（`wc -l`）であることを目安にした。
+
+| slice | 書く file | 受入 | 依存 | 量（推測） |
+|---|---|---|---|---|
+| OV-S1 段の部品 | `native/hayamimi-ui/src/lanes.rs`（作る）、`src/lib.rs`（`pub mod lanes` の 1 行）、`src/model.rs`（`FinalRow::updated_ms` と、それを書く 2 か所）、`src/css.rs`（`lanes()` の sheet）、`data/strings.ja.toml` と `data/strings.en.toml`（2 key）、`tests/board.rs`（両表の key の数の固定を 24 から 26 へ）、`docs/design/r6_board.ja.md`（11 節の文言の表に 2 行） | OV-6 と、既存の `overlay_parity`、`rp12_pages`、`board`、`w7_limit` が通り続けること | 無い | 300 行（推測） |
+| OV-S2 窓の crate | `native/Cargo.toml`（`members` に 1 行）、`native/hayamimi-overlay/Cargo.toml`（作る。中身は下の一覧）、`src/lib.rs`、`src/main.rs`、`src/app.rs`、`src/window.rs`、`src/win.rs`、`src/place.rs`、`src/config.rs`、`src/feed.rs`、`src/fonts.rs`、`src/log.rs`（どれも作る） | OV-8 は WSL で、OV-1〜OV-5、OV-7、CS-10〜CS-12 は OV-T と OV-V で | 11.4.1 の OV-S1 の契約（merge は OV-S1 の後） | 900 行（推測） |
+| OV-T 受入 test | `native/hayamimi-overlay/tests/support/mod.rs`（起動、log の読み、偽の SSE の server）、`tests/support/win.rs`（Win32 の読み直し、素朴な窓、`SendInput`、画面の撮影）、`tests/cs10.rs`、`cs11.rs`、`cs12.rs`、`ov01.rs`〜`ov05.rs`、`ov07.rs`、`ov08.rs`、`native/hayamimi-ui/tests/ov06.rs`（どれも作る）。`Cargo.toml` は書かない | この表の test が、実装の無い所では落ち、OV-S1 と OV-S2 の後に通る | 11.4.1 の契約と 11.8 の名と期待値（merge は OV-S1 と OV-S2 の後） | 700 行（推測） |
+| OV-V 検証 | file を書かない | Windows で OV-1〜OV-5、OV-7、CS-10〜CS-12 を打ち直し、WSL で OV-6 と OV-8 を打ち直す | OV-S1、OV-S2、OV-T の merge | 半日（推測） |
+| OV-D 見た目 | 板と所見だけ（code を書かない） | designer の席が CS-11 の 4 つの拡大率の screenshot を読み、色、縁、段の間隔の所見を返す | OV-V の screenshot | 半日（推測） |
+
+OV-S2 が書く `native/hayamimi-overlay/Cargo.toml` の依存は次のとおりである（版は書く日に crates.io で引き、`windows` は tao が使う版と同じ minor に揃えて 2 つ入らないようにする。版は記録で、gate にしない）。
+
+| 節 | crate | feature と理由 |
+|---|---|---|
+| `[dependencies]` | `hayamimi-ui`（path）、`hayamimi-relay`（path）、`serde`（`derive`）、`toml`、`dirs`、`serde_json`、`flate2` | 段の部品と `Model`、`follow`、`logging`、`watched`、設定と log、古い log の gzip（11.4.1） |
+| `[target.'cfg(windows)'.dependencies]` | `dioxus`（`desktop`、`launch`、`macro`、`hooks`、`signals`、`html`） | 窓と webview |
+| 同上 | `windows` | `Win32_Foundation`、`Win32_Graphics_Gdi`（`GetMonitorInfoW`）、`Win32_Graphics_Dwm`（`DwmSetWindowAttribute`）、`Win32_UI_WindowsAndMessaging`（`SetWindowPos`） |
+| `[target.'cfg(windows)'.dev-dependencies]` | `windows`（上と同じ版） | 上の 4 つに加え、`Win32_UI_WindowsAndMessaging` の `FindWindowW`、`EnumWindows`、`GetWindowLongPtrW`、`GetWindowRect`、`GetClientRect`、`GetForegroundWindow`、`SetForegroundWindow`、`CreateWindowExW`、`RegisterClassW`、`GetMessageW`。`Win32_UI_Input_KeyboardAndMouse`（`SendInput`）。`Win32_UI_HiDpi`（`SetProcessDpiAwarenessContext`）。`Win32_Graphics_Gdi` の `GetDC`、`BitBlt`、`GetDIBits`（画面の撮影）。`Win32_System_LibraryLoader`（`GetModuleHandleW`） |
+| `[dev-dependencies]` | `serde_json`、`tempfile` | log の読みと、`native/target` の下の試しの設定 file |
+
+`native/Cargo.toml` と `native/Cargo.lock` は他の branch も書く。
+OV-S2 の merge では、lock の差分が dioxus-desktop とその依存だけであることを `git diff --stat native/Cargo.lock` と `cargo tree -i tao` で確かめる。
+
+初めての実行で起こること：dioxus-desktop、tao、wry、webview2-com、`windows` の初めての build が Windows の `native\target` に乗る。
+WebView2 の data は `%LOCALAPPDATA%\hayamimi-overlay`（`Config::with_data_directory` の既定、S15）に作られる。
+取り合う資源：Windows の `native\target`（merge の席と検証の席の cargo）、画面と前面の窓（利用者の操作、`--ignored` の test は利用者が画面を使っていない時だけ）、port 8833〜8835（OV-7 の偽の server は空き port を使い、本物の port を取らない）。
+GPU は使わない。
+始めてよい条件：`native\target` を握る cargo が居ないこと（`build-lock --status`）、OV-7 と CS-10 の前に本物の 8833〜8835 を誰が使っているかを `Get-NetTCPConnection -LocalPort 8833,8834,8835 -State Listen` で見ること。
+承認や入力を待って止まる物：相手の窓は test が自分の process の中に作る素朴な窓で、閉じる時に確認を出さない。test は外の app（notepad など）を起こさない。test が起こした `hayamimi-overlay` は、test の終わりに `WM_CLOSE` で閉じ、5000 ms 残れば test は落ちて pid を出す。
+
+### 11.10 残る穴
+
+- **Q-OV1**（決まった）方針 A で、重ね窓は認識の確定文と中継の訳を読み、`Model` の 1 か所で結ぶ。偽になった 1、3.2、4、5 の行は同じ差分で直した。
+- **Q-OV2**（決まった）窓を掴んで動かす mode を作らず、置き場は `overlay.toml` だけで決める。
+- **Q-OV3**（決まった）訳す行で訳が `TR_WAIT_MS` 来ない時は原文と「訳なし」を描く。3000 ms は CS-7 の 2000 ms に余白を足した仮の値で、実測に基づかない。CS-7 の run で、訳が 3000 ms を超えて来た行の数を記録し、0 でなければ値を置き直す。
+- **Q-OV4**（決まった）窓の crate に `unsafe` の 1 file（`win.rs`）を置く。test の `tests/support/win.rs` も同じ規律に従う（11.8）。
+- **Q-OV5**（決まった）GUI subsystem の process の log は file へ書き、規範の既定（1 日か 256 MiB の早い方）で回す（11.3）。
+- **H28** asset handler の URL を webview の中の `@font-face` が読めるか、その URL の形（Windows の WebView2 での scheme と host）は確かめていない（NOT VERIFIED）。OV-S2 の最初の手番で確かめ、読めなければ字形の file を base64 にして `with_custom_head` の `@font-face` に埋める形へ落とす。
+- **H29** `--zoom` の webview の拡大と、画面の拡大率を変えた時とで、行の割り付けが同じになるかは確かめていない（ASSUMPTION）。この機械の 150% だけは本物の拡大率で測れるので、CS-11 は 150% を本物で、100、125、200% を `--zoom` で測り、150% の `--zoom` の値と本物の値が同じかを test の出力に残す。
+- **H30** 試し 2 の縁と影が DWM の縁によるかは確かめていない（ASSUMPTION）。CS-11 の外周 8 px で分かる。消えなければ評議へ戻す。
+- **H31** 1 秒ごとの上げ直しでも、全画面の排他の描画（game、MPC-HC の排他の全画面）と、他の app の最前面の窓が 1 秒の間に上がる場面では隠れる。前者は OS の作りで防げない。量は CS-7 の 10 分の run の中で 5 秒ごとに z-order を読み、重ね窓が前面の窓より下だった標本の数を記録する（合否に使わない）。
+- **H32** 認識の流れが切れている間の確定文は出ず、その間に着いた訳は 5 秒で捨てる。中継だけが生きている時に訳が消える。量は測っていない。
+- **H33** monitor は 1 枚しか無く（11.2）、2 枚の間の移動と拡大率の違う画面への移動は、この機械では測れない。2 枚目が在る時に OV-4 と CS-11 を打ち直す（前提なし）。
+- **H34** OBS の字幕頁（CS-13）は OV-S1 の `lanes` を使う前提で、その slice はこの節に無い。持ち主は受付が出す実装の席である。
+- **H35** 10.5 の「窓もまだ作っていない」と `status.ja.md`、`status.md` の重ね窓の行、`rust_port.ja.md` の 8 の slice の行は、OV-S2 の merge で古くなる。直すのはそれぞれの文書の持ち主の席である。
