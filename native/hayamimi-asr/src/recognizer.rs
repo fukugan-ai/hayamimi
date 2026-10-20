@@ -35,6 +35,17 @@ pub fn model_files(models: &Path) -> [PathBuf; 4] {
     [ENCODER, DECODER, JOINER, TOKENS].map(|name| directory.join(name))
 }
 
+/// The seconds of silence the start-up decode reads: longer than the longest
+/// utterance of the measured sets (about 9.6 s), so that the work areas the
+/// runtime takes while decoding are taken before the first utterance.
+pub const WARMUP_SECONDS: u32 = 10;
+const WARMUP_SAMPLES: usize = (WARMUP_SECONDS * SAMPLE_RATE) as usize;
+
+/// The silence [`WARMUP_SECONDS`] long, as 16 kHz samples.
+pub fn warmup_silence() -> Vec<f32> {
+    vec![0.0; WARMUP_SAMPLES]
+}
+
 /// The text of a recognition result without the annotation brackets.
 pub fn clean(text: &str) -> String {
     text.chars().filter(|c| !JUNK.contains(c)).collect()
@@ -238,6 +249,14 @@ mod tests {
         assert_eq!(tag_from("<|nospeech|>"), LangTag::Unknown);
         assert_eq!(LangTag::Unknown.code(), "");
         assert_eq!(LangTag::NotApplicable.code(), "");
+    }
+
+    #[test]
+    fn the_start_up_silence_is_ten_seconds_of_zeros_at_16_khz() {
+        let silence = warmup_silence();
+        assert_eq!(silence.len(), 160_000);
+        assert!(silence.iter().all(|sample| *sample == 0.0));
+        assert_eq!(WARMUP_SECONDS, 10);
     }
 
     #[test]

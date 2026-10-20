@@ -253,6 +253,17 @@ fn open_engine(
     Ok(Some(engine))
 }
 
+/// Reads silence once with the Japanese recognizer, so that the first
+/// utterance does not pay for the first decode of the process. A decode that
+/// fails is said, and the run goes on.
+fn warm_recognizer(strings: &Strings, engine: &mut Engine) {
+    match engine.warm_up() {
+        None => {}
+        Some(Ok(warmed)) => log::print(&log::warmup_decoded_line(strings, &warmed)),
+        Some(Err(_)) => log::print(&log::warmup_failed_line(strings)),
+    }
+}
+
 /// Says every notice, and once how to check the GPU when the GPU is the cause.
 fn tell_notices(strings: &Strings, hub: &Hub, notices: &[Notice], gpu: Gpu) {
     for notice in notices {
@@ -367,8 +378,10 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     tell_notices(strings, &hub, &notices, gpu);
     // The models loaded while opening are said before `session_start`, which
     // is what a client of `/ingest` waits for before it is answered `ready`.
+    // The start-up decode comes after them and before any audio is read.
     if let Some(opened) = engine.as_mut() {
         tell_resident(strings, &hub, opened);
+        warm_recognizer(strings, opened);
     }
     let stop = install_stop()?;
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;

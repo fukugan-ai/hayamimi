@@ -20,7 +20,7 @@ use crate::lid::{self, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::partial::{self, DraftClock};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
-use crate::recognizer::{THREADS, model_files};
+use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
 use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier};
 use crate::speaker_stage::{Mark, SpeakerStage};
@@ -214,6 +214,17 @@ pub struct Demotion {
     pub fallback: Fallback,
     /// The session built on the CPU, when the model could be opened there.
     pub report: Option<SessionReport>,
+}
+
+/// What the start-up decode of the Japanese recognizer measured.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Warmup {
+    /// The recognizer that read the silence.
+    pub tier: Tier,
+    /// The seconds of silence it read.
+    pub audio_s: u32,
+    /// The recognizer's time for that one decode, in milliseconds.
+    pub decode_ms: f64,
 }
 
 pub struct Engine {
@@ -527,6 +538,25 @@ impl Engine {
             .into_iter()
             .flat_map(|route| route.router.decoder_mut().take_events())
             .collect()
+    }
+
+    /// Reads [`WARMUP_SECONDS`] of silence once with the resident Japanese
+    /// recognizer, through the decode the finals use, and drops the text. The
+    /// first decode of a process pays for the work areas the runtime takes
+    /// then; this pays it before the first utterance. `None` for an engine
+    /// with no route, which has no recognizer to warm.
+    pub fn warm_up(&mut self) -> Option<Result<Warmup, AsrError>> {
+        let route = self.route.as_mut()?;
+        let silence = warmup_silence();
+        let read = route.router.decoder_mut().decode_exact(Tier::Rz, &silence);
+        Some(read.and_then(|done| {
+            let done = done.ok_or(AsrError::NoRecognizer)?;
+            Ok(Warmup {
+                tier: done.tier,
+                audio_s: WARMUP_SECONDS,
+                decode_ms: done.decode_ms,
+            })
+        }))
     }
 
     /// The steps the language route took off the design since the last call
@@ -1161,6 +1191,13 @@ mod tests {
         let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
         assert!(engine.take_resident_events().is_empty());
         assert!(engine.resident().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn an_engine_with_no_route_has_no_recognizer_to_warm() -> Result<(), AsrError> {
+        let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
+        assert!(engine.warm_up().is_none());
         Ok(())
     }
 
