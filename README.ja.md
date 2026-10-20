@@ -74,7 +74,7 @@ R13-17の受入test（各 `final` の有効の行が、確定した規則に従�
 R13-18（GPUの無い機械でCPUへ落ちる確認をCIで走らせる実装）が入り、R13-18は済みました。GitHubのCIは、ubuntuとwindowsの両方で成功しました。T-RP-16-037の「実装がまだ」の印は、R13-16の分として残ります。
 片づけの道具（`scripts/tidy-branches.sh`）が、親が全部 main に在る検証の木を外せるようになりました。
 前の検証の merge の上に積んだ検証の木も、main へ merge しても main の木が変わらず、main に無い通常の commit が 0 件なら外せるようになりました（`fix/tidy-tree-equal`）。
-RP-83〜87のtestの定義が入りました。今出すsliceはR8x-1、R8x-2a、R8x-2b、R8x-3、R8x-4で、`rp79.rs`、L3、R8x-6、R8x-6b、窓E2、窓E3（WとXの対）は止めています。
+RP-83〜87のtestの定義が入りました。R8x-1、R8x-2a、R8x-2b、R8x-3、R8x-4は済みました。残る道は窓E1、窓E3'、窓E4です。`rp79.rs`、L3、R8x-6、R8x-6b、窓E2、窓E3（WとXの対）は止めています。
 方針Bのofflineの門（H100）は落ちました。BはLを縮める組から外し、打ち直しはこれ以上求めません。
 RP-79の止めの印とRP-86 (0)の定義が入りました。窓E2（RP-79のrun）は止めたままです。
 L2の影の門の確認（`r8v_probe`）とその記録（`docs/results/r8v/`）が入りました。

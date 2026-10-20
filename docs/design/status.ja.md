@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `5274a30`（2026-10-21 の `feat/r11d` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `701b483`（2026-10-21 の `feat/r8x-2b` を fast-forward で入れた commit。merge の commit は無い。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -189,7 +189,7 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | L11 | 清書まで入った build での RP-67 と RP-32 の最後の run | 直接 | P3、L17（1000 ms の目標では L7、L8 も） | E2E の窓、GPU | 約 2 時間（RP-32 の 3 run の実績 71 分と E2E-1、E2E-2） | RP-67、RP-32 |
 | L12 | R8x-1：E2E の run の門（RP-83。前の 15 分平均と後の 5 分平均の load、run の間の cargo と rustc）。済み（`7c8e466`） | 直接（E2E の窓の全部の前） | なし | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.19 |
 | L13 | R8x-2a：`rp67.rs` を作る（済み。19 本、実走の 1 本だけ `#[ignore]`）。`rp79.rs` は止める | 直接 | L12 | cargo（`hayamimi-eval`） | 51 分（`rp79.rs` の 51 分が外れる） | 同上 |
-| L13b | R8x-2b：H88 の code（`support/e2e.rs`、`support/rp32_rules.rs` の id、`e2e1.rs`、`e2e2.rs`、`docs/results/e2e/README.md` の有効の文）。E2E の受入が早い規則の run を 300 ms の線で数えて落ちないようにする。済み（branch `feat/r8x-2b`。e2e1 22 本、e2e2 15 本、rp32 68 本が通り、rp67 と rp80 は変わらない）。RP-3 の 2 行（T-RP-3-022、023）は `rp03.rs` が無いので未実装のまま | 直接（E2E-1、E2E-2 の受入） | L13（R8x-2a）、L12（R8x-1） | cargo（`hayamimi-eval`） | 51 分（推測）。残り 38 本から外れた（下の数え） | `rust_port.ja.md` の 3.1、H88 |
+| L13b | R8x-2b：H88 の code（`support/e2e.rs`、`support/rp32_rules.rs` の id、`e2e1.rs`、`e2e2.rs`、`docs/results/e2e/README.md` の有効の文）。E2E の受入が早い規則の run を 300 ms の線で数えて落ちないようにする。済み（`701b483`、fast-forward）。e2e1 22 本、e2e2 15 本、rp32 68 本、rp33 15 本、rp67 18 本、rp80 28 本、rp81 31 本、rp83 54 本が通り、clippy と rustfmt は rc=0。これは検証の席の `--release` の結果（`b973ddb`。`701b483` との native の差は 0 行）で、merge の席は cargo を打っていない（窓 E1 の門を開けるため）。RP-3 の 2 行（T-RP-3-022、023）は `rp03.rs` が無いので未実装のまま | 直接（E2E-1、E2E-2 の受入） | L13（R8x-2a）、L12（R8x-1） | cargo（`hayamimi-eval`） | 51 分（推測）。残り 38 本から外れた（下の数え） | `rust_port.ja.md` の 3.1、H88 |
 | L14 | R8x-4：使い回しの鍵の広げ（RP-85）。実装は済み（`88d8283`）。品質の probe と実走（`#[ignore]` の行）は未実施 | 直接 | なし | cargo（`hayamimi-relay`）。品質の probe は 8080 の llama-server で約 20 分 | 60 分と 20 分 | 同上 |
 | L15 | R8x-5：C と D の offline の門（RP-86 の (0)。今の規則を相手に打ち、D が発話 16 と 22 に効くかを測る）。済み（`03a459b`）。門は落ちた（lat-ja の B だけの割れが W 4 に対し X 6、held-out ja の後ろに声が続く確定が 9 に対し 18、割れが 9 に対し 26）。D は発話 22 を 192 ms 早く確定し、発話 16 には効かない。記録は `docs/results/r8v/extra.md` | 直接 | なし | cargo（CPU） | 60 分 | 同上 |
 | L16 | R8x-6：C と D（RP-86、RP-87） | 止める（C と D を両方外した） | — | — | 90 分と 30 分が外れる | `rust_port.ja.md` の H132 |

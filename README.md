@@ -73,7 +73,7 @@ The R13-17 acceptance test (checking that the validity line of each `final` foll
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
 The clean-up tool can also remove a verify tree stacked on an earlier verify merge, when merging it into main leaves main's tree as it is and it has no ordinary commit that main lacks (`fix/tidy-tree-equal`).
-The test definitions of RP-83 to RP-87 are in. The slices issued now are R8x-1, R8x-2a, R8x-2b, R8x-3 and R8x-4. `rp79.rs`, L3, R8x-6, R8x-6b, window E2 and window E3 (the W and X pairs) are stopped.
+The test definitions of RP-83 to RP-87 are in. R8x-1, R8x-2a, R8x-2b, R8x-3 and R8x-4 are done. The path that remains is window E1, window E3' and window E4. `rp79.rs`, L3, R8x-6, R8x-6b, window E2 and window E3 (the W and X pairs) are stopped.
 The offline gate of policy B (H100) failed. B is taken out of the set that shrinks L, and no further re-run is asked for.
 The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
 The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in.
