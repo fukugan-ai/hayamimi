@@ -517,7 +517,8 @@ DPI は monitor ごとに追う（per-monitor DPI aware）。
 
 **字が切れない条件**：行の高さは字の大きさの 1.5 倍、帯の下に字の大きさの 0.3 倍の余白を置く。
 窓の高さは「表示する行数 × 行の高さ + 余白」を CSS px で計算し、拡大率を掛けて物理 px にする。
-拡大率 100%、125%、150%、200% のどれでも、各行の要素で `scrollHeight` が `clientHeight` 以下であること（CS-11）。
+拡大率 100%、125%、150%、200% のどれでも、各行の要素で `scrollHeight` が `clientHeight` 以下であり、各行と各段の要素の `getBoundingClientRect().bottom` が窓の `innerHeight` 以下であること（CS-11）。
+前者は行の箱の中のはみ出しを、後者は箱が窓の下端を越えて切れることを捕まえる。
 
 ### 3.13 SRT の書き出し
 
@@ -629,7 +630,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | CS-8 | 訳の末尾に `</s>` が残らない | `cargo test --release --test cs08` | T と E の依頼に `stop: ["</s>"]` が入り、`</s>` で終わる応答を受けたら `form` で STOP | `</s>` の無い応答は通る | `stop` を外した偽の依頼 |
 | CS-9 | loopback の言語の規則 | 日本語の wav を loopback へ `--scene media` と `--scene meeting` で流し `cargo test --release --test cs09 -- --ignored` | media：`lang` が `ja`、その `id` の `translation` が 0 件で原文の行が出る。meeting：`lang` が `en` | 英語の wav では media でも en→ja が出る | 言語判定を外した build で落ちる |
 | CS-10 | 2 つの音源が 1 枚の重ね窓に並ぶ | CS-1 と CS-2 を同時に流し `cargo test --release --test cs10 -- --ignored` | `mic-` と `loopback-` の `id` が両方、訳つき（`overlay.line.rendered` の `translated` が真）で描かれ、上の段に loopback、下の段に mic | 片方だけ流すと片方だけ出る | loopback の認識を止めると、`loopback-` の `id` の描画が 0 件（中継を止めても原文と「訳なし」で出るので、陰性には使わない。11.3） |
-| CS-11 | 字が切れない、枠と影が出ない | 拡大率 100、125、150、200% で `hayamimi-overlay --layout-probe` を起こし `cargo test --release --test cs11 -- --ignored` | 各行で `scrollHeight ≤ clientHeight`。窓の外周 8 px の画素が、窓を出す前の画面と全部一致 | 100% の値 | 余白を 0 にした build では 150% で落ちる |
+| CS-11 | 字が切れない、枠と影が出ない | 拡大率 100、125、150、200% で `hayamimi-overlay --layout-probe` を起こし `cargo test --release -p hayamimi-overlay --test cs11 -- --ignored`（拡大率の写し方は 11.8） | `overlay.layout.measured` の各行で `scrollHeight ≤ clientHeight`、各行と各段で `bottom ≤ inner_height`。窓の外周 8 px の画素が、窓を出す前の画面と全部一致 | 100% の値 | `--probe-shrink 12` で窓の高さを 12 CSS px 縮めた実の process では、下の段の `bottom > inner_height` になって落ちる |
 | CS-12 | 字形 | `hayamimi-overlay --layout-probe` を起こし `cargo test --release -p hayamimi-overlay --test cs12 -- --ignored` | `overlay.layout.measured` の `fonts` に、cinecaption と UDEV Gothic 35 が `status: loaded` で在り、和の行の `font_family` の先頭が cinecaption、英の行が UDEV Gothic 35。試しの行のうち cinecaption に無い字の数（`missing_glyphs`）を出す。file を外すと `overlay.font.missing` が 1 件で、その字形が `status: error` になる（11.3） | 字形の file が在るとき | path を壊した設定 |
 | CS-13 | OBS の字幕頁が透明で、自分の段だけを映す（OBS は使わない） | 前提：`chrome-headless-shell --default-background-color=00000000 --screenshot http://127.0.0.1:<port>/obs` で撮り、字幕の帯の外の画素の alpha を数える。本体：中継へ `mic-1` と `loopback-1` の試しの event を入れ、`chrome-headless-shell --dump-dom http://127.0.0.1:<port>/obs` | 帯の外の画素の alpha が全部 0。dump に `mic-1` の行が在り、`loopback-1` の行が無い | `mic-1`、帯の中の画素の alpha が 0 でない | `loopback-1`。背景に色を付けた頁では alpha が 0 にならず落ちる |
 | CS-14 | 動画から SRT が同じ directory に出る | `<relay> srt <英語の試しの mp4>` と `<relay> srt <日本語の試しの mp4>` の後に `cargo test --release --test cs14 -- --ignored` | 英語の動画：`.ja.srt` と `.en.srt` ができ、cue の数が清書の行の数と同じ、時刻が `t0_s` と `t1_s` に合う、`held` の cue に印がある。日本語の動画：`.ja.srt` だけで `.en.srt` が無い | 英語の mp4 | 日本語の mp4 で `.en.srt` が無いこと、音声の無い mp4 で 0 cue のまま止まって知らせること |
@@ -694,7 +695,7 @@ p95 は、標本を昇順に並べた 1 始まりの順位 ceil(0.95 × n) 番�
 | 24 | CS-9 | `cs09_loopback_language_follows_the_scene` | `native/hayamimi-relay/tests/cs09.rs` | 言語判定を外した build |
 | 25 | CS-29 | `cs29_third_language_shows_source_only` | `native/hayamimi-relay/tests/cs29.rs` | 言語を `en` に固定した run |
 | 26 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | loopback の認識の停止 |
-| 27 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | 余白 0 の build |
+| 27 | CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | `--probe-shrink 12` の実の process |
 | 28 | CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
 | 29 | CS-13 | `cs13_obs_page_shows_only_my_lane` | `native/hayamimi-relay/tests/cs13.rs` | `loopback-1` の行 |
 | 30 | CS-14 | `cs14_video_yields_srt_files_by_line_language` | `native/hayamimi-relay/tests/cs14.rs` | 日本語の mp4 の `.en.srt` |
@@ -1507,7 +1508,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 | 閉じる手段は taskbar の項目だけ | `with_skip_taskbar` を使わず、`WS_EX_TOOLWINDOW` も付けない。taskbar の「ウィンドウを閉じる」が `CloseRequested` になり、process は終わる | S19。tool window は taskbar に出ない |
 | 起動しても focus を奪わない | `with_focused(false)` | 会議の最中に起こしても、打っている窓から入力を取らない |
 | per-monitor DPI | 窓の大きさと位置を `LogicalSize` と `LogicalPosition`（CSS px と同じ単位）で渡し、`ScaleFactorChanged` と `Moved` を `use_wry_event_handler` で受けたら 11.4 の式で置き直す | 試し 2 は物理 px の定数で高さを置いたので、150% で字が窓からはみ出た。WebView2 は拡大率で CSS px を拡げるので、窓も同じ単位で決めれば揃う（S18） |
-| DPI を知る順 | tao は event loop を作る時に `become_dpi_aware`（`platform_impl/windows/dpi.rs:20`、`event_loop.rs:190`）を呼び、process を per-monitor v2 にする。作業領域（`GetMonitorInfoW`）は event loop を作った後にだけ読む。最初に読むのは頁を描いた後の最初の `Moved` か `ScaleFactorChanged`、または起動の後の最初の 1 秒の刻み（11.3 の刻み）のどちらか早い方で、窓は初めは 11.4 の大きさを主の画面の既定の位置に置き、作業領域を読んだ時に置き直す | DPI を知る前に読んだ作業領域は、拡大率で割られた値になる（11.2 の 2560×1392 は DPI を知らない process の値）。test の process も同じ理由で、先頭で `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` を呼んでから矩形を読む（OV-4、CS-11） |
+| DPI を知る順 | tao は event loop を作る時に `become_dpi_aware`（`platform_impl/windows/dpi.rs:20`、`event_loop.rs:190`）を呼び、process を per-monitor v2 にする。作業領域（`GetMonitorInfoW`）は event loop を作った後にだけ読む。窓は `with_visible(false)` で作り、作業領域を読む前の大きさには意味を持たせない（幅は作業領域から決まるので、読む前には決められない）。作業領域を最初に読むのは、event loop が回り始めた後の最初の UI の刻み（`use_hook` で起こす。11.3 の 1000 ms の刻みの 1 回目は待たずに即座に打つ）で、そこで 11.4 の矩形に置き、`set_visible(true)` で見せ、`overlay.window.opened` を出す。以後は `Moved`、`ScaleFactorChanged`、設定の読み直しの時に置き直す。test は `overlay.window.opened` が出るまで窓を読まない | DPI を知る前に読んだ作業領域は、拡大率で割られた値になる（11.2 の 2560×1392 は DPI を知らない process の値）。test の process も同じ理由で、先頭で `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` を呼んでから矩形を読む（OV-4、CS-11） |
 
 Win32 で足す 3 つ（作業領域、DWM の縁、最前面の上げ直し）は、`hayamimi-overlay/src/win.rs` の 1 file に閉じ込める。
 tao と dioxus-desktop が依存に持つ `windows` crate（試し 2 の lock で 0.61.3）の `GetMonitorInfoW`、`DwmSetWindowAttribute`、`SetWindowPos` を呼ぶ。
@@ -1592,9 +1593,9 @@ file は規範の既定どおり、1 日か 256 MiB の早い方で回す。
 
 | event | level | いつ | 項目 |
 |---|---|---|---|
-| `overlay.window.opened` | info | 窓を出した時 | 窓の物理の矩形、拡大率、monitor の名 |
+| `overlay.window.opened` | info | 最初の置き直し（作業領域を読んで 11.4 の矩形にした後）で窓を見せた時に 1 回。test はこの行を待ってから窓を読む | 窓の物理の矩形、拡大率、monitor の名 |
 | `overlay.line.rendered` | info | 行の描かれた状態が変わって描き終えた時ごと（初めて出た時、先の訳を描いた時、確定の訳で置き換えた時、`held` の原文にした時、「訳なし」にした時）。同じ状態のままの描き直しでは出さない | `id`、段（`upper` \| `lower`）、`stage`（`t` \| `e` \| `null`）、`settled`、`held`、`translated`（訳を描いたか）、`state`（`source` \| `draft` \| `settled` \| `held` \| `untranslated`）。CS-1 と CS-7 は、その `id` の `state` が `draft` か `settled` になった最初の行の `timestamp` を描いた時刻とする |
-| `overlay.layout.measured` | info | `--layout-probe` の時、`document.fonts.ready` の後に 1 回 | 行ごとの `scrollHeight`、`clientHeight`、`font_family`、`fonts`、`missing_glyphs`、`zoom` |
+| `overlay.layout.measured` | info | `--layout-probe` の時、`overlay.window.opened` と `document.fonts.ready` の後に 1 回 | `inner_height`、`zoom`、`probe_shrink`、`fonts`、`missing_glyphs`。行ごとに `id`、`scroll_height`、`client_height`、`bottom`、`font_family`。段ごとに `lane`、`bottom`（どれも CSS px） |
 | `overlay.config.reloaded` | info | 読み直して値が変わった時 | 変わった key の名 |
 | `overlay.monitor.missing` | warn | 名の画面が無く主の画面に出した時、名ごとに 1 回 | 名 |
 | `overlay.font.missing` | warn | 字形の file が読めない時、file ごとに 1 回 | 字形の名（path は出さない） |
@@ -1612,6 +1613,13 @@ hayamimi-overlay.exe --layout-probe [--zoom <percent>] [--log <path>]
 ```
 
 `--layout-probe` は流れを読まず、字の下が最も伸びる試しの 3 行（上の段 2 行、下の段 1 行、和と英）を描き、`overlay.layout.measured` を出す。
+測る物は 2 つの層に分ける。
+行の箱の中のはみ出しは各行の `scrollHeight` と `clientHeight` で、箱が窓の下端を越えて切れることは、各行と各段（`lane-upper`、`lane-lower`）の要素の `getBoundingClientRect().bottom` と `window.innerHeight` で測る（CSS px）。
+試し 2 の切れは後者の形だったので、後者を欠かせない。
+
+`--probe-shrink <px>` は `--layout-probe` の時だけ受け、窓の高さを 11.4 の `H` から `<px>` CSS px 縮めて出す。
+試験の陰性対照のための引数で、`--layout-probe` の無い起動では引数の誤りとして rc 2 で止まる。
+CS-11 は `12` を使う。帯の下の余白は `0.3 × 36 = 10.8` CSS px なので、それより大きく縮めれば下の段の行の箱が窓の下端を越え、`bottom > inner_height` になるからである。
 `--zoom` は webview の拡大を変え、機械の拡大率を変えずに 100、125、200% を写す（ASSUMPTION：webview の拡大と画面の拡大率で行の割り付けが同じになる。11.10 の H29）。
 
 **Linux の build を壊さない**：dioxus の `desktop` feature は Linux で webkit2gtk を求める。
@@ -1717,7 +1725,15 @@ pub const WINDOW_CLASS: &str = "hayamimi-overlay"; // passed to with_window_clas
 ```
 
 `OverlayConfig` の既定を `builtin()` の外に置かない（`Default` を実装しない）。
-`parse` の欠けた key は `builtin()` の値で、`DEFAULT:` の注に「11.3 の既定の表」を書く。
+したがって serde の `#[serde(default)]` は使えず、`parse` は 2 段で読む。
+1 段目は全部の key を `Option` で持つ部分読みの型（`config.rs` の中だけの `PartialConfig`、`#[serde(deny_unknown_fields)]`）に読む。
+2 段目で、`None` の key を `builtin()` の値で埋め、範囲を確かめて `OverlayConfig` にする。
+埋める所は key ごとに 1 行で、その直上に `// DEFAULT: an absent key takes the value of the defaults table in 11.3 of the design` の形の注を置く（`rust-forbidden-forms` の `DEFAULT:` の規律）。
+
+実装の席に渡す 2 点：
+
+- **log の圧縮**：11.3 の「圧縮した古い file」は、`log.rs` が回した直後に、前の file を同じ directory で gzip にし（`flate2` を `[dependencies]` に足す。OV-S2 の Cargo.toml の表の 1 行目に含める）、書き終えてから元の file を消す。30 日より古い `.jsonl.gz` を消すのも、同じ回す時の `log.rs` である。外の道具や予定の task には任せない。
+- **`build_revision`**：`hayamimi_relay::logging::BUILD_REVISION`（`logging.rs:21`）は `hayamimi-relay-<版>` を名乗る。`log.rs` は `pub const BUILD_REVISION: &str = concat!("hayamimi-overlay-", env!("CARGO_PKG_VERSION"));` を持ち、書く前に `LogEvent` の `build_revision` をこの値に替える。`hayamimi-eval/src/log.rs:11` と `:22` が同じ形で替えている前例である。
 
 ### 11.5 採らない手段
 
@@ -1754,7 +1770,7 @@ hayamimi-relay :8835 ───┤ translation（id で結ぶ）、fallback
 
 | 方針 | 中身 | ただし | 採るか |
 |---|---|---|---|
-| A | Dioxus desktop の窓。tao の口で 5 つの属性、`win.rs` で作業領域と DWM の縁と最前面の上げ直し。3 本の流れを native で読み、`Model` で結ぶ | 4 の 1 文を書き替える（評議）。`unsafe` を 1 file に持つ。窓の crate は Windows でだけ build と test ができる | **採る**（この節の案） |
+| A | Dioxus desktop の窓。tao の口で 5 つの属性、`win.rs` で作業領域と DWM の縁と最前面の上げ直し。3 本の流れを native で読み、`Model` で結ぶ | 4 の「重ね窓が中継の訳の流れだけを読む」を採らず、重ね窓は 3 本を読む（評議の判定で決まった。1、3.2、4、5 の行は直した）。`unsafe` を 1 file に持つ。窓の crate は Windows でだけ build と test ができる | **採る**（この節の案） |
 | B | A と同じ窓で、中継に確定文と訳を流す別の口（例 `/lines`）を足し、重ね窓は 1 本だけ読む | 中継の slice が先に要り、重ね窓の着手が 1 日ほど遅れる（推測）。E2E の席が使う中継を動かす。原文を運ぶ口がもう 1 つ増える | 採らない。結ぶ所は A でも 1 か所で、中継を動かす分だけ遅い |
 | C | 窓を作らず、今の頁を OBS の projector か browser で重ねる | 最前面とクリック素通しが得られず、3.12 の窓の条件を満たさない | 採らない |
 
@@ -1781,7 +1797,7 @@ OV-3 と OV-5 は、陰性対照で測りが効いたかを先に確かめ、効
 | ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
 |---|---|---|---|---|---|
 | CS-10 | 2 つの音源が 1 枚の重ね窓に並ぶ | 6.2 のまま | 6.2 のまま（`translated` が真の `overlay.line.rendered` を数える） | 6.2 のまま | 6.2 のまま（loopback の認識を止める） |
-| CS-11 | 字が切れない、枠と影が出ない | `hayamimi-overlay --layout-probe --zoom <100\|125\|150\|200>` を 4 回起こし、`cargo test --release -p hayamimi-overlay --test cs11 -- --ignored` | 6.2 の期待値。窓を出す前と出した後の画面を撮り（DPI を知る process から）、帯の外周 8 px の画素が全部一致。`overlay.layout.measured` の全行で `scrollHeight ≤ clientHeight` | 帯の中の画素が、出す前の画面と違う | 余白を 0 にした `place::band` を test の中で使うと、200% で `scrollHeight > clientHeight` |
+| CS-11 | 字が切れない、枠と影が出ない | `hayamimi-overlay --layout-probe --zoom <100\|125\|150\|200>` を 4 回起こし、`cargo test --release -p hayamimi-overlay --test cs11 -- --ignored` | 6.2 の期待値。窓を出す前と出した後の画面を撮り（DPI を知る process から）、帯の外周 8 px の画素が全部一致。`overlay.layout.measured` の全行で `scrollHeight ≤ clientHeight`、全行と 2 つの段で `bottom ≤ inner_height`。test は `overlay.window.opened` を待ってから `overlay.layout.measured` を読む | 帯の中の画素が、出す前の画面と違う。`inner_height` が 11.4 の `H` と ±1 CSS px で一致する | 同じ 4 つの拡大率で `--layout-probe --probe-shrink 12` の実の process を起こすと、どの拡大率でも下の段の `bottom > inner_height` になり、test の判定が落ちる（測りが窓の下端の切れを見えている）。縮めた run でも落ちなければ「測りが効かない」で落ちる |
 | CS-12 | 字形 | 6.2 のまま | 6.2 のまま | 6.2 のまま | 6.2 のまま |
 | OV-1 | 窓の属性が OS から読める | `hayamimi-overlay --layout-probe` を起こし、`cargo test --release -p hayamimi-overlay --test ov01 -- --ignored` | 拡張 style に `WS_EX_TOPMOST`、`WS_EX_LAYERED`、`WS_EX_TRANSPARENT` が在り、`WS_EX_TOOLWINDOW` が無い。style に `WS_SIZEBOX` が無い（`with_resizable(false)`）。枠の無さは style の bit で測らず、`GetClientRect` の幅と高さが `GetWindowRect` の幅と高さに等しい（非クライアント領域が 0）ことで測る。`IsWindowVisible` が真 | 同じ読み手で、test の素朴な窓（`WS_OVERLAPPEDWINDOW` で作る）を読むと、client の矩形が窓の矩形より小さく、`WS_SIZEBOX` が在る | test の素朴な窓に同じ期待値を当てると落ちる |
 | OV-2 | クリックが下の窓へ届く | test の素朴な窓を帯の下に置き、帯の中央へ `SendInput` で左クリックし、`cargo test --release -p hayamimi-overlay --test ov02 -- --ignored` | 素朴な窓の `WM_LBUTTONDOWN` の数が 1 増え、その間に重ね窓が一度も前面にならない（`GetForegroundWindow` を 50 ms ごとに 1000 ms 読む） | 帯の外の、素朴な窓の点を押しても数が 1 増える | 帯の上に 2 つめの素朴な窓を重ねて同じ点を押すと、2 つめの数が増え、1 つめの数は増えない |
@@ -1795,7 +1811,7 @@ OV-3 と OV-5 は、陰性対照で測りが効いたかを先に確かめ、効
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
 | CS-10 | `cs10_both_sources_share_one_overlay` | `native/hayamimi-overlay/tests/cs10.rs` | loopback の認識の停止 |
-| CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | 余白 0 の割り付け |
+| CS-11 | `cs11_no_clipping_and_no_frame_at_any_scale` | `native/hayamimi-overlay/tests/cs11.rs` | `--probe-shrink 12` の実の process |
 | CS-12 | `cs12_japanese_in_cinecaption_english_in_udev_gothic` | `native/hayamimi-overlay/tests/cs12.rs` | 壊した字形の path |
 | OV-1 | `ov01_window_styles_read_back_from_the_os` | `native/hayamimi-overlay/tests/ov01.rs` | test の素朴な窓の矩形と style |
 | OV-2 | `ov02_a_click_on_the_band_reaches_the_window_below` | `native/hayamimi-overlay/tests/ov02.rs` | 帯の上に重ねた 2 つめの素朴な窓 |
@@ -1829,7 +1845,7 @@ OV-S2 が書く `native/hayamimi-overlay/Cargo.toml` の依存は次のとおり
 
 | 節 | crate | feature と理由 |
 |---|---|---|
-| `[dependencies]` | `hayamimi-ui`（path）、`hayamimi-relay`（path）、`serde`（`derive`）、`toml`、`dirs`、`serde_json` | 段の部品と `Model`、`follow`、`logging`、`watched`、設定と log |
+| `[dependencies]` | `hayamimi-ui`（path）、`hayamimi-relay`（path）、`serde`（`derive`）、`toml`、`dirs`、`serde_json`、`flate2` | 段の部品と `Model`、`follow`、`logging`、`watched`、設定と log、古い log の gzip（11.4.1） |
 | `[target.'cfg(windows)'.dependencies]` | `dioxus`（`desktop`、`launch`、`macro`、`hooks`、`signals`、`html`） | 窓と webview |
 | 同上 | `windows` | `Win32_Foundation`、`Win32_Graphics_Gdi`（`GetMonitorInfoW`）、`Win32_Graphics_Dwm`（`DwmSetWindowAttribute`）、`Win32_UI_WindowsAndMessaging`（`SetWindowPos`） |
 | `[target.'cfg(windows)'.dev-dependencies]` | `windows`（上と同じ版） | 上の 4 つに加え、`Win32_UI_WindowsAndMessaging` の `FindWindowW`、`EnumWindows`、`GetWindowLongPtrW`、`GetWindowRect`、`GetClientRect`、`GetForegroundWindow`、`SetForegroundWindow`、`CreateWindowExW`、`RegisterClassW`、`GetMessageW`。`Win32_UI_Input_KeyboardAndMouse`（`SendInput`）。`Win32_UI_HiDpi`（`SetProcessDpiAwarenessContext`）。`Win32_Graphics_Gdi` の `GetDC`、`BitBlt`、`GetDIBits`（画面の撮影）。`Win32_System_LibraryLoader`（`GetModuleHandleW`） |
