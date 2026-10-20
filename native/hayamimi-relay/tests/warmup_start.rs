@@ -4,8 +4,8 @@
 //! subtitle.
 //!
 //! A fake translator listens on a port the system picks. In one test it
-//! answers its first request after 3 s, later than `REQUEST_TIMEOUT` and
-//! sooner than `warmup::TIMEOUT`.
+//! answers every request after 3 s, later than `REQUEST_TIMEOUT` and sooner
+//! than `warmup::TIMEOUT`, so both first requests need the longer limit.
 
 mod support;
 
@@ -62,10 +62,11 @@ fn messages_of(raw: &[u8]) -> Result<Vec<(String, String)>, Box<dyn Error>> {
 #[test]
 fn a_translator_that_answers_in_three_seconds_still_warms_up_at_start() -> TestResult {
     assert!(REQUEST_TIMEOUT < SLOW_ANSWER && SLOW_ANSWER < warmup::TIMEOUT);
-    let server = FakeServer::start(|nth, _| {
-        if nth == 0 {
-            std::thread::sleep(SLOW_ANSWER);
-        }
+    // Every request is late, so the request in the form of E also waits longer
+    // than `REQUEST_TIMEOUT`; the two together stay within `warmup::TIMEOUT`.
+    assert!(2 * SLOW_ANSWER < warmup::TIMEOUT);
+    let server = FakeServer::start(|_, _| {
+        std::thread::sleep(SLOW_ANSWER);
         Reply::json(&chat_reply("Hello."))
     })?;
     let names = names_logged_at_start(&server)?;

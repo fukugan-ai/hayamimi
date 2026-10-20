@@ -312,6 +312,8 @@ mod tests {
     fn the_first_request_may_take_the_whole_budget_and_the_second_what_is_left() {
         const BUDGET: Duration = Duration::from_secs(5);
         const SLOW: Duration = Duration::from_millis(50);
+        // How far the second limit may fall below `BUDGET - SLOW` on a loaded machine.
+        const SLACK: Duration = Duration::from_secs(1);
         let llm = Scripted::answering(|nth| {
             if nth == 0 {
                 std::thread::sleep(SLOW);
@@ -323,7 +325,10 @@ mod tests {
             panic!("{} limits, not 2", limits.len());
         };
         assert_eq!(*first, BUDGET);
-        assert!(!second.is_zero() && *second <= BUDGET - SLOW, "{second:?}");
+        assert!(
+            *second <= BUDGET - SLOW && *second >= BUDGET - SLOW - SLACK,
+            "{second:?}"
+        );
     }
 
     #[test]
