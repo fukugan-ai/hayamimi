@@ -2,6 +2,12 @@
 
 日本語版: [ja_pipeline.ja.md](ja_pipeline.ja.md)
 
+This file describes the Python engine as it was before R11, and it does not apply to `hayamimi` after R11.
+No section is named as still correct.
+The slice that rebuilds the paired `docs/spec/ja_pipeline_spec.json` from the output of `hayamimi config dump` is R13-10 of the design, and `config dump` is not implemented.
+The current home is `recognizer.rs`, `vad.rs`, `punct/`, `itn.rs` and `audio.rs` under `native/hayamimi-asr/src/`.
+How to read the version before R11 is in the index of [`docs/README.md`](../README.md).
+
 ## Purpose and scope
 
 This document specifies hayamimi's Japanese route precisely enough that

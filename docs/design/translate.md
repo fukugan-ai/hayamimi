@@ -1,5 +1,8 @@
 # Japanese -> English Subtitle Translation
 
+This file records the investigation behind one decision.
+Translation at run time is now done by a language model served through `hayamimi llama`, and the `scripts/` files named below are the ones that existed when the investigation was made.
+
 `scripts/translate_ja_en.py` provides `TranslatorJaEn`, a small wrapper around a
 CTranslate2-converted FuguMT ja->en model for translating live subtitle lines.
 Not yet wired into `asr_engine.py` / `realtime_transcribe.py` / `subtitle_server.py`

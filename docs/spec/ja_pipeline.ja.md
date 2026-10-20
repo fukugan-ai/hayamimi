@@ -1,5 +1,11 @@
 # 日本語経路の実装仕様 (JA_PIPELINE)
 
+この file は R11 より前の Python のエンジンの記述で、R11 の後の `hayamimi` には当てはまらない。
+今も正しい節として挙げる節は無い。
+組の `docs/spec/ja_pipeline_spec.json` を `hayamimi config dump` の出力で作り直す slice は設計の R13-10 で、`config dump` は未実装である。
+今の置き場は `native/hayamimi-asr/src/` の `recognizer.rs`、`vad.rs`、`punct/`、`itn.rs`、`audio.rs` である。
+R11 より前の版の読み方は、[`docs/README.ja.md`](../README.ja.md) の索引に在る。
+
 ## 目的と適用範囲
 
 hayamimi の日本語経路を、別プロジェクトが別言語で作り直せる程度に書き下ろした文書。
