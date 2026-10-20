@@ -479,6 +479,8 @@ key は `ui.<頁>.<名前>` の形にする。
 | `ui.tr.reason.proper_noun` | 固有名の不一致 | Proper noun differs |
 | `ui.tr.reason.form` | 形の不一致 | Malformed output |
 | `ui.tr.reason.unavailable` | 翻訳器に届かない | Translator unreachable |
+| `ui.lanes.held_mark` | 原文 | Original |
+| `ui.lanes.untranslated_mark` | 訳なし | No translation |
 | `ui.fallback.badge` | 代替で動作中 | Running on fallback |
 
 `stage`、`reason`、`to` の語は、決まった値の分だけ `ui.fallback.stage.<stage>` の形で足し、載っていない値は受けた文字列を出す。
