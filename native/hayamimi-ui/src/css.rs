@@ -254,6 +254,15 @@ mod tests {
         // A row is 1.5 times the font size high, and a lane is its rows high.
         assert!(sheet.contains("height: 1.5em"));
         assert!(sheet.contains("height: calc(var(--rows) * 1.5em)"));
+        // A row never wraps, so the band keeps the height of its window.
+        for rule in [
+            "white-space: nowrap",
+            "overflow: hidden",
+            "text-overflow: ellipsis",
+        ] {
+            assert!(sheet.contains(rule), "{rule}");
+        }
+        assert!(sheet.contains("white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"));
     }
 
     #[test]
