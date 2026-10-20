@@ -57,7 +57,7 @@ Windows is not measured here.
 | fetch the sherpa-onnx libraries | `cargo build --release -p sherpa-onnx-sys`, rc 0; `SHERPA_ONNX_LIB_DIR` points at `target/sherpa-onnx-prebuilt/<archive>/lib` |
 | `cargo fmt --all --check` | rc 0 |
 | `cargo clippy --workspace --all-targets --jobs 2 -- -D warnings` | rc 0 |
-| `cargo test … --test <90 names> -- --skip …` | rc 0; 113 `test result` lines, 2692 passed, 0 failed, 101 ignored |
+| `cargo test … --test <90 names> -- --skip …` | rc 0; 109 `test result:` lines, 2692 passed, 0 failed, 101 ignored |
 | RP-19 rows not yet ported | rc 101 (allowed): `172 rows of the table are not in the list yet` |
 | RP-81 owned exceptions | rc 101 (allowed): `owned exceptions remain, per owner: R13-10: 50, R13-14: 18` |
 
