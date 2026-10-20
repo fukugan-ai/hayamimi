@@ -200,6 +200,7 @@ Dividing the remaining 40 (44 − 7, plus the 3 of the 3.19 combination below) b
 The remaining count is 40 (the council's verdict). The count of 32, which recounts P1 to P3 as the 19 slices R13-1 to R13-18 of the present design, is not used. Of those 19, R13-13 is one slice that carries the same 240 minutes of work as the 5 of P3 (the refiner, R12w0 to R12w4; the R13-13 row in section 8 of `rust_port.ja.md` and the P3 row above). 8.3 per day is a count of merges of 51 minutes each (p50), so substituting by the number of slices alone undercounts the work.
 The front desk's target of 10-23 is the 1.7 days of dividing 40 by 23 per day when running without a break (the evening of 2026-10-22), plus the one day of PL-3 (PL-H2).
 The 3.19 combination (R8x) adds the 6 items L12 to L16 and takes the 1 design of L5 and the 2 slices of L6 off the path to 1200 ms, so the count of L grows by 3 (L17, window E3, is not counted). These 3 are included in the 40 above (PL-H8).
+The fix of T-RP-32-014 (the test-designer seat, about 20 minutes) has no row in the table of what remains (P, O, L, X), so it is not in the 40. It is separate work, to be done before R8x-1 (L12).
 For the 1000 ms line, once PL-3 shows that L8 is needed, about 3 days (estimate) are added for the design, council and 3 implementations of L8, the run of RP-66 and L7. 1000 ms is the target after completion, so it is not part of the pass date.
 
 ### What changes and what stays when the line is 1200 ms
