@@ -58,6 +58,7 @@ The option of putting only the encoder inside recognition on the GPU (policy D) 
 The placement changes only after RP-78 confirms that, in the split form (encoder on the GPU only), L shrinks and translation does not slow down.
 
 The state of each slice is in the table in `docs/design/status.md`.
+The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
 
 ### Related documents
 

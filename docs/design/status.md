@@ -8,7 +8,7 @@ When the two differ in meaning, the Japanese is corrected first and this one aft
 This document lists what still stands between the project and completion, then gives the state of each slice.
 The first table is what remains; the table after it gives each slice's state, merge commit, where the verification comes from, how far its acceptance has passed, and the holes left.
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
-Commit hashes were checked with `git log --oneline`; main was at `00087bb` (the merge commit of `feat/e-warmup`, 2026-10-20; the commit that adds this document sits one above it) when they were checked.
+Commit hashes were checked with `git log --oneline`; main was at `3f7369b` (the merge commit of `design/completion-plan`, 2026-10-20; the commit that adds this document sits one above it) when they were checked.
 
 ## What remains before completion
 
@@ -40,6 +40,211 @@ The owner is the seat that moves the item; where no record names one, the cell s
 
 Sending to YouTube Live caption ingestion will not be built (sections 1 and 4 of the conversation-subtitles design).
 Streaming uses the route that burns the OBS subtitle page into the video.
+
+## Plan to completion
+
+### Priority
+
+1. Remove Python (R11 and RP-19; P0 to P5 below).
+2. The overlay window (`hayamimi-overlay`; O1 and O2 below).
+3. Work that shrinks the p95 of `L` (L1 to L11 below).
+
+Seats, parallel cargo runs and the main lock go to the earlier item first.
+The third item advances only on resources that the first and second do not use (the GPU, the E2E window and idle CPU).
+The number and content of the P and O slices are decided by the Python-removal design (branch `design/python-removal`, sections 3.2 and 8 of `rust_port.ja.md`) and the overlay design (branch `design/overlay`, `conversation_subtitles.ja.md`).
+The P and O rows in this section are counted from the records of section 8 of `rust_port.ja.md` and section 3.12 of the conversation-subtitles design as they stood before those two designs landed. Rows marked [to be corrected from the design seat's reply] are corrected when the two design seats answer.
+
+### Conclusion
+
+Python goes away on 2026-10-24, and the overlay window passes on 2026-10-24 as well [to be corrected from the design seat's reply].
+When the RP-67 line is a p95 of 1000 ms, completion is expected on 2026-10-27.
+When the line is a p95 of 1200 ms, completion is expected on 2026-10-26.
+Every date is an estimate that assumes merges of implementation continue every day at 8.3 per day.
+The gap between 1000 ms and 1200 ms comes from the design and implementation that rebuild the end-of-utterance wait `d` (L8 below), which the 1200 ms line does not need.
+Changing the line does not change the amount of the Python-removal work (R11 and RP-19) by a single row.
+That work is the largest and ranks first, so for either line the date up to 2026-10-24 is decided by it.
+
+Completion means all three of the following hold.
+
+1. R11 is merged and Python is gone from the run-time path (RP-9, RP-19).
+2. In a build that includes the refiner (Refiner), RP-67 passes for both ja and en, and RP-73 passes too.
+3. The overlay window (`hayamimi-overlay`) exists, and CS-10, CS-11 and CS-12 pass.
+
+The third is not in the completion condition above this section.
+It was added because the `goal` of `state.json` and FR-9 of the requirements include the overlay window; whether to remove it is for the council to decide (open hole PL-H1).
+
+### What was counted, and the numbers
+
+| What was counted | Range and formula | Number | Control |
+|---|---|---|---|
+| Rows of what remains | Rows of the table "What remains before completion" in this document (headers and separators excluded; the section is cut with `awk` and counted with `grep -vc`) | 19 rows; RP-33 is "passed", so 18 rows are open | The same formula gives 32 rows for the "State of each slice" table |
+| Python files | `git ls-files '*.py'` | 78 files (`scripts/` 56, `tests/` 20, `demo/` 2) and 2 `requirements*.txt` files | Agrees with the 78 files of 3.2 |
+| Unimplemented rows of RP-19 | "Sorting of the 187 unimplemented rows of RP-19, and slices" in section 8 of `rust_port.ja.md` | 187 rows ((a) 111, (c) 57, not ported 15, no material 4) | 0 of `rp19.rs`, `rp09.rs`, `rp67.rs`, `rp73.rs` in `native/hayamimi-eval/tests/` (`grep` rc 1); the same directory has 22 files starting with `rp` |
+| R12 branches | Branches whose name contains `r12`, by `git for-each-ref` | 0 | — |
+| Overlay crate | `ls native/` | None (there are 7 crates) | — |
+| Speed of implementation merges | First-parent merges of main whose branch starts with `feat/`, `fix/`, `test/` or `probe/` (2026-10-13 to 2026-10-20 10:25) | 54. By day: 23 on 10-14, 23 on 10-15, 0 on 10-16 to 10-18, 6 on 10-19, 2 on 10-20. Divided by 6.5 days: 8.3 per day | — |
+| Length of one merge | Minutes from the first commit to the merge of the same 54 | p50 51 min, p75 165 min, maximum 6117 min | The slice estimates of section 8 (25 to 60 min) agree with the p50 |
+
+For the quantity estimates, a slice that has a minute estimate in section 8 uses that value; one that has none uses 51 minutes per merge (the p50 above).
+Where section 8 has no row and no similar slice exists in the past, the entry says "estimate".
+
+### Breakdown of the main metric `L`
+
+Where the top samples of `L` are late was counted with `jq` from the 3 Rust runs of RP-32 (the build of `83830af`; the E2E records `rs1` to `rs3`, outside git).
+The counting is the same as RP-67: valid means `d ≥ 120 ms`, p is nearest-rank, `d = (t_final − t_end)/1000 − final_latency_ms`, decoding is `final_latency_ms`, and translation is `(t_tr − t_final)/1000`.
+As a positive control, `L` came out as n 291, p50 885 ms and p95 1501 ms, which agrees with the output of the RP-32 test.
+
+| Stage | p50 | p95 |
+|---|---|---|
+| `L` | 885 | 1501 |
+| Wait `d` | 662 | 1013 |
+| Decoding | 123 | 217 |
+| Translation | 128 | 385 |
+
+The p95 of the translation stage is 385 ms, not the 1034 ms that H69 relied on (n 93 of `e2e1`, an earlier build).
+`d` alone has a p95 of 1013 ms, so even with decoding and translation at 0 the p95 of `L` does not fall below 1000 ms.
+94 samples exceed 1000 ms and 64 exceed 1200 ms; the number allowed to exceed so that the p95 passes is 14.
+Of the 64 samples above 1200 ms, 45 are utterances 7, 16 and 22 with 15 each, and all have `d` of 920 to 1040 ms (samples finalized by silence).
+The rest are 6 of utterance 12, 4 of 11, and 3 each of 1, 2 and 21; utterance 1 is the first utterance of each run, and its decoding averages 826 ms.
+
+### Closing the 501 ms gap to the 1000 ms line
+
+The numbers are the p95 recomputed after replacing the stage values of the 291 samples above.
+Shrinks by stage do not add up, so each combination was recomputed as a combination.
+All are calculations on records, not values from real runs (estimate).
+
+| Work | How it was replaced | p95 of `L` | Shrink |
+|---|---|---|---|
+| Now | — | 1501 | — |
+| The first request of E (`feat/e-warmup`) | The decoding and translation of the 1 first-utterance sample of each run are set to the p50 | 1481 | −20 |
+| The shadow mark (`feat/held-tail-shadow`) and the VAD trace (`feat/vad-trace`) | They measure; they do not change a decision | 1501 | 0 |
+| Policy B (RP-79, `design/vad-end`) | The `d` of utterances 16 and 22 is capped at the detection delay of B (replayed 591 ms and 476 ms, plus the 25 ms gap to E2E) | 1432 | −69 |
+| Policy B and the encoder on the GPU (RP-74, RP-78) | On top of the above, decoding is uniformly −32 ms (the estimate in 3.5) | 1400 | −101 |
+| Policy B, RP-78 and speculative decoding (RP-71) halving translation | The speed of translation has not been measured (ASSUMPTION) | 1229 | −272 |
+| The same with translation at 0 | The upper bound of the shrink from translation | 1064 | −437 |
+| Silence of 0.12 s (option b of 3.17) | `d` uniformly −192 ms | 1321 | −180 |
+| B used alone (option c of 3.17) | `d` uniformly −576 ms | 937 | −564 |
+| B alone, RP-78 and translation halved | — | 724 | −777 |
+
+The −127 ms of policy B's replay p95 is a shrink of the detection delay, and appears as only about −69 ms in the p95 of `L`.
+This is because utterance 7, which decides the p95, is still finalized by silence even with policy B.
+Even with all the work in the present design, the p95 of `L` for ja stays at 1064 to 1229 ms and does not reach 1000 ms.
+Only work that shrinks `d` by about 310 ms or more across all samples (when translation is halved) reaches it, and the only candidate on record is option c (B used alone).
+Option c raises the splits in ja from 4 to 13, so a design that rebuilds `d` while keeping the rate of cuts in the middle of a sentence (RP-66) is needed (L8 below).
+For en, `L` has not been measured in the present build (the 1303 ms of E2E-2 is from an earlier build, and its top includes a first load of 4681 ms).
+
+### Closing the 301 ms gap to the 1200 ms line
+
+For the 1200 ms line, the samples outside the allowed 14 are reduced from 64 to 14, that is by 50.
+
+| Work | Samples taken out | p95 of `L` |
+|---|---|---|
+| Policy B (RP-79) | 30 samples of utterances 16 and 22 (16 is 616 + 126 + 330 ≒ 1072, 22 is 501 + 152 + 279 ≒ 932) | 1432 |
+| Finish the recognizer's first decode before ready (no design exists; L5 below) | 3 samples of utterance 1 | Outside the table together with the above |
+| Bring utterance 7 (15 samples, `d` 921, decoding 206, translation 334) under 1200 ms | Shrink `d` or translation by about 260 ms per sample | — |
+
+There are two ways to bring utterance 7 down.
+One is to shrink translation by 65 % or more with speculative decoding (RP-71); this value is needed on top of policy B and RP-78 (the smallest found with `jq` in 5 % steps).
+The other is to shrink the `d` of samples finalized by silence by about 260 ms; policy B together with 0.12 s of silence gives a p95 of 1240 ms, which is not enough.
+Neither has been measured, so whether the 1200 ms line passes is decided by the E2E runs of policy B and RP-71 (the end of stage C2 below).
+If it does not pass, the small form of L8 (shrinking `d` only for samples finalized by silence) is needed even for the 1200 ms line, and completion moves toward the date of the 1000 ms line.
+
+### What remains
+
+"Direct" means the item affects one of the three completion conditions; "indirect" means it does not.
+
+| ID | Item | Direct? | Depends on | Resource | Amount | Source |
+|---|---|---|---|---|---|---|
+| P0 | R12a1 (`rp19.rs`, `rp19_not_yet.txt`) | Direct (RP-19) | None. The gate for the other R12 slices | cargo | 55 min | "Slices to build" in 8 |
+| P1 | R12b to R12g ((a) 111 rows, 6 slices) [to be corrected from the design seat's reply] | Direct | P0 | cargo; R12b, which touches `session.rs`, is ordered with R12h and R12i of P2 | 6 × 51 min (estimate; the estimate in 8 covers only 180 min of build and fixes) | "The set that lands by 13:55" in 8 |
+| P2 | R12h, i, v, q, r, s1, s2, t1, t2, t3, u1, u2, x ((c) 13 slices) [to be corrected from the design seat's reply] | Direct | P0. s2 after s1, t2 after t1, t3 after t2, u2 after u1 | cargo; R12r needs a Windows build | 535 min | "Slices to build" in 8 |
+| P3 | Refiner R12w0 to R12w4 (RP-61) | Direct | w1 after w0, w2 after w1, w3 after w1, w4 after w2 and w3 | w4 needs the E2E window, the GPU and a real Windows machine | 240 min, of which 60 min is the E2E window | "The form that adds the refiner to live" in 8 |
+| P4 | R12a2 (`rp09.rs`) | Direct (RP-9) | P0 | cargo | 40 min | "Slices to build" in 8 |
+| P5 | R11 (delete the 78 files and `requirements*.txt`, move CI to cargo, rewrite the Dart comments) [to be corrected from the design seat's reply] | Direct | P1 to P4 all merged and RP-19 passing | The main lock | 2 slices (estimate) | R11 in 8, 3.2 |
+| L1 | The 3 merges now running (`feat/e-warmup`, `feat/held-tail-shadow`, `feat/vad-trace`) | Direct (material for RP-67) | Verification passed | The main lock | 3 × 51 min | Each branch |
+| L2 | The offline gate of H100 (step 2 of policy B) | Direct | The shadow mark of L1 | cargo (CPU) | 60 min (estimate) | 3.17 of `design/vad-end` |
+| L3 | `--early-complete nouns` and `asr.endpoint.widened` | Direct | L2 meets the line | cargo; touches `args.rs`, so ordered with R12s1 and R12t3 of P2 | 51 min | Same as above |
+| L4 | The E2E of RP-79 (S, W, S, W in 2 languages) | Direct | L3 | The E2E window and the GPU, load under 2 | 8 runs, about 3 hours (from the ja record of 26 min per run) | RP-79, same as above |
+| L5 | Finish the recognizer's first decode before ready | Direct | The design seat (no design exists) | cargo | 1 design and 1 implementation (estimate) | The breakdown in this section |
+| L6 | The probe and E2E of speculative decoding (RP-71) | Direct | The council of 3.18 | The GPU. The llama-servers on 18081 and 18083 cannot be loaded together | 2 slices and 1 hour of E2E (estimate) | 3.18 |
+| L7 | The estimate of RP-74 and RP-78 | Direct for the 1000 ms line, indirect for the 1200 ms line | After the E2E window closes | The GPU, the E2E window | 3 slices (estimate) | 3.5, RP-74, RP-78 |
+| L8 | The design and implementation that shrink `d` by 310 ms or more across all samples while keeping the rate of cuts in the middle of a sentence | Direct for the 1000 ms line only | The design seat and the council, the result of L4 | The design seat, cargo, the E2E of RP-66 | 1 design, 1 council, 3 implementations, 1 run of RP-66 (estimate) | The breakdown in this section |
+| L9 | The E2E-2 of the present build (`L` for en) | Direct | L1 | The E2E window | 1 run (about 17 min; estimated by ratio from 26 min for ja, 15 utterances × 5) | RP-67 |
+| L10 | RP-73 (`manifest.rs`, `tests/rp73.rs`) | Direct | After the work that shrinks `L` | cargo | 51 min | RP-73 |
+| L11 | The last runs of RP-67 and RP-32 in a build that includes the refiner | Direct | P3, L4, L6 (also L7 and L8 for 1000 ms) | The E2E window, the GPU | About 2 hours (71 min for the 3 runs of RP-32, plus E2E-1 and E2E-2) | RP-67, RP-32 |
+| O1 | The board of the overlay window (designer), and a design that puts a slice row in 8 [to be corrected from the design seat's reply] | Direct (goal and FR-9) | 3.12 of the conversation-subtitles design | The design seat, the designer seat | About 4 hours for the board and design (from the record of R6, board to merge) | 3.12, CS-10 to CS-12 |
+| O2 | The overlay crate and CS-10 to CS-12 [to be corrected from the design seat's reply] | Direct | O1 | cargo, a real Windows machine | 3 slices (estimate) | Same as above |
+| X1 | The rest of RP-69, RP-70 and RP-72, and the record of RP-33 | Indirect | The council of 3.18 | The E2E window | The state differs between records (PL-H3) | 3.18 |
+| X2 | RP-44 and R12y (the entry point for held-out) | Indirect | None | cargo | 60 min | R12y in 8 |
+| X3 | Zoom and Teams on real services (CS-17, CS-18) | Indirect (implementation and the fake-receiver verification are done) | A host token and an organiser link | Real services | Cannot be run | `blocked_on` of `state.json` |
+| X4 | SRT on a real run, the measurement inside OBS, and a person speaking into the microphone | Indirect | A person and a real machine | A real machine | Once each (estimate) | The first table |
+| X5 | The face-to-face mode (from IP-S3) | Indirect | The R8v merge | cargo | No estimate on record | Section 10 of the conversation-subtitles design |
+| X6 | R3e, the ko of RP-1, T-RP-1-013, the `lang` of RP-10 | Indirect | — | cargo, a Windows build | R3e is 45 min | R3e in 8, the first table |
+| X7 | Bring `status.md` (the English version) and the README in line with this section | Indirect | The merge of this section | The main lock | 1 slice | The top of this document |
+
+The slices that are direct for the 1200 ms line number 44; for the 1000 ms line, L7 and L8 are added and the number is 53 (counted as P 28, O 4, L 12 and 21).
+Dividing the 32 slices of P and O by 8.3 per day gives 3.9 days, which counted from 2026-10-20 10:30 is 2026-10-24 [to be corrected from the design seat's reply].
+Dividing 44 gives 5.3 days; adding the one day by which the 1200 ms verdict of L (PL-3) comes late gives 2026-10-26.
+For the 1000 ms line, once PL-3 shows that L8 is needed, about 3 days (estimate) are added for the design, council and 3 implementations of L8, the run of RP-66 and L7, giving 2026-10-27.
+
+### What changes and what stays when the line is 1200 ms
+
+The work that is no longer needed is L8 (the design, council, 3 implementations and run of RP-66 for rebuilding `d`).
+L7 (RP-74 and RP-78) shrinks decoding by 32 ms, which is short of the 260 ms of utterance 7 that decides the 1200 ms line, so it does not contribute to completion for the 1200 ms line.
+The work that is needed is L1 to L6, L9 to L11, P0 to P5, O1 and O2, the same as for the 1000 ms line.
+
+That the amount of Python-removal work does not change with the line was confirmed in two ways.
+
+- In the section of 3.2 on the three conditions for entering R11 (the entry conditions of R11 and the table of the 78 files), `RP-67` appears 0 times and `RP-19` appears 3 times.
+- In the 6 rows of RP-9, RP-19 and RP-61 in 6 and 7, `RP-67` and `1000 ms` appear 0 times.
+
+The pass condition of RP-61 is the gap between Python's `L` and Rust's `L` with the refiner switched off (p50 30 ms, p95 60 ms); it does not read the RP-67 line.
+However, RP-67 is measured again in a build that includes the refiner (L11), so for either line the refiner chain (P3) is merged before the RP-67 verdict.
+
+### Policies
+
+The priority is fixed as in "Priority" above.
+The policies differ in where the third item, the work on `L`, runs between the first and the second.
+
+| Policy | Form | Date Python goes away | Completion at 1000 ms | Completion at 1200 ms | Caveat | Taken? |
+|---|---|---|---|---|---|---|
+| A | Issue P, O and L one at a time in order (O1 and O2 after P0 to P5, then L1 to L11) | 2026-10-24 | 2026-10-29 | 2026-10-26 | While P runs, the overlay board does not move either, and O sits behind P5. The verdict on L (PL-3) does not come until 10-25, so the design and council for the case where L8 is needed land at the end | Not taken |
+| B | Run P and O side by side, and issue L after both are on main | 2026-10-24 | 2026-10-28 | 2026-10-26 | PL-3 does not come until 10-24. The 3 branches of L1 stay away from main for 4 days and pile up conflicts with R12h and R12v of P2, which touch `hayamimi-asr` | Not taken |
+| C | P and O take seats, cargo and the main lock first; L advances only on resources that P and O do not use (the E2E window and the GPU, and the CPU probe of L2). The 3 merges of L1 take the main lock after P0 | 2026-10-24 | 2026-10-27 | 2026-10-26 | On days when P and O use every seat, L does not advance by even one slice, and PL-3 slips past 10-23. The date for 1000 ms moves back by that much | Recommended |
+
+The recommended form is C.
+C keeps the priority and runs L4 and L6 on the GPU and the E2E window (which P and O slices barely use), so whether the 1200 ms line is met by the work in the present design can be measured on 10-23.
+When it is not met, the design and council for L8 can start before P and O finish.
+
+### The stages of policy C
+
+| Stage | End | First and second items (take seats first) | Third item (remaining resources only) | Ordered items | Measure at the end of the stage |
+|---|---|---|---|---|---|
+| C1 | 2026-10-21 | P0, P4, the start of writing the 6 slices of P1, O1 (board and design) [to be corrected from the design seat's reply] | The 3 merges of L1 (the lock after P0), L2 (CPU) | The main lock goes to P0, then the 3 of L1 | PL-1, PL-2 |
+| C2 | 2026-10-22 | The rest of P1, the first half of P2, the first slice of O2 [to be corrected from the design seat's reply] | L3 (whether `args.rs` goes in before or after R12s1 and R12t3 is ordered with the P2 seat), L9 (the E2E window) | `session.rs` goes in the order R12b, R12h, R12i | — |
+| C3 | 2026-10-23 | The second half of P2, w0 to w2 of P3, the rest of O2 | L4, L6 (the E2E window and the GPU; before w4 of P3) | The E2E window goes in the order L9, L4, L6 | PL-3. If it is exceeded, L8 is issued even when the line is not 1000 ms |
+| C4 | 2026-10-24 | w3 and w4 of P3, P5 (R11). CS-10 to CS-12 of the overlay window | L5, L10. For the 1000 ms line, the design and council of L8 | P5 after P1 to P4 are on main. The E2E window goes to w4 first | PL-4, and that Python is gone (`rp19` and `rp09` of PL-5) |
+| C5 | 2026-10-26 (2026-10-27 for 1000 ms) | — | L11. For the 1000 ms line, the implementation of L8 and L7 | The E2E window goes to L11 once, last | PL-5 |
+
+### Measures per stage
+
+| ID | What is measured | Command | Expected | Positive control | Negative control |
+|---|---|---|---|---|---|
+| PL-1 | The gate for removing Python is up | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp19` | `rp19_python_cases_are_ported` fails and prints the number not yet implemented, and `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` passes | The number in the list is 172 or less | A fixture that adds a name already in the list makes the second test fail |
+| PL-2 | The offline gate of policy B | `cd native && cargo test --release --jobs 2 -p hayamimi-asr --test r8v_probe -- --ignored --nocapture r8v_latency_set_probe_shadow_rule` | The line that H100 passes is met | The probe value of the present decision is in the same log | — |
+| PL-3 | Whether the work in the present design is enough for the 1200 ms line | Feed the `jsonl` of the W run of RP-79 and the run of RP-71 to `cargo test --release -p hayamimi-eval --test rp67 -- --ignored` | If the p95 of `L` for ja is 1200 ms or less, L8 is not needed. If it is exceeded, issue L8 | The present records (`rs1` to `rs3`) give 1501 ms | A fixture with all samples at 900 ms passes |
+| PL-4 | The rest of RP-19 | The same `rp19` | The list is only the 17 rows of R12w | Same as above | Same as above |
+| PL-5 | Completion | The tests of `rp67`, `rp73`, `rp19`, `rp09` and CS-10 to CS-12 | All pass | The positive controls of the RP-67 and RP-73 rows | The negative controls of the same rows |
+
+### Open holes of the plan
+
+- **PL-H1** The third completion condition (the overlay window) is not in the completion condition above this section. It was placed second in priority, so this section counted it as part of completion. The seat of X7 corrects the sentence above.
+- **PL-H7** The number and amount of the rows P0 to P5, O1 and O2 were counted from the records before the Python-removal design and the overlay design landed (the mark [to be corrected from the design seat's reply]). If the two designs add or remove slices, the date Python goes away and the completion date each move by about 3 hours (at 8.3 per day) per slice. The design seat corrects them after receiving the replies of the two design seats.
+- **PL-H2** 8.3 per day is an average that includes the 3 days with 0 merges, 10-16 to 10-18 (measured). With 23 per day, 1200 ms would be 2026-10-22 and 1000 ms 2026-10-23. Each day with no movement pushes the dates back by one day.
+- **PL-H3** In the first table RP-69 to RP-72 read "in council" or "writing case rows", but `feat/rp71`, `test/rp69-72` and `feat/llama-pair` went into main on 10-19. How far they are done has not been checked (NOT VERIFIED). The owner is the seat of the council of 3.18.
+- **PL-H4** The table for closing the gap to `L` is a calculation that replaces the stage values of the samples of 3 runs of one build (ja only); it does not include interference between waits of different stages, or load (ASSUMPTION). en has not been measured in the present build (L9).
+- **PL-H5** There is no record of actual results for the shrink of translation by RP-71, the amount of L5 and L8, or the amount of the overlay window (estimate). L8 may be stopped by the council. The design of R8v (3.17) has not entered implementation 5 days after its merge.
+- **PL-H6** The English `status.md` now carries a translation of this section. The two versions are kept in step by changing the Japanese first.
 
 ## State of each slice
 
@@ -79,6 +284,7 @@ The five states:
 | RP-32 and RP-33 tests, R8p3 | Verified | The RP-32 name test and R8p3 are `e745bd3`; the test that reads the `pairs.txt` directory of RP-32 is `0900a32`; the RP-33 test is `fccce49` | All three passed independent verification (bodies of the merge commits). The workspace test (`-- --skip rp19`) on the tree of `fccce49` gives Running 119 + Doc-tests 7 = 126, ok 126, FAILED 0 (the record in `state.json`) | `native/hayamimi-eval/tests/rp32.rs` and `rp33.rs` are on main. R8p3 re-set the expected values of RP-42-006, RP-43-011 and RP-43-012 to follow RP-48 (`445aa2f`) | The real runs of RP-32 and RP-33 were re-run with the three Rust pairs of 2026-10-16 (the result is in the first table) |
 | E's card form, the `reason` of an early-end hold, the first request (`feat/e-card-form`) | Verified | `83830af` (contains `1b205e0` and `0aadb6c`) | Independent verification passed (the verifier's report, kept outside git). The body of the merge commit has no result of the workspace-wide test (the coordinator runs it before the push) | The request of E has two messages: a system message (T's draft and a note to keep facts, numbers, proper names, negation and uncertainty) and a user message (the same sentence as T); the request of T stays one user message. `asr.endpoint.held` carries a `reason` (`incomplete` when the sentence is not complete, `too_short` when the speech is short). Before `relay.serve.started`, `live` sends one short request to the `--llm` server (it became two in the next row); it emits `translate.warmup.sent` when the server answers and `translate.warmup.failed` when it does not, and start-up goes on. Verifier's report: the tests of 4 crates give 2688 passed, 0 failed, clippy and fmt rc=0, and 5 negative controls fail. Measured (the same in all 3 runs): 77 `asr.endpoint.held` lines (68 `incomplete`, 9 `too_short`) and 1 `translate.warmup.sent` | The first E of `rs1` took 1326 ms (the slowness of a first request; owner: the implementing seat). The cause of utterance 22 being held as `incomplete` for 3.3 s (owner: the root-cause seat). `incomplete` is counted so that its number can decide how noun-ending sentences are treated (3.17 of `rust_port.ja.md`) |
 | The first requests in the forms of T and E (`feat/e-warmup`) | Verified | `00087bb` (contains `2e82d3c` and `c2eaa03`) | Independent verification passed (the verifier's report, kept outside git). The test of the tree before the merge (`8bd533b`), measured by the coordinator, gives rc=0, results=119, passed=2694, failed=0, ignored=116 (the log is outside the repository). The 45 lines that contain the word `FAILED` are log lines inside tests, not test failures | Before `relay.serve.started`, `live` sends one short request in the form of T and then one in the form of E. The wait is at most 10 seconds for the two together, and the second request gets the time that is left. Each request emits `translate.warmup.sent` or `translate.warmup.failed`, and both carry `form` (`t` or `e`). Negative control: fixing the wait of the second request at 1 ms makes 2 tests fail (0 failed before) | NOT VERIFIED: whether the very first E shrinks on a real llama-server (to be measured next in 3 E2E runs). How well the 1 s margin holds under extreme load |
+| The design of policy B (RP-79, `design/vad-end`) and the plan-to-completion section (`design/completion-plan`) | The design and the plan are merged. Implementation has not started | `b974eb1` (`design/vad-end`), `3f7369b` (`design/completion-plan`) | Both branches hold documents only. The workspace test of the tree that carries both (`b3ecd1b`), measured by the coordinator, gives rc=0, results=119, passed=2694, failed=0, ignored=116 (the log is outside the repository). The council's GO covers steps 1 and 2 only | The W implementation and E2E of policy B come after the offline gate (H100) passes. The plan section has a priority order, what remains, the breakdown of `L`, the completion dates for 1000 ms and 1200 ms, and the 5 stages of policy C. The same section was added to this English version | The offline gate has not been run (L2). The P and O rows of the plan were counted from records before the two designs landed, and the numbers are corrected from the design seat's reply (PL-H7) |
 | E2E boundary tests (T-E2E-1-015, T-E2E-2-011) | Merged; no verification by a seat that did not write them is on record | `8f3468b` (no merge commit; it went in by fast-forward) | The `-p hayamimi-eval` test gives Running 31 + Doc-tests 1 = 32, ok 32, FAILED 0. The whole workspace test was not run at that time (the record in `state.json`) | E2E-1 passes at 70 of 80 and fails at 69 (`the_translated_share_passes_at_70_of_80_and_fails_at_69`). The E2E-2 boundary is 20 of 23 (`the_translated_share_boundary_is_20_of_23`) | Verification by a seat that did not write them |
 | R8v design (RP-66, RP-67, 3.17) and the VAD threshold probe | The design is merged. R8v is not implemented | Design `27efb3c`; probe `42132a1` | The design merge is documents only and ran no test (body of the merge commit). The probe table matches the 6 rows of `docs/results/vad-threshold-20261015/README.md`, and the threshold stays 0.5 (the record in `state.json`) | RP-66 and RP-67 are not implemented (first table) | The offline probe that hit stop condition 2 (`feat/r8v-probe`) is not on main |
 | RP-68 test and the H75 fix (rebuild the detector after `Engine::finish`), and the design fix (RP-68, H75, H76) | Verified | `5522942` (contains `5660032` and `4ca0f86`) | Independent verification passed (body of the merge commit). The workspace test gives Running 120 + Doc-tests 7 = 127, ok 127, FAILED 0 (the record in `state.json`, second run). The first run failed `start_command_returns_while_the_server_keeps_running` in `cs20` after 24.8 s (a timing test, at load 3.7; recorded as unrelated to the diff), so the sum did not match and the run was repeated on the same tree | On the main before the fix, `rp68` rows 006, 007, 009 and 015 fail (the child process gets SIGABRT); after the fix they pass (body of `5660032`) | The `cs20` timing test fails when the load is high. RP-68 child 3 guards the feed after `finish`, but no record of an abort in a live run was looked for (H75) |
