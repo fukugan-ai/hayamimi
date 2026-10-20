@@ -7,16 +7,15 @@ import 'punct_ort_session.dart';
 /// Puts Japanese punctuation back into unpunctuated text.
 ///
 /// The problem: hayamimi's speech recognizer emits a bare run of
-/// characters. On the desktop pipeline `scripts/punct_ja.py` inserts
+/// characters. On the desktop pipeline `native/hayamimi-asr/src/punct/` inserts
 /// 、 and 。 into it before the text is shown, so desktop captions read as
 /// sentences; the mobile package had no equivalent, so its refined output
 /// arrived unpunctuated. This class is the mobile half of that.
 ///
 /// How it works: a character-level BERT classifier decides, for every
 /// character, whether a comma or a period should follow it. The model is
-/// the one `docs/design/punct_ja.md` describes, converted to float16 by
-/// `scripts/quantize_punct.py --variant fp16` (182 MB, half of the
-/// original, and identical predictions on the 250-sentence FLEURS check
+/// the one `docs/design/punct_ja.md` describes, converted to float16
+/// (182 MB, half of the original, and identical predictions on the 250-sentence FLEURS check
 /// recorded in `docs/design/mobile_quantization.md`). A rule-based pass then turns a
 /// sentence-final 。 into ？ after a question ending, because the model has
 /// no question-mark class to predict.

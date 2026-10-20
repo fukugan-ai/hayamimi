@@ -1,9 +1,9 @@
 /// Pure logic for the Live screen's "draft" (発話中の暫定字幕) pass: while a
 /// VAD segment is still in progress (the speaker hasn't paused yet), decode
 /// the audio accumulated so far on a timer and show it as an in-progress
-/// line, the same "partial" experience `scripts/realtime_transcribe.py`
-/// gives the desktop dashboard (see `PARTIAL_EVERY_S`/`PARTIAL_WINDOW_S`
-/// there). Unlike the finalized/refine passes, a draft is never stored --
+/// line, the same "partial" experience `hayamimi` gives the desktop
+/// dashboard (see `EVERY_SAMPLES`/`MAX_SAMPLES` in
+/// `native/hayamimi-asr/src/partial.rs`). Unlike the finalized/refine passes, a draft is never stored --
 /// it's overwritten by the next draft or cleared by the next final.
 ///
 /// Everything in this file is plain data/logic with no FFI or platform

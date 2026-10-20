@@ -8,7 +8,7 @@ English: [README.md](README.md)
 
 3 つの独立した部品を提供する。いずれも同じ
 [`SubtitleEvent`](https://github.com/oboroge0/hayamimi/blob/main/mobile/hayamimi_core/lib/server/subtitle_event.dart)
-ワイヤーフォーマット (デスクトップの `scripts/subtitle_server.py` と OBS オーバーレイが使う
+ワイヤーフォーマット (デスクトップの字幕 server (`native/hayamimi/src/server.rs`) と OBS オーバーレイが使う
 `partial`/`final`/`translation`/`refine` と同じ JSON 形式) をしゃべる。
 
 - **`HayamimiLive`** — 端末上での文字起こし。マイク → Silero VAD →
@@ -130,7 +130,7 @@ await live.dispose();
 
 `HayamimiLive(textTransform: ...)` (セッション中も差し替え可能な `live.textTransform` でも可)
 で、各テキストが `SubtitleEvent` になる直前にホスト側で書き換えられる。CJK の逆テキスト
-正規化 (漢数字→アラビア数字、デスクトップ側の `scripts/itn_cjk.py`) やユーザー置換辞書は
+正規化 (漢数字→アラビア数字、デスクトップ側の `native/hayamimi-asr/src/itn.rs`) やユーザー置換辞書は
 Dart 側にまだ移植されていないので、必要なら自前でここに実装すること。
 
 ## モデル配置
@@ -213,8 +213,7 @@ await live.start(
 対象外で、
 [`oboroge0/hayamimi-punct-ja-fp16`](https://huggingface.co/oboroge0/hayamimi-punct-ja-fp16)
 (Hugging Face) からダウンロードすること (サイズと sha256 は上の表を参照)。このファイルは
-`python scripts/quantize_punct.py --variant fp16` (メインの hayamimi リポジトリ側) が上流の
-fp32 モデルから作るもので、詳細は
+上流の fp32 モデルを float16 に変換したもので、詳細は
 [`docs/design/punct_ja.md`](https://github.com/oboroge0/hayamimi/blob/main/docs/design/punct_ja.md)
 を参照。`ModelDownloader` にはまだエントリがないので、手動で
 `JaPunctuation(modelPath: ..., vocabPath: ...)` に渡す場所へコピーすること。
@@ -288,14 +287,13 @@ await live.start(
 await live.setVadSensitivity(VadSensitivity(threshold: 0.4));
 ```
 
-**既定値は sherpa-onnx のものではなく、デスクトップパイプラインのもの。**
-`minSilenceSeconds` は **0.35s**、`maxSpeechSeconds` は **12.0s**
-(`scripts/realtime_transcribe.py` と一致)。`threshold` (0.5) と `minSpeechSeconds` (0.25s) は
+**既定値は sherpa-onnx のものではない。**
+`minSilenceSeconds` は **0.35s**、`maxSpeechSeconds` は **12.0s**。
+`threshold` (0.5) と `minSpeechSeconds` (0.25s) は
 sherpa-onnx 自身の値。理由: sherpa-onnx 既定の 0.5s 無音しきい値だと、Android エミュレータで
 3 文の日本語音声 (ポーズが 0.5 秒弱) が 1 つの 6.13 秒セグメントにまとまり、この日本語認識器は
 複数発話を含むセグメントからは最後の 1 文しか返さない — 2 文が出力から消えた。0.35s では
-同じ音声が 3 セグメントに分割され、3 文とも出た。実放送日本語では 0.35s は 0.5s より精度が
-悪化せず、150ms 早く確定表示できると記録されている。
+同じ音声が 3 セグメントに分割され、3 文とも出た。
 
 `maxSpeechSeconds` は保証ではなく目安。5.0s に設定したセッションでも 6.134s のセグメントが
 出た実測がある。`VadSensitivity(minSilenceSeconds: 0.5, maxSpeechSeconds: 5.0)` でこの
@@ -321,7 +319,7 @@ await live.resetSession(); // 会話だけ新しくする。ロード済みモ�
 
 ## 日本語の句読点復元
 
-デスクトップパイプラインでは refine (「清書」) パスのテキストが `scripts/punct_ja.py` を
+デスクトップパイプラインでは refine (「清書」) パスのテキストが `native/hayamimi-asr/src/punct/` を
 必ず通るので、デスクトップの字幕は文として読める。このパッケージには対応するものが
 なかったので、refine の出力は句読点なしの一続きの文字列だった。issue
 [#15](https://github.com/oboroge0/hayamimi/issues/15) がこのギャップを埋めるためのもので、

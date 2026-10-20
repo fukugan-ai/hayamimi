@@ -4,8 +4,8 @@ import 'dart:typed_data';
 /// Characters that already act as punctuation, so the restorer neither
 /// writes a mark after one nor writes a mark immediately before one.
 ///
-/// The list is the reference implementation's `_JA_PUNCT_CHARS`
-/// (`scripts/punct_ja.py`) character for character, including the ASCII
+/// The list is the reference implementation's `MARKS`
+/// (`native/hayamimi-asr/src/punct/rules.rs`) character for character, including the ASCII
 /// half-widths — NFKC folds `！？（）` down to `!?()` before this set is
 /// consulted, so both forms have to be in it.
 const Set<String> jaPunctuationCharacters = <String>{

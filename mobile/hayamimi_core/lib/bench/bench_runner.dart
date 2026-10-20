@@ -23,7 +23,8 @@ class BenchRunException implements Exception {
 /// [decodingMethod] defaults to sherpa-onnx's own default ('greedy_search')
 /// so the generic RTF bench keeps its prior behavior. [ManifestEvalRunner]
 /// passes 'modified_beam_search' explicitly to match the desktop production
-/// config for ReazonSpeech ja (see scripts/asr_engine.py::_build_reazon) —
+/// config for ReazonSpeech ja (see `decoding_of` in
+/// native/hayamimi-asr/src/recognizer.rs) —
 /// without that, a mobile-vs-PC accuracy comparison would be conflating a
 /// platform difference with a decoding-config difference.
 ///

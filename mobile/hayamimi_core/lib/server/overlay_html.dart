@@ -1,6 +1,7 @@
 /// Transparent-background overlay page served at `/`, for use as an OBS
-/// browser source. Ported from `OVERLAY_HTML` in `scripts/subtitle_server.py`
-/// so both the desktop and mobile subtitle servers look identical to OBS.
+/// browser source. Looks the same as the overlay page of
+/// `native/hayamimi-ui/src/overlay.rs`, so both the desktop and mobile
+/// subtitle servers look identical to OBS.
 const String overlayHtml = '''
 <!doctype html>
 <meta charset="utf-8">
@@ -19,7 +20,7 @@ const String overlayHtml = '''
 <script>
   // ?show=final / ?show=partial renders only that row, so OBS can place the
   // confirmed line and the in-progress line as two independent sources --
-  // same convention as the desktop overlay (scripts/subtitle_server.py).
+  // same convention as the desktop overlay (native/hayamimi-ui/src/overlay.rs).
   const mode = new URLSearchParams(location.search).get("show") || "both";
   const fin = document.getElementById("final-line");
   const par = document.getElementById("partial-line");

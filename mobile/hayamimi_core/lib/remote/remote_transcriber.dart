@@ -27,7 +27,7 @@ const _reconnectDelay = Duration(seconds: 2);
 /// the subtitle events it streams back.
 ///
 /// This is deliberately a thin client — all recognition happens on the PC.
-/// The wire protocol is documented in `scripts/ws_ingest.py`: one JSON
+/// The wire protocol is documented in `native/hayamimi/src/ingest.rs`: one JSON
 /// handshake frame, then continuous binary PCM16 frames; the server replies
 /// with the same partial/final/translation/refine JSON events the desktop
 /// SSE dashboard sees.
@@ -35,8 +35,9 @@ const _reconnectDelay = Duration(seconds: 2);
 /// Also provides [sendTestWavFile], a debug helper that streams a `.wav`
 /// file at real-time pace over its own one-shot connection — used to
 /// exercise the full pipeline from an emulator, which has no usable
-/// microphone (see `scripts/ws_mic_client.py`, the desktop-side reference
-/// client this mirrors).
+/// microphone (see `hayamimi-eval stream` in
+/// `native/hayamimi-eval/src/stream.rs`, the desktop-side client this
+/// mirrors).
 class RemoteTranscriber {
   /// Creates a client with no active connection. Pass [recorder] only to
   /// inject a fake `AudioRecorder` in tests; a real host app should leave
@@ -263,7 +264,7 @@ class RemoteTranscriber {
   /// mic connection — the server only accepts one audio-producing client
   /// at a time), appending a little trailing silence so the server's VAD
   /// finalizes the last utterance before the connection closes. Mirrors
-  /// `scripts/ws_mic_client.py`.
+  /// `hayamimi-eval stream` (`native/hayamimi-eval/src/stream.rs`).
   ///
   /// Events received on this connection are forwarded onto [events] like
   /// any other. Intended for exercising the full pipeline on an emulator,

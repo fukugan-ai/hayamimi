@@ -2,7 +2,7 @@ import 'dart:convert';
 
 /// One subtitle event received over the `/ingest` WebSocket from a hayamimi
 /// server (`--input ws --serve`), wire-compatible with
-/// `scripts/subtitle_server.py`'s `publish()` schema — the same JSON the
+/// the events built in `native/hayamimi/src/wire.rs` — the same JSON the
 /// desktop SSE dashboard and OBS overlay consume.
 sealed class RemoteEvent {
   const RemoteEvent();
@@ -53,14 +53,14 @@ class RemoteFinalEvent extends RemoteEvent {
   /// Whether this segment is why the server's multi-language routing
   /// switched languages, mirroring `FinalSubtitleEvent.switched`. `false`
   /// if the server didn't send it (including servers running a version of
-  /// `subtitle_server.py` from before this field existed).
+  /// the desktop server from before this field existed).
   final bool switched;
 
   /// Whether the server had already punctuated this line, mirroring
   /// `FinalSubtitleEvent.punctuated`. `false` if it didn't send the field.
   ///
   /// The desktop pipeline does punctuate its Japanese finals, but
-  /// `subtitle_server.py` has no `punctuated` key on `final` frames to say
+  /// `native/hayamimi/src/wire.rs` has no `punctuated` key on `final` frames to say
   /// so, so today this is `false` for every real server and exists so that a
   /// consumer reading `FinalSubtitleEvent.punctuated` gets the same field
   /// from both paths rather than a field that only some producers have.
@@ -151,7 +151,7 @@ class RemoteEventParseException implements Exception {
 /// JSON or isn't a JSON object.
 ///
 /// An unrecognized `type` (including `model_fallback`/`warning`/
-/// `session_summary`/`recluster`, which `subtitle_server.py` also emits
+/// `session_summary`/`recluster`, which `native/hayamimi/src/wire.rs` also emits
 /// but this package doesn't yet have a typed [RemoteEvent] for) falls back
 /// to [RemoteUnknownEvent] rather than throwing, so a protocol change or an
 /// event this package hasn't caught up to yet degrades gracefully instead

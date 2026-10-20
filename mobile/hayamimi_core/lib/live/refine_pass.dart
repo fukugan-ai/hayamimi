@@ -3,8 +3,8 @@ import 'dart:typed_data';
 /// Pure logic for the Live screen's "refine" (清書) pass: a second decode
 /// over several already-finalized VAD segments' audio, run together instead
 /// of one at a time, the same "re-decode with more context" trick the
-/// desktop pipeline's `Refiner` class uses (see
-/// `scripts/realtime_transcribe.py`, `GROUP_GAP_S`/`GROUP_MAX_S`).
+/// desktop pipeline's `Refiner` class uses (see `GROUP_GAP_SECONDS`/
+/// `GROUP_MAX_SECONDS` in `native/hayamimi-asr/src/refine.rs`).
 ///
 /// Everything in this file is plain data/logic with no FFI or platform
 /// dependency, so it's unit tested directly. The FFI glue (actually running
@@ -122,10 +122,8 @@ Float32List combineSegmentSamples(List<RefineSegment> segments) {
 /// ([isCombinedFastTextPunctuated]), the join uses `''`: each sentence
 /// already ends in a mark like 。, and a following space is not how Japanese
 /// is set (the desktop's own refine output for the same text has none).
-/// Otherwise the join falls back to a single space, mirroring the desktop
-/// joiner for unpunctuated text (`scripts/realtime_transcribe.py`'s
-/// `" ".join(...)`), which is still the only separator available when there
-/// is no punctuation to lean on.
+/// Otherwise the join falls back to a single space, which is still the only
+/// separator available when there is no punctuation to lean on.
 String combineSegmentFastText(List<RefineSegment> segments) {
   final separator = isCombinedFastTextPunctuated(segments) ? '' : ' ';
   return segments
@@ -150,9 +148,8 @@ bool isCombinedFastTextPunctuated(List<RefineSegment> segments) {
 }
 
 /// Whether a merged re-decode came back suspiciously short compared to the
-/// fast finals it's replacing, mirroring the desktop `Refiner`'s guard: "a
-/// merged re-decode must never LOSE content; if it comes back much shorter
-/// than the fast finals combined, trust those" (scripts/realtime_transcribe.py).
+/// fast finals it's replacing: a merged re-decode must never LOSE content, so
+/// if it comes back much shorter than the fast finals combined, trust those.
 /// Length is compared in UTF-16 code units, which is good enough for the
 /// relative-shrink check this guards (not meant as a linguistic measure).
 ///

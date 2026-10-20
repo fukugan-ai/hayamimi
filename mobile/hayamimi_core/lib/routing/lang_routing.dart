@@ -1,6 +1,7 @@
 /// Multilingual routing decisions, ported from the desktop pipeline's
-/// dual-LID policy (see `docs/eval/lid.md` and `scripts/asr_engine.py`'s
-/// `resolve_dual_confirm` / `resolve_sticky_lang` / `sv_lid_tag`).
+/// dual-LID policy (see `docs/eval/lid.md`, `resolve_dual_confirm` /
+/// `resolve_sticky` in `native/hayamimi-asr/src/route/sticky.rs` and
+/// `sv_lid_tag` in `native/hayamimi-asr/src/lid.rs`).
 ///
 /// These are pure functions: no model calls, no I/O. Callers own running
 /// whisper-tiny's spoken-language identifier and SenseVoice's own decode

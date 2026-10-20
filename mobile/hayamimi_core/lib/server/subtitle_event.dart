@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 /// One subtitle event, wire-compatible with the desktop hayamimi subtitle
-/// server (`scripts/subtitle_server.py`): same `type` discriminator and
+/// server (`native/hayamimi/src/wire.rs`): same `type` discriminator and
 /// field names, so the same OBS browser source / browser client works
 /// against either the desktop app or this phone.
 sealed class SubtitleEvent {

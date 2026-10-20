@@ -23,19 +23,13 @@ library;
 /// sentences into one 6.13 s segment, and the recognizer given that segment
 /// returned only the last sentence -- a caption that is wrong, not merely
 /// rough, with nothing in the output to say two sentences went missing.
-/// The desktop pipeline this package is the mobile port of does not have
-/// that problem because it does not use the stock values: it runs
-/// `--min-silence 0.35` and `--max-speech 12.0`
-/// (`scripts/realtime_transcribe.py`), and its own comment records that
-/// 0.35 s measured no worse for accuracy than 0.5 s while finalizing a
-/// segment 150 ms sooner. Re-running the same audio through this package
-/// with 0.35 s split it into three segments and all three sentences came
-/// out.
+/// Re-running the same audio through this package with a 0.35 s silence
+/// split it into three segments and all three sentences came out.
 ///
-/// So the two defaults here are the desktop's, not sherpa-onnx's:
+/// So the two defaults here are not sherpa-onnx's:
 /// [minSilenceSeconds] is 0.35 and [maxSpeechSeconds] is 12.0.
 /// [threshold] and [minSpeechSeconds] are unchanged from sherpa-onnx's
-/// values, which the desktop also leaves alone. For a caller, this means
+/// values. For a caller, this means
 /// segments finalize on shorter pauses than before -- more transcript
 /// lines, each of them shorter, and each decoded from audio the recognizer
 /// can actually handle. Pass explicit values to get the old behavior back.
@@ -67,7 +61,7 @@ class VadSensitivity {
   /// considered finished and finalized. Lower = shorter pauses split
   /// segments; higher = a speaker's brief pauses stay inside one segment.
   ///
-  /// Defaults to 0.35 s, matching the desktop pipeline. Raising it back
+  /// Defaults to 0.35 s. Raising it back
   /// toward sherpa-onnx's own 0.5 s risks merging consecutive sentences
   /// into one segment, which this repo's ja recognizer answers by
   /// transcribing only the last of them -- see this class's doc.
@@ -89,9 +83,8 @@ class VadSensitivity {
   /// hand over. Do not size a buffer, a timeout, or a UI element on the
   /// assumption that no segment can exceed it.
   ///
-  /// Defaults to 12.0 s, matching the desktop pipeline, which force-splits
-  /// breathless commentary at that length and lets the refine ("清書") pass
-  /// re-merge the group afterwards.
+  /// Defaults to 12.0 s, which force-splits breathless commentary at that
+  /// length and lets the refine ("清書") pass re-merge the group afterwards.
   final double maxSpeechSeconds;
 
   static void _requirePositive(double value, String name) {

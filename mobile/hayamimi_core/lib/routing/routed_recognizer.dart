@@ -299,8 +299,8 @@ class RoutedRecognizerSet {
         // Bootstrap: whisper-tiny's very first guess is a language this app
         // has no tier for at all (e.g. "fr", "ru") -- blindly defaulting to
         // "ja" here would repeat the same mistake the desktop pipeline fixed
-        // for its own bootstrap path (see asr_engine.py's
-        // resolve_sticky_lang bootstrap_probe_lang and docs/eval/lid.md): a
+        // for its own bootstrap path (see `resolve_sticky` and `probe_lang`
+        // in native/hayamimi-asr/src/route/sticky.rs and docs/eval/lid.md): a
         // single whisper-tiny misfire on segment 1 seeding the whole
         // session with the wrong language. Probe with SenseVoice's own
         // internal LID on this exact audio and arbitrate with the same

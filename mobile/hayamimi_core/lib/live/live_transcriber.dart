@@ -287,7 +287,7 @@ class LiveTranscriber {
   // demand, re-decode the whole group together for a cleaner result than
   // any single segment got on its own (same effect the desktop pipeline's
   // `Refiner` gets from re-decoding across segment boundaries — see
-  // `scripts/realtime_transcribe.py`). When start() was given a
+  // `native/hayamimi-asr/src/refine.rs`). When start() was given a
   // `punctuation` model, the worker also restores 、 and 。 into the result
   // before sending it back; without one this stays re-decode only. Built in
   // the constructor initializer list above (its cap comes from the
@@ -495,8 +495,8 @@ class LiveTranscriber {
   ///
   /// [vadSensitivity] configures Silero VAD's speech/silence detection
   /// (threshold, minimum silence/speech durations, max segment duration —
-  /// see [VadSensitivity], whose defaults are the desktop pipeline's tuned
-  /// values rather than sherpa-onnx's stock ones, and which explains why).
+  /// see [VadSensitivity], whose defaults are tuned values rather than
+  /// sherpa-onnx's stock ones, and which explains why).
   /// `null` (the default) uses those defaults. Change it after [start] via
   /// [setVadSensitivity] instead of stopping and restarting the session.
   ///
@@ -510,7 +510,7 @@ class LiveTranscriber {
   /// [punctuation] turns on Japanese punctuation restoration for this
   /// session: the recognizer emits a bare run of characters, and the model
   /// named here puts 、 and 。 (and ？ after a question ending) back into
-  /// it, the way the desktop pipeline's `scripts/punct_ja.py` does. `null`
+  /// it, the way the desktop pipeline's `native/hayamimi-asr/src/punct/` does. `null`
   /// (the default) leaves it off, which is what this method did before the
   /// parameter existed. What changes when it is set:
   ///
@@ -1043,8 +1043,7 @@ class LiveTranscriber {
     var text = result.text.trim();
     var punctuated = result.punctuated;
     // A merged re-decode must never LOSE content: if it comes back much
-    // shorter than the fast finals combined, trust those instead (mirrors
-    // scripts/realtime_transcribe.py's Refiner).
+    // shorter than the fast finals combined, trust those instead.
     //
     // The lengths compared are WITHOUT the marks the punctuation model
     // wrote: it runs in the worker, before this, so by here a punctuated

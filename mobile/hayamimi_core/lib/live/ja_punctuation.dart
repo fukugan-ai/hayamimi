@@ -11,7 +11,7 @@ const int defaultPunctNumThreads = 2;
 ///
 /// The problem: hayamimi's speech recognizer emits a bare run of
 /// characters. The desktop pipeline puts 、 and 。 back with
-/// `scripts/punct_ja.py` before anything sees the text, so desktop captions
+/// `native/hayamimi-asr/src/punct/` before anything sees the text, so desktop captions
 /// read as sentences; this package's refine ("清書") output arrived
 /// unpunctuated. Passing one of these to `LiveTranscriber.start` (or
 /// `HayamimiLive.start`) is what closes that gap — `null`, the default,
@@ -79,7 +79,7 @@ class JaPunctuation {
   /// two or more segments that guard is the normal outcome, not the rare
   /// one. Punctuating the finals is what gives the fallback something
   /// punctuated to fall back to — the same thing the desktop relies on,
-  /// where the fast finals have already been through `punct_ja.py`.
+  /// where the fast finals have already been through `native/hayamimi-asr/src/punct/`.
   ///
   /// The cost is one extra run of the punctuation model per utterance,
   /// inside the decode worker, on text the next refine may replace anyway.

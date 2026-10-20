@@ -44,7 +44,8 @@ class ManifestEvalRunner {
     ];
 
     // modified_beam_search matches desktop production
-    // (scripts/asr_engine.py::_build_reazon) for ja ReazonSpeech — using
+    // (`decoding_of` in native/hayamimi-asr/src/recognizer.rs) for ja
+    // ReazonSpeech — using
     // sherpa-onnx's greedy_search default here would compare a different
     // decoding config, not just a different platform.
     final recognizer = await buildZipformerRecognizer(
@@ -189,8 +190,8 @@ class ManifestEvalRunner {
   }
 
   /// Serializes [results] as the JSON array written to disk by the Bench
-  /// tab's "Run manifest eval" button, so `adb pull` + `eval_accuracy.py`'s
-  /// `cer_ja` can score it on the PC side without re-deriving the format.
+  /// tab's "Run manifest eval" button, so `adb pull` + a PC-side scorer
+  /// can score it without re-deriving the format.
   static String toJson(List<ManifestEvalResult> results) {
     return const JsonEncoder.withIndent(
       '  ',
