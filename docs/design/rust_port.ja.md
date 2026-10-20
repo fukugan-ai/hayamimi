@@ -1715,6 +1715,35 @@ final ─▶ 中継 ─ 鍵（同じ、`。` を足した、数字と `。` `、
 
 図の結論：C と D は終わりの知らせを足すだけで、確定するのは完結した候補か持った候補に限り、訳の使い回しの数の正しさは確定文の V が見る。
 
+#### 窓の訳の server（E1、E3'、E4）
+
+窓 E1、E3'、E4 の run は、訳を 8080 の llama-server に頼む。
+8080 が上がっていない時は、hayamimi 専用の user unit `hayamimi-llama-e2e.service`（18084。file は `native/hayamimi-relay/units/`）を起こし、中継に `--llm http://127.0.0.1:18084` を渡す。
+8080 の unit（`llama-artisan@.service`）は別の app と共有の template で、その app が起こし止める。
+この組は 8080 の unit を書き替えず、起こさない。
+unit の file は repo に置くだけで、`~/.config/systemd/user/` へ置いて起こすのは窓の席である。
+
+決めは次のとおりである。
+
+1. **8080 と同じ model と引数**：引数は `-m CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 18084 -ngl 99 -c 16384` で、`-np` を付けない。binary は 8080 と同じ `build-cuda120/bin/llama-server` である。8080 との違いは port だけで、`-m` の file 名は unit に直に書く。測る訳の model と量子化は 8080 と同じなので、`L` の物差しと 1600 ms の線は変わらない。
+2. **Q6_K の unit を窓に使わない**：`hayamimi-llama-pair.service`（18083）は Q6_K で、`-c 8192 -np 4` である。量子化と slot の形が 8080 と違うので、訳の質と訳の段の時間が 8080 の物差しからずれ、1600 ms の線で見た値と比べられなくなる。
+3. **llama.cpp を build し直さない**：今の binary のまま起こす。build は CPU を長く使い、窓の load の門（RP-83）を閉じる。8080 の unit も同じ binary を読むので、窓の間に binary が変わると、別の app の server も変わる。起こしてから `llama-server --version` と `/props` を記録する。
+4. **起こす前の確かめ**：次の 3 つがそろった時だけ起こす。
+   1. `ss -ltn | grep -c ':18084\b'` が 0。
+   2. `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits` の値に 3403 MiB（本体の file の大きさ）を足して 14,000 MiB 以下（RP-22 の上限）。
+   3. 超える時は `hayamimi-llama-other.service`（18081）を窓の間だけ止め、`memory.used` を読み直す。止めても中継は止まらず、組の外の言語の行が `held` になるだけである（3.6）。それでも超える時は起こさず、読んだ値を添えて評議へ出す。8080 の共有の server と ComfyUI は止めない。
+5. **起こした後の記録**：`/health` が `ok` を返してから `memory.used` をもう一度読み、14,000 MiB 以下であることを見る。unit の `ExecStart` の行、`/props` の `model_path`、`default_generation_settings.n_ctx`、`total_slots`（slot の数）、`nvidia-smi` の値は、窓の run の `jsonl` と同じ dir の `<窓の名前>.llm-server.txt` に置く。
+6. **優先度**：起こした llama-server は `sudo -n renice -n -5 -p <pid>` で上げ、測る client は `sudo -n nice -n -5 <command>` で起こす。`sudo -n` が失敗したら窓を打たない。
+7. **戻し方**：窓の run が済んだら `systemctl --user stop hayamimi-llama-e2e.service` を打つ。止めた 18081 は `systemctl --user start hayamimi-llama-other.service` で戻し、`/health` が `ok` を返すことを確かめる。unit の file は `~/.config/systemd/user/` から外して `systemctl --user daemon-reload` を打つ。repo の file は残す。
+
+**走らせる前の壊れ方**（この server）：
+
+- **初めての起動**：model の実体は Windows 側の dir（`/mnt/c` の下）に在り、最初の起動は page cache が冷えている。`/health` が 503 を返す間は長い見込みである（NOT VERIFIED）。`ok` になってから中継の依頼を 1 本流して温め、その後の run を測る。
+- **取り合う資源**：port 18084、GPU の memory（8080、18081、ComfyUI と同じ GPU）、`/proc/loadavg`。
+- **始めてよい条件と確かめ方**：4 の 3 つ。
+- **承認や入力で止まる command**：無い。`systemctl --user start` は問わない。`sudo -n` は password を訊かずに失敗するので、失敗したら窓を打たずに止まる。
+- **8080 の窓との比べ**：8080 を使った窓と 18084 を使った窓の `L` を比べる時は、`--version` と `/props` の記録が同じかを先に見る。8080 の server の build が 18084 と同じかは確かめていない（NOT VERIFIED）。
+
 #### 順と slice
 
 順は、完成の日付を決める道（E2E の窓を使う物と、その前の門）を先に置く。
@@ -1746,7 +1775,7 @@ E2 と E3 を止めたので、E1 と E3' はそれぞれ単独の窓である�
 **走らせる前の壊れ方**（E1、E3'、E4 の窓）：
 
 - **初めての実行**：`stream` の拒みと打ち切り（RP-83）は、この窓で初めて実物の machine に当たる。各窓の最初の run の前に、`stream` を `--wav` の短い音声で 1 回打ち、`<run>.machine.jsonl` が書かれ、最初の行に 6 つの key が在ることを `jq` で確かめる。認識器の初回の復号（RP-84）は、各 run の起動を約 1 秒延ばす。
-- **取り合う資源**：CPU（他の席の cargo、同じ host の別の app）、GPU（8080 と 18081 の llama-server、ComfyUI）、port 8766 と 8833（3.18 の RP-72 の手順）、`/proc/loadavg`。cargo の席は窓の間すべて止める。
+- **取り合う資源**：CPU（他の席の cargo、同じ host の別の app）、GPU（8080 と 18081 の llama-server、8080 が無い時の 18084 の `hayamimi-llama-e2e.service`、ComfyUI。起こし方は上の「窓の訳の server」）、port 8766 と 8833（3.18 の RP-72 の手順）、`/proc/loadavg`。cargo の席は窓の間すべて止める。
 - **始めてよい条件と確かめ方**：`cat /proc/loadavg` の 1 分が 2.00 未満で 15 分が 2.50 未満、`pgrep -x cargo` と `pgrep -x rustc` が 0 件、`ss -tanH 'sport = :8766 or sport = :8833'` が 0 行。この 3 つは `stream` 自身も最初の行で確かめて拒む。
 - **承認や入力で止まる command**：無い。`sudo -n` は password を訊かずに失敗するので、失敗したら run を打たずに止まる。
 - **起動の形**：`hayamimi`、中継、`stream` は `sudo -n nice -n -5 <command>` で起こす。

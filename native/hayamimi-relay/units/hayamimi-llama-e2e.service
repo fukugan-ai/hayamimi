@@ -1,0 +1,62 @@
+# The translation llama-server of the E2E windows of hayamimi-relay:
+# CAT-Translate-3.3b at Q8_0 on 127.0.0.1:18084. The model, the quantization and
+# the arguments (-ngl 99 -c 16384, no -np) are those of the shared server on
+# 8080, so the translation stage is measured with the same model and the same
+# server shape. Use it only when nothing listens on 8080. It is reached only
+# when `--llm` names it:
+#
+#   hayamimi-relay live --llm http://127.0.0.1:18084
+#
+# The shared 8080 unit, the second server on 18081 (hayamimi-llama-other.service)
+# and ComfyUI are not touched by this unit.
+#
+# Memory: the weights are 3,568,393,024 bytes (about 3403 MiB). The KV cache and
+# the compute buffers of `-c 16384` come on top; read the real figure from
+# `nvidia-smi` once /health answers.
+#
+# Before starting (all three must hold):
+#   1. Nothing listens on 18084:   ss -ltn | grep -c ':18084\b'      (prints 0)
+#   2. The GPU has room under the 14000 MiB budget of `hayamimi --gpu-budget`:
+#        nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits
+#      memory.used + 3403 must be 14000 or less.
+#   3. When it does not fit, stop hayamimi-llama-other.service for the window
+#      only (systemctl --user stop hayamimi-llama-other.service) and read
+#      memory.used again. Do not stop the server on 8080 or ComfyUI.
+#
+# Install: mkdir -p ~/.config/systemd/user
+#          install -m 0644 native/hayamimi-relay/units/hayamimi-llama-e2e.service ~/.config/systemd/user/
+#          systemctl --user daemon-reload
+# Start  : systemctl --user start hayamimi-llama-e2e.service
+# Check  : curl -s http://127.0.0.1:18084/health      (loading: 503, ready: {"status":"ok"})
+#          curl -s http://127.0.0.1:18084/props       (model_path, total_slots, default_generation_settings.n_ctx)
+#          ~/source/llama.cpp/build-cuda120/bin/llama-server --version
+#          nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits   (after /health is ok)
+# Priority: sudo -n renice -n -5 -p "$(systemctl --user show -p MainPID --value hayamimi-llama-e2e.service)"
+#          A client that measures runs as `sudo -n nice -n -5 <command>`. When
+#          `sudo -n` fails, do not start the window.
+# Stop   : systemctl --user stop hayamimi-llama-e2e.service
+# Remove : systemctl --user stop hayamimi-llama-e2e.service
+#          rm ~/.config/systemd/user/hayamimi-llama-e2e.service
+#          systemctl --user daemon-reload
+# Restore the second server after a window that stopped it:
+#          systemctl --user start hayamimi-llama-other.service
+#          curl -s http://127.0.0.1:18081/health      (ready: {"status":"ok"})
+#
+# The binary is not rebuilt for a window; record its `--version` and /props.
+[Unit]
+Description=llama-server for hayamimi-relay, E2E window translation (CAT-Translate-3.3b Q8_0, 127.0.0.1:18084)
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+Slice=engines.slice
+ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m %h/models/CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 18084 -ngl 99 -c 16384
+Restart=no
+MemoryMax=8G
+MemorySwapMax=0
+# SIGKILL, as the sibling llama-server units: this build ignores SIGTERM while
+# it prints "cleaning up before exit...".
+KillSignal=SIGKILL
+SuccessExitStatus=SIGKILL
+TimeoutStopSec=10
