@@ -212,6 +212,19 @@ impl Overlay {
         matches!(self.child.try_wait(), Ok(None))
     }
 
+    /// The exit code once the process has ended; `None` while it runs.
+    /// A process ended by a signal has no code and is an error.
+    pub fn try_exit_code(&mut self) -> Result<Option<i32>, String> {
+        match self.child.try_wait() {
+            Ok(None) => Ok(None),
+            Ok(Some(status)) => status
+                .code()
+                .map(Some)
+                .ok_or_else(|| format!("the overlay ended without an exit code ({status})")),
+            Err(error) => Err(format!("could not poll the overlay: {error}")),
+        }
+    }
+
     /// Waits for the first event `matching` the predicate, and fails early if the process exits first.
     pub fn wait(
         &mut self,

@@ -225,7 +225,7 @@ fn client_size(w: Win) -> Result<(i32, i32), String> {
     Ok((client.width(), client.height()))
 }
 
-fn is_visible(w: Win) -> bool {
+pub fn is_visible(w: Win) -> bool {
     // SAFETY: only reads the visibility bit; a dead handle makes the call return FALSE.
     unsafe { IsWindowVisible(w.raw()) }.as_bool()
 }
