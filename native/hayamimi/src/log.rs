@@ -232,25 +232,35 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
 }
 
 /// `asr.endpoint.decided`: which rule ended one utterance, and the silence it waited for.
+/// `plan` is how the main detector's segment became text (`held`: the sentence
+/// the early detector kept was used; `decode`: the whole segment was read;
+/// `rest`: what follows the early line was read). `held_gap_ms` is present
+/// when a kept sentence existed but the segment was read again: how far the
+/// ends of the two were apart. Both are absent for a sentence the early
+/// detector finalised itself.
 pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
-    event_line(
-        strings,
-        Level::Info,
-        ENDPOINT_DECIDED,
-        "asr",
-        None,
-        &[
-            ("id", Value::from(done.id)),
-            ("rule", Value::from(done.endpoint.rule.name())),
-            ("silence_ms", Value::from(done.endpoint.silence_ms)),
-        ],
-    )
+    let endpoint = &done.endpoint;
+    let mut fields = vec![
+        ("id", Value::from(done.id)),
+        ("rule", Value::from(endpoint.rule.name())),
+        ("silence_ms", Value::from(endpoint.silence_ms)),
+    ];
+    if let Some(plan) = endpoint.plan {
+        fields.push(("plan", Value::from(plan.name())));
+    }
+    if let Some(gap) = endpoint.held_gap_ms {
+        fields.push(("held_gap_ms", Value::from(gap)));
+    }
+    event_line(strings, Level::Info, ENDPOINT_DECIDED, "asr", None, &fields)
 }
 
 /// `asr.endpoint.held`: an early notice read a sentence from `hold.span_ms`
 /// of speech and left the end to the main detector's silence, because the
 /// sentence was not complete (`reason` is `incomplete`) or the speech was
-/// shorter than `min_ms` (`too_short`).
+/// shorter than `min_ms` (`too_short`). `tail` is the kind of form the sentence
+/// ended in, and `shadow_complete` is whether a rule that counts a noun or an
+/// honorific ending as a sentence end would have finalised it there. The
+/// sentence is not written.
 pub fn endpoint_held_line(strings: &Strings, hold: &EarlyHold) -> String {
     event_line(
         strings,
@@ -262,6 +272,8 @@ pub fn endpoint_held_line(strings: &Strings, hold: &EarlyHold) -> String {
             ("reason", Value::from(hold.reason.name())),
             ("span_ms", millis(hold.span_ms)),
             ("min_ms", Value::from(EARLY_MIN_SEGMENT_MS)),
+            ("tail", Value::from(hold.tail.name())),
+            ("shadow_complete", Value::from(hold.shadow_complete)),
         ],
     )
 }
@@ -421,7 +433,7 @@ pub fn print(line: &str) {
 mod tests {
     use super::*;
     use crate::notice;
-    use hayamimi_asr::endpoint::Hold;
+    use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
@@ -466,8 +478,46 @@ mod tests {
             endpoint: hayamimi_asr::endpoint::Decision {
                 rule: hayamimi_asr::endpoint::Rule::Silence,
                 silence_ms: 300,
+                plan: None,
+                held_gap_ms: None,
             },
         }
+    }
+
+    fn finished_by(plan: Option<PlanKind>, held_gap_ms: Option<u32>) -> Final {
+        let mut done = finished();
+        done.endpoint.plan = plan;
+        done.endpoint.held_gap_ms = held_gap_ms;
+        done
+    }
+
+    #[test]
+    fn the_decided_event_names_the_plan_and_the_gap_of_a_segment_read_again()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let held = parsed(&endpoint_decided_line(
+            &strings()?,
+            &finished_by(Some(PlanKind::Held), None),
+        ))?;
+        assert_eq!(held["plan"], "held");
+        assert!(held.get("held_gap_ms").is_none());
+        let decode = parsed(&endpoint_decided_line(
+            &strings()?,
+            &finished_by(Some(PlanKind::Decode), Some(140)),
+        ))?;
+        assert_eq!(decode["plan"], "decode");
+        assert_eq!(decode["held_gap_ms"], 140);
+        let nothing_kept = parsed(&endpoint_decided_line(
+            &strings()?,
+            &finished_by(Some(PlanKind::Decode), None),
+        ))?;
+        assert_eq!(nothing_kept["plan"], "decode");
+        assert!(nothing_kept.get("held_gap_ms").is_none());
+        let early = parsed(&endpoint_decided_line(
+            &strings()?,
+            &finished_by(None, None),
+        ))?;
+        assert!(early.get("plan").is_none());
+        Ok(())
     }
 
     #[test]
@@ -713,6 +763,8 @@ mod tests {
             let hold = EarlyHold {
                 reason,
                 span_ms: 480.5,
+                tail: Tail::Other,
+                shadow_complete: false,
             };
             let line = endpoint_held_line(&strings()?, &hold);
             assert!(!line.contains('\n'));
@@ -723,6 +775,58 @@ mod tests {
             assert_eq!(event["span_ms"], 480.5);
             assert_eq!(event["min_ms"], 1000);
             assert!(event["error_code"].is_null());
+        }
+        Ok(())
+    }
+
+    /// The fields an event line has whatever the event is.
+    const ENVELOPE: [&str; 10] = [
+        "schema_version",
+        "project_slug",
+        "timestamp",
+        "level",
+        "event",
+        "component",
+        "message",
+        "error_code",
+        "request_id",
+        "build_revision",
+    ];
+
+    #[test]
+    fn a_held_endpoint_event_names_the_tail_and_the_shadow_answer_and_no_sentence()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (tail, name) in [
+            (Tail::Noun, "noun"),
+            (Tail::Honorific, "honorific"),
+            (Tail::Particle, "particle"),
+            (Tail::Interjection, "interjection"),
+            (Tail::Other, "other"),
+        ] {
+            for shadow_complete in [true, false] {
+                let hold = EarlyHold {
+                    reason: Hold::Incomplete,
+                    span_ms: 2400.0,
+                    tail,
+                    shadow_complete,
+                };
+                let event = parsed(&endpoint_held_line(&strings()?, &hold))?;
+                assert_eq!(event["tail"], name);
+                assert_eq!(event["shadow_complete"], shadow_complete);
+                let Some(fields) = event.as_object() else {
+                    return Err("an event line is not an object".into());
+                };
+                let mut extra: Vec<&str> = fields
+                    .keys()
+                    .map(String::as_str)
+                    .filter(|key| !ENVELOPE.contains(key))
+                    .collect();
+                extra.sort_unstable();
+                assert_eq!(
+                    extra,
+                    ["min_ms", "reason", "shadow_complete", "span_ms", "tail"]
+                );
+            }
         }
         Ok(())
     }

@@ -12,7 +12,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, WINDOW, windows};
 use crate::decode::{Recognizers, ResidentEvent};
-use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State};
+use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State, Tail};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
@@ -131,14 +131,21 @@ pub struct EarlyHold {
     pub reason: Hold,
     /// The speech the sentence was read from, in milliseconds.
     pub span_ms: f64,
+    /// The form the sentence ends in. The sentence itself is not kept.
+    pub tail: Tail,
+    /// Whether a rule that counts a noun or an honorific ending as a sentence
+    /// end would have finalised the sentence there. The live rule is unchanged.
+    pub shadow_complete: bool,
 }
 
 impl EarlyHold {
-    /// The hold of a sentence read from `samples` samples of speech.
-    fn new(reason: Hold, samples: usize) -> EarlyHold {
+    /// The hold of the sentence `text`, read in `lang` from `samples` samples of speech.
+    fn new(reason: Hold, samples: usize, lang: &str, text: &str) -> EarlyHold {
         EarlyHold {
             reason,
             span_ms: samples_ms(samples),
+            tail: endpoint::tail_of(lang, text),
+            shadow_complete: endpoint::shadow_early_hold(lang, text, samples).is_none(),
         }
     }
 }
@@ -762,7 +769,9 @@ impl Engine {
             return Ok(None);
         };
         if let Some(hold) = endpoint::early_hold(&solved.lang, &solved.text, span) {
-            route.early_holds.push(EarlyHold::new(hold, span));
+            route
+                .early_holds
+                .push(EarlyHold::new(hold, span, &solved.lang, &solved.text));
             route.early.hold(solved, now, floor);
             return Ok(None);
         }
@@ -779,6 +788,8 @@ impl Engine {
         let decision = Decision {
             rule: Rule::Early,
             silence_ms: EARLY_MIN_SILENCE_MS,
+            plan: None,
+            held_gap_ms: None,
         };
         let span = (from as f64 / rate, now as f64 / rate);
         Ok(self.finalize(solved, span, speaker_audio, ended_wall_ms, decision))
@@ -816,7 +827,9 @@ impl Engine {
         };
         let decision = decision_of(&segment, route.vad.sensitivity(), flushed);
         let end = segment.start + segment.samples.len();
-        match route.early.plan(segment.start, end, WINDOW) {
+        let (plan, gap) = route.early.plan_with_gap(segment.start, end, WINDOW);
+        let decision = endpoint::note_plan(decision, &plan, gap);
+        match plan {
             Plan::Whole => self.process(segment, ended_wall_ms, decision),
             Plan::Drop => {
                 route.history.mark_segment_end(end);
@@ -1040,16 +1053,22 @@ fn decision_of(segment: &Segment, main: Sensitivity, flushed: bool) -> Decision 
         Decision {
             rule: Rule::Flush,
             silence_ms: 0,
+            plan: None,
+            held_gap_ms: None,
         }
     } else if segment.samples.len() + 2 * WINDOW >= limit {
         Decision {
             rule: Rule::MaxSpeech,
             silence_ms: 0,
+            plan: None,
+            held_gap_ms: None,
         }
     } else {
         Decision {
             rule: Rule::Silence,
             silence_ms: (main.min_silence * 1000.0).round() as u32,
+            plan: None,
+            held_gap_ms: None,
         }
     }
 }
@@ -1267,12 +1286,40 @@ mod tests {
     /// with its reason and the length of the speech it was read from.
     #[test]
     fn a_hold_carries_its_reason_and_the_speech_it_was_read_from() {
-        let incomplete = EarlyHold::new(Hold::Incomplete, 8_000);
+        let incomplete = EarlyHold::new(Hold::Incomplete, 8_000, "ja", "雨が降っていますが。");
         assert_eq!(incomplete.reason, Hold::Incomplete);
         assert_eq!(incomplete.span_ms, 500.0);
-        let short = EarlyHold::new(Hold::TooShort, 15_984);
+        let short = EarlyHold::new(Hold::TooShort, 15_984, "ja", "言ったろう。");
         assert_eq!(short.reason, Hold::TooShort);
         assert_eq!(short.span_ms, 999.0);
+    }
+
+    /// The tail and the shadow answer ride on the hold; the sentence does not
+    /// (`EarlyHold` is `Copy`, so it cannot own the text).
+    #[test]
+    fn a_hold_carries_the_tail_and_what_the_shadow_rule_would_have_done() {
+        let noun = EarlyHold::new(Hold::Incomplete, 32_000, "ja", "独占配信。");
+        assert_eq!((noun.tail, noun.shadow_complete), (Tail::Noun, true));
+        let short_noun = EarlyHold::new(Hold::Incomplete, 8_000, "ja", "独占配信。");
+        assert_eq!(
+            (short_noun.tail, short_noun.shadow_complete),
+            (Tail::Noun, false)
+        );
+        let honorific = EarlyHold::new(Hold::Incomplete, 32_000, "ja", "近藤さん。");
+        assert_eq!(
+            (honorific.tail, honorific.shadow_complete),
+            (Tail::Honorific, true)
+        );
+        let particle = EarlyHold::new(Hold::Incomplete, 32_000, "ja", "本音とは。");
+        assert_eq!(
+            (particle.tail, particle.shadow_complete),
+            (Tail::Particle, false)
+        );
+        let short_complete = EarlyHold::new(Hold::TooShort, 8_000, "ja", "言ったろう。");
+        assert_eq!(
+            (short_complete.tail, short_complete.shadow_complete),
+            (Tail::Other, false)
+        );
     }
 
     #[test]

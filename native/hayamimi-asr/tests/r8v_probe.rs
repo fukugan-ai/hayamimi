@@ -24,6 +24,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use hayamimi_asr::audio::{PREROLL_SECONDS, SAMPLE_RATE, WINDOW, read_wav};
+use hayamimi_asr::endpoint::is_complete;
 use hayamimi_asr::route::Policy;
 use hayamimi_asr::vad::{
     DEFAULT_THRESHOLD, Segment, VadSettings, silero_config_with, take_segments,
@@ -66,49 +67,6 @@ const AMI_TURNS_PER_MEETING: usize = 12;
 const AMI_MIN_TURN_S: f64 = 1.0;
 /// ...and no other speaker's turn comes this close before or after it.
 const AMI_MARGIN_S: f64 = 0.3;
-
-/// Sentence endings that can close a Japanese sentence.
-const JA_FINAL: [&str; 17] = [
-    "です",
-    "ます",
-    "ました",
-    "でした",
-    "ません",
-    "ない",
-    "なかった",
-    "ている",
-    "ていた",
-    "た",
-    "だ",
-    "ね",
-    "よ",
-    "か",
-    "う",
-    "る",
-    "い",
-];
-/// Connective forms: a sentence that ends in one of these goes on.
-const JA_CONNECTIVE: [&str; 14] = [
-    "が",
-    "けど",
-    "けれど",
-    "けれども",
-    "て",
-    "で",
-    "し",
-    "から",
-    "ので",
-    "のに",
-    "ば",
-    "たら",
-    "と",
-    "ながら",
-];
-/// Words an English sentence does not end on.
-const EN_CONTINUATION: [&str; 22] = [
-    "and", "but", "so", "because", "the", "a", "an", "to", "of", "or", "that", "with", "for", "in",
-    "on", "at", "by", "if", "when", "as", "than", "then",
-];
 
 /// A stretch of the input in samples: an utterance or a detected segment.
 #[derive(Clone, Copy, Debug)]
@@ -208,45 +166,6 @@ impl UttStat {
             Some(at) => at,
             None => self.a_seen,
         }
-    }
-}
-
-fn is_terminal(ch: char) -> bool {
-    matches!(ch, '。' | '？' | '！' | '.' | '?' | '!')
-}
-
-/// A Japanese sentence is complete when it ends in 。？！, the form before that
-/// is a sentence ending, and it is not a connective.
-fn ja_complete(text: &str) -> bool {
-    let trimmed = text.trim_end();
-    if !trimmed.chars().last().is_some_and(is_terminal) {
-        return false;
-    }
-    let body = trimmed.trim_end_matches(is_terminal);
-    !JA_CONNECTIVE.iter().any(|tail| body.ends_with(tail))
-        && JA_FINAL.iter().any(|tail| body.ends_with(tail))
-}
-
-/// An English sentence is complete when it ends in . ? ! and its last word is
-/// not one the table lists.
-fn en_complete(text: &str) -> bool {
-    let trimmed = text.trim_end();
-    if !trimmed.chars().last().is_some_and(is_terminal) {
-        return false;
-    }
-    let last = trimmed
-        .trim_end_matches(is_terminal)
-        .split_whitespace()
-        .last()
-        .map(str::to_lowercase);
-    last.is_some_and(|word| !EN_CONTINUATION.contains(&word.as_str()))
-}
-
-fn is_complete(lang: &str, text: &str) -> bool {
-    match lang {
-        "ja" => ja_complete(text),
-        "en" => en_complete(text),
-        _ => false,
     }
 }
 
@@ -1180,19 +1099,19 @@ fn ami_sets(prefix: &str, skip: usize, take: usize) -> TestResult {
 
 #[test]
 fn a_japanese_sentence_is_complete_only_with_a_sentence_ending_and_no_connective() {
-    assert!(ja_complete("今日は雨です。"));
-    assert!(ja_complete("本当ですか？"));
-    assert!(!ja_complete("雨が降っていますが。"));
-    assert!(!ja_complete("今日は雨です"));
-    assert!(!ja_complete("そして、"));
+    assert!(is_complete("ja", "今日は雨です。"));
+    assert!(is_complete("ja", "本当ですか？"));
+    assert!(!is_complete("ja", "雨が降っていますが。"));
+    assert!(!is_complete("ja", "今日は雨です"));
+    assert!(!is_complete("ja", "そして、"));
 }
 
 #[test]
 fn an_english_sentence_is_complete_only_when_its_last_word_does_not_continue() {
-    assert!(en_complete("It is raining."));
-    assert!(en_complete("Is it raining?"));
-    assert!(!en_complete("It is raining and."));
-    assert!(!en_complete("It is raining"));
+    assert!(is_complete("en", "It is raining."));
+    assert!(is_complete("en", "Is it raining?"));
+    assert!(!is_complete("en", "It is raining and."));
+    assert!(!is_complete("en", "It is raining"));
 }
 
 #[test]
