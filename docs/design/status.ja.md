@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `d8a17f5`（2026-10-20 の `design/r11c-followups` の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `ebbf034`（2026-10-20 の `design/rp16-ci-skip` の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -298,6 +298,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | RP-19 の照合（`feat/r12a1`）、RP-9 の確かめ（`feat/r12a2`）、Python の file を消す（`feat/r11c`） | 3 本が merge 済み。Python の file は 0 本（`git ls-files \| grep -c '\.py$'` が 0）。CI は cargo だけ | `b35076c`（R12a2）、`2de20fd`（R12a1）、`1967310`（R11c）。3 本を載せた木は `76e22ef`、`c9de8d5`。消す直前の main `e9799a3` に tag `archive/python-before-r11` | R12a2 と R12a1 は独立検証で可。R11c は不可の 1 点（`ci_probe.md` の数）を 1 行直し、受付が log と照らした。木の workspace の test と clippy は受付の実測で、test が rc=0、suites 125、passed 2924、failed 0、clippy（全部、`-D warnings`）が rc=0（log は repo の外）。`rp19_python_cases_are_ported` と `rp81_owned_exceptions_are_gone` は数を出して落ちる設計なので、CI と同じに `--skip` した | RP-19 の未実装の行は 172 行で、R13-1〜R13-13 が写す。`rp09.rs` は R12a2、`rp19.rs` と固定の一覧は R12a1 | GitHub 上の最初の CI の run は未確認（H103）。RP-19 の 172 行は未実装。重ね窓の OV-S2、OV-T と設計の差分 `130fbc9` は未 merge |
 | 重ね窓の設計（`design/overlay`）と OV-S1（`feat/ov-s1`） | 設計と OV-S1 は merge 済み。重ね窓の設計の差分 `130fbc9`、OV-S2、OV-T は未 merge | `4708711`（設計）、`59e2c32`（OV-S1）、`1d6cae2`（これらを載せた main） | 同じ木の test が上の数。OV-S1 は `hayamimi-ui` の `lanes.rs`（重ね窓の段の部品）と、その sheet が折り返さないことの検査 | 重ね窓として動くのは OV-S2 以降。CS-10〜CS-12 は未通過 | 130fbc9、OV-S2、OV-T が未 merge（持ち主は重ね窓の席） |
 | RP-82 の設計（T の受入の test の名前が、実装の test と同じ）と R11c の後の直し（`design/r11c-followups`） | 設計が merge 済み。R13-15、R13-16、R13-17 を出せる。実装は未着手 | `d8a17f5`（merge の commit は無く、fast-forward で入った。評議 `a5d7272` の SCOPE_GO は `d8a17f5` に限る） | 文書だけの branch（`rust_port.ja.md` と `rust_port_tests.ja.md`）。文書を見張る test は受付の実測で、`d8a17f5` の detached の木の `-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed。workspace 全体の test は打っていない（文書だけの差分） | RP-82 は `rp82.rs` が `rust_port_tests.ja.md` の `test：` の行の名前を実装の test と照らす。落ちる行は G1 の前に 15 | `rp82.rs` は未作成。G1（T の `test：` の行の直し）は test-designer の席 |
+| R13-18 の設計（GPU の無い機械で CPU へ落ちる受入を CI で走らせる。`design/rp16-ci-skip`） | 設計が merge 済み。実装は未着手 | `ebbf034`（merge の commit は無く、fast-forward で入った。評議 `a5d7272` の GO は `ebbf034` に限る） | 文書だけの branch（`rust_port.ja.md`）。文書を見張る test は受付の実測で、`ebbf034` の detached の木の `-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | R13-18 は `native/hayamimi/tests/rp16.rs`、`.github/workflows/test.yml`、`docs/results/r11/ci_probe.md` を書く。CI の rp16 の 3 本の skip は R13-18 が外す。R13-18 の前に、test-designer の席が T-RP-16-015、049、050 と受入の行を直す（015 は評議の止めない点） | R13-18 は未実装。T の直しは test-designer の席 |
 
 作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
