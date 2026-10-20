@@ -1,7 +1,7 @@
 # E2E-1 and E2E-2 records
 
 The acceptance tests `e2e1_mic_process_ja_to_en_beats_python` and `e2e2_loopback_process_en_to_ja_within_budget` (`native/hayamimi-eval/tests/e2e1.rs`, `e2e2.rs`) read the files in this directory.
-Only the samples and events jsonl of a run are kept here.
+Of a run, the samples jsonl, the events jsonl and the `hayamimi` stdout log (`<run>.hayamimi.stdout.log`, where the tests read the rule that closed each sample) are kept here. The four records listed under "Counted by the acceptance tests" were measured before that log existed and have none.
 
 | file | content |
 |---|---|
@@ -51,11 +51,11 @@ The other remains of a run stay outside git, in the work directory.
 
 `e1pre` is a record only and is not used for the verdict of RP-67.
 The load average of the 15 minutes before the run was 3.50, and the load average of the 5 minutes after it was 3.88. Both are above the line of 2.50 that RP-83 sets, and there is no `machine.jsonl` for the run.
-With the line of each sample (120 ms for the 39 samples closed by `early`, 300 ms for the others), 74 of the 75 samples are valid and all 74 have a translation: `L` p50 666 ms, p95 1318 ms. Four samples are over 1200 ms. With every sample at 300 ms, 35 samples are valid: `L` p50 891 ms, p95 2879 ms. The acceptance tests print both counts for a run that has a stdout log, and `the_l9_record_counts_74_samples_by_the_per_sample_line_and_35_by_300_ms` pins them.
+With the line of each sample (120 ms for the 57 samples closed by `early`, 39 of which fall under 300 ms; 300 ms for the 17 closed by `silence`), 74 of the 75 samples are valid and all 74 have a translation: `L` p50 666 ms, p95 1318 ms. Four samples are over 1200 ms. With every sample at 300 ms, 35 samples are valid: `L` p50 891 ms, p95 2879 ms. The acceptance tests print both counts for a run that has a stdout log, and `the_l9_record_counts_74_samples_by_the_per_sample_line_and_35_by_300_ms` pins them.
 The value of en for RP-67 comes from window E1, which is run again after R8x-1.
 
 ## 採らない手段 (not taken)
 
-- The raw remains of a run (stdout, stderr, pid, gpu csv) are not copied here. They stay outside git, in the run's work directory.
+- The raw remains of a run (stderr, pid, gpu csv) are not copied here. The `hayamimi` stdout log is kept, because the per-sample line needs it. They stay outside git, in the run's work directory.
 - The tests do not read an environment variable or a list of paths outside git. The directories above are the fixed place.
 - The Python baseline is one run (`py1`). The alternating pairs of RP-32 are judged by its own test and not by these two.
