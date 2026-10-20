@@ -14,7 +14,7 @@
 //! - 022 to 025 compare how often V stops the answer of the text in progress
 //!   with how often it stops the answer of the `final`. Only 025 asks a
 //!   llama-server (port 8080) and runs with `--ignored`.
-//! - 026 to 031 judge the records of the runs of window E3. Only 031 reads
+//! - 026 to 031 judge the records of the runs of window E3'. Only 031 reads
 //!   them and runs with `--ignored`.
 //! - 032 calls V directly on the scripted answer for utterance 7.
 //! - 033 is the rule that a run whose log dropped lines is not read.
@@ -962,7 +962,7 @@ fn the_draft_answers_stop_no_more_often_than_the_final_answers() -> TestResult {
     Ok(())
 }
 
-// ---- (5) the records of the runs of window E3 --------------------------------------------
+// ---- (5) the records of the runs of window E3' --------------------------------------------
 
 const UTTERANCE: u64 = 7;
 /// The translation stage of utterance 7 may not exceed this at its 95th percentile.
@@ -1213,12 +1213,12 @@ fn two_runs(slowest_us: i64) -> (String, String) {
 fn pair_of_runs<'a>(samples: &'a (String, String), logs: &'a (String, String)) -> [XRun<'a>; 2] {
     [
         XRun {
-            name: "x1",
+            name: "e3p1",
             samples: &samples.0,
             relay_log: &logs.0,
         },
         XRun {
-            name: "x2",
+            name: "e3p2",
             samples: &samples.1,
             relay_log: &logs.1,
         },
@@ -1277,7 +1277,7 @@ fn a_run_without_a_normalized_reuse_is_rejected() {
     assert_eq!(
         faults,
         Some(vec![Fault::NoNormalizedReuse {
-            run: String::from("x2")
+            run: String::from("e3p2")
         }])
     );
 }
@@ -1312,14 +1312,14 @@ fn an_x_run_without_utterance_7_samples_is_rejected() {
     assert_eq!(faults, Some(vec![Fault::NoUtterance7Sample]));
 }
 
-/// T-RP-85-031: the runs of window E3, read from `docs/results/r8x/`.
+/// T-RP-85-031: the two Japanese runs of window E3', read from `docs/results/r8x/`.
 #[test]
-#[ignore = "reads the records of window E3, which are put in docs/results/r8x/ after the window"]
+#[ignore = "reads the records of window E3', which are put in docs/results/r8x/ after the window"]
 fn rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v() -> TestResult
 {
     let dir = repo_root().join("docs/results/r8x");
     let mut texts = Vec::new();
-    for name in ["x1", "x2"] {
+    for name in ["e3p1", "e3p2"] {
         let samples = dir.join(format!("{name}.e2e1.jsonl"));
         let relay_log = dir.join(format!("{name}.e2e1.relay.stdout.log"));
         texts.push(run_text(name, &samples, &relay_log)?);
@@ -1356,7 +1356,7 @@ fn a_run_whose_log_dropped_lines_is_rejected() {
     assert_eq!(
         faults,
         Some(vec![Fault::DroppedLines {
-            run: String::from("x1")
+            run: String::from("e3p1")
         }])
     );
 }

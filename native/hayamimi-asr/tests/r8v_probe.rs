@@ -25,15 +25,24 @@
 //! alone. A candidate the shadow rule adds is listed with its utterance (the
 //! index in the manifest) and its place in the input.
 //!
+//! Two more probes replay the live rule with two more early detectors (RP-86).
+//! C (threshold 0.80, end line 0.65, silence 0.12 s) notices the end of a
+//! stretch of voice before B does. D (threshold 0.50, end line 0.35, silence
+//! 0.12 s) finalises the sentence a notice kept, when that sentence does not end
+//! on a connective or a particle and B has read no voice since. Each probe prints
+//! the arm W (C and D off: the positive control, which must give the live
+//! figures) and the arm X (C and D on), and writes one JSON row per set and arm
+//! to `docs/results/r8v/`. The gate passes when X is within W on both figures.
+//!
 //!     cargo test --release -p hayamimi-asr --test r8v_probe -- --ignored --nocapture
 
 mod support;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use hayamimi_asr::audio::{PREROLL_SECONDS, SAMPLE_RATE, WINDOW, read_wav};
-use hayamimi_asr::endpoint::{Hold, is_complete, shadow_early_hold};
+use hayamimi_asr::endpoint::{Hold, Tail, is_complete, shadow_early_hold, tail_of};
 use hayamimi_asr::route::Policy;
 use hayamimi_asr::vad::{
     DEFAULT_THRESHOLD, Segment, VadSettings, silero_config_with, take_segments,
@@ -43,11 +52,15 @@ use hayamimi_eval::percentile::nearest_rank;
 use hayamimi_gpu::session_lock::lock_for_session;
 use serde_json::Value;
 use sherpa_onnx::VoiceActivityDetector;
-use support::{Failure, TestResult, models_dir, read, read_json, testdata_dir};
+use support::{Failure, REPO, TARGET, TestResult, models_dir, read, read_json, testdata_dir};
 use unicode_normalization::UnicodeNormalization;
 
 /// The early detector: threshold 0.65 puts its end line at 0.50.
 const EARLY_THRESHOLD: f32 = 0.65;
+/// The detector C of RP-86: threshold 0.80 puts its end line at 0.65.
+const C_THRESHOLD: f32 = 0.80;
+/// The detector D of RP-86: the main threshold, so its end line is at 0.35.
+const D_THRESHOLD: f32 = DEFAULT_THRESHOLD;
 const EARLY_SETTINGS: VadSettings = VadSettings {
     min_silence: 0.12,
     max_speech: 12.0,
@@ -93,10 +106,13 @@ struct Notice {
     in_voice: bool,
 }
 
-/// What the two detectors did over one recording.
+/// What the detectors did over one recording. `c` and `d` stay empty unless
+/// the pass was made with the two extra detectors of RP-86.
 struct Pass {
     now: Vec<Notice>,
     early: Vec<Notice>,
+    c: Vec<Notice>,
+    d: Vec<Notice>,
     now_us: Vec<i64>,
     both_us: Vec<i64>,
 }
@@ -121,16 +137,44 @@ struct Candidate {
     text: String,
     complete: bool,
     continues: bool,
+    /// The window at which D finalised this candidate after it was held;
+    /// `None` for every candidate of the arm W.
+    d_at: Option<usize>,
+}
+
+/// What D answered at one of its notices while a candidate was held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DOutcome {
+    /// The held sentence was finalised.
+    Confirmed,
+    /// The held sentence ends on a connective or a particle.
+    EndsOnOpenForm,
+    /// B read a voice start after the end of the held range.
+    VoiceAfter,
+}
+
+/// One notice of D that found a candidate held.
+struct DRecord {
+    /// The window of D's notice.
+    at: usize,
+    /// The index of the held candidate in the plan.
+    held: usize,
+    outcome: DOutcome,
 }
 
 /// The early path replayed over one segment of A.
 struct Plan {
     seg: Notice,
     candidates: Vec<Candidate>,
-    /// The sample of each confirmed (complete) candidate, in order.
+    /// The sample of each confirmed candidate (the line it moved), in order.
     confirmed: Vec<usize>,
+    /// The window at which each confirmed candidate became a final, in order:
+    /// the candidate's own notice, or D's notice for a held one.
+    emitted: Vec<usize>,
     /// The text left after the last line (empty when nothing is left).
     remainder_text: String,
+    /// What D answered while a candidate was held (empty in the arm W).
+    d_records: Vec<DRecord>,
 }
 
 impl Plan {
@@ -149,14 +193,15 @@ impl Plan {
 
     /// The sample at which the last final of the segment is made.
     fn last_final_at(&self) -> usize {
-        match self.confirmed.last() {
+        match self.emitted.last() {
             Some(last) if !self.has_remainder() => *last,
             _ => self.seg.seen,
         }
     }
 
-    /// The texts of the finals, in order: each confirmed candidate, then the
-    /// remainder. Empty when the early path makes no split.
+    /// The texts of the finals, in order: each confirmed candidate (a complete
+    /// one, or a held one that D finalised), then the remainder. Empty when the
+    /// early path makes no split.
     fn final_texts(&self) -> Vec<&str> {
         if self.finals() < 2 {
             return Vec::new();
@@ -164,7 +209,7 @@ impl Plan {
         let mut texts: Vec<&str> = self
             .candidates
             .iter()
-            .filter(|c| c.complete)
+            .filter(|c| c.complete || c.d_at.is_some())
             .map(|c| c.text.as_str())
             .collect();
         if self.has_remainder() {
@@ -301,13 +346,61 @@ fn micros_since(started: Instant) -> i64 {
     started.elapsed().as_micros() as i64
 }
 
-/// Feeds both detectors the windows in order, timing each detector's work on a window.
-fn run_pass(models: &Path, audio: &[f32], early_settings: VadSettings) -> Result<Pass, Failure> {
+/// The two detectors of RP-86 beyond A and B: C and D, fed the same windows.
+struct Extra {
+    c: VoiceActivityDetector,
+    d: VoiceActivityDetector,
+}
+
+impl Extra {
+    fn open(models: &Path, early_settings: VadSettings) -> Result<Extra, Failure> {
+        Ok(Extra {
+            c: detector(models, early_settings, C_THRESHOLD)?,
+            d: detector(models, early_settings, D_THRESHOLD)?,
+        })
+    }
+
+    fn feed(
+        &self,
+        window: &[f32],
+        seen: usize,
+        in_voice: bool,
+        pass: &mut Pass,
+    ) -> Result<(), Failure> {
+        self.c.accept_waveform(window);
+        collect(&self.c, seen, in_voice, &mut pass.c)?;
+        self.d.accept_waveform(window);
+        collect(&self.d, seen, in_voice, &mut pass.d)
+    }
+
+    fn flush(&self, seen: usize, pass: &mut Pass) -> Result<(), Failure> {
+        self.c.flush();
+        collect(&self.c, seen, false, &mut pass.c)?;
+        self.d.flush();
+        collect(&self.d, seen, false, &mut pass.d)
+    }
+}
+
+/// Feeds the detectors the windows in order, timing the work of A and B on a
+/// window. C and D are fed as well when `with_extra` is set.
+fn run_pass(
+    models: &Path,
+    audio: &[f32],
+    early_settings: VadSettings,
+    with_extra: bool,
+) -> Result<Pass, Failure> {
     let now = detector(models, NOW_SETTINGS, DEFAULT_THRESHOLD)?;
     let early = detector(models, early_settings, EARLY_THRESHOLD)?;
+    let extra = if with_extra {
+        Some(Extra::open(models, early_settings)?)
+    } else {
+        None
+    };
     let mut pass = Pass {
         now: Vec::new(),
         early: Vec::new(),
+        c: Vec::new(),
+        d: Vec::new(),
         now_us: Vec::new(),
         both_us: Vec::new(),
     };
@@ -324,11 +417,17 @@ fn run_pass(models: &Path, audio: &[f32], early_settings: VadSettings) -> Result
         collect(&early, seen, in_voice, &mut pass.early)?;
         pass.now_us.push(now_us);
         pass.both_us.push(now_us + micros_since(started));
+        if let Some(extra) = &extra {
+            extra.feed(window.as_slice(), seen, in_voice, &mut pass)?;
+        }
     }
     now.flush();
     collect(&now, audio.len(), false, &mut pass.now)?;
     early.flush();
     collect(&early, audio.len(), false, &mut pass.early)?;
+    if let Some(extra) = &extra {
+        extra.flush(audio.len(), &mut pass)?;
+    }
     Ok(pass)
 }
 
@@ -361,12 +460,17 @@ fn preroll_samples() -> usize {
     (PREROLL_SECONDS * f64::from(SAMPLE_RATE)) as usize
 }
 
-/// The B notices that fall inside the segment `seg` of A while A was in voice.
-fn candidates_in<'a>(pass: &'a Pass, seg: &Notice) -> Vec<&'a Notice> {
-    pass.early
+/// The notices among `notices` that fall inside the segment `seg` of A while A was in voice.
+fn inside<'a>(notices: &'a [Notice], seg: &Notice) -> Vec<&'a Notice> {
+    notices
         .iter()
         .filter(|n| n.in_voice && seg.span.start <= n.seen && n.seen <= seg.seen)
         .collect()
+}
+
+/// The B notices that fall inside the segment `seg` of A while A was in voice.
+fn candidates_in<'a>(pass: &'a Pass, seg: &Notice) -> Vec<&'a Notice> {
+    inside(&pass.early, seg)
 }
 
 /// Replays the early path over one segment of A.
@@ -396,6 +500,7 @@ fn plan_segment(
             continues: voice_continues(&pass.early, cand, seg.span),
             complete,
             text,
+            d_at: None,
         });
         if complete {
             line = Some(cand.seen);
@@ -411,8 +516,10 @@ fn plan_segment(
     Ok(Plan {
         seg: *seg,
         candidates,
+        emitted: confirmed.clone(),
         confirmed,
         remainder_text,
+        d_records: Vec::new(),
     })
 }
 
@@ -428,7 +535,7 @@ fn utterance_stat(utt: Span, plans: &[Plan]) -> Option<UttStat> {
         finals_early: touching.iter().map(|plan| plan.finals()).sum(),
         first_complete_at: touching
             .iter()
-            .flat_map(|plan| plan.confirmed.iter().copied())
+            .flat_map(|plan| plan.emitted.iter().copied())
             .min(),
         a_seen: last.seg.seen,
         last_final_at: last.last_final_at(),
@@ -688,12 +795,30 @@ fn analyse(models: &Path, input: &Input) -> Result<SetReport, Failure> {
         lang,
         audio,
         utterances,
-        references,
         early,
         judge,
+        ..
     } = *input;
-    let pass = run_pass(models, audio, early)?;
+    let pass = run_pass(models, audio, early, false)?;
     let plans = plan_all(models, lang, audio, &pass, utterances, judge)?;
+    build_report(models, input, name, &pass, plans)
+}
+
+/// The report of `plans` replayed over `pass`, under the name `name`.
+fn build_report(
+    models: &Path,
+    input: &Input,
+    name: &str,
+    pass: &Pass,
+    plans: Vec<Plan>,
+) -> Result<SetReport, Failure> {
+    let Input {
+        lang,
+        audio,
+        utterances,
+        references,
+        ..
+    } = *input;
     let splits = all_splits(models, lang, audio, &plans, utterances, references)?;
     let stats: Vec<(usize, UttStat)> = utterances
         .iter()
@@ -709,8 +834,8 @@ fn analyse(models: &Path, input: &Input) -> Result<SetReport, Failure> {
         plans,
         stats,
         utt_spans: utterances.to_vec(),
-        now_us: pass.now_us,
-        both_us: pass.both_us,
+        now_us: pass.now_us.clone(),
+        both_us: pass.both_us.clone(),
         splits,
     })
 }
@@ -1260,6 +1385,736 @@ fn ami_sets(prefix: &str, skip: usize, take: usize) -> TestResult {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// RP-86: the early detectors C and D
+// ---------------------------------------------------------------------------
+
+/// The log of the latency sets, and of the ja held-out set, under `docs/results/r8v/`.
+const LAT_LOG: &str = "extra-lat.log";
+const HELDOUT_LOG: &str = "extra-heldout-ja.log";
+
+/// The connective forms and particles of `endpoint.rs` (`JA_CONNECTIVE` and
+/// `JA_PARTICLE`), copied because that module keeps them private: D does not
+/// finalise a held sentence that ends on one of them.
+const JA_OPEN_FORMS: [&str; 24] = [
+    "が",
+    "けど",
+    "けれど",
+    "けれども",
+    "て",
+    "で",
+    "し",
+    "から",
+    "ので",
+    "のに",
+    "ば",
+    "たら",
+    "と",
+    "ながら",
+    "を",
+    "も",
+    "は",
+    "に",
+    "の",
+    "へ",
+    "や",
+    "など",
+    "まで",
+    "より",
+];
+
+/// Whether a held sentence ends on a connective form or a particle, judged on
+/// what stands before its closing mark.
+fn ends_on_open_form(text: &str) -> bool {
+    let body = text
+        .trim_end()
+        .trim_end_matches(['。', '？', '！', '.', '?', '!'])
+        .trim_end();
+    JA_OPEN_FORMS.iter().any(|tail| body.ends_with(tail))
+}
+
+/// One thing the early path reads inside a segment of A.
+#[derive(Clone, Copy)]
+enum Event<'a> {
+    /// A notice of B or C: solve from the line, judge, then confirm or hold.
+    Early(&'a Notice),
+    /// A notice of D: finalise the held sentence when the rule allows it.
+    HeldSilence(&'a Notice),
+}
+
+impl Event<'_> {
+    /// The window of the event, then 0 for an early notice and 1 for D's: in
+    /// one window the early notices are read first, so a voice start that B
+    /// reads in D's own window counts against D.
+    fn order(&self) -> (usize, u8) {
+        match self {
+            Event::Early(notice) => (notice.seen, 0),
+            Event::HeldSilence(notice) => (notice.seen, 1),
+        }
+    }
+}
+
+/// The notices of B and C inside one segment of A in the order the early path
+/// reads them. When both detectors notice in one window, B's notice is read
+/// alone (the notice is then `b`); a notice of C in a window of its own is read
+/// as it is (the notice is `c`).
+fn early_order<'a>(b: &[&'a Notice], c: &[&'a Notice]) -> Vec<&'a Notice> {
+    let mut all: Vec<&Notice> = b.to_vec();
+    all.extend(
+        c.iter()
+            .copied()
+            .filter(|notice| b.iter().all(|other| other.seen != notice.seen)),
+    );
+    all.sort_by_key(|notice| notice.seen);
+    all
+}
+
+/// The events of one segment of A in the order of the windows.
+fn events<'a>(early: &[&'a Notice], held_silence: &[&'a Notice]) -> Vec<Event<'a>> {
+    let mut all: Vec<Event> = early
+        .iter()
+        .map(|notice| Event::Early(notice))
+        .chain(held_silence.iter().map(|notice| Event::HeldSilence(notice)))
+        .collect();
+    all.sort_by_key(Event::order);
+    all
+}
+
+/// Whether B read a stretch of voice that starts at or after `range_end`, in a
+/// window up to `d_seen`. A start at the end of the range itself counts: it
+/// would otherwise finalise a sentence that voice went on after.
+fn voice_read_since(early: &[Notice], range_end: usize, d_seen: usize) -> bool {
+    early
+        .iter()
+        .any(|n| n.span.start >= range_end && n.seen <= d_seen)
+}
+
+/// What D does with the held candidate at its notice in the window `d_seen`.
+fn d_outcome(held: &Candidate, early: &[Notice], d_seen: usize) -> DOutcome {
+    if ends_on_open_form(&held.text) {
+        DOutcome::EndsOnOpenForm
+    } else if voice_read_since(early, held.at, d_seen) {
+        DOutcome::VoiceAfter
+    } else {
+        DOutcome::Confirmed
+    }
+}
+
+/// What a replay of one segment reads from: the models, the audio, the pass and the segment.
+#[derive(Clone, Copy)]
+struct Ctx<'a> {
+    models: &'a Path,
+    lang: &'a str,
+    audio: &'a [f32],
+    pass: &'a Pass,
+    seg: &'a Notice,
+    judge: Judge,
+}
+
+/// The early path of the arm X while it replays one segment of A.
+#[derive(Default)]
+struct Replay {
+    /// The sample the segment is finalised up to.
+    line: Option<usize>,
+    /// The index of the candidate the early path keeps, when it keeps one.
+    held: Option<usize>,
+    candidates: Vec<Candidate>,
+    confirmed: Vec<usize>,
+    emitted: Vec<usize>,
+    d_records: Vec<DRecord>,
+}
+
+impl Replay {
+    /// A notice of B or C: solve from the line to the notice. A complete
+    /// sentence is confirmed and moves the line; any other with text is kept.
+    fn read_early(&mut self, ctx: Ctx<'_>, notice: &Notice) -> Result<(), Failure> {
+        let from = match self.line {
+            Some(at) => at,
+            None => ctx.seg.span.start.saturating_sub(preroll_samples()),
+        };
+        if notice.seen <= from {
+            return Ok(());
+        }
+        let text = solve(ctx.models, ctx.audio, from, notice.seen, ctx.lang)?;
+        let complete = (ctx.judge)(ctx.lang, &text);
+        let spoken = !text.trim().is_empty();
+        self.candidates.push(Candidate {
+            at: notice.seen,
+            continues: voice_continues(&ctx.pass.early, notice, ctx.seg.span),
+            complete,
+            text,
+            d_at: None,
+        });
+        if complete {
+            self.line = Some(notice.seen);
+            self.held = None;
+            self.confirmed.push(notice.seen);
+            self.emitted.push(notice.seen);
+        } else if spoken {
+            self.held = Some(self.candidates.len() - 1);
+        }
+        Ok(())
+    }
+
+    /// A notice of D: with a candidate held, finalise it when the rule allows
+    /// it. The line moves to the end of the held range.
+    fn read_held_silence(&mut self, ctx: Ctx<'_>, notice: &Notice) {
+        let Some(index) = self.held else {
+            return;
+        };
+        let Some(held) = self.candidates.get(index) else {
+            return;
+        };
+        let outcome = d_outcome(held, &ctx.pass.early, notice.seen);
+        let range_end = held.at;
+        self.d_records.push(DRecord {
+            at: notice.seen,
+            held: index,
+            outcome,
+        });
+        if outcome != DOutcome::Confirmed {
+            return;
+        }
+        if let Some(done) = self.candidates.get_mut(index) {
+            done.d_at = Some(notice.seen);
+        }
+        self.line = Some(range_end);
+        self.held = None;
+        self.confirmed.push(range_end);
+        self.emitted.push(notice.seen);
+    }
+
+    /// The plan: what is left of the segment after the last line is solved once more.
+    fn into_plan(self, ctx: Ctx<'_>) -> Result<Plan, Failure> {
+        let remainder_text = match self.line {
+            Some(at) if ctx.seg.span.end >= at + REMAINDER_MIN => {
+                solve(ctx.models, ctx.audio, at, ctx.seg.span.end, ctx.lang)?
+            }
+            _ => String::new(),
+        };
+        Ok(Plan {
+            seg: *ctx.seg,
+            candidates: self.candidates,
+            confirmed: self.confirmed,
+            emitted: self.emitted,
+            remainder_text,
+            d_records: self.d_records,
+        })
+    }
+}
+
+/// Replays the early path of the arm X over one segment of A: the notices of
+/// B and C, and, in ja, the notices of D.
+fn plan_segment_extra(ctx: Ctx<'_>) -> Result<Plan, Failure> {
+    let early = early_order(
+        &candidates_in(ctx.pass, ctx.seg),
+        &inside(&ctx.pass.c, ctx.seg),
+    );
+    let held_silence = if ctx.lang == "ja" {
+        inside(&ctx.pass.d, ctx.seg)
+    } else {
+        Vec::new()
+    };
+    let mut replay = Replay::default();
+    for event in events(&early, &held_silence) {
+        match event {
+            Event::Early(notice) => replay.read_early(ctx, notice)?,
+            Event::HeldSilence(notice) => replay.read_held_silence(ctx, notice),
+        }
+    }
+    replay.into_plan(ctx)
+}
+
+/// [`plan_all`] for the arm X.
+fn plan_all_extra(
+    models: &Path,
+    lang: &str,
+    audio: &[f32],
+    pass: &Pass,
+    utterances: &[Span],
+    judge: Judge,
+) -> Result<Vec<Plan>, Failure> {
+    pass.now
+        .iter()
+        .filter(|seg| utterances.iter().any(|u| overlaps(seg.span, *u)))
+        .map(|seg| {
+            plan_segment_extra(Ctx {
+                models,
+                lang,
+                audio,
+                pass,
+                seg,
+                judge,
+            })
+        })
+        .collect()
+}
+
+/// The arms W and X of one set, replayed over the same pass.
+fn analyse_extra(models: &Path, input: &Input) -> Result<(SetReport, SetReport), Failure> {
+    let Input {
+        name,
+        lang,
+        audio,
+        utterances,
+        early,
+        judge,
+        ..
+    } = *input;
+    let pass = run_pass(models, audio, early, true)?;
+    let w_plans = plan_all(models, lang, audio, &pass, utterances, judge)?;
+    let x_plans = plan_all_extra(models, lang, audio, &pass, utterances, judge)?;
+    let w = build_report(models, input, &format!("{name}-w"), &pass, w_plans)?;
+    let x = build_report(models, input, &format!("{name}-x"), &pass, x_plans)?;
+    Ok((w, x))
+}
+
+/// The replay of the arm X over a pass without C and D has to be the arm W:
+/// the same figures and the same candidates.
+fn machinery_matches_w(models: &Path, input: &Input, w: &SetReport) -> Result<bool, Failure> {
+    let Input {
+        lang,
+        audio,
+        utterances,
+        early,
+        judge,
+        ..
+    } = *input;
+    let pass = run_pass(models, audio, early, false)?;
+    let plans = plan_all_extra(models, lang, audio, &pass, utterances, judge)?;
+    let off = build_report(models, input, "x-without-c-and-d", &pass, plans)?;
+    Ok(arm_figures(&off) == arm_figures(w) && candidate_counts(&off) == candidate_counts(w))
+}
+
+/// The two figures the offline gate compares.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Figures {
+    /// The candidates finalised with voice going on after them: the complete
+    /// ones (whichever notice finalised them) and the held ones D finalised.
+    continuing_confirm: usize,
+    /// The finals beyond the first that the early path makes out of one segment of A.
+    b_only_split: usize,
+}
+
+/// The figures of the live rule: lat-ja and the ja held-out set, from `shadow.md`.
+const LIVE_LAT_JA: Figures = Figures {
+    continuing_confirm: 3,
+    b_only_split: 4,
+};
+const LIVE_HELDOUT_JA: Figures = Figures {
+    continuing_confirm: 9,
+    b_only_split: 9,
+};
+
+/// The held candidates D finalised that voice went on after: the term D adds
+/// to the first figure. A held candidate D finalised with no voice after it adds nothing.
+fn held_confirmed_continuing(report: &SetReport) -> usize {
+    report
+        .plans
+        .iter()
+        .flat_map(|plan| plan.candidates.iter())
+        .filter(|c| c.d_at.is_some() && c.continues)
+        .count()
+}
+
+/// The figures of either arm: [`gate_figures`], and the term of D (0 in the arm W).
+fn arm_figures(report: &SetReport) -> Figures {
+    let (voice, splits) = gate_figures(report);
+    Figures {
+        continuing_confirm: voice + held_confirmed_continuing(report),
+        b_only_split: splits,
+    }
+}
+
+/// The row of one set and arm in a log.
+fn log_row(set: &str, arm: &str, figures: Figures) -> String {
+    format!(
+        r#"{{"set":"{set}","arm":"{arm}","continuing_confirm":{},"b_only_split":{}}}"#,
+        figures.continuing_confirm, figures.b_only_split
+    )
+}
+
+/// A row of a log, read back.
+struct Row {
+    set: String,
+    arm: String,
+    figures: Figures,
+}
+
+fn row_text<'a>(value: &'a Value, key: &str, number: usize) -> Result<&'a str, Failure> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("line {number}: `{key}` is missing or not a string"))
+}
+
+fn row_count(value: &Value, key: &str, which: &str) -> Result<usize, Failure> {
+    let number = value
+        .get(key)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("{which}: `{key}` is missing or not an integer"))?;
+    usize::try_from(number).map_err(|why| format!("{which}: `{key}`: {why}"))
+}
+
+fn parse_row(number: usize, line: &str) -> Result<Row, Failure> {
+    let value: Value =
+        serde_json::from_str(line).map_err(|why| format!("line {number} is not JSON: {why}"))?;
+    let (set, arm) = (
+        row_text(&value, "set", number)?,
+        row_text(&value, "arm", number)?,
+    );
+    let which = format!("line {number} ({set} {arm})");
+    Ok(Row {
+        set: set.to_owned(),
+        arm: arm.to_owned(),
+        figures: Figures {
+            continuing_confirm: row_count(&value, "continuing_confirm", &which)?,
+            b_only_split: row_count(&value, "b_only_split", &which)?,
+        },
+    })
+}
+
+/// Every row of a log. A row that cannot be read, or that lacks a figure, is
+/// an error: a missing figure is not read as 0.
+fn parse_rows(log: &str) -> Result<Vec<Row>, Failure> {
+    log.lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty())
+        .map(|(index, line)| parse_row(index + 1, line))
+        .collect()
+}
+
+fn row_of<'a>(rows: &'a [Row], set: &str, arm: &str) -> Result<&'a Row, Failure> {
+    let mut found = rows.iter().filter(|r| r.set == set && r.arm == arm);
+    let (Some(row), None) = (found.next(), found.next()) else {
+        return Err(format!("the log has not exactly one row for {set} {arm}"));
+    };
+    Ok(row)
+}
+
+/// Why the offline gate does not pass.
+#[derive(Debug, PartialEq, Eq)]
+enum GateFault {
+    /// A row is missing or unreadable, or a log cannot be read.
+    Log(Failure),
+    /// The arm W is not at the live figures, so X is not compared with it.
+    Control(Failure),
+    /// A figure of X is above that of W.
+    Above(Failure),
+}
+
+impl GateFault {
+    fn message(&self) -> &str {
+        match self {
+            GateFault::Log(why) | GateFault::Control(why) | GateFault::Above(why) => why,
+        }
+    }
+}
+
+/// X within W on both figures; the first figure above W is named.
+fn within(set: &str, x: Figures, w: Figures) -> Result<(), GateFault> {
+    let pairs = [
+        (
+            "continuing_confirm",
+            x.continuing_confirm,
+            w.continuing_confirm,
+        ),
+        ("b_only_split", x.b_only_split, w.b_only_split),
+    ];
+    for (label, x_value, w_value) in pairs {
+        if x_value > w_value {
+            return Err(GateFault::Above(format!(
+                "{set}: {label} of X is {x_value}, above {w_value} of W"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// The positive control, then the comparison: W has to give the live figures
+/// of the set before X is looked at.
+fn check_set(rows: &[Row], set: &str, live: Figures) -> Result<(), GateFault> {
+    let w = row_of(rows, set, "W").map_err(GateFault::Log)?.figures;
+    let x = row_of(rows, set, "X").map_err(GateFault::Log)?.figures;
+    if w != live {
+        return Err(GateFault::Control(format!(
+            "{set}: the arm W gives {w:?}, the live figures are {live:?}; X is not compared"
+        )));
+    }
+    within(set, x, w)
+}
+
+fn check_log(log: &str, set: &str, live: Figures) -> Result<(), GateFault> {
+    let rows = parse_rows(log).map_err(GateFault::Log)?;
+    check_set(&rows, set, live)
+}
+
+/// The gate over the two logs: lat-ja first, then the ja held-out set.
+fn gate_verdict(lat_log: &str, heldout_log: &str) -> Result<(), GateFault> {
+    check_log(lat_log, "lat-ja", LIVE_LAT_JA)?;
+    check_log(heldout_log, "heldout-ja", LIVE_HELDOUT_JA)
+}
+
+/// [`gate_verdict`] over the two logs of a directory. A log that is not there
+/// stops the verdict before anything else in the directory is read.
+fn gate_verdict_of_dir(dir: &Path) -> Result<(), GateFault> {
+    let lat = read(&dir.join(LAT_LOG)).map_err(GateFault::Log)?;
+    let heldout = read(&dir.join(HELDOUT_LOG)).map_err(GateFault::Log)?;
+    gate_verdict(&lat, &heldout)
+}
+
+fn describe(outcome: &Result<(), GateFault>) -> String {
+    match outcome {
+        Ok(()) => String::from("passes: true"),
+        Err(fault) => format!("passes: false ({})", fault.message()),
+    }
+}
+
+/// `docs/results/r8v/` of the checkout the test was built from.
+fn results_dir() -> PathBuf {
+    Path::new(REPO).join("docs").join("results").join("r8v")
+}
+
+fn write_log(dir: &Path, name: &str, rows: &[String]) -> Result<(), Failure> {
+    let path = dir.join(name);
+    std::fs::write(&path, format!("{}\n", rows.join("\n")))
+        .map_err(|why| format!("cannot write {}: {why}", path.display()))
+}
+
+/// Writes the rows of a set, reads them back, and judges the set. A log that
+/// cannot be read back, or an arm W off the live figures, fails the probe; a
+/// figure of X above W is printed as `passes: false` and the probe goes on.
+fn finish_log(name: &str, set: &str, live: Figures, rows: &[String]) -> TestResult {
+    let dir = results_dir();
+    write_log(&dir, name, rows)?;
+    let outcome = check_log(&read(&dir.join(name))?, set, live);
+    println!("R8X {set} GATE {}", describe(&outcome));
+    match outcome {
+        Err(GateFault::Log(why) | GateFault::Control(why)) => Err(why.into()),
+        Ok(()) | Err(GateFault::Above(_)) => Ok(()),
+    }
+}
+
+/// The utterance (index in the manifest) that the segment of `plan` touches first.
+fn utterance_of(report: &SetReport, plan: &Plan) -> Option<usize> {
+    report
+        .utt_spans
+        .iter()
+        .position(|utt| overlaps(plan.seg.span, *utt))
+}
+
+/// What D answered at each notice that found a candidate held: the utterance
+/// (counted from 1, as the end-to-end records count), the outcome, and the
+/// windows of the held range, of D and of A, in ms after the end of the utterance.
+fn d_record_lines(set: &str, report: &SetReport) -> Vec<String> {
+    let rate = f64::from(SAMPLE_RATE);
+    let mut lines = Vec::new();
+    for plan in &report.plans {
+        let Some(index) = utterance_of(report, plan) else {
+            continue;
+        };
+        let Some(utt) = report.utt_spans.get(index) else {
+            continue;
+        };
+        for record in &plan.d_records {
+            let Some(held) = plan.candidates.get(record.held) else {
+                continue;
+            };
+            lines.push(format!(
+                "R8X {set} D_RECORD utt {} index {index} outcome {:?} held_at_s {:.2} d_at_s {:.2} \
+                 d_ms_after_utterance_end {} a_ms_after_utterance_end {} continues {} text {:?}",
+                index + 1,
+                record.outcome,
+                held.at as f64 / rate,
+                record.at as f64 / rate,
+                signed(record.at, utt.end),
+                signed(plan.seg.seen, utt.end),
+                held.continues,
+                held.text
+            ));
+        }
+    }
+    lines
+}
+
+/// Every candidate of the arm X, complete or not, with the window D finalised
+/// it at when it did.
+fn candidate_all_lines(set: &str, report: &SetReport) -> Vec<String> {
+    let rate = f64::from(SAMPLE_RATE);
+    let mut lines = Vec::new();
+    for plan in &report.plans {
+        let Some(index) = utterance_of(report, plan) else {
+            continue;
+        };
+        for cand in &plan.candidates {
+            lines.push(format!(
+                "R8X {set} CAND_ALL utt {} at_s {:.2} complete {} continues {} d_at_s {:?} text {:?}",
+                index + 1,
+                cand.at as f64 / rate,
+                cand.complete,
+                cand.continues,
+                cand.d_at.map(|at| at as f64 / rate),
+                cand.text
+            ));
+        }
+    }
+    lines
+}
+
+/// Per utterance: the delay of A alone and of the last final in both arms, in
+/// ms after the end of the utterance, and the finals of the early path.
+fn utterance_rows(set: &str, w: &SetReport, x: &SetReport) -> Vec<String> {
+    w.stats
+        .iter()
+        .filter_map(|(index, w_stat)| {
+            let (_, x_stat) = x.stats.iter().find(|(other, _)| other == index)?;
+            let end = w.utt_spans.get(*index)?.end;
+            Some(format!(
+                "R8X {set} UTT utt {} index {index} a_ms {} w_last_final_ms {} x_last_final_ms {} \
+                 w_finals {} x_finals {}",
+                index + 1,
+                signed(w_stat.a_seen, end),
+                signed(w_stat.last_final_at, end),
+                signed(x_stat.last_final_at, end),
+                w_stat.finals_early,
+                x_stat.finals_early
+            ))
+        })
+        .collect()
+}
+
+fn figures_line(set: &str, arm: &str, report: &SetReport) -> String {
+    let figures = arm_figures(report);
+    format!(
+        "R8X {set} FIGURES arm {arm} continuing_confirm {} b_only_split {} \
+         held_confirmed_continuing {} candidates {}",
+        figures.continuing_confirm,
+        figures.b_only_split,
+        held_confirmed_continuing(report),
+        report
+            .plans
+            .iter()
+            .map(|p| p.candidates.len())
+            .sum::<usize>()
+    )
+}
+
+/// Everything the probe prints about the two arms of a set.
+fn print_arms(set: &str, w: &SetReport, x: &SetReport) -> TestResult {
+    print_set(w)?;
+    print_set(x)?;
+    println!("{}", figures_line(set, "W", w));
+    println!("{}", figures_line(set, "X", x));
+    let lines = d_record_lines(set, x)
+        .into_iter()
+        .chain(utterance_rows(set, w, x))
+        .chain(candidate_all_lines(set, x));
+    for line in lines {
+        println!("{line}");
+    }
+    Ok(())
+}
+
+/// The two rows of a set in a log.
+fn arm_rows(set: &str, w: &SetReport, x: &SetReport) -> Vec<String> {
+    vec![
+        log_row(set, "W", arm_figures(w)),
+        log_row(set, "X", arm_figures(x)),
+    ]
+}
+
+/// A set's audio, utterances and references, owned so that an [`Input`] can borrow them.
+struct Loaded {
+    audio: Vec<f32>,
+    utterances: Vec<Span>,
+    references: Vec<Option<String>>,
+}
+
+impl Loaded {
+    /// The input of the live rule over this set.
+    fn input<'a>(&'a self, name: &'a str, lang: &'a str) -> Input<'a> {
+        Input {
+            name,
+            lang,
+            audio: &self.audio,
+            utterances: &self.utterances,
+            references: &self.references,
+            early: EARLY_SETTINGS,
+            judge: is_complete,
+        }
+    }
+}
+
+fn load_lat(testdata: &Path, lang: &str) -> Result<Loaded, Failure> {
+    let audio =
+        read_wav(&testdata.join(format!("lat-{lang}.wav"))).map_err(|why| why.to_string())?;
+    let manifest = testdata.join("manifests").join(format!("lat-{lang}.json"));
+    Ok(Loaded {
+        audio,
+        utterances: manifest_spans(&manifest)?,
+        references: manifest_references(&manifest)?,
+    })
+}
+
+fn load_heldout_ja(testdata: &Path) -> Result<Loaded, Failure> {
+    let dir = testdata.join("r8v_heldout");
+    let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
+    Ok(Loaded {
+        audio,
+        utterances: manifest_spans(&dir.join("ja.json"))?,
+        references: manifest_references(&dir.join("ja.json"))?,
+    })
+}
+
+/// The replay of X with C and D off has to be W, or X is not measured by the code that measured W.
+fn require_machinery_control(models: &Path, input: &Input, w: &SetReport) -> TestResult {
+    let same = machinery_matches_w(models, input, w)?;
+    println!("R8X {} MACHINERY_OFF_EQUALS_W {same}", input.name);
+    if same {
+        Ok(())
+    } else {
+        Err(String::from("the replay of X without C and D is not the arm W").into())
+    }
+}
+
+/// The latency sets with C and D added (RP-86). The rows of lat-ja judge the
+/// gate; the rows of lat-en are a record.
+#[test]
+#[ignore = "an offline probe: reads testdata/ and the models"]
+fn r8v_latency_set_probe_extra_notices() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let mut rows = Vec::new();
+    for lang in ["ja", "en"] {
+        let set = format!("lat-{lang}");
+        let loaded = load_lat(&testdata, lang)?;
+        let input = loaded.input(&set, lang);
+        let (w, x) = analyse_extra(&models, &input)?;
+        print_arms(&set, &w, &x)?;
+        rows.extend(arm_rows(&set, &w, &x));
+        if lang == "ja" {
+            require_machinery_control(&models, &input, &w)?;
+        }
+    }
+    finish_log(LAT_LOG, "lat-ja", LIVE_LAT_JA, &rows)
+}
+
+/// The ja held-out set (`testdata/r8v_heldout/`) with C and D added (RP-86).
+#[test]
+#[ignore = "an offline probe: reads testdata/r8v_heldout/ and the models"]
+fn r8v_heldout_ja_probe_extra_notices() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let loaded = load_heldout_ja(&testdata)?;
+    let input = loaded.input("heldout-ja", "ja");
+    let (w, x) = analyse_extra(&models, &input)?;
+    print_arms("heldout-ja", &w, &x)?;
+    finish_log(
+        HELDOUT_LOG,
+        "heldout-ja",
+        LIVE_HELDOUT_JA,
+        &arm_rows("heldout-ja", &w, &x),
+    )
+}
+
 #[test]
 fn a_japanese_sentence_is_complete_only_with_a_sentence_ending_and_no_connective() {
     assert!(is_complete("ja", "今日は雨です。"));
@@ -1331,8 +2186,10 @@ fn plan_of(confirmed: Vec<usize>, remainder: bool) -> Plan {
             in_voice: false,
         },
         candidates: Vec::new(),
+        emitted: confirmed.clone(),
         confirmed,
         remainder_text: String::from(if remainder { "あ" } else { "" }),
+        d_records: Vec::new(),
     }
 }
 
@@ -1405,6 +2262,7 @@ fn only_the_final_texts_of_a_split_plan_are_listed() {
         text: String::from("前。"),
         complete: true,
         continues: true,
+        d_at: None,
     });
     assert_eq!(plan.final_texts(), vec!["前。", "あ"]);
     assert!(plan_of(vec![200], false).final_texts().is_empty());
@@ -1470,6 +2328,7 @@ fn report_of(
             text: (*text).to_owned(),
             complete: true,
             continues: *continues,
+            d_at: None,
         })
         .collect();
     SetReport {
@@ -1531,4 +2390,465 @@ fn a_confirmed_candidate_with_text_left_makes_two_finals() {
     let closed = plan_of(vec![200], false);
     assert_eq!(closed.finals(), 1);
     assert_eq!(closed.last_final_at(), 200);
+}
+
+// ---------------------------------------------------------------------------
+// RP-86: the offline gate over the logs, and the arm X
+// ---------------------------------------------------------------------------
+
+fn figures(continuing_confirm: usize, b_only_split: usize) -> Figures {
+    Figures {
+        continuing_confirm,
+        b_only_split,
+    }
+}
+
+/// The two rows of a set.
+fn log_of(set: &str, w: Figures, x: Figures) -> String {
+    [log_row(set, "W", w), log_row(set, "X", x)].join("\n")
+}
+
+/// The logs of the design's positive case: W at the live figures, X equal to W.
+fn design_logs() -> (String, String) {
+    (
+        log_of("lat-ja", LIVE_LAT_JA, LIVE_LAT_JA),
+        log_of("heldout-ja", LIVE_HELDOUT_JA, LIVE_HELDOUT_JA),
+    )
+}
+
+/// The logs of the positive case with the X row of one set replaced.
+fn logs_with_x(set: &str, x: Figures) -> (String, String) {
+    match set {
+        "lat-ja" => (
+            log_of(set, LIVE_LAT_JA, x),
+            log_of("heldout-ja", LIVE_HELDOUT_JA, LIVE_HELDOUT_JA),
+        ),
+        _ => (
+            log_of("lat-ja", LIVE_LAT_JA, LIVE_LAT_JA),
+            log_of(set, LIVE_HELDOUT_JA, x),
+        ),
+    }
+}
+
+/// The message of a gate that failed because X is above W.
+fn above_message(outcome: Result<(), GateFault>) -> Result<String, Failure> {
+    match outcome {
+        Err(GateFault::Above(why)) => Ok(why),
+        other => Err(format!("expected a figure of X above W, got {other:?}")),
+    }
+}
+
+/// T-RP-86-001, the part that reads the offline logs: W at the live figures
+/// and X equal to W pass. The checks of the end-to-end records, (1) to (6),
+/// are those of `hayamimi-eval/tests/rp86.rs`.
+#[test]
+fn a_run_set_shaped_like_the_design_passes_every_check() {
+    let (lat, heldout) = design_logs();
+    assert_eq!(gate_verdict(&lat, &heldout), Ok(()));
+}
+
+/// T-RP-86-002.
+#[test]
+fn x_counts_below_w_in_the_offline_log_pass() {
+    let lat = log_of("lat-ja", LIVE_LAT_JA, figures(2, 3));
+    let heldout = log_of("heldout-ja", LIVE_HELDOUT_JA, figures(8, 8));
+    assert_eq!(gate_verdict(&lat, &heldout), Ok(()));
+}
+
+/// T-RP-86-003.
+#[test]
+fn one_more_continuing_confirm_in_lat_ja_is_rejected() -> TestResult {
+    let (lat, heldout) = logs_with_x("lat-ja", figures(4, 4));
+    let said = above_message(gate_verdict(&lat, &heldout))?;
+    assert!(
+        said.contains("lat-ja") && said.contains("continuing_confirm"),
+        "{said}"
+    );
+    assert!(
+        said.contains('4') && said.contains('3') && !said.contains("b_only_split"),
+        "{said}"
+    );
+    Ok(())
+}
+
+/// T-RP-86-004: lat-ja inside W does not save a ja held-out set above it.
+#[test]
+fn one_more_continuing_confirm_in_the_heldout_is_rejected() -> TestResult {
+    let (lat, heldout) = logs_with_x("heldout-ja", figures(10, 9));
+    let said = above_message(gate_verdict(&lat, &heldout))?;
+    assert!(
+        said.contains("heldout-ja") && said.contains("continuing_confirm"),
+        "{said}"
+    );
+    assert!(said.contains("10") && said.contains('9'), "{said}");
+    Ok(())
+}
+
+/// T-RP-86-005.
+#[test]
+fn one_more_b_only_split_in_lat_ja_is_rejected() -> TestResult {
+    let (lat, heldout) = logs_with_x("lat-ja", figures(3, 5));
+    let said = above_message(gate_verdict(&lat, &heldout))?;
+    assert!(
+        said.contains("lat-ja") && said.contains("b_only_split"),
+        "{said}"
+    );
+    assert!(
+        said.contains('5') && said.contains('4') && !said.contains("continuing_confirm"),
+        "{said}"
+    );
+    Ok(())
+}
+
+/// T-RP-86-006.
+#[test]
+fn one_more_b_only_split_in_the_heldout_is_rejected() -> TestResult {
+    let (lat, heldout) = logs_with_x("heldout-ja", figures(9, 10));
+    let said = above_message(gate_verdict(&lat, &heldout))?;
+    assert!(
+        said.contains("heldout-ja") && said.contains("b_only_split"),
+        "{said}"
+    );
+    assert!(said.contains("10") && said.contains('9'), "{said}");
+    Ok(())
+}
+
+/// T-RP-86-007: the comparison of the two arms alone, with a W of 0 (the
+/// positive control would not let such a W through a log).
+#[test]
+fn a_zero_baseline_allows_zero_and_rejects_one() -> TestResult {
+    assert_eq!(within("lat-ja", figures(0, 0), figures(0, 0)), Ok(()));
+    let said = above_message(within("lat-ja", figures(0, 1), figures(0, 0)))?;
+    assert!(
+        said.contains("b_only_split") && said.contains('1') && said.contains('0'),
+        "{said}"
+    );
+    Ok(())
+}
+
+/// A directory under the workspace `target`, emptied for one test.
+fn fixture_dir(name: &str) -> Result<PathBuf, Failure> {
+    let dir = Path::new(TARGET).join(format!("r8x-5-{name}"));
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|why| format!("{}: {why}", dir.display()))?;
+    }
+    std::fs::create_dir_all(&dir).map_err(|why| format!("{}: {why}", dir.display()))?;
+    Ok(dir)
+}
+
+/// T-RP-86-008, the part that reads the offline logs: a log that is not there
+/// fails by its own path, before a file of the end-to-end records is read.
+#[test]
+fn a_missing_offline_log_fails_before_any_e2e_file_is_read() -> TestResult {
+    let dir = fixture_dir("missing-log")?;
+    let (lat, heldout) = design_logs();
+    std::fs::write(dir.join(LAT_LOG), lat)?;
+    std::fs::write(dir.join(HELDOUT_LOG), heldout)?;
+    std::fs::write(dir.join("x1.e2e1.jsonl"), "this is not JSON")?;
+    assert_eq!(gate_verdict_of_dir(&dir), Ok(()));
+    std::fs::remove_file(dir.join(LAT_LOG))?;
+    let outcome = gate_verdict_of_dir(&dir);
+    std::fs::remove_dir_all(&dir)?;
+    match outcome {
+        Err(GateFault::Log(said)) => {
+            assert!(said.contains(LAT_LOG), "{said}");
+            assert!(!said.contains("x1.e2e1"), "{said}");
+            Ok(())
+        }
+        other => Err(format!("expected a missing log, got {other:?}").into()),
+    }
+}
+
+/// T-RP-86-009: a figure that is not in a row is an error, not a 0 that passes.
+#[test]
+fn a_missing_counter_in_the_offline_log_is_rejected_not_read_as_zero() -> TestResult {
+    let (lat, _) = design_logs();
+    let heldout = format!(
+        "{}\n{}",
+        log_row("heldout-ja", "W", LIVE_HELDOUT_JA),
+        r#"{"set":"heldout-ja","arm":"X","continuing_confirm":9}"#
+    );
+    match gate_verdict(&lat, &heldout) {
+        Err(GateFault::Log(said)) => {
+            assert!(
+                said.contains("heldout-ja X") && said.contains("b_only_split"),
+                "{said}"
+            );
+            Ok(())
+        }
+        other => Err(format!("expected an unreadable row, got {other:?}").into()),
+    }
+}
+
+#[test]
+fn a_row_that_is_not_json_names_its_line() {
+    let first = parse_rows("not json").err();
+    assert!(first.is_some_and(|text| text.contains("line 1 is not JSON")));
+    let valid = log_row("lat-ja", "W", LIVE_LAT_JA);
+    let second = parse_rows(&format!("{valid}\nnot json")).err();
+    assert!(second.is_some_and(|text| text.contains("line 2 is not JSON")));
+}
+
+#[test]
+fn a_row_is_written_in_the_form_the_design_shows() {
+    assert_eq!(
+        log_row("lat-ja", "W", figures(2, 3)),
+        r#"{"set":"lat-ja","arm":"W","continuing_confirm":2,"b_only_split":3}"#
+    );
+}
+
+#[test]
+fn a_log_with_two_rows_for_one_arm_is_unreadable_as_a_verdict() {
+    let log = format!(
+        "{}\n{}",
+        log_of("lat-ja", LIVE_LAT_JA, LIVE_LAT_JA),
+        log_row("lat-ja", "X", LIVE_LAT_JA)
+    );
+    assert!(matches!(
+        check_log(&log, "lat-ja", LIVE_LAT_JA),
+        Err(GateFault::Log(_))
+    ));
+}
+
+/// The rows of lat-en are a record: they judge nothing.
+#[test]
+fn rows_of_other_sets_do_not_judge_the_gate() {
+    let (lat, heldout) = design_logs();
+    let with_en = format!("{lat}\n{}", log_of("lat-en", figures(2, 2), figures(9, 9)));
+    assert_eq!(gate_verdict(&with_en, &heldout), Ok(()));
+}
+
+/// The positive control: W at the live figures of its set.
+#[test]
+fn the_arm_w_at_the_live_figures_is_the_positive_control() {
+    for (set, live) in [("lat-ja", LIVE_LAT_JA), ("heldout-ja", LIVE_HELDOUT_JA)] {
+        assert_eq!(
+            check_log(&log_of(set, live, live), set, live),
+            Ok(()),
+            "{set}"
+        );
+    }
+}
+
+/// The negative control of the positive control: a W off the live figures
+/// fails before X is compared. In the first log X is within the odd W (it
+/// would pass if compared); in the second X is above it (it would be named
+/// `Above` if compared). Both are named for the control.
+#[test]
+fn an_arm_w_off_the_live_figures_fails_before_x_is_compared() -> TestResult {
+    let within_odd_w = log_of("lat-ja", figures(3, 5), figures(0, 0));
+    let above_odd_w = log_of("heldout-ja", figures(9, 10), figures(99, 99));
+    for (log, set, live) in [
+        (within_odd_w, "lat-ja", LIVE_LAT_JA),
+        (above_odd_w, "heldout-ja", LIVE_HELDOUT_JA),
+    ] {
+        match check_log(&log, set, live) {
+            Err(GateFault::Control(said)) => {
+                assert!(
+                    said.contains(set) && said.contains("X is not compared"),
+                    "{said}"
+                );
+            }
+            other => {
+                return Err(format!("{set}: expected the control to fail, got {other:?}").into());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn complete_candidate(at: usize, text: &str, continues: bool) -> Candidate {
+    Candidate {
+        at,
+        text: text.to_owned(),
+        complete: true,
+        continues,
+        d_at: None,
+    }
+}
+
+/// A candidate the early path kept: not complete, and finalised by D at `d_at` when it was.
+fn held_candidate(at: usize, text: &str, continues: bool, d_at: Option<usize>) -> Candidate {
+    Candidate {
+        at,
+        text: text.to_owned(),
+        complete: false,
+        continues,
+        d_at,
+    }
+}
+
+/// A report with one segment of A holding `candidates`; the finals are the
+/// confirmed ones, in the order given.
+fn report_from_candidates(
+    candidates: Vec<Candidate>,
+    confirmed: Vec<usize>,
+    remainder: bool,
+) -> SetReport {
+    let mut report = report_of(&[], confirmed, remainder);
+    if let Some(plan) = report.plans.first_mut() {
+        plan.candidates = candidates;
+    }
+    report
+}
+
+/// The term of D: a held candidate D finalised with voice going on after it
+/// adds one to the first figure, one with no voice after it adds none, and a
+/// held candidate D did not finalise adds none.
+#[test]
+fn a_held_candidate_d_finalises_adds_one_with_voice_going_on_and_none_without() {
+    let complete = || complete_candidate(16000, "言ったろう。", true);
+    let base = report_from_candidates(vec![complete()], vec![16000], false);
+    let base_count = arm_figures(&base).continuing_confirm;
+    assert_eq!(base_count, 1);
+    let cases = [
+        (true, Some(34000), 1),
+        (false, Some(34000), 0),
+        (true, None, 0),
+    ];
+    for (continues, d_at, added) in cases {
+        let held = held_candidate(32000, "近藤さん。", continues, d_at);
+        let confirmed = if d_at.is_some() {
+            vec![16000, 32000]
+        } else {
+            vec![16000]
+        };
+        let report = report_from_candidates(vec![complete(), held], confirmed, false);
+        assert_eq!(
+            arm_figures(&report).continuing_confirm,
+            base_count + added,
+            "continues {continues}, finalised by D {d_at:?}"
+        );
+    }
+}
+
+#[test]
+fn the_arm_w_has_no_term_of_d() {
+    let report = report_from_candidates(
+        vec![
+            complete_candidate(16000, "言ったろう。", true),
+            held_candidate(32000, "近藤さん。", true, None),
+        ],
+        vec![16000],
+        false,
+    );
+    assert_eq!(held_confirmed_continuing(&report), 0);
+    assert_eq!(arm_figures(&report), figures(1, 0));
+}
+
+fn notice_at(start: usize, end: usize, seen: usize) -> Notice {
+    Notice {
+        span: Span { start, end },
+        seen,
+        in_voice: true,
+    }
+}
+
+/// The notices of C that come in a window of B's are not read; the others are.
+#[test]
+fn a_notice_of_c_in_the_window_of_a_notice_of_b_is_not_read_twice() {
+    let (b1, b2) = (notice_at(1, 250, 300), notice_at(2, 550, 600));
+    let (c1, c2) = (notice_at(10, 200, 300), notice_at(11, 400, 450));
+    let order = early_order(&[&b1, &b2], &[&c1, &c2]);
+    let starts: Vec<usize> = order.iter().map(|n| n.span.start).collect();
+    assert_eq!(starts, vec![1, 11, 2]);
+}
+
+/// In one window the early notices come before D's; D's earlier window comes first.
+#[test]
+fn in_one_window_the_early_notice_is_read_before_the_notice_of_d() {
+    let (early, same, before) = (
+        notice_at(1, 250, 300),
+        notice_at(5, 280, 300),
+        notice_at(6, 100, 200),
+    );
+    let order = events(&[&early], &[&same, &before]);
+    let seen: Vec<(usize, bool)> = order
+        .iter()
+        .map(|event| (event.order().0, matches!(event, Event::HeldSilence(_))))
+        .collect();
+    assert_eq!(seen, vec![(200, true), (300, false), (300, true)]);
+}
+
+#[test]
+fn d_finalises_a_held_sentence_that_does_not_end_on_an_open_form_with_no_voice_since() {
+    let held = held_candidate(1000, "近藤さん。", true, None);
+    assert_eq!(d_outcome(&held, &[], 2000), DOutcome::Confirmed);
+}
+
+#[test]
+fn d_keeps_a_held_sentence_that_ends_on_a_connective_or_a_particle() {
+    for text in [
+        "雨が降っていますが。",
+        "今日は雨ですから",
+        "本音とは。",
+        "夏の",
+    ] {
+        let held = held_candidate(1000, text, false, None);
+        assert_eq!(
+            d_outcome(&held, &[], 2000),
+            DOutcome::EndsOnOpenForm,
+            "{text}"
+        );
+    }
+}
+
+/// The boundary of "B read a voice start": the end of the held range itself counts.
+#[test]
+fn a_voice_start_of_b_at_the_end_of_the_held_range_counts_against_d() {
+    let held = held_candidate(1000, "近藤さん。", true, None);
+    let at_end = [notice_at(1000, 1600, 1700)];
+    assert_eq!(d_outcome(&held, &at_end, 2000), DOutcome::VoiceAfter);
+    let before = [notice_at(999, 1600, 1700)];
+    assert_eq!(d_outcome(&held, &before, 2000), DOutcome::Confirmed);
+}
+
+/// A voice start B reads in D's own window counts; one B reads after it does not.
+#[test]
+fn only_a_voice_start_read_up_to_the_window_of_d_counts() {
+    let held = held_candidate(1000, "近藤さん。", true, None);
+    let same_window = [notice_at(1500, 1900, 2000)];
+    assert_eq!(d_outcome(&held, &same_window, 2000), DOutcome::VoiceAfter);
+    let later = [notice_at(1500, 1900, 2001)];
+    assert_eq!(d_outcome(&held, &later, 2000), DOutcome::Confirmed);
+}
+
+/// The copy of the two tables is the tables of `endpoint.rs`: each form is a
+/// particle or connective there, and the endings that are not are not here.
+#[test]
+fn the_copied_open_forms_are_those_the_endpoint_module_calls_a_particle() {
+    for tail in JA_OPEN_FORMS {
+        let text = format!("雨{tail}。");
+        assert!(ends_on_open_form(&text), "{text}");
+        assert_eq!(tail_of("ja", &text), Tail::Particle, "{text}");
+    }
+    for text in [
+        "雨です。",
+        "近藤さん。",
+        "本当ですか？",
+        "独占配信。",
+        "言ったろう。",
+    ] {
+        assert!(!ends_on_open_form(text), "{text}");
+        assert_ne!(tail_of("ja", text), Tail::Particle, "{text}");
+    }
+}
+
+#[test]
+fn a_held_candidate_d_finalised_is_one_of_the_final_texts() {
+    let mut plan = plan_of(vec![200, 400], true);
+    plan.candidates = vec![
+        complete_candidate(200, "前。", true),
+        held_candidate(400, "近藤さん。", false, Some(450)),
+        held_candidate(500, "keep", false, None),
+    ];
+    assert_eq!(plan.final_texts(), vec!["前。", "近藤さん。", "あ"]);
+}
+
+/// The final of a held candidate is made at D's window, not at the end of its range.
+#[test]
+fn the_final_of_a_held_candidate_is_made_at_the_window_of_d() {
+    let mut plan = plan_of(vec![200], false);
+    plan.emitted = vec![350];
+    assert_eq!(plan.last_final_at(), 350);
 }
