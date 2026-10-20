@@ -2,13 +2,21 @@
 //! several times over, and measures how late each utterance's `final` and
 //! translation arrive.
 //!
-//! Writes four files next to `--out`: the per-utterance samples (`.jsonl`,
+//! Writes five files next to `--out`: the per-utterance samples (`.jsonl`,
 //! one line per repetition and utterance), every event received with its
 //! arrival time (`.events.jsonl`), the GPU's utilization and memory read
-//! before and after the run (`.gpu.json`), and the summary (`.summary.json`,
-//! also printed on stdout).
+//! before and after the run (`.gpu.json`), the summary (`.summary.json`,
+//! also printed on stdout), and the state of the machine through the run
+//! (`.machine.jsonl`, see [`crate::machine`]).
+//!
+//! A run starts only on a free machine: when the first row of the machine
+//! record is over its limits the run is refused (exit code 2) before it sends
+//! a byte, and a build that appears while it sends or drains stops it (exit
+//! code 3).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -18,6 +26,7 @@ use crate::gpu_load;
 use crate::ingest::{self, Plan, sent_at};
 use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event, summarize_run};
 use crate::log;
+use crate::machine;
 use crate::manifest::{read_rows, write_text};
 use crate::relay_events::{Watch, in_time_order};
 use crate::speaker;
@@ -49,6 +58,8 @@ pub struct Options {
     pub gap_ms: u32,
     /// How long to keep listening after the last sample is sent.
     pub drain_s: u32,
+    /// Where `loadavg` and `<pid>/comm` are read from for the machine record.
+    pub proc_root: PathBuf,
 }
 
 /// What a run produced.
@@ -181,9 +192,9 @@ fn through_ingest(
     options: &Options,
     port: u16,
     (plan, samples): (&Plan, &[i16]),
-    origin: Instant,
+    (origin, halt): (Instant, &Arc<AtomicBool>),
 ) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
-    let mut connection = open_ingest(&options.host, port, origin)?;
+    let mut connection = open_ingest(&options.host, port, origin)?.halt_on(Arc::clone(halt));
     connection.start()?;
     let sent_us = connection.play(plan, samples)?;
     let received = connection.finish(Duration::from_secs(u64::from(options.drain_s)))?;
@@ -194,11 +205,12 @@ fn through_ingest(
 fn through_speaker(
     options: &Options,
     (plan, samples): (&Plan, &[i16]),
-    origin: Instant,
+    (origin, halt): (Instant, &Arc<AtomicBool>),
 ) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
-    let mut listener = ingest::listen(&options.host, options.port, origin)?;
+    let mut listener =
+        ingest::listen(&options.host, options.port, origin)?.halt_on(Arc::clone(halt));
     listener.start()?;
-    let sent_us = match speaker::play(plan, samples, origin) {
+    let sent_us = match speaker::play(plan, samples, origin, halt) {
         Ok(sent_us) => sent_us,
         Err(error) => {
             // The run ends here or moves to /ingest; the listener has nothing to wait for.
@@ -215,17 +227,17 @@ fn through_speaker(
 fn deliver(
     options: &Options,
     audio: (&Plan, &[i16]),
-    origin: Instant,
+    timing: (Instant, &Arc<AtomicBool>),
 ) -> Result<(Vec<i64>, ingest::Heard), EvalError> {
     if options.sink == Sink::Ingest {
-        return through_ingest(options, options.port, audio, origin);
+        return through_ingest(options, options.port, audio, timing);
     }
-    match through_speaker(options, audio, origin) {
+    match through_speaker(options, audio, timing) {
         Err(EvalError::NoOutputDevice) => {
             let message = "no output device: sending to /ingest instead";
             log::warn("eval.stream.sink_fallback", "worker", message, &[]);
             eprintln!("warning: {message}");
-            through_ingest(options, options.ingest_port, audio, origin)
+            through_ingest(options, options.ingest_port, audio, timing)
         }
         other => other,
     }
@@ -251,6 +263,11 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
     let plan = ingest::plan(audio.samples.len(), &marks, options.repeat, gap);
 
     let origin = Instant::now();
+    let gate = machine::begin(
+        &options.proc_root,
+        &sidecar(&options.out, machine::FILE_SUFFIX),
+        origin,
+    )?;
     let relay = match options.relay_port {
         Some(port) => Some(Watch::open(&options.host, port, origin)?),
         None => None,
@@ -266,7 +283,11 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
         ],
     );
     let gpu_before = gpu_load::read_for_record("before");
-    let (sent_us, received) = deliver(options, (&plan, &audio.samples), origin)?;
+    let halt = gate.halt();
+    let delivered = deliver(options, (&plan, &audio.samples), (origin, &halt));
+    // A build seen during the run is the answer, whatever the delivery said.
+    gate.end()?;
+    let (sent_us, received) = delivered?;
     let gpu_after = gpu_load::read_for_record("after");
     let heard = match &relay {
         Some(watch) => in_time_order(received.events, watch.events()),

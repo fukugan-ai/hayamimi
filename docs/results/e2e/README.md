@@ -15,6 +15,10 @@ Only the samples and events jsonl of a run are kept here.
 - The Rust `hayamimi` and relay are the build of main `7ea558f`. The Rust processes ran at nice 0.
 - `py1` ran with the Windows Python, with refine left enabled.
 - `llama-server` ran at nice -5 from 11:26.
+- Since RP-83, `hayamimi-eval stream` writes `<run>.machine.jsonl` next to `--out`: one row (`t_us`, `load1`, `load5`, `load15`, `cargo`, `rustc`) before any audio, every 5 s (also while draining) and after the last event. It refuses to start (exit 2) when the first row has load1 >= 2.00, load15 >= 2.50 or a `cargo`/`rustc` process, and aborts (exit 3) when a build appears during the run.
+- Each row also holds `io_some_total` and `io_full_total`, the `total=` fields (microseconds) of `/proc/pressure/io`, as evidence of a stalled disk. They are recorded and never judged. On a kernel without that file they are `null`, and `stream` writes one `stream.machine.pressure_unavailable` warning.
+- The tests judge every Rust run with a machine file: first row load1 < 2.00 and load15 < 2.50, last row load5 < 2.50, no `cargo`/`rustc` in any row, rows at most 15 s apart. Python baselines are not judged.
+- A Rust run without a machine file is accepted only if it is a record measured before the gate, listed by directory, name and sha256 of its jsonl (`rs1` to `rs3` of `rp32`, `e2e1`, `e2e2`). The test output names each run let through this way.
 
 ## Counted by the acceptance tests
 

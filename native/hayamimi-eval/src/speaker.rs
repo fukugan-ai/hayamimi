@@ -7,6 +7,7 @@
 //! plays the samples, so a measured delay is longer than the heard one by that
 //! buffer (tens of milliseconds at most), never shorter.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
@@ -181,19 +182,31 @@ fn build(
     }
 }
 
+/// The longest wait for a stamp before `halt` is looked at again.
+const HALT_SLICE: Duration = Duration::from_millis(100);
+
 /// Waits for `count` stamps; a device that stops short of them is an error.
-fn collect(stamps: &Receiver<i64>, count: usize, within: Duration) -> Result<Vec<i64>, EvalError> {
+/// Once `halt` is set it returns the stamps it has.
+fn collect(
+    stamps: &Receiver<i64>,
+    count: usize,
+    within: Duration,
+    halt: &AtomicBool,
+) -> Result<Vec<i64>, EvalError> {
     let deadline = Instant::now() + within;
     let mut sent = Vec::with_capacity(count);
-    while sent.len() < count {
+    while sent.len() < count && !halt.load(Ordering::Relaxed) {
         let left = deadline.saturating_duration_since(Instant::now());
-        let Ok(stamp) = stamps.recv_timeout(left) else {
-            return Err(EvalError::Invalid(format!(
-                "the output device stopped after {} of {count} chunks",
-                sent.len()
-            )));
-        };
-        sent.push(stamp);
+        match stamps.recv_timeout(left.min(HALT_SLICE)) {
+            Ok(stamp) => sent.push(stamp),
+            Err(mpsc::RecvTimeoutError::Timeout) if !left.is_zero() => {}
+            Err(_) => {
+                return Err(EvalError::Invalid(format!(
+                    "the output device stopped after {} of {count} chunks",
+                    sent.len()
+                )));
+            }
+        }
     }
     Ok(sent)
 }
@@ -201,8 +214,14 @@ fn collect(stamps: &Receiver<i64>, count: usize, within: Duration) -> Result<Vec
 /// Plays `plan` to the default output device and returns, for each chunk, the
 /// microseconds since `origin` at which its last sample was handed over. A
 /// machine with no output device gives `EvalError::NoOutputDevice` before any
-/// sound is made.
-pub fn play(plan: &Plan, audio: &[i16], origin: Instant) -> Result<Vec<i64>, EvalError> {
+/// sound is made. Once `halt` is set the sound stops and the list ends at the
+/// last chunk handed over.
+pub fn play(
+    plan: &Plan,
+    audio: &[i16],
+    origin: Instant,
+    halt: &AtomicBool,
+) -> Result<Vec<i64>, EvalError> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or(EvalError::NoOutputDevice)?;
@@ -218,7 +237,7 @@ pub fn play(plan: &Plan, audio: &[i16], origin: Instant) -> Result<Vec<i64>, Eva
     stream.play().map_err(device_error)?;
     let seconds = plan.chunks.last().map_or(0, |chunk| chunk.end) / SAMPLE_RATE as usize;
     let within = Duration::from_secs(seconds as u64) + SLACK;
-    let sent = collect(&stamps, plan.chunks.len(), within)?;
+    let sent = collect(&stamps, plan.chunks.len(), within, halt)?;
     drop(stream);
     Ok(sent)
 }
@@ -320,9 +339,26 @@ mod tests {
                 .map_err(|error| EvalError::Invalid(error.to_string()))?;
         }
         assert_eq!(
-            collect(&stamps, 3, Duration::from_millis(50))?,
+            collect(
+                &stamps,
+                3,
+                Duration::from_millis(50),
+                &AtomicBool::new(false)
+            )?,
             vec![5, 6, 7]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_collect_stops_at_a_halt_with_the_stamps_it_has() -> Result<(), EvalError> {
+        let (sender, stamps) = mpsc::channel();
+        assert!(sender.send(1).is_ok());
+        let halt = AtomicBool::new(true);
+        let began = Instant::now();
+        let got = collect(&stamps, 2, Duration::from_secs(30), &halt)?;
+        assert!(got.is_empty());
+        assert!(began.elapsed() < Duration::from_secs(5));
         Ok(())
     }
 
@@ -330,9 +366,14 @@ mod tests {
     fn a_collect_that_runs_out_of_time_names_how_far_it_got() {
         let (sender, stamps) = mpsc::channel();
         assert!(sender.send(1).is_ok());
-        let said = collect(&stamps, 2, Duration::from_millis(30))
-            .err()
-            .map(|error| error.to_string());
+        let said = collect(
+            &stamps,
+            2,
+            Duration::from_millis(30),
+            &AtomicBool::new(false),
+        )
+        .err()
+        .map(|error| error.to_string());
         assert!(
             said.as_deref().is_some_and(|text| text.contains("1 of 2")),
             "{said:?}"

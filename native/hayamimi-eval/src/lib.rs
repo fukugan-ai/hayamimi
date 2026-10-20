@@ -25,6 +25,7 @@ pub mod gpu_sessions;
 pub mod ingest;
 pub mod latency;
 pub mod log;
+pub mod machine;
 pub mod manifest;
 pub mod mdtable;
 pub mod models_manifest;

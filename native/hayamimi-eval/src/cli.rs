@@ -116,6 +116,9 @@ struct StreamArgs {
     /// Seconds to keep listening after the last sample is sent.
     #[arg(long, default_value_t = 8)]
     drain_s: u32,
+    /// Where the machine's load and processes are read from: `loadavg` and `<pid>/comm`.
+    #[arg(long, default_value = "/proc")]
+    proc_root: PathBuf,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -262,6 +265,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
                 out: args.out,
                 gap_ms: args.gap_ms,
                 drain_s: args.drain_s,
+                proc_root: args.proc_root,
             })
             .map(|_| ())
         }
@@ -407,7 +411,7 @@ pub fn run() -> ExitCode {
                 &[],
             );
             eprintln!("error: {error}");
-            ExitCode::FAILURE
+            ExitCode::from(error.exit_code())
         }
     }
 }
