@@ -1,0 +1,302 @@
+   Compiling sherpa-onnx-sys v1.13.8
+   Compiling hayamimi-gpu v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-gpu)
+   Compiling sherpa-onnx v1.13.8
+   Compiling hayamimi-asr v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-asr)
+   Compiling hayamimi-eval v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-eval)
+    Finished `release` profile [optimized] target(s) in 3m 11s
+     Running tests/r8v_probe.rs (/mnt/c/Users/user01/source/hayamimi/native/target-l2/release/deps/r8v_probe-b109e801f58f5af8)
+
+running 1 test
+test r8v_heldout_ja_probe_shadow_rule has been running for over 60 seconds
+R8V heldout-ja lang ja utterances 81 without_A_segment 8 A_segments 91 candidates 151 candidates_voice_continues 67 complete 79 complete_voice_continues 9
+R8V heldout-ja splits A_only 18 B_only 9 total_with_B 27
+R8V heldout-ja delay_ms first complete or A (n 73) p50 228 p95 1340
+R8V heldout-ja delay_ms last final (n 73) p50 428 p95 1340
+R8V heldout-ja delay_ms A alone (n 73) p50 532 p95 1724
+R8V heldout-ja vad_ms_per_window A alone: windows 39221 p50 0.133 p95 0.242
+R8V heldout-ja vad_ms_per_window A plus B: windows 39221 p50 0.269 p95 0.475
+R8V heldout-ja UTT 0 A_segments 2 [2.76-6.10 6.69-12.15] finals_early 2
+R8V heldout-ja UTT 1 A_segments 2 [18.95-23.57 24.36-27.99] finals_early 2
+R8V heldout-ja UTT 9 A_segments 2 [137.29-144.53 144.90-147.92] finals_early 2
+R8V heldout-ja UTT 10 A_segments 1 [154.76-164.02] finals_early 2
+R8V heldout-ja UTT 12 A_segments 3 [185.67-186.80 187.17-201.85 201.93-207.41] finals_early 3
+R8V heldout-ja UTT 13 A_segments 2 [213.73-220.34 220.87-225.43] finals_early 2
+R8V heldout-ja UTT 15 A_segments 2 [250.63-253.17 254.34-263.67] finals_early 2
+R8V heldout-ja UTT 16 A_segments 1 [268.17-276.12] finals_early 2
+R8V heldout-ja UTT 17 A_segments 1 [281.77-289.14] finals_early 2
+R8V heldout-ja UTT 18 A_segments 1 [296.68-304.79] finals_early 2
+R8V heldout-ja UTT 20 A_segments 3 [328.93-331.44 332.01-333.17 334.02-337.08] finals_early 3
+R8V heldout-ja UTT 22 A_segments 2 [354.25-357.49 357.83-361.24] finals_early 2
+R8V heldout-ja UTT 26 A_segments 2 [420.97-427.76 428.20-430.90] finals_early 2
+R8V heldout-ja UTT 27 A_segments 1 [436.97-449.21] finals_early 3
+R8V heldout-ja UTT 30 A_segments 2 [492.77-498.45 498.92-503.00] finals_early 2
+R8V heldout-ja UTT 35 A_segments 2 [572.36-576.66 577.06-582.84] finals_early 2
+R8V heldout-ja UTT 40 A_segments 1 [642.02-653.52] finals_early 2
+R8V heldout-ja UTT 41 A_segments 2 [658.53-664.79 665.25-669.01] finals_early 2
+R8V heldout-ja UTT 48 A_segments 1 [759.69-768.60] finals_early 2
+R8V heldout-ja UTT 57 A_segments 2 [891.91-894.96 895.24-898.80] finals_early 2
+R8V heldout-ja UTT 70 A_segments 2 [1072.10-1077.91 1078.34-1080.53] finals_early 2
+R8V heldout-ja UTT 74 A_segments 2 [1136.55-1149.37 1149.48-1150.84] finals_early 2
+R8V heldout-ja UTT 77 A_segments 2 [1195.43-1200.02 1200.61-1205.75] finals_early 2
+R8V heldout-ja UTT 79 A_segments 1 [1225.93-1237.08] finals_early 2
+R8V heldout-ja CAND A_seg_at 107104 continues false text "削減は中国の経済産出量に基づいて実施されるだろうと述べました。"
+R8V heldout-ja CAND A_seg_at 303200 continues false text "合金とは基本的には二種類以上の金属の混合物です。"
+R8V heldout-ja CAND A_seg_at 389728 continues false text "周期表に載っているたくさんの元素を思い出して下さい。"
+R8V heldout-ja CAND A_seg_at 560224 continues false text "合金とは基本的には二種類以上の金属の混合物です。周期表に載っているたくさんの元素を思い出してください。"
+R8V heldout-ja CAND A_seg_at 777824 continues false text "乾いた粉を二つ合わせてくるくるとこね回し清潔な塗り立てでぎゅっと握ります。"
+R8V heldout-ja CAND A_seg_at 960096 continues false text "乾いた粉を二つ合わせてくるくるとこね回し清潔なぬるたてでぎゅっと握ります。"
+R8V heldout-ja CAND A_seg_at 1756768 continues false text "自国以外の政府からの助言を参考にしても構いませんが、そのような助言はその国の国民向けのものです。"
+R8V heldout-ja CAND A_seg_at 2196576 continues false text "一般的に言えば管理職がかつての仲間を率いることになった場合二通りの行動が現れる可能性があります。"
+R8V heldout-ja CAND A_seg_at 2318432 continues false text "はい。一つは仲間の一人のままでいようとする行動です。"
+R8V heldout-ja CAND A_seg_at 2476128 continues true text "ワイルドカードを購入するとお得な場合があります。"
+R8V heldout-ja CAND A_seg_at 2476128 continues false text "南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。"
+R8V heldout-ja CAND A_seg_at 3230816 continues false text "州フラッグスタッフにあるノーザンアリゾーナ大学のグレン・プッシング氏は述べています。"
+R8V heldout-ja CAND A_seg_at 3533920 continues false text "アトロイドポールドに十人の捜査員を投入しなければならないと否定しました。"
+R8V heldout-ja CAND A_seg_at 3736160 continues false text "連邦議会は2005年度からわいせつ物取締法への資金提供を開始し。FBIはアダルトフォルニー十人の捜査員を投入しなければならないと否定しました。"
+R8V heldout-ja CAND A_seg_at 4069472 continues false text "被害物取締法への資金提供を開始し。FBIやアダルトポルノに十人の捜査員を投入しなければならないと規定しました。"
+R8V heldout-ja CAND A_seg_at 4290656 continues true text "生地の温度が上がりすぎないように気を付けてください。"
+R8V heldout-ja CAND A_seg_at 4290656 continues false text "縮みの原因になったり極端な場合は焦げつけの原因になります。"
+R8V heldout-ja CAND A_seg_at 4508256 continues true text "生地の温度が上がりすぎないように気を付けてください。"
+R8V heldout-ja CAND A_seg_at 4508256 continues false text "三の場合は個別菌の原因になります。"
+R8V heldout-ja CAND A_seg_at 4746848 continues true text "生地の温度が上がり過ぎないように気を付けてください。"
+R8V heldout-ja CAND A_seg_at 4746848 continues false text "縮みの原因になったり極端な場合は焦げ付きの原因になります。"
+R8V heldout-ja CAND A_seg_at 5039712 continues false text "全ての名詞はあなたを指す単語Cと同様に、文の途中であっても常に大文字で始まります。"
+R8V heldout-ja CAND A_seg_at 5344352 continues false text "分の途中であっても常に大文字で始まります。"
+R8V heldout-ja CAND A_seg_at 5472352 continues false text "南アフリカにいる全ての国立公園と同様にこの公園には毎日保護費と入園料がかかります。"
+R8V heldout-ja CAND A_seg_at 5725280 continues false text "この公園には毎日保護費と入園料が配られる。"
+R8V heldout-ja CAND A_seg_at 5855840 continues false text "南アフリカにあるすべての国立公園と同様にこの公園には毎日保護費と入園料がかかります。"
+R8V heldout-ja CAND A_seg_at 6046816 continues false text "実に均整の取れた体で運動能力の高いトラはうまくはないものの登ったり泳いだり長い距離を飛んだり、たくましい人間の五倍の力で引っ張ったりできます。"
+R8V heldout-ja CAND A_seg_at 6851168 continues false text "あ。たくましい人間の五倍の支払い。引っ張ったら入ってきます。"
+R8V heldout-ja CAND A_seg_at 6991456 continues true text "しかしそれだけではありません。"
+R8V heldout-ja CAND A_seg_at 6991456 continues true text "はい。"
+R8V heldout-ja CAND A_seg_at 7280736 continues false text "ここには当時を生き延びた多くの男女がおり。ユダヤ人かどうかを問わずそこで大切な人が殺害されたり。強制労働させられたりした人たちも大勢います。"
+R8V heldout-ja CAND A_seg_at 7982688 continues false text "はい。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja CAND A_seg_at 8158816 continues false text "例えば世界で最も普及している静止画写真のフィルム形式は35ミリ。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja CAND A_seg_at 8387680 continues false text "例えば世界で最も普及している静止画写真のフィルム形式は35ミリ。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja CAND A_seg_at 8658016 continues false text "その結果組織が協力して障害を克服するプロセスは、顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja CAND A_seg_at 8911968 continues false text "その結果組織が協力して生涯孅するプロセスは、顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja CAND A_seg_at 9232992 continues false text "はい。顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja CAND A_seg_at 9427552 continues false text "炭焼きと組み会は世代ごとに二つのプールの間を行き来しながら、変異をシャッフルします。"
+R8V heldout-ja CAND A_seg_at 9788512 continues false text "従来より海軍の仕事は自国民や物資を輸送する能力を維持すると同時に、敵国民や物資を輸送する能力を確実に妨害することでした。"
+R8V heldout-ja CAND A_seg_at 10021984 continues false text "従来より海軍の仕事は自国民や物資を輸送する能力を維持すると同時に。国民や物資を輸送する能力を確実に妨害することでした。"
+R8V heldout-ja CAND A_seg_at 10272352 continues true text "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。"
+R8V heldout-ja CAND A_seg_at 10272352 continues false text "そしてスポーツに資する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja CAND A_seg_at 10644064 continues false text "二。死する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja CAND A_seg_at 10797152 continues false text "私たちは資格を剥奪するよりも、組織内で意味のある変革を進めた方が、選手やクラブそしてスポーツに資する可能性があるというUSO氏の声明に同意しています。"
+R8V heldout-ja CAND A_seg_at 11071072 continues false text "一部の路線では大企業は自社機を持っているがそれ以外の路線や小規模企業では問題があった。"
+R8V heldout-ja CAND A_seg_at 11286112 continues false text "一部の路線では大企業は自社機を持っているがそれ以外の路線や小規模企業では問題があった。"
+R8V heldout-ja CAND A_seg_at 11496544 continues false text "日本の原子力庁によれば原発内で放射性エセシウムとヨウ素が特定されています。"
+R8V heldout-ja CAND A_seg_at 11675232 continues false text "日本の原子力省によれば原発内で放射性シシウムという素が特定されています。"
+R8V heldout-ja CAND A_seg_at 12154976 continues true text "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。"
+R8V heldout-ja CAND A_seg_at 12154976 continues false text "36RUNしかできませんでした。"
+R8V heldout-ja CAND A_seg_at 12377696 continues false text "しかしキャプテンのビケットを失ったあと、インドは七つのビケットを失い36ランしかできませんでした。"
+R8V heldout-ja CAND A_seg_at 12892768 continues false text "子供たちが里親制度に預けられる理由は育児放棄から虐待さらには恐喝に至るまでさまざまです。"
+R8V heldout-ja CAND A_seg_at 13127776 continues false text "得意なそばにはオリーブオイルを塗ったパンに、トマトとチーズチューナーなどの調味料を加えたぽんぼりというシンプルな料理が人気です。"
+R8V heldout-ja CAND A_seg_at 13349472 continues false text "特に夏場にはオリーブオイルを塗ったパンにトマトとチーズチューナーなどの調味料を加えたパンボリというシンプルな料理が人気です。"
+R8V heldout-ja CAND A_seg_at 13559904 continues false text "その大学の研究者たちによればこの二つの化合物は。互いに反応して腎臓の機能を阻害しうる結晶を形成します。"
+R8V heldout-ja CAND A_seg_at 13780064 continues false text "その大学の研究者たちによれば。この二つの化合物は互いに反応して。腸の機能を阻害しうる結晶を形成します。"
+R8V heldout-ja CAND A_seg_at 14045280 continues false text "痛みを抑えるのに必要な薬がその大会で禁止されているため彼は服用できませんでした。"
+R8V heldout-ja CAND A_seg_at 14270560 continues false text "宇宙に存在するあらゆるものは物質で出来ています。"
+R8V heldout-ja CAND A_seg_at 14323808 continues false text "あらゆる物質は原子と呼ばれる微小な粒子でできています。"
+R8V heldout-ja CAND A_seg_at 14475872 continues false text "ある観察者がビシュケー。不状態に陥っていると表現したように。ギャングたちが。街路を徘徊し日用品店を略奪しました。"
+R8V heldout-ja CAND A_seg_at 14746720 continues false text "ある観察者がビシュケ工無政府状態に陥っていると表現したようにギャングたちが怒り。街路を徊し日用品店をリブラスしました。"
+R8V heldout-ja CAND A_seg_at 15026784 continues false text "海の下は薄く。高知の舌は厚くなっています。"
+R8V heldout-ja CAND A_seg_at 15339104 continues false text "海の下は薄く高知の下は厚くなっています。"
+R8V heldout-ja CAND A_seg_at 15512160 continues false text "ヤギの家畜化約一年前に始めた。その中心は。イランのザグロス山脈西部であったとされています。"
+R8V heldout-ja CAND A_seg_at 15948384 continues false text "砂漠の砂による脅威から保護するため1990年には船舟。危険な世界遺産のリストに追加されました。"
+R8V heldout-ja CAND A_seg_at 16170080 continues false text "砂漠の砂による脅威から保護するため1990年には危険な世界遺産のリストに追加されました。"
+R8V heldout-ja CAND A_seg_at 16378976 continues false text "ここは南アフリカの主な観光地の一つであり南アフリカ国立公園。SNSパークスの目玉とされています。"
+R8V heldout-ja CAND A_seg_at 16921696 continues false text "本報告書はイラクに対する行政府の現在の政策のほぼすべての側面を強く批判し立論情MP。即時の方向転換を促すものです。"
+R8V heldout-ja CAND A_seg_at 17253472 continues false text "即時の方向転換を促すものです。"
+R8V heldout-ja CAND A_seg_at 17379936 continues false text "これらの理論ではある種の人々が日常的に特定のことをしたがる動機についてそして彼らに特定のことをさせるあるいはさせない環境用意について考察します。"
+R8V heldout-ja CAND A_seg_at 17642080 continues false text "これらの理論ではある種の人々が日常的に特定のことをしたがる病気についてそして彼らに特定のことをさせるあるいはさせない環境要因について考察します。"
+R8V heldout-ja CAND A_seg_at 17921120 continues false text "これらの理論ではある種の人々が日常的に特定のことをしたがる動機について、そして彼らに特定なことをさせるあるいはさせない環境要因について考察します。"
+R8V heldout-ja CAND A_seg_at 18391648 continues false text "カジカが生息しています。"
+R8V heldout-ja CAND A_seg_at 18500704 continues false text "1966年からスンダルヴァンスは野生動物王国となり現在では推定で400頭のロイヤルベングラドルと約3万頭のアカシスジカが生息しています。"
+R8V heldout-ja CAND A_seg_at 19209824 continues false text "北キブ州で続く戦闘の状況を調査して理解する必要があります。"
+R8V heldout-ja CAND A_seg_at 19404384 continues false text "護摩はかなり安全ですが護摩以外の場所を訪れる場合は、キタキブ州で続く戦闘の状況を調査して理解する必要があります。"
+R8V heldout-ja CAND A_seg_at 19614816 continues true text "衛星はロケットで宇宙に送られました。"
+R8V heldout-ja CAND A_seg_at 19614816 continues false text "宇宙で貿易を使う理由は地球の大気によって人間の視界に入る光や景色の一部がゆがむからです。"
+R8V heldout-ja CAND A_seg_at 19969120 continues false text "地球の大気によって人間の視界に入る光や。景色の一部がゆがむからです。"
+R8V heldout-ja KINDS splits 9 boundary 4 tail 0 mid 5 (mid per split 5/9, mid per utterance 5/81)
+R8V heldout-ja KINDS_AGREE by reference vs by A: agree 3 differ 6 of 9
+R8V heldout-ja SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "ワイルドカードを購入するとお得な場合があります。" next "南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。" reference Some("ワイルドカードを購入するとお得な場合があります。南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。") a_final "ワイルドカードを購入するとお得な場合があります。南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。"
+R8V heldout-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がりすぎないように気を付けてください。" next "縮みの原因になったり極端な場合は焦げつけの原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がりすぎないように気を付けてください。縮みの原因になったり。極端な場合は焦げ付けの原因になります。"
+R8V heldout-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がりすぎないように気を付けてください。" next "三の場合は個別菌の原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がりすぎないように気を付けてください。極端な場合は個別筋の原因になります。"
+R8V heldout-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がり過ぎないように気を付けてください。" next "縮みの原因になったり極端な場合は焦げ付きの原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がり過ぎないように気を付けてください。縮みの原因になったり極端な場合は焦げ付きの原因になります。"
+R8V heldout-ja SPLIT kind Boundary by_reference Some(Boundary) by_A Tail prefix "しかしそれだけではありません。" next "はい。" reference Some("しかし、それだけではありません。実験とは、可能性のある仮説の1つ以上を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。") a_final "しかしそれだけではありません。仮説の一つ以上を排除するために使用される試験のことで質問をしたり観察をしたりすることも。科学研究の指針となります。"
+R8V heldout-ja SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "しかしそれだけではありません。はい。" next "質を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。" reference Some("しかし、それだけではありません。実験とは、可能性のある仮説の1つ以上を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。") a_final "しかしそれだけではありません。仮説の一つ以上を排除するために使用される試験のことで質問をしたり観察をしたりすることも。科学研究の指針となります。"
+R8V heldout-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。" next "そしてスポーツに資する可能性があるというUSOCの声明に同意しています。" reference Some("私たちは、資格を剥奪するよりも、組織内で意味のある変革を進めた方が選手やクラブ、そしてスポーツに資する可能性があるというUSOCの声明に同意しています。") a_final "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。そしてスポーツに資する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。" next "36RUNしかできませんでした。" reference Some("しかし、キャプテンのウィケットを失った後、インドは7つのウィケットを失い、36ランしかできませんでした。") a_final "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。36蘭しかできませんでした。"
+R8V heldout-ja SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "衛星はロケットで宇宙に送られました。" next "宇宙で貿易を使う理由は地球の大気によって人間の視界に入る光や景色の一部がゆがむからです。" reference Some("衛星はロケットで宇宙に送られました。科学者が宇宙で望遠鏡を使う理由は、地球の大気によって人間の視界に入る光や景色の一部が歪むからです。") a_final "衛星はロケットで宇宙に送られました。化学者が宇宙で貿易を使う理由は地球の大気によって。視界に生える光や景色の一部がゆがむからです。"
+R8V heldout-ja LIMITS mid 5 of 81 utterances (6.2 %, limit 10 %): true; sortings differ 6 of 9 (limit 5 %, 0 under 20 splits): false
+R8V heldout-ja PASS_LINE false (A_only 18, B_only 9); vad p95 limit 2000 us: true
+R8V heldout-ja JA_LIMIT_MS 960 (stop when >= 1341)
+R8V heldout-ja-shadow lang ja utterances 81 without_A_segment 8 A_segments 91 candidates 151 candidates_voice_continues 67 complete 90 complete_voice_continues 19
+R8V heldout-ja-shadow splits A_only 18 B_only 19 total_with_B 37
+R8V heldout-ja-shadow delay_ms first complete or A (n 73) p50 208 p95 1340
+R8V heldout-ja-shadow delay_ms last final (n 73) p50 428 p95 1340
+R8V heldout-ja-shadow delay_ms A alone (n 73) p50 532 p95 1724
+R8V heldout-ja-shadow vad_ms_per_window A alone: windows 39221 p50 0.182 p95 0.299
+R8V heldout-ja-shadow vad_ms_per_window A plus B: windows 39221 p50 0.359 p95 0.581
+R8V heldout-ja-shadow UTT 0 A_segments 2 [2.76-6.10 6.69-12.15] finals_early 2
+R8V heldout-ja-shadow UTT 1 A_segments 2 [18.95-23.57 24.36-27.99] finals_early 3
+R8V heldout-ja-shadow UTT 9 A_segments 2 [137.29-144.53 144.90-147.92] finals_early 2
+R8V heldout-ja-shadow UTT 10 A_segments 1 [154.76-164.02] finals_early 2
+R8V heldout-ja-shadow UTT 12 A_segments 3 [185.67-186.80 187.17-201.85 201.93-207.41] finals_early 3
+R8V heldout-ja-shadow UTT 13 A_segments 2 [213.73-220.34 220.87-225.43] finals_early 2
+R8V heldout-ja-shadow UTT 15 A_segments 2 [250.63-253.17 254.34-263.67] finals_early 3
+R8V heldout-ja-shadow UTT 16 A_segments 1 [268.17-276.12] finals_early 2
+R8V heldout-ja-shadow UTT 17 A_segments 1 [281.77-289.14] finals_early 2
+R8V heldout-ja-shadow UTT 18 A_segments 1 [296.68-304.79] finals_early 2
+R8V heldout-ja-shadow UTT 20 A_segments 3 [328.93-331.44 332.01-333.17 334.02-337.08] finals_early 3
+R8V heldout-ja-shadow UTT 21 A_segments 1 [342.02-349.04] finals_early 2
+R8V heldout-ja-shadow UTT 22 A_segments 2 [354.25-357.49 357.83-361.24] finals_early 2
+R8V heldout-ja-shadow UTT 26 A_segments 2 [420.97-427.76 428.20-430.90] finals_early 2
+R8V heldout-ja-shadow UTT 27 A_segments 1 [436.97-449.21] finals_early 3
+R8V heldout-ja-shadow UTT 29 A_segments 1 [470.95-483.36] finals_early 2
+R8V heldout-ja-shadow UTT 30 A_segments 2 [492.77-498.45 498.92-503.00] finals_early 2
+R8V heldout-ja-shadow UTT 31 A_segments 1 [509.93-519.38] finals_early 2
+R8V heldout-ja-shadow UTT 35 A_segments 2 [572.36-576.66 577.06-582.84] finals_early 2
+R8V heldout-ja-shadow UTT 40 A_segments 1 [642.02-653.52] finals_early 2
+R8V heldout-ja-shadow UTT 41 A_segments 2 [658.53-664.79 665.25-669.01] finals_early 2
+R8V heldout-ja-shadow UTT 45 A_segments 1 [718.53-724.47] finals_early 2
+R8V heldout-ja-shadow UTT 48 A_segments 1 [759.69-768.60] finals_early 2
+R8V heldout-ja-shadow UTT 57 A_segments 2 [891.91-894.96 895.24-898.80] finals_early 2
+R8V heldout-ja-shadow UTT 59 A_segments 1 [921.67-931.76] finals_early 3
+R8V heldout-ja-shadow UTT 67 A_segments 1 [1023.69-1031.89] finals_early 2
+R8V heldout-ja-shadow UTT 70 A_segments 2 [1072.10-1077.91 1078.34-1080.53] finals_early 2
+R8V heldout-ja-shadow UTT 71 A_segments 1 [1086.25-1097.88] finals_early 2
+R8V heldout-ja-shadow UTT 74 A_segments 2 [1136.55-1149.37 1149.48-1150.84] finals_early 2
+R8V heldout-ja-shadow UTT 77 A_segments 2 [1195.43-1200.02 1200.61-1205.75] finals_early 2
+R8V heldout-ja-shadow UTT 79 A_segments 1 [1225.93-1237.08] finals_early 2
+R8V heldout-ja-shadow CAND A_seg_at 107104 continues false text "削減は中国の経済産出量に基づいて実施されるだろうと述べました。"
+R8V heldout-ja-shadow CAND A_seg_at 303200 continues true text "合金とは金。"
+R8V heldout-ja-shadow CAND A_seg_at 303200 continues false text "基本的には二種類以上の金属の混合物です。"
+R8V heldout-ja-shadow CAND A_seg_at 389728 continues false text "周期表に載っているたくさんの元素を思い出して下さい。"
+R8V heldout-ja-shadow CAND A_seg_at 560224 continues false text "合金とは基本的には二種類以上の金属の混合物です。周期表に載っているたくさんの元素を思い出してください。"
+R8V heldout-ja-shadow CAND A_seg_at 777824 continues false text "乾いた粉を二つ合わせてくるくるとこね回し清潔な塗り立てでぎゅっと握ります。"
+R8V heldout-ja-shadow CAND A_seg_at 960096 continues false text "乾いた粉を二つ合わせてくるくるとこね回し清潔なぬるたてでぎゅっと握ります。"
+R8V heldout-ja-shadow CAND A_seg_at 1756768 continues false text "自国以外の政府からの助言を参考にしても構いませんが、そのような助言はその国の国民向けのものです。"
+R8V heldout-ja-shadow CAND A_seg_at 2196576 continues false text "一般的に言えば管理職がかつての仲間を率いることになった場合二通りの行動が現れる可能性があります。"
+R8V heldout-ja-shadow CAND A_seg_at 2318432 continues false text "はい。一つは仲間の一人のままでいようとする行動です。"
+R8V heldout-ja-shadow CAND A_seg_at 2476128 continues true text "ワイルドカードを購入するとお得な場合があります。"
+R8V heldout-ja-shadow CAND A_seg_at 2476128 continues false text "南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。"
+R8V heldout-ja-shadow CAND A_seg_at 3230816 continues false text "州フラッグスタッフにあるノーザンアリゾーナ大学のグレン・プッシング氏は述べています。"
+R8V heldout-ja-shadow CAND A_seg_at 3533920 continues false text "アトロイドポールドに十人の捜査員を投入しなければならないと否定しました。"
+R8V heldout-ja-shadow CAND A_seg_at 3736160 continues false text "連邦議会は2005年度からわいせつ物取締法への資金提供を開始し。FBIはアダルトフォルニー十人の捜査員を投入しなければならないと否定しました。"
+R8V heldout-ja-shadow CAND A_seg_at 4069472 continues true text "被害物取締法への資金提供を開始し。FBIAR。"
+R8V heldout-ja-shadow CAND A_seg_at 4069472 continues false text "ポルノに十人の捜査員を投入しなければならないと規定しました。"
+R8V heldout-ja-shadow CAND A_seg_at 4290656 continues true text "生地の温度が上がりすぎないように気を付けてください。"
+R8V heldout-ja-shadow CAND A_seg_at 4290656 continues false text "縮みの原因になったり極端な場合は焦げつけの原因になります。"
+R8V heldout-ja-shadow CAND A_seg_at 4508256 continues true text "生地の温度が上がりすぎないように気を付けてください。"
+R8V heldout-ja-shadow CAND A_seg_at 4508256 continues false text "三の場合は個別菌の原因になります。"
+R8V heldout-ja-shadow CAND A_seg_at 4746848 continues true text "生地の温度が上がり過ぎないように気を付けてください。"
+R8V heldout-ja-shadow CAND A_seg_at 4746848 continues false text "縮みの原因になったり極端な場合は焦げ付きの原因になります。"
+R8V heldout-ja-shadow CAND A_seg_at 5039712 continues false text "全ての名詞はあなたを指す単語Cと同様に、文の途中であっても常に大文字で始まります。"
+R8V heldout-ja-shadow CAND A_seg_at 5262944 continues false text "全ての名刺はあなたを指す単語。"
+R8V heldout-ja-shadow CAND A_seg_at 5344352 continues false text "分の途中であっても常に大文字で始まります。"
+R8V heldout-ja-shadow CAND A_seg_at 5472352 continues true text "南アフリカにいるすべての国立公園と同様にこの数。"
+R8V heldout-ja-shadow CAND A_seg_at 5472352 continues false text "公園には毎日保護費と入園料がかかります。"
+R8V heldout-ja-shadow CAND A_seg_at 5725280 continues false text "この公園には毎日保護費と入園料が配られる。"
+R8V heldout-ja-shadow CAND A_seg_at 5855840 continues false text "南アフリカにあるすべての国立公園と同様にこの公園には毎日保護費と入園料がかかります。"
+R8V heldout-ja-shadow CAND A_seg_at 6046816 continues false text "実に均整の取れた体で運動能力の高いトラはうまくはないものの登ったり泳いだり長い距離を飛んだり、たくましい人間の五倍の力で引っ張ったりできます。"
+R8V heldout-ja-shadow CAND A_seg_at 6851168 continues false text "あ。たくましい人間の五倍の支払い。引っ張ったら入ってきます。"
+R8V heldout-ja-shadow CAND A_seg_at 6991456 continues true text "しかしそれだけではありません。"
+R8V heldout-ja-shadow CAND A_seg_at 6991456 continues true text "はい。"
+R8V heldout-ja-shadow CAND A_seg_at 7280736 continues false text "ここには当時を生き延びた多くの男女がおり。ユダヤ人かどうかを問わずそこで大切な人が殺害されたり。強制労働させられたりした人たちも大勢います。"
+R8V heldout-ja-shadow CAND A_seg_at 7535200 continues true text "ここには当時を生き延びた恩薦。"
+R8V heldout-ja-shadow CAND A_seg_at 7982688 continues false text "はい。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja-shadow CAND A_seg_at 8158816 continues true text "例えば世界で最も不可欠。"
+R8V heldout-ja-shadow CAND A_seg_at 8158816 continues false text "静止画写真のフィルム形式は35ミリでこれはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja-shadow CAND A_seg_at 8387680 continues false text "例えば世界で最も普及している静止画写真のフィルム形式は35ミリ。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja-shadow CAND A_seg_at 8658016 continues false text "その結果組織が協力して障害を克服するプロセスは、顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja-shadow CAND A_seg_at 8911968 continues false text "その結果組織が協力して生涯孅するプロセスは、顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja-shadow CAND A_seg_at 9232992 continues false text "はい。顧客のニーズに応えるための新しい革新的なプロセスにつながる可能性があります。"
+R8V heldout-ja-shadow CAND A_seg_at 9427552 continues false text "炭焼きと組み会は世代ごとに二つのプールの間を行き来しながら、変異をシャッフルします。"
+R8V heldout-ja-shadow CAND A_seg_at 9788512 continues false text "従来より海軍の仕事は自国民や物資を輸送する能力を維持すると同時に、敵国民や物資を輸送する能力を確実に妨害することでした。"
+R8V heldout-ja-shadow CAND A_seg_at 10021984 continues false text "従来より海軍の仕事は自国民や物資を輸送する能力を維持すると同時に。国民や物資を輸送する能力を確実に妨害することでした。"
+R8V heldout-ja-shadow CAND A_seg_at 10272352 continues true text "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。"
+R8V heldout-ja-shadow CAND A_seg_at 10272352 continues false text "そしてスポーツに資する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja-shadow CAND A_seg_at 10644064 continues false text "二。死する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja-shadow CAND A_seg_at 10797152 continues false text "私たちは資格を剥奪するよりも、組織内で意味のある変革を進めた方が、選手やクラブそしてスポーツに資する可能性があるというUSO氏の声明に同意しています。"
+R8V heldout-ja-shadow CAND A_seg_at 11071072 continues false text "一部の路線では大企業は自社機を持っているがそれ以外の路線や小規模企業では問題があった。"
+R8V heldout-ja-shadow CAND A_seg_at 11286112 continues false text "一部の路線では大企業は自社機を持っているがそれ以外の路線や小規模企業では問題があった。"
+R8V heldout-ja-shadow CAND A_seg_at 11496544 continues true text "日本の原子力庁によれば日本。"
+R8V heldout-ja-shadow CAND A_seg_at 11496544 continues false text "内で放射性セシウムとヨウ素が特定されています。"
+R8V heldout-ja-shadow CAND A_seg_at 11675232 continues false text "日本の原子力省によれば原発内で放射性シシウムという素が特定されています。"
+R8V heldout-ja-shadow CAND A_seg_at 12154976 continues true text "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。"
+R8V heldout-ja-shadow CAND A_seg_at 12154976 continues false text "36RUNしかできませんでした。"
+R8V heldout-ja-shadow CAND A_seg_at 12377696 continues false text "しかしキャプテンのビケットを失ったあと、インドは七つのビケットを失い36ランしかできませんでした。"
+R8V heldout-ja-shadow CAND A_seg_at 12892768 continues false text "子供たちが里親制度に預けられる理由は育児放棄から虐待さらには恐喝に至るまでさまざまです。"
+R8V heldout-ja-shadow CAND A_seg_at 13127776 continues false text "得意なそばにはオリーブオイルを塗ったパンに、トマトとチーズチューナーなどの調味料を加えたぽんぼりというシンプルな料理が人気です。"
+R8V heldout-ja-shadow CAND A_seg_at 13349472 continues false text "特に夏場にはオリーブオイルを塗ったパンにトマトとチーズチューナーなどの調味料を加えたパンボリというシンプルな料理が人気です。"
+R8V heldout-ja-shadow CAND A_seg_at 13559904 continues false text "その大学の研究者たちによればこの二つの化合物は。互いに反応して腎臓の機能を阻害しうる結晶を形成します。"
+R8V heldout-ja-shadow CAND A_seg_at 13780064 continues false text "その大学の研究者たちによれば。この二つの化合物は互いに反応して。腸の機能を阻害しうる結晶を形成します。"
+R8V heldout-ja-shadow CAND A_seg_at 14045280 continues false text "痛みを抑えるのに必要な薬がその大会で禁止されているため彼は服用できませんでした。"
+R8V heldout-ja-shadow CAND A_seg_at 14270560 continues false text "宇宙に存在するあらゆるものは物質で出来ています。"
+R8V heldout-ja-shadow CAND A_seg_at 14323808 continues false text "あらゆる物質は原子と呼ばれる微小な粒子でできています。"
+R8V heldout-ja-shadow CAND A_seg_at 14475872 continues false text "ある観察者がビシュケー。不状態に陥っていると表現したように。ギャングたちが。街路を徘徊し日用品店を略奪しました。"
+R8V heldout-ja-shadow CAND A_seg_at 14746720 continues true text "OTHERCONSENTSCHAGE。"
+R8V heldout-ja-shadow CAND A_seg_at 14746720 continues true text "無政府状態に陥っていると表現したよ。I'DOHIKEISHIP。"
+R8V heldout-ja-shadow CAND A_seg_at 14746720 continues false text "品店をディグラスしました。"
+R8V heldout-ja-shadow CAND A_seg_at 15026784 continues false text "海の下は薄く。高知の舌は厚くなっています。"
+R8V heldout-ja-shadow CAND A_seg_at 15339104 continues false text "海の下は薄く高知の下は厚くなっています。"
+R8V heldout-ja-shadow CAND A_seg_at 15512160 continues false text "ヤギの家畜化約一年前に始めた。その中心は。イランのザグロス山脈西部であったとされています。"
+R8V heldout-ja-shadow CAND A_seg_at 15948384 continues false text "砂漠の砂による脅威から保護するため1990年には船舟。危険な世界遺産のリストに追加されました。"
+R8V heldout-ja-shadow CAND A_seg_at 16170080 continues false text "砂漠の砂による脅威から保護するため1990年には危険な世界遺産のリストに追加されました。"
+R8V heldout-ja-shadow CAND A_seg_at 16378976 continues true text "ここは南アフリカの主な観光地の一つであり南アフリカ国立公園。"
+R8V heldout-ja-shadow CAND A_seg_at 16378976 continues false text "SNSパークスの目玉とされています。"
+R8V heldout-ja-shadow CAND A_seg_at 16921696 continues false text "本報告書はイラクに対する行政府の現在の政策のほぼすべての側面を強く批判し立論情MP。即時の方向転換を促すものです。"
+R8V heldout-ja-shadow CAND A_seg_at 17253472 continues false text "即時の方向転換を促すものです。"
+R8V heldout-ja-shadow CAND A_seg_at 17379936 continues true text "これらの理論ではある種の人々が日常的に特定のことをしたがる動機について。総理。"
+R8V heldout-ja-shadow CAND A_seg_at 17379936 continues false text "あるいはさせない。環境用意について考察します。"
+R8V heldout-ja-shadow CAND A_seg_at 17642080 continues false text "これらの理論ではある種の人々が日常的に特定のことをしたがる病気についてそして彼らに特定のことをさせるあるいはさせない環境要因について考察します。"
+R8V heldout-ja-shadow CAND A_seg_at 17921120 continues false text "これらの理論ではある種の人々が日常的に特定のことをしたがる動機について、そして彼らに特定なことをさせるあるいはさせない環境要因について考察します。"
+R8V heldout-ja-shadow CAND A_seg_at 18391648 continues false text "カジカが生息しています。"
+R8V heldout-ja-shadow CAND A_seg_at 18500704 continues false text "1966年からスンダルヴァンスは野生動物王国となり現在では推定で400頭のロイヤルベングラドルと約3万頭のアカシスジカが生息しています。"
+R8V heldout-ja-shadow CAND A_seg_at 19209824 continues false text "北キブ州で続く戦闘の状況を調査して理解する必要があります。"
+R8V heldout-ja-shadow CAND A_seg_at 19404384 continues false text "護摩はかなり安全ですが護摩以外の場所を訪れる場合は、キタキブ州で続く戦闘の状況を調査して理解する必要があります。"
+R8V heldout-ja-shadow CAND A_seg_at 19614816 continues true text "衛星はロケットで宇宙に送られました。"
+R8V heldout-ja-shadow CAND A_seg_at 19614816 continues false text "宇宙で貿易を使う理由は地球の大気によって人間の視界に入る光や景色の一部がゆがむからです。"
+R8V heldout-ja-shadow CAND A_seg_at 19969120 continues false text "地球の大気によって人間の視界に入る光や。景色の一部がゆがむからです。"
+R8V heldout-ja-shadow KINDS splits 19 boundary 4 tail 0 mid 15 (mid per split 15/19, mid per utterance 15/81)
+R8V heldout-ja-shadow KINDS_AGREE by reference vs by A: agree 12 differ 7 of 19
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "合金とは金。" next "基本的には二種類以上の金属の混合物です。" reference Some("合金とは、基本的には2種類以上の金属の混合物です。周期表に載っているたくさんの元素を思い出してください。") a_final "合金とは基本的には二種類以上の金属の混合物です。"
+R8V heldout-ja-shadow SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "ワイルドカードを購入するとお得な場合があります。" next "南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。" reference Some("ワイルドカードを購入するとお得な場合があります。南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。") a_final "ワイルドカードを購入するとお得な場合があります。南アフリカの主な公園または南アフリカのすべての国立公園に入場できます。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "被害物取締法への資金提供を開始し。FBIAR。" next "ポルノに十人の捜査員を投入しなければならないと規定しました。" reference Some("連邦議会は2005年度から猥褻物取締法への資金提供を開始し、FBIはアダルトポルノに10人の捜査員を投入しなければならないと規定しました。") a_final "被害物取締法への資金提供を開始し。FBIやアダルトポルノに十人の捜査員を投入しなければならないと規定しました。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がりすぎないように気を付けてください。" next "縮みの原因になったり極端な場合は焦げつけの原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がりすぎないように気を付けてください。縮みの原因になったり。極端な場合は焦げ付けの原因になります。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がりすぎないように気を付けてください。" next "三の場合は個別菌の原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がりすぎないように気を付けてください。極端な場合は個別筋の原因になります。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "生地の温度が上がり過ぎないように気を付けてください。" next "縮みの原因になったり極端な場合は焦げ付きの原因になります。" reference Some("生地の温度が上がりすぎないように気を付けてください（縮みの原因になったり、極端な場合は焦げ付きの原因になります）。") a_final "生地の温度が上がり過ぎないように気を付けてください。縮みの原因になったり極端な場合は焦げ付きの原因になります。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "南アフリカにいるすべての国立公園と同様にこの数。" next "公園には毎日保護費と入園料がかかります。" reference Some("南アフリカにあるすべての国立公園と同様に、この公園には毎日保護費と入園料がかかります。") a_final "南アフリカにいる全ての国立公園と同様にこの公園には毎日保護費と入園料がかかります。"
+R8V heldout-ja-shadow SPLIT kind Boundary by_reference Some(Boundary) by_A Tail prefix "しかしそれだけではありません。" next "はい。" reference Some("しかし、それだけではありません。実験とは、可能性のある仮説の1つ以上を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。") a_final "しかしそれだけではありません。仮説の一つ以上を排除するために使用される試験のことで質問をしたり観察をしたりすることも。科学研究の指針となります。"
+R8V heldout-ja-shadow SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "しかしそれだけではありません。はい。" next "質を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。" reference Some("しかし、それだけではありません。実験とは、可能性のある仮説の1つ以上を排除するために使用される試験のことで、質問をしたり観察をしたりすることも科学研究の指針となります。") a_final "しかしそれだけではありません。仮説の一つ以上を排除するために使用される試験のことで質問をしたり観察をしたりすることも。科学研究の指針となります。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "ここには当時を生き延びた恩薦。" next "多くの男女がおりユダヤ人かどうかを問わずそこで大切な人が殺害されたり。強制労働させられたりした人たちも大勢います。" reference Some("ここには当時を生き延びた多くの男女がおり、ユダヤ人かどうかを問わず、そこで大切な人が殺害されたり強制労働させられたりした人たちも大勢います。") a_final "ここには当時を生き延びた多くの男女がおり。ユダヤ人かどうかを問わずそこで大切な人が殺害されたり。強制労働させられたりした人たちも大勢います。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "例えば世界で最も不可欠。" next "静止画写真のフィルム形式は35ミリでこれはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。" reference Some("例えば、世界で最も普及している静止画写真のフィルム形式は35 mmで、これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。") a_final "例えば世界で最も普及している静止画写真のフィルム形式は35ミリ。これはアナログフィルム時代の終わり頃には主流のフィルムサイズでした。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。" next "そしてスポーツに資する可能性があるというUSOCの声明に同意しています。" reference Some("私たちは、資格を剥奪するよりも、組織内で意味のある変革を進めた方が選手やクラブ、そしてスポーツに資する可能性があるというUSOCの声明に同意しています。") a_final "私たちは視覚を剥奪するよりも組織内で意味のある変革を進めた方が選手やクラブが崩れる。そしてスポーツに資する可能性があるというUSOCの声明に同意しています。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "日本の原子力庁によれば日本。" next "内で放射性セシウムとヨウ素が特定されています。" reference Some("日本の原子力庁によれば、原発内で放射性セシウムとヨウ素が特定されています。") a_final "日本の原子力庁によれば原発内で放射性エセシウムとヨウ素が特定されています。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。" next "36RUNしかできませんでした。" reference Some("しかし、キャプテンのウィケットを失った後、インドは7つのウィケットを失い、36ランしかできませんでした。") a_final "しかしキャプテンのビケットを失ったあと。インドは七つのウィケットを失い。36蘭しかできませんでした。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "OTHERCONSENTSCHAGE。" next "無政府状態に陥っていると表現したよ。I'DOHIKEISHIP。" reference Some("ある観察者がビシュケクを「無政府状態」に陥っていると表現したように、ギャングたちが街路を徘徊し、日用品店を略奪しました。") a_final "ある観察者がビシュケ工無政府状態に陥っていると表現したようにギャングたちが怒り。街路を徘徊し日用品店をレグラスしました。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "OTHERCONSENTSCHAGE。無政府状態に陥っていると表現したよ。I'DOHIKEISHIP。" next "品店をディグラスしました。" reference Some("ある観察者がビシュケクを「無政府状態」に陥っていると表現したように、ギャングたちが街路を徘徊し、日用品店を略奪しました。") a_final "ある観察者がビシュケ工無政府状態に陥っていると表現したようにギャングたちが怒り。街路を徘徊し日用品店をレグラスしました。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "ここは南アフリカの主な観光地の一つであり南アフリカ国立公園。" next "SNSパークスの目玉とされています。" reference Some("ここは南アフリカの主な観光地の1つであり、南アフリカ国立公園（SAN Parks）の目玉とされています。") a_final "ここは南アフリカの主な観光地の一つであり南アフリカ国立公園。SNSパークスの目玉とされています。"
+R8V heldout-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "これらの理論ではある種の人々が日常的に特定のことをしたがる動機について。総理。" next "あるいはさせない。環境用意について考察します。" reference Some("これらの理論では、ある種の人々が日常的に特定のことをしたがる動機について、そして彼らに特定のことをさせる、あるいはさせない環境要因について考察します。") a_final "これらの理論ではある種の人々が日常的に特定のことをしたがる動機についてそして彼らに特定のことをさせるあるいはさせない環境用意について考察します。"
+R8V heldout-ja-shadow SPLIT kind Boundary by_reference Some(Boundary) by_A Boundary prefix "衛星はロケットで宇宙に送られました。" next "宇宙で貿易を使う理由は地球の大気によって人間の視界に入る光や景色の一部がゆがむからです。" reference Some("衛星はロケットで宇宙に送られました。科学者が宇宙で望遠鏡を使う理由は、地球の大気によって人間の視界に入る光や景色の一部が歪むからです。") a_final "衛星はロケットで宇宙に送られました。化学者が宇宙で貿易を使う理由は地球の大気によって。視界に生える光や景色の一部がゆがむからです。"
+R8V heldout-ja-shadow LIMITS mid 15 of 81 utterances (18.5 %, limit 10 %): false; sortings differ 7 of 19 (limit 5 %, 0 under 20 splits): false
+R8V heldout-ja-shadow PASS_LINE false (A_only 18, B_only 19); vad p95 limit 2000 us: true
+R8V heldout-ja-shadow JA_LIMIT_MS 960 (stop when >= 1341)
+R8V heldout-ja-shadow SHADOW_GATE complete_voice_continues live 9 shadow 19; splits_by_B_alone live 9 shadow 19; within the live figures: false
+R8V heldout-ja-shadow ADDED utterance 1 at_s 20.03 ms_before_utterance_end 8448 text "合金とは金。"
+R8V heldout-ja-shadow ADDED utterance 15 at_s 258.78 ms_before_utterance_end 3796 text "被害物取締法への資金提供を開始し。FBIAR。"
+R8V heldout-ja-shadow ADDED utterance 21 at_s 345.28 ms_before_utterance_end 2620 text "南アフリカにいるすべての国立公園と同様にこの数。"
+R8V heldout-ja-shadow ADDED utterance 29 at_s 473.02 ms_before_utterance_end 10236 text "ここには当時を生き延びた恩薦。"
+R8V heldout-ja-shadow ADDED utterance 31 at_s 511.33 ms_before_utterance_end 6872 text "例えば世界で最も不可欠。"
+R8V heldout-ja-shadow ADDED utterance 45 at_s 720.35 ms_before_utterance_end 3548 text "日本の原子力庁によれば日本。"
+R8V heldout-ja-shadow ADDED utterance 59 at_s 923.01 ms_before_utterance_end 8652 text "OTHERCONSENTSCHAGE。"
+R8V heldout-ja-shadow ADDED utterance 59 at_s 929.41 ms_before_utterance_end 2252 text "無政府状態に陥っていると表現したよ。I'DOHIKEISHIP。"
+R8V heldout-ja-shadow ADDED utterance 67 at_s 1028.58 ms_before_utterance_end 2504 text "ここは南アフリカの主な観光地の一つであり南アフリカ国立公園。"
+R8V heldout-ja-shadow ADDED utterance 71 at_s 1091.84 ms_before_utterance_end 4680 text "これらの理論ではある種の人々が日常的に特定のことをしたがる動機について。総理。"
+test r8v_heldout_ja_probe_shadow_rule ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 1976.27s
+
+exit=0

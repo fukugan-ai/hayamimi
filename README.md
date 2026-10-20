@@ -72,8 +72,17 @@ GitHub CI succeeded on both ubuntu and windows.
 The R13-17 acceptance test (checking that the validity line of each `final` follows the rule that ended it) is in. Only 2 tests in T are still marked as not implemented: T-RP-10-007 and T-RP-16-037.
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
+The clean-up tool can also remove a verify tree stacked on an earlier verify merge, when merging it into main leaves main's tree as it is and it has no ordinary commit that main lacks (`fix/tidy-tree-equal`).
 The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
-The offline gate of policy B (H100) failed. The rule of B is fixed and the gate is run again exactly once. The completion date (the night of 10-26 to the small hours of 10-27) assumes B passes, so it is issued again after B is settled.
+The offline gate of policy B (H100) failed. B is taken out of the set aimed at 1200 ms, and no further re-run is asked for. Without B, 1200 ms may not be reached (the council's estimate is a p95 of 1309 to 1473 ms). Next, the offline gate of C and D (R8x-5) is run against the current rule, to measure whether D helps the two slow utterances. The completion date (the night of 10-26 to the small hours of 10-27, 10-27 at the bad end) is kept as an upper bound and is issued again from the result of R8x-5.
+The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
+The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in, so R8x-5 can be issued.
+The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set aimed at 1200 ms), are in. They are not implemented yet.
+R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
+R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
+The not-implemented marks of the RP-83 to RP-87 tests moved from single rows to the header of each whole test (owners: R8x-1, R8x-3, R8x-4 and R8x-6).
+The acceptance test of RP-86 (R8x-6b: `rp86.rs`, T-RP-86-001 to 053) is added to the remaining work (L16b), which makes the remaining count 42.
+The T of R8x-6b now runs to T-RP-86-054, a row for the positive control (001 to 054).
 
 ### Related documents
 
@@ -382,6 +391,7 @@ What this measurement does not show:
 - The record does not say whether the E2E-2 capture came from the output device of a real Windows machine (NOT VERIFIED: check by running E2E-2 again on a real Windows machine).
 
 The per-run sample jsonl files and the conditions are in `docs/results/e2e/` (commit `9103c95`).
+A later E2E-2 record, `e1pre` (`docs/results/r8x/`), is a record only and does not decide RP-67, because the machine load around the run was above the RP-83 line of 2.50. The value of en comes from window E1, run again after R8x-1.
 
 ### Alternating Rust and Python measurement (RP-32, 2026-10-20)
 
