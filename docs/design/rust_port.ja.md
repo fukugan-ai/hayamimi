@@ -1717,9 +1717,11 @@ final ─▶ 中継 ─ 鍵（同じ、`。` を足した、数字と `。` `、
 
 #### 窓の訳の server（E1、E3'、E4）
 
-窓 E1、E3'、E4 の run は、訳を 8080 の llama-server に頼む。
-8080 が上がっていない時は、hayamimi 専用の user unit `hayamimi-llama-e2e.service`（18084。file は `native/hayamimi-relay/units/`）を起こし、中継に `--llm http://127.0.0.1:18084` を渡す。
-8080 の unit（`llama-artisan@.service`）は別の app と共有の template で、その app が起こし止める。
+窓 E1、E3'、E4 の run は、訳を hayamimi 専用の user unit `hayamimi-llama-e2e.service`（port 18084、file は `native/hayamimi-relay/units/`）の llama-server に頼む。
+8080 の有無にかかわらず、窓の席は常にこの unit を起こし、中継に `--llm http://127.0.0.1:18084` を渡す。
+8080 の unit（`llama-artisan@.service`）は別の app と共有の template で、instance 名が model の名になり、その app が好きな model を起こし止める。
+中継の既定の `--llm` が 8080 を指したままだと、窓の間に別の model が訳を返しうるので、`L` の物差しが変わる。
+専用の unit を常に使えば、窓の間で server が変わらず、`/props` の記録が窓どうしで揃う。
 この組は 8080 の unit を書き替えず、起こさない。
 unit の file は repo に置くだけで、`~/.config/systemd/user/` へ置いて起こすのは窓の席である。
 
@@ -1732,8 +1734,17 @@ unit の file は repo に置くだけで、`~/.config/systemd/user/` へ置い�
    1. `ss -ltn | grep -c ':18084\b'` が 0。
    2. `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits` の値に 3403 MiB（本体の file の大きさ）を足して 14,000 MiB 以下（RP-22 の上限）。
    3. 超える時は `hayamimi-llama-other.service`（18081）を窓の間だけ止め、`memory.used` を読み直す。止めても中継は止まらず、組の外の言語の行が `held` になるだけである（3.6）。それでも超える時は起こさず、読んだ値を添えて評議へ出す。8080 の共有の server と ComfyUI は止めない。
-5. **起こした後の記録**：`/health` が `ok` を返してから `memory.used` をもう一度読み、14,000 MiB 以下であることを見る。unit の `ExecStart` の行、`/props` の `model_path`、`default_generation_settings.n_ctx`、`total_slots`（slot の数）、`nvidia-smi` の値は、窓の run の `jsonl` と同じ dir の `<窓の名前>.llm-server.txt` に置く。
-6. **優先度**：`renice` は 1 thread だけを変えるので、起こした llama-server は全 thread を上げる。`systemctl --user show -p MainPID --value hayamimi-llama-e2e.service` が 0（起きていない）なら何も打たない。0 でなければ、`/proc/<MainPID>/task/*` の全 tid に `sudo -n renice -n -5 -p <tid>` を打ち、`ps -L -o tid=,ni= -p <MainPID>` で全 thread が -5 であることを確かめる。測る client は `sudo -n nice -n -5 <command>` で起こす。`sudo -n` が失敗したら窓を打たない。
+5. **起こした後の記録**：`/health` が `ok` を返してから `memory.used` をもう一度読み、14,000 MiB 以下であることを見る。
+   次の物を、窓の run の `jsonl` と同じ dir の `<窓の名前>.llm-server.txt` に置く。
+   unit の `ExecStart` の行、`/props` の `build_info`、`model_path`、`default_generation_settings.n_ctx`、`total_slots`（slot の数）、`nvidia-smi` の値である。
+6. **優先度**：`renice` は 1 thread だけを変えるので、起こした llama-server は全 thread を上げる。
+   `systemctl --user show -p MainPID --value hayamimi-llama-e2e.service` が 0（起きていない）なら何も打たない。
+   0 でなければ、次の順で打つ。
+   1. 起こした直後に、`/proc/<MainPID>/task/*` の全 tid に `sudo -n renice -n -5 -p <tid>` を打ち、`ps -L -o tid=,ni= -p <MainPID>` で全 thread が -5 であることを確かめる。
+   2. 窓の run を打つ直前に、`ps -L -o tid=,ni= -p <MainPID>` でもう一度全 thread を数え直す。
+      起こした後に作られる thread は 1 の確かめに載らないので、-5 でない thread が在れば、その tid に `sudo -n renice -n -5 -p <tid>` を打ち直し、もう一度数えて全 thread が -5 であることを見る。
+   3. 測る client は `sudo -n nice -n -5 <command>` で起こす。
+      `sudo -n` が失敗したら窓を打たない。
 7. **戻し方**：窓の run が済んだら `systemctl --user stop hayamimi-llama-e2e.service` を打つ。止めた 18081 は `systemctl --user start hayamimi-llama-other.service` で戻し、`/health` が `ok` を返すことを確かめる。unit の file は `~/.config/systemd/user/` から外して `systemctl --user daemon-reload` を打つ。repo の file は残す。
 
 **走らせる前の壊れ方**（この server）：
@@ -1742,7 +1753,10 @@ unit の file は repo に置くだけで、`~/.config/systemd/user/` へ置い�
 - **取り合う資源**：port 18084、GPU の memory（8080、18081、ComfyUI と同じ GPU）、`/proc/loadavg`。
 - **始めてよい条件と確かめ方**：4 の 3 つ。
 - **承認や入力で止まる command**：無い。`systemctl --user start` は問わない。`sudo -n` は password を訊かずに失敗するので、失敗したら窓を打たずに止まる。
-- **8080 の窓との比べ**：8080 を使った窓と 18084 を使った窓の `L` を比べる時は、`/props` の `build_info` と他の項目の記録が同じかを先に見る。8080 の server の build が 18084 と同じかは確かめていない（NOT VERIFIED）。
+- **8080 で取った前の run との読み**：窓は常に 18084 を使うので、8080 の server で取った前の run の `L` と比べる時は、`/props` の `build_info`、`model_path`、`n_ctx`、`total_slots` の記録が同じかを先に見る。
+  揃っていない項目が在れば、`L` の差に server の違いが混ざるので、差を build の違いだけの結果として読まない。
+  前の run の server の build が 18084 と同じかは確かめていない（NOT VERIFIED）。
+  確かめ方は、前の run の記録に `build_info` が在ればそれを窓の `.llm-server.txt` の `build_info` と照らすことである。
 
 #### 順と slice
 
@@ -1775,7 +1789,7 @@ E2 と E3 を止めたので、E1 と E3' はそれぞれ単独の窓である�
 **走らせる前の壊れ方**（E1、E3'、E4 の窓）：
 
 - **初めての実行**：`stream` の拒みと打ち切り（RP-83）は、この窓で初めて実物の machine に当たる。各窓の最初の run の前に、`stream` を `--wav` の短い音声で 1 回打ち、`<run>.machine.jsonl` が書かれ、最初の行に 6 つの key が在ることを `jq` で確かめる。認識器の初回の復号（RP-84）は、各 run の起動を約 1 秒延ばす。
-- **取り合う資源**：CPU（他の席の cargo、同じ host の別の app）、GPU（8080 と 18081 の llama-server、8080 が無い時の 18084 の `hayamimi-llama-e2e.service`、ComfyUI。起こし方は上の「窓の訳の server」）、port 8766 と 8833（3.18 の RP-72 の手順）、`/proc/loadavg`。cargo の席は窓の間すべて止める。
+- **取り合う資源**：CPU（他の席の cargo、同じ host の別の app）、GPU（8080 と 18081 の llama-server、窓の間の 18084 の `hayamimi-llama-e2e.service`、ComfyUI。起こし方は上の「窓の訳の server」）、port 8766 と 8833（3.18 の RP-72 の手順）、`/proc/loadavg`。cargo の席は窓の間すべて止める。
 - **始めてよい条件と確かめ方**：`cat /proc/loadavg` の 1 分が 2.00 未満で 15 分が 2.50 未満、`pgrep -x cargo` と `pgrep -x rustc` が 0 件、`ss -tanH 'sport = :8766 or sport = :8833'` が 0 行。この 3 つは `stream` 自身も最初の行で確かめて拒む。
 - **承認や入力で止まる command**：無い。`sudo -n` は password を訊かずに失敗するので、失敗したら run を打たずに止まる。
 - **起動の形**：`hayamimi`、中継、`stream` は `sudo -n nice -n -5 <command>` で起こす。
