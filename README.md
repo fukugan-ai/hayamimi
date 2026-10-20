@@ -68,6 +68,7 @@ The design that runs, in CI, the check that a machine with no GPU falls back to 
 The test definitions of R13-18 (the 11 tests T-RP-16-052 to 062) are in too, so R13-18 can be issued.
 For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. The `hayamimi-overlay` crate is in too. The acceptance that opens the window (OV-V) is not done, so it does not work as a window yet.
 GitHub CI succeeded on both ubuntu and windows.
+The R13-17 acceptance test (checking that the validity line of each `final` follows the rule that ended it) is in. Only 2 tests in T are still marked as not implemented: T-RP-10-007 and T-RP-16-037.
 
 ### Related documents
 

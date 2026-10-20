@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `2945489`（2026-10-20 の `verify/ov3-76e6f40` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `dd3d065`（2026-10-20 の `feat/r13-17` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -301,6 +301,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | R13-18 の設計（GPU の無い機械で CPU へ落ちる受入を CI で走らせる。`design/rp16-ci-skip`） | 設計が merge 済み。実装は未着手 | `ebbf034`（merge の commit は無く、fast-forward で入った。評議 `a5d7272` の GO は `ebbf034` に限る） | 文書だけの branch（`rust_port.ja.md`）。文書を見張る test は受付の実測で、`ebbf034` の detached の木の `-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | R13-18 は `native/hayamimi/tests/rp16.rs`、`.github/workflows/test.yml`、`docs/results/r11/ci_probe.md` を書く。CI の rp16 の 3 本の skip は R13-18 が外す。R13-18 の前に、test-designer の席が T-RP-16-015、049、050 と受入の行を直す（015 は評議の止めない点） | R13-18 は未実装。T の直しは test-designer の席 |
 | R13-18 の T（T-RP-16-052〜062 の 11 本。`design/t-rp16-reason`） | merge 済み。R13-18 を出せる | `59c906c`（`157e8d4` を `--no-ff` で取り込んだ。評議 `a5d7272` の GO は `157e8d4` に限る） | 文書だけの branch（`rust_port.ja.md` と `rust_port_tests.ja.md`）。merge の差分は `157e8d4` の差分と patch-id が同じ。文書を見張る test は受付の実測で、`157e8d4` の detached の木の `-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | R13-18 は起動の結果を `expected_reason` で受け、T-RP-16-052〜062 を持つ。062 は逆向きの陰性 | R13-18 は未実装 |
 | 重ね窓の S2 と T、設計の差分、CI の直し（`verify/ov3-76e6f40`、PR #2。`design/r11c-followups`、`fix/ci-first-run`、`feat/ov-s2`、`feat/ov-t`、`design/overlay-ov-s2-points`、`fix/ov-ci-rows` の 6 本） | merge 済み。GitHub の CI は ubuntu も windows も success | `2945489`（`76e6f40` を `--no-ff` で取り込んだ） | 受付の実測で、手元の test が rc=0、passed 3017、failed 0、clippy が rc=0（log は repo の外）。GitHub の CI の run 39415818064 は ubuntu も windows も success。merge 後の木と `76e6f40` の差は文書 6 本だけで、code と test は同じ | 重ね窓の crate `hayamimi-overlay` と `hayamimi-ui` の部品が main に在る。`test.yml` の `--test` は 102 語、`--skip` は 9 語 | OV-V（窓を開く受入）が未着手。R13 の slice が残る |
+| R13-17 の受入 test（`feat/r13-17`。`rp32_validity_line_follows_the_rule_that_ended_each_final`） | merge 済み。T の `（未実装）` の印は 2 本になった（T-RP-10-007 は持ち主 R13-3、T-RP-16-037 は持ち主 R13-16） | `dd3d065`（`b49afc7` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外）：`test result: ok. 66 passed; 0 failed; 1 ignored`、標本の数を `jq` で数え直して 294 と 210 で一致、陰性対照 3 つが落ち、戻した後の sha256 は同じ。検証の木は `3bf4cfc`（tree `75d16b2`）。merge 後の木と `3bf4cfc` の差は文書 6 本だけで、`native/` と `.github/` は 0 行。文書を見張る test は受付の実測で、`-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | `native/hayamimi-eval/tests/rp32.rs` に、各 `final` を確定した規則に従う有効の行の test を足し、T の 1267 行目付近の `（未実装）` の印を外した | R13-3 と R13-16 が未実装。workspace 全体の test はこの merge の後には打っていない |
 
 作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
