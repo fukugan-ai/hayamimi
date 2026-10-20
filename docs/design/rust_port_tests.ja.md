@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73、RP-79（呼ぶことの確かめの 1 行だけ）、RP-80、RP-81、RP-83〜RP-87。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73、RP-79（呼ぶことの確かめの 1 行だけ。止めた、H130）、RP-80、RP-81、RP-83〜RP-87。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -2740,6 +2740,7 @@ test：`native/hayamimi-eval/tests/rp86.rs`。受入 test の名前は `rp86_ext
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp86`。実走の行はこれに `-- --ignored` を足す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（047 だけは受入 test の名前の全部）。判定の関数の名前と引数の形は実装の席が決める。行は「dir（offline の log、run の file、stdout、events、machine）を渡す」形で書く。
 設計は D 3.19 の「割れを増やさない守りと、その測り」と、D 6 と 7 の RP-86、D 3.17 の「RP-66 と RP-67 の数え方」である。
+W は今の規則で C と D を切った形(`--early-extra off`)、X は今の規則に C と D を足した形(`--early-extra on`)。方針 B(`--early-complete nouns`)は外したので、W と X のどちらにも入らない(H130)。
 
 **数え方**（D 3.17 の数え方の 1、7、8 と RP-66 の T のとおり。この席は足さない）：
 
@@ -2903,16 +2904,17 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - T-RP-87-028 の oracle は実装に当てていない(H129。検証の席が確かめる)。
 - 知らせの window の数え方の細部は記録だけ(H127 の 4)。001 と 002 は 4 個と 3 個の両側だけを固定する。
 
-### 4.80 RP-79（呼ぶことの確かめの 1 行）
+### 4.80 RP-79（呼ぶことの確かめの 1 行。止めた）
 
-**未実装。** この節は、RP-79 の行のうち、E2E の run の門を呼ぶ確かめの 1 行だけを置く。RP-79 のほかの行は、この文書にまだ無い(H125。設計の席が依頼を出す)。
+**止めた。** 方針 B を外した。`rp79.rs` は作らない。H130。この節の行は実装されず、打たれない。
+この節は、RP-79 の行のうち、E2E の run の門を呼ぶ確かめの 1 行だけを置いていた。RP-79 のほかの行は、この文書に無く、依頼もしない(H125)。
 test：`native/hayamimi-eval/tests/rp79.rs`。受入 test の名前は `rp79_widened_early_end_shortens_ja_wait_without_mid_sentence_splits`。この節の行は fixture を読み、`--ignored` を付けずに通る。
 command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp79`。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない。設計は D 3.19 の「E2E の run の門」の 5 と、D 6 の RP-79 である。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-RP-79-001 | S、W、S、W の 4 run（ja の `s1.e2e1`、`w1.e2e1`、`s2.e2e1`、`w2.e2e1`。Rust の run で、それぞれ T-RP-83-001 の形の `<run>.machine.jsonl` を持つ）の dir で、`w2.e2e1` の `<run>.machine.jsonl` の行 1 の `load15` を `"2.50"` にする | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で `w2.e2e1`、`load15`、`2.50` を名指す。ほかの 3 run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。判定の関数が RP-83 の support を呼び忘れた test は、ここで落ちる。4 run 全部が内側の形が陽性対照。fixture の dir は門の前の記録の一覧に当たらない一時 dir） | 陰性 | `a_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
+| T-RP-79-001 | S、W、S、W の 4 run（ja の `s1.e2e1`、`w1.e2e1`、`s2.e2e1`、`w2.e2e1`。Rust の run で、それぞれ T-RP-83-001 の形の `<run>.machine.jsonl` を持つ）の dir で、`w2.e2e1` の `<run>.machine.jsonl` の行 1 の `load15` を `"2.50"` にする（止めた。方針 B を外した。`rp79.rs` は作らない。H130） | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で `w2.e2e1`、`load15`、`2.50` を名指す。ほかの 3 run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。判定の関数が RP-83 の support を呼び忘れた test は、ここで落ちる。4 run 全部が内側の形が陽性対照。fixture の dir は門の前の記録の一覧に当たらない一時 dir） | 陰性 | `a_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 
 ## 5. RP-19 の対応表
 
