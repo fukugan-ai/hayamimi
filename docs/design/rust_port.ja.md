@@ -174,9 +174,33 @@ lat-ja の 1 回の run の標本の枠は 23 発話 × 5 回で、各標本は�
 掃引で選んだ値は R1 以降の比較に使い、その比較は有効な標本で数えるので、掃引の表だけ終端不正を含めると、同じ設定の行が比較の時より短く出るからである（0.35 の 1 回目では、全標本の p50 が 1161 ms、有効な標本の p50 が 1185 ms）。
 
 `t_end` を決める規則（manifest の `end_sample` の置き方）は lat-ja の全発話に同じ 1 つを当てる。
-規則を変えるときは全発話の `end_sample` を同じ新しい規則で置き直し、Python の基準もその manifest で測り直す。
+規則を変えるときは全発話の `end_sample` を同じ新しい規則で置き直し、Python の固定した記録（py1〜py3）を、新しい `end_sample` で数え直す。Python は流さない。数え直した値には、H42 と H43 の未検証を添える。
 一部の発話の `end_sample` だけを結果を見て動かすと、測る物差しを結果に合わせて曲げることになるからである。
 今の規則は 20 ms の frame の音量で声の終わりを決める（`baseline_python.md` の RB-2）。
+規則の中身は `native/hayamimi-eval/src/manifest.rs` の `speech_end` である。
+clip の frame の音量の 10 パーセンタイル（静かな側）から 95 パーセンタイル（大きい側）までの 35 % の高さ（大きい側から 25 dB より下へは下げない）を、5 frame（100 ms）続けて超えた最後の区間の終わりを、声の終わりとする。
+`start_sample` は clip の最初の sample で、声の始まりではない（同じ file の `concat` がそう置く）。
+`L` は `t_end` からだけ数えるので、始まりのずれ（音量の規則で 0〜2,260 ms、Silero の区切りの始まりで −23〜3,547 ms）は `L` に入らない。
+
+**起点の確かさ**：`end_sample` が声の終わりにどれだけ近いかは、clip ごとに次の 3 つに分かれる。
+分け方は 1 つの規則で、全発話に同じに当てる。
+
+- **確か**：規則の高さを 35 % から 25 %、15 %、10 % へ下げても声の終わりの動きが 40 ms 以下（40 ms を含む）で、終わりの後の 300 ms（15 frame）の frame の dB 値の算術平均が規則の高さより 6 dB 以上低い。電力で平均すると組が崩れる（en_03 は 9.0 dB が 2.6 dB になる）ので、dB 値で平均する。
+- **切れ**：声の高さの音が clip の最後の frame まで続き、`end_sample` が clip の最後の frame（20 ms）の中に在る。clip の境で音が止まり、その後はつないだ無音である。
+- **不確か**：どちらでもない。clip の音量の幅（95 パーセンタイル − 10 パーセンタイル）が狭く、声の尾と背景の音が音量で分かれない。
+
+lat-ja は確か 4（発話 1、6、8、16）、切れ 8（10、11、13、14、19、20、21、22）、不確か 11（2、3、4、5、7、9、12、15、17、18、23）で、lat-en は 15 発話とも確かである。
+確かの発話では、`end_sample` は音量で見た声の終わりと 40 ms 以内で一致する。
+不確かの発話の声の終わりは `end_sample` より後ろに在りうるが、どこかは音量では決まらない（高さを 25 % にすると 0〜500 ms、15 % にすると 20〜2,020 ms 後ろへ動く）。
+切れの発話は clip の終わりで音が止まるので、それより後ろに待つ音は無い。
+ただし、切れた音が声か声でない音かは、音量では分からない。
+後ろの 300 ms の低さの線を 6 dB から 10 dB に上げると、確かは lat-ja で 3（発話 16 が不確かへ移る）、lat-en で 12 になる。
+下の RP-67 と RP-32 への影響の結論は、どちらの線でも同じである（6 の RP-73）。
+
+起点の誤りの向きは 2 つである。
+不確かの発話では `t_end` が声の終わりより前に置かれうるので、`L` が大きく出る。受入には厳しい向きである。
+`t_end` が声の終わりより後ろに置かれた標本は、終端不正の式で外れる。ただし外れるのは、その標本の `final` が `t_end` から有効の線の内に来た時だけである。
+そのため、RP-67 の合否が起点の確かな発話だけで数えても変わらないことを、RP-73 で確かめる。
 
 標本は独立ではない。
 23 種の発話の 5 回の繰り返しで、p95（nearest-rank、有効な標本の数を n として ceil(0.95 × n) 番目）は、遅い側の 1、2 種の発話の時間でほぼ決まる。
@@ -289,6 +313,21 @@ build の手順と版の固定は 3.12 に置く。
 段と段の間の受け渡しは sherpa-onnx の中で閉じていて、外から GPU の memory のまま渡す口は無い。
 この中の段ごとの時間と、host と GPU の間の転送の時間は、R1 で計る（3.5、RP-23、RP-7）。
 
+**1 つの認識器の provider は 1 つ**：v1.13.8 の offline の transducer は、encoder、decoder、joiner の 3 つの session に同じ 1 つの session の設定（`GetSessionOptions(config)`）を渡す（`sherpa-onnx/csrc/offline-transducer-model.cc`、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/sherpa-onnx/csrc/offline-transducer-model.cc 、取得 2026-10-20）。
+C の API の `SherpaOnnxOfflineModelConfig` も `provider` を 1 つだけ持つ（S11）。
+探索の loop は host で回るが、loop が frame ごとに呼ぶ decoder と joiner は認識器の `provider` で走る（`modified_beam_search` は 1 frame に decoder と joiner を 1 回ずつ呼ぶ。https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/sherpa-onnx/csrc/offline-transducer-modified-beam-search-decoder.cc 、取得 2026-10-20）。
+したがって `provider` を `cuda` にすると、小さい decoder と joiner の 1 回ごとに host と device の往復が入る。
+同じ library の online の側は、OpenVINO のときだけ decoder と joiner を CPU の session に置き、encoder だけを加速器に置く（`sherpa-onnx/csrc/session.cc` の `GetSessionOptions(const OnlineModelConfig &, const std::string &model_type)`。理由は「decoder と joiner は小さく遅れに効く graph で、計算のほぼ全部は encoder に在る」と書かれている。master で読んだ。https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/sherpa-onnx/csrc/session.cc 、取得 2026-10-20）。
+offline の transducer には同じ分け方が無い。
+encoder だけを GPU に置く形は、3.5 の「認識の encoder だけを GPU に置く案」に置く。
+
+**CUDA graph と IoBinding の効く範囲**：ORT の CUDA graph は、全 node が CUDA の実行 provider に置かれ、入力と出力の形と address が呼び出しの間で変わらない model にだけ使える（address は IoBinding で固定する。`If`、`Loop`、`Scan` を持つ model と、複数 thread からの呼び出しは使えない。https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html 、取得 2026-10-20）。
+認識の encoder は CUDA の session でも 1599 個の node が CPU に置かれ（`gpu_stages.md` の「node の置き場」の表）、発話ごとに長さが変わるので、CUDA graph の条件を満たさない。
+IoBinding について同じ文書が書く効き目は、session の入力と出力の copy を減らすことである。
+CPU に置かれた node の入口と出口で session の中に起きる copy は、IoBinding の対象に入らない。
+TF32 の既定は、ORT の文書では有効（`use_tf32` の既定が 1）、`ort` の `ep::cuda::CUDA::with_tf32` の文書（https://docs.rs/ort/2.0.0-rc.14/ort/ep/cuda/struct.CUDA.html 、取得 2026-10-20）では無効と書かれていて、食い違う。
+sherpa-onnx の CUDA の session と `gpu_stages.md` の `ort-encoder` の run がどちらで走ったかは NOT VERIFIED で、効き目は RP-75 が text の一致で測る。
+
 #### ONNX Runtime は process に 1 つ
 
 同じ process に 2 つ目の ONNX Runtime を入れると落ちる（sherpa-onnx の issue 3261、`docs/spec/ja_pipeline.ja.md` の「ONNX Runtime の呼び出し順」）。
@@ -347,7 +386,7 @@ R1 の計測（RP-23）で、GPU の経路が在る段を同じ入力で GPU と
 | 音声の ring buffer と preroll（1.0 秒） | CPU | 根拠 2。CPU の p50 15〜22 µs が、GPU の下限 247〜267 µs（無負荷）より小さい（「音声の ring buffer と preroll」の行、:36-44、:257）。認識器へは host の配列で渡す（S11） |
 | VAD（Silero、sherpa-onnx の `provider`） | CPU | 根拠 1（variant `fp32`）。同じ fp32 で、無負荷の p50 が GPU 388 ms に対し CPU 40 ms、負荷の下は GPU 1121 ms に対し CPU 42 ms（「VAD」の行、:45-53、:258） |
 | 言語判定（whisper-tiny） | GPU | 根拠 1（variant `fp32`）。無負荷の p50 が GPU（fp32）76 ms に対し、CPU は fp32 で 132〜152 ms、int8 で 124 ms。負荷の下は GPU 94 ms に対し CPU の int8 132 ms（「言語判定」の行、:54-66、:259）。CUDA の session でも CPU に置かれる node は tiny-encoder が 31、tiny-decoder が 201 で（node の表の `tiny-decoder.onnx` と `tiny-encoder.onnx` の行、:248-249）、上の GPU の値はそれを含む |
-| 認識の encoder（全 model） | CPU（int8） | 根拠 1（variant `fp32`）。sherpa-onnx の認識全体（encoder と探索）の同じ fp32 の対で、無負荷の p50 が GPU 171414 µs に対し CPU 151299 µs、負荷の下は GPU 375176 µs に対し CPU 175025 µs（「認識の encoder」の行、:67-94、:260）。CPU の中では int8 が 128615 µs で fp32 より速いので int8 を読む（int8 は CUDA に op が無く、置き場の比較には入れない。3.4）。encoder だけを `ort` で掛けると GPU 66262 µs に対し CPU 121091 µs で GPU が速いが、provider は認識器の config に 1 つで encoder と探索を別の provider に分けられない（S11 の `SherpaOnnxOfflineModelConfig`）。この置き場は測った ReazonSpeech の transducer に限る。他の認識器は R3 が同じ式で測る。CPU が速い向きはどの測りでも同じだが、差は CPU の時間に対して、上の無負荷の値で 13%（171414 対 151299 µs）、別の測り直しの認識全体の p50 で、負荷の低い run が 8%（cuda 174.3 対 cpu 162.0 ms）、load 12 の run が 2%（cuda 192.1 対 cpu 188.4 ms）と小さく、CPU の負荷が重なると CPU の側が悪化する。R7 の 2 音源同時で測り直す |
+| 認識の encoder（全 model） | CPU（int8） | 根拠 1（variant `fp32`）。sherpa-onnx の認識全体（encoder と探索）の同じ fp32 の対で、無負荷の p50 が GPU 171414 µs に対し CPU 151299 µs、負荷の下は GPU 375176 µs に対し CPU 175025 µs（「認識の encoder」の行、:67-94、:260）。CPU の中では int8 が 128615 µs で fp32 より速いので int8 を読む（int8 は CUDA に op が無く、置き場の比較には入れない。3.4）。encoder だけを `ort` で掛けると GPU 66262 µs に対し CPU 121091 µs で GPU が速いが、provider は認識器の config に 1 つで、C の API のままでは encoder と探索を別の provider に分けられない（S11 の `SherpaOnnxOfflineModelConfig`、3.4 の「1 つの認識器の provider は 1 つ」）。分ける案は表の下の「認識の encoder だけを GPU に置く案」で、評議の席の判定と RP-74 の結果が揃うまで、置き場はこの行のまま変えない。この置き場は測った ReazonSpeech の transducer に限る。他の認識器は R3 が同じ式で測る。CPU が速い向きはどの測りでも同じだが、差は CPU の時間に対して、上の無負荷の値で 13%（171414 対 151299 µs）、別の測り直しの認識全体の p50 で、負荷の低い run が 8%（cuda 174.3 対 cpu 162.0 ms）、load 12 の run が 2%（cuda 192.1 対 cpu 188.4 ms）と小さく、CPU の負荷が重なると CPU の側が悪化する。R7 の 2 音源同時で測り直す |
 | fbank と探索（sherpa-onnx の中） | sherpa-onnx の実装のまま（host） | provider に依らず host で走る（「fbank と探索」の行、:95-112、:261）。この行は fbank だけで、探索は認識の encoder の行の合算に入っている。探索の時間は、合算から encoder だけの時間を引いて出す（10 の H11、H31） |
 | 冒頭欠落の疑い判定と分割再試行 | CPU（判定）。解き直しは認識の encoder の置き場に従う | 根拠 2。判定の CPU の p50 1 µs が、GPU の下限 216〜241 µs（無負荷）より小さい（「冒頭欠落の疑い判定と分割再試行」の行、:113-121、:262） |
 | ITN（漢数字 → 算用数字） | CPU（GPU 経路なし） | 根拠 4。model を持たない文字列の規則（正規表現）で、ORT も CUDA も呼ばない。R2 が 1 行の CPU の p50 を測る |
@@ -368,6 +407,144 @@ R1 の計測（RP-23）で、GPU の経路が在る段を同じ入力で GPU と
 段と段の間の転送は、R1 で発話ごとに測る。
 sherpa-onnx の中の転送は、CUDA の profiler（Nsight Systems の `nsys profile --stats=true` の `cuda_gpu_mem_time_sum` と `cuda_gpu_mem_size_sum`）で、1 発話あたりの host → device と device → host の回数、bytes、時間を数える。
 profiler が Windows で使えないときは WSL の同じ build で数え、そのことを結果の file に書く。
+
+#### 認識の encoder だけを GPU に置く案
+
+認識の 1 回の時間を段に割ると、encoder は GPU が速く、探索は CPU が速い。
+上の表の置き場は、両方を合わせた認識全体で GPU と CPU を比べて決めたので、どちらの側も遅い段を 1 つ抱えている。
+encoder だけを CUDA に置き、fbank と探索を host の CPU に置けば、両方の速い側を取れる見込みがある。
+この形を **split の形** と呼ぶ。
+見積りでは、認識の 1 回は無負荷で 128.6 ms から 96.3 ms に縮む。
+この −32.3 ms は、`L` の見積りの p50 1349 ms（`gpu_stages.md:304`）の 2.4% にとどまり、3.17 の目標（`L` の p95 を 1000 ms 以下、RP-67）には届かない。
+split の形は、CPU を取り合う 2 音源同時で効く部品として採る。
+2 音源同時の見積りは 166 ms 以上縮むが、WSL で別の時間帯に取った A と B の run を継いだ値で、Windows の 2 音源同時は測っていない。
+GPU の負荷の下では、縮みの幅 2.5〜27.8 ms が RP-74 の線（15 ms）をまたぐので、この見積りでは A との優劣を決めない。
+採るのは D で、RP-74 から先へ進める。
+置き場は、RP-78 が通るまで上の表の行のまま CPU（int8）に置く。
+
+**見積りの式**：記号を次のように置く。
+
+- **`t_rec`**：認識の 1 回の時間（`create_stream` から `get_result` まで）。
+- **`F`**：fbank の時間。**`E`**：encoder の 1 回の時間。**`S`**：探索の時間（`modified_beam_search`、beam 4。1 frame に decoder と joiner を 1 回ずつ呼ぶ）。
+- **`X`**：fbank の出力を device へ送り、encoder の出力を host へ戻す 2 回の copy の時間。
+- **`N`**：encoder の出力の frame の数（lat-ja の p50 は 146。`r7_recognition.md` の「探索の内訳」）。**`r`**：host と device の 1 往復の下限（`gpu_stages.md` の `transfer-floor`）。
+
+```
+A（今）        t_rec = F + E(cpu, int8) + S(cpu, int8)
+B と D         t_rec = F + E(cuda, fp32) + X + S(cpu, int8)
+差             t_rec(B) − t_rec(A) = E(cuda, fp32) + X − E(cpu, int8)
+E(cpu, int8)   = t_rec(A) − F − S(cpu, int8)           int8 の encoder だけの時間は測っていないので引き算で出す
+S(cpu, fp32)   = t_rec(cpu, fp32) − E(cpu, fp32) − F    同じ fp32 の対の引き算
+S(cpu, int8)   = 0.97 × S(cpu, fp32)                    R7 の search_replay の int8 と fp32 の比（58.4 / 60.1 ms）
+C の下限       t_rec ≥ F + E(cuda, fp32) + N × r         探索を GPU に残すと、frame ごとに joiner の出力を host へ 1 往復させる
+```
+
+B と D は、decoder と joiner に今と同じ int8 の file を CPU で使う。
+したがって `F` と `S` は A と打ち消し合い、差は encoder の 2 つの時間と `X` だけで決まる。
+`X` は 0.5 ms と置く（ASSUMPTION。fbank の出力は 1 発話で約 187 KB（146 × 4 frame × 80 bin × 4 bytes）で、`gpu_stages.md` の「転送」の fp32 の host → device は 4367000 bytes を 1524 µs で運んでいる。encoder の出力の幅は数えていない）。
+
+**見積り**（ms、p50）：
+
+| 形 | 無負荷 | GPU の負荷の下 | 2 音源同時 |
+|---|---|---|---|
+| A 今のまま（sherpa-onnx、全部 CPU の int8） | 128.6 | 151.6 | 396.6 |
+| B encoder を `ort` の CUDA に置き、fbank と探索を Rust で host に置く | 96.3 | 123.8〜149.1 | 181.1〜230.3 |
+| C sherpa-onnx を CUDA のまま使い、IoBinding か CUDA graph を足す | 105.8 以上（今の CUDA の形は 171.4） | 177.2 以上（今の形は 375.2） | 下限は出せない（今の形は 360.3） |
+| D sherpa-onnx に patch を当て、encoder だけを CUDA に置く | 96.3 | 123.8〜149.1 | 181.1〜230.3 |
+
+GPU の負荷の下の B と D の幅は RP-74 の線をまたぐので、この列では A との優劣を決めない。
+2 音源同時の列は、WSL の別の時間帯の run を継いだ値である（下の「2 音源同時」）。
+
+値の出所と計算は次のとおりである。
+`S` はどの列も引き算か、別の run の `search_replay` から出した値である。
+`S` を同じ窓で直に測った独立の値は RP-74 の `search_replay` だけで、Windows の `search_replay` の行は `gpu_stages.md` に 0 行である。
+
+- **無負荷**（Windows、`gpu_stages.md`）：`t_rec(A)` は CPU の int8 の 2 run の p50（:83、:85）の平均 128.6、`F` は CPU の fbank 7.5（:265）、`E(cuda, fp32)` は 66.3、`E(cpu, fp32)` は 121.1、`t_rec(cpu, fp32)` は 151.3（:264）である。`S(cpu, fp32)` は 151.3 − 121.1 − 7.5 = 22.7、`S(cpu, int8)` は 22.0、`E(cpu, int8)` は 128.6 − 7.5 − 22.0 = 99.1 になる。B は 7.5 + 66.3 + 0.5 + 22.0 = 96.3 で、差は −32.3（−25%）である。C の下限は 7.5 + 66.3 + 146 × 0.219 = 105.8 である（`r` は「認識の文字列 → 訳の入力」の無負荷の下限の最小 219 µs、:196-198）。
+- **GPU の負荷の下**（Windows、llama-server へ訳の依頼を流し続ける 2 本の client）：`t_rec(A)` は 151.6（:90、:92）、`F` は 8.4（:109-112）、`E(cuda, fp32)` は 92.9、`E(cpu, fp32)` は 117.8、`t_rec(cpu, fp32)` は 175.0（:264）である。同じ引き算の `S(cpu, int8)` は 0.97 × (175.0 − 117.8 − 8.4) = 47.3 で、無負荷の 22.0 の 2 倍を超える。GPU の負荷が CPU の探索を 2 倍にする機構は見つかっておらず、別々の run の引き算の揺れの疑いがあるので、B と D は `S` に 22.0 と 47.3 を入れた幅で書く。差は −27.8〜−2.5 である。C の下限は、`r` を負荷の下の下限 0.52 ms（:199-200 の平均）にした 8.4 + 92.9 + 146 × 0.52 = 177.2 で、A より遅い。
+- **2 音源同時**（WSL、R7 の peers 1。`r7_recognition.md` と `docs/results/r7/` の run file）：`t_rec(A)` は 396.6（`r7_recognition.md:39`）、`F` は 13.6、`E(cuda, fp32)` は 103.5（`cuda_p1_encoder_only.jsonl` の `encoder_only` の p50）、`S(cpu, int8)` は search_replay の joiner 17.6 と decoder 45.9 の和の 63.5（`cpu_peers1.jsonl`）である。B の下の端は 13.6 + 103.5 + 0.5 + 63.5 = 181.1 になる。R7 の CPU の run では、sherpa-onnx の decode の時間が encoder と fbank と search_replay の和より長い（10 の H31）。その残りの 49.2 ms（fp32 の decode 464.0 − encoder 318.8 − fbank 13.6 − replay 82.4）が探索の中に在るなら、B と D もそれを持つので、上の端はそれを足した 230.3 とした。同じ窓の peers 0 では、A の 316.4 に対し B は 144.9〜257.4 である。A の値は CPU の run、B の `E(cuda, fp32)` は CUDA の run から取り、R7 の 2 つの run は同じ時間帯に続けて取っていない（`r7/conditions.md`）。この run の 1 分の load は 10〜32 で、Windows の 2 音源同時は測っていない（NOT VERIFIED）。
+- **CPU の負荷**（原因分析の席の申告の転記で、設計の席は打ち直していない）：同じ音声の A の decode の中央値が、run の前の load1 が 0.69〜1.36 の run から 1.77〜1.89 の run で 13.5 ms 延びた。B と D で CPU に残るのは `F + S` の 29.5 ms（無負荷の `t_rec(A)` の 23%）である。CPU の負荷による延びが CPU の時間に比例するなら、同じ負荷で延びるのは約 3.1 ms である（ASSUMPTION）。
+
+**今の置き場を書いている物**（2026-10-20、`target/` を除く。pattern ごとの数と陽性対照）：
+
+| pattern と範囲 | 数 | 当たった所 | 案が通ったときの扱い |
+|---|---|---|---|
+| `rg -c 'epoch-35-avg-1\.int8' native` | 6 file、17 件 | `hayamimi-asr/src/recognizer.rs`（6）、`hayamimi-asr/src/pipeline.rs`（3、test の session の名前）、`hayamimi/src/models_fetch/items.rs`（3）、`hayamimi/tests/rp11.rs`（1）、`hayamimi-eval/tests/rp06.rs`（3）、`hayamimi-eval/src/gpu_nodes.rs`（1） | Rz の encoder を fp32 に替え、`provider` を `cuda` にし、落ちた時は今の int8 の形で開く。`models fetch` は fp32 の encoder を足して取る。int8 の encoder が `cpu` で作られることを期待する test は、fp32 の encoder が `cuda` で作られることに直す |
+| `rg -c 'epoch-35-avg-1\.onnx' native`（fp32 の encoder の名前。陽性対照を兼ねる） | 3 file、9 件 | `hayamimi-gpu/tests/rp17.rs`、`hayamimi-eval/src/stage_report.rs`、`hayamimi-eval/tests/rp06.rs` | 変えない（測りと RP-17 の対象） |
+| `rg -c 'CPU int8\|CPU（int8）\|認識器を CPU\|認識器は CPU\|認識（ReazonSpeech、CPU' docs/design/` | 4 file、14 件 | この文書の 10 件（この節を足す前に数えた。3.5 の表の行と表の下の 2 行、3.11、3.15、3.16、3.17、8 の R7 の行と Router の段落、10 の H31）。5 の「構造」の末尾の「認識（ReazonSpeech の transducer、int8）… CPU に置き」は、この pattern に当たらない同じ意味の文で、同じく書き替える。`rust_port_tests.ja.md` の 2 件、`status.ja.md` と `status.md` の各 1 件 | 評議の判定と RP-74 から RP-78 の結果を受けた設計の席が、同じ手番で全部を仕分けて書き替える |
+| `rg -i 'patch' native/xtask/src` | 0 件の patch の段（当たりは cuDNN の版を読む `CUDNN_PATCHLEVEL` だけ） | `xtask/src/record.rs` | D のとき、patch を当てる段と、`build.json` に patch の sha256 を記録する行を足す（記録で、build の可否の条件にしない） |
+
+コードの pattern の陽性対照は、`recognizer.rs` の `modified_beam_search` が 1 件在ることである。
+
+**方針**：
+
+- **A 今のまま**：手を入れない。ただし、CPU の負荷が重なると認識が延び（上の 13.5 ms）、2 音源同時の見積りで 4 つの形のうち最も遅い。採らない理由は、無負荷と 2 音源同時の両方で B と D に 32 ms 以上負ける見積りだからである。RP-74 が落ちたときは A に残る。
+- **B encoder を `ort` の CUDA に置き、fbank と探索を Rust で host に置く**：sherpa-onnx の認識器を Rz の tier に使わず、同じ build の ORT を `ort` で開いて session を 3 つ作る（encoder は CUDA、decoder と joiner は CPU）。fbank と `modified_beam_search` は Rust で書く。session の作成の失敗は `ort` の `Err` で返るので、CPU へ落ちたことの検出は D より確かである。ただし、fbank と探索の 2 つを sherpa-onnx と同じ値が出るように作り直し、その一致を示す道具（下の「B を採るときの front end と探索」）が要る。自分の案にしない理由は、D と同じ時間のために、作り直す部品が 2 つ増えるからである。
+- **C sherpa-onnx を CUDA のまま使い、IoBinding か CUDA graph で往復を減らす**：ただし、C の API に IoBinding の口が無く、探索の C++ を書き替える patch が D より大きい。CUDA graph は encoder に使えず（3.4）、decoder と joiner に使えても、探索の top-k を host で取る限り frame ごとの往復は残る（式の下限）。採らない理由は、下限でも B と D より遅く、GPU の負荷の下では A より遅いからである。探索の loop まで GPU の上で回す道（loop の順を入れ替える label-looping と、CUDA graph の条件 node。https://arxiv.org/abs/2406.03791 、https://arxiv.org/abs/2406.06220 、取得 2026-10-20）は、ORT の CUDA graph が control flow の op を持てないので（3.4）、この build の上には無い。
+- **D sherpa-onnx に patch を当て、encoder だけを CUDA に置く**：xtask が build する sherpa-onnx v1.13.8 の source に 1 本の patch を当てる。patch は `offline-transducer-model.cc` で、`provider` が `cuda` のときだけ decoder と joiner の session に CPU の session の設定（同じ thread の数）を渡し、encoder の session は今のまま `cuda` の設定を受ける。online の側が OpenVINO のときに持つ分け方（3.4）と同じ形である。Rz の tier の config は、`provider` を `cuda`、encoder を fp32 の `encoder-epoch-35-avg-1.onnx`、decoder と joiner を今と同じ int8 の file にする。fbank と探索は sherpa-onnx の code のまま走るので、A と同じ code が同じ値を出す。ただし、他の project の C++ に patch を持ち、sherpa-onnx の版を上げるたびに当て直す。patch は unified diff の 1 file（`native/xtask/patches/sherpa-onnx-v1.13.8-transducer-split.patch`。実装の席が作る）として repo に置き、xtask は source を取った直後にそれを当て、当たらなければ build を落とす。`build.json` には patch の sha256 を記録だけし、build の可否の条件にしない。patch が効いたかは記録ではなく session ごとの観測で確かめる（下の fallback の 4、RP-77）。また sherpa-onnx は CUDA の provider が無いと黙って CPU に落ちる（`session.cc` の `Fallback to cpu!`）ので、その検出を外から組む（下の fallback の 2）。
+
+**採るのは D である**。
+B と同じ時間を、fbank と探索を作り直さずに取れるからである。
+言語の順（Rust が先）に対して C++ の patch を選ぶ理由は、変える物が既に build している library の 1 file の数行で、新しい C++ の部品を足さないからである。
+D の実装（patch、xtask の段、Rz の config）は RP-74 が通ってから始める。
+B は、D の patch が当たらなくなり本家にも入らない時の代わりとして残す。
+形の選び方は、`hayamimi`、`hayamimi-eval scorecard`、`hayamimi-eval stages` に `--asr-encoder <cuda|cpu>` を足す（`cuda` が split の形、`cpu` が A の形）。
+RP-76 と RP-78 は同じ build の 2 つの形を比べるので、この引数が要る。
+CLI の引数のままなら、使い方の文言が RP-26 の対象に入る。
+`hayamimi` の config の key にもするなら、`config dump` の既定の値（RP-19）と使い方の文言（RP-26）を、key を足す同じ手番で数え直す。
+既定の値は RP-78 の結果で決める。
+
+**B を採るときの front end と探索**：
+
+- **fbank を bit まで揃える**：sherpa-onnx v1.13.8 が固定する kaldi-native-fbank の版の計算（窓、DC の除去、pre-emphasis、実数の FFT、mel の三角の filter、log と energy の下限）を、同じ演算の順と f32 のまま Rust に写す。option の値（dither、snip_edges、周波数の下限と上限、窓の種類、音声の scale）は、sherpa-onnx の offline の zipformer の feature の設定の source から読む（実装の席が、固定した版の source の file と行を brief に貼る。この文書は値を書かない）。浮動小数の和は順で値が変わるので、積和の融合（FMA）と、和の順を変える SIMD の並べ替えを入れない。C の API は fbank の値を外へ出さないので、参照の値は、sherpa-onnx の build に入っている kaldi-native-fbank の library を link した試験用の dump の道具（C++、配る物に入れない）で、23 発話の fbank を f32 の little endian で書き出して作る。Rust の fbank の出力と参照を `f32::to_bits` で比べ、全 frame の全 bin が一致するまで探索の試験へ進まない。fbank がずれると探索の前で text が変わり、探索の一致の試験が何を測ったか分からなくなるからである。
+- **探索を同じにする**：`modified_beam_search` の 1 frame は、全ての仮説を 1 回の decoder の呼び出しにまとめ、encoder の frame を仮説の数だけ並べて joiner を 1 回呼び、行ごとの LogSoftmax に仮説の score を足し、仮説 × 語彙の中から上位 4 つを取る（取った token が blank か unk なら token の列を伸ばさない）。同じ token の列になった仮説のまとめ方（`Hypotheses::Add`）と、最後の仮説の選び方（`GetMostProbable(true)`）は、上の file の外に在り、この文書では読んでいない（NOT VERIFIED）。実装の席が固定した版の source を読んで写す。hotword は渡していない（`recognizer.rs` の `HOTWORDS_SCORE` の注）ので、context graph は作らない。
+- **一致の受入**：B の encoder を CPU の `ort` で走らせた run と、同じ file を CPU で読んだ sherpa-onnx の run とで、23 発話の token の列と時刻が全部一致することを RP-75 の前段とする。そのうえで encoder を CUDA にした run を RP-75 の本体で比べる。
+
+**GPU が無いときの経路**（B と D で同じ。3.11 の 2 段に入れる）：
+
+1. CUDA の device が 0 か driver が読めなければ、split の形を作らず、A の形（全部 CPU の int8）で認識器を開く。理由は `no_device` か `driver_unreadable` である。
+2. device が 1 以上なら split の形を作る。作るのに失敗したら（B は `ort` の `Err`、D は認識器の作成が `None`）、A の形で開き直す。理由は `session_failed` である。D は sherpa-onnx が黙って CPU に落ちうるので、split の認識器を CUDA の session の中で最初に作り、作った直後に言語判定と同じ検出（`hayamimi-asr/src/lid.rs` の `cuda_did_not_run`、CUDA の provider の module が process に読まれたか）を打つ。CUDA が走っていなければ A の形で開き直し、理由は `provider_mismatch` とする。最初に作るのは、先に別の CUDA の session が在ると、module が読まれていても認識器の encoder が CUDA で走った証拠にならないからである。
+3. 落ちたら、`gpu.fallback.cpu`（`stage` は `recognizer`、`error_code` は `HAYAMIMI_GPU_FALLBACK`）を 1 回、`/events` に `{"type":"fallback","stage":"recognizer","reason":...,"to":"cpu"}` を 1 回、利用者の locale の文を stderr に 1 回出し、字幕を出し続ける（3.15 の形）。`stage` と `reason` の値は 3.15 の 2 つの一覧に既に在り、一覧は変わらない。
+
+4. D で patch が効いていることは、上の 2 の検出では見えない。`cuda_did_not_run` は CUDA の provider の module が process に読まれたかだけを見て、`lid.rs` の `reports` は要求した provider をそのまま書くので、patch の外れた library で encoder、decoder、joiner の 3 つが CUDA に置かれた形（認識の 1 回が 171 ms の形）でも、この 2 つは CUDA で走ったと答える。C の API は session ごとの provider を返さないので、実行時には確かめず、受入で session ごとの copy の回数を数えて確かめる。decoder と joiner が CUDA に居れば、frame ごとに host と device の往復が足され、1 発話の host → device の回数が encoder だけの時より frame の数に比例して増える（今の CUDA の形は p50 で 450 回、`gpu_stages.md` の「転送」）。RP-77 の後段がこれを数える。
+
+落ち先を fp32 の encoder の CPU ではなく A の形にするのは、CPU の上では A が速く（無負荷の 128.6 ms 対 151.3 ms）、誤り率を RP-1 で測ってある形だからである。
+
+**確かめる probe**：RP-74 が置き場を変える前の門で、build した物を新しく作らずに打てる（`hayamimi-eval stages` の `recognize`、`encoder_only`、`search_replay` は在る）。
+B と D の実装は RP-74 が通ってから始め、RP-75 から RP-78 はその実装を受ける。
+RP-74 の打ち方と壊れ方は次のとおりである。
+
+- **何を、どの音声で、何回**：lat-ja（23 発話）を `--repeat 5` で流す（1 run 115 標本）。無負荷、GPU の負荷の下（`--load-url <llama> --load-clients 2`）、2 音源同時（`--peers 1`）の 3 条件で、CPU の run（A の `recognize` と、`encoder_only` と `search_replay` の CPU の値）と CUDA の run（`encoder_only`）を 1 組とし、条件ごとに 3 組を別の process で交互に打つ（組の番号が奇数なら CPU の run が先）。`<llama>` は訳の llama-server の URL（3.6）である。
+- **B の標本の作り方**：B の見積りは、同じ組の CPU の run と CUDA の run の同じ `(utt, repeat)` の値を、fbank + `encoder_only`（cuda）+ 0.5 ms + `search_replay` の joiner と decoder（int8、cpu）として標本ごとに足し、足した 115 個から p50 と p95 を取る。p95 どうしを足さないのは、各段の遅い標本が同じ発話に揃うとは限らず、和の p95 より大きく出るからである。
+- **線**：A 対 A の対照と組にする。条件ごとに、3 組の A の p50 の幅（最大 − 最小）を A の揺れとする。通る条件は、3 組の B の p50 の中央値が A の p50 の中央値より「15 ms と A の揺れの大きい方」以上小さく、3 組の B の p95 の中央値が「A の p95 の中央値 + 3 組の A の p95 の幅」以下であることである。15 ms は、CPU の負荷の差だけで A の decode が延びた幅（原因分析の席の申告で 13.5 ms、評議の席の数え直しで旧と新の平均の差 15.4 ms）に当たる値で、A の 3 run の幅（評議の席の数え直しで 24.6 ms）がそれより大きい窓では、A の揺れの方が線になる。
+- **落ちた時**：無負荷か 2 音源同時で落ちたら、D を進めず A に残す。落ちたのが GPU の負荷の下の条件だけなら、A へ自動で戻さず、3 条件の値を付けて評議へ戻す。
+- **peers の偏り**：`--peers 1` の 2 つ目の音源は、`stages` を打った provider の認識器を丸ごと回す（`native/hayamimi-eval/src/stage_peer.rs` の `source_precision`。CUDA の run では fp32 の認識全体が CUDA で、CPU の run では int8 が CPU で回る）。CUDA の run の peer は split の形ではなく探索まで CUDA に置いた形なので、B の `encoder_only` は本当の 2 音源同時より重い GPU の取り合いの下で測られ、CPU の取り合いは受けない。偏りの向きは GPU と CPU で逆で、差の大きさは測っていない（NOT VERIFIED）。RP-78 の後段の split の認識器の run が、peer も split の形にして受ける。
+- **初めての実行**：JIT の cache が空の process は最初の decode が遅い（`gpu_stages.md` の「JIT の cache と decode_ms」で 529 ms 対 358〜381 ms）。各 run は `--cache warm` の process で打ち、`decode_first` は合否に入れない。
+- **起動の形**：A の run も B の run も、peer を含めて全部同じ高い優先度で起こす。WSL は `sudo -n nice -n -5 <command>`、Windows は `cmd.exe /c start "" /high /wait <command>` で起こし、run の間に `Get-Process hayamimi-eval | Select-Object Id,PriorityClass` で peer を含む全 process が `High` であることを `docs/results/rp74/priority.txt` に書く。`High` でない process が在った run は捨てる。
+- **取り合う資源**：GPU（E2E の席と llama-server）、CPU（他の席の cargo の build）、llama-server の slot。各 run の直前と直後に、WSL の `pgrep -x rustc` と `pgrep -x cargo`、Windows の `Get-Process -Name rustc,cargo -ErrorAction SilentlyContinue` がどれも 0 件で、`nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv` に llama-server と run 自身の他の compute app が居ないことを数え、`docs/results/rp74/load.txt` に書く。どれか 1 つでも 0 件でない run は捨て、run の名前と居た process を結果に名指しする。
+- **始めてよい条件と確かめ方**：窓の前に、Windows の `hayamimi-eval.exe stages --help` の出力に `--only`、`--peers`、`--run`、`--cache` の 4 つが在ることを確かめる（1 つでも無ければ窓を開けない）。各 run の直前に、WSL の `/proc/loadavg` の 1 分の値が 2 未満で、Windows の `Get-Counter '\Processor(_Total)\% Processor Time'` の値が 20 未満であること。WSL の load は Windows の process を数えないので、2 つを両方 `load.txt` に書く。
+- **窓の順**：vad-trace、held-tail-shadow、e-warmup の 3 つの席と E2E を先に通し、RP-74 はその後の空いた窓で打つ。窓の間は、新しい cargo の席と E2E を出さない。
+- **承認や入力で止まる command**：無い。PowerShell は `-NoProfile -NonInteractive` で呼ぶ。`sudo -n` は password を訊かずに失敗するので、失敗したら run を打たずに止まる。
+
+**残る穴**（この案の分。評議の判定を受けた設計の席が、判定を受けた手番で 10 へ移す）：
+
+- GPU の負荷の下で `S(cpu)` が 2 倍に出る理由（NOT VERIFIED）。RP-74 は CPU の search_replay を同じ負荷の下で直に測るので、引き算に頼らずに決まる。
+- R7 の WSL の run の残り（10 の H31）が探索の中に在るか（NOT VERIFIED）。RP-74 の陽性対照（足し算の式が CPU の fp32 で実測の 15% 以内に収まるか）が外れたら、見積りを使わずに評議へ戻す。
+- `X` の 0.5 ms（ASSUMPTION）。RP-78 が `L_asr` で、効き目の和として受ける。
+- encoder を GPU に足すと、訳 T と E と同じ GPU を取り合い、`L_tr` が延びうる（NOT VERIFIED）。RP-78 が `L_tr` を測る。
+- fp32 の encoder（file は 261,057,972 bytes）が GPU の memory に常駐する。RP-22 の 14,000 MiB と、3.15 の memory の上限の行で CPU へ落とす順に認識器が入っていない。判定を受けた設計の席が 3.15 を直す。
+- D の patch を当てる行は、v1.13.8 の `offline-transducer-model.cc` で 3 つの session が 1 つの設定を共有することまでを確かめた（3.4。master も `sess_opts_` は 1 つ）。patch の差分の形は実装の席が確かめる。
+- 本家に送れるか：同じ分け方（offline の transducer で、`cuda` のとき decoder と joiner を CPU に置く）を sherpa-onnx の本家へ送り、入れば patch を消せる。online の側の OpenVINO の分け方（3.4）が前例になる。送るか、送って入るかは確かめていない（NOT VERIFIED）。持ち主は D の実装の席で、patch を作る手番で本家の issue と pull request に同じ分け方が在るかを数える。
+- patch が効いたかは実行時には見えない（fallback の 4）。RP-77 の後段の copy の数え方が、Windows の profiler で取れない時は WSL の同じ build で数える（3.5 の転送の段落と同じ）。
+- D の CPU の decoder と joiner の thread の数（今は認識器と同じ 4）。小さい graph には多すぎる疑いがあり、RP-74 の CPU の run の search_replay の thread の数と揃えて測る（ASSUMPTION）。
+- encoder の CUDA の TF32 の既定の食い違い（3.4）。RP-75 の text の一致で効き目を受ける。
+- この案の受入 ID は RP-74 から RP-78 である。RP-73 は並べて走る設計の席が使っている。
+
+**決めた線**：
+
+1. 採る形は D で、RP-74 から先へ進める。置き場は RP-78 が通るまで A のまま。
+2. D の C++ の patch を持つ。実装は RP-74 の後。
+3. RP-74 と RP-78 の線は上の「線」の文言で決め、結果を見て動かさない。`L_tr` の p50 の延びは 20 ms 以内とする。
+4. RP-74 の run は全部同じ高い優先度で起こす（上の「起動の形」）。
 
 ### 3.6 訳の速度
 
@@ -802,6 +979,11 @@ sherpa-onnx の Silero は、確率が `threshold` を超えると声の始ま�
 今の `threshold` は 0.5 なので、終わりの側の線は 0.35 である。
 ja の声の後ろには、確率が 0.35 と 0.5 の間に留まる区間が長く続く。
 `docs/results/vad-threshold-20261015/` の probe では、区切りの終わりから manifest の `end_sample` を引いた差が、ja で p50 524 ms、p95 877 ms、en で p50 78 ms、p95 250 ms だった。
+この差は、detector が声の終わりを遅れて言う量と、`end_sample` の置き方の誤り（3.1 の起点の確かさ）の和である。
+起点の確かな発話だけで見ると、差は ja の確か 4 発話で 100、108、300、706 ms、en の 15 発話で 26〜250 ms（p50 78 ms）である。
+ja の切れの発話では、区切りの終わりが clip の終わりより 326〜665 ms 後ろ、すなわち声の後のつないだ無音の中に在る（発話 11、13、14、20、21、22。発話 19 は 1,818 ms 前で、発話 10 は区切りが触れない）。
+`L` の遅い ja の発話 16 と 22（`83830af` の build の RP-32 の 3 run、15 標本の中央値で 1,509 ms と 1,367 ms。記録の在り処は 10 の H90）は、確かと切れの発話である。
+したがって確かと切れの 12 発話では、ja の待ちが `min_silence` より長いのは、主に detector が無音の中で声を言い続ける量で、`end_sample` が早すぎるからではない。不確かの 11 発話には言えない。この読みは H93 の結果が出るまで暫定である。
 `threshold` を 0.6 に上げると ja の差の p50 は 288 ms に縮んだが、始まりも同じ値で上がるので、発話の始まりが 256 ms 遅れた。
 1 つの値が始まりと終わりの両方を決めているからである。
 `neg_threshold` は sherpa-onnx の C++ の設定には在るが、C の API（`c-api.h` の `SherpaOnnxSileroVadModelConfig`）と Rust の crate 1.13.8 の `SileroVadModelConfig` には無い（crate の source を `rg -n neg_threshold` で 0 件、同じ範囲の `threshold` は 1 件以上。crates.io の最新も 1.13.8）。
@@ -883,7 +1065,7 @@ Silero の 1 回は 30 ms 以上の塊で CPU の 1 thread 1 ms 未満なので�
 
 - **Silero の threshold を 0.6 か 0.7 にする**：ja の行が割れ（4 から 6、8）、発話の始まりが 256 ms 以上遅れる（`docs/results/vad-threshold-20261015/`）。
 - **`--min-silence` を 0.20 にする**：p95 が 23〜26 ms しか縮まず、割れた行が増える。
-- **`t_end` の定義を変える**：測る物差しを結果に合わせることになる（3.1）。
+- **`t_end` の定義を変える**：測る物差しを結果に合わせることになる（3.1）。起点を不確かの発話で音量の後ろの終わりへ動かしても、ja の Rust の `L` の p95 は 1,481〜1,509 ms の間にしか動かず（6 の RP-73 の行）、1000 ms の線に届く手にならない。
 - **認識を GPU に移す**：同じ精度の対で CPU int8 の方が速い（3.5、R7）。
 - **小さい認識器に替える**：誤りが増える。速度の予算の中で品質を落とさない（1.1）。
 - **sherpa-onnx の C の API に `neg_threshold` を足す patch を当てる**：自分で build している（3.12）ので当てられるが、版を上げるたびに patch を当て直す手間が残る。2 本目の detector なら同じ終わりの線を patch なしで得られる。
@@ -912,6 +1094,7 @@ R8v の最初の手番は、build も E2E の run も要らない offline の pr
 高い E2E の run の前に、安い probe で見積りの前提を確かめるためである。
 流れの途中の `flush` で detector が abort する形の再現と守りは RP-68 で、手番 2 の最初に通す。
 残る穴は 10 の H68〜H79 である。
+RP-67 の `L` を数える起点（`t_end`）の確かさの受入は RP-73 で、残る穴は 10 の H90〜H95 である。
 
 ### 3.18 訳の段の詰めの続き（R8w）
 
@@ -1176,6 +1359,11 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-21 | model の取得に Python が要らない | 空の directory で `<hy> models fetch --minimal --dir <tmp>` | 今の `--minimal` と同じ 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）が 3.5 の置き場に合った版（3.10）で揃い、`models/manifest.json` に sha256 が在る | 既に在る directory で打つと取り直さない | 取得先の 1 つを壊すと、もう 1 つの取得先（sherpa-onnx の release と Hugging Face）から取る。両方を壊すと前の file を残し、`models.fallback.previous` を 1 件出して終了 code 0 |
 | RP-22 | GPU の memory の上限 | RP-3 の run の間、`nvidia-smi --query-gpu=memory.used --format=csv` を 1 秒ごとに読む（R3b は `/ingest` が入る前なので、llama-server を起こした機械で `<hy> --wav testdata/lat-multi.wav` を実時間で流す間に読む。8 の「07:00 の計画」の R3 の着手の 2） | 最大が 14,000 MiB 以下（`gpu_stages.md` に memory の実測が無いまま据え置いた値で、R3 と R8e が測り、超えたら評議へ戻す。16,311 MiB から、他の process の 1,161 MiB と、余白の約 1,150 MiB を除いた値） | 起動前の値が読める | 上限を、その run の起動前の読みの最大より 1 MiB 高い値に置いた test の設定（読む物は GPU 全体で、他の process の使用量は run ごとに動くので、別の run の最大から置いた上限は、その run が届かない所に在りうる。起動前の読みから置いた上限は、読み込んだ後の `hayamimi` の分だけ必ず下回る）では、`hayamimi` が止まらず `gpu.fallback.cpu`（`memory_budget`）を 1 件以上出し、test の比べる式は上限を超えた読みを名指しして落ちる（比べる式が働くことの確かめ） |
 | RP-23 | 段ごとの GPU と CPU の計測（R1） | `<ev> stages --provider cuda --wav lat-ja.wav --out stages_cuda.jsonl` と `--provider cpu` を同じ build で 1 回ずつ（1 stream）打ち、同じ 2 本を llama-server に訳の依頼を流し続けた負荷の下でも打ち、`cargo test --release --test rp23 -- --ignored` が `docs/results/gpu_stages.md` を書いて読む | 3.5 の表で GPU の経路が在る段（「いまの置き場」が「CPU（GPU 経路なし）」で始まらない 14 段）について、無負荷と負荷の下の、GPU と CPU の p50 と p95（標本は lat-ja の 23 発話を 5 回流した区切りの数か、文字列の段は同じ数の行）、1 発話あたりの転送の時間と bytes、測った機械と `build.json` の要点が在る。JIT の cache が空の run と温かい run の `decode_ms` が別の行で在る（10 の H27） | 同じ build で同じ入力を 2 回流した p50 の差が 10% 以内 | provider を指定しない run の行は、CPU の行と同じ値になり、GPU の行として受け付けない |
+| RP-74 | encoder だけを GPU に置いた形の認識の時間の見積り（3.5 の「認識の encoder だけを GPU に置く案」。置き場を変える前の門） | Windows で、3 条件（無負荷、`--load-url <llama> --load-clients 2`、`--peers 1`）ごとに、`<ev> stages --provider cpu --wav lat-ja.wav --models models --repeat 5 --cache warm --only recognize,encoder_only,search_replay --run <k> --out docs/results/rp74/<条件>_cpu_<k>.jsonl` と `<ev> stages --provider cuda --wav lat-ja.wav --models models --repeat 5 --cache warm --only encoder_only --run <k> --out docs/results/rp74/<条件>_cuda_<k>.jsonl` を k = 1、2、3 で別の process で交互に打つ（k が奇数なら cpu が先）。窓の前に `hayamimi-eval.exe stages --help` が `--only`、`--peers`、`--run`、`--cache` を持つことを確かめ、全 run を peer を含めて同じ高い優先度（WSL は `sudo -n nice -n -5`、Windows は `cmd.exe /c start "" /high /wait`）で起こす。各 run の直前と直後の WSL の `/proc/loadavg`、Windows の `Get-Counter '\Processor(_Total)\% Processor Time'`、`pgrep -x rustc`、`pgrep -x cargo`、`Get-Process -Name rustc,cargo`、`nvidia-smi --query-compute-apps` を `docs/results/rp74/load.txt` に、各 process の `PriorityClass` を `priority.txt` に書き、`cargo test --release --test rp74 -- --ignored` が読む（3.5 の「確かめる probe」） | 条件ごとに、組 k の B の標本を同じ `(utt, repeat)` の fbank（int8）+ `encoder_only`（cuda）+ 0.5 ms + `search_replay` の joiner と decoder（int8、cpu）の和とし、115 個の和から p50 と p95 を取る（p95 どうしを足さない）。A は `recognize_total`（int8、cpu）。3 条件の全部で、3 組の B の p50 の中央値が A の p50 の中央値より「15 ms と、3 組の A の p50 の幅の大きい方」以上小さく、B の p95 の中央値が「A の p95 の中央値 + 3 組の A の p95 の幅」以下。GPU の負荷の下の条件だけが落ちた時は、test は「評議へ戻す」と言って落ち、A へ戻したとは書かない。各 run の直前の WSL の load が 2 未満、Windows の CPU が 20% 未満、直前と直後の rustc と cargo が 0 件、llama-server と run 自身の他に compute app が 0 件、全 process が `High`（外れた run は捨て、名前と居た process を挙げる。捨てた後に組が 3 つ揃わなければ落ちる）。3 条件の数と差を `docs/results/rp74/summary.md` に書く | 足し算の式の確かめ：同じ CPU の run の fp32 で、fbank + `encoder_only`（cpu）+ `search_replay` の和が `recognize_total`（fp32）の p50 の ±15% に入る。入らない条件が 1 つでも在れば、見積りを使わずに「式が成り立たない」と言って落ちる | `encoder_only` の p50 を同じ組の A_k に置き換えた fixture では、見積りが A を超えて落ちる |
+| RP-75 | split の形の認識の結果と、同じ model の file を CPU で読んだ sherpa-onnx の結果の一致（3.5 の「B を採るときの front end と探索」） | `cargo test --release --test rp75 -- --ignored`。test は `tests/golden/ja/` の 8 本と `testdata/eval_real` の ja の 15 本を、参照（sherpa-onnx、`provider` `cpu`、encoder は fp32、decoder と joiner は int8、`modified_beam_search`）と split の形（`--asr-encoder cuda` の形の認識器）で 1 回ずつ解く | 23 本のうち 22 本以上で token の列が一致し、一致しない clip は 2 つの text と CER を並べて書く。正解の text に対する 23 本の CER（`cer_dist` の和 ÷ `cer_denom` の和）の差が 0.002 以下。B を採る時は前段として、B の encoder を CPU にした run が参照と 23 本の token の列と時刻で全部一致し、fbank が dump の道具の参照と全 frame の全 bin で `f32::to_bits` が一致する | 参照を 2 回解いて 23 本が全部一致する（参照が決まった値を出す） | 参照の text を別の clip の順に並べ替えた fixture では一致が 22 本に届かず落ちる |
+| RP-76 | split の形の ja の誤り率が、今の形（全部 CPU の int8）より悪くならない | RP-1 と同じ形の `<ev> scorecard --engine hayamimi --asr-encoder <形> --sets testdata/eval_real --out rp76_<形>.json` を、同じ build で `<形>` を `cuda` と `cpu` にして 1 回ずつ打ち、RP-2 の golden も両方で解き、`cargo test --release --test rp76 -- --ignored` が読む | ja の CER（小数 3 桁に四捨五入）が、split の形で今の形以下。RP-2 の golden の CER も今の形以下。en、zh、ko、yue の tier は split の形でも今と同じ値（Rz の tier だけを変えるので） | `--asr-encoder cpu` の run の ja の CER が `scorecard.md` の 0.038 と 0.005 以内で一致する | ja の clip を SenseVoice の tier へ送る build では ja の CER が悪くなり落ちる |
+| RP-77 | GPU が使えない時に、認識器が今の形へ落ち、落ちたと出す（3.5 の「GPU が無いときの経路」、3.11） | `CUDA_VISIBLE_DEVICES` を空にした `<hy> --asr-encoder cuda --wav lat-ja.wav` を 1 回と、GPU の在る同じ command を 1 回流す。後段として、`nsys profile --stats=true <ev> stages --provider cuda --asr-encoder cuda --wav lat-ja.wav --models models --repeat 5 --only recognize --profile-ranges --out docs/results/rp77/split.jsonl` と、同じ build の `--only encoder_only --profile-ranges` を 1 回ずつ打つ（Windows の profiler で取れない時は WSL の同じ build）。`cargo test --release --test rp77 -- --ignored` が stdout の log、`/events` の記録、2 つの profile の統計を読む | 落ちた run で、`gpu.fallback.cpu`（`stage` は `recognizer`、`reason` は `no_device`）が 1 件、`gpu.session.created` の `encoder-epoch-35-avg-1.int8.onnx` の実際の provider が `cpu`、`/events` に `{"type":"fallback","stage":"recognizer","to":"cpu"}` が 1 件在り、`final` の text が `--asr-encoder cpu` の run と全部同じで、終了 code が 0。後段で、split の認識器の 1 発話の host → device の回数が、同じ発話の `encoder_only` の回数 + 4 以下（decoder と joiner が CUDA に居れば frame ごとに往復が足され、lat-ja の p50 の 146 frame で 290 回以上増える）。patch の効き目はこの観測で決め、`build.json` の patch の sha256 は記録として並べるだけにする | GPU の在る run では、`encoder-epoch-35-avg-1.onnx` の実際の provider が `cuda` で、`stage` が `recognizer` の fallback が 0 件 | GPU の在る run を落ちた run として渡すと、fallback が 0 件なので落ちた run として受け付けない。落ちた run の log から `gpu.fallback.cpu` を消した fixture は、黙って落ちたとして落ちる。patch を当てない library に繋いだ split の run は、host → device の回数が今の CUDA の形（p50 で 450 回）に近づき、後段で落ちる |
+| RP-78 | split の形で `L_asr` が縮み、訳が遅くならない（E2E） | RP-32 の規則（同じ機械、run ごとに `hayamimi` を起こし直す、各 run の前の 1 分の load が 2 未満）で、`<ev> stream --wav lat-ja.wav --repeat 5 --out docs/results/rp78/<形><N>.jsonl` を `--asr-encoder cpu` と `--asr-encoder cuda` の `<hy>` で 3 対交互に流す。その後段として、split の認識器で `<ev> stages --provider cuda --asr-encoder cuda --wav lat-ja.wav --models models --repeat 5 --cache warm --only recognize --out docs/results/rp78/<条件>_split.jsonl` を RP-74 の 3 条件で 1 組ずつ（`--peers 1` の peer も split の形）、RP-74 と同じ起動の形と同じ数え方で打つ。`cargo test --release --test rp78 -- --ignored` が全部を読む | 3 対を合わせた有効な標本（3.1）で、`L_asr` の p50 が split の形で今の形より「15 ms と、今の形の 3 run の `L_asr` の p50 の幅の大きい方」以上小さく、p95 が「今の形の p95 + 今の形の 3 run の p95 の幅」以下。`L_tr` の p50 の延びが 20 ms 以内。`L` の p50 と p95 が今の形以下。後段の 3 条件の `recognize_total` の p50 と p95 を、RP-74 の同じ条件の A と B の見積りに並べて `docs/results/rp78/summary.md` に書き、無負荷と 2 音源同時で RP-74 の線を実測でも満たす（GPU の負荷の下だけが外れた時は評議へ戻す） | 今の形の 2 run を対にした時、`L_asr` の p50 の差が線より小さい（揺れが線より小さい） | encoder が CPU で作られた split の run（`gpu.session.created` の実際の provider が `cpu`）は split の run として受け付けない |
 | RP-24 | build の再現（Windows と WSL） | 2 つの OS で `cargo run -p xtask -- sherpa-gpu` を打ち、`cargo test --release --test rp24 -- --ignored` が 2 つの `build.json` を比べる。2 つの OS を比べる `windows_and_wsl_builds_match` は WSL から打つ（WSL の build の directory は symlink で、Windows からは WSL が作った symlink を読めない。os error 1920） | sherpa-onnx の commit、ORT の版、CUDA の主版、cuDNN の主版、`sm_120` 系の判定（3.12）が一致。各 OS で、`sm_120` か `sm_120a` の機械語が 1 件以上、または `sm_120` の PTX があり「PTX の JIT で RP-17 が通った記録」が在る。この記録は、その build の `build.json` の sha256 を持つ `rp17_passed.json`（RP-17）である | 同じ OS で 2 回 build した `build.json` の上の項目が一致 | ORT の版を変えた build では差を名指しして落ちる |
 | RP-25 | 訳の揺れ | RP-3 の Rust の run を `cargo test --release --test rp25 -- --ignored` が読む | 発話ごとに、確定の訳が出た後に表示の訳が変わった回数が 0。先の訳から確定の訳への置き換えは 1 回まで。速報の訳で、確定した字形で描いた接頭辞が後で消えた回数が 0。Zoom と Teams と SRT へ出た訳は 1 つの `id` につき 1 件で、確定の訳と同じ | 先の訳と確定の訳が違う発話の数を同じ test が数える | 確定の訳の前に先の訳を送る偽の中継で落ちる |
 | RP-26 | 言語の切り替え | `cargo test --release --test rp26` が、`<hy> --help` と、fallback の時の stderr（3.15）を、locale を en と ja にして読む | en と ja で文が別の言語で、どちらも `strings.<locale>.toml` の key だけから組まれている。`strings.en.toml` と `strings.ja.toml` の key の集合が同じ | en の出力が英語 | 文言を code に直書きした build で、表に無い文が出て落ちる |
@@ -1214,12 +1402,13 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-64 | 欠番。T と E の両方が数で止まった行を訳し直す形（8 の R8u）は、probe で効かないと分かったので作らない（10 の H66）。その行は held のまま訳を出さず、原文の字幕を出し続ける。理由が log で読めることは RP-42 が測る | なし | なし | なし | なし |
 | RP-65 | session の言語の文字を持たない 1〜2 字の確定文を出さない（8 の R3e） | `cargo test --release -p hayamimi --test rp65` が、確定文を出す所に偽の認識の結果を渡す | 前後の空白を除いて 1〜2 字で、どの字も session の言語の文字（en は Latin、ja は漢字、ひらがな、カタカナ、Latin）に入らない確定文（`--lang en` の `ل    `）は、`final` を出さず `asr.final.dropped`（info、`reason` は `off_script`）を 1 件出す。捨てるのは、1〜2 字のうちに文字（Unicode の alphabetic）が 1 つ以上在り、そのどれも session の言語の文字でない時だけである。3 字以上の文、session の言語の文字を含む 1〜2 字の文（en の `OK`、ja の `はい`）、文字を持たない数字と記号だけの 1〜2 字（`42`、`?`）は今のとおり出す（数字と記号はどの言語の発話でも本物でありうるので、落とさない側に倒す）。空白だけの確定文は字が 0 でこの規則の外に在り、今の扱いのまま変えない | 同じ test が、`ل` を含まない短い確定文を全部出す。RP-1 の scorecard の run と golden の 8 本（RP-2）で `asr.final.dropped` が 0 件（本物の音声の確定文を落とさない） | 字の数だけで捨てる build で `OK` と `はい` が消えて落ちる。捨てない今の build で `ل` の `final` が出て落ちる |
 | RP-66 | 発話の終わりの待ち `d`（`L_asr − L_dec`）と、区切りの品質（3.17、8 の R8v） | E2E-1（`lat-ja`）と E2E-2（`lat-en`）の手順で、R8v の前の main の `<hy>`（`--endpoint` を持たない build）と R8v の `<hy>`（既定の `--endpoint early`）を、main、R8v、main、R8v の順に言語ごとに 2 対流す。run の前の 1 分の load が 2 未満であること、`/proc/loadavg`、中継の stdout、`hayamimi` の log を run の file と同じ所に残すことは RP-32 と同じ。記録は `docs/results/r8v/` に置き、`cargo test --release -p hayamimi-eval --test rp66 -- --ignored` が読む | 遅れの合否は `d` だけで見る。有効な標本（3.1 の終端不正の例外のとおり `min_silence` を 0.12 秒にして数える）で、R8v の `d` が ja で p50 500 ms 以下かつ p95 1050 ms 以下、en で p50 300 ms 以下かつ p95 520 ms 以下。ja の p95 の限度 1050 ms は見積り（10 の H68）から置いた仮の値で、R8v の手番 1 の probe の結果を見て、手番 3 の run の前に置き直す（置き直した値と理由は `docs/results/r8v/probe.md` に書く）。品質の合否は 2 つで見る。1 つ目は、B だけが作った割れ（3.17 の方針 4）を 3.17 の「RP-66 と RP-67 の数え方」の 8 と 9 で仕分けた**文の途中の切断の率**が上限以下であること。分母は枠の全標本（発話の数 × 回の数。数え方の 3 と同じ）、分子は ja の参照で「文の途中」と仕分けた割れの数、上限は ja 10 %（手番 1c の 80 本では 8 件まで、9 件で不合格）。en の率は記録だけで、合否に入れない。2 つ目は、「final なし」の標本の数と訳の取れない有効な標本の数が同じ対の main より増えず、ja の CER（run の全標本の `cer_dist` の和 ÷ `cer_denom` の和）が対の main 以下であること。`finals` が 2 以上の標本の数、仕分けの 3 つの数（本物の文の切れ目、文の途中、尾の雑音）、割れた標本の訳の chrF（数え方の 8）は記録するだけで合否に入れない。`L`、復号（`L_dec`）、訳（`L_tr`）は p50 と p95 を記録するだけで、合否に入れない（`L` の p95 の合否は RP-67） | 合わせた 2 本の main の run の `d` の p50 が、今の main の記録（ja 865 ms、en 457 ms。3.17 の「RP-66 と RP-67 の数え方」の 1）から ±60 ms に入る。R8v の run の `hayamimi` の log に `asr.endpoint.decided` の `rule` が `early` の行が 1 件以上在る | R8v の build を `--endpoint silence` で流した run が `d` の期待値を外して落ちる。完結の判定を常に真にした build（毎回の候補で確定する）が、文の途中の切断の率で落ちる |
-| RP-67 | 主指標 `L` の p95 を 1000 ms 以下にする（3.17、10 の H69） | E2E-1（`lat-ja`、23 発話 × 5 回）と E2E-2（`lat-en`、15 発話 × 5 回）を、E2E の手順（`docs/results/e2e/README.md` の条件）で流し、`cargo test --release -p hayamimi-eval --test rp67 -- --ignored` が `docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む | 3.1 の数え方（訳の取れた有効な標本、nearest-rank。有効は 3.1 の終端不正の式で `min_silence` を 0.12 秒として数える（3.17 の「RP-66 と RP-67 の数え方」の 3、H70））で、E2E-1 と E2E-2 のそれぞれの `L` の p95 が 1000 ms 以下。`d`、復号、訳の p50 と p95 を同じ結果に並べて書く。持ち主は 2 つに分ける。ja（E2E-1）は訳の波（3.16 の 2、R8h の 2）で、R8f の V の直しは main に入っており、残る手は RP-32 の Rust の run（R8h の 4）と、3.18（R8w）の訳の段の詰めと、名前だけ在って repo に無い RP-33 の test（R8n）である。A（T と E0 を並べて投げる形）は作らない（3.16 の 2）。en（E2E-2）の持ち主は R7 の席（認識の遅れの詰め、8 の R7 の行）で、復号の p95（422 ms）と、確定の解き直しを省く H10 から始める | test が、今の main の記録（`/home/fukugan/.cache/hayamimi-e2e-20261015/run3/` の e2e1 と e2e2）を読むと、ja 1871 ms、en 1303 ms で落ちる。同じ test が、全標本の `L` を 900 ms に置いた fixture で通る | `L` が 1000 ms を超える標本を、許す数（n から nearest-rank の順位を引いた数）より 1 件多く入れた fixture で落ちる |
+| RP-67 | 主指標 `L` の p95 を 1000 ms 以下にする（3.17、10 の H69） | E2E-1（`lat-ja`、23 発話 × 5 回）と E2E-2（`lat-en`、15 発話 × 5 回）を、E2E の手順（`docs/results/e2e/README.md` の条件）で流し、`cargo test --release -p hayamimi-eval --test rp67 -- --ignored` が `docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む | 3.1 の数え方（訳の取れた有効な標本、nearest-rank。有効は 3.1 の終端不正の式で `min_silence` を 0.12 秒として数える（3.17 の「RP-66 と RP-67 の数え方」の 3、H70））で、E2E-1 と E2E-2 のそれぞれの `L` の p95 が 1000 ms 以下。`d`、復号、訳の p50 と p95 を同じ結果に並べて書く。`L` は `t_end`（manifest の `end_sample`）から数え、起点を動かさない。合否が起点の確かさ（3.1）の組で割れないかは RP-73 が見る。持ち主は 2 つに分ける。ja（E2E-1）は訳の波（3.16 の 2、R8h の 2）で、R8f の V の直しは main に入っており、残る手は RP-32 の Rust の run（R8h の 4）と、3.18（R8w）の訳の段の詰めと、名前だけ在って repo に無い RP-33 の test（R8n）である。A（T と E0 を並べて投げる形）は作らない（3.16 の 2）。en（E2E-2）の持ち主は R7 の席（認識の遅れの詰め、8 の R7 の行）で、復号の p95（422 ms）と、確定の解き直しを省く H10 から始める | test が、今の main の記録（`/home/fukugan/.cache/hayamimi-e2e-20261015/run3/` の e2e1 と e2e2）を読むと、ja 1871 ms、en 1303 ms で落ちる。同じ test が、全標本の `L` を 900 ms に置いた fixture で通る | `L` が 1000 ms を超える標本を、許す数（n から nearest-rank の順位を引いた数）より 1 件多く入れた fixture で落ちる |
 | RP-68 | 流れの途中で VAD の `flush` を打つと detector が abort する形の再現と、R8v と `finish` の後の feed がその形に入らない守り（3.17 の方針 4、10 の H75） | `cargo test --release -p hayamimi-asr --test rp68`。abort は test の harness ごと殺すので、親の test が自分の test の binary（`std::env::current_exe`）を子 process として引数つき（`--ignored --exact <子の test の名前>`）で起こし、子の終わり方（終了の status と stderr）だけを見る。音声は `testdata/lat-ja.wav` の 1 発話の声の区間を切って使う | 子 1（再現）：sherpa-onnx の `VoiceActivityDetector` を直に開き、「発話 → 0.12〜0.2 秒の無音 → `flush` → 0.30 秒以上の無音」を 512 sample ずつ食わせると、子が正常に終わらず、stderr に `Invalid n` が出る。子 2（守り、R8v の形）：同じ音声を `hayamimi-asr` の `Vad`（A と B）と確定の線の規則に通すと、子が status 0 で終わり、final が 1 件で、その `t1_s` が確定の線の sample である。子 3（守り、`finish` の後）：同じ音声の後に `Engine::finish` を打ち、続けて同じ音声をもう 1 回食わせても、子が status 0 で終わる | 子 2 と子 3 が status 0 で終わる（守りの形が abort しない） | 子 1 が status 0 で終わる時（固定の版で abort しなくなった時）は、この test が落ちて再現の前提が変わったことを言う。子 2 を、確定の時に A へ `flush` を打つ build で流すと落ちる |
 | RP-69 | 部分訳の使い回し（3.18、8 の R8w） | `cargo test --release -p hayamimi-relay --test rp69` が、T の答えに 300 ms の待ちを入れて依頼の数を数える偽の llama-server に、偽の認識器から速報と `final` の列を流す（`#[ignore]` を持たない） | (a) 速報 `X` の訳が V を通って出た後に、同じ `id` の `final` `X。` が来ると、その行の T の依頼は 0 本で、`final` を受けてから 50 ms 以内に、`of` が `final`、`stage` が `t`、`settled` が偽、`src_sha256` が `X。` の sha256 の訳が出る。`translate.draft.reused` が 1 件（`match` が `closing_mark`、`state` が `done`）。(b) 速報 `X` の依頼が走っている間に `final` `X。` が来ると、その依頼は打ち切られず、その発話の T の依頼は全部で 1 本で、先の訳は速報の答えが来た時に出る（`state` が `running`）。その後に次の発話の速報が来ても、その依頼は打ち切られない。(c) 速報の T の答えが原文に無い数を持つ時、`final` `X。` の行は T を頼まずに E を頼み、先の訳を出さない。(d) 使い回した答えに掛けた V の原文は `final` の文字列である（observer の `draft_verify_input` と V の入力で数える）。(e) 使い回した行の V は 1 行に多くて 2 回である | 同じ test が、`final` が `X？` の時と、`id` の違う `final` の時に、T を 1 本頼み直し、`translate.draft.reused` が 0 件であることを示す | `final` が来ると速報の依頼を止める今の形で、(a) と (b) の T が 2 本になり落ちる。句読点を全部除いて比べる build で、`X？` の行が使い回されて落ちる。速報で掛けた V の判定をそのまま使う build で、(d) が落ちる |
 | RP-70 | `。` を足しただけの文の訳を使い回してよいこと（3.18 の部分訳の使い回しの品質） | test-designer の席が、`testdata/baseline/pairs/`（seed 0）と `testdata/baseline/pairs_seed1/`（seed 1）の ja の原文のうち末尾が `。` の行だけを取り、そのままの組 a と、末尾の `。` だけを除いた組 b を git の外に作る（行の id と参照訳は同じ）。同じ llama-server（RP-71 の腕 N0）で、`hayamimi-relay eval --pairs <a> --out <ha1>`、`--pairs <b> --out <hb1>`、`--pairs <a> --out <ha2>`、`--pairs <b> --out <hb2>` の順に打ち、`<ev> chrf` で採点し、`cargo test --release -p hayamimi-eval --test rp70 -- --ignored` が 4 組の結果と中継の stdout を読む | b の 2 回を合わせた corpus chrF が、a の 2 回を合わせた値以上。V が両方の訳を止めた行の数が、b の 2 回の合計で a の 2 回の合計以下。b の訳の文末に `.`、`?`、`!` が無く、a の同じ行の訳には在る行の数を記録する（合否に入れない） | 同じ test が、a の 2 回の対から chrF の差と止めた行の差を出す（a 同士の差を記録する） | b の chrF を a より 0.01 低く置いた fixture と、b の止めた行を a より 1 行多く置いた fixture のどちらでも落ちる |
 | RP-71 | 推測デコードの llama-server が速く、同じ訳を出す（3.18、8 の R8w） | 3.18 の腕ごとに `hayamimi-llama-pair.service` を起こし直し、`sudo -n nice -n -5 <relay> eval --pairs testdata/baseline/pairs/ --out <腕と回の dir> --llm http://127.0.0.1:18083` を、N0、S3、N0、S3 の順に腕ごとに 2 回打つ（起こす前の memory の確かめと 18081 の止め方は 3.18 の推測デコードの決めの 5）。中継の stdout（`translate.line.ok` と `translate.line.held` の `t_ms`、`e_ms`）と、run ごとの server の log（`journalctl --user -u hayamimi-llama-pair.service` の、その run の間の行）と、`docs/results/r8w/server-args.md` の `--help` と `nvidia-smi` の記録を残し、`cargo test --release -p hayamimi-relay --test rp71 -- --ignored` が読む | S3 の 2 回を合わせた T の 1 回の p50 が、N0 の 2 回を合わせた p50 から、N0 の 2 回の p50 の差の絶対値を引いた値より小さい。E の 1 回の p50 も同じ式で小さい。S3 と N0 で確定の訳が違う行の数が、N0 の 2 回の間で違う行の数以下。S3 の V が両方の訳を止めた行の数が N0 の 2 回の多い方以下で、corpus chrF が N0 の 2 回の少ない方以上。S3 の引数が `--help` の記録に在り、run の間の `memory.used` が 14,000 MiB 以下。腕ごとの p50 と p95 を全部記録する | 同じ test が、N0 の 2 回から、違う行の数と T と E の p50 の差を出す。S3 の各 run の server の log に、下書きが採られたことを示す行（`draft acceptance rate` か `#acc tokens`）が在り、その値が 0 より大きい（下書きが働いた陽性対照）。N0 の run の log にはその行が 0 行である | T の p50 の差を N0 の 2 回の差と同じに置いた fixture、N0 との違う行を N0 同士より 1 行多く置いた fixture、S3 の log の採られた token の数を 0 にした fixture のどれでも落ちる |
 | RP-72 | RP-32 の run で port が移った run を無効にする（3.18、8 の R8w） | `cargo test --release -p hayamimi-eval --test rp72` が、fixture の run の dir を RP-32 の判定（`check_dir`）に渡す（`#[ignore]` を持たない） | `rs<N>.events.jsonl` に `type` が `fallback` で `reason` が `in_use` の event が 1 件在る dir は、その run の名前を挙げて `Err`。`rs<N>.events.jsonl` の無い dir も、その名前を挙げて `Err` | 同じ test が、`docs/results/rp32/` と同じ形で `fallback` の無い fixture の dir を、port の理由では落とさない | event を読まない今の判定では、`in_use` の `fallback` を 1 件足した fixture の dir に port の理由の `Err` が出ないので、この test は今の main で落ちる |
+| RP-73 | RP-67 の合否が、`t_end`（manifest の `end_sample`）の置き方の誤りで決まっていないこと（3.1 の起点の確かさ、3.17） | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp73` が fixture の行を流す。実走の行は `-- --ignored` を足し、`testdata/lat-ja.wav`、`testdata/lat-en.wav`、`testdata/manifests/lat-ja.json`、`testdata/manifests/lat-en.json` と、RP-67 の実走の行と同じ `docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む。作る物は 2 つである。1 つ目は `native/hayamimi-eval/src/manifest.rs` の、clip の音声から 3.1 の確か、切れ、不確かを返す関数で、`speech_end` と同じ 320 sample の frame と百分位の式を使い、高さ 35、25、15、10 %、安定の幅 40 ms（動きが 40 ms 以下なら安定。40 ms を含む）、後ろの窓 300 ms（15 frame）、低さの線 6 dB と 10 dB を定数に置く。後ろの窓の「平均」は frame の dB 値の算術平均で、電力の平均ではない。2 つ目は、RP-67 の判定の関数を発話の組で絞って呼ぶ test である。実装の順：RP-73 は、RP-67 が初めて通ったと名乗る前に要る。それより前に、`L` を縮める仕事（H93、VAD、訳の段）から cargo の席と load の窓を取らない | 1. 発話ごとに、組、各高さでの声の終わり、後ろの 300 ms の平均の低さを出す。全発話で `speech_end` を当て直した値が manifest の `end_sample` と一致し、一致しない発話が在ればそれを挙げて `Err`。2. 言語ごとに、RP-67 と同じ数え方の判定（`L` の p95 ≤ 1000 ms）を全発話と確かの発話だけで出し、2 つが同じなら `Ok`、割れたら `Err` で「組で割れた」と言語を名指す。割れの原因を起点と断定しない。確かの発話だけの p95 は、同じ記録でも低さの線で 1,222 ms（10 dB）から 1,531 ms（6 dB）まで揺れ、標本が少ないだけでも割れうるからである。確かの発話に訳の取れた有効な標本が 0 件の言語は `Err`（0 件を一致と読まない）。3. 低さの線を 6 dB と 10 dB の両方で数え、線で判定が変われば `Err`。4. 確か、切れ、不確かの組ごとの `L` の p50 と p95 は、この test の出力にだけ並べて書き、記録だけにする | 組の数が lat-ja で確か 4、切れ 8、不確か 11、lat-en で確か 15（10 dB の線では lat-ja が確か 3、lat-en が確か 12）。git の中の `docs/results/rp32/rs1.jsonl`〜`rs3.jsonl` を合わせて渡すと、ja の `L` の p95 は全発話 1,460 ms（n 291）、確かだけ 1,491 ms（n 60）、10 dB の確かだけ 1,222 ms（n 45）で、判定は割れずに `Ok`（RP-67 の側はどれも `Err`）。`docs/results/e2e/e2e2/e2e2.jsonl` の en は全発話 1,303 ms（n 70）、10 dB の確かだけ 1,271 ms（n 60）で割れない | 確かの発話の標本だけを `L` 900 ms、ほかを 1,500 ms にした fixture（全発話で `Err`、確かだけで `Ok`）が、`Err` で「組で割れた」と ja を名指す。確かの 1 発話の `end_sample` を 300 ms 前へ動かした manifest が、その発話を挙げて `Err`。静かな側から 20 % の高さの尾を 400 ms 持つ合成の clip を確かと読む build（40 ms の安定の検査を外した物）が、その clip の case で落ちる |
 
 ## 7. test の名前
 
@@ -1253,6 +1442,11 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-21 | `rp21_models_fetch_without_python` | `native/hayamimi/tests/rp21.rs` | 壊した取得先（もう 1 つの取得先か前の file へ落ちる） |
 | RP-22 | `rp22_vram_stays_under_budget` | `native/hayamimi-eval/tests/rp22.rs` | 上限を run の起動前の読みの最大より 1 MiB 高く置いた設定 |
 | RP-23 | `rp23_every_stage_is_timed_on_gpu_and_cpu` | `native/hayamimi-eval/tests/rp23.rs` | provider を指定しない run |
+| RP-74 | `rp74_split_estimate_beats_cpu_int8_in_every_condition` | `native/hayamimi-eval/tests/rp74.rs` | `encoder_only` を同じ組の A の値に置き換えた fixture、足し算の式が 15% を外れる fixture |
+| RP-75 | `rp75_split_recognizer_matches_the_cpu_reference_of_the_same_files` | `native/hayamimi-asr/tests/rp75.rs` | 参照の text を別の clip の順に並べ替えた fixture |
+| RP-76 | `rp76_split_recognizer_ja_cer_not_worse_than_cpu_int8` | `native/hayamimi-eval/tests/rp76.rs` | ja の clip を SenseVoice の tier へ送る build |
+| RP-77 | `rp77_recognizer_without_cuda_falls_back_to_cpu_int8_and_says_so` | `native/hayamimi/tests/rp77.rs` | GPU の在る run を落ちた run として渡す、`gpu.fallback.cpu` を消した fixture、patch を当てない library に繋いだ split の run |
+| RP-78 | `rp78_split_recognizer_shortens_l_asr_without_slowing_translation` | `native/hayamimi-eval/tests/rp78.rs` | encoder が CPU で作られた split の run |
 | RP-24 | `rp24_windows_and_wsl_builds_match` | `native/xtask/tests/rp24.rs` | ORT の版を変えた build |
 | RP-25 | `rp25_translation_flicker_is_bounded` | `native/hayamimi-eval/tests/rp25.rs` | 先の訳を外へ送る偽の中継 |
 | RP-26 | `rp26_messages_follow_the_locale` | `native/hayamimi/tests/rp26.rs` | 文言を直書きした build |
@@ -1289,6 +1483,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-70 | `rp70_translating_without_the_closing_mark_keeps_chrf_and_verify` | `native/hayamimi-eval/tests/rp70.rs` | b の chrF を 0.01 下げた fixture、b の止めた行を 1 行足した fixture |
 | RP-71 | `rp71_speculative_server_is_faster_and_translates_the_same` | `native/hayamimi-relay/tests/rp71.rs` | T の p50 を N0 と同じにした fixture、違う行を 1 行足した fixture |
 | RP-72 | `rp72_a_run_whose_server_moved_its_port_is_refused` | `native/hayamimi-eval/tests/rp72.rs` | event を読まない今の RP-32 の判定 |
+| RP-73 | `rp73_the_l_verdict_is_the_same_on_utterances_whose_end_is_certain` | `native/hayamimi-eval/tests/rp73.rs` | 確かの発話だけが 1000 ms 以下の fixture、`end_sample` を 300 ms 前へ動かした manifest |
 | RP-55 | `reset_parts_forget_the_previous_sessions_audio_language_and_speakers` | `native/hayamimi-asr/src/pipeline.rs` の `mod tests` | `History::clear` か `Router::reset_session` を呼ばない `reset_parts` |
 | RP-56 | `final_event_switched_true_when_language_changes` | `native/hayamimi/src/session.rs` の `mod tests` | `switched` を常に偽で出す `wire.rs` |
 | RP-57 | `der_breakdown_isolates_confusion_from_miss` | `native/hayamimi-eval/src/der.rs` の `mod tests` | Confusion を Miss に足す内訳 |
@@ -1959,7 +2154,7 @@ u14 は 2 回とも T の訳が V に落ち、E を待った（T 255 ms と E 11
 - **H22** `state.json` の `constraints` に「Rust への移植は速度が足りないと測れたときだけ」が残っていて、この文書の目標と食い違う。state.json を書くセラが直す。
 - **H23** 速報の訳が `final` と同じ原文になったときの `L_tr` の負の値は、速報を早く出す形の正しい効果だが、その発話の数が多いと `L` が小さく見える。RP-3 の出力でその数を見て、多ければ R1b で読み方を決める。
 - **H25** Python の `asr_engine.py` の 1715 行目は、早めに判定した言語を 4 秒未満の発話にだけ使い、それより長い発話では確定のたびに言語判定をやり直す。やり直し 1 回あたり 114 ms で、`L_asr` に入る。Rust でこの規則を写すか変えるかは、R1 の言語判定の GPU と CPU の実測（3.5）の後に R3 が決める。
-- **H26** `end_sample` の今の規則（20 ms の frame の音量）は、声の後ろに音楽が続く発話（lat-ja の 18 と 19）で声の終わりを決められず、その標本は終端不正に入る。全発話に当てる別の規則（Silero VAD の区切り、手で付けたラベル）で直すかは決めていない（NOT VERIFIED）。発話 18 と 19 は Python の訳が 1 回も取れないので、`L` の比較集合には入らない。直すなら 3.1 の規則のとおり全発話を置き直し、R0 の席が Python を測り直す。
+- **H26** `end_sample` の今の規則（20 ms の frame の音量）は、声の後ろに音楽が続く発話（lat-ja の 18 と 19）で声の終わりを決められず、その標本は終端不正に入る。全発話に当てる別の規則（Silero VAD の区切り、手で付けたラベル）で直すかは決めていない（NOT VERIFIED）。発話 18 と 19 は Python の訳が 1 回も取れないので、`L` の比較集合には入らない。直すなら 3.1 の規則のとおり全発話を置き直し、Python の固定した記録（py1〜py3）を、新しい `end_sample` で数え直す。Python は流さない。数え直した値には、H42 と H43 の未検証を添える。発話 18 と 19 は 3.1 の起点の確かさの組分けで不確かと切れに入り、声の本当の終わりの扱いは H91 に在る。
 - **H27** 機械語の当たらない kernel を driver が PTX から変換する初回の遅れは測っていない（NOT VERIFIED）。R1 の RP-23 で、JIT の cache が空の run（子の process に `CUDA_CACHE_PATH` で空の directory を渡す。S18）と、同じ cache で続けて流した温かい run の `decode_ms` を別の行に記録する。差の読み方は R1b で決める。
 - **H28** Windows で `onnxruntime.dll` の import が System32 の 1.17.1 に結びつく条件は特定していない（NOT VERIFIED）。3.4 の遅延読込みと先読みは probe の 4 回で防げたことだけを確かめている。test の実行 file は cargo が `target/<triple>/<profile>/deps/` に置き、`sherpa-onnx-sys` が DLL を写す `target/<triple>/<profile>/` と directory が違うので、test の process で「実行 file の隣」を先読みしたときに `onnxruntime.dll` が在るかも確かめていない（NOT VERIFIED）。R1 の席が `rustc-link-arg-tests` を足す手番で、test の process の `modules` の origin を数える。
 - **H29** 3.5 の「負荷の下」の値は、WSL の llama-server と Windows の ORT が同じ GPU を分けた値で、本番の分け方（Windows の llama-server と Windows の ORT）ではない（NOT VERIFIED）。訳 T の GPU の値は `sm_120` を持たない CUDA 12.0 の build で測ったので、悪い向きに偏りうる（3.12）。R8b が Windows の CUDA 13.4 で T を測り直し、R8e が本番の分け方の負荷の下で `L` を測る（RP-3）。GPU の往復の下限（219 µs）も R1 の計測の値で、測り直していない。
@@ -1995,10 +2190,17 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H33** CPU に落ちた段の誤り率は、同じ model を読むので GPU の run と同じと見込んでいる（ASSUMPTION）。fp32 の数値の差で字が変わりうるので、R2 が RP-18 の句読点の全件を CPU の provider でも掛け、`expected` と一致する件数を記録する。小さい model へ落ちた段の誤り率は測っていない（NOT VERIFIED）。
 - **H42** Python の `final` は `t1_s` を持たないので、Python の run の遅れて着いた `final` は、前の窓が「final なし」で次の窓に `final` が 2 件以上在る形からの推定でしか数えられない（3.1）。推定の数が Python の p95 を小さく見せている量は分からない（NOT VERIFIED）。持ち主は R8h で、RP-32 の Python の run でその数を記録し、Rust の同じ数（`t1_s` で結んだ時に次の窓に着いていた `final` の数）と並べる。
 - **H43** R8e の run の「訳」の段と `decode_ms` の差と、3.1 の数え方で数え直した `L`（p50 1533 ms、p95 2752 ms、母数 67。数え直す前より下がる）は、原因の席と試験の席の打ち直しの値で、設計の席は確かめていない（NOT VERIFIED）。数え直すと母数が 93 から 67 に減り、訳の取れた割合が RP-32 の 20 / 23 に届かない。`decode_ms` の差が負荷の差か engine の差かも分かっていない。Python の `decode_ms` が何を測った値か（待ちを含むか）と、発話の終わりの検出（`detected()`）の挙動も確かめていない。3.16 の 2 の A で、2 本並べた依頼が T の待ちを延ばす量も測っていない。持ち主は R8h で、RP-32 と RP-34 の run の段ごとの列で確かめ、2 の A を作るかの材料にする。
+- **H90** 3.17 の発話 16 と 22 の中央値と、この H91、H92 の数のうち `83830af` の build の物は、RP-32 の 3 run の記録（git の外の `/home/fukugan/.cache/hayamimi-e2e-20261019/e-card-form/` の `rs1.jsonl`〜`rs3.jsonl`）から `jq` で数えた。git の中の `docs/results/rp32/` の `rs<N>` は前の build の run で、RP-73 の陽性対照はそちらの値で書いた。数え方は RP-67 と同じで、有効は `d = (t_final − t_end)/1000 − final_latency_ms ≥ 120`、`L = (t_tr − t_end)/1000`、nearest-rank である。この記録で数え方を確かめるため、起点を動かさない値が RP-32 の test の出力（`L` p50 885 ms、p95 1501 ms、n 291。Python 1427 ms と 1960 ms、n 285）と 1 ms 以内で一致することを見た。git の中へ写す持ち主は E2E の席である。
+- **H91** 不確かの 11 発話（3.1）の声の本当の終わりは確かめていない（NOT VERIFIED）。下限は `end_sample`、上限は Silero の区切りの終わり（probe の threshold 0.5）と clip の終わりの小さい方と置いた。Silero が声の終わりより前で区切らないことは仮定である（ASSUMPTION。発話 18 は区切りが `end_sample` より 595 ms 前で終わり、上限には clip の終わりを当てた）。この幅で不確かの発話の起点を後ろへ動かした数（`83830af` の 3 run、線 0.12 秒）は次のとおりである。ja の Rust の `L` の p95 は、動かさない時 1,501 ms、高さ 25 % の終わりで 1,481 ms、15 % で 1,498 ms、上限で 1,509 ms、p50 は 885、748、734、666 ms である。Python の p95 は 1,959、1,950、1,903、1,807 ms である。後ろへ動かすほど p50 は下がるが、p95 は動かない。p95 を決める遅い発話（16、22、7）は確かと切れか、高さ 25 % で終わりが動かない発話だからである。認識器と別の model の token の時刻で声の終わりを取る強制位置合わせ（S38 の定義の形）は作らない。再開の条件は、RP-73 が `Err` を返した時、または全発話の `L` の p95 が 1000 ms の ±起点の幅に入った時である。
+- **H92** RP-32 は Rust と Python が同じ `t_end` を使うので、起点を発話ごとに同じ量だけ動かしても対の比較の向きは変わらない。変わるのは終端不正の仕分けで、早い規則で確定した Rust の標本ほど線の下へ落ちる。`83830af` の 3 run で起点を動かした時の対の比較（Rust の線を 0.12 秒として数えた値）は、動かさない時 18/19、高さ 25 % で 18/19、15 % で 15/17（比較集合が 17 に減り、要るのは 15）、上限で 13/19（要るのは 17、落ちる）で、Rust の有効な標本は 294、294、260、215 である。起点を動かさずに組で絞ると、確かだけで 4/4（要るのは 4）、確かと切れで 9/10（要るのは 9）、不確かだけで 9/9（要るのは 8）で、遅い発話 22 は切れの組に在る。規則を変える時の Python の基準は、3.1 のとおり固定した記録（py1〜py3）を新しい `end_sample` で数え直し、Python は流さない（評議の判定）。`stream` の送りの時計は manifest の sample と線形で、`83830af` の rs1 の 23 発話で `(t_end_us − t_start_us)/1000 − (end_sample − start_sample)/16` が −20 ms（1 発話だけ −17 ms）の一定だった。規則を変えるかは評議が決める。
+- **H93** 切れの発話で、Silero の区切りの終わりがつないだ無音の中へ 326〜665 ms 延びる理由は確かめていない（NOT VERIFIED）。sherpa-onnx の segment の終わりは、確率が `neg_threshold` 以下になった最初の window に当たる（S25）。window ごとの確率を記録していないので、延びが確率の尾か、clip の境の急な切れへの反応かは分からない。自然に終わる確かの ja の発話でも 100〜706 ms 延びる。持ち主は `L` の p95 の原因を調べる席で、probe に window ごとの確率を出す形は実装の席が足す。
+- **H94** 3.1 の組の数と高さごとの声の終わりは、ffmpeg の `astats` で clip ごとに 320 sample の frame の RMS を取り、`awk` で `speech_end` と同じ式を当てた値である（作業の file は git の外の `/home/fukugan/.cache/hayamimi-rp67-20261020/`）。陽性対照として、同じ frame で 35 % の規則を当て直すと、38 発話の `end_sample` が 0 ms の差で再現した。ffmpeg の RMS と `frame_level_db`（i16 の二乗平均、−120 dB で床）が浮動小数の丸めまで同じかは確かめていない（ASSUMPTION）。RP-73 の Rust の関数が同じ組を出すかは、その test の陽性対照が確かめる。持ち主は RP-73 を実装する席である。
+- **H95** 切れの 8 発話で、clip の終わりの音が声か声でない音かは確かめていない（NOT VERIFIED）。参照の文が clip の一部しか覆わない発話（12、13、14、19、21）が切れと不確かに入っている。声でなければ起点は声の終わりより後ろで、`L` は小さく出る（受入に甘い向き）。RP-73 は確かの発話だけで判定を照らすので、この向きで合否が割れればそこで落ちる。参照の文が短いことによる CER の偏りは、この穴の外である。
+- **H96** 英語版 `rust_port.md` は 8 の R10 の成果物で、まだ無い（この文書の冒頭）。3.1、3.17、RP-67、RP-73、H90〜H96 の英語の文は R10 の席が日本語の正本から作る。
 
 ## 11. 出所
 
-取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
+取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、S38 と S39 が 2026-10-20、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
 crate の版は crates.io の API（`https://crates.io/api/v1/crates/<名前>`）で引いた。
 S12 と S15 は別の席の調べの転記で、この席は原典を開いていない。
 
@@ -2041,3 +2243,5 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S35 | 「Fast Inference from Transformers via Speculative Decoding」：近似の model が出した token を大きい model が並べて照らし、出力の分布を変えずに T5-XXL で 2〜3 倍速い（同じ出力）。既存の model を学習し直さずに使える | https://arxiv.org/abs/2211.17192 |
 | S36 | `cyberagent/CAT-Translate-0.8b`：基の model は `sbintuitions/sarashina2.2-0.5b`、許諾は MIT。3.3b と tokenizer が同じかは書かれていない。同じ作者の CAT-Translate は 0.8b、1.4b、3.3b、3.3b-beta、7b の 5 つ | https://huggingface.co/cyberagent/CAT-Translate-0.8b 、https://huggingface.co/api/models?author=cyberagent&search=CAT-Translate |
 | S37 | `mmnga-o/CAT-Translate-0.8b-gguf`：公開の GGUF の組。`CAT-Translate-0.8b-Q8_0.gguf` は 845,363,136 bytes、LFS の sha256 は `f652c0cd4352424a744bae9e9f633c2efd16a99c0f1a48a0e00d171dc9d6949f`。ほかに IQ3_M から Q6_K までの 13 の量子化が在る | https://huggingface.co/api/models/mmnga-o/CAT-Translate-0.8b-gguf/tree/main |
+| S38 | 「Towards Fast and Accurate Streaming End-to-End ASR」（ICASSP 2020）：認識の遅れを、話し手が話し終えた時から最後の文字列が出るまでの時間と定め、終わりの判定の遅れを中央値（EP50）と 90 パーセンタイル（EP90）で測る。物差しの終わりは、通常の model で音声と書き起こしを強制位置合わせして取った、最後の無音でない音素の後の frame である | https://arxiv.org/abs/2004.11544 |
+| S39 | Silero VAD の `get_speech_timestamps` と `VADIterator`：既定は `threshold` 0.5、`neg_threshold` は `max(threshold − 0.15, 0.01)`、`min_silence_duration_ms` 100、`speech_pad_ms` 30、`min_speech_duration_ms` 250（`VADIterator` には無い）。区切りの終わりは確率が `neg_threshold` を下回った最初の frame の始まりで、報告する終わりはそこへ `speech_pad_ms` を足した位置になる。sherpa-onnx の区切りは pad を足さない（S25） | https://github.com/snakers4/silero-vad の `src/silero_vad/utils_vad.py` |

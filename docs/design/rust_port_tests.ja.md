@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-70 と RP-72。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -2124,6 +2124,8 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 - RP-67 の run が 1 回か複数回か（D は「5 回」の枠だけを書き、交互の対にしない）。この節は 1 つの run の列を渡す形にした。
 - 015 の `docs/results/rp67/` の記録を、誰がどの手番で置くか。
 
+**設計の席が決めた物**：RP-67 の `L` の起点は `t_end`（manifest の `end_sample`）のままで、動かさない（D 3.1 の「起点の確かさ」、D 3.17）。起点の確かさの組（確か、切れ、不確か）ごとの `L` の p95 は RP-67 の出力に並べて書き、合否が起点で割れないかは RP-73（4.71）が見る。
+
 ### 4.66 RP-68（流れの途中の `flush` の再現と、R8v と `finish` の後の守り）
 
 **未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
@@ -2322,6 +2324,25 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 追加の行（初回の依頼の時間の上限）：偽の translator が 3 s 後に答える（`REQUEST_TIMEOUT` の 1.5 s より長く、`warmup::TIMEOUT` の 10 s より短い）。起動の経路 `announce_after_first_request` が `translate.warmup.sent` を出し、`translate.warmup.failed` を出さず、依頼は 1 本である。置き場は `hayamimi-relay/tests/warmup_start.rs`、test の名前は `a_translator_that_answers_in_three_seconds_still_warms_up_at_start`。陰性対照は、`HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT)` を `HttpLlm::new(&live.llm)` に替えると `translate.warmup.failed` が出て落ちることである（実走した）。
 
 **この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
+
+### 4.71 RP-73（RP-67 の合否が起点の置き方で決まっていない）
+
+**未実装。** test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-eval/tests/rp73.rs`。受入 test の名前は `rp73_the_l_verdict_is_the_same_on_utterances_whose_end_is_certain`。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp73`。実走の行はこれに `-- --ignored` を足し、`testdata/` の lat-ja と lat-en の wav と manifest、`docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む。
+設計は D 3.1 の「起点の確かさ」、D 6 と 7 の RP-73、D 10 の H90〜H95 である。
+
+**数え方**：
+
+1. clip ごとに `speech_end` と同じ 320 sample の frame の音量（dB）を取り、10 パーセンタイルを静かな側 `q`、95 パーセンタイルを大きい側 `l` とする。
+2. 高さ `f` の線は `max(q + f × (l − q), l − 25)`、声の終わりはその線を 5 frame 続けて超えた最後の区間の終わり（clip の長さで切る）である。`f` は 0.35、0.25、0.15、0.10 の 4 つで、0.35 が manifest の規則である。
+3. **確か**：0.25、0.15、0.10 の終わりと 0.35 の終わりの差が 40 ms 以下（40 ms を含む。en_08 がちょうど 40 ms）で、0.35 の終わりの後の 15 frame（300 ms。clip の中に在る分）の frame の dB 値の算術平均（電力の平均ではない。電力で平均すると en_03 が 9.0 dB から 2.6 dB に変わる）が 0.35 の線より `drop` dB 以上低い。`drop` は 6 と 10 の 2 つで数え、2 つの組を並べる。
+4. **切れ**：0.35 の終わりが clip の最後の frame の中に在る。確かの条件より先に見る。
+5. **不確か**：確かでも切れでもない。
+6. RP-67 の判定（D 6 の RP-67 の数え方）を、言語ごとに全発話と確かの発話だけで出す。`drop` の 2 つの値のどちらでも 2 つの判定が同じ時だけ `Ok` で、違えば `Err` で「組で割れた」と言語と `drop` の値を名指す。割れの原因を起点と断定しない（確かの発話だけの p95 は同じ記録で 1,222 ms（10 dB）から 1,531 ms（6 dB）まで揺れ、標本が少ないだけでも割れうる）。確かの発話に訳の取れた有効な標本が 0 件なら `Err`。組ごとの `L` の p50 と p95 は、この test の出力にだけ並べて書く。
+7. **実装の順**：RP-73 は、RP-67 が初めて通ったと名乗る前に要る。それより前に、`L` を縮める仕事（D 10 の H93、VAD、訳の段）から cargo の席と load の窓を取らない。
+
+case 行（`T-RP-73-nnn`）は test-designer の席がこの節に書く。
 
 ### 4.72 VAD の窓ごとの確率の probe
 

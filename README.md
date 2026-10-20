@@ -46,6 +46,17 @@ Three things are not implemented:
 - R12y: the arguments of `hayamimi-relay eval` (`--final`, `--heldout`, `--direction`) for scoring translations on a held-out set (an evaluation set never shown during tuning), and the refusal to use the same set twice.
 - Sending to YouTube Live caption ingestion: the conversation-subtitle design lists it as something not to build, and streaming uses the OBS subtitle page burned into the video instead.
 
+### Delay target and recognizer placement as of 2026-10-20
+
+The target for the p95 of the delay (L) is 1000 ms or less, and it is still outside that line.
+For Japanese to English it is 1501 ms (the alternating measurement, RP-32); for English to Japanese it is 1303 ms (a single E2E-2 run).
+The start point of an utterance's end stays as it is, and no forced alignment will be built.
+The design checks with the RP-73 test that the verdict is not decided by how that start point is placed (not implemented yet).
+
+The GPU recognizer is not in use yet. Recognition stays on the CPU (int8).
+The option of putting only the encoder inside recognition on the GPU (policy D) is designed, and its timing estimate (RP-74) is taken after E2E.
+The placement changes only after RP-78 confirms that, in the split form (encoder on the GPU only), L shrinks and translation does not slow down.
+
 The state of each slice is in the table in `docs/design/status.md`.
 
 ### Related documents
