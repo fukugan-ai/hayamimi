@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `7a63ef0`（2026-10-21 の `design/rp79-stop` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `4fe5448`（2026-10-21 の `results/l9-e2e2` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
