@@ -79,6 +79,7 @@ The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP
 The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in, so R8x-5 can be issued.
 The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set aimed at 1200 ms), are in. They are not implemented yet.
 R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
+R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
 
 ### Related documents
 
