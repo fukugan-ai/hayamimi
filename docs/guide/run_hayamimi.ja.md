@@ -467,6 +467,7 @@ cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
 | 既定の test（WSL） | `SHERPA_ONNX_LIB_DIR=<install/lib> cargo test --release`（上の file があれば指定は要らない） |
 | 実走の test | `cargo test --release -p hayamimi --test rp06 --test rp16 --test rp26 --test rp29 -- --ignored` |
 | RP-40（LAN から届く。先に `cargo build --release -p hayamimi-relay`） | `cargo test --release -p hayamimi --test rp40 -- --ignored` |
+| RP-9（実行時の Python が 0 本。先に `cargo build --release -p hayamimi-relay`。下の「RP-9 の実走」を読む） | `cargo test --release -p hayamimi --test rp09 -- --ignored --nocapture` |
 | RP-21（`models fetch`。実際に取得するので network を使う） | `cargo test --release -p hayamimi --test rp21 -- --include-ignored` |
 | 文書の link（RP-19） | `cargo run --release -p hayamimi-eval -- doc-links --repo <repo>` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |
@@ -475,6 +476,28 @@ GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にし�
 Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
+
+## RP-9 の実走（実行時の Python が 0 本）
+
+`rp09_no_python_at_run_time` は、`hayamimi` と `hayamimi-relay` を起こし、子孫の process の名前を 1 秒ごとに集めます。
+Windows では `hayamimi --input mix --serve` と `hayamimi-relay live` を 10 分動かします。
+WSL では `hayamimi` が `ja_014.wav` を最後まで流す間だけ見ます（中継は起こしません）。
+集めた名前に `python` を含む物が 1 つでも在れば落ちます。
+標準エラーに、読んだ回数、見た process の数、重複を除いた名前の数と名前が 1 行で出るので、`--nocapture` を付けます。
+
+Windows で打つときは、`native\target\sherpa-gpu\windows\install\lib` を PATH の先頭に足します。
+`hayamimi.exe` は `sherpa-onnx-c-api.dll` を実行時に読むためです。
+2 つの process が待つ port は既定（`hayamimi` が 8833、`hayamimi-relay` が 8835）なので、打つ前に空いていることと、`hayamimi.exe` が 0 本であることを確かめます。
+process の一覧は `Get-CimInstance Win32_Process` を 1 回ずつ読むので、読む間隔は 1 秒より長くなります。
+
+DLL の名前は、`dumpbin` を手で打って見ます。
+
+```bash
+dumpbin /dependents <repo の Windows path>\native\target\x86_64-pc-windows-msvc\release\hayamimi.exe
+```
+
+出力の `.dll` の行に `python` を含む物が 0 であることが条件です。
+`sherpa-onnx-c-api.dll` は遅延 load の行に出ます。
 
 ## RP-3 の run を録る（R8e）
 
