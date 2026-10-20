@@ -177,7 +177,8 @@ B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 2
 | L10 | RP-73（`manifest.rs`、`tests/rp73.rs`） | 直接 | `L` を縮める仕事の後 | cargo | 51 分 | RP-73 |
 | L11 | 清書まで入った build での RP-67 と RP-32 の最後の run | 直接 | P3、L4、L6（1000 ms では L7、L8 も） | E2E の窓、GPU | 約 2 時間（RP-32 の 3 run の実績 71 分と E2E-1、E2E-2） | RP-67、RP-32 |
 | L12 | R8x-1：E2E の run の門（RP-83。前の 15 分平均と後の 5 分平均の load、run の間の cargo と rustc） | 直接（E2E の窓の全部の前） | なし | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.19 |
-| L13 | R8x-2：`rp67.rs` を作る（repo に無い）。`rp79.rs` は止める | 直接 | L12 | cargo（`hayamimi-eval`） | 51 分（`rp79.rs` の 51 分が外れる） | 同上 |
+| L13 | R8x-2a：`rp67.rs` を作る（repo に無い）。`rp79.rs` は止める | 直接 | L12 | cargo（`hayamimi-eval`） | 51 分（`rp79.rs` の 51 分が外れる） | 同上 |
+| L13b | R8x-2b：H88 の code（`support/e2e.rs`、`support/rp32_rules.rs` の id、`e2e1.rs`、`e2e2.rs`、`docs/results/e2e/README.md` の有効の文）。E2E の受入が早い規則の run を 300 ms の線で数えて落ちないようにする | 直接（E2E-1、E2E-2 の受入） | L13（R8x-2a）、L12（R8x-1） | cargo（`hayamimi-eval`） | 51 分（推測）。40 本に 1 本足して 41 本。1 日 8.3 本の数えで約 2.9 時間延びるが、B を外して外れた約 4.7 時間の内に収まるので、上限「10-26 の夜〜10-27 の未明、悪い側 10-27」は書き換えず、R8x-5 の結果で出し直す時に含めて数える | `rust_port.ja.md` の 3.1、H88 |
 | L14 | R8x-4：使い回しの鍵の広げ（RP-85） | 直接 | なし | cargo（`hayamimi-relay`）。品質の probe は 8080 の llama-server で約 20 分 | 60 分と 20 分 | 同上 |
 | L15 | R8x-5：C と D の offline の門（RP-86 の (0)。今の規則を相手に打ち、D が発話 16 と 22 に効くかを測る）。次に打つ物 | 直接 | なし | cargo（CPU） | 60 分 | 同上 |
 | L16 | R8x-6：C と D（RP-86） | 直接 | L15 が線を満たす | cargo（`hayamimi-asr`、`hayamimi`、`hayamimi-eval`） | 90 分 | 同上 |
