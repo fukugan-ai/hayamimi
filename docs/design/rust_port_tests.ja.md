@@ -730,15 +730,17 @@ test：`native/hayamimi-eval/tests/rp15.rs`（001〜011）と `native/hayamimi/t
 
 ### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
-test：`native/hayamimi/tests/rp16.rs`（001〜016、018〜022、035、038〜051）、`native/hayamimi-asr/tests/rp16_lid.rs`（023〜026）、`native/hayamimi-asr/tests/gpu_guard.rs`（027〜030）、`native/hayamimi-asr/tests/rp16_sessions.rs`（036）、`native/hayamimi-asr/tests/lid_dual.rs`（031〜034）、`native/hayamimi/src/server.rs`（017。src の中の `#[test]`）。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`。
-`check_no_gpu_run(run)` は、終了 code、stdout の JSONL の event、`/events` の `fallback` の event、stderr の文を確かめる。
+test：`native/hayamimi/tests/rp16.rs`（001〜016、018〜022、035、038〜062）、`native/hayamimi-asr/tests/rp16_lid.rs`（023〜026）、`native/hayamimi-asr/tests/gpu_guard.rs`（027〜030）、`native/hayamimi-asr/tests/rp16_sessions.rs`（036）、`native/hayamimi-asr/tests/lid_dual.rs`（031〜034）、`native/hayamimi/src/server.rs`（017。src の中の `#[test]`）。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`（`reason` は `expected_reason` の値）。
+`check_no_gpu_run(run, 理由)` は、終了 code、stdout の JSONL の event、`/events` の `fallback` の event、stderr の文を確かめる。`gpu.device.unavailable` の `reason` には、引数の理由を求める。
+理由を決める関数 `expected_reason(起動)` は、`nvidia-smi -L` の起動の結果を受ける。終了 0 なら `no_device`、起動が `std::io::ErrorKind::NotFound`（PATH に無い）なら `driver_unreadable` を返す。終了 code が 0 以外、または `NotFound` 以外の起動の誤りは理由を返さず、終了 code か `ErrorKind` と path を名指す `Err` を返す。`hayamimi` の判定は呼ばない。2 つの値のどちらでも通す形は採らない。
+fixture の行（001〜014、018〜022）は、fixture の中身が `no_device` なので `no_device` を渡し、機械に依らない。実物の `hayamimi` を起こす行（015、受入）は `expected_reason` の値を渡す。
 run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja の run では句読点、R3 以降は言語判定も）を持つ。落ちた event はこの一覧の段ごとに 1 件を求め、読み込んでいない段には求めない。
 `check_gpu_run(run)` は GPU の在る run を確かめる。
 
-訳の行（R8b）は、llama-server を起こす command（`hayamimi llama start --model <file> --port <n> --dir <root>`）の run を同じ形で確かめる（T-RP-16-038 から 051）。
-受入 test の名前は `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`（GPU を隠した run を ja と C.UTF-8 の 2 つの言語で打ち、どちらも 038 の形で、stderr の言語が分かれる）。
+訳の行（R8b）は、llama-server を起こす command（`hayamimi llama start --model <file> --port <n> --dir <root>`）の run を同じ形で確かめる（T-RP-16-038 から 051 と、理由の決め方の 052 から 062）。
+受入 test の名前は `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`（GPU を隠した run を ja と C.UTF-8 の 2 つの言語で打ち、どちらも 038 の形（`reason` は `expected_reason` の値）で、stderr の言語が分かれる）。
 `check_translate_on_cpu(run, 理由)` は、終了 code、stdout の JSONL の event、起こした server の引数、stderr の文を確かめる。
-理由が `no_device` の run は `gpu.device.unavailable` を 1 件（`reason` = `no_device`）、`session_failed` の run は 0 件求める。
+理由が `no_device` か `driver_unreadable` の run は `gpu.device.unavailable` を 1 件（`reason` = その理由）、`session_failed` の run は 0 件求める。実走の行（049、050）は `expected_reason` の値を渡し、fixture の行（038 から 048）は `no_device`（048 は `session_failed`）を渡す。
 `check_gpu_translate_run(run)` は GPU の在る run を確かめる。
 run は、command の出力と、起こした server が log の file の最初の行に出した引数を持つ。
 実走の server は test の代役（`fake_llama_server`）で、model の file の名前で動きが決まる（`exits.gguf` は終了 code 3、`silent.gguf` は待ち受けない、ほかは `/health` に `ok` を返す）。
@@ -763,7 +765,7 @@ run は、command の出力と、起こした server が log の file の最初�
 | T-RP-16-012 | fixture：001 と同じで、`/events` の `fallback` が 0 件 | 画面へ送らない build | `Err` | `Err` で句読点を名指し（specified、RP-16、3.15 の「段ごとに出す」） | 陰性 | `missing_events_fallback_for_a_loaded_stage_is_named` |
 | T-RP-16-013 | fixture：001 と同じで、句読点の `gpu.fallback.cpu` が 2 件 | 件数の上側 | `Err` | `Err` で句読点を名指し。段ごとに 1 件（specified、RP-16） | 境界、陰性 | `duplicate_fallback_event_for_a_stage_is_rejected` |
 | T-RP-16-014 | fixture：001 と同じで、読み込んだ GPU の段が句読点だけ（言語判定は読み込んでいない）。言語判定の `gpu.fallback.cpu` は 0 件 | 読み込まない段 | `Ok` | `Ok`。読み込んでいない段には落ちた event を求めない（specified、RP-16 の「その run が読み込む 3.5 の GPU の段」） | 境界、陽性 | `unloaded_gpu_stage_needs_no_fallback_event` |
-| T-RP-16-015 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` | 実走 | 実走 | 001 の形（specified、RP-16） | 陰性 | `hidden_gpu_falls_back_to_cpu_with_a_reason` |
+| T-RP-16-015 | 実走：`CUDA_VISIBLE_DEVICES` を空にして `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime --mode single --lang ja` | 実走 | 実走 | 001 の形。ただし `reason` は `no_device` の固定でなく `expected_reason` が決めた値（driver の在る機械は `no_device`、`nvidia-smi` が PATH に無い機械は `driver_unreadable`）（specified、RP-16） | 陰性 | `hidden_gpu_falls_back_to_cpu_with_a_reason` |
 | T-RP-16-016 | 実走：GPU の在る機械で 015 と同じ command（`CUDA_VISIBLE_DEVICES` を空にしない） | 実走の対照 | 実走 | 009 の形（specified、RP-16 の対照） | 陽性 | `visible_gpu_run_does_not_fall_back` |
 | T-RP-16-017 | fixture：server に句読点の `fallback`（`to` が `cpu`）と `session_start` をこの順に送った後で、`/events` に接続した client | 遅れて接続した client | 両方を受ける | 最初に受ける event の中に `fallback` と `session_start` が 1 件ずつ在り、`fallback` が `session_start` より前。その後に送った `final` も受ける（specified、設計 3.15 の「取っておいた event を送った順に最初にまとめて送る」） | 陽性 | `a_client_that_connects_after_session_start_still_receives_it_after_the_fallbacks` |
 | T-RP-16-018 | fixture：001 と同じで、読み込んだ GPU の段が句読点と言語判定。言語判定の `gpu.session.created`（`tiny-encoder.onnx`、`cpu`）、`gpu.fallback.cpu`（`stage` = `lid`）1 件、`/events` の `fallback`（`stage` = `lid`、`to` = `cpu`）1 件が足してある | 言語判定を読み込んだ run（R3 以降の落ちた形） | `Ok` | `Ok`（specified、RP-16 の「R3 以降は言語判定も」） | 陽性 | `no_gpu_run_that_also_loads_the_identifier_passes` |
@@ -797,9 +799,20 @@ run は、command の出力と、起こした server が log の file の最初�
 | T-RP-16-046 | fixture：GPU の在る run（終了 code 0、`gpu.device.unavailable` と `gpu.fallback.cpu` が各 0 件、`translate.server.started` の `build` = `cuda`、`gpu_layers` = 99、引数の行に `-ngl 99`） | 在るのに落ちない（038 の対） | `Ok` | 別の関数 `check_gpu_translate_run` が `Ok`（specified、RP-16 の対照） | 陽性 | `gpu_present_translate_run_has_no_fallback_events` |
 | T-RP-16-047 | fixture：046 と同じ GPU の在る run で、`gpu.fallback.cpu` が 1 件、`gpu_layers` が 0 | GPU が在るのに CPU へ落ちる build | `Err` | `check_gpu_translate_run` が `Err` で `gpu.fallback.cpu` を名指し（specified、RP-16 の陰性欄） | 陰性 | `gpu_present_translate_run_that_falls_back_is_rejected` |
 | T-RP-16-048 | fixture：GPU は在るが CUDA の起動が 1 つ失敗した run（`gpu.device.unavailable` が 0 件、`translate.server.failed` 1 件、`gpu.fallback.cpu` 1 件で `reason` = `session_failed`、`gpu_layers` = 0） | 段 2 の失敗（3.11） | 理由 `session_failed` で `Ok`、理由 `no_device` で `Err` | `check_translate_on_cpu(run, session_failed)` が `Ok`。同じ run を `no_device` で確かめると `Err`（specified、3.11 の 2 段） | 境界、陽性、陰性 | `session_failed_run_needs_the_fallback_but_no_device_event` |
-| T-RP-16-049 | 実走：GPU を隠し（`HIDE_GPU`）、代役の server を入れた install に `hayamimi llama start --model ok.gguf --port <空き> --dir <install> --wait 20`（`LANG` = `C.UTF-8`） | 実走 | 実走 | 038 の形。server は `/health` に `ok` を返す（specified、RP-16） | 陰性 | `hidden_gpu_translate_server_starts_on_cpu_with_a_reason` |
-| T-RP-16-050 | 実走：049 と同じで、install に CUDA の build が無い（`llama/cuda` を作らない） | 起動の失敗が次の手へ落ちる | 実走 | 038 の形に加えて `translate.server.failed` が 1 件（`build` = `cuda`、`reason` = `missing_build`）で、終了 code 0（specified、3.15「止めない」） | 境界、陰性 | `missing_cuda_build_falls_through_to_the_cpu_build` |
+| T-RP-16-049 | 実走：GPU を隠し（`HIDE_GPU`）、代役の server を入れた install に `hayamimi llama start --model ok.gguf --port <空き> --dir <install> --wait 20`（`LANG` = `C.UTF-8`） | 実走 | 実走 | 038 の形。ただし `reason` は `expected_reason` が決めた値。server は `/health` に `ok` を返す（specified、RP-16） | 陰性 | `hidden_gpu_translate_server_starts_on_cpu_with_a_reason` |
+| T-RP-16-050 | 実走：049 と同じで、install に CUDA の build が無い（`llama/cuda` を作らない） | 起動の失敗が次の手へ落ちる | 実走 | 038 の形（`reason` は `expected_reason` が決めた値）に加えて `translate.server.failed` が 1 件（`build` = `cuda`、`reason` = `missing_build`）で、終了 code 0（specified、3.15「止めない」） | 境界、陰性 | `missing_cuda_build_falls_through_to_the_cpu_build` |
 | T-RP-16-051 | 実走、GPU の在る機械：GPU を隠さず 049 と同じ command | 実走の対照 | 実走 | 046 の形（specified、RP-16 の対照） | 陽性 | `visible_gpu_translate_server_does_not_fall_back` |
+| T-RP-16-052 | fixture：`nvidia-smi -L` の起動の結果が終了 0（driver の在る機械の形） | 決め方の陽性。終了 code の境界の 0 | `no_device` | `expected_reason` が `no_device`（specified、6 の RP-16 の行の決め方） | 境界、陽性 | `expected_reason_is_no_device_when_nvidia_smi_exits_zero`（未実装、持ち主 R13-18） |
+| T-RP-16-053 | fixture：起動の結果が `ErrorKind::NotFound`（PATH に無い。driver の無い機械の形） | 決め方の陽性（052 の対） | `driver_unreadable` | `expected_reason` が `driver_unreadable`。052 と同じ値にならない（specified、同上） | 陽性、陰性 | `expected_reason_is_driver_unreadable_when_nvidia_smi_is_not_found`（未実装、持ち主 R13-18） |
+| T-RP-16-054 | fixture：起動の結果が終了 code 1（`nvidia-smi` は在るが 0 以外で終わる） | 終了 code の境界の 1。期待を推し量らない | `Err` | `Err` で終了 code 1 を名指し。`no_device` も `driver_unreadable` も返さない（specified、同上） | 境界、陰性 | `expected_reason_names_a_nonzero_nvidia_smi_exit`（未実装、持ち主 R13-18） |
+| T-RP-16-055 | fixture：起動の結果が `ErrorKind::PermissionDenied`（path `/usr/bin/nvidia-smi`） | `NotFound` の隣の誤り（権限が無い） | `Err` | `Err` で `PermissionDenied` と path を名指し。`driver_unreadable` を返さない（specified、同上） | 境界、陰性 | `expected_reason_names_a_permission_denied_launch_and_its_path`（未実装、持ち主 R13-18） |
+| T-RP-16-056 | fixture：起動の結果が `ErrorKind::Other`（path `/usr/bin/nvidia-smi`。実行できない形式などの誤りの形） | `NotFound` 以外の起動の誤りの別の種類 | `Err` | `Err` で `Other` と path を名指し（specified、同上） | 陰性 | `expected_reason_names_any_other_launch_error_kind`（未実装、持ち主 R13-18） |
+| T-RP-16-057 | fixture：`gpu.device.unavailable` の `reason` が `driver_unreadable` で、001 の他の形が揃った run を、理由 `driver_unreadable` で確かめる | driver の無い機械の wav の実走の形 | `Ok` | `check_no_gpu_run` が `Ok`（specified、6 の RP-16 の行） | 陽性 | `no_gpu_run_with_driver_unreadable_reason_passes_when_expected`（未実装、持ち主 R13-18） |
+| T-RP-16-058 | fixture：057 と同じ run を、理由 `no_device` で確かめる | driver の在る機械で `driver_unreadable` を出す build | `Err` | `Err` で `driver_unreadable` と `no_device` の両方を名指し（specified、同上。2 つのどちらでも通す形を採らない） | 陰性 | `driver_unreadable_reason_is_rejected_when_the_driver_is_present`（未実装、持ち主 R13-18） |
+| T-RP-16-059 | fixture：001 の run（`reason` = `no_device`）を、理由 `driver_unreadable` で確かめる | driver の無い機械で `no_device` を出す build | `Err` | `Err` で `no_device` と `driver_unreadable` の両方を名指し（specified、同上） | 陰性 | `no_device_reason_is_rejected_when_the_driver_is_absent`（未実装、持ち主 R13-18） |
+| T-RP-16-060 | fixture：038 と同じ run で `gpu.device.unavailable` の `reason` が `driver_unreadable`。理由 `driver_unreadable` で `check_translate_on_cpu` | 訳の server の行の driver の無い機械の形 | `Ok` | `Ok`（specified、同上） | 陽性 | `translate_run_with_driver_unreadable_reason_passes_when_expected`（未実装、持ち主 R13-18） |
+| T-RP-16-061 | fixture：060 と同じ run を、理由 `no_device` で確かめる | 訳の server の行で理由が食い違う | `Err` | `Err` で両方の値を名指し（specified、同上） | 陰性 | `translate_run_with_the_wrong_device_reason_is_rejected`（未実装、持ち主 R13-18） |
+| T-RP-16-062 | fixture：038 と同じ run（`gpu.device.unavailable` の `reason` = `no_device`）を、理由 `driver_unreadable` で `check_translate_on_cpu` に確かめる | driver の無い機械で `no_device` を出す build（061 の逆向き。059 の訳の server 版） | `Err` | `Err` で `no_device` と `driver_unreadable` の両方を名指し（specified、6 の RP-16 の行。2 つのどちらでも通す形を採らない） | 陰性 | `translate_run_with_no_device_reason_is_rejected_when_the_driver_is_absent`（未実装、持ち主 R13-18） |
 
 ### 4.27 RP-17（自分で build した library が開け、ORT が 1 つである）
 
