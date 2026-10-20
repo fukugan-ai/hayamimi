@@ -1,0 +1,188 @@
+   Compiling zstd-sys v2.1.1+zstd.1.5.7
+   Compiling zstd-safe v7.3.0
+   Compiling zstd v0.13.3
+   Compiling zip v2.4.2
+   Compiling sherpa-onnx-sys v1.13.8
+   Compiling hayamimi-gpu v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-gpu)
+   Compiling sherpa-onnx v1.13.8
+   Compiling hayamimi-asr v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-asr)
+   Compiling hayamimi-eval v0.1.0 (/mnt/c/Users/user01/source/hayamimi/.claude/worktrees/l2-shadow-gate/native/hayamimi-eval)
+    Finished `release` profile [optimized] target(s) in 3m 46s
+     Running tests/r8v_probe.rs (/mnt/c/Users/user01/source/hayamimi/native/target-l2/release/deps/r8v_probe-b109e801f58f5af8)
+
+running 1 test
+test r8v_latency_set_probe_shadow_rule has been running for over 60 seconds
+R8V lat-ja lang ja utterances 23 without_A_segment 1 A_segments 26 candidates 35 candidates_voice_continues 9 complete 22 complete_voice_continues 3
+R8V lat-ja splits A_only 4 B_only 4 total_with_B 8
+R8V lat-ja delay_ms first complete or A (n 22) p50 286 p95 880
+R8V lat-ja delay_ms last final (n 22) p50 508 p95 880
+R8V lat-ja delay_ms A alone (n 22) p50 824 p95 1177
+R8V lat-ja vad_ms_per_window A alone: windows 6057 p50 0.118 p95 0.221
+R8V lat-ja vad_ms_per_window A plus B: windows 6057 p50 0.239 p95 0.436
+R8V lat-ja UTT 1 A_segments 2 [13.93-16.37 16.87-17.91] finals_early 2
+R8V lat-ja UTT 4 A_segments 1 [40.07-46.00] finals_early 2
+R8V lat-ja UTT 12 A_segments 1 [113.41-121.56] finals_early 2
+R8V lat-ja UTT 13 A_segments 3 [122.92-125.40 126.15-127.64 128.26-131.60] finals_early 3
+R8V lat-ja UTT 17 A_segments 2 [158.18-159.96 160.23-163.22] finals_early 2
+R8V lat-ja UTT 19 A_segments 1 [171.75-175.09] finals_early 2
+R8V lat-ja UTT 20 A_segments 1 [177.25-182.68] finals_early 2
+R8V lat-ja CAND A_seg_at 31328 continues false text "警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。"
+R8V lat-ja CAND A_seg_at 269920 continues false text "かかる地域もあります。"
+R8V lat-ja CAND A_seg_at 369760 continues false text "現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。"
+R8V lat-ja CAND A_seg_at 502880 continues false text "エアロスミスはツアーで予定していたコンサートを中止しました。"
+R8V lat-ja CAND A_seg_at 641120 continues true text "アピヤはサモアの首都です。"
+R8V lat-ja CAND A_seg_at 641120 continues false text "この町はウポル島にあり人口は4万人弱です。"
+R8V lat-ja CAND A_seg_at 819296 continues false text "僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。"
+R8V lat-ja CAND A_seg_at 1004640 continues false text "1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。"
+R8V lat-ja CAND A_seg_at 1222240 continues false text "先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。"
+R8V lat-ja CAND A_seg_at 1410144 continues false text "大橋さんはやっぱり大変でしたか？"
+R8V lat-ja CAND A_seg_at 1560160 continues false text "そこの上流から丸太を組んでいかだにしてどんどん流したんです。"
+R8V lat-ja CAND A_seg_at 1814624 continues false text "でも駿河さん91歳。力強い走りに変わっていきます。"
+R8V lat-ja CAND A_seg_at 1966688 continues false text "ずいぶんありましたけどね。"
+R8V lat-ja CAND A_seg_at 2052192 continues false text "過去にも似たような訪問があったといいます。"
+R8V lat-ja CAND A_seg_at 2131040 continues false text "しっかり打ち切れるかです。"
+R8V lat-ja CAND A_seg_at 2228320 continues false text "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？"
+R8V lat-ja CAND A_seg_at 2408544 continues false text "そしてもう一つ大きな勢力があります。"
+R8V lat-ja CAND A_seg_at 2563680 continues false text "10万人以上の戦死者を出していた。"
+R8V lat-ja CAND A_seg_at 2748000 continues true text "言ったろう。"
+R8V lat-ja CAND A_seg_at 2748000 continues false text "ヒーローよりもてめぇを信じる。"
+R8V lat-ja CAND A_seg_at 2836064 continues true text "高校生200人に聞きました。"
+R8V lat-ja CAND A_seg_at 2836064 continues false text "ネットの見すぎを感じ使うのをやった。"
+R8V lat-ja KINDS splits 4 boundary 1 tail 2 mid 1 (mid per split 1/4, mid per utterance 1/23)
+R8V lat-ja KINDS_AGREE by reference vs by A: agree 1 differ 3 of 4
+R8V lat-ja SPLIT kind Boundary by_reference Some(Boundary) by_A Mid prefix "アピヤはサモアの首都です。" next "この町はウポル島にあり人口は4万人弱です。" reference Some("アピアはサモアの首都です。この町はウポル島にあり、人口は4万人弱です。") a_final "この町はウポル島にあり人口は4万人弱です。"
+R8V lat-ja SPLIT kind Tail by_reference Some(Tail) by_A Tail prefix "でも駿河さん91歳。力強い走りに変わっていきます。" next "さあ。" reference Some("でも敦賀さん、９１歳力強い走りに変わっていきます。") a_final "でも駿河さん91歳。力強い走りに変わっていきます。"
+R8V lat-ja SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "言ったろう。" next "ヒーローよりもてめぇを信じる。" reference Some("言ったろヒーローよりもてめぇを信じる。") a_final "言ったろう。ヒーローよりもてめェを信じる。"
+R8V lat-ja SPLIT kind Tail by_reference Some(Tail) by_A Boundary prefix "高校生200人に聞きました。" next "ネットの見すぎを感じ使うのをやった。" reference Some("高校生２００人に聞きました。") a_final "高校生200人に聞きました。ネットの見すぎを感じ、使うのをや。"
+R8V lat-ja LIMITS mid 1 of 23 utterances (4.3 %, limit 10 %): true; sortings differ 3 of 4 (limit 5 %, 0 under 20 splits): false
+R8V lat-ja PASS_LINE false (A_only 4, B_only 4); vad p95 limit 2000 us: true
+R8V lat-ja JA_LIMIT_MS 1050 (stop when >= 1341)
+R8V lat-ja-shadow lang ja utterances 23 without_A_segment 1 A_segments 26 candidates 35 candidates_voice_continues 9 complete 27 complete_voice_continues 4
+R8V lat-ja-shadow splits A_only 4 B_only 5 total_with_B 9
+R8V lat-ja-shadow delay_ms first complete or A (n 22) p50 286 p95 825
+R8V lat-ja-shadow delay_ms last final (n 22) p50 472 p95 825
+R8V lat-ja-shadow delay_ms A alone (n 22) p50 824 p95 1177
+R8V lat-ja-shadow vad_ms_per_window A alone: windows 6057 p50 0.140 p95 0.230
+R8V lat-ja-shadow vad_ms_per_window A plus B: windows 6057 p50 0.278 p95 0.443
+R8V lat-ja-shadow UTT 1 A_segments 2 [13.93-16.37 16.87-17.91] finals_early 2
+R8V lat-ja-shadow UTT 4 A_segments 1 [40.07-46.00] finals_early 2
+R8V lat-ja-shadow UTT 12 A_segments 1 [113.41-121.56] finals_early 3
+R8V lat-ja-shadow UTT 13 A_segments 3 [122.92-125.40 126.15-127.64 128.26-131.60] finals_early 3
+R8V lat-ja-shadow UTT 17 A_segments 2 [158.18-159.96 160.23-163.22] finals_early 2
+R8V lat-ja-shadow UTT 19 A_segments 1 [171.75-175.09] finals_early 2
+R8V lat-ja-shadow UTT 20 A_segments 1 [177.25-182.68] finals_early 2
+R8V lat-ja-shadow CAND A_seg_at 31328 continues false text "警察のチャンドラシェカール・ソランキ総監によれば被告人は顔を隠して法廷に出頭したそうです。"
+R8V lat-ja-shadow CAND A_seg_at 269920 continues false text "かかる地域もあります。"
+R8V lat-ja-shadow CAND A_seg_at 369760 continues false text "現在羽根を折り返すことができない昆虫はトンボとカゲロウのみです。"
+R8V lat-ja-shadow CAND A_seg_at 502880 continues false text "エアロスミスはツアーで予定していたコンサートを中止しました。"
+R8V lat-ja-shadow CAND A_seg_at 641120 continues true text "アピヤはサモアの首都です。"
+R8V lat-ja-shadow CAND A_seg_at 641120 continues false text "この町はウポル島にあり人口は4万人弱です。"
+R8V lat-ja-shadow CAND A_seg_at 819296 continues false text "僅か二週間でアメリカ軍と自由フランス軍は南フランスを解放しドイツに向かっていました。"
+R8V lat-ja-shadow CAND A_seg_at 1004640 continues false text "1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。"
+R8V lat-ja-shadow CAND A_seg_at 1222240 continues false text "先週経済産業省はアップルが深刻ではないとする過熱事項を追加で34件報告したと発表しました。"
+R8V lat-ja-shadow CAND A_seg_at 1410144 continues false text "大橋さんはやっぱり大変でしたか？"
+R8V lat-ja-shadow CAND A_seg_at 1560160 continues false text "そこの上流から丸太を組んでいかだにしてどんどん流したんです。"
+R8V lat-ja-shadow CAND A_seg_at 1693792 continues false text "本多選手はこの得意のドルフィン。"
+R8V lat-ja-shadow CAND A_seg_at 1814624 continues true text "でも駿河さん。91歳。"
+R8V lat-ja-shadow CAND A_seg_at 1814624 continues false text "力強い走りに変わっていきます。"
+R8V lat-ja-shadow CAND A_seg_at 1966688 continues false text "ずいぶんありましたけどね。"
+R8V lat-ja-shadow CAND A_seg_at 2052192 continues false text "過去にも似たような訪問があったといいます。"
+R8V lat-ja-shadow CAND A_seg_at 2131040 continues false text "しっかり打ち切れるかです。"
+R8V lat-ja-shadow CAND A_seg_at 2228320 continues false text "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？"
+R8V lat-ja-shadow CAND A_seg_at 2408544 continues false text "そしてもう一つ大きな勢力があります。"
+R8V lat-ja-shadow CAND A_seg_at 2530912 continues false text "勝利はしたものの敗退。"
+R8V lat-ja-shadow CAND A_seg_at 2563680 continues false text "10万人以上の戦死者を出していた。"
+R8V lat-ja-shadow CAND A_seg_at 2651232 continues false text "左寄りセンターレフト。"
+R8V lat-ja-shadow CAND A_seg_at 2748000 continues true text "言ったろう。"
+R8V lat-ja-shadow CAND A_seg_at 2748000 continues false text "ヒーローよりもてめぇを信じる。"
+R8V lat-ja-shadow CAND A_seg_at 2836064 continues true text "高校生200人に聞きました。"
+R8V lat-ja-shadow CAND A_seg_at 2836064 continues false text "ネットの見すぎを感じ使うのをやった。"
+R8V lat-ja-shadow CAND A_seg_at 2946656 continues false text "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。"
+R8V lat-ja-shadow KINDS splits 5 boundary 1 tail 2 mid 2 (mid per split 2/5, mid per utterance 2/23)
+R8V lat-ja-shadow KINDS_AGREE by reference vs by A: agree 1 differ 4 of 5
+R8V lat-ja-shadow SPLIT kind Boundary by_reference Some(Boundary) by_A Mid prefix "アピヤはサモアの首都です。" next "この町はウポル島にあり人口は4万人弱です。" reference Some("アピアはサモアの首都です。この町はウポル島にあり、人口は4万人弱です。") a_final "この町はウポル島にあり人口は4万人弱です。"
+R8V lat-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "でも駿河さん。91歳。" next "力強い走りに変わっていきます。" reference Some("でも敦賀さん、９１歳力強い走りに変わっていきます。") a_final "でも駿河さん91歳。力強い走りに変わっていきます。"
+R8V lat-ja-shadow SPLIT kind Tail by_reference Some(Tail) by_A Tail prefix "でも駿河さん。91歳。力強い走りに変わっていきます。" next "さあ。" reference Some("でも敦賀さん、９１歳力強い走りに変わっていきます。") a_final "でも駿河さん91歳。力強い走りに変わっていきます。"
+R8V lat-ja-shadow SPLIT kind Mid by_reference Some(Mid) by_A Boundary prefix "言ったろう。" next "ヒーローよりもてめぇを信じる。" reference Some("言ったろヒーローよりもてめぇを信じる。") a_final "言ったろう。ヒーローよりもてめェを信じる。"
+R8V lat-ja-shadow SPLIT kind Tail by_reference Some(Tail) by_A Boundary prefix "高校生200人に聞きました。" next "ネットの見すぎを感じ使うのをやった。" reference Some("高校生２００人に聞きました。") a_final "高校生200人に聞きました。ネットの見すぎを感じ、使うのをや。"
+R8V lat-ja-shadow LIMITS mid 2 of 23 utterances (8.7 %, limit 10 %): true; sortings differ 4 of 5 (limit 5 %, 0 under 20 splits): false
+R8V lat-ja-shadow PASS_LINE false (A_only 4, B_only 5); vad p95 limit 2000 us: true
+R8V lat-ja-shadow JA_LIMIT_MS 990 (stop when >= 1341)
+R8V lat-ja-shadow SHADOW_GATE complete_voice_continues live 3 shadow 4; splits_by_B_alone live 4 shadow 5; within the live figures: false
+R8V lat-ja-shadow ADDED utterance 12 at_s 118.14 ms_before_utterance_end 3085 text "でも駿河さん。91歳。"
+R8V lat-en lang en utterances 15 without_A_segment 0 A_segments 19 candidates 22 candidates_voice_continues 3 complete 18 complete_voice_continues 2
+R8V lat-en splits A_only 4 B_only 2 total_with_B 6
+R8V lat-en delay_ms first complete or A (n 15) p50 166 p95 363
+R8V lat-en delay_ms last final (n 15) p50 186 p95 550
+R8V lat-en delay_ms A alone (n 15) p50 378 p95 550
+R8V lat-en vad_ms_per_window A alone: windows 3167 p50 0.163 p95 0.286
+R8V lat-en vad_ms_per_window A plus B: windows 3167 p50 0.329 p95 0.554
+R8V lat-en UTT 0 A_segments 1 [0.26-6.20] finals_early 2
+R8V lat-en UTT 1 A_segments 3 [8.42-11.67 11.97-13.04 13.41-14.90] finals_early 3
+R8V lat-en UTT 5 A_segments 2 [37.06-40.15 40.42-41.84] finals_early 2
+R8V lat-en UTT 10 A_segments 2 [72.20-75.80 76.33-77.62] finals_early 2
+R8V lat-en UTT 14 A_segments 1 [97.22-101.04] finals_early 2
+R8V lat-en CAND A_seg_at 4192 continues true text "He was in a fevered state of mind."
+R8V lat-en CAND A_seg_at 4192 continues false text "owing to the blight his wife's action threatened to cast upon his entire future."
+R8V lat-en CAND A_seg_at 191584 continues false text "Demand. Or there would be trouble."
+R8V lat-en CAND A_seg_at 214624 continues false text "It did not matter what he did."
+R8V lat-en CAND A_seg_at 276576 continues false text "Hurstwood walked the floor, mentally arranging the chief points of his situation."
+R8V lat-en CAND A_seg_at 376416 continues false text "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened."
+R8V lat-en CAND A_seg_at 489056 continues false text "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary."
+R8V lat-en CAND A_seg_at 592992 continues false text "He would see how things turned out tomorrow, and then he would talk to her."
+R8V lat-en CAND A_seg_at 646752 continues false text "They were going to meet as usual."
+R8V lat-en CAND A_seg_at 699488 continues false text "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed."
+R8V lat-en CAND A_seg_at 838240 continues false text "While the danger had not lessened, it had not as yet materialized, and with him no news was good news."
+R8V lat-en CAND A_seg_at 951904 continues false text "So little did he consider Drew that it never once occurred to him to worry about his finding out."
+R8V lat-en CAND A_seg_at 1061984 continues false text "He grew restless as he ruminated, and then decided that perhaps it was nothing."
+R8V lat-en CAND A_seg_at 1155168 continues false text "He would get one today. It would probably be on his desk when he got back."
+R8V lat-en CAND A_seg_at 1282144 continues false text "After a time he gave up waiting and drearily headed for the Madison car."
+R8V lat-en CAND A_seg_at 1369184 continues false text "He went in and examined his letters, but there was nothing from Cerry."
+R8V lat-en CAND A_seg_at 1555552 continues true text "His first impulse was to write but four words in reply."
+R8V lat-en CAND A_seg_at 1555552 continues false text "Go to the devil."
+R8V lat-en KINDS splits 2 boundary 1 tail 0 mid 1 (mid per split 1/2, mid per utterance 1/15)
+R8V lat-en KINDS_AGREE by reference vs by A: agree 1 differ 1 of 2
+R8V lat-en SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "He was in a fevered state of mind." next "owing to the blight his wife's action threatened to cast upon his entire future." reference Some("HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE") a_final "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future."
+R8V lat-en SPLIT kind Boundary by_reference Some(Mid) by_A Boundary prefix "His first impulse was to write but four words in reply." next "Go to the devil." reference Some("HIS FIRST IMPULSE WAS TO WRITE BUT FOUR WORDS IN REPLY GO TO THE DEVIL") a_final "His first impulse was to write but four words in reply. Go to the devil."
+R8V lat-en PASS_LINE false (A_only 4, B_only 2); vad p95 limit 2000 us: true
+R8V lat-en-shadow lang en utterances 15 without_A_segment 0 A_segments 19 candidates 22 candidates_voice_continues 3 complete 18 complete_voice_continues 2
+R8V lat-en-shadow splits A_only 4 B_only 2 total_with_B 6
+R8V lat-en-shadow delay_ms first complete or A (n 15) p50 166 p95 363
+R8V lat-en-shadow delay_ms last final (n 15) p50 186 p95 550
+R8V lat-en-shadow delay_ms A alone (n 15) p50 378 p95 550
+R8V lat-en-shadow vad_ms_per_window A alone: windows 3167 p50 0.154 p95 0.270
+R8V lat-en-shadow vad_ms_per_window A plus B: windows 3167 p50 0.305 p95 0.525
+R8V lat-en-shadow UTT 0 A_segments 1 [0.26-6.20] finals_early 2
+R8V lat-en-shadow UTT 1 A_segments 3 [8.42-11.67 11.97-13.04 13.41-14.90] finals_early 3
+R8V lat-en-shadow UTT 5 A_segments 2 [37.06-40.15 40.42-41.84] finals_early 2
+R8V lat-en-shadow UTT 10 A_segments 2 [72.20-75.80 76.33-77.62] finals_early 2
+R8V lat-en-shadow UTT 14 A_segments 1 [97.22-101.04] finals_early 2
+R8V lat-en-shadow CAND A_seg_at 4192 continues true text "He was in a fevered state of mind."
+R8V lat-en-shadow CAND A_seg_at 4192 continues false text "owing to the blight his wife's action threatened to cast upon his entire future."
+R8V lat-en-shadow CAND A_seg_at 191584 continues false text "Demand. Or there would be trouble."
+R8V lat-en-shadow CAND A_seg_at 214624 continues false text "It did not matter what he did."
+R8V lat-en-shadow CAND A_seg_at 276576 continues false text "Hurstwood walked the floor, mentally arranging the chief points of his situation."
+R8V lat-en-shadow CAND A_seg_at 376416 continues false text "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened."
+R8V lat-en-shadow CAND A_seg_at 489056 continues false text "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary."
+R8V lat-en-shadow CAND A_seg_at 592992 continues false text "He would see how things turned out tomorrow, and then he would talk to her."
+R8V lat-en-shadow CAND A_seg_at 646752 continues false text "They were going to meet as usual."
+R8V lat-en-shadow CAND A_seg_at 699488 continues false text "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed."
+R8V lat-en-shadow CAND A_seg_at 838240 continues false text "While the danger had not lessened, it had not as yet materialized, and with him no news was good news."
+R8V lat-en-shadow CAND A_seg_at 951904 continues false text "So little did he consider Drew that it never once occurred to him to worry about his finding out."
+R8V lat-en-shadow CAND A_seg_at 1061984 continues false text "He grew restless as he ruminated, and then decided that perhaps it was nothing."
+R8V lat-en-shadow CAND A_seg_at 1155168 continues false text "He would get one today. It would probably be on his desk when he got back."
+R8V lat-en-shadow CAND A_seg_at 1282144 continues false text "After a time he gave up waiting and drearily headed for the Madison car."
+R8V lat-en-shadow CAND A_seg_at 1369184 continues false text "He went in and examined his letters, but there was nothing from Cerry."
+R8V lat-en-shadow CAND A_seg_at 1555552 continues true text "His first impulse was to write but four words in reply."
+R8V lat-en-shadow CAND A_seg_at 1555552 continues false text "Go to the devil."
+R8V lat-en-shadow KINDS splits 2 boundary 1 tail 0 mid 1 (mid per split 1/2, mid per utterance 1/15)
+R8V lat-en-shadow KINDS_AGREE by reference vs by A: agree 1 differ 1 of 2
+R8V lat-en-shadow SPLIT kind Mid by_reference Some(Mid) by_A Mid prefix "He was in a fevered state of mind." next "owing to the blight his wife's action threatened to cast upon his entire future." reference Some("HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE") a_final "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future."
+R8V lat-en-shadow SPLIT kind Boundary by_reference Some(Mid) by_A Boundary prefix "His first impulse was to write but four words in reply." next "Go to the devil." reference Some("HIS FIRST IMPULSE WAS TO WRITE BUT FOUR WORDS IN REPLY GO TO THE DEVIL") a_final "His first impulse was to write but four words in reply. Go to the devil."
+R8V lat-en-shadow PASS_LINE false (A_only 4, B_only 2); vad p95 limit 2000 us: true
+R8V lat-en-shadow SHADOW_GATE complete_voice_continues live 2 shadow 2; splits_by_B_alone live 2 shadow 2; within the live figures: true
+test r8v_latency_set_probe_shadow_rule ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 1026.79s
+
+exit=0
