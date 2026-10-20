@@ -60,6 +60,7 @@ The placement changes only after RP-78 confirms that, in the split form (encoder
 
 The state of each slice is in the table in `docs/design/status.md`.
 The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
+The expected pass date for the 1200 ms line of L is the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. 40 slices remain. The target the coordinator works to is 2026-10-23.
 Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
 The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
 172 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them.
