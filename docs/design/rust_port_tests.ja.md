@@ -1251,7 +1251,7 @@ Python の run の「遅れて着いた疑い」は、`.jsonl` の行の並び�
 ### 4.42 RP-32（同じ負荷で交互に測った `L`）
 
 test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。実走の行（T-RP-32-029）だけが `#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
-有効の線を Rust の標本ごとに `asr.endpoint.decided` の `rule` で選ぶ形（D 3.1 の終端不正の例外、6 の RP-32 の行）の受入 test の名前は `rp32_validity_line_follows_the_rule_that_ended_each_final` で、置き場は同じ `native/hayamimi-eval/tests/rp32.rs` である。陰性の case は、`rule` が `silence` の標本に `EARLY_MIN_SILENCE_MS` を当てる判定と、`asr.endpoint.decided` に結べない `final` を既定の線で数える判定である。この名前の下の case 行は test-designer の席が書く（D 10 の H86）。
+有効の線を Rust の標本ごとに `asr.endpoint.decided` の `rule` で選ぶ形（D 3.1 の終端不正の例外、6 の RP-32 の行）の受入 test の名前は `rp32_validity_line_follows_the_rule_that_ended_each_final`（未実装、持ち主 R13-17）で、置き場は同じ `native/hayamimi-eval/tests/rp32.rs` である。陰性の case は、`rule` が `silence` の標本に `EARLY_MIN_SILENCE_MS` を当てる判定と、`asr.endpoint.decided` に結べない `final` を既定の線で数える判定である。この名前の下の case 行は test-designer の席が書く（D 10 の H86）。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp32`。実走の行はこれに `-- --ignored` を足す。
 `check_alternated_runs(runs)` は、流した順の run の列を受ける。1 つの run は、実装（Python か Rust）、前と後の `/proc/loadavg` の 1 行、RP-31 の数え方で出した標本の列である。
 次の 4 つを確かめる。順と対の数と load の記録（001 から 014）、3 対を合わせた標本の合否（015 から 022）、列の出力（023 から 028）、dir の `pairs.txt` の読み方（030 から 036）。
