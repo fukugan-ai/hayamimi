@@ -355,16 +355,18 @@ grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
 
 `asr.endpoint.decided` は確定文ごとに出るので、保留の数の対照になります。
 
-`hayamimi-relay live` は、`relay.serve.started` を出す前に、訳の server（`--llm`）へ短い依頼を 1 本だけ送ります。
-返れば `translate.warmup.sent`（info。`dependency`、`duration_ms`）、返らなければ `translate.warmup.failed`（warn。`dependency`、`duration_ms`、`detail`、`error_code`）が 1 行出て、起動は続きます。
+`hayamimi-relay live` は、`relay.serve.started` を出す前に、訳の server（`--llm`）へ短い依頼を 2 本、T の形、E の形の順に 1 本ずつ送ります。
+依頼ごとに、返れば `translate.warmup.sent`（info。`form`、`dependency`、`duration_ms`）、返らなければ `translate.warmup.failed`（warn。`form`、`dependency`、`duration_ms`、`detail`、`error_code`）が 1 行出て、起動は続きます。
+`form` は T の形が `t`、E の形が `e` です。
+2 本の待ちは合わせて最長 10 秒で、T の形に 10 秒を使い切ると E の形は送らず、`translate.warmup.failed` の `detail` が `budget` になります。
 `detail` は失敗の種類（`transport`、`status 503` の形）だけで、address は載りません。
 
 ```bash
 grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.started)"' <relay の stdout を残した file>
 ```
 
-出力の順は、warm-up の event、`relay.serve.started` です。
-訳の server をまだ起こしていない run では `translate.warmup.failed` が出ます。`detail` は `transport` です。
+出力の順は、T の形の warm-up の event、E の形の warm-up の event、`relay.serve.started` です。
+訳の server をまだ起こしていない run では、2 本とも `translate.warmup.failed` が出ます。`detail` は `transport` です。
 
 ## ITN と句読点の後処理の CPU の時間
 

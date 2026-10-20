@@ -63,7 +63,7 @@ Python を起こすのは test ではなく、R0 の席が上の command を打�
 
 ## 4. case 行
 
-各受入 ID（RB-1〜RB-8、RP-1〜RP-70 と RP-72。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
+各受入 ID（RB-1〜RB-8、RP-1〜RP-70、RP-72、RP-73。RP-64 は欠番、RP-71 は 3.18 の段 3 の判定の後）の下の case 行（`T-RB-<n>-nnn`、`T-RP-<n>-nnn`）は、test-designer の席がこの節に書く。
 設計の席は書かない。
 
 ### 4.1 case 行の読み方
@@ -2124,6 +2124,8 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 - RP-67 の run が 1 回か複数回か（D は「5 回」の枠だけを書き、交互の対にしない）。この節は 1 つの run の列を渡す形にした。
 - 015 の `docs/results/rp67/` の記録を、誰がどの手番で置くか。
 
+**設計の席が決めた物**：RP-67 の `L` の起点は `t_end`（manifest の `end_sample`）のままで、動かさない（D 3.1 の「起点の確かさ」、D 3.17）。起点の確かさの組（確か、切れ、不確か）ごとの `L` の p95 は RP-67 の出力に並べて書き、合否が起点で割れないかは RP-73（4.71）が見る。
+
 ### 4.66 RP-68（流れの途中の `flush` の再現と、R8v と `finish` の後の守り）
 
 **未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
@@ -2319,12 +2321,37 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 | 早い終わりの影の印 | `近藤さん。`、`独占配信。`、`本音とは。`、`これを。`、`さあ。`、閉じの記号の無い文、日本語以外 | 順に `honorific`、`noun`、`particle`、`particle`、`interjection`。記号が無くても種類は同じ。日本語以外は `other`。`noun` と `honorific` だけが影の規則で完結になり、声が 1 s に満たなければ `too_short`。それ以外の文と日本語以外は生きている規則と同じ答え。生きている規則は `独占配信。` を `incomplete` のまま持つ | `hayamimi-asr/src/endpoint.rs`、`hayamimi-asr/src/pipeline.rs` | `a_japanese_tail_is_told_by_the_form_before_the_closing_mark`、`a_tail_does_not_need_the_closing_mark_or_the_space_around_it`、`an_empty_body_and_a_language_but_ja_have_the_other_tail`、`only_a_noun_and_an_honorific_end_a_sentence_in_the_shadow_rule`、`tails_are_named_for_the_log`、`the_shadow_rule_finalises_a_noun_or_an_honorific_ending_that_the_live_rule_keeps`、`the_shadow_rule_keeps_every_other_ending_the_live_rule_keeps`、`the_shadow_rule_answers_as_the_live_rule_where_the_live_rule_finalises_or_does_not_judge`、`a_hold_carries_the_tail_and_what_the_shadow_rule_would_have_done` |
 | 早い終わりの影の印 | `asr.endpoint.held` の行 | `tail` と `shadow_complete` を持ち、項目は `reason`、`span_ms`、`min_ms`、`tail`、`shadow_complete` だけ（文の項目が無い） | `hayamimi/src/log.rs` | `a_held_endpoint_event_names_the_tail_and_the_shadow_answer_and_no_sentence` |
 | 確定の `plan` | 持った文を使った segment と、読み直した segment | `held` と `decode` と `rest` で `plan` が分かれ、`held_gap_ms` は読み直した時だけ（差 2243 sample は 140 ms）。final を作らない plan は種類を持たない。持った文との差は、使った時も使わない時も返る | `hayamimi-asr/src/endpoint.rs`、`hayamimi/src/log.rs` | `the_held_path_and_the_decode_path_are_named_apart`、`the_gap_is_noted_only_when_a_kept_sentence_was_read_again`、`a_plan_that_makes_no_final_names_no_kind`、`the_gap_to_a_kept_sentence_is_reported_whether_or_not_it_was_used`、`the_decided_event_names_the_plan_and_the_gap_of_a_segment_read_again` |
-| 初回の依頼 | 偽の `Llm` | 依頼は 1 本で、T の形の user 1 つ。答えれば info 1 件、失敗すれば warn 1 件 | `hayamimi-relay/src/warmup.rs` | `the_first_request_is_one_t_prompt_in_one_message`、`an_answered_request_logs_one_info_event_with_its_time`、`a_failed_request_logs_one_warn_event_and_returns`、`a_transport_failure_keeps_the_cause_out_of_the_event` |
-| 初回の依頼 | `announce_when_warm` | 初回の依頼が 1 本、`relay.serve.started` より前に出る。失敗しても `relay.serve.started` に進む。2 つの event は日本語と英語の文言を持つ | `hayamimi-relay/src/cli.rs` | `the_first_request_goes_out_once_before_the_relay_says_it_serves`、`a_first_request_that_fails_does_not_stop_the_relay_from_saying_it_serves`、`serving_events_are_worded_in_both_locales` |
+| 初回の依頼 | 偽の `Llm` | 依頼は 2 本で、1 本目が T の形（user 1 つ）、2 本目が E の形（system と user。user は 1 本目と同じ文で、system は `edit_system` が ja の原文に対して組む注）。どちらも `max_tokens` 8。答えれば `form` が `t`、`e` の info が 1 件ずつ。T が失敗しても E を送り、E が失敗すれば `form` が `e` の warn 1 件で返る。transport の失敗は cause を event に載せない | `hayamimi-relay/src/warmup.rs` | `the_first_requests_are_t_in_one_message_then_e_in_two`、`answered_requests_log_one_info_event_each_with_their_form_and_time`、`a_failed_t_does_not_keep_e_from_being_sent`、`a_failed_e_logs_one_warn_event_and_returns`、`a_transport_failure_keeps_the_cause_out_of_both_events` |
+| 初回の依頼 | 偽の `Llm` と時間の予算 | 1 本目は予算の全部を、2 本目は 1 本目が使った残りだけを上限に受ける（予算から 1 本目の所要を引いた値の近くにあり、その値以下で、1 s を超えて下回らない）。残りが無ければ 2 本目は送らず、`form` が `e`、`detail` が `budget`、`duration_ms` が null の warn を出す。`warm_up` の予算は `TIMEOUT` である | `hayamimi-relay/src/warmup.rs` | `the_first_request_may_take_the_whole_budget_and_the_second_what_is_left`、`no_time_left_for_e_is_said_and_e_is_not_sent`、`warm_up_gives_the_first_request_the_timeout_of_the_first_requests` |
+| 初回の依頼 | `announce_when_warm` | 初回の依頼が T、E の順に 2 本、`relay.serve.started` より前に出る。失敗しても `relay.serve.started` に進む。2 つの event は日本語と英語の文言を持つ | `hayamimi-relay/src/cli.rs` | `the_first_requests_go_out_once_each_before_the_relay_says_it_serves`、`first_requests_that_fail_do_not_stop_the_relay_from_saying_it_serves`、`serving_events_are_worded_in_both_locales` |
 
-追加の行（初回の依頼の時間の上限）：偽の translator が 3 s 後に答える（`REQUEST_TIMEOUT` の 1.5 s より長く、`warmup::TIMEOUT` の 10 s より短い）。起動の経路 `announce_after_first_request` が `translate.warmup.sent` を出し、`translate.warmup.failed` を出さず、依頼は 1 本である。置き場は `hayamimi-relay/tests/warmup_start.rs`、test の名前は `a_translator_that_answers_in_three_seconds_still_warms_up_at_start`。陰性対照は、`HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT)` を `HttpLlm::new(&live.llm)` に替えると `translate.warmup.failed` が出て落ちることである（実走した）。
+追加の行（初回の依頼の起動の経路）：偽の translator に `announce_after_first_request` から届く依頼を数える。置き場は `hayamimi-relay/tests/warmup_start.rs` で、偽の translator は `127.0.0.1:0` で立てる。
+- 依頼は 2 本で、1 本目の `messages` は user 1 つ、2 本目は system と user の 2 つである。user は `warmup::prompt()` と等しく、system は `warmup::system()` と等しい。test の名前は `the_start_sends_t_as_one_user_message_then_e_as_a_system_and_a_user_message`。
+- 2 本目だけが 500 を返しても、event は `translate.warmup.sent`、`translate.warmup.failed`、`relay.serve.started` の順に出る。test の名前は `a_failed_e_request_still_lets_the_relay_say_it_serves`。
+- どの依頼にも 3 s かかる偽の translator（`REQUEST_TIMEOUT` の 1.5 s より長く、`warmup::TIMEOUT` の 10 s より短い。2 本の合計 6 s も 10 s より短い）でも、`translate.warmup.sent` が 2 件出て、`translate.warmup.failed` は出ない。test の名前は `a_translator_that_answers_in_three_seconds_still_warms_up_at_start`。陰性対照は 2 つある。`cli.rs` の接続を `HttpLlm::with_timeout(&live.llm, limit)` から `HttpLlm::new(&live.llm)` に替えると `translate.warmup.failed` が出て落ちる（実走した）。`warmup.rs` の `send_edit` が E の接続に渡す上限を固定の 1 ms にすると、この test と `the_first_request_may_take_the_whole_budget_and_the_second_what_is_left` の 2 本が落ちる（実走した。戻した後の sha256 は元と一致した）。
+
+E の形の依頼の陰性対照は、`warmup.rs` の `warm_up_within` から E の依頼（`send_edit`）を外すことである。`warmup.rs` の 7 本、`cli.rs` の 2 本、`warmup_start.rs` の 3 本の、計 12 本が落ちる（実走した。戻した後の差分は元と一致した）。
 
 **この節の設計にない物**：`consider` が `incomplete` を実際に数えることは、認識器の model が要る経路なので、この節の test は通らない。RP-32 の 3 run の log で `asr.endpoint.held` の `reason` が `incomplete` の行が在ることを数える（NOT VERIFIED）。
+
+### 4.71 RP-73（RP-67 の合否が起点の置き方で決まっていない）
+
+**未実装。** test の file も関数も repo に無い。実装の席が足す。
+test：`native/hayamimi-eval/tests/rp73.rs`。受入 test の名前は `rp73_the_l_verdict_is_the_same_on_utterances_whose_end_is_certain`。
+command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp73`。実走の行はこれに `-- --ignored` を足し、`testdata/` の lat-ja と lat-en の wav と manifest、`docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む。
+設計は D 3.1 の「起点の確かさ」、D 6 と 7 の RP-73、D 10 の H90〜H95 である。
+
+**数え方**：
+
+1. clip ごとに `speech_end` と同じ 320 sample の frame の音量（dB）を取り、10 パーセンタイルを静かな側 `q`、95 パーセンタイルを大きい側 `l` とする。
+2. 高さ `f` の線は `max(q + f × (l − q), l − 25)`、声の終わりはその線を 5 frame 続けて超えた最後の区間の終わり（clip の長さで切る）である。`f` は 0.35、0.25、0.15、0.10 の 4 つで、0.35 が manifest の規則である。
+3. **確か**：0.25、0.15、0.10 の終わりと 0.35 の終わりの差が 40 ms 以下（40 ms を含む。en_08 がちょうど 40 ms）で、0.35 の終わりの後の 15 frame（300 ms。clip の中に在る分）の frame の dB 値の算術平均（電力の平均ではない。電力で平均すると en_03 が 9.0 dB から 2.6 dB に変わる）が 0.35 の線より `drop` dB 以上低い。`drop` は 6 と 10 の 2 つで数え、2 つの組を並べる。
+4. **切れ**：0.35 の終わりが clip の最後の frame の中に在る。確かの条件より先に見る。
+5. **不確か**：確かでも切れでもない。
+6. RP-67 の判定（D 6 の RP-67 の数え方）を、言語ごとに全発話と確かの発話だけで出す。`drop` の 2 つの値のどちらでも 2 つの判定が同じ時だけ `Ok` で、違えば `Err` で「組で割れた」と言語と `drop` の値を名指す。割れの原因を起点と断定しない（確かの発話だけの p95 は同じ記録で 1,222 ms（10 dB）から 1,531 ms（6 dB）まで揺れ、標本が少ないだけでも割れうる）。確かの発話に訳の取れた有効な標本が 0 件なら `Err`。組ごとの `L` の p50 と p95 は、この test の出力にだけ並べて書く。
+7. **実装の順**：RP-73 は、RP-67 が初めて通ったと名乗る前に要る。それより前に、`L` を縮める仕事（D 10 の H93、VAD、訳の段）から cargo の席と load の窓を取らない。
+
+case 行（`T-RP-73-nnn`）は test-designer の席がこの節に書く。
 
 ## 5. RP-19 の対応表
 

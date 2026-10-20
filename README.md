@@ -37,7 +37,7 @@ The machine load was high during that re-measurement, so the values are unverifi
 The translated subtitle and the start-up behave as follows.
 
 - **The form of the rewrite (E) request**: a finalized sentence is first translated as a draft (T), and then a second translation (E) rewrites the draft. The E request has two messages: the first holds the draft and a note to keep the facts, numbers, proper names, negation and uncertainty, and the second holds the source sentence. The T request is one message holding the source sentence only. With this form, lines where E's answer echoed the instruction text fell from 1 per run to 0 (the E2E seat's report; this document did not recount them). The gate that checks numbers and uncertainty is not loosened.
-- **The first request to the translation server**: before it emits `relay.serve.started`, `hayamimi-relay live` sends one short request to the `--llm` server. This pays the slowness of the very first request before the first subtitle. If the server answers, `translate.warmup.sent` is emitted; if it does not, `translate.warmup.failed` (warn) is emitted and start-up goes on. The wait is at most 10 seconds. When the translation server has not been started, `translate.warmup.failed` appears. How slow that first request is has not been measured (NOT VERIFIED).
+- **The first request to the translation server**: before it emits `relay.serve.started`, `hayamimi-relay live` sends two short requests to the `--llm` server, one in the form of T and then one in the form of E. This pays the slowness of the very first request of each form before the first subtitle. For each request, if the server answers, `translate.warmup.sent` is emitted; if it does not, `translate.warmup.failed` (warn) is emitted (both carry `form`, `t` or `e`) and start-up goes on. The wait is at most 10 seconds for the two together. When the translation server has not been started, `translate.warmup.failed` appears twice. How much the two requests shorten the E of the first line has not been measured (NOT VERIFIED).
 - **The reason of an early-end hold**: `asr.endpoint.held` carries a `reason`. It is `incomplete` when the sentence is not complete, and `too_short` when it is complete but the speech is short. How to count them is in `docs/guide/run_hayamimi.ja.md`.
 
 Three things are not implemented:
@@ -45,6 +45,17 @@ Three things are not implemented:
 - R11 (removing Python): 187 of the 386 rows of RP-19 (the check that Python test cases were ported to Rust tests) have no Rust test yet.
 - R12y: the arguments of `hayamimi-relay eval` (`--final`, `--heldout`, `--direction`) for scoring translations on a held-out set (an evaluation set never shown during tuning), and the refusal to use the same set twice.
 - Sending to YouTube Live caption ingestion: the conversation-subtitle design lists it as something not to build, and streaming uses the OBS subtitle page burned into the video instead.
+
+### Delay target and recognizer placement as of 2026-10-20
+
+The target for the p95 of the delay (L) is 1000 ms or less, and it is still outside that line.
+For Japanese to English it is 1501 ms (the alternating measurement, RP-32); for English to Japanese it is 1303 ms (a single E2E-2 run).
+The start point of an utterance's end stays as it is, and no forced alignment will be built.
+The design checks with the RP-73 test that the verdict is not decided by how that start point is placed (not implemented yet).
+
+The GPU recognizer is not in use yet. Recognition stays on the CPU (int8).
+The option of putting only the encoder inside recognition on the GPU (policy D) is designed, and its timing estimate (RP-74) is taken after E2E.
+The placement changes only after RP-78 confirms that, in the split form (encoder on the GPU only), L shrinks and translation does not slow down.
 
 The state of each slice is in the table in `docs/design/status.md`.
 

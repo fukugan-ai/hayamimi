@@ -38,7 +38,7 @@ Pythonの削除（R11）は入口の条件の待ちで、Pythonはまだ残っ�
 訳の字幕と起動の動きは、次のとおりです。
 
 - **書き直し（E）の依頼の形**：確定した文は、まず下書きの訳（T）を作り、次に下書きを書き直す訳（E）を作ります。Eの依頼は2つのmessageで、1つ目に下書きと「事実、数、固有名、否定、推量を保つ」注、2つ目に原文を置きます。Tの依頼は原文だけの1つのmessageです。この形では、Eの答えが指示文を復唱した行が、1 runあたり1件から0件になりました（E2Eの席の申告で、この文書は数え直していません）。数と推量を確かめる門は緩めていません。
-- **訳のserverへの最初の依頼**：`hayamimi-relay live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` のserverへ1本だけ送ります。最初の1回の遅さを、最初の字幕の前に払うためです。返れば `translate.warmup.sent`、返らなければ `translate.warmup.failed`（warn）が出て、起動は続きます。待つのは最長10秒です。訳のserverを起こしていないときは `translate.warmup.failed` が出ます。この1回がどれだけ遅いかは測っていません（NOT VERIFIED）。
+- **訳のserverへの最初の依頼**：`hayamimi-relay live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` のserverへ2本、Tの形、Eの形の順に1本ずつ送ります。最初の1回の遅さを、最初の字幕のTとEの前に払うためです。依頼ごとに、返れば `translate.warmup.sent`、返らなければ `translate.warmup.failed`（warn）が出て（どちらも `form` が `t` か `e`）、起動は続きます。待つのは2本で合わせて最長10秒です。訳のserverを起こしていないときは `translate.warmup.failed` が2件出ます。この2本が最初の行のEをどれだけ縮めるかは測っていません（NOT VERIFIED）。
 - **早い終わりの保留の理由**：`asr.endpoint.held` に `reason` が付きます。文が完結していないときは `incomplete`、完結していて声が短いときは `too_short` です。数え方は `docs/guide/run_hayamimi.ja.md` にあります。
 
 次の3つは未実装です。
@@ -46,6 +46,17 @@ Pythonの削除（R11）は入口の条件の待ちで、Pythonはまだ残っ�
 - R11（Pythonを消す）：RP-19（Pythonのtestのcaseを、Rustのtestへ写したことの確認で、対応表は386行）のうち187行は、Rustのtestが未作成です。
 - R12y：held-out（調整に一度も見せない評価用の組）で訳を採点するための、`hayamimi-relay eval` の引数（`--final`、`--heldout`、`--direction`）と、同じ組を2回使わせない拒みです。
 - YouTube Liveの字幕取り込みへの送信：会話字幕の設計は「作らない物」とし、配信にはOBSの字幕頁を映像に焼き込む経路を使います。
+
+### 2026-10-20 時点の遅れの目標と認識の置き場
+
+遅れ（L）のp95の目標は1000 ms以下で、まだ線の外です。
+日本語から英語は1501 ms（交互の測定RP-32）、英語から日本語は1303 ms（E2E-2の1回のrun）です。
+発話の終わりの起点は今のままで、強制の位置合わせは作りません。
+合否が起点の置き方の誤りで決まっていないことは、RP-73のtestで確かめる設計です（未実装）。
+
+GPUの認識器はまだ使っていません。認識はCPU（int8）のままです。
+認識の中のencoderだけをGPUに置く案（方針D）は設計が決まり、時間の見積り（RP-74）はE2Eの後に取ります。
+置き場を変えるのは、split（encoderだけGPU）の形でLが縮み、訳が遅くならないことをRP-78で確かめてからです。
 
 sliceごとの状態は、`docs/design/status.ja.md` の表にあります。
 

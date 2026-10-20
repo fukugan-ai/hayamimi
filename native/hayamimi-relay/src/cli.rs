@@ -461,31 +461,33 @@ fn announce_serving(live: &Live, address: SocketAddr, sink: &mut dyn LogSink, st
     announce_lan(address, strings);
 }
 
-/// Sends the translator its first request, then says where the translations
-/// are served. A first request that fails is logged and the run goes on.
+/// Sends the translator its first requests (the forms of T and E, one after
+/// the other), then says where the translations are served. A first request
+/// that fails is logged and the run goes on. `connect` makes the translator
+/// for one request with the time limit it is given.
 fn announce_when_warm<L: Llm>(
-    llm: &L,
+    connect: impl Fn(Duration) -> L,
     live: &Live,
     address: SocketAddr,
     sink: &mut dyn LogSink,
     strings: &Strings,
 ) {
-    warmup::warm_up(llm, sink);
+    warmup::warm_up(connect, sink);
     announce_serving(live, address, sink, strings);
 }
 
-/// The start-up path of `live`: the first request goes to the translator at
-/// `live.llm` with the time limit of [`warmup::TIMEOUT`], which is longer than
-/// a live subtitle may wait because a translator that has just started answers
-/// its first request late. Then the serving is announced.
+/// The start-up path of `live`: the first requests go to the translator at
+/// `live.llm`, the two together within [`warmup::TIMEOUT`], which is longer
+/// than a live subtitle may wait because a translator that has just started
+/// answers its first request late. Then the serving is announced.
 pub fn announce_after_first_request(
     live: &Live,
     address: SocketAddr,
     sink: &mut dyn LogSink,
     strings: &Strings,
 ) {
-    let first = HttpLlm::with_timeout(&live.llm, warmup::TIMEOUT);
-    announce_when_warm(&first, live, address, sink, strings);
+    let connect = |limit| HttpLlm::with_timeout(&live.llm, limit);
+    announce_when_warm(connect, live, address, sink, strings);
 }
 
 /// Says the URL a client on the LAN opens, when the server is not on the loopback.
@@ -898,7 +900,7 @@ mod tests {
         fails: bool,
     }
 
-    impl Llm for FirstRequest {
+    impl Llm for &FirstRequest {
         fn complete(
             &self,
             request: &crate::llm::Completion<'_>,
@@ -920,7 +922,7 @@ mod tests {
         };
         let mut sink = crate::logging::MemorySink::default();
         announce_when_warm(
-            &llm,
+            |_| &llm,
             &live_of(&["live"])?,
             address(DEFAULT_SERVE),
             &mut sink,
@@ -935,19 +937,33 @@ mod tests {
     }
 
     #[test]
-    fn the_first_request_goes_out_once_before_the_relay_says_it_serves() -> Result<(), String> {
+    fn the_first_requests_go_out_once_each_before_the_relay_says_it_serves() -> Result<(), String> {
         let (names, asked) = names_logged_when_warm(false)?;
-        assert_eq!(names, [warmup::SENT_EVENT, "relay.serve.started"]);
-        assert_eq!(asked, [warmup::prompt()]);
+        assert_eq!(
+            names,
+            [
+                warmup::SENT_EVENT,
+                warmup::SENT_EVENT,
+                "relay.serve.started"
+            ]
+        );
+        assert_eq!(asked, [warmup::prompt(), warmup::prompt()]);
         Ok(())
     }
 
     #[test]
-    fn a_first_request_that_fails_does_not_stop_the_relay_from_saying_it_serves()
-    -> Result<(), String> {
+    fn first_requests_that_fail_do_not_stop_the_relay_from_saying_it_serves() -> Result<(), String>
+    {
         let (names, asked) = names_logged_when_warm(true)?;
-        assert_eq!(names, [warmup::FAILED_EVENT, "relay.serve.started"]);
-        assert_eq!(asked, [warmup::prompt()]);
+        assert_eq!(
+            names,
+            [
+                warmup::FAILED_EVENT,
+                warmup::FAILED_EVENT,
+                "relay.serve.started"
+            ]
+        );
+        assert_eq!(asked, [warmup::prompt(), warmup::prompt()]);
         Ok(())
     }
 
