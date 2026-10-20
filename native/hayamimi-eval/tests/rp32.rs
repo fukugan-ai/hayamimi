@@ -9,6 +9,7 @@
 mod support;
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use hayamimi_asr::endpoint::Rule;
 use hayamimi_asr::vad::EARLY_MIN_SILENCE_MS;
@@ -1211,4 +1212,217 @@ fn both_counts_and_the_margin_are_written() -> TestResult {
     );
     assert!(text.contains("no final 0"), "{text}");
     Ok(())
+}
+
+// ---- the line of a Rust sample follows the rule that ended its final (acceptance) ----
+//
+// The oracle below reads the files of a run dir on its own, as the `jq` of
+// T-RP-32-045 does: it ties each sample to the `final` the tool received when
+// the sample closed, that `final` to its `asr.endpoint.decided` line, and counts
+// the samples that reach the silence line of that rule.
+
+/// A Rust sample with a `final`: its silence gap in milliseconds and the name of
+/// the rule of the `final` that closed it.
+struct RuleRow {
+    gap_ms: f64,
+    rule: String,
+}
+
+/// The Rust samples of a dir with a `final`, pooled over its runs, counted
+/// against three lines.
+struct LineCounts {
+    rows: usize,
+    /// The rows the early rule closed.
+    early_rows: usize,
+    /// Valid against the line of each sample's rule.
+    per_rule: usize,
+    /// Valid against `min_silence` for every sample.
+    flat: usize,
+    /// Valid against the early line for every sample.
+    all_early: usize,
+}
+
+/// The JSON rows of a file, blank lines left out; every error names the file.
+fn json_rows(path: &Path) -> Result<Vec<Value>, Failure> {
+    let named = |why: String| format!("{}: {why}", path.display());
+    let text = std::fs::read_to_string(path).map_err(|why| named(why.to_string()))?;
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str::<Value>(line).map_err(|why| named(why.to_string())))
+        .collect()
+}
+
+/// The rule name of each `asr.endpoint.decided` line of a server's stdout, by `id`.
+fn decided_names(log: &[Value]) -> Result<BTreeMap<u64, String>, Failure> {
+    let mut names = BTreeMap::new();
+    for row in log {
+        if row.get("event").and_then(Value::as_str) != Some("asr.endpoint.decided") {
+            continue;
+        }
+        let id = row.get("id").and_then(Value::as_u64);
+        let rule = row.get("rule").and_then(Value::as_str);
+        let (Some(id), Some(rule)) = (id, rule) else {
+            return Err(format!("a decided line has no id or no rule: {row}"));
+        };
+        names.insert(id, rule.to_owned());
+    }
+    Ok(names)
+}
+
+/// The number of the `final` the tool received at each moment (microseconds).
+fn final_numbers(events: &[Value]) -> Result<BTreeMap<i64, u64>, Failure> {
+    let mut numbers = BTreeMap::new();
+    for row in events {
+        if row.pointer("/event/type").and_then(Value::as_str) != Some("final") {
+            continue;
+        }
+        let t_us = row.get("t_us").and_then(Value::as_i64);
+        let id = row.pointer("/event/id").and_then(Value::as_str);
+        let number = id
+            .and_then(|id| id.rsplit_once('-'))
+            .and_then(|(_, number)| number.parse::<u64>().ok());
+        let (Some(t_us), Some(number)) = (t_us, number) else {
+            return Err(format!("a final has no t_us or no numbered id: {row}"));
+        };
+        numbers.insert(t_us, number);
+    }
+    Ok(numbers)
+}
+
+/// The Rust samples of run `run` in `dir` that have a `final`, each with the
+/// rule of the `final` that closed it.
+fn rule_rows(dir: &Path, run: usize) -> Result<Vec<RuleRow>, Failure> {
+    let samples = json_rows(&dir.join(format!("rs{run}.jsonl")))?;
+    let events = json_rows(&dir.join(format!("rs{run}.events.jsonl")))?;
+    let log = json_rows(&dir.join(format!("rs{run}.hayamimi.stdout.log")))?;
+    let (numbers, rules) = (final_numbers(&events)?, decided_names(&log)?);
+    let mut rows = Vec::new();
+    for sample in &samples {
+        let Some(t_final) = sample.get("t_final_us").and_then(Value::as_i64) else {
+            continue;
+        };
+        let t_end = sample.get("t_end_us").and_then(Value::as_i64);
+        let latency = sample.get("final_latency_ms").and_then(Value::as_f64);
+        let (Some(t_end), Some(latency)) = (t_end, latency) else {
+            return Err(format!(
+                "rs{run}: no t_end_us or final_latency_ms: {sample}"
+            ));
+        };
+        let Some(rule) = numbers.get(&t_final).and_then(|number| rules.get(number)) else {
+            return Err(format!(
+                "rs{run}: no decided line for the final at {t_final}"
+            ));
+        };
+        rows.push(RuleRow {
+            gap_ms: (t_final - t_end) as f64 / 1000.0 - latency,
+            rule: rule.clone(),
+        });
+    }
+    Ok(rows)
+}
+
+/// The silence line in milliseconds of a rule the log names: the early
+/// detector's for `early`, `min_silence` for the others.
+fn line_of_rule(rule: &str) -> f64 {
+    if rule == "early" {
+        early_ms()
+    } else {
+        MIN_SILENCE_MS as f64
+    }
+}
+
+fn count_reaching(rows: &[RuleRow], line_of: impl Fn(&str) -> f64) -> usize {
+    rows.iter()
+        .filter(|row| row.gap_ms >= line_of(&row.rule))
+        .count()
+}
+
+/// The rows of the first `pairs` Rust runs of `dir`, counted against the three lines.
+fn line_counts(dir: &Path, pairs: usize) -> Result<LineCounts, Failure> {
+    let mut rows = Vec::new();
+    for run in 1..=pairs {
+        rows.extend(rule_rows(dir, run)?);
+    }
+    Ok(LineCounts {
+        rows: rows.len(),
+        early_rows: rows.iter().filter(|row| row.rule == "early").count(),
+        per_rule: count_reaching(&rows, line_of_rule),
+        flat: count_reaching(&rows, |_| MIN_SILENCE_MS as f64),
+        all_early: count_reaching(&rows, |_| early_ms()),
+    })
+}
+
+/// Reads `dir` with the report and with the oracle and requires the same counts:
+/// the report judges a Rust sample against the line of its rule, records the
+/// count on `min_silence`, and credits every gained sample to the early rule.
+fn counted_by_both(dir: &Path) -> Result<LineCounts, Box<dyn std::error::Error>> {
+    let pairs = pairs_to_read(dir)?.pairs;
+    let counts = line_counts(dir, pairs)?;
+    let report = alternated_report(&load_alternated(dir, pairs)?, None)?;
+    let place = dir.display();
+    assert_eq!(
+        report.rust_share.valid, counts.per_rule,
+        "{place}: per rule"
+    );
+    assert_eq!(report.flat.rust_share.valid, counts.flat, "{place}: flat");
+    let gained: usize = report.gained.values().sum();
+    assert_eq!(gained + counts.flat, counts.per_rule, "{place}: gained");
+    assert_eq!(
+        report.gained.get("early"),
+        Some(&gained),
+        "{place}: by rule"
+    );
+    Ok(counts)
+}
+
+/// The recorded dir: the log names both rules, and the early ones are the gain.
+fn check_recorded_dir() -> TestResult {
+    let counts = counted_by_both(&rp32_dir())?;
+    println!(
+        "rp32 rules: {} samples with a final, {} closed by early; valid {} per rule, {} on min_silence, {} on the early line",
+        counts.rows, counts.early_rows, counts.per_rule, counts.flat, counts.all_early
+    );
+    assert!(counts.early_rows > 0 && counts.early_rows < counts.rows);
+    assert!(counts.per_rule > counts.flat);
+    Ok(())
+}
+
+/// A 200 ms gap lies between the two lines: valid when the early rule closed the
+/// sample, invalid when the silence rule did. A line chosen without the rule gets
+/// one of the two wrong.
+fn check_gap_between_the_lines() -> TestResult {
+    let early = counted_by_both(&dir_with_gap_200_closed_by("r1317-early", "early")?)?;
+    let silence = counted_by_both(&dir_with_gap_200_closed_by("r1317-silence", "silence")?)?;
+    assert_eq!(early.per_rule, silence.per_rule + 1);
+    assert_eq!(silence.all_early, silence.per_rule + 1);
+    assert_eq!(early.flat + 1, early.per_rule);
+    Ok(())
+}
+
+/// A `final` with no decided line gets no line: the dir is refused by run and
+/// id, and is not read as closed by the silence rule.
+fn check_unjoined_final() -> TestResult {
+    let dir = f32_dir("r1317-unjoined", 3, None)?;
+    let log = dir.join("rs2.hayamimi.stdout.log");
+    let kept: Vec<String> = std::fs::read_to_string(&log)?
+        .lines()
+        .filter(|line| !line.contains("\"id\":7,"))
+        .map(str::to_owned)
+        .collect();
+    std::fs::write(&log, kept.join("\n") + "\n")?;
+    let said = load_alternated(&dir, 3);
+    let named = |why: &String| why.contains("rs2") && why.contains("mic-7");
+    assert!(said.as_ref().err().is_some_and(named), "{said:?}");
+    Ok(())
+}
+
+/// The validity line of a Rust sample follows the rule that ended the `final`
+/// that closed it (3.1, the exception for RP-32): `early` is held to
+/// `EARLY_MIN_SILENCE_MS`, every other rule to `min_silence`, and a `final` the
+/// log does not name has no line.
+#[test]
+fn rp32_validity_line_follows_the_rule_that_ended_each_final() -> TestResult {
+    check_recorded_dir()?;
+    check_gap_between_the_lines()?;
+    check_unjoined_final()
 }
