@@ -5,6 +5,7 @@ members = [
     "hayamimi-relay",
     "hayamimi-eval",
     "hayamimi-gpu",
+    "hayamimi-overlay",
     "hayamimi-ui",
     "xtask",
 ]
