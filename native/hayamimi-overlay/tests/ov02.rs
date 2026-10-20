@@ -11,10 +11,13 @@
 //! climbs back above it (the overlay lifts itself every second), so that the
 //! click still has to pass through the band to reach it.
 //!
-//! No input goes to a window the test did not make. `win::click` looks at the
-//! window under the pixel with `WindowFromPoint` before the pointer moves and
-//! again before the button goes down, and sends nothing unless that window is
-//! the band or one of the test's plain windows. Before any input is sent, the
+//! No input goes to a window the test did not make. `Pointer::click` looks at
+//! the window under the pixel with `WindowFromPoint` right before the one
+//! `SendInput` that moves the pointer and presses the button, and sends nothing
+//! unless that window is the band or one of the test's plain windows. It also
+//! sends nothing unless the user has been away 300 s (first click), and stops
+//! when the pointer or the input clock shows that the user came back. The window
+//! that was in front is put back in front when the test ends. Before any input is sent, the
 //! test shows that the check works (the measure control below): it accepts a
 //! pixel on the plain window and refuses a pixel on no window of the test.
 //!
@@ -143,6 +146,9 @@ fn ov02_the_click_guard_passes_only_the_tests_own_windows() -> TestResult {
 #[ignore = "opens windows and moves the pointer; run it when nobody is using the screen"]
 fn ov02_a_click_on_the_band_reaches_the_window_below() -> TestResult {
     win::per_monitor_aware()?;
+    // Dropped last: the window that was in front goes back in front, also when the test fails.
+    let _front = win::keep_foreground();
+    let mut pointer = win::Pointer::new();
     let dir = scratch()?;
     let mut overlay = Overlay::launch(
         ["--layout-probe"],
@@ -164,14 +170,14 @@ fn ov02_a_click_on_the_band_reaches_the_window_below() -> TestResult {
     check_the_guard_sees(&own, outside, (work.left + 2, work.top + 2))?;
 
     // Positive control: a click on the plain window outside the band is counted.
-    win::click(outside.0, outside.1, &own)?;
+    pointer.click(outside.0, outside.1, &own)?;
     assert!(
         wait_for_clicks(&below, 1),
         "a click outside the band was not counted by the plain window"
     );
 
     // The click on the band reaches the same window, once, and the overlay never takes the front.
-    win::click(centre_x, centre_y, &own)?;
+    pointer.click(centre_x, centre_y, &own)?;
     assert!(
         wait_for_clicks(&below, 2),
         "a click on the band did not reach the window below"
@@ -192,7 +198,7 @@ fn ov02_a_click_on_the_band_reaches_the_window_below() -> TestResult {
     win::make_topmost(cover.win())?;
     let covered = [overlay_win, below.win(), cover.win()];
     let before = below.clicks();
-    win::click(centre_x, centre_y, &covered)?;
+    pointer.click(centre_x, centre_y, &covered)?;
     assert!(
         wait_for_clicks(&cover, 1),
         "the window covering the band did not count the click"
