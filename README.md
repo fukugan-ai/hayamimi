@@ -384,6 +384,7 @@ What this measurement does not show:
 - The record does not say whether the E2E-2 capture came from the output device of a real Windows machine (NOT VERIFIED: check by running E2E-2 again on a real Windows machine).
 
 The per-run sample jsonl files and the conditions are in `docs/results/e2e/` (commit `9103c95`).
+A later E2E-2 record, `e1pre` (`docs/results/r8x/`), is a record only and does not decide RP-67, because the machine load around the run was above the RP-83 line of 2.50. The value of en comes from window E1, run again after R8x-1.
 
 ### Alternating Rust and Python measurement (RP-32, 2026-10-20)
 
