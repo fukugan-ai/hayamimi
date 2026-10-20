@@ -1,0 +1,72 @@
+[package]
+name = "hayamimi-overlay"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "hayamimi: the borderless, transparent, always-on-top, click-through subtitle window (Dioxus desktop, Windows)."
+
+[lib]
+name = "hayamimi_overlay"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hayamimi-overlay"
+path = "src/main.rs"
+
+[dependencies]
+dirs = "7"
+# The two-lane parts (`lanes`) and the `Model` the three streams are joined in.
+hayamimi-ui = { path = "../hayamimi-ui" }
+# `follow`, `logging` and `watched`: the stream reader, the log event and the re-read file.
+hayamimi-relay = { path = "../hayamimi-relay" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1.1"
+# The previous log file is compressed when the log is rotated.
+flate2 = "1"
+
+# The window and its webview exist on Windows only. Keeping them out of the
+# other targets keeps the workspace buildable and testable on Linux, where
+# dioxus desktop would ask for webkit2gtk.
+[target.'cfg(windows)'.dependencies]
+# `document` is the `eval` the layout probe asks the page its measures with.
+dioxus = { version = "0.7.10", default-features = false, features = ["desktop", "launch", "macro", "hooks", "signals", "html", "document"] }
+# `time` is the wait until a line expires or a translation is given up on;
+# `sync` is the channel the three streams reach the window through, and the
+# signal that cuts that wait short.
+tokio = { version = "1", features = ["time", "sync"] }
+# Same minor as the `windows` that tao uses, so that one copy is built.
+windows = { version = "0.61", features = [
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_SystemInformation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+
+# The acceptance tests read the window back from the OS, click through it,
+# photograph the screen and make a window of their own to click on.
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.61", features = [
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[lints.rust]
+unused_mut = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+undocumented_unsafe_blocks = "deny"

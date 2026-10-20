@@ -541,7 +541,46 @@ curl -s http://127.0.0.1:8080/props | jq -r .build_info
 戻したら、`build-cuda120.b11628` は不要になった時に消します。
 上げ直すには `git pull --rebase` の後に `cmake --build build-cuda120 --config Release` を打ちます。
 
+## 字幕の重ね窓を起こす
+
+`hayamimi-overlay` は、枠が無く、背景が透明で、常に最前面にあり、クリックを下の窓へ通す字幕の窓です。
+画面の下に作業領域の幅の 80% の帯を 1 本置き、上の段に相手の発話の和訳、下の段に自分の発話の英訳を出します。
+Windows の cargo で build し、Windows の session の中で起こします。
+
+```bash
+PS=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+$PS -NoProfile -Command 'Set-Location <repo の Windows path>\native; & C:\Users\<user>\.cargo\bin\cargo.exe build --release --jobs 2 -p hayamimi-overlay'
+```
+
+認識の 2 本（既定は `:8833` と `:8834`）と中継（既定は `:8835`）が立っていれば、引数なしで起こせます。
+
+```bash
+$PS -NoProfile -Command '<repo の Windows path>\native\target\release\hayamimi-overlay.exe --events http://127.0.0.1:8833/events --events http://127.0.0.1:8834/events --relay http://127.0.0.1:8835/events'
+```
+
+窓を閉じる手段は taskbar の項目だけです。
+log は `%LOCALAPPDATA%\hayamimi\logs\overlay.jsonl` に出ます。`--log <path>` で変えられます。
+
+帯の置き場と字形は `%APPDATA%\hayamimi\overlay.toml` で決めます。`--config <path>` で別の file を指せます。
+key は `monitor`、`width_ratio`、`bottom_gap_px`、`upper_rows`、`lower_rows`、`cinecaption`、`udev_gothic`、`udev_gothic_bold` で、どれも省けます。
+file を書き替えると、再起動せずに 1 秒ほどで帯が置き直されます。
+読めない内容に書き替えたときは前の内容のまま動き、`table.load.failed` が log に 1 回出ます。
+字形の file を設定に書かないと、その字形は宣言されず、機械に同じ名前の字形があればそれで、無ければ Yu Gothic UI で描かれます。
+書いた file が読めないときは `overlay.font.missing` が log に 1 回出ます。
+
+字が窓の下で切れないかは、3 行の試しで測れます。窓が 1 つ開き、`overlay.layout.measured` を log に出します。
+
+```bash
+$PS -NoProfile -Command '<repo の Windows path>\native\target\release\hayamimi-overlay.exe --layout-probe --zoom 150 --log <log の path>'
+```
+
+`--zoom` は webview の拡大を変えて、画面の拡大率が違う場合を写します。
+試しの窓を開くときは利用者が画面を使っていない時にし、測れたら閉じます。
+
 ## 戻し方
+
+`native/Cargo.toml` の `members` から `hayamimi-overlay` を外し、`native/hayamimi-overlay` を消すと、重ね窓の前の形に戻ります。
+`Cargo.lock` は、その commit を revert します。
 
 `native/Cargo.toml` の `members` から `hayamimi` と `hayamimi-asr` を外し、2 つの directory を消すと、この slice の前の形に戻ります。
 `hayamimi-gpu` の追加（`preload_near_executable`、`require_near_executable`）と、`hayamimi-eval` の `itn`、`punct_rules` の段は、commit を revert します。
