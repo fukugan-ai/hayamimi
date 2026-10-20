@@ -2693,8 +2693,9 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 ### 4.77 RP-85（数字の並びと `。` `、` の有無だけが違う速報の訳の使い回し）
 
-**未実装。** この節の行はどれも、test の file も関数も repo に無い。R8x-4 の席が足す。
-test：`native/hayamimi-relay/tests/rp85.rs`。受入 test の名前は `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`（未実装、持ち主 R8x-4）。実走の行（T-RP-85-031）と probe の行（T-RP-85-025）だけが `#[ignore]` を持つ。probe の行は 8080 の llama-server を使い、実走の行は窓 E3 の記録を読む。ほかの行は偽の認識器と偽の llama-server を使い、`--ignored` を付けずに通る。
+実装済み（持ち主 R8x-4）。031 の行は、窓 E3 の X の記録が置かれるまで走らせない。
+鍵の読み：広げた鍵が除くのは、文の中の `。` `、`、数字の並び（1 つの印へ）、空白である。文末の印（`。` `、` `？` `！` の並び）は除かない。T-RP-69-006 の「`X。。` と `X、` は T をもう一度頼む」が残るためで、001 から 005 の対はこの読みで合う。
+test：`native/hayamimi-relay/tests/rp85.rs`。受入 test の名前は `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`。実走の行（T-RP-85-031）と probe の行（T-RP-85-025）だけが `#[ignore]` を持つ。probe の行は 8080 の llama-server を使い、実走の行は窓 E3 の記録を読む。ほかの行は偽の認識器と偽の llama-server を使い、`--ignored` を付けずに通る。
 command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp85`。probe の行と実走の行はこれに `-- --ignored` を足す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（031 だけは受入 test の名前の全部）。引数の形は実装の席が決める。
 設計は D 3.19 の「使い回しの鍵の広げ」と、D 3.18 の 1 から 5、D 6 と 7 の RP-85、D 10 の H117 である。
@@ -2736,10 +2737,11 @@ command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock
 | T-RP-85-026 | X の ja の 2 run（`x1`、`x2`）の fixture。中継の stdout に `translate.draft.reused` が `x1` で 3 件（`match` が `normalized` の 3 件）、`x2` で 1 件。発話 7 の 10 標本（各 run の 5 回）の訳の段（`t_tr_us − t_final_us`）は、9 標本が 120000 µs、1 標本が 182000 µs | 発話 7 の訳の段の p95 が線ちょうど。reuse の件数が最小の 1 | p95 ≤ 182 ms、各 run に 1 件以上 | `Ok`（specified、RP-85 の (4)。n = 10 の p95 の順位は (95 × 10 + 99) / 100 = 10 で最大の標本。182000 は 182 ms ちょうど） | 境界、陽性 | `x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass` |
 | T-RP-85-027 | 026 の 182000 µs の標本を 182001 µs にする | 線の 1 µs 上 | 同上 | `Err` で発話 7 の p95 の 182001 µs と 182 ms を名指す（specified、同上。最小の桁 1 つ分だけ外れた値） | 境界、陰性 | `utterance_7_one_microsecond_over_182_ms_is_rejected` |
 | T-RP-85-028 | 026 で `x2` の `normalized` の件を 0 にし、`same` と `closing_mark` の `translate.draft.reused` を 4 件にする | `normalized` が 0 件で、ほかの `match` は在る | 各 run に `normalized` が 1 件以上 | `Err` で `x2` と `normalized` が 0 件であることを名指す（specified、RP-85 の (4)「`match` が `normalized`」。`same` と `closing_mark` の件は数えない。数える語が当たることは 026 の `x1` の 3 件が示す） | 境界、陰性 | `a_run_without_a_normalized_reuse_is_rejected` |
-| T-RP-85-029 | 今の記録の発話 7 の形：e-card-form の `rs1`〜`rs3` の発話 7 の 15 標本（`t_final_us` と `t_tr_us` が在る標本の訳の段が 300.248〜370.819 ms）を X の位置に置き、`translate.draft.reused` を 0 件にする | 使い回していない発話 7 | p95 ≤ 182 ms | `Err` で発話 7 の p95 の 370.819 ms と、`normalized` が 0 件であることの両方を名指す（specified、RP-85 の (4)。pseudo：`jq -s` で 3 つの `rs<N>.jsonl` の `utt` が 7 で `t_final_us` と `t_tr_us` が在る 15 標本の `(t_tr_us - t_final_us) / 1000` の最小が 300.248、最大が 370.819、n = 15、順位 15。2026-10-20 に打った） | 陰性 | `the_recorded_utterance_7_is_over_182_ms_without_a_reuse` |
+| T-RP-85-029 | 今の記録の発話 7 の形：e-card-form の `rs1`〜`rs3` の発話 7 の 15 標本（`t_final_us` と `t_tr_us` が在る標本の訳の段が 298.782〜372.760 ms）を X の位置に置き、`translate.draft.reused` を 0 件にする | 使い回していない発話 7 | p95 ≤ 182 ms | `Err` で発話 7 の p95 の 372.760 ms と、`normalized` が 0 件であることの両方を名指す（specified、RP-85 の (4)。pseudo：`jq -c 'select(.utt==7)'` で 3 つの `rs<N>.jsonl` の 15 標本の `t_tr_us - t_final_us` を取ると、最小が 298782 µs、最大が 372760 µs、n = 15、順位 15。2026-10-21 に打った） | 陰性 | `the_recorded_utterance_7_is_over_182_ms_without_a_reuse` |
 | T-RP-85-030 | 発話 7 の訳の取れた標本が 0 件の X の run | 母数 0 | 標本が在る | `Err` で発話 7 の標本が無いことを名指す（implicit、空の p95 を通さない） | 境界、陰性 | `an_x_run_without_utterance_7_samples_is_rejected` |
 | T-RP-85-031 | 実走：`docs/results/r8x/` の X の ja の run（`x<N>.e2e1.jsonl`）と、その run の中継の stdout（`x<N>.e2e1.relay.stdout.log`） | 実走 | 実走 | 026 の形（各 run に `normalized` の reuse が 1 件以上、発話 7 の p95 が 182 ms 以下）で `Ok`（specified、RP-85 の (4)）。窓 E3 の記録が置かれるまでは走らせない | 陽性 | `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`（未実装、持ち主 R8x-4） |
 | T-RP-85-032 | **(0) V を直接呼ぶ**：原文 `1940年八月15日連合国は南フランスに侵攻しその侵攻はドラグーン作戦と呼ばれました。`（P7 の f）と、答え `On August 15, 1940, the Allies invaded southern France, and the invasion was called Operation Dragoon.` を V に渡す。偽の認識器も偽の server も使わない | 実物の訳の形。日付が `八月十五日` と `August 15` で書き方が違う | V が通す | V の判定が通す（`verdict` が `ok` の側）（specified、RP-85 の (0)。001 の台本の答えと同じ文字列。通らない時は、R8x-4 は鍵を広げる変更を足さずに止まり、評議へ上げる。答えを V の通る形に変えて 001 を通さない。V が止める側の対照は 016 が持つ。この行は通る側だけを固定する） | 陽性 | `v_passes_the_scripted_answer_for_utterance_7` |
+| T-RP-85-033 | 026 で `x1` の中継の stdout に `log.queue.dropped` の行を 1 行足す | log の取りこぼし | その run を無効にする | `Err` で `x1` と `log.queue.dropped` を名指す（specified、D 7 の「`log.queue.dropped` が 1 行でもあればその run を無効として名指す」） | 陰性 | `a_run_whose_log_dropped_lines_is_rejected` |
 
 **変異の確かめ**（検証の席が手で打つ。test の行ではない。設計の陰性欄）：
 
