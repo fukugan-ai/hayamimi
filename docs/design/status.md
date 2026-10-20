@@ -8,7 +8,7 @@ When the two differ in meaning, the Japanese is corrected first and this one aft
 This document lists what still stands between the project and completion, then gives the state of each slice.
 The first table is what remains; the table after it gives each slice's state, merge commit, where the verification comes from, how far its acceptance has passed, and the holes left.
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
-Commit hashes were checked with `git log --oneline`; main was at `8171643` (the merge commit of `design/rp80-glued`, 2026-10-21; the commit that adds this document sits one above it) when they were checked.
+Commit hashes were checked with `git log --oneline`; main was at `fb08a2d` (the merge commit of `feat/r8x-3`, 2026-10-21; the commit that adds this document sits one above it) when they were checked.
 
 ## What remains before completion
 
@@ -182,7 +182,7 @@ The offline gate of R8x-5 failed (L15), and C and D were both taken out. The lin
 | L2 | The offline gate of H100 (step 2 of policy B) | Done. The gate failed (`d024bbe` on `origin/feat/l2-shadow-gate`) | — | — | — | H130 of `rust_port.ja.md` |
 | L3 | `--early-complete nouns` and `asr.endpoint.widened` | Stopped (B was taken out of the combination) | — | — | 51 min drops out | Same as above |
 | L4 | The E2E of RP-79 (window E2) | Stopped (same as above) | — | — | About 3 hours drops out | Same as above |
-| L5 | Finish the recognizer's first decode before `/ingest` (R8x-3, RP-84) | Direct | None (the design is 3.19) | cargo | 51 min | 3.19 of `rust_port.ja.md` |
+| L5 | Finish the recognizer's first decode before `/ingest` (R8x-3, RP-84). Done (`fb08a2d`) | Direct | None (the design is 3.19) | cargo | 51 min | 3.19 of `rust_port.ja.md` |
 | L6 | The probe and E2E of speculative decoding (RP-71) | Indirect (not on the path to completion; S3 made the translation p50 29 % slower) | The council of 3.18 | The GPU. The llama-servers on 18081 and 18083 cannot be loaded together | 2 slices and 1 hour of E2E (estimate) | 3.18 |
 | L7 | The estimate of RP-74 and RP-78 | Indirect (on the path to the 1200 ms and 1000 ms targets) | After the E2E window closes | The GPU, the E2E window | 3 slices (estimate) | 3.5, RP-74, RP-78 |
 | L8 | The design and implementation that shrink `d` by 310 ms or more across all samples while keeping the rate of cuts in the middle of a sentence | Indirect (on the path to the 1000 ms target) | The design seat and the council, the result of L4 | The design seat, cargo, the E2E of RP-66 | 1 design, 1 council, 3 implementations, 1 run of RP-66 (estimate) | The breakdown in this section |

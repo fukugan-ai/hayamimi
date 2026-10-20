@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `8171643`（2026-10-21 の `design/rp80-glued` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `fb08a2d`（2026-10-21 の `feat/r8x-3` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -180,7 +180,7 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | L2 | H100 の offline の門（方針 B の手順 2） | 済み。門は落ちた（`origin/feat/l2-shadow-gate` の `d024bbe`） | — | — | — | `rust_port.ja.md` の H130 |
 | L3 | `--early-complete nouns` と `asr.endpoint.widened` | 止める（B を組から外した） | — | — | 51 分が外れる | 同上 |
 | L4 | RP-79 の E2E（窓 E2） | 止める（同上） | — | — | 約 3 時間が外れる | 同上 |
-| L5 | 認識器の初回の復号を `/ingest` の前に済ませる（R8x-3、RP-84） | 直接 | なし（設計は 3.19） | cargo | 51 分 | `rust_port.ja.md` の 3.19 |
+| L5 | 認識器の初回の復号を `/ingest` の前に済ませる（R8x-3、RP-84）。済み（`fb08a2d`） | 直接 | なし（設計は 3.19） | cargo | 51 分 | `rust_port.ja.md` の 3.19 |
 | L6 | RP-71 の推測デコードの probe と E2E | 間接（完成の道に置かない。S3 は訳の p50 を 29 % 遅くした） | 3.18 の評議 | GPU。18081 と 18083 の llama-server は同時に載らない | 2 slice と E2E 1 時間（推測） | 3.18 |
 | L7 | RP-74 の見積りと RP-78 | 間接（1200 ms と 1000 ms の目標の道） | E2E の窓が閉じた後 | GPU、E2E の窓 | 3 slice（推測） | 3.5、RP-74、RP-78 |
 | L8 | 文の途中の切断の率を守って `d` を全標本で 310 ms 以上縮める設計と実装 | 間接（1000 ms の目標の道） | 設計の席と評議、L4 の結果 | 設計の席、cargo、RP-66 の E2E | 設計 1、評議 1、実装 3、RP-66 の run 1（推測） | この節の内訳 |
