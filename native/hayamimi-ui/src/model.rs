@@ -38,6 +38,10 @@ pub struct FinalRow {
     pub latency_ms: Option<f64>,
     /// One row per language translated into.
     pub trs: Vec<TrRow>,
+    /// When the row last changed, in the milliseconds the caller passed to
+    /// `apply`: the line arrived, or a translation joined it or replaced one.
+    /// A translation that leaves `trs` as it was does not move it.
+    pub updated_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -243,6 +247,7 @@ impl Model {
                 speaker: found.speaker,
                 latency_ms: found.latency_ms,
                 trs: Vec::new(),
+                updated_ms: now_ms,
             },
         );
         self.adopt_orphans(Of::Final, found.id.as_deref(), now_ms);
@@ -283,7 +288,7 @@ impl Model {
             }
             Of::Final => {
                 self.tr_seen = true;
-                if !self.attach_to_final(&found) {
+                if !self.attach_to_final(&found, now_ms) {
                     self.hold(found, now_ms);
                 }
             }
@@ -297,7 +302,8 @@ impl Model {
 
     /// Joins a translation to its final by `id`. False when the line has not
     /// arrived; true otherwise, including a translation with no `id` to join by.
-    fn attach_to_final(&mut self, found: &TranslationEvent) -> bool {
+    /// The row's `updated_ms` becomes `now_ms` when the translation changes it.
+    fn attach_to_final(&mut self, found: &TranslationEvent, now_ms: u64) -> bool {
         let Some(id) = found.id.as_deref() else {
             return true;
         };
@@ -309,7 +315,10 @@ impl Model {
         else {
             return false;
         };
-        let shown = upsert(&mut row.trs, found);
+        let (shown, changed) = upsert(&mut row.trs, found);
+        if changed {
+            row.updated_ms = now_ms;
+        }
         if self.overlay.final_id.as_deref() == Some(id) {
             self.overlay.final_tr = Some(shown);
         }
@@ -383,18 +392,20 @@ fn push_capped<T>(rows: &mut VecDeque<T>, dropped: &mut usize, row: T) {
     }
 }
 
-/// Sets the row of the event's language in `trs` and returns it.
-fn upsert(trs: &mut Vec<TrRow>, found: &TranslationEvent) -> TrRow {
+/// Sets the row of the event's language in `trs` and returns it, with whether
+/// that changed `trs`.
+fn upsert(trs: &mut Vec<TrRow>, found: &TranslationEvent) -> (TrRow, bool) {
     match trs.iter().position(|row| row.lang == found.lang) {
         Some(at) => {
             let row = settled_row(found, trs.get(at));
+            let changed = trs[at] != row;
             trs[at] = row.clone();
-            row
+            (row, changed)
         }
         None => {
             let row = settled_row(found, None);
             trs.push(row.clone());
-            row
+            (row, true)
         }
     }
 }
@@ -673,6 +684,52 @@ mod tests {
         model.apply(translation("final", "a-0", "gone", true), 600);
         assert!(model.finals.iter().all(|row| row.trs.is_empty()));
         assert_eq!(model.orphan_deadline(), Some(600 + ORPHAN_HOLD_MS));
+    }
+
+    #[test]
+    fn a_row_is_stamped_when_its_line_arrives_and_when_a_translation_changes_it() {
+        let mut model = Model::default();
+        model.apply(final_line("a-1", "一"), 1000);
+        assert_eq!(model.finals[0].updated_ms, 1000);
+        model.apply(translation("final", "a-1", "early", false), 1500);
+        assert_eq!(model.finals[0].updated_ms, 1500);
+        model.apply(translation("final", "a-1", "better", true), 2100);
+        assert_eq!(model.finals[0].updated_ms, 2100);
+    }
+
+    #[test]
+    fn a_translation_that_leaves_the_row_as_it_was_does_not_move_the_stamp() {
+        let mut model = Model::default();
+        model.apply(final_line("a-1", "一"), 1000);
+        model.apply(translation("final", "a-1", "better", true), 2000);
+        model.apply(translation("final", "a-1", "better", true), 5000);
+        assert_eq!(model.finals[0].updated_ms, 2000);
+        // A draft after the deciding translation changes nothing either.
+        model.apply(translation("final", "a-1", "early", false), 6000);
+        assert_eq!(model.finals[0].updated_ms, 2000);
+    }
+
+    #[test]
+    fn a_translation_that_waited_for_its_line_is_stamped_when_it_joined() {
+        let mut model = Model::default();
+        model.apply(translation("final", "a-1", "one", true), 1000);
+        model.apply(final_line("a-1", "一"), 2000);
+        assert_eq!(model.finals[0].trs[0].text, "one");
+        assert_eq!(model.finals[0].updated_ms, 2000);
+    }
+
+    #[test]
+    fn only_the_row_a_message_changes_is_stamped() {
+        let mut model = Model::default();
+        model.apply(final_line("a-1", "一"), 1000);
+        model.apply(final_line("a-2", "二"), 1100);
+        model.apply(
+            event(r#"{"type":"speaker","id":"a-1","speaker":"S2"}"#),
+            1200,
+        );
+        model.apply(translation("final", "a-2", "two", true), 1300);
+        assert_eq!(model.finals[0].updated_ms, 1000);
+        assert_eq!(model.finals[1].updated_ms, 1300);
     }
 
     #[test]
