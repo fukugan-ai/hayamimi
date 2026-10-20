@@ -7,6 +7,11 @@
 //! in . ? ! and its last word does not go on. Other languages are never
 //! judged, so an early candidate in them is not used. A complete sentence is
 //! finalised at an early notice only when the speech behind it is long enough.
+//!
+//! The form a Japanese sentence ends in is classified as well ([`Tail`]). A
+//! shadow rule that counts a noun or an honorific ending as a sentence end is
+//! evaluated beside the live rule ([`shadow_early_hold`]). The shadow rule is
+//! only logged; it never decides anything.
 
 use crate::audio::SAMPLE_RATE;
 use crate::vad::EARLY_MIN_SEGMENT_MS;
@@ -48,6 +53,33 @@ const JA_CONNECTIVE: [&str; 14] = [
     "たら",
     "と",
     "ながら",
+];
+
+/// Honorifics a Japanese name ends in.
+const JA_HONORIFIC: [&str; 3] = ["さん", "様", "氏"];
+
+/// Fillers and interjections. They are read before the particles: `あの` ends
+/// in the particle `の`.
+const JA_INTERJECTION: [&str; 14] = [
+    "さあ",
+    "ああ",
+    "ええ",
+    "まあ",
+    "うん",
+    "はい",
+    "いいえ",
+    "えっと",
+    "えーと",
+    "あのう",
+    "あの",
+    "うーん",
+    "おお",
+    "へえ",
+];
+
+/// Particles a Japanese sentence can stop on, besides [`JA_CONNECTIVE`].
+const JA_PARTICLE: [&str; 10] = [
+    "を", "も", "は", "に", "の", "へ", "や", "など", "まで", "より",
 ];
 
 /// Words an English sentence does not end on.
@@ -96,6 +128,57 @@ pub struct Decision {
     pub rule: Rule,
     /// The silence the rule waited for, in milliseconds; 0 for a limit or a flush.
     pub silence_ms: u32,
+    /// How the main detector's segment was turned into text; `None` for a
+    /// sentence the early detector finalised itself.
+    pub plan: Option<PlanKind>,
+    /// When the segment was read again although a sentence had been kept:
+    /// how far the end of that sentence's range was from the segment's end,
+    /// in milliseconds. `None` when nothing was kept, or the kept one was used.
+    pub held_gap_ms: Option<u32>,
+}
+
+/// How a segment of the main detector was turned into text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanKind {
+    /// The sentence the early detector kept was used as it was.
+    Held,
+    /// The whole segment was read.
+    Decode,
+    /// Only what follows the line the early detector finalised was read.
+    Rest,
+}
+
+impl PlanKind {
+    /// The name the log gives the kind.
+    pub fn name(self) -> &'static str {
+        match self {
+            PlanKind::Held => "held",
+            PlanKind::Decode => "decode",
+            PlanKind::Rest => "rest",
+        }
+    }
+}
+
+/// `decision` with the way the segment was read: the kind of `plan`, and, when
+/// the segment was read although a sentence had been kept (`gap` samples
+/// between the ends), that gap. A plan that makes no final names no kind.
+pub fn note_plan<T>(decision: Decision, plan: &Plan<T>, gap: Option<usize>) -> Decision {
+    let plan_kind = match plan {
+        Plan::Whole => Some(PlanKind::Decode),
+        Plan::Rest(_) => Some(PlanKind::Rest),
+        Plan::Held(..) => Some(PlanKind::Held),
+        Plan::Drop => None,
+    };
+    let reread = matches!(plan_kind, Some(PlanKind::Decode | PlanKind::Rest));
+    let rate = SAMPLE_RATE as usize;
+    let held_gap_ms = gap
+        .filter(|_| reread)
+        .and_then(|samples| u32::try_from((samples * 1000 + rate / 2) / rate).ok());
+    Decision {
+        plan: plan_kind,
+        held_gap_ms,
+        ..decision
+    }
 }
 
 /// A confirmed sentence inside the voice the main detector is still in: the
@@ -193,13 +276,25 @@ impl<T> State<T> {
     /// The state is cleared: the next utterance starts afresh. `tolerance` is
     /// how far the segment's end may be from the end of the kept sentence's range.
     pub fn plan(&mut self, seg_start: usize, seg_end: usize, tolerance: usize) -> Plan<T> {
+        self.plan_with_gap(seg_start, seg_end, tolerance).0
+    }
+
+    /// [`State::plan`], and how many samples the end of the kept sentence's
+    /// range was from `seg_end` (`None` when nothing was kept), whether or not
+    /// the sentence was used.
+    pub fn plan_with_gap(
+        &mut self,
+        seg_start: usize,
+        seg_end: usize,
+        tolerance: usize,
+    ) -> (Plan<T>, Option<usize>) {
         let line = self.line.take();
         let voice_after = std::mem::take(&mut self.line_voice_after);
-        let held = self
-            .held
-            .take()
-            .filter(|held| !held.voice_after && held.range_end.abs_diff(seg_end) <= tolerance);
-        match line {
+        let kept = self.held.take();
+        let gap = kept.as_ref().map(|held| held.range_end.abs_diff(seg_end));
+        let held =
+            kept.filter(|held| !held.voice_after && held.range_end.abs_diff(seg_end) <= tolerance);
+        let plan = match line {
             Some(line) if line.at > seg_start => {
                 if seg_end <= line.at || !voice_after {
                     Plan::Drop
@@ -213,7 +308,8 @@ impl<T> State<T> {
                 Some(held) => Plan::Held(held, seg_start),
                 None => Plan::Whole,
             },
-        }
+        };
+        (plan, gap)
     }
 }
 
@@ -281,10 +377,104 @@ impl Hold {
 /// at an early notice. `None` means it is finalised there. The silence rule of
 /// the main detector does not ask.
 pub fn early_hold(lang: &str, text: &str, samples: usize) -> Option<Hold> {
-    if !is_complete(lang, text) {
+    hold_for(is_complete(lang, text), samples)
+}
+
+/// The hold of a sentence judged `complete`, read from `samples` samples of speech.
+fn hold_for(complete: bool, samples: usize) -> Option<Hold> {
+    if !complete {
         return Some(Hold::Incomplete);
     }
     (samples < EARLY_MIN_SAMPLES).then_some(Hold::TooShort)
+}
+
+/// The form a sentence ends in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tail {
+    /// A kanji, a katakana or a letter or digit of the ASCII or full-width forms.
+    Noun,
+    /// `さん`, `様` or `氏`.
+    Honorific,
+    /// A particle or a connective form.
+    Particle,
+    /// A filler or an interjection.
+    Interjection,
+    /// Any other form, and every language but Japanese.
+    Other,
+}
+
+impl Tail {
+    /// The name the log gives the form.
+    pub fn name(self) -> &'static str {
+        match self {
+            Tail::Noun => "noun",
+            Tail::Honorific => "honorific",
+            Tail::Particle => "particle",
+            Tail::Interjection => "interjection",
+            Tail::Other => "other",
+        }
+    }
+
+    /// Whether the shadow rule counts a Japanese sentence that ends so as complete.
+    pub fn ends_a_sentence(self) -> bool {
+        matches!(self, Tail::Noun | Tail::Honorific)
+    }
+}
+
+/// Whether a character ends a noun the recognizer wrote: a kanji, a katakana
+/// (the long-vowel mark included), or a letter or digit.
+fn is_noun_char(ch: char) -> bool {
+    matches!(ch,
+        '\u{3400}'..='\u{4DBF}'
+        | '\u{4E00}'..='\u{9FFF}'
+        | '々'
+        | '\u{30A1}'..='\u{30FA}'
+        | '\u{30FC}'..='\u{30FE}'
+        | '0'..='9'
+        | 'a'..='z'
+        | 'A'..='Z'
+        | '０'..='９'
+        | 'ａ'..='ｚ'
+        | 'Ａ'..='Ｚ')
+}
+
+fn ja_tail(body: &str) -> Tail {
+    let ends = |tails: &[&str]| tails.iter().any(|tail| body.ends_with(tail));
+    if ends(&JA_HONORIFIC) {
+        Tail::Honorific
+    } else if ends(&JA_INTERJECTION) {
+        Tail::Interjection
+    } else if ends(&JA_PARTICLE) || ends(&JA_CONNECTIVE) {
+        Tail::Particle
+    } else if body.chars().next_back().is_some_and(is_noun_char) {
+        Tail::Noun
+    } else {
+        Tail::Other
+    }
+}
+
+/// The form `text`, read in `lang`, ends in, judged on what stands before the
+/// closing mark. Only Japanese is classified.
+pub fn tail_of(lang: &str, text: &str) -> Tail {
+    if lang != "ja" {
+        return Tail::Other;
+    }
+    ja_tail(text.trim_end().trim_end_matches(is_terminal).trim_end())
+}
+
+/// Whether the shadow rule counts `text` as complete: the live rule, or a
+/// Japanese sentence under a closing mark that ends in a noun or an honorific.
+fn shadow_complete(lang: &str, text: &str) -> bool {
+    is_complete(lang, text)
+        || (lang == "ja"
+            && text.trim_end().chars().next_back().is_some_and(is_terminal)
+            && tail_of(lang, text).ends_a_sentence())
+}
+
+/// What [`early_hold`] would answer if a noun or an honorific ending closed a
+/// Japanese sentence. The live rule does not ask; the log records the answer.
+pub fn shadow_early_hold(lang: &str, text: &str, samples: usize) -> Option<Hold> {
+    hold_for(shadow_complete(lang, text), samples)
 }
 
 #[cfg(test)]
@@ -444,6 +634,209 @@ mod tests {
     fn holds_are_named_for_the_log() {
         assert_eq!(Hold::Incomplete.name(), "incomplete");
         assert_eq!(Hold::TooShort.name(), "too_short");
+    }
+
+    fn silence() -> Decision {
+        Decision {
+            rule: Rule::Silence,
+            silence_ms: 300,
+            plan: None,
+            held_gap_ms: None,
+        }
+    }
+
+    fn kept(range_end: usize) -> Held<&'static str> {
+        Held {
+            solved: "kept",
+            range_end,
+            floor: 0,
+            voice_after: false,
+        }
+    }
+
+    #[test]
+    fn the_held_path_and_the_decode_path_are_named_apart() {
+        let held = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(0));
+        let decode = note_plan(silence(), &Plan::<&str>::Whole, Some(4000));
+        assert_eq!(held.plan, Some(PlanKind::Held));
+        assert_eq!(decode.plan, Some(PlanKind::Decode));
+        assert_ne!(
+            held.plan.map(PlanKind::name),
+            decode.plan.map(PlanKind::name)
+        );
+        let rest = note_plan(silence(), &Plan::<&str>::Rest(800), None);
+        assert_eq!(rest.plan.map(PlanKind::name), Some("rest"));
+        assert_eq!(held.plan.map(PlanKind::name), Some("held"));
+        assert_eq!(decode.plan.map(PlanKind::name), Some("decode"));
+    }
+
+    #[test]
+    fn the_gap_is_noted_only_when_a_kept_sentence_was_read_again() {
+        let again = note_plan(silence(), &Plan::<&str>::Whole, Some(2243));
+        assert_eq!(again.held_gap_ms, Some(140));
+        let used = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(8));
+        assert_eq!(used.held_gap_ms, None);
+        let nothing_kept = note_plan(silence(), &Plan::<&str>::Whole, None);
+        assert_eq!(nothing_kept.held_gap_ms, None);
+        let rest = note_plan(silence(), &Plan::<&str>::Rest(800), Some(16));
+        assert_eq!(rest.held_gap_ms, Some(1));
+        assert_eq!(again.rule, Rule::Silence);
+        assert_eq!(again.silence_ms, 300);
+    }
+
+    #[test]
+    fn a_plan_that_makes_no_final_names_no_kind() {
+        let dropped = note_plan(silence(), &Plan::<&str>::Drop, Some(100));
+        assert_eq!(dropped.plan, None);
+        assert_eq!(dropped.held_gap_ms, None);
+    }
+
+    #[test]
+    fn the_gap_to_a_kept_sentence_is_reported_whether_or_not_it_was_used() {
+        let mut used: State<&str> = State::default();
+        used.hold("kept", 1000, 900);
+        let (plan, gap) = used.plan_with_gap(100, 1000 + TOLERANCE, TOLERANCE);
+        assert!(matches!(plan, Plan::Held(..)));
+        assert_eq!(gap, Some(TOLERANCE));
+        let mut far: State<&str> = State::default();
+        far.hold("kept", 1000, 900);
+        let (plan, gap) = far.plan_with_gap(100, 1000 + TOLERANCE + 1, TOLERANCE);
+        assert_eq!(plan, Plan::Whole);
+        assert_eq!(gap, Some(TOLERANCE + 1));
+        let mut none: State<&str> = State::default();
+        assert_eq!(none.plan_with_gap(0, 1000, TOLERANCE), (Plan::Whole, None));
+    }
+
+    #[test]
+    fn a_japanese_tail_is_told_by_the_form_before_the_closing_mark() {
+        for (text, tail) in [
+            ("近藤さん。", Tail::Honorific),
+            ("田中様。", Tail::Honorific),
+            ("山田氏。", Tail::Honorific),
+            ("独占配信。", Tail::Noun),
+            ("コーヒー。", Tail::Noun),
+            ("二〇二六年。", Tail::Noun),
+            ("2026年。", Tail::Noun),
+            ("GPU。", Tail::Noun),
+            ("ＧＰＵ。", Tail::Noun),
+            ("本音とは。", Tail::Particle),
+            ("これを。", Tail::Particle),
+            ("ものの。", Tail::Particle),
+            ("それも。", Tail::Particle),
+            ("雨が降っていますが。", Tail::Particle),
+            ("さあ。", Tail::Interjection),
+            ("それはさあ。", Tail::Interjection),
+            ("あの。", Tail::Interjection),
+            ("今日は雨です。", Tail::Other),
+            ("これ。", Tail::Other),
+        ] {
+            assert_eq!(tail_of("ja", text), tail, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_tail_does_not_need_the_closing_mark_or_the_space_around_it() {
+        assert_eq!(tail_of("ja", "独占配信"), Tail::Noun);
+        assert_eq!(tail_of("ja", "独占配信。 "), Tail::Noun);
+        assert_eq!(tail_of("ja", "独占配信 。"), Tail::Noun);
+        assert_eq!(tail_of("ja", "近藤さん？！"), Tail::Honorific);
+    }
+
+    #[test]
+    fn an_empty_body_and_a_language_but_ja_have_the_other_tail() {
+        assert_eq!(tail_of("ja", ""), Tail::Other);
+        assert_eq!(tail_of("ja", "。"), Tail::Other);
+        assert_eq!(tail_of("en", "Exclusive release."), Tail::Other);
+        assert_eq!(tail_of("zh", "独占配信。"), Tail::Other);
+        assert_eq!(tail_of("", "独占配信。"), Tail::Other);
+    }
+
+    #[test]
+    fn only_a_noun_and_an_honorific_end_a_sentence_in_the_shadow_rule() {
+        let ends: Vec<Tail> = [
+            Tail::Noun,
+            Tail::Honorific,
+            Tail::Particle,
+            Tail::Interjection,
+            Tail::Other,
+        ]
+        .into_iter()
+        .filter(|tail| tail.ends_a_sentence())
+        .collect();
+        assert_eq!(ends, [Tail::Noun, Tail::Honorific]);
+    }
+
+    #[test]
+    fn tails_are_named_for_the_log() {
+        let names: Vec<&str> = [
+            Tail::Noun,
+            Tail::Honorific,
+            Tail::Particle,
+            Tail::Interjection,
+            Tail::Other,
+        ]
+        .iter()
+        .map(|tail| tail.name())
+        .collect();
+        assert_eq!(
+            names,
+            ["noun", "honorific", "particle", "interjection", "other"]
+        );
+    }
+
+    /// The live rule keeps a noun or an honorific ending; the shadow rule
+    /// would have finalised it from one second of speech.
+    #[test]
+    fn the_shadow_rule_finalises_a_noun_or_an_honorific_ending_that_the_live_rule_keeps() {
+        for text in ["独占配信。", "近藤さん。"] {
+            assert_eq!(early_hold("ja", text, MS_1000), Some(Hold::Incomplete));
+            assert_eq!(shadow_early_hold("ja", text, MS_1000), None, "{text}");
+            assert_eq!(
+                shadow_early_hold("ja", text, MS_999),
+                Some(Hold::TooShort),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_shadow_rule_keeps_every_other_ending_the_live_rule_keeps() {
+        for text in [
+            "本音とは。",
+            "これを。",
+            "さあ。",
+            "これ。",
+            "雨が降っていますが。",
+            "独占配信",
+            "近藤さん",
+            "",
+        ] {
+            assert_eq!(
+                shadow_early_hold("ja", text, 10 * MS_1000),
+                Some(Hold::Incomplete),
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_shadow_rule_answers_as_the_live_rule_where_the_live_rule_finalises_or_does_not_judge() {
+        for (lang, text) in [
+            ("ja", "言ったろう。"),
+            ("ja", "はい。"),
+            ("en", "It is raining."),
+            ("en", "It is raining and."),
+            ("zh", "今天下雨了。"),
+            ("en", "Exclusive release."),
+        ] {
+            for samples in [0, MS_999, MS_1000, 10 * MS_1000] {
+                assert_eq!(
+                    shadow_early_hold(lang, text, samples),
+                    early_hold(lang, text, samples),
+                    "{lang} {text} {samples}"
+                );
+            }
+        }
     }
 
     #[test]

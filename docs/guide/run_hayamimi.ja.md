@@ -339,7 +339,10 @@ Rust の run は `null` で、数えていないことを表します。
 ## 早い終わりの保留と、訳の最初の依頼を log で読む
 
 `asr.endpoint.held`（info）は、早い終わりの候補が文を読んだのに確定せず、無音を待った回に 1 行出ます。
-項目は `reason`、`span_ms`、`min_ms` です。
+項目は `reason`、`span_ms`、`min_ms`、`tail`、`shadow_complete` です。
+`tail` は持った文の末尾の種類（`noun`、`honorific`、`particle`、`interjection`、`other`）で、文そのものは載りません。
+`shadow_complete` は、名詞止めと敬称を完結として数える規則なら、その場で確定していたかどうかです。確定の動きは変わりません。
+確定の行 `asr.endpoint.decided` の `plan` は、持った文を使い回した `held`、segment 全体を読み直した `decode`、線より後ろだけを読み直した `rest` です。`held_gap_ms` は、持った文があったのに読み直した回の、2 つの終わりの差（ms）です。
 `reason` が `incomplete` なら文が完結していない候補で、`too_short` なら完結していても声が `min_ms` に満たない候補です。
 0 件の判定は、同じ command の中で、必ず出る event も数えます。
 
