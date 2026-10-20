@@ -856,6 +856,17 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `<domain>.fallback.<落ち先>` | 3.15 の表の場面で落ちたとき、段ごとに 1 回（warn） | `error_code`（`HAYAMIMI_<DOMAIN>_FALLBACK`）、`stage`、`reason` |
 | `<domain>.fallback.cleared` | 落ちた資源が戻って元の道へ戻したとき（info） | `stage` |
 
+#### 広げた早い終わりの印
+
+`asr.endpoint.widened`（info）は、3.17 の「区切りの終わりを早める手の見積り」の方針 B を `hayamimi` の `--early-complete nouns` で生かした時（以下 W）だけが出す。
+`--early-complete` の値は `strict`（既定。今の完結の判定）と `nouns`（方針 B の判定）の 2 つで、`/config` と画面には出さない。
+方針 B だけを戻すのは `--early-complete strict` で起こし直す形で、早い終わり全体を切る `--endpoint silence` とは別である。`--endpoint silence` の時は `--early-complete` は効かない。
+既定を `nouns` へ替えるのは RP-79 が通り、評議が判定した後である。
+今の完結の判定（`endpoint.rs` の `is_complete`）なら持つ候補を、広げた判定で確定した時に、その `final` ごとに 1 件出す。
+項目は `id`（その `final` の id）、`tail`（`noun` か `honorific`。分け方は早い終わりの影の印の `tail` と同じで、影の印が main に入る順は 10 の H98）、`span_ms`（確定の線から候補の sample までの声の長さ）である。
+RP-79 は、この event の `id` を `final` と結び、広げた判定で確定した標本の `d` と割れを、ほかの標本と分けて数える。
+判定は変えず、文の字は載せない。
+
 本文、音声、path は log に書かない。
 
 ### 3.14 言語の切り替え（i18n）
@@ -991,7 +1002,7 @@ ja の声の後ろには、確率が 0.35 と 0.5 の間に留まる区間が長
 起点の確かな発話だけで見ると、差は ja の確か 4 発話で 100、108、300、706 ms、en の 15 発話で 26〜250 ms（p50 78 ms）である。
 ja の切れの発話では、区切りの終わりが clip の終わりより 326〜665 ms 後ろ、すなわち声の後のつないだ無音の中に在る（発話 11、13、14、20、21、22。発話 19 は 1,818 ms 前で、発話 10 は区切りが触れない）。
 `L` の遅い ja の発話 16 と 22（`83830af` の build の RP-32 の 3 run、15 標本の中央値で 1,509 ms と 1,367 ms。記録の在り処は 10 の H90）は、確かと切れの発話である。
-したがって確かと切れの 12 発話では、ja の待ちが `min_silence` より長いのは、主に detector が無音の中で声を言い続ける量で、`end_sample` が早すぎるからではない。不確かの 11 発話には言えない。この読みは H93 の結果が出るまで暫定である。
+したがって確かと切れの 12 発話では、ja の待ちが `min_silence` より長いのは、主に detector が無音の中で声を言い続ける量で、`end_sample` が早すぎるからではない。不確かの 11 発話には言えない。無音の中で声を言い続ける機構は、3.17 の「区切りの終わりを早める手の見積り」の window ごとの確率で測った（H93）。
 `threshold` を 0.6 に上げると ja の差の p50 は 288 ms に縮んだが、始まりも同じ値で上がるので、発話の始まりが 256 ms 遅れた。
 1 つの値が始まりと終わりの両方を決めているからである。
 `neg_threshold` は sherpa-onnx の C++ の設定には在るが、C の API（`c-api.h` の `SherpaOnnxSileroVadModelConfig`）と Rust の crate 1.13.8 の `SileroVadModelConfig` には無い（crate の source を `rg -n neg_threshold` で 0 件、同じ範囲の `threshold` は 1 件以上。crates.io の最新も 1.13.8）。
@@ -1080,6 +1091,107 @@ Silero の 1 回は 30 ms 以上の塊で CPU の 1 thread 1 ms 未満なので�
 - **完結の判定なしに、早い終わりで毎回確定する**：0.12 秒の息継ぎで行が割れる。
 - **音声だけで完結を判定する model（Smart Turn v3）を足す**：Silero の後に置く形で 23 言語（ja を含む）を持ち、CPU で 10〜65 ms と軽い（S31）が、実音声の文単位の正解率は完結 0.704、未完 0.623 で、文字の規則より良いとは言えない（S27）。ja での正解率も測られていない。
 - **言語モデルで完結を判定する（Phoenix-VAD の形）**：判定 1 回に 140 ms 掛かり（S27）、訳の T と同じ GPU を取り合う。
+
+#### 区切りの終わりを早める手の見積り
+
+VAD の数（終わりの線、無音の長さ、確率の傾き）を動かす手は、ja の検出の遅れを今の規則の混ざり方で p95 64〜127 ms しか縮めず、縮めるほど発話の内側の割れが増える。
+同じ p95 の 127 ms は、VAD の数を動かさず、早い detector（B）の知らせを受ける側の完結の判定を広げる手でも得られ、この手は縮める標本の発話で VAD の割れを増やさない（声の間がちょうど 0 の `orig` に限る。`noise60` では崩れる。下の「今の規則の混ざり方で数えた縮み」）。
+したがって推す形は、VAD の数を今のまま残し、B の知らせの受け方を広げる方針 B である。
+終わりの判定の振る舞いは、利用者が感じる遅れに model の大きさより大きく効く（S41）ので、`d` を縮める手はこの節の範囲に絞る。
+
+**測った物**：`native/hayamimi-asr/tests/vad_trace_probe.rs`（branch `feat/vad-trace`）が `models/silero_vad.onnx` を `ort` で回し、`testdata/lat-ja.wav`（6,057 window）と `testdata/lat-en.wav`（3,167 window）の 512 sample の window ごとの確率を出した log である（git の外の `/home/fukugan/.cache/hayamimi-vad-trace-20261020/trace.log`、sha256 `964ca72b…acb9dfae`）。
+変種は 2 つで、`orig` は file のまま、`noise60` は発話の間の 0 の並びを −60 dBFS の白色雑音に替えた物である。
+model は入力が `x [1, 512]`、`h`、`c` の LSTM で、sherpa-onnx は v4 の経路で回す（S25、S40）。
+
+**確率の尾**：0 だけの入力から始めた 20 秒では確率の最大が 0.0429 なのに、声の直後の 0 の中では確率が 32 ms ごとに少しずつ下がる（ja の発話 21 は 0.98 から 0.35 まで 613 ms、雑音の中では 805 ms）。
+LSTM の状態が声の間の値を持ち越し、入力が 0 になっても状態が抜けるまで確率が高いままだからである（RunV4 は前の window の `h`、`c` を次の window へ渡す。S40）。
+この尾が、3.17 の冒頭の「無音の中で声を言い続ける量」である。
+
+**区切りの時刻の式**：sherpa-onnx v1.13.8 の `IsSpeech` は、声の中で確率が `neg_threshold` 以下になった最初の window の終わりで無音を数え始め、そこから `min_silence` 以上たった window で声の終わりとし、`AcceptWaveform` は segment の終わりを `Tail − min_silence` に置く（S40）。
+512 sample の window で `min_silence` 0.30 秒（4,800 sample）を数えると 10 window（5,120 sample）後に区切るので、segment の終わりは線を下回った window の始まりから 32 + 20 = 52 ms 後、区切りを知る時刻は segment の終わりのちょうど 300 ms 後になる。
+E2E の `d`（`L_asr − L_dec`）は、この再生の検出の遅れより大きく、rs1 の 98 標本で差は +25 ms だった（評議の数えの転記。この席は打ち直していない）。下の見積りの値は再生の値で、E2E の `d` と比べる時はこの差を足して読む。
+無音の長さは window の倍数に切り上がる（0.30 秒は 0.32 秒、0.12 秒と 0.10 秒はどちらも 4 window の 0.128 秒として効く）。
+
+**再生の対照**：この 2 つの関数の分岐を順のとおりに trace の確率へ当てて再生すると、ja と en の 37 発話の segment の終わりから manifest の `end_sample` を引いた差が、sherpa-onnx の実測（同じ dir の `tail-end-diff.log`）と 37 件とも 1 ms 以内で一致し、発話に触れる segment の数も ja の発話 2、14、18 と en の発話 2、6、11 で実測と同じだった。
+threshold を 0.6 にした再生では ja の割れが 4 から 6 になり、`docs/results/vad-threshold-20261015/` の probe の割れの数と同じだった。
+以下の見積りは、この再生で数を替えて数えた値である（作業の file は git の外の `/home/fukugan/.cache/hayamimi-vad-end-20261020/`。再生を repo に置く形は 10 の H97）。
+2 本の detector は同じ model に同じ window を同じ順に食わせ、model の入力に閾値は無いので、A と B は同じ確率の列を 2 回計算している。
+
+**数え方**：
+- **検出の遅れ**：発話に触れる最後の segment の、区切りを知る時刻 − manifest の `end_sample`。発話ごとの値で、ja は区切りが触れない発話 10 と、segment が `end_sample` より前で終わる発話 18、19 を除いた 20 発話、en は 15 発話の nearest-rank の p50 と p95 を取る。
+- **縮む量**：発話ごとに今の規則（A：threshold 0.5、終わりの線 0.35、無音 0.30 秒）の検出の遅れから案の値を引いた差の p50 と p95。`L` が同じ量だけ縮むのは、復号と訳の時間が変わらない時に限る（ASSUMPTION）。
+- **割れ（再生）**：発話ごとに、その発話の manifest の範囲に触れる segment の数 − 1 を足した数。今の規則で ja 4、en 4（`noise60` で ja 4、en 3）である。
+- **谷の window**：発話の内側の間で確率が線を下回る window の数。各発話の範囲の中で、確率が 0.5 を超えた最初の window から、確率が線以上の最後の window までに在る、線を下回る window を数える（声の後ろの尾は数えない）。
+- **谷**：谷の window が続いた並びのうち、長さが `1 + ⌈min_silence × 16000 / 512⌉` window 以上の物の数。今の規則なら区切りの候補になる長さである。区切るには並びの前後の分岐も要るので、再生の割れより多く出る。
+
+**案ごとの見積り**（`orig`。括弧は `noise60` の割れ）：
+
+| 案 | ja 縮む量 p50 / p95 | en 縮む量 p50 / p95 | 割れ ja / en | 谷の window ja / en | 谷 ja / en |
+|---|---|---|---|---|---|
+| 今（A：0.5、0.35、0.30 秒） | 検出の遅れ 844 / 1178 | 検出の遅れ 378 / 550 | 4 / 4（4 / 3） | 線 0.35：341 / 90 | 11 window 以上：8 / 4 |
+| (a) 終わりの線 0.40 | 64 / 192 | 0 / 0 | 4 / 4（5 / 4） | 377 / 94 | 8 / 4 |
+| (a) 終わりの線 0.42 | 96 / 192 | 0 / 0 | 6 / 4（6 / 4） | 未測 | 未測 |
+| (a) 終わりの線 0.45 | 128 / 288 | 0 / 0 | 6 / 4（7 / 4） | 419 / 98 | 12 / 4 |
+| (a) 終わりの線 0.50 | 160 / 288 | 0 / 32 | 8 / 4（8 / 4） | 469 / 101 | 12 / 4 |
+| (b) 無音 0.288 秒（9 window） | 32 / 32 | 32 / 32 | 5 / 5（5 / 3） | 未測 | 未測 |
+| (b) 無音 0.25 秒 | 64 / 64 | 64 / 64 | 6 / 5（6 / 4） | 未測 | 9 window 以上：未測 |
+| (b) 無音 0.20 秒 | 96 / 96 | 96 / 96 | 6 / 5（6 / 4） | 線 0.35：341 / 90 | 8 window 以上：8 / 5 |
+| (b) 無音 0.12 秒 | 192 / 192 | 192 / 192 | 8 / 5（10 / 4） | 341 / 90 | 5 window 以上：13 / 5 |
+| (c) B を単独で使う（0.65、0.50、0.12 秒） | 384 / 576 | 192 / 224 | 13 / 7（15 / 6） | 線 0.50：469 / 101 | 5 window 以上：17 / 7 |
+| (d) 確率が 10 window 続けて下がり 0.7 未満で区切る | 416 / 736 | 0 / 256 | 13 / 4（15 / 6） | 未測 | 未測 |
+| (d) 6 window 続けて下がり 0.8 未満 | 640 / 896 | 320 / 480 | 41 / 8（42 / 9） | 未測 | 未測 |
+| (e) Silero の既定（無音 100 ms、線 `threshold − 0.15`。S39） | 192 / 192 | 192 / 192 | 8 / 5（10 / 4） | (b) 0.12 秒と同じ | (b) 0.12 秒と同じ |
+| (e) 1 本の確率の列から 2 本の線を引く（同じ model を Rust で 1 回だけ回す） | A と B の組と同じ | A と B の組と同じ | A と B の組と同じ | 未測 | 未測 |
+
+(a) の線 0.40 は割れを増やさないが、0.42 で割れが 4 から 6 へ跳ぶ崖の 0.02 手前に在り、23 発話の 1 組でしか確かめていない。
+en は声の直後の確率がすぐ落ちるので、(a) は en に効かない。
+(b) と (e) の Silero の既定は、縮む量が無音の差（window の倍数）と同じで、割れが増える。
+(c) の割れは B の知らせが発話の内側で出た数で、今の設計（方針 1）は完結の判定でそれを止めている。発話の内側の知らせは ja 16 件、en 7 件、発話の終わりの知らせは ja 19 件、en 15 件である（`noise60` では内側が ja 20 件、en 6 件）。
+(d) は声の中の確率の下がりでも区切り、割れが (c) と同じか多い。
+
+**今の規則の混ざり方で数えた縮み**：E2E の 1 run（git の外の `/home/fukugan/.cache/hayamimi-e2e-20261019/e-card-form/rs1.*`。lat-ja の 23 発話 × 5 回）の `asr.endpoint.decided` の `rule` を、`/events` の `final` の `id` で標本の最後の `final` と結ぶと、`final` の在る 98 標本のうち 70 が `early`、28 が `silence` で確定していた。
+`silence` の 28 標本は発話 2（1）、11（4）、12（3）、13（3）、16（5）、21（2）、22（5）、23（5）である。
+`early` の標本には B の再生の検出の遅れを、`silence` の標本には案の検出の遅れを当てて、98 標本の p50 と p95 を取ると次のとおりである。
+
+| 案 | ja p50 | ja p95 |
+|---|---|---|
+| 今 | 632 | 1007 |
+| (a) 線 0.40 | 607 | 943 |
+| (a) 線 0.50 | 508 | 911 |
+| (b) 無音 0.20 秒 | 575 | 911 |
+| (b) 無音 0.12 秒 | 508 | 880 |
+| (c) B の threshold を 0.70 に上げる | 632 | 1007 |
+| 方針 B：名詞（漢字、カタカナ、英数字で終わる形）と敬称で終わる文を完結とする（発話 16「…近藤さん。」の 5 標本、22「…独占配信。」「…独占。」の 5 標本、12「…ドルフィング。」「…ドルフィンキック。」の 2 標本、計 12 標本が `early` へ移る） | 508 | 880 |
+| 方針 B の上限：`silence` の 28 標本が全部 `early` へ移る | 473 | 880 |
+
+標本の文は rs1 の `rs1.jsonl` の `text`（その標本の最後の `final`）で読んだ。
+p95 を決めているのは `silence` で確定した遅い標本（発話 16 の 1007 ms、21 の 966 ms、22 の 892 ms）なので、B の数を動かしても p95 は動かない。
+発話 16 と 22 は B の再生でも segment が 1 つで、B の知らせは発話の終わりの 1 回だけである（B の検出の遅れは 591 ms と 476 ms）。
+発話 12 の残りの 1 標本「…キックで。」は接続の形、23「…本音とは。」は助詞、11「…これを。」は助詞、13「…はい。」「…さあ。」は間投詞で終わるので、名詞と敬称を足しても移らない。
+**割れを増やさないのは `orig` だけである。**`noise60` の再生では、発話 22 の B が 2 つの segment になり（発話の内側で 1 回知らせる）、発話 12 の B の最後の segment は manifest の終わりより 1281 ms 前で閉じ、発話の内側の B の知らせは ja で 20 件に増える。実際の配信の声の間は 0 ではないので、方針 B の割れの見積りは `orig` の値を下限として読む。
+en は E2E の `rule` の記録が材料に無く、混ざり方では数えていない（10 の H99）。
+
+**捨てた見分け**：B の知らせの時点の確率の深さで発話の内側と終わりを分ける形は測って捨てた。知らせの直前 4 window の確率の最小が 0.2 未満の知らせは、ja の発話の終わりで 19 件中 1 件、内側で 16 件中 0 件、en は終わり 15 件中 15 件、内側 7 件中 7 件で、どちらの言語でも分けられない。
+
+**方針**：
+- **A：終わりの線を 0.40 に上げる**（sherpa-onnx の C の API に `neg_threshold` を足す patch を当てる。C の API と master の `SherpaOnnxSileroVadModelConfig` に `neg_threshold` は無い。S40）。ja の混ざり方で p50 −25 ms、p95 −64 ms、en は 0 ms で、割れは増えない。ただし、0.42 で割れが増える崖の手前で、確かめたのは lat-ja の 23 発話だけである。ただし、版を上げるたびに patch を当て直す。採らないのは、縮みが方針 B の半分の p95 にとどまり、en に効かず、崖の手前の値を 1 組の音声で決めることになるからである。
+- **B：VAD の数を変えず、B の知らせの受け方を広げる**（推す）。ja の日本語の文が閉じの記号で終わり、末尾が名詞か敬称なら完結とする（早い終わりの影の印の `shadow_complete` と同じ規則）。ja の混ざり方で p50 −124 ms、p95 −127 ms で、移る発話 16 と 22 の B の segment は `orig` で 1 つである。ただし、発話の内側の B の知らせ（ja `orig` 16 件、`noise60` 20 件）で名詞か敬称で終わる切れ端が完結と読まれると、文の途中で割れる。評議の数えでは、lat-ja の内側の 16 件のうち 3 件（発話 5「…首都」、13「…九十一歳」、19「…センターレフト」）が名詞の字で終わり、起きうる穴である。この 3 件は partial の文字からの概算で、句読点つきの候補文ではない。offline の門がこの数を確定する。その数を確かめる offline の門が下の手順の 2 である（10 の H100）。ただし、名詞止めの文の後に声が続く話し方では、確定の線の後ろが別の `final` になる。採るかは評議が決める。
+- **C：VAD を Rust で回す**（同じ `silero_vad.onnx` を `ort` で 1 回だけ回し、sherpa-onnx の 2 つの関数の分岐を Rust に写して、1 本の確率の列から A と B の 2 本の線を引く）。2 回目の推論が消え、`neg_threshold` を patch なしで選べ、流れの途中の `flush` の abort（RP-68）の形が消え、window ごとの確率を log に出せる。ただし、それだけでは検出の遅れは 1 ms も縮まない。ただし、segment の切り出し（始まりの 2 window と最短の声の分の戻り、buffer の捨て方）も写すので、写しが sherpa-onnx と同じ segment を出すことを別の受入で確かめなければならない。採らないのは、今の主指標に効かず、写す部品だけが増えるからである。A を採る時の patch の代わりとしてだけ残す。
+
+**推す形は B である。**
+方針 B の確かめは RP-79（6 の表）で、test の名前は `rp79_widened_early_end_shortens_ja_wait_without_mid_sentence_splits`（7 の表）である。
+方針 B は次の順で進め、前の段が通るまで次へ進まない。
+
+1. **影の印を main に入れる**：branch `feat/held-tail-shadow` の `5d9f652`（`endpoint.rs` の `tail_of` と `shadow_early_hold`、`r8v_probe.rs` が判定の写しを捨てて `endpoint::is_complete` を使う形）を merge の席が main に入れる。影の印の log（`asr.endpoint.held` の `tail` と `shadow_complete`）は、候補の後ろに声が続いたか（`Held` の `voice_after`）も、`held` の行がどの `final` になったか（`id`）も持たず、`held` と `decided` を結べない。したがって merge だけでは発話の内側の候補の数は数えられず、数えるのは 2 の offline の probe である。
+2. **offline の門（H100）**：`r8v_probe.rs` に、完結の判定だけを影の規則（`endpoint::shadow_early_hold` が `Some(Hold::Incomplete)` を返さない文を完結とする）に替えた 2 本の probe、`r8v_latency_set_probe_shadow_rule`（lat-ja と lat-en）と `r8v_heldout_ja_probe_shadow_rule`（`testdata/r8v_heldout/` の 81 clip）を足し、`cd native && cargo test --release --jobs 2 -p hayamimi-asr --test r8v_probe -- --ignored --nocapture <名前>` で 1 回ずつ打つ。出力は `docs/results/r8v/shadow-lat.log` と `shadow-heldout-ja.log` に残し、表を `docs/results/r8v/shadow.md` に書く。比べる相手は同じ probe の今の判定の値で、単位を揃えて「後ろに声が続く完結の候補」（`probe.md` と `heldout.md` の complete candidates with voice going on）と「B だけの割れ」（splits by B alone）の 2 つを比べる。今の判定の値は、lat-ja が候補 35、声が続く候補 9、声が続く完結の候補 3、B だけの割れ 4、held-out の ja が候補 151、声が続く候補 67、声が続く完結の候補 9、B だけの割れ 9 である。**通る線**は、lat-ja と held-out の ja の両方で、影の規則の「声が続く完結の候補」と「B だけの割れ」が今の判定の値以下であることである。影の規則は今の判定が完結とする文を全部含んだうえで広げるので、2 つの数は今の判定の値より小さくならず、通るのは名詞と敬称で終わる内側の候補が 1 件も無い時だけである。落ちたら 3 へ進まず評議へ出す。
+3. **W を作る**：`--early-complete nouns`（3.13 の「広げた早い終わりの印」）と `asr.endpoint.widened` を入れる。
+4. **RP-79 の E2E**：6 の表の手順で打つ。
+
+**この節で採らない手段**：
+- **確率の傾きで区切る（案 d）**：ja の割れが 13 から 41 に増え、B と同じかそれより多い。
+- **B の threshold を 0.70 に上げる**：`early` の標本だけが速くなり、p95 を決める `silence` の標本は動かない（上の表）。
+- **無音を window に揃えて 0.288 秒にする**：縮みは 32 ms で、ja と en の割れが 1 件ずつ増える。
+- **Silero の既定（無音 100 ms）にする**：512 sample の window では 0.12 秒と同じ効きで、ja の割れが 4 から 8 に増える。
 
 #### 受入、slice、残る穴の在り処
 
@@ -1372,6 +1484,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-76 | split の形の ja の誤り率が、今の形（全部 CPU の int8）より悪くならない | RP-1 と同じ形の `<ev> scorecard --engine hayamimi --asr-encoder <形> --sets testdata/eval_real --out rp76_<形>.json` を、同じ build で `<形>` を `cuda` と `cpu` にして 1 回ずつ打ち、RP-2 の golden も両方で解き、`cargo test --release --test rp76 -- --ignored` が読む | ja の CER（小数 3 桁に四捨五入）が、split の形で今の形以下。RP-2 の golden の CER も今の形以下。en、zh、ko、yue の tier は split の形でも今と同じ値（Rz の tier だけを変えるので） | `--asr-encoder cpu` の run の ja の CER が `scorecard.md` の 0.038 と 0.005 以内で一致する | ja の clip を SenseVoice の tier へ送る build では ja の CER が悪くなり落ちる |
 | RP-77 | GPU が使えない時に、認識器が今の形へ落ち、落ちたと出す（3.5 の「GPU が無いときの経路」、3.11） | `CUDA_VISIBLE_DEVICES` を空にした `<hy> --asr-encoder cuda --wav lat-ja.wav` を 1 回と、GPU の在る同じ command を 1 回流す。後段として、`nsys profile --stats=true <ev> stages --provider cuda --asr-encoder cuda --wav lat-ja.wav --models models --repeat 5 --only recognize --profile-ranges --out docs/results/rp77/split.jsonl` と、同じ build の `--only encoder_only --profile-ranges` を 1 回ずつ打つ（Windows の profiler で取れない時は WSL の同じ build）。`cargo test --release --test rp77 -- --ignored` が stdout の log、`/events` の記録、2 つの profile の統計を読む | 落ちた run で、`gpu.fallback.cpu`（`stage` は `recognizer`、`reason` は `no_device`）が 1 件、`gpu.session.created` の `encoder-epoch-35-avg-1.int8.onnx` の実際の provider が `cpu`、`/events` に `{"type":"fallback","stage":"recognizer","to":"cpu"}` が 1 件在り、`final` の text が `--asr-encoder cpu` の run と全部同じで、終了 code が 0。後段で、split の認識器の 1 発話の host → device の回数が、同じ発話の `encoder_only` の回数 + 4 以下（decoder と joiner が CUDA に居れば frame ごとに往復が足され、lat-ja の p50 の 146 frame で 290 回以上増える）。patch の効き目はこの観測で決め、`build.json` の patch の sha256 は記録として並べるだけにする | GPU の在る run では、`encoder-epoch-35-avg-1.onnx` の実際の provider が `cuda` で、`stage` が `recognizer` の fallback が 0 件 | GPU の在る run を落ちた run として渡すと、fallback が 0 件なので落ちた run として受け付けない。落ちた run の log から `gpu.fallback.cpu` を消した fixture は、黙って落ちたとして落ちる。patch を当てない library に繋いだ split の run は、host → device の回数が今の CUDA の形（p50 で 450 回）に近づき、後段で落ちる |
 | RP-78 | split の形で `L_asr` が縮み、訳が遅くならない（E2E） | RP-32 の規則（同じ機械、run ごとに `hayamimi` を起こし直す、各 run の前の 1 分の load が 2 未満）で、`<ev> stream --wav lat-ja.wav --repeat 5 --out docs/results/rp78/<形><N>.jsonl` を `--asr-encoder cpu` と `--asr-encoder cuda` の `<hy>` で 3 対交互に流す。その後段として、split の認識器で `<ev> stages --provider cuda --asr-encoder cuda --wav lat-ja.wav --models models --repeat 5 --cache warm --only recognize --out docs/results/rp78/<条件>_split.jsonl` を RP-74 の 3 条件で 1 組ずつ（`--peers 1` の peer も split の形）、RP-74 と同じ起動の形と同じ数え方で打つ。`cargo test --release --test rp78 -- --ignored` が全部を読む | 3 対を合わせた有効な標本（3.1）で、`L_asr` の p50 が split の形で今の形より「15 ms と、今の形の 3 run の `L_asr` の p50 の幅の大きい方」以上小さく、p95 が「今の形の p95 + 今の形の 3 run の p95 の幅」以下。`L_tr` の p50 の延びが 20 ms 以内。`L` の p50 と p95 が今の形以下。後段の 3 条件の `recognize_total` の p50 と p95 を、RP-74 の同じ条件の A と B の見積りに並べて `docs/results/rp78/summary.md` に書き、無負荷と 2 音源同時で RP-74 の線を実測でも満たす（GPU の負荷の下だけが外れた時は評議へ戻す） | 今の形の 2 run を対にした時、`L_asr` の p50 の差が線より小さい（揺れが線より小さい） | encoder が CPU で作られた split の run（`gpu.session.created` の実際の provider が `cpu`）は split の run として受け付けない |
+| RP-79 | 広げた早い終わりで ja の `d` が縮み、文の途中の割れが増えない（3.17 の「区切りの終わりを早める手の見積り」の方針 B） | 前提：3.17 の方針 B の手順 2 の offline の門の出力（`docs/results/r8v/shadow-lat.log` と `shadow-heldout-ja.log`）が在り、通る線を満たす。そのうえで RP-66 の手順（E2E-1 の `lat-ja` と E2E-2 の `lat-en` を、言語ごとに方針 B の入った同じ build の `<hy>` を `--early-complete strict`（以下 S）と `--early-complete nouns`（以下 W）で起こし、S、W、S、W の順に 2 対。各 run の前の 1 分の load が 2 未満、process は `sudo -n nice -n -5` で起こす）で流し、`docs/results/rp79/` に RP-66 の数え方の 6 と同じ形の名前（`s<N>.e2e1.jsonl`、`w<N>.e2e1.jsonl`、`s<N>.e2e2.jsonl`、`w<N>.e2e2.jsonl`、`load<N>.txt`）と各 run の `hayamimi` の stdout（`w<N>.e2e1.hayamimi.stdout.log` の形）を置き、`cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp79 -- --ignored` を打つ | (0) test が 2 つの offline の log を読み、lat-ja と held-out の ja の両方で、影の規則の「声が続く完結の候補」と「B だけの割れ」が今の判定の値（lat-ja 3 と 4、held-out の ja 9 と 9。log の同じ probe の今の判定の行から読む）以下。log が無い時は E2E の file を読まずに落ちる。(1) ja の `d`（RP-66 の数え方の 1 と 7。2 本を合わせた有効な標本、nearest-rank）の p95 が S より 60 ms 以上小さく、p50 が S 以下。(2) en の `d` の p50 と p95 が S の +60 ms 以内。(3) RP-66 の数え方の 8 で「文の途中」に入る割れの数が、W の 2 本の和で S の 2 本の和以下。(4) RP-66 の品質の合否（「final なし」の数、訳の取れない有効な標本の数、ja の CER）を S に対して同じ式で満たす。(5) W の ja の run ごとに `asr.endpoint.widened` が 1 件以上在り、その `id` がすべて `final` と結べ、S の run には 1 件も無い | test の fixture で、offline の log が今の判定と同じ数を持ち、W の ja の `d` を S の各標本から 128 ms 引き、割れを足さない組が (0)〜(5) を通る | offline の log の影の規則の「B だけの割れ」を 1 件増やした fixture が (0) で落ちる。W の位置に S の run を置いた dir が (1) と (5) で落ちる。W の割れに「文の途中」を 1 件足した fixture が (3) で落ちる |
 | RP-24 | build の再現（Windows と WSL） | 2 つの OS で `cargo run -p xtask -- sherpa-gpu` を打ち、`cargo test --release --test rp24 -- --ignored` が 2 つの `build.json` を比べる。2 つの OS を比べる `windows_and_wsl_builds_match` は WSL から打つ（WSL の build の directory は symlink で、Windows からは WSL が作った symlink を読めない。os error 1920） | sherpa-onnx の commit、ORT の版、CUDA の主版、cuDNN の主版、`sm_120` 系の判定（3.12）が一致。各 OS で、`sm_120` か `sm_120a` の機械語が 1 件以上、または `sm_120` の PTX があり「PTX の JIT で RP-17 が通った記録」が在る。この記録は、その build の `build.json` の sha256 を持つ `rp17_passed.json`（RP-17）である | 同じ OS で 2 回 build した `build.json` の上の項目が一致 | ORT の版を変えた build では差を名指しして落ちる |
 | RP-25 | 訳の揺れ | RP-3 の Rust の run を `cargo test --release --test rp25 -- --ignored` が読む | 発話ごとに、確定の訳が出た後に表示の訳が変わった回数が 0。先の訳から確定の訳への置き換えは 1 回まで。速報の訳で、確定した字形で描いた接頭辞が後で消えた回数が 0。Zoom と Teams と SRT へ出た訳は 1 つの `id` につき 1 件で、確定の訳と同じ | 先の訳と確定の訳が違う発話の数を同じ test が数える | 確定の訳の前に先の訳を送る偽の中継で落ちる |
 | RP-26 | 言語の切り替え | `cargo test --release --test rp26` が、`<hy> --help` と、fallback の時の stderr（3.15）を、locale を en と ja にして読む | en と ja で文が別の言語で、どちらも `strings.<locale>.toml` の key だけから組まれている。`strings.en.toml` と `strings.ja.toml` の key の集合が同じ | en の出力が英語 | 文言を code に直書きした build で、表に無い文が出て落ちる |
@@ -1455,6 +1568,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-76 | `rp76_split_recognizer_ja_cer_not_worse_than_cpu_int8` | `native/hayamimi-eval/tests/rp76.rs` | ja の clip を SenseVoice の tier へ送る build |
 | RP-77 | `rp77_recognizer_without_cuda_falls_back_to_cpu_int8_and_says_so` | `native/hayamimi/tests/rp77.rs` | GPU の在る run を落ちた run として渡す、`gpu.fallback.cpu` を消した fixture、patch を当てない library に繋いだ split の run |
 | RP-78 | `rp78_split_recognizer_shortens_l_asr_without_slowing_translation` | `native/hayamimi-eval/tests/rp78.rs` | encoder が CPU で作られた split の run |
+| RP-79 | `rp79_widened_early_end_shortens_ja_wait_without_mid_sentence_splits` | `native/hayamimi-eval/tests/rp79.rs` | offline の log の影の規則の「B だけの割れ」を 1 件増やした fixture、W の位置に S の run を置いた dir、W の割れに「文の途中」を 1 件足した fixture |
 | RP-24 | `rp24_windows_and_wsl_builds_match` | `native/xtask/tests/rp24.rs` | ORT の版を変えた build |
 | RP-25 | `rp25_translation_flicker_is_bounded` | `native/hayamimi-eval/tests/rp25.rs` | 先の訳を外へ送る偽の中継 |
 | RP-26 | `rp26_messages_follow_the_locale` | `native/hayamimi/tests/rp26.rs` | 文言を直書きした build |
@@ -2201,14 +2315,18 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H90** 3.17 の発話 16 と 22 の中央値と、この H91、H92 の数のうち `83830af` の build の物は、RP-32 の 3 run の記録（git の外の `/home/fukugan/.cache/hayamimi-e2e-20261019/e-card-form/` の `rs1.jsonl`〜`rs3.jsonl`）から `jq` で数えた。git の中の `docs/results/rp32/` の `rs<N>` は前の build の run で、RP-73 の陽性対照はそちらの値で書いた。数え方は RP-67 と同じで、有効は `d = (t_final − t_end)/1000 − final_latency_ms ≥ 120`、`L = (t_tr − t_end)/1000`、nearest-rank である。この記録で数え方を確かめるため、起点を動かさない値が RP-32 の test の出力（`L` p50 885 ms、p95 1501 ms、n 291。Python 1427 ms と 1960 ms、n 285）と 1 ms 以内で一致することを見た。git の中へ写す持ち主は E2E の席である。
 - **H91** 不確かの 11 発話（3.1）の声の本当の終わりは確かめていない（NOT VERIFIED）。下限は `end_sample`、上限は Silero の区切りの終わり（probe の threshold 0.5）と clip の終わりの小さい方と置いた。Silero が声の終わりより前で区切らないことは仮定である（ASSUMPTION。発話 18 は区切りが `end_sample` より 595 ms 前で終わり、上限には clip の終わりを当てた）。この幅で不確かの発話の起点を後ろへ動かした数（`83830af` の 3 run、線 0.12 秒）は次のとおりである。ja の Rust の `L` の p95 は、動かさない時 1,501 ms、高さ 25 % の終わりで 1,481 ms、15 % で 1,498 ms、上限で 1,509 ms、p50 は 885、748、734、666 ms である。Python の p95 は 1,959、1,950、1,903、1,807 ms である。後ろへ動かすほど p50 は下がるが、p95 は動かない。p95 を決める遅い発話（16、22、7）は確かと切れか、高さ 25 % で終わりが動かない発話だからである。認識器と別の model の token の時刻で声の終わりを取る強制位置合わせ（S38 の定義の形）は作らない。再開の条件は、RP-73 が `Err` を返した時、または全発話の `L` の p95 が 1000 ms の ±起点の幅に入った時である。
 - **H92** RP-32 は Rust と Python が同じ `t_end` を使うので、起点を発話ごとに同じ量だけ動かしても対の比較の向きは変わらない。変わるのは終端不正の仕分けで、早い規則で確定した Rust の標本ほど線の下へ落ちる。`83830af` の 3 run で起点を動かした時の対の比較（Rust の線を 0.12 秒として数えた値）は、動かさない時 18/19、高さ 25 % で 18/19、15 % で 15/17（比較集合が 17 に減り、要るのは 15）、上限で 13/19（要るのは 17、落ちる）で、Rust の有効な標本は 294、294、260、215 である。起点を動かさずに組で絞ると、確かだけで 4/4（要るのは 4）、確かと切れで 9/10（要るのは 9）、不確かだけで 9/9（要るのは 8）で、遅い発話 22 は切れの組に在る。規則を変える時の Python の基準は、3.1 のとおり固定した記録（py1〜py3）を新しい `end_sample` で数え直し、Python は流さない（評議の判定）。`stream` の送りの時計は manifest の sample と線形で、`83830af` の rs1 の 23 発話で `(t_end_us − t_start_us)/1000 − (end_sample − start_sample)/16` が −20 ms（1 発話だけ −17 ms）の一定だった。規則を変えるかは評議が決める。
-- **H93** 切れの発話で、Silero の区切りの終わりがつないだ無音の中へ 326〜665 ms 延びる理由は確かめていない（NOT VERIFIED）。sherpa-onnx の segment の終わりは、確率が `neg_threshold` 以下になった最初の window に当たる（S25）。window ごとの確率を記録していないので、延びが確率の尾か、clip の境の急な切れへの反応かは分からない。自然に終わる確かの ja の発話でも 100〜706 ms 延びる。持ち主は `L` の p95 の原因を調べる席で、probe に window ごとの確率を出す形は実装の席が足す。
+- **H93** 切れの発話で、Silero の区切りの終わりがつないだ無音の中へ 326〜665 ms 延びるのは確率の尾である（3.17 の「区切りの終わりを早める手の見積り」）。0 の中でも −60 dBFS の雑音の中でも確率は坂のように下がり、0 だけの入力では 0.05 を超えないので、clip の境の急な切れへの反応ではない。segment の終わりは、manifest の終わりの後で確率が 0.35 未満になる最初の window の始まり + 52 ms で、37 発話中 32 で一致した。一致しない 5 発話（ja の 2、18、19、en の 9、12）のうち、ja の 2 は確率が上がり直し、18 と 19 は別の区切りに当たる。en の 9（+20 ms）と 12（+180 ms）の差の理由は確かめていない（NOT VERIFIED）。持ち主は RP-79 の席である。
 - **H94** 3.1 の組の数と高さごとの声の終わりは、ffmpeg の `astats` で clip ごとに 320 sample の frame の RMS を取り、`awk` で `speech_end` と同じ式を当てた値である（作業の file は git の外の `/home/fukugan/.cache/hayamimi-rp67-20261020/`）。陽性対照として、同じ frame で 35 % の規則を当て直すと、38 発話の `end_sample` が 0 ms の差で再現した。ffmpeg の RMS と `frame_level_db`（i16 の二乗平均、−120 dB で床）が浮動小数の丸めまで同じかは確かめていない（ASSUMPTION）。RP-73 の Rust の関数が同じ組を出すかは、その test の陽性対照が確かめる。持ち主は RP-73 を実装する席である。
 - **H95** 切れの 8 発話で、clip の終わりの音が声か声でない音かは確かめていない（NOT VERIFIED）。参照の文が clip の一部しか覆わない発話（12、13、14、19、21）が切れと不確かに入っている。声でなければ起点は声の終わりより後ろで、`L` は小さく出る（受入に甘い向き）。RP-73 は確かの発話だけで判定を照らすので、この向きで合否が割れればそこで落ちる。参照の文が短いことによる CER の偏りは、この穴の外である。
 - **H96** 英語版 `rust_port.md` は 8 の R10 の成果物で、まだ無い（この文書の冒頭）。3.1、3.17、RP-67、RP-73、H90〜H96 の英語の文は R10 の席が日本語の正本から作る。
+- **H97** 3.17 の「区切りの終わりを早める手の見積り」の再生（sherpa-onnx の `IsSpeech` と `AcceptWaveform` の分岐を trace の確率に当てる式）は、git の外の作業の dir で `awk` で数えた物で、repo に無い。陽性対照は 37 発話の segment の終わりの一致である。見積りは lat-ja と lat-en の 1 組（38 発話）だけで、0.40 の線が割れを増やさないことは held-out の ja で確かめていない（NOT VERIFIED）。持ち主は RP-79 の席で、再生を probe（`native/hayamimi-asr/tests/vad_trace_probe.rs`。branch `feat/vad-trace` に在り、main に無い）へ写し、同じ 37 件の一致を陽性対照に置く。
+- **H98** 方針 B の判定と `asr.endpoint.widened` の `tail` は、早い終わりの影の印（`endpoint.rs` の `tail_of` と `shadow_complete`）に乗る。影の印は branch `feat/held-tail-shadow` の `5d9f652` に在り、main に無い。影の印の log は `voice_after` も `held` の行の `id` も持たず、`held` と `decided` を結べないので、merge しただけでは H100 は数えられない。順は、影の印の merge、H100 の offline の門（3.17 の方針 B の手順 2）、`--early-complete` と `asr.endpoint.widened` の実装、RP-79 の E2E である。`5d9f652` は `r8v_probe.rs` の判定の写し（main の `is_complete`）を捨てるので、offline の門の probe は merge の後に `endpoint` の関数で書く。持ち主は merge の席（merge）と RP-79 の席（その後の 3 段）である。
+- **H99** en の「今の規則の混ざり方」は数えていない。材料の E2E の記録（`e-card-form/rs1`〜`rs3`）は lat-ja だけで、en の `asr.endpoint.decided` の `rule` の記録が無い（ASSUMPTION：en は方針 B で動かない。en の文は名詞止めで完結を読まないからである）。持ち主は RP-79 の run で、en の `rule` の内訳を記録する。
+- **H100** 発話の内側の B の知らせの時点の文が、名詞か敬称で終わる数は確かめていない（NOT VERIFIED）。評議の数えでは lat-ja の内側の 16 件のうち 3 件（発話 5「…首都」、13「…九十一歳」、19「…センターレフト」）が名詞の字で終わり、方針 B はそこで文の途中で割りうる。この 3 件は partial の文字からの概算で、句読点つきの候補文ではない。offline の門がこの数を確定する。数える手は 3.17 の方針 B の手順 2 の offline の門で、`r8v_probe.rs` の完結の判定を影の規則に替えた `r8v_latency_set_probe_shadow_rule` と `r8v_heldout_ja_probe_shadow_rule` を `cd native && cargo test --release --jobs 2 -p hayamimi-asr --test r8v_probe -- --ignored --nocapture <名前>` で打つ。母数は lat-ja が候補 35（うち後ろに声が続く 9）、held-out の ja が候補 151（うち声が続く 67）である（`docs/results/r8v/probe.md` と `heldout.md`）。比べる数は同じ probe の今の判定の「声が続く完結の候補」（lat-ja 3、held-out 9）と「B だけの割れ」（lat-ja 4、held-out 9）で、影の規則の値がどちらも以下なら通る。落ちたら W を作らず評議へ出す。持ち主は RP-79 の席で、方針 B を生きた規則にするかは評議が決める。
 
 ## 11. 出所
 
-取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、S38 と S39 が 2026-10-20、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
+取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、S38〜S41 が 2026-10-20、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
 crate の版は crates.io の API（`https://crates.io/api/v1/crates/<名前>`）で引いた。
 S12 と S15 は別の席の調べの転記で、この席は原典を開いていない。
 
@@ -2253,3 +2371,5 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S37 | `mmnga-o/CAT-Translate-0.8b-gguf`：公開の GGUF の組。`CAT-Translate-0.8b-Q8_0.gguf` は 845,363,136 bytes、LFS の sha256 は `f652c0cd4352424a744bae9e9f633c2efd16a99c0f1a48a0e00d171dc9d6949f`。ほかに IQ3_M から Q6_K までの 13 の量子化が在る | https://huggingface.co/api/models/mmnga-o/CAT-Translate-0.8b-gguf/tree/main |
 | S38 | 「Towards Fast and Accurate Streaming End-to-End ASR」（ICASSP 2020）：認識の遅れを、話し手が話し終えた時から最後の文字列が出るまでの時間と定め、終わりの判定の遅れを中央値（EP50）と 90 パーセンタイル（EP90）で測る。物差しの終わりは、通常の model で音声と書き起こしを強制位置合わせして取った、最後の無音でない音素の後の frame である | https://arxiv.org/abs/2004.11544 |
 | S39 | Silero VAD の `get_speech_timestamps` と `VADIterator`：既定は `threshold` 0.5、`neg_threshold` は `max(threshold − 0.15, 0.01)`、`min_silence_duration_ms` 100、`speech_pad_ms` 30、`min_speech_duration_ms` 250（`VADIterator` には無い）。区切りの終わりは確率が `neg_threshold` を下回った最初の frame の始まりで、報告する終わりはそこへ `speech_pad_ms` を足した位置になる。sherpa-onnx の区切りは pad を足さない（S25） | https://github.com/snakers4/silero-vad の `src/silero_vad/utils_vad.py` |
+| S40 | sherpa-onnx v1.13.8 の `voice-activity-detector.cc`：区切った segment の終わりは `buffer_.Tail() - model_->MinSilenceDurationSamples()`、声の始まりは `Tail − 2 × WindowSize − MinSpeechDurationSamples`（`Head` で止める）、`Flush()` は `Tail` で閉じる。`silero-vad-model.cc`：`neg_threshold` は設定が負なら `max(threshold − 0.15, 0.01)`、`(prob > neg_threshold) && triggered_` の分岐が無音の数えより先に在り、無音の数えは `temp_end_` を `prob > threshold` の時だけ 0 に戻す。k2-fsa の書き出した `x`、`h`、`c` の model は v4 の経路（`IsExportedByK2Fsa`）で回り、`RunV4` は出力の `h`、`c` を次の window の入力にする。C の API の `SherpaOnnxSileroVadModelConfig` は v1.13.8 と master のどちらも `neg_threshold` を持たず、window ごとの確率を返す関数も無い | https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/sherpa-onnx/csrc/voice-activity-detector.cc 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/sherpa-onnx/csrc/silero-vad-model.cc 、https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/sherpa-onnx/c-api/c-api.h（手元の同じ版の source `/home/fukugan/.local/share/hayamimi/build/cuda1343/src-v1.13.8/` とも照らした） |
+| S41 | 端末の上の end-to-end の認識で、利用者が感じる遅れには、model の大きさと計算量より終わりの判定の振る舞いの方が大きく効く（Interspeech 2021。abstract の記述で、数は abstract に無い） | https://arxiv.org/abs/2104.02207 |
