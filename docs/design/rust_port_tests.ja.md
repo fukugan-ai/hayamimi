@@ -2704,10 +2704,10 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 ### 4.77 RP-85（数字の並びと `。` `、` の有無だけが違う速報の訳の使い回し）
 
-実装済み（持ち主 R8x-4）。031 の行は、窓 E3' の記録が置かれるまで走らせない。025 は窓 E3' の席が llama-server を起こした窓の中で打つ。
+実装済み（持ち主 R8x-4）。031 の行は、窓 E3' の記録が置かれるまで走らせない。025 は窓の席が起こした 18084 の llama-server に対して打つ。
 鍵の読み：広げた鍵が除くのは、文の中の `。` `、`、数字の並び（1 つの印へ）、空白である。文末の印（`。` `、` `？` `！` の並び）は除かない。T-RP-69-006 の「`X。。` と `X、` は T をもう一度頼む」が残るためで、001 から 005 の対はこの読みで合う。
-test：`native/hayamimi-relay/tests/rp85.rs`。受入 test の名前は `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`。実走の行（T-RP-85-031）と probe の行（T-RP-85-025）だけが `#[ignore]` を持つ。probe の行は 8080 の llama-server を使い、実走の行は窓 E3' の記録を読む。ほかの行は偽の認識器と偽の llama-server を使い、`--ignored` を付けずに通る。
-command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp85`。probe の行と実走の行はこれに `-- --ignored` を足す。
+test：`native/hayamimi-relay/tests/rp85.rs`。受入 test の名前は `rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v`。実走の行（T-RP-85-031）と probe の行（T-RP-85-025）だけが `#[ignore]` を持つ。probe の行は 18084 の llama-server を使い、実走の行は窓 E3' の記録を読む。ほかの行は偽の認識器と偽の llama-server を使い、`--ignored` を付けずに通る。
+command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp85`。実走の行はこれに `-- --ignored` を足す。probe の行は build 済みの test binary を直に起こし、cargo の親 process を残さない（起こす順は D の RP-85 の行の (a) から (f)）。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（031 だけは受入 test の名前の全部）。引数の形は実装の席が決める。
 設計は D 3.19 の「使い回しの鍵の広げ」と、D 3.18 の 1 から 5、D 6 と 7 の RP-85、D 10 の H117 である。
 
@@ -2744,7 +2744,7 @@ command：台本の行は `cd native && flock -w 1800 target/release/.cargo-lock
 | T-RP-85-022 | 止まる行の数の比べ：(d の答えで止まる数、f の答えで止まる数) が (0, 0)、(2, 2)、(1, 2)、(3, 2)、(1, 0) の 5 入力 | 等号と両側 | d の側 ≤ f の側 | (0, 0)、(2, 2)、(1, 2) は `Ok`。(3, 2) と (1, 0) は `Err` で 2 つの数を名指す（specified、RP-85 の (3)「確定文の T の答えに V を掛けた時以下」。等号は通す） | 境界 | `the_draft_stop_count_may_equal_but_not_exceed_the_final_stop_count` |
 | T-RP-85-023 | 数える側の対照：対（d が `被害は三件でした`、f が `被害は4件でした。`）。(a) 速報の T の答えを `There were three cases of damage`、確定文の T の答えを `There were 4 cases of damage` にする。(b) (a) の速報の T の答えを `There were 4 cases of damage` にする | V が止まる行を数える | 数は答えで決まる | (a) は d の側が 1、f の側が 0 で、比べる関数が `Err`。(b) は 0 と 0 で `Ok`（derived、V の数の検査が止める行を数える側が、止まった行を 0 と読まない。数える関数の陽性対照と陰性対照） | 陽性、陰性 | `the_stop_counter_counts_a_draft_answer_with_another_number` |
 | T-RP-85-024 | 品質の probe の対の数 0 | 母数 0 | 対が在る | `Err` で対が無いことを名指す（implicit、0 件の比べ「0 ≤ 0」を通さない） | 境界、陰性 | `a_probe_over_no_pairs_is_rejected` |
-| T-RP-85-025 | probe（8080 の llama-server）：018 の 5 対で、速報の文の T の答えに f を原文として V を掛けた時に止まる行の数 a と、f の T の答えに V を掛けた時に止まる行の数 b を数える | 実走（GPU の llama-server） | a ≤ b | `Ok`。a と b の値を出力に書く（specified、RP-85 の (3)。値は実走で決まる。a ≤ b だけを判定する）。8080 の llama-server が答えない時は、`Err` で接続の誤りを名指し、a ≤ b と読まない | 陽性 | `the_draft_answers_stop_no_more_often_than_the_final_answers` |
+| T-RP-85-025 | probe（窓の席が起こす 18084 の llama-server）：018 の 5 対で、速報の文の T の答えに f を原文として V を掛けた時に止まる行の数 a と、f の T の答えに V を掛けた時に止まる行の数 b を数える | 実走（GPU の llama-server） | a ≤ b | `Ok`。a と b の値を出力に書く（specified、RP-85 の (3)。値は実走で決まる。a ≤ b だけを判定する）。18084 の llama-server が答えない時は、`Err` で接続の誤りを名指し、a ≤ b と読まない | 陽性 | `the_draft_answers_stop_no_more_often_than_the_final_answers` |
 | T-RP-85-026 | E3' の ja の 2 run（`e3p1`、`e3p2`）の fixture。中継の stdout に `translate.draft.reused` が `e3p1` で 3 件（`match` が `normalized` の 3 件）、`e3p2` で 1 件。発話 7 の 10 標本（各 run の 5 回）の訳の段（`t_tr_us − t_final_us`）は、9 標本が 120000 µs、1 標本が 182000 µs | 発話 7 の訳の段の p95 が線ちょうど。reuse の件数が最小の 1 | p95 ≤ 182 ms、各 run に 1 件以上 | `Ok`（specified、RP-85 の (4)。n = 10 の p95 の順位は (95 × 10 + 99) / 100 = 10 で最大の標本。182000 は 182 ms ちょうど） | 境界、陽性 | `x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass` |
 | T-RP-85-027 | 026 の 182000 µs の標本を 182001 µs にする | 線の 1 µs 上 | 同上 | `Err` で発話 7 の p95 の 182001 µs と 182 ms を名指す（specified、同上。最小の桁 1 つ分だけ外れた値） | 境界、陰性 | `utterance_7_one_microsecond_over_182_ms_is_rejected` |
 | T-RP-85-028 | 026 で `e3p2` の `normalized` の件を 0 にし、`same` と `closing_mark` の `translate.draft.reused` を 4 件にする | `normalized` が 0 件で、ほかの `match` は在る | 各 run に `normalized` が 1 件以上 | `Err` で `e3p2` と `normalized` が 0 件であることを名指す（specified、RP-85 の (4)「`match` が `normalized`」。`same` と `closing_mark` の件は数えない。数える語が当たることは 026 の `e3p1` の 3 件が示す） | 境界、陰性 | `a_run_without_a_normalized_reuse_is_rejected` |

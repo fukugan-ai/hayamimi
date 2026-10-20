@@ -13,7 +13,7 @@
 //!   (`docs/results/r8x/rp85_pairs.jsonl`).
 //! - 022 to 025 compare how often V stops the answer of the text in progress
 //!   with how often it stops the answer of the `final`. Only 025 asks a
-//!   llama-server (port 8080) and runs with `--ignored`.
+//!   llama-server (port 18084) and runs with `--ignored`.
 //! - 026 to 031 judge the records of the runs of window E3'. Only 031 reads
 //!   them and runs with `--ignored`.
 //! - 032 calls V directly on the scripted answer for utterance 7.
@@ -925,7 +925,7 @@ fn a_probe_over_no_pairs_is_rejected() -> TestResult {
     Ok(())
 }
 
-const LLAMA_SERVER: &str = "http://127.0.0.1:8080";
+const LLAMA_SERVER: &str = "http://127.0.0.1:18084";
 
 /// T's answer for `text`, asked of the llama-server like the relay asks it.
 fn t_answer(llm: &HttpLlm, text: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -938,9 +938,9 @@ fn t_answer(llm: &HttpLlm, text: &str) -> Result<String, Box<dyn std::error::Err
     }
 }
 
-/// T-RP-85-025: the probe over the pairs file, against the llama-server on 8080.
+/// T-RP-85-025: the probe over the pairs file, against the llama-server on 18084.
 #[test]
-#[ignore = "needs the llama-server with the translation model on port 8080"]
+#[ignore = "needs the llama-server with the translation model on port 18084"]
 fn the_draft_answers_stop_no_more_often_than_the_final_answers() -> TestResult {
     let llm = HttpLlm::with_timeout(LLAMA_SERVER, Duration::from_secs(60));
     let mut answered = Vec::new();
