@@ -234,7 +234,7 @@ different machine. Pass a narrower `bindAddress` (e.g.
 same-device consumers, which defeats the LAN-broadcast use case this class
 exists for. `allowOrigin` (default `'*'`) controls the `/events` response's
 `Access-Control-Allow-Origin` header, matching the desktop
-`subtitle_server.py`'s permissive default so a browser-based OBS source or a
+`native/hayamimi/src/server.rs`'s permissive default so a browser-based OBS source or a
 web dashboard on a different origin works without extra configuration;
 narrow it if a host app needs to restrict which origins may read its
 transcript.
@@ -352,20 +352,16 @@ await live.start(
 await live.setVadSensitivity(VadSensitivity(threshold: 0.4));
 ```
 
-**The defaults are the desktop pipeline's, not sherpa-onnx's.**
-`minSilenceSeconds` is **0.35s** and `maxSpeechSeconds` is **12.0s**,
-the values tuned for the desktop pipeline (`docs/results/benchmarks.md`,
-改善イテレーション#9); `threshold` (0.5) and
-`minSpeechSeconds` (0.25s) are sherpa-onnx's own, which the desktop leaves
-alone too. This changed because of what sherpa-onnx's stock 0.5s silence
+**The defaults are not sherpa-onnx's.**
+`minSilenceSeconds` is **0.35s** and `maxSpeechSeconds` is **12.0s**;
+`threshold` (0.5) and `minSpeechSeconds` (0.25s) are sherpa-onnx's own.
+This changed because of what sherpa-onnx's stock 0.5s silence
 default did on an Android emulator: on a three-sentence Japanese recording
 whose pauses fall just under half a second, it merged all three sentences
 into one 6.13s segment, and this repo's ja recognizer, handed that segment,
 returned only the last sentence. Two sentences disappeared with nothing in
 the output to say so. At 0.35s the same audio split into three segments and
-all three came out. The desktop's own comment records that 0.35s measured
-no worse for accuracy than 0.5s on real broadcast Japanese while finalizing
-150ms sooner.
+all three came out.
 
 `maxSpeechSeconds` is worth reading as a nudge rather than a guarantee: on
 the same run, a session configured with 5.0s emitted a 6.134s segment.
@@ -506,7 +502,7 @@ refine punctuated=false text=東京の天気は晴れです あしたの会議�
 With `autoRefineSilenceSeconds` at its 4.0 s default a microphone session
 groups several sentences per refine, so this was the ordinary outcome, not
 a corner case. The desktop pipeline never had the problem because its fast
-finals are already punctuated (`RoutedASR.transcribe` runs `punct_ja.py`
+finals are already punctuated (`RoutedASR.transcribe` runs `native/hayamimi-asr/src/punct/`
 over ja finals), so its identical fallback yields punctuated text.
 
 So finals are punctuated too. The fallback reports `punctuated: true` when

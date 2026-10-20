@@ -495,8 +495,8 @@ class LiveTranscriber {
   ///
   /// [vadSensitivity] configures Silero VAD's speech/silence detection
   /// (threshold, minimum silence/speech durations, max segment duration —
-  /// see [VadSensitivity], whose defaults are the desktop pipeline's tuned
-  /// values rather than sherpa-onnx's stock ones, and which explains why).
+  /// see [VadSensitivity], whose defaults are tuned values rather than
+  /// sherpa-onnx's stock ones, and which explains why).
   /// `null` (the default) uses those defaults. Change it after [start] via
   /// [setVadSensitivity] instead of stopping and restarting the session.
   ///

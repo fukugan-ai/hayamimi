@@ -287,14 +287,13 @@ await live.start(
 await live.setVadSensitivity(VadSensitivity(threshold: 0.4));
 ```
 
-**既定値は sherpa-onnx のものではなく、デスクトップパイプラインのもの。**
-`minSilenceSeconds` は **0.35s**、`maxSpeechSeconds` は **12.0s**
-(デスクトップパイプラインで調整した値。`docs/results/benchmarks.md` の改善イテレーション#9)。`threshold` (0.5) と `minSpeechSeconds` (0.25s) は
+**既定値は sherpa-onnx のものではない。**
+`minSilenceSeconds` は **0.35s**、`maxSpeechSeconds` は **12.0s**。
+`threshold` (0.5) と `minSpeechSeconds` (0.25s) は
 sherpa-onnx 自身の値。理由: sherpa-onnx 既定の 0.5s 無音しきい値だと、Android エミュレータで
 3 文の日本語音声 (ポーズが 0.5 秒弱) が 1 つの 6.13 秒セグメントにまとまり、この日本語認識器は
 複数発話を含むセグメントからは最後の 1 文しか返さない — 2 文が出力から消えた。0.35s では
-同じ音声が 3 セグメントに分割され、3 文とも出た。実放送日本語では 0.35s は 0.5s より精度が
-悪化せず、150ms 早く確定表示できると記録されている。
+同じ音声が 3 セグメントに分割され、3 文とも出た。
 
 `maxSpeechSeconds` は保証ではなく目安。5.0s に設定したセッションでも 6.134s のセグメントが
 出た実測がある。`VadSensitivity(minSilenceSeconds: 0.5, maxSpeechSeconds: 5.0)` でこの

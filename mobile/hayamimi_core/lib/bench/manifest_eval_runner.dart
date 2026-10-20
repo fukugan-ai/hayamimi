@@ -190,8 +190,8 @@ class ManifestEvalRunner {
   }
 
   /// Serializes [results] as the JSON array written to disk by the Bench
-  /// tab's "Run manifest eval" button, so `adb pull` + `eval_accuracy.py`'s
-  /// `cer_ja` can score it on the PC side without re-deriving the format.
+  /// tab's "Run manifest eval" button, so `adb pull` + a PC-side scorer
+  /// can score it without re-deriving the format.
   static String toJson(List<ManifestEvalResult> results) {
     return const JsonEncoder.withIndent(
       '  ',

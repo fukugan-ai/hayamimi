@@ -31,7 +31,7 @@ class RemotePage extends StatefulWidget {
 }
 
 class _RemotePageState extends State<RemotePage> {
-  // Default matches realtime_transcribe.py's --ws-port default (8766) for
+  // Default matches `hayamimi`'s --ws-port default (8766) for
   // the /ingest WebSocket endpoint — distinct from --serve's HTTP
   // dashboard/SSE port (8833). 10.0.2.2 is the Android emulator's alias
   // for the host machine's localhost.

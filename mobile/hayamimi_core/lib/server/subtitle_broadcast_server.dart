@@ -38,7 +38,7 @@ class SubtitleBroadcastServer {
 
   /// Value sent as the `/events` response's `Access-Control-Allow-Origin`
   /// header. Defaults to `'*'` (any origin may fetch the SSE stream cross-
-  /// origin), matching the desktop `subtitle_server.py`'s behavior and
+  /// origin), matching the desktop `native/hayamimi/src/server.rs`'s behavior and
   /// keeping a browser-based OBS source or a web dashboard on another
   /// origin working without extra configuration. Narrow this if a host app
   /// needs to restrict which origins may read its transcript.
