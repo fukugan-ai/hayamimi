@@ -14,6 +14,8 @@
 #   scripts/tidy-branches.sh                         dry run: report only
 #   scripts/tidy-branches.sh --remove                remove what the report marks removable
 #   scripts/tidy-branches.sh --remove-worktree PATH  remove one named worktree, after measuring it
+#   scripts/tidy-branches.sh --remove-worktree PATH --dry-run
+#                                                    measure it and say what would happen; remove nothing
 #   scripts/tidy-branches.sh --main-lock BIN [--remove]
 #                                                    ask BIN (the main-lock binary) instead of the default
 #
@@ -35,9 +37,19 @@
 # trunk contains its tip. Undo: `git worktree add <path> <branch>`; the branch
 # is never touched by a worktree removal.
 # A detached worktree goes only when the trunk contains its tip (the tip is an
-# ancestor of the trunk, or the tip's tree appears in the trunk's history), the
+# ancestor of the trunk, or the tip's tree appears in the trunk's history, or the
+# tip is a merge commit whose parents are all ancestors of the trunk), the
 # trunk exists, and nothing is uncommitted inside. Undo:
 # `git worktree add --detach <path> <tip>`, printed at removal time.
+#
+# The third way in is for a verification tree: a merge seat checks a push by
+# merging a branch into a trunk commit with `--no-ff` and leaving the tree
+# detached on that merge. The merge commit itself is never in the trunk, and its
+# tree is not in the trunk's history until the real merge lands, but every
+# commit it was made of is. Content is not compared. One parent outside the
+# trunk (a branch that has not landed) keeps the tree, as before.
+# `--remove-worktree PATH --dry-run` measures a tree and prints what it would do
+# without removing it.
 set -euo pipefail
 
 # The root is derived from the script's own location, never spelled out, so
@@ -58,6 +70,9 @@ if [ "${1:-}" = "--main-lock" ]; then
 fi
 remove="no"
 [ "${1:-}" = "--remove" ] && remove="yes"
+# `--remove-worktree PATH --dry-run`: measure one worktree, remove nothing.
+dry_run="no"
+[ "${3:-}" = "--dry-run" ] && dry_run="yes"
 
 cd "$root"
 
@@ -124,6 +139,21 @@ main_lock_is_free() {
   fi
 }
 
+# True when the commit is a merge (two parents or more) and every parent is an
+# ancestor of the trunk. A parent that is not, or one whose ancestry cannot be
+# answered, makes it false: the check never reads a failure as a pass.
+tip_is_a_merge_of_trunk_commits() {
+  local parents parent count=0 rc
+  parents="$(git rev-list --parents -n 1 "$1" | cut -d' ' -f2-)"
+  for parent in $parents; do
+    count=$((count + 1))
+    rc=0
+    git merge-base --is-ancestor "$parent" "refs/heads/$trunk" || rc=$?
+    [ "$rc" = "0" ] || return 1
+  done
+  [ "$count" -ge 2 ]
+}
+
 # One detached worktree, named on the command line. It has no branch to
 # measure, so the tip comes from the porcelain listing and is checked against
 # the trunk: either the tip is an ancestor of the trunk, or its tree appears in
@@ -154,8 +184,8 @@ remove_detached_worktree() {
   if [ "$rc" = "1" ]; then
     tree="$(git rev-parse "$tip^{tree}")"
     seen="$(git log --format=%T "refs/heads/$trunk" | grep -Fxc "$tree" || true)"
-    if [ "${seen:-0}" = "0" ]; then
-      echo "tip $tip は幹 $trunk に無い（祖先でも、同じ木でもない）: $target" >&2
+    if [ "${seen:-0}" = "0" ] && ! tip_is_a_merge_of_trunk_commits "$tip"; then
+      echo "tip $tip は幹 $trunk に無い（祖先でも、同じ木でも、幹の commit だけの merge でもない）: $target" >&2
       return 1
     fi
   elif [ "$rc" != "0" ]; then
@@ -169,6 +199,10 @@ remove_detached_worktree() {
     return 1
   fi
   echo "  $target  [detached $tip]  幹に含まれる / 未 commit 0 → 外す"
+  if [ "$dry_run" = "yes" ]; then
+    echo "    --dry-run なので外していない"
+    return 0
+  fi
   git worktree remove "$target"
   echo "    外した。戻すなら: git worktree add --detach $target $tip"
 }
@@ -213,6 +247,10 @@ remove_one_worktree() {
     return 1
   fi
   echo "  $target  [$branch]  commit 0 / 未 commit 0 / 幹に含まれる → 外す"
+  if [ "$dry_run" = "yes" ]; then
+    echo "    --dry-run なので外していない"
+    return 0
+  fi
   git worktree remove "$target"
   echo "    外した。戻すなら: git worktree add <path> $branch"
 }

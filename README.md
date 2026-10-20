@@ -60,6 +60,7 @@ The placement changes only after RP-78 confirms that, in the split form (encoder
 
 The state of each slice is in the table in `docs/design/status.md`.
 The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
+The expected pass date for the 1200 ms line of L is the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. 40 slices remain. The target the coordinator works to is 2026-10-23. The fix of T-RP-32-014 (about 20 minutes) is not in the 40 and is counted separately.
 Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
 The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
 172 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them.
@@ -68,6 +69,9 @@ The design that runs, in CI, the check that a machine with no GPU falls back to 
 The test definitions of R13-18 (the 11 tests T-RP-16-052 to 062) are in too, so R13-18 can be issued.
 For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. The `hayamimi-overlay` crate is in too. The acceptance that opens the window (OV-V) is not done, so it does not work as a window yet.
 GitHub CI succeeded on both ubuntu and windows.
+The R13-17 acceptance test (checking that the validity line of each `final` follows the rule that ended it) is in. Only 2 tests in T are still marked as not implemented: T-RP-10-007 and T-RP-16-037.
+R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
+The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
 
 ### Related documents
 
