@@ -607,7 +607,7 @@ test：`native/hayamimi/tests/rp10.rs`。
 | T-RP-10-004 | fixture：`partial` が 0 件 | 件数の下側 | `Err` | `Err`（specified、RP-10） | 境界、陰性 | `no_partial_is_rejected` |
 | T-RP-10-005 | fixture：`final` の `lang` が `ja` | 言語 | `Err` | `Err`（specified、RP-10 の `lang` が `en`） | 陰性 | `non_english_final_is_rejected` |
 | T-RP-10-006 | fixture：出力の装置が無い run。終了 code 0、`capture.fallback.single` が 1 件（`reason` が `device_missing`）、`/events` の `fallback` が 1 件、マイクの `final` が 1 件以上、`error` の event が 0 件 | 出力の装置を止めた run（落ちた形） | `Ok` | `Ok`。止まらず、落ちた event が段ごとに 1 件出る（specified、RP-10 の陰性欄と 3.15 の「取り込みの装置が無い」）。検査は `check_capture_fallback(run)` | 陰性 | `missing_output_device_falls_back_to_the_microphone` |
-| T-RP-10-007 | 実走：Windows 11、loopback へ英語の wav を鳴らし `/events` を読む | 実走 | 実走 | 001 の形（specified、RP-10）。マイクは入力の装置が在るときだけ同じ形 | 陽性 | `windows_loopback_reaches_events` |
+| T-RP-10-007 | 実走：Windows 11、loopback へ英語の wav を鳴らし `/events` を読む | 実走 | 実走 | 001 の形（specified、RP-10）。マイクは入力の装置が在るときだけ同じ形 | 陽性 | `windows_loopback_reaches_events`（未実装、持ち主 R13-3） |
 | T-RP-10-008 | 実走：WSL で `--wav` の同じ test | 陽性対照 | 実走 | 001 の形（specified、RP-10 の陽性対照） | 陽性 | `wsl_wav_run_passes_the_same_check` |
 | T-RP-10-009 | fixture：出力の装置もマイクも在る run。`final` が 1 件以上、`capture.fallback.single` と `capture.fallback.none` が 0 件、`/events` の `fallback` が 0 件 | 在るのに落ちない（006 の対） | `Ok` | `Ok`。装置が在るのに落ちた event が 0 件（specified、RP-10 の対照と 3.15） | 陽性 | `present_devices_emit_no_capture_fallback` |
 | T-RP-10-010 | fixture：006 と同じ run で `capture.fallback.single` が 0 件 | 落ちたのに言わない | `Err` | `Err` で `capture.fallback.single` を名指し（specified、3.15 の「段ごとに出す」） | 陰性 | `silent_capture_fallback_is_rejected` |
@@ -730,7 +730,7 @@ test：`native/hayamimi-eval/tests/rp15.rs`（001〜011）と `native/hayamimi/t
 
 ### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
-test：`native/hayamimi/tests/rp16.rs`。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`。
+test：`native/hayamimi/tests/rp16.rs`（001〜016、018〜022、035、038〜051）、`native/hayamimi-asr/tests/rp16_lid.rs`（023〜026）、`native/hayamimi-asr/tests/gpu_guard.rs`（027〜030）、`native/hayamimi-asr/tests/rp16_sessions.rs`（036）、`native/hayamimi-asr/tests/lid_dual.rs`（031〜034）、`native/hayamimi/src/server.rs`（017。src の中の `#[test]`）。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`。
 `check_no_gpu_run(run)` は、終了 code、stdout の JSONL の event、`/events` の `fallback` の event、stderr の文を確かめる。
 run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja の run では句読点、R3 以降は言語判定も）を持つ。落ちた event はこの一覧の段ごとに 1 件を求め、読み込んでいない段には求めない。
 `check_gpu_run(run)` は GPU の在る run を確かめる。
@@ -785,7 +785,7 @@ run は、command の出力と、起こした server が log の file の最初�
 | T-RP-16-034 | 同上：`ja` の session の次の segment で whisper が `ko` か `zh` と言い、SenseVoice は `ja` | 外れた判定が session を動かさない | `Ok` | 次の segment の `lang` が `ja` のまま（specified、二重確認：二つが一致しない切り替えは通さない） | 陰性 | `a_misnamed_clip_is_not_confirmed_as_a_switch_away_from_japanese` |
 | T-RP-16-035 | 実走：本物の `<hy> --wav tests/golden/ja/ja_014.wav --no-realtime`（`--lang` を付けない） | 言語判定が実行 file に繋がっている | 実走 | 言語判定の session の `gpu.session.created` が 1 件で、確定文ごとに言語判定の結果（`final` の `lang` と、0 でない `lid_ms`）が出る（specified、設計 8 の R3 の行。持ち主は R3b） | 陽性 | `binary_run_identifies_the_language` |
 | T-RP-16-036 | 実走：言語判定、認識、句読点の session を同じ process で開く test（`rp16_sessions.rs`）を `--test-threads=2` で 20 回と、abort を見た形の `cargo test --release -p hayamimi-asr --test rp16_lid -- --ignored --test-threads=2` を 20 回 | session を同時に作る形 | 0 回 | どちらも abort（`Rust cannot catch foreign exceptions`）が 0 回（specified、設計 3.4 の「session は 1 本ずつ作る」。持ち主は R3b） | 陽性 | `opening_sessions_in_parallel_never_aborts` |
-| T-RP-16-037 | 実走：lock を外した build で、`rp16_lid -- --ignored --test-threads=2` を 20 回 | lock なしの対照 | 記録 | abort の回数を記録し、合否に使わない（derived。lock の根拠は、lock の無い形の 9 回で 2 回、lock を入れた後の同じ打ち方の 9 回で 0 回の実測である。abort は時刻の重なりで起きる稀な物で、lock を外した 3 つの構成の 20 回ずつでは 0 回だったので、再現しないことを lock が要らない証拠と読まない） | 記録 | `opening_sessions_without_the_lock_is_recorded` |
+| T-RP-16-037 | 実走：lock を外した build で、`rp16_lid -- --ignored --test-threads=2` を 20 回 | lock なしの対照 | 記録 | abort の回数を記録し、合否に使わない（derived。lock の根拠は、lock の無い形の 9 回で 2 回、lock を入れた後の同じ打ち方の 9 回で 0 回の実測である。abort は時刻の重なりで起きる稀な物で、lock を外した 3 つの構成の 20 回ずつでは 0 回だったので、再現しないことを lock が要らない証拠と読まない） | 記録 | `opening_sessions_without_the_lock_is_recorded`（未実装、持ち主 R13-16） |
 | T-RP-16-038 | fixture：終了 code 0、`gpu.device.unavailable` 1 件（`reason` = `no_device`）、`gpu.fallback.cpu` 1 件（`stage` = `translate`、`reason` = `no_device`、`error_code` = `HAYAMIMI_GPU_FALLBACK`）、`translate.server.started` 1 件（`gpu_layers` = 0）、server の引数の行に `-ngl 0`、stderr に `nvidia-smi` | 落ちた形が揃う | `Ok` | `Ok`（specified、RP-16） | 陽性 | `no_gpu_translate_run_with_all_required_signals_passes` |
 | T-RP-16-039 | fixture：038 と同じで、`gpu.device.unavailable` が 0 件 | 件数の下側 | `Err` | `Err` で `gpu.device.unavailable` を名指し（specified、RP-16 の「1 件」） | 境界、陰性 | `translate_run_without_the_device_event_is_rejected` |
 | T-RP-16-040 | fixture：038 と同じで、`gpu.fallback.cpu` が 0 件 | 落ちたのに event を出さない build | `Err` | `Err` で `translate` を名指し（specified、RP-16、3.15） | 陰性 | `translate_run_without_the_fallback_event_is_rejected` |
@@ -945,7 +945,7 @@ case は 4 組（ReazonSpeech、whisper-tiny、Silero、句読点）の存在と
 
 ### 4.32 RP-22（GPU の memory の上限）
 
-test：`native/hayamimi-eval/tests/rp22.rs`。
+test：`native/hayamimi-eval/tests/rp22.rs`（001〜006）と `native/hayamimi/tests/rp22.rs`（007〜011）。
 `check_vram(samples)` は、`nvidia-smi --query-gpu=memory.used --format=csv` の 1 秒ごとの読みの最大が 14,000 MiB 以下であることを確かめる（14,000 は仮の値。`gpu_stages.md` に MiB の測定が無いので、R3 と R8e が RP-3 の run で測って置き直す）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
@@ -1251,7 +1251,7 @@ Python の run の「遅れて着いた疑い」は、`.jsonl` の行の並び�
 ### 4.42 RP-32（同じ負荷で交互に測った `L`）
 
 test：`native/hayamimi-eval/tests/rp32.rs`。受入 test の名前は `rp32_alternated_runs_under_the_same_load_beat_python`。実走の行（T-RP-32-029）だけが `#[ignore]` を持ち、run の file と `/proc/loadavg` の記録を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
-有効の線を Rust の標本ごとに `asr.endpoint.decided` の `rule` で選ぶ形（D 3.1 の終端不正の例外、6 の RP-32 の行）の受入 test の名前は `rp32_validity_line_follows_the_rule_that_ended_each_final` で、置き場は同じ `native/hayamimi-eval/tests/rp32.rs` である。陰性の case は、`rule` が `silence` の標本に `EARLY_MIN_SILENCE_MS` を当てる判定と、`asr.endpoint.decided` に結べない `final` を既定の線で数える判定である。この名前の下の case 行は test-designer の席が書く（D 10 の H86）。
+有効の線を Rust の標本ごとに `asr.endpoint.decided` の `rule` で選ぶ形（D 3.1 の終端不正の例外、6 の RP-32 の行）の受入 test の名前は `rp32_validity_line_follows_the_rule_that_ended_each_final`（未実装、持ち主 R13-17）で、置き場は同じ `native/hayamimi-eval/tests/rp32.rs` である。陰性の case は、`rule` が `silence` の標本に `EARLY_MIN_SILENCE_MS` を当てる判定と、`asr.endpoint.decided` に結べない `final` を既定の線で数える判定である。この名前の下の case 行は test-designer の席が書く（D 10 の H86）。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp32`。実走の行はこれに `-- --ignored` を足す。
 `check_alternated_runs(runs)` は、流した順の run の列を受ける。1 つの run は、実装（Python か Rust）、前と後の `/proc/loadavg` の 1 行、RP-31 の数え方で出した標本の列である。
 次の 4 つを確かめる。順と対の数と load の記録（001 から 014）、3 対を合わせた標本の合否（015 から 022）、列の出力（023 から 028）、dir の `pairs.txt` の読み方（030 から 036）。
@@ -2394,7 +2394,6 @@ sherpa-onnx の C API は確率を返さないので、この probe だけが窓
 
 ### 4.73 RP-80（CI が cargo を打ち、Python を打たず、未実装の行の数を毎回出す）
 
-**未実装。** この節の行はどれも、test の file も関数も repo に無い。R11c の席が足す。
 test：`native/hayamimi-eval/tests/rp80.rs`。受入 test の名前は `rp80_ci_runs_cargo_and_no_python`。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp80`。実走の行（018、019）はこれに `-- --ignored` を足す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない（017 だけは受入 test の名前の全部）。fixture は `native/hayamimi-eval/tests/fixtures/rp80_*/` の dir に置き、`include_str!` で渡す。
@@ -2403,8 +2402,8 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 `check_workflow(workflow_yml, ci_probe_md, test_binaries)` は 3 つを確かめる。
 `workflow_yml` は `.github/workflows/test.yml` の text、`ci_probe_md` は `docs/results/r11/ci_probe.md` の text、`test_binaries` は `native/<crate>/tests/*.rs` の（crate の名前、file の拡張子を除いた名前）の対の集合である。
 
-1. **語の検査**：`python|pip |pytest|setup-python`（設計の `grep -c -E` の式）に当たる行が 0。コメントの行も数える（grep は行の種類を見ない）。
-2. **外した binary の検査**：test の step が `--test <名前>` で並べた binary の集合を U とする（`--test` が無ければ全部）。`--exclude <crate>` で外した crate の binary も外した物に数える。外した binary は 1 本ずつ `ci_probe.md` に名前と理由を持ち、理由は `testdata/` か `models/` を読むことである。
+1. **語の検査**：各行から数の step の test の名前 `rp19_python_cases_are_ported` の 1 つだけを除き、残りが `python|pip |pytest|setup-python`（設計の `grep -c -E` の式）に当たる行が 0。除く名前はこの 1 つだけで、ほかの名前の中の `python` は除かない。コメントの行も数える（grep は行の種類を見ない）。
+2. **外した binary の検査**：test の step が `--test <名前>` で並べた binary の集合を U とする（`--test` が無ければ全部）。`--exclude <crate>` で外した crate の binary も外した物に数える。外した binary は 1 本ずつ `ci_probe.md` に名前と理由を持ち、理由は `testdata/` か `models/` を読むことである。clone で落ちる原因はこのほかに 3 つ在り、binary を外す理由にはしない（`docs/results/r11/ci_probe.md`）。`rp17` が compile の時に `env!` で `SHERPA_ONNX_LIB_DIR` を読むことは、先の step が `cargo build --release -p sherpa-onnx-sys` で変数を渡して扱う。`hayamimi-asr` の 4 本の unit test が `libonnxruntime.so.1` を開くことは、test の名前の `--skip` で扱う。`--test` を並べると cargo が lib、bin、example の target を選ばなくなることは、`--lib --bins --examples` で扱う。
 3. **未実装の数の step**：`cargo test --release --jobs 2 -p hayamimi-eval --test rp19 -- --exact rp19_python_cases_are_ported` を打つ step が在り、その step が `continue-on-error: true` を持つ。
 4. **例外の数の step**：3 の隣に、同じ形で `cargo test --release --jobs 2 -p hayamimi-eval --test rp81 -- --exact rp81_owned_exceptions_are_gone` を打つ step が在り、その step も `continue-on-error: true` を持つ（持ち主ごとの RP-81 の例外の数を log に出す）。
 
@@ -2428,7 +2427,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 | T-RP-80-014 | F80 の `ci_probe.md` の `rp03` の理由を、`testdata/` を含む文と、`models/` を含む文に替えた 2 つ | 理由の 2 つの種類。013 の隣 | どちらか | どちらも `Ok`（specified、同上） | 境界、陽性 | `an_excluded_binary_with_a_testdata_or_models_reason_is_accepted` |
 | T-RP-80-015 | F80 の test の step を `--test` の並びから `--workspace --exclude hayamimi-eval` に替える | crate 単位で外した形。`hayamimi-eval` の binary 4 本が外れる | 外した binary 1 本ずつ | `Err` で `ci_probe.md` に無い `rp02`、`rp19`、`rp80` を名指す（`rp03` は在る）（derived、D 6 の RP-80 の「外した test の binary は 1 本ずつ」。crate ごと外せば 1 本ずつの言い逃れになる） | 境界、陰性 | `an_excluded_crate_hides_no_binary_from_the_probe_note` |
 | T-RP-80-016 | F80 の `rp19` の行を `test_binaries` から除く（`native/hayamimi-eval/tests/rp19.rs` が無い形） | 数の step が指す test の file が無い | file が在る | `Err` で `rp19` が無いことを言う（derived、3 の step の `--test rp19` が空振りする。`cargo` は存在しない test の指定で落ちるが、`continue-on-error` がそれを隠す） | 境界、陰性 | `a_count_step_without_its_test_file_is_rejected` |
-| T-RP-80-017 | 受入：repo の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md`、`native/*/tests/*.rs` の実物 | 全体。001 から 016 と 020、021 の判定を実物に掛ける | 3 つとも成立 | `Ok`。pseudo：`rg -c -e 'python\|pip \|pytest\|setup-python' .github/workflows/test.yml` が出力なしで rc 1（0 行）。R11 の前の木では 4（002） | 陽性、陰性 | `rp80_ci_runs_cargo_and_no_python` |
+| T-RP-80-017 | 受入：repo の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md`、`native/*/tests/*.rs` の実物 | 全体。001 から 016 と 020、021 の判定を実物に掛ける | 3 つとも成立 | `Ok`。pseudo：`sed 's/rp19_python_cases_are_ported//g' .github/workflows/test.yml \| grep -c -E 'python\|pip \|pytest\|setup-python'` が 0（名前を除かない数は 2 で、2 行とも数の step の名前。2026-10-20、`ddacac4`）。R11 の前の木（`archive/python-before-r11`）では同じ式で 4（002） | 陽性、陰性 | `rp80_ci_runs_cargo_and_no_python` |
 | T-RP-80-018 | 実走：`git clone --no-local <repo> ~/.cache/hayamimi-r11/ci-probe`（`testdata/` と `models/` の無い clone）で、workflow の `run:` の行を同じ順に打つ | 実走。clone に `testdata/` も `models/` も無い | 全部 rc 0 | clone に `ls -d testdata models` が rc 2 で両方無いことを先に確かめ、`run:` の行が全部 rc 0（specified、D 6 の RP-80。worktree は本体の `testdata/` を引くので使わない）。cargo の席は同時 2 席までで、`--jobs 2` | 陽性 | `the_run_lines_pass_in_a_clone_without_testdata_or_models` |
 | T-RP-80-019 | 実走：018 の clone で、`ci_probe.md` が挙げる binary を 1 本だけ単独で打つ（`cargo test --release --jobs 2 -p hayamimi-eval --test rp03`） | 検知の道具の陽性対照。外した理由が本当に落ちる | rc が 0 でない | rc が 0 でなく、落ちた理由が `testdata/` か `models/` の無いことを言う（specified、D 7 の RP-80「clone で落ちる binary」。外した理由が偽なら 018 は何も外せていない） | 陽性、陰性 | `an_excluded_binary_really_fails_in_a_clone_without_testdata_or_models` |
 | T-RP-80-020 | F80 から 4 の step を取り除く | 例外の数の step が無い | step 1 本 | `Err` で例外の数の step が無いことを言う（specified、D 6 の RP-80 の陰性の case「RP-81 の例外の数の step を持たない workflow」）。3 の step は在るので、数の step が 1 本在るだけでは通らない | 陰性 | `a_workflow_without_the_owned_exceptions_step_is_rejected` |
