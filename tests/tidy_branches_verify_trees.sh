@@ -9,7 +9,9 @@
 # A verification tree is a detached worktree on a `--no-ff` merge of a branch
 # into a trunk commit. The rule under test: such a tree may go when the tip is a
 # merge and every parent is an ancestor of the trunk; one parent outside the
-# trunk, or a tip with a single parent, keeps it.
+# trunk, or a tip with a single parent, keeps it. The last section covers the
+# fourth way in: a tip stacked on an earlier verification merge goes when it has
+# no ordinary commit the trunk lacks and merging it leaves the trunk's own tree.
 set -euo pipefail
 
 work="${1:?usage: tests/tidy_branches_verify_trees.sh <work dir>}"
@@ -142,6 +144,110 @@ make_repo ancestor
 git -C "$work/ancestor" worktree add -q --detach "$work/ancestor/.claude/worktrees/vt" main
 out="$(remove_tree ancestor vt)"
 check "a detached tree at the trunk tip is still removed" "$([ "$(tree_exists ancestor vt)" = no ] && echo yes || echo no)"
+
+# The fourth way in. A tip stacked on an earlier verification merge: its first
+# parent is a merge commit that never reached the trunk, so the third way keeps it.
+
+# Commit file $3 with content $4 in directory $2 of repo $1 (message = file name).
+put() {
+  printf '%s\n' "$4" >"$work/$1/$2/$3"
+  git -C "$work/$1/$2" add "$3"
+  git -C "$work/$1/$2" commit -q -m "$3"
+}
+
+# Two verification merges in one detached tree vt: feat-b, then feat-c on top.
+make_stacked_tree() {
+  make_repo "$1"
+  make_branch "$1" feat-b
+  make_branch "$1" feat-c
+  make_verify_tree "$1" feat-b vt
+  git -C "$work/$1/.claude/worktrees/vt" merge -q --no-ff -m "verify feat-c" feat-c
+}
+
+# yes when none of the three older rules would release the tree in $2 of repo $1:
+# the tip is not an ancestor of the trunk, its tree is not in the trunk's history,
+# and a parent is outside the trunk. Without this a positive case could pass by them.
+older_rules_keep() {
+  local repo="$work/$1" tip tree seen parent outside=no
+  tip="$(git -C "$repo/.claude/worktrees/$2" rev-parse HEAD)"
+  tree="$(git -C "$repo" rev-parse "$tip^{tree}")"
+  seen="$(git -C "$repo" log --format=%T main | grep -Fxc "$tree" || true)"
+  for parent in $(git -C "$repo" rev-list --parents -n 1 "$tip" | cut -d' ' -f2-); do
+    git -C "$repo" merge-base --is-ancestor "$parent" main || outside=yes
+  done
+  if [ "$seen" = "0" ] && [ "$outside" = "yes" ] && ! git -C "$repo" merge-base --is-ancestor "$tip" main; then
+    echo yes
+  else
+    echo no
+  fi
+}
+
+# Positive: feat-b and feat-c both land with their content, with another commit
+# between them, so no tree in the trunk's history is the tip's tree. Nothing in
+# the tip is missing from the trunk, and the trunk has moved on past it.
+make_stacked_tree stacked
+out="$(remove_tree stacked vt --dry-run)"
+check "the same tree is refused while the trunk lacks its branches" "$(says "$out" '幹の commit だけの merge でもない')"
+git -C "$work/stacked" merge -q --no-ff -m "land feat-b" feat-b
+put stacked . d.txt d
+git -C "$work/stacked" merge -q --no-ff -m "land feat-c" feat-c
+check "the older rules keep a tip stacked on an unlanded verification merge" "$(older_rules_keep stacked vt)"
+out="$(remove_tree stacked vt --dry-run)"
+check "a stacked merge that leaves the trunk's tree as it is is reported removable" "$(says "$out" '→ 外す')"
+check "--dry-run leaves the stacked tree on disk" "$(tree_exists stacked vt)"
+out="$(remove_tree stacked vt)"
+check "the same stacked tree goes without --dry-run" "$([ "$(tree_exists stacked vt)" = no ] && echo yes || echo no)"
+check "the removal prints how to put the stacked tree back" "$(says "$out" 'git worktree add --detach')"
+
+# Negative: every ordinary commit is in the trunk, but the tip's merge commit
+# carries a file of its own (folded in with --amend, no conflict involved), so
+# merging the tip would add that file to the trunk. The tree would change.
+make_stacked_tree changes
+printf 'extra\n' >"$work/changes/.claude/worktrees/vt/extra.txt"
+git -C "$work/changes/.claude/worktrees/vt" add extra.txt
+git -C "$work/changes/.claude/worktrees/vt" commit -q --amend --no-edit
+git -C "$work/changes" merge -q --no-ff -m "land feat-b" feat-b
+put changes . d.txt d
+git -C "$work/changes" merge -q --no-ff -m "land feat-c" feat-c
+out="$(remove_tree changes vt)"
+check "a tip whose merge would change the trunk is refused" "$(says "$out" '幹の commit だけの merge でもない')"
+check "a tip whose merge would change the trunk stays on disk" "$(tree_exists changes vt)"
+
+# Negative: an evil merge. The only content that is not in the trunk is a conflict
+# resolution made inside the tip. Every ordinary commit is in the trunk, and the
+# trunk kept its own side of the conflict.
+make_repo evil
+put evil . shared.txt base
+git -C "$work/evil" switch -q -c feat-x
+put evil . shared.txt x
+git -C "$work/evil" switch -q main
+git -C "$work/evil" switch -q -c feat-z main~1
+put evil . z.txt z
+git -C "$work/evil" switch -q main
+put evil . shared.txt main
+tree="$work/evil/.claude/worktrees/vt"
+git -C "$work/evil" worktree add -q --detach "$tree" main
+git -C "$tree" merge -q --no-ff -m "verify feat-z" feat-z
+git -C "$tree" merge --no-ff -m "verify feat-x" feat-x >/dev/null 2>&1 || true
+printf 'resolved\n' >"$tree/shared.txt"
+git -C "$tree" add shared.txt
+git -C "$tree" commit -q -m "resolve by hand"
+git -C "$work/evil" merge -q --no-ff -m "land feat-z" feat-z
+git -C "$work/evil" merge -q --no-ff -s ours -m "land feat-x without content" feat-x
+out="$(remove_tree evil vt)"
+check "a hand-resolved merge whose merge into the trunk conflicts is refused" "$(says "$out" '幹の commit だけの merge でもない')"
+check "a hand-resolved merge stays on disk" "$(tree_exists evil vt)"
+
+# Negative: the content is in the trunk, but feat-c's commit is not. It was
+# cherry-picked, so the merge leaves the trunk's tree as it is while the tip still
+# carries an ordinary commit the trunk lacks.
+make_stacked_tree copied
+git -C "$work/copied" merge -q --no-ff -m "land feat-b" feat-b
+put copied . d.txt d
+git -C "$work/copied" cherry-pick feat-c >/dev/null
+out="$(remove_tree copied vt)"
+check "a tip with an ordinary commit the trunk lacks is refused" "$(says "$out" '幹の commit だけの merge でもない')"
+check "a tip with an ordinary commit the trunk lacks stays on disk" "$(tree_exists copied vt)"
 
 echo
 echo "cases=$cases failures=$failures"
