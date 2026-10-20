@@ -16,6 +16,15 @@
 //! thresholds, the tables and the pass line below are fixed before the
 //! held-out sets are run.
 //!
+//! Two more runs judge the same candidates by the shadow rule of the endpoint
+//! module (`shadow_early_hold`) instead of the live one: `lat-ja` with `lat-en`,
+//! and the ja held-out set. Each prints the live-rule figures first (the
+//! positive control, the same code path as the runs above), then the shadow
+//! figures, then one `SHADOW_GATE` line that compares the two numbers the gate
+//! passes on: the complete candidates with voice going on, and the splits by B
+//! alone. A candidate the shadow rule adds is listed with its utterance (the
+//! index in the manifest) and its place in the input.
+//!
 //!     cargo test --release -p hayamimi-asr --test r8v_probe -- --ignored --nocapture
 
 mod support;
@@ -24,7 +33,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use hayamimi_asr::audio::{PREROLL_SECONDS, SAMPLE_RATE, WINDOW, read_wav};
-use hayamimi_asr::endpoint::is_complete;
+use hayamimi_asr::endpoint::{Hold, is_complete, shadow_early_hold};
 use hayamimi_asr::route::Policy;
 use hayamimi_asr::vad::{
     DEFAULT_THRESHOLD, Segment, VadSettings, silero_config_with, take_segments,
@@ -92,8 +101,23 @@ struct Pass {
     both_us: Vec<i64>,
 }
 
+/// The rule that judges a solved candidate: `(lang, text)` is complete or not.
+type Judge = fn(&str, &str) -> bool;
+
+/// The shadow rule: complete unless `shadow_early_hold` keeps the sentence as
+/// incomplete. The speech length is the largest, so the shortest-speech hold
+/// never applies (the probe does not apply it under the live rule either).
+fn shadow_complete(lang: &str, text: &str) -> bool {
+    !matches!(
+        shadow_early_hold(lang, text, usize::MAX),
+        Some(Hold::Incomplete)
+    )
+}
+
 /// A solved candidate.
 struct Candidate {
+    /// The sample the candidate was solved up to.
+    at: usize,
     text: String,
     complete: bool,
     continues: bool,
@@ -352,6 +376,7 @@ fn plan_segment(
     audio: &[f32],
     pass: &Pass,
     seg: &Notice,
+    judge: Judge,
 ) -> Result<Plan, Failure> {
     let mut line: Option<usize> = None;
     let mut candidates = Vec::new();
@@ -365,8 +390,9 @@ fn plan_segment(
             continue;
         }
         let text = solve(models, audio, from, cand.seen, lang)?;
-        let complete = is_complete(lang, &text);
+        let complete = judge(lang, &text);
         candidates.push(Candidate {
+            at: cand.seen,
             continues: voice_continues(&pass.early, cand, seg.span),
             complete,
             text,
@@ -634,16 +660,18 @@ fn plan_all(
     audio: &[f32],
     pass: &Pass,
     utterances: &[Span],
+    judge: Judge,
 ) -> Result<Vec<Plan>, Failure> {
     pass.now
         .iter()
         .filter(|seg| utterances.iter().any(|u| overlaps(seg.span, *u)))
-        .map(|seg| plan_segment(models, lang, audio, pass, seg))
+        .map(|seg| plan_segment(models, lang, audio, pass, seg, judge))
         .collect()
 }
 
 /// What one run is given: the set, its utterances with their reference
-/// sentences (none for AMI), and the settings of B.
+/// sentences (none for AMI), the settings of B and the rule that judges a
+/// candidate complete.
 struct Input<'a> {
     name: &'a str,
     lang: &'a str,
@@ -651,6 +679,7 @@ struct Input<'a> {
     utterances: &'a [Span],
     references: &'a [Option<String>],
     early: VadSettings,
+    judge: Judge,
 }
 
 fn analyse(models: &Path, input: &Input) -> Result<SetReport, Failure> {
@@ -661,9 +690,10 @@ fn analyse(models: &Path, input: &Input) -> Result<SetReport, Failure> {
         utterances,
         references,
         early,
+        judge,
     } = *input;
     let pass = run_pass(models, audio, early)?;
-    let plans = plan_all(models, lang, audio, &pass, utterances)?;
+    let plans = plan_all(models, lang, audio, &pass, utterances, judge)?;
     let splits = all_splits(models, lang, audio, &plans, utterances, references)?;
     let stats: Vec<(usize, UttStat)> = utterances
         .iter()
@@ -935,6 +965,61 @@ fn print_set(report: &SetReport) -> TestResult {
     Ok(())
 }
 
+/// The two figures the offline gate compares: the complete candidates with
+/// voice going on, and the splits by B alone.
+fn gate_figures(report: &SetReport) -> (usize, usize) {
+    let [_, _, _, complete_continuing] = candidate_counts(report);
+    (complete_continuing, split_counts(report).1)
+}
+
+/// The complete candidates with voice going on that the live rule would not
+/// judge complete: what the shadow rule adds inside an utterance. Each line
+/// names the utterance (its index in the manifest), the place in the input and
+/// the distance to the end of the utterance.
+fn added_listing(report: &SetReport) -> Vec<String> {
+    let rate = f64::from(SAMPLE_RATE);
+    let mut lines = Vec::new();
+    for plan in &report.plans {
+        let Some(index) = report
+            .utt_spans
+            .iter()
+            .position(|utt| overlaps(plan.seg.span, *utt))
+        else {
+            continue;
+        };
+        let end = report.utt_spans[index].end;
+        let added = plan
+            .candidates
+            .iter()
+            .filter(|c| c.complete && c.continues && !is_complete(&report.lang, &c.text));
+        for cand in added {
+            lines.push(format!(
+                "utterance {index} at_s {:.2} ms_before_utterance_end {} text {:?}",
+                cand.at as f64 / rate,
+                signed(end, cand.at),
+                cand.text
+            ));
+        }
+    }
+    lines
+}
+
+/// The `SHADOW_GATE` line, and the candidates the shadow rule adds. The gate
+/// passes when both figures of the shadow rule are within those of the live rule.
+fn print_gate(live: &SetReport, shadow: &SetReport) {
+    let (live_voice, live_splits) = gate_figures(live);
+    let (shadow_voice, shadow_splits) = gate_figures(shadow);
+    let within = shadow_voice <= live_voice && shadow_splits <= live_splits;
+    println!(
+        "R8V {} SHADOW_GATE complete_voice_continues live {live_voice} shadow {shadow_voice}; \
+         splits_by_B_alone live {live_splits} shadow {shadow_splits}; within the live figures: {within}",
+        shadow.name
+    );
+    for line in added_listing(shadow) {
+        println!("R8V {} ADDED {line}", shadow.name);
+    }
+}
+
 /// The `ref` of each manifest entry.
 fn manifest_references(path: &Path) -> Result<Vec<Option<String>>, Failure> {
     let Some(entries) = read_json(path)?.as_array().cloned() else {
@@ -952,13 +1037,14 @@ fn manifest_references(path: &Path) -> Result<Vec<Option<String>>, Failure> {
         .collect()
 }
 
-/// A latency set under the name `name`, with B set to `early`.
+/// A latency set under the name `name`, with B set to `early`, judged by `judge`.
 fn lat_set(
     models: &Path,
     testdata: &Path,
     lang: &str,
     name: &str,
     early: VadSettings,
+    judge: Judge,
 ) -> Result<SetReport, Failure> {
     let audio =
         read_wav(&testdata.join(format!("lat-{lang}.wav"))).map_err(|why| why.to_string())?;
@@ -974,6 +1060,7 @@ fn lat_set(
             utterances: &utterances,
             references: &references,
             early,
+            judge,
         },
     )
 }
@@ -984,7 +1071,45 @@ fn r8v_latency_set_probe() -> TestResult {
     let (models, testdata) = (models_dir()?, testdata_dir()?);
     for lang in ["ja", "en"] {
         let name = format!("lat-{lang}");
-        print_set(&lat_set(&models, &testdata, lang, &name, EARLY_SETTINGS)?)?;
+        let report = lat_set(&models, &testdata, lang, &name, EARLY_SETTINGS, is_complete)?;
+        print_set(&report)?;
+    }
+    Ok(())
+}
+
+/// The latency set of `lang` judged by the live rule, then by the shadow rule.
+fn print_lat_both_rules(models: &Path, testdata: &Path, lang: &str) -> TestResult {
+    let live_name = format!("lat-{lang}");
+    let live = lat_set(
+        models,
+        testdata,
+        lang,
+        &live_name,
+        EARLY_SETTINGS,
+        is_complete,
+    )?;
+    print_set(&live)?;
+    let shadow_name = format!("{live_name}-shadow");
+    let shadow = lat_set(
+        models,
+        testdata,
+        lang,
+        &shadow_name,
+        EARLY_SETTINGS,
+        shadow_complete,
+    )?;
+    print_set(&shadow)?;
+    print_gate(&live, &shadow);
+    Ok(())
+}
+
+/// The latency sets under the live rule and under the shadow rule.
+#[test]
+#[ignore = "an offline probe: reads testdata/ and the models"]
+fn r8v_latency_set_probe_shadow_rule() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    for lang in ["ja", "en"] {
+        print_lat_both_rules(&models, &testdata, lang)?;
     }
     Ok(())
 }
@@ -1000,28 +1125,64 @@ fn r8v_latency_set_probe_min_silence_020() -> TestResult {
     };
     for lang in ["ja", "en"] {
         let name = format!("lat-{lang}-b020");
-        print_set(&lat_set(&models, &testdata, lang, &name, early)?)?;
+        print_set(&lat_set(
+            &models,
+            &testdata,
+            lang,
+            &name,
+            early,
+            is_complete,
+        )?)?;
     }
     Ok(())
+}
+
+/// The ja held-out set (`testdata/r8v_heldout/`) under the name `name`, judged by `judge`.
+fn heldout_ja_set(
+    models: &Path,
+    testdata: &Path,
+    name: &str,
+    judge: Judge,
+) -> Result<SetReport, Failure> {
+    let dir = testdata.join("r8v_heldout");
+    let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
+    let utterances = manifest_spans(&dir.join("ja.json"))?;
+    let references = manifest_references(&dir.join("ja.json"))?;
+    let input = Input {
+        name,
+        lang: "ja",
+        audio: &audio,
+        utterances: &utterances,
+        references: &references,
+        early: EARLY_SETTINGS,
+        judge,
+    };
+    analyse(models, &input)
 }
 
 #[test]
 #[ignore = "an offline probe: reads testdata/r8v_heldout/ and the models"]
 fn r8v_heldout_ja_probe() -> TestResult {
     let (models, testdata) = (models_dir()?, testdata_dir()?);
-    let dir = testdata.join("r8v_heldout");
-    let audio = read_wav(&dir.join("ja.wav")).map_err(|why| why.to_string())?;
-    let utterances = manifest_spans(&dir.join("ja.json"))?;
-    let references = manifest_references(&dir.join("ja.json"))?;
-    let input = Input {
-        name: "heldout-ja",
-        lang: "ja",
-        audio: &audio,
-        utterances: &utterances,
-        references: &references,
-        early: EARLY_SETTINGS,
-    };
-    print_set(&analyse(&models, &input)?)
+    print_set(&heldout_ja_set(
+        &models,
+        &testdata,
+        "heldout-ja",
+        is_complete,
+    )?)
+}
+
+/// The ja held-out set under the live rule and under the shadow rule.
+#[test]
+#[ignore = "an offline probe: reads testdata/r8v_heldout/ and the models"]
+fn r8v_heldout_ja_probe_shadow_rule() -> TestResult {
+    let (models, testdata) = (models_dir()?, testdata_dir()?);
+    let live = heldout_ja_set(&models, &testdata, "heldout-ja", is_complete)?;
+    print_set(&live)?;
+    let shadow = heldout_ja_set(&models, &testdata, "heldout-ja-shadow", shadow_complete)?;
+    print_set(&shadow)?;
+    print_gate(&live, &shadow);
+    Ok(())
 }
 
 /// ReazonSpeech test rows (80 of them, joined with 1.5 s gaps), the second held-out set.
@@ -1049,6 +1210,7 @@ fn r8v_heldout2_ja_probe() -> TestResult {
         utterances: &utterances,
         references: &references,
         early: EARLY_SETTINGS,
+        judge: is_complete,
     };
     print_set(&analyse(&models, &input)?)
 }
@@ -1091,6 +1253,7 @@ fn ami_sets(prefix: &str, skip: usize, take: usize) -> TestResult {
             utterances: &utterances,
             references: &references,
             early: EARLY_SETTINGS,
+            judge: is_complete,
         };
         print_set(&analyse(&models, &input)?)?;
     }
@@ -1238,12 +1401,119 @@ fn a_next_final_with_nothing_of_the_reference_is_a_tail_even_at_a_boundary() {
 fn only_the_final_texts_of_a_split_plan_are_listed() {
     let mut plan = plan_of(vec![200], true);
     plan.candidates.push(Candidate {
+        at: 200,
         text: String::from("前。"),
         complete: true,
         continues: true,
     });
     assert_eq!(plan.final_texts(), vec!["前。", "あ"]);
     assert!(plan_of(vec![200], false).final_texts().is_empty());
+}
+
+#[test]
+fn the_shadow_rule_adds_a_noun_or_an_honorific_ending_under_a_closing_mark() {
+    for text in ["アピヤはサモアの首都。", "近藤さん。"] {
+        assert!(!is_complete("ja", text), "{text}");
+        assert!(shadow_complete("ja", text), "{text}");
+    }
+}
+
+#[test]
+fn the_shadow_rule_keeps_every_sentence_the_live_rule_completes() {
+    for text in ["今日は雨です。", "本当ですか？"] {
+        assert!(is_complete("ja", text), "{text}");
+        assert!(shadow_complete("ja", text), "{text}");
+    }
+}
+
+#[test]
+fn the_shadow_rule_still_holds_a_text_without_a_closing_mark_or_with_a_connective() {
+    for text in [
+        "アピヤはサモアの首都",
+        "雨が降っていますが。",
+        "そして、",
+        "",
+    ] {
+        assert!(!shadow_complete("ja", text), "{text:?}");
+    }
+}
+
+#[test]
+fn the_shadow_rule_is_the_live_rule_outside_japanese() {
+    for text in ["It is raining.", "It is raining and.", "It is raining", ""] {
+        assert_eq!(
+            shadow_complete("en", text),
+            is_complete("en", text),
+            "{text:?}"
+        );
+    }
+    assert!(!shadow_complete("zh", "今天下雨了。"));
+}
+
+/// A report holding one segment of A over the utterance 0..48000 with the
+/// given candidates (sample, text, voice goes on); every one is complete.
+fn report_of(
+    candidates: &[(usize, &str, bool)],
+    confirmed: Vec<usize>,
+    remainder: bool,
+) -> SetReport {
+    let span = Span {
+        start: 0,
+        end: 48000,
+    };
+    let mut plan = plan_of(confirmed, remainder);
+    plan.seg.span = span;
+    plan.candidates = candidates
+        .iter()
+        .map(|(at, text, continues)| Candidate {
+            at: *at,
+            text: (*text).to_owned(),
+            complete: true,
+            continues: *continues,
+        })
+        .collect();
+    SetReport {
+        name: String::from("t"),
+        lang: String::from("ja"),
+        utterances: 1,
+        missed: 0,
+        a_segments: 1,
+        plans: vec![plan],
+        stats: Vec::new(),
+        utt_spans: vec![span],
+        now_us: Vec::new(),
+        both_us: Vec::new(),
+        splits: Vec::new(),
+    }
+}
+
+#[test]
+fn only_a_candidate_the_live_rule_rejects_is_listed_as_added() {
+    let report = report_of(
+        &[
+            (16000, "言ったろう。", true),
+            (32000, "首都。", true),
+            (40000, "近藤さん。", false),
+        ],
+        Vec::new(),
+        false,
+    );
+    let lines = added_listing(&report);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines.first().is_some_and(|line| {
+        line.contains("utterance 0 at_s 2.00 ms_before_utterance_end 1000")
+            && line.contains("首都。")
+    }));
+}
+
+#[test]
+fn the_gate_figures_are_the_complete_candidates_with_voice_and_the_splits_by_b_alone() {
+    let report = report_of(
+        &[(16000, "言ったろう。", true), (32000, "首都。", false)],
+        vec![16000],
+        true,
+    );
+    assert_eq!(gate_figures(&report), (1, 1));
 }
 
 #[test]
