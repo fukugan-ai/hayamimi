@@ -296,17 +296,43 @@ const SET_BY_CARGO: [&str; 22] = [
     "OUT_DIR",
 ];
 
-/// `cargo test --release --workspace -- --list`, run in an environment that
-/// holds none of the variables cargo set for this test.
-fn list_command() -> Command {
+/// The target directory of the nested cargo: `rp19-list` under the target
+/// directory that holds this test binary (`<target>/<profile>/deps/<binary>`).
+/// The nested build never writes the libraries the outer target shares with
+/// the tests that run beside this one.
+fn list_target_dir() -> Result<PathBuf, Failure> {
+    let binary =
+        std::env::current_exe().map_err(|e| format!("cannot find the test binary: {e}"))?;
+    let Some(target) = binary.ancestors().nth(3) else {
+        return Err(format!(
+            "{} is not under <target>/<profile>/deps",
+            binary.display()
+        ));
+    };
+    Ok(target.join("rp19-list"))
+}
+
+/// `cargo test --release --workspace -- --list`, run in its own target
+/// directory and in an environment that holds none of the variables cargo set
+/// for this test.
+fn list_command() -> Result<Command, Failure> {
     let mut command = Command::new(env!("CARGO"));
     command
-        .args(["test", "--release", "--workspace", "--", "--list"])
-        .current_dir(env!("CARGO_MANIFEST_DIR"));
+        .args([
+            "test",
+            "--release",
+            "--workspace",
+            "--lib",
+            "--bins",
+            "--tests",
+        ])
+        .args(["--", "--list"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("CARGO_TARGET_DIR", list_target_dir()?);
     for name in SET_BY_CARGO {
         command.env_remove(name);
     }
-    command
+    Ok(command)
 }
 
 /// The names `cargo test --release --workspace -- --list` prints, listed once per process.
@@ -314,7 +340,7 @@ fn listed_names() -> Result<&'static [String], Failure> {
     static LISTED: OnceLock<Result<Vec<String>, Failure>> = OnceLock::new();
     LISTED
         .get_or_init(|| {
-            let output = list_command()
+            let output = list_command()?
                 .output()
                 .map_err(|e| format!("cannot run cargo: {e}"))?;
             if !output.status.success() {
