@@ -28,6 +28,27 @@ Valid samples are those of 3.1 with `--min-silence` 300 ms.
 
 `py1` has 101 samples with a `final`; one has `L_asr - L_dec` below 300 ms and is not valid.
 
+## Records of later runs
+
+New E2E runs are not written into `e2e1/` or `e2e2/`, because RP-66 reads those two directories as the records of main.
+A run that belongs to a slice goes into `docs/results/<slice in lower case>/` (the windows of R8x go into `docs/results/r8x/`).
+A file is named `<window or arm><N>.<e2e1|e2e2>.<kind>`, where kind is `.jsonl`, `.events.jsonl` or `.hayamimi.stdout.log`, and `.machine.jsonl` after R8x-1.
+The load before and after the run goes into `<window or arm>.load.txt` in the form of `docs/results/rp32/load<N>.txt`.
+A run made before the gate of RP-83 has the prefix `<window>pre` (for example `e1pre`). It is a record only and does not decide RP-67.
+The other remains of a run stay outside git, in the work directory.
+
+| file | content |
+|---|---|
+| `r8x/e1pre.e2e2.jsonl` | Rust run, `lat-en`, 15 utterances x 5 |
+| `r8x/e1pre.e2e2.events.jsonl` | events received during that run |
+| `r8x/e1pre.e2e2.hayamimi.stdout.log` | the log of `hayamimi` during that run |
+| `r8x/e1pre.load.txt` | `/proc/loadavg` before and after that run |
+
+`e1pre` is a record only and is not used for the verdict of RP-67.
+The load average of the 15 minutes before the run was 3.50, and the load average of the 5 minutes after it was 3.88. Both are above the line of 2.50 that RP-83 sets, and there is no `machine.jsonl` for the run.
+With `--min-silence` 120 ms, 74 of the 75 samples are valid and all 74 have a translation: `L` p50 666 ms, p95 1318 ms. Four samples are over 1200 ms. With 300 ms, the line of the acceptance test, 35 samples are valid: `L` p50 891 ms, p95 2879 ms.
+The value of en for RP-67 comes from window E1, which is run again after R8x-1.
+
 ## 採らない手段 (not taken)
 
 - The raw remains of a run (stdout, stderr, pid, gpu csv) are not copied here. They stay outside git, in the run's work directory.
