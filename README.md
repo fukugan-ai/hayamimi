@@ -93,6 +93,7 @@ The implementation of R8x-2b (H88) is in and done. The E2E-1 and E2E-2 acceptanc
 The definition of the translation-server unit for windows E1, E3' and E4 (`native/hayamimi-relay/units/hayamimi-llama-e2e.service`, port 18084) is in. The window seat starts the unit, and it has not been started yet.
 The design now makes windows E1, E3' and E4 always use the translation server of this unit (port 18084), because port 8080 may be started by another app with another model, which would change the yardstick of `L`.
 The translation server that the quality probe of R8x-4 (RP-85 (3)) talks to was also changed from port 8080 to port 18084.
+The design that names the files of the ported RP-19 names after the owner tag of the fixed list, and the test definitions for it, are in. The change to how `rp19.rs` reads those file names is not implemented yet.
 
 ### Related documents
 

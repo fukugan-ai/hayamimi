@@ -94,6 +94,7 @@ R8x-2b（H88）の実装が入り、済みました。E2E-1とE2E-2の受入test
 窓E1、E3'、E4のための訳のserverのunit（`native/hayamimi-relay/units/hayamimi-llama-e2e.service`、port 18084）の定義が入りました。unitを起こすのは窓の席で、まだ起こしていません。
 窓E1、E3'、E4は、常にこのunit（port 18084）の訳のserverを使うように、設計を直しました。8080は別のappが別のmodelで起こすことがあり、`L` の物差しが変わるためです。
 R8x-4の品質のprobe（RP-85の(3)）が当てる訳のserverも、8080から18084に替えました。
+RP-19の写した名前のfile名を、固定の一覧の持ち主の札で決める設計とtestの定義が入りました。`rp19.rs` の読み替えの実装はまだです。
 
 ### 関連する文書
 

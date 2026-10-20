@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `bcc3163`（2026-10-21 の `feat/rp85-18084` を fast-forward で入れた commit。merge の席は cargo を打っていない。根拠は実装の席の rp85 の 31 passed で、code の差は文字列の定数と comment だけ。merge の commit は無い。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `8264b48`（2026-10-21 の `tests/rp19-names` を `--no-ff` で入れた merge commit。1 つ前の merge は `8622d2d`（`design/rp19-names`）。2 本とも差分は `docs/design/` の下だけで、merge の席は cargo を打っていない。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -30,7 +30,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 | RP-74：認識の encoder だけを GPU に置く形（方針 D）の見積り | 設計済みで未実装（評議 GO）。認識の置き場は、RP-78 が通るまで CPU（int8）のまま | E2E の後の窓の席 | E2E の窓が閉じること。RP-74 の後に RP-78（split の形で `L_asr` が縮み、訳が遅くならない）が通ること | `9f88e1e`、`rust_port.ja.md` の 3.5 と 6 の RP-74、RP-78 |
 | RP-1 の ko、T-RP-1-013 の実記録、RP-10 の `lang` の条件。RP-22 と言語判定の結線は通過 | R3b と R3c は検証済みで merge 済み。RP-22 は peak 8936 MiB（上限 14000）で通過。RP-1 は ja、en、zh、yue が Python と同じ値で、ko だけが配る形の build で 0.087（Python は 0.081） | ko は評議が R11 の入口の上限（RP-36）で受けた。T-RP-1-013 は E2E の席。RP-10 は Windows の build を持つ席 | ko は ORT の build の違いで、閾値は緩めない（H35）。H55 は Windows の build が無いと書く | `0358773`、`b8fd07e`、`docs/results/r3/rp22_run.json` |
 | RP-44：新しい held-out の組（RP-35 の最終の測りに使う） | 組はできた（`testdata/heldout/set2/`、git の外。en、zh、ko、es 各 35 行） | R12y の席 | 組を使う入口（`hayamimi-relay eval` の `--final`、`--heldout`、`--direction`）と、同じ組を 2 回使う拒み（CS-30）が未実装 | `rust_port.ja.md` の 8 の R12y、README |
-| RP-9、RP-19：Python を消す（R11） | R11 は入った。Python の 78 本と `requirements*.txt` は消え、CI は cargo で動く。RP-19 の未実装の行は `rp19.rs` が毎回数え、数は CI の専用の step が出す | R13 の席 | R13 の各 slice が写した名前を `rp19_ported/` の file に足し、固定の一覧が空になるまで `rp19_python_cases_are_ported` は落ちる。file の名前は持ち主の R12 の札で、札を 1 つの slice が持つ時は `<札>.txt`（`R12e.txt`）、複数の slice が分けて持つ時は `<札>.<R13 の slice>.txt`（`R12b.R13-1.txt`）。後者は `rp19.rs` の読みを最初の `.` より前に替える変更の後に入る（`rust_port.ja.md` の H134） | `rp19.rs`、`rp09.rs`、`rp80.rs`、`rp81.rs`、`docs/results/r11/ci_probe.md` |
+| RP-9、RP-19：Python を消す（R11） | R11 は入った。Python の 78 本と `requirements*.txt` は消え、CI は cargo で動く。RP-19 の未実装の行は `rp19.rs` が毎回数え、数は CI の専用の step が出す | R13 の席。`rp19.rs` の読みを替える実装は `feat/rp19-names` の席 | R13 の各 slice が写した名前を `rp19_ported/` の file に足し、固定の一覧が空になるまで `rp19_python_cases_are_ported` は落ちる。file の名前は持ち主の R12 の札で、札を 1 つの slice が持つ時は `<札>.txt`（`R12e.txt`）、複数の slice が分けて持つ時は `<札>.<R13 の slice>.txt`（`R12b.R13-1.txt`）。後者は `rp19.rs` の読みを最初の `.` より前に替える変更の後に入る（`rust_port.ja.md` の H134） | `rp19.rs`、`rp09.rs`、`rp80.rs`、`rp81.rs`、`docs/results/r11/ci_probe.md` |
 | 重ね窓（`hayamimi-overlay`、透明で最前面の窓） | crate は main に入った（OV-S2、OV-T）。窓を開く受入 OV-V の検証は「不可」を返した。不可の中身は CS-11、OV-2、OV-5 と、H28 の `missing_glyphs`（字形の欠け）である。直しの席が動いている。CS-10〜CS-12 は未通過 | 重ね窓の席、直しの席 | OV-V の不可の 4 つを直して、検証の席に打ち直させること。`rust_port.ja.md` の 8 に slice の行が無い。設計は会話字幕の設計 3.12、受入は CS-10、CS-11、CS-12 | `git ls-tree origin/main native/` |
 | Zoom と Teams への送信の実機（CS-17、CS-18） | R8g は偽の受け手で検証済み。実機は打っていない | 記録に無い | Zoom の host の token と Teams の主催者の link が要る。手元にあるかは NOT VERIFIED | `a496066`、`state.json` の `blocked_on` |
 | 動画ファイルから SRT への実機（CS-14、CS-15） | R8g は検証済み。実機は日本語 9 秒の動画 1 本を CPU で通しただけ | 記録に無い | 英語の行、翻訳器、GPU、長い動画は通していない。MPC-HC が `<動画名>.ja.srt` を自動で読むかは NOT VERIFIED（会話字幕の設計 9 の H3、H18） | `a496066` |
