@@ -8,7 +8,7 @@ When the two differ in meaning, the Japanese is corrected first and this one aft
 This document lists what still stands between the project and completion, then gives the state of each slice.
 The first table is what remains; the table after it gives each slice's state, merge commit, where the verification comes from, how far its acceptance has passed, and the holes left.
 What each slice builds and which acceptance it must pass is in section 8 of `rust_port.ja.md`; the requirements are in [requirements.md](requirements.md).
-Commit hashes were checked with `git log --oneline`; main was at `7c8e466` (the merge commit of `feat/r8x-1`, 2026-10-21; the commit that adds this document sits one above it) when they were checked.
+Commit hashes were checked with `git log --oneline`; main was at `03a459b` (the merge commit of `design/line-1600`, 2026-10-21; the commit that adds this document sits one above it) when they were checked.
 
 ## What remains before completion
 
@@ -193,7 +193,7 @@ The offline gate of R8x-5 failed (L15), and C and D were both taken out. The lin
 | L13 | R8x-2a: create `rp67.rs` (not in the repository). `rp79.rs` is stopped | Direct | L12 | cargo (`hayamimi-eval`) | 51 min (the 51 min of `rp79.rs` drops out) | Same as above |
 | L13b | R8x-2b: the code of H88 (`support/e2e.rs`, the id in `support/rp32_rules.rs`, `e2e1.rs`, `e2e2.rs`, the validity sentence of `docs/results/e2e/README.md`). Keeps the E2E acceptances from counting runs with the early rule at the 300 ms line and failing | Direct (the E2E-1 and E2E-2 acceptances) | L13 (R8x-2a), L12 (R8x-1) | cargo (`hayamimi-eval`) | 51 min (estimate). Included in the 39 that remain (the count below) | 3.1 and H88 of `rust_port.ja.md` |
 | L14 | R8x-4: widening the reuse key (RP-85) | Direct | None | cargo (`hayamimi-relay`). The quality probe takes about 20 min on the llama-server on 8080 | 60 min and 20 min | Same as above |
-| L15 | R8x-5: the offline gate of C and D ((0) of RP-86; run against the current rule, measuring whether D helps utterances 16 and 22). Done. The gate failed (splits by the early path alone in lat-ja: X 6 against W 4; candidates finalised with voice after them in held-out ja: 18 against 9; splits there: 26 against 9). D finalises utterance 22 192 ms earlier and does not act on utterance 16. Record: `docs/results/r8v/extra.md` | Direct | None | cargo (CPU) | 60 min | Same as above |
+| L15 | R8x-5: the offline gate of C and D ((0) of RP-86; run against the current rule, measuring whether D helps utterances 16 and 22). Done (`03a459b`). The gate failed (splits by the early path alone in lat-ja: X 6 against W 4; candidates finalised with voice after them in held-out ja: 18 against 9; splits there: 26 against 9). D finalises utterance 22 192 ms earlier and does not act on utterance 16. Record: `docs/results/r8v/extra.md` | Direct | None | cargo (CPU) | 60 min | Same as above |
 | L16 | R8x-6: C and D (RP-86, RP-87) | Stopped (C and D were both taken out) | — | — | 90 min and 30 min drop out | H132 of `rust_port.ja.md` |
 | L16b | R8x-6b: the acceptance test of RP-86 (`rp86.rs`) | Stopped (same as above) | — | — | 60 min drops out | Same as above |
 | L17 | Window E3': on one build with the first request of E, the recognizer's first decode and the widened key, 2 runs of ja and 1 of en (the speed of RP-85, RP-84, ja and en of RP-67). No W and X pairs | Direct | L5, L14, L13, L13b | The E2E window and the GPU. No seat runs cargo during the window | About 1 hour 20 min | 3.19 of `rust_port.ja.md` |
