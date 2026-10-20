@@ -73,6 +73,7 @@ GitHubのCIは、ubuntuとwindowsの両方で成功しました。
 R13-17の受入test（各 `final` の有効の行が、確定した規則に従うことの確認）が入りました。Tで実装がまだの印が付くのは、T-RP-10-007とT-RP-16-037の2本です。
 R13-18（GPUの無い機械でCPUへ落ちる確認をCIで走らせる実装）が入り、R13-18は済みました。GitHubのCIは、ubuntuとwindowsの両方で成功しました。T-RP-16-037の「実装がまだ」の印は、R13-16の分として残ります。
 片づけの道具（`scripts/tidy-branches.sh`）が、親が全部 main に在る検証の木を外せるようになりました。
+前の検証の merge の上に積んだ検証の木も、main へ merge しても main の木が変わらず、main に無い通常の commit が 0 件なら外せる直しが `fix/tidy-tree-equal` に在ります（main にはまだ入っていません）。
 
 ### 関連する文書
 

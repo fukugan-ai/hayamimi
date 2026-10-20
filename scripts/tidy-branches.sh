@@ -38,8 +38,9 @@
 # is never touched by a worktree removal.
 # A detached worktree goes only when the trunk contains its tip (the tip is an
 # ancestor of the trunk, or the tip's tree appears in the trunk's history, or the
-# tip is a merge commit whose parents are all ancestors of the trunk), the
-# trunk exists, and nothing is uncommitted inside. Undo:
+# tip is a merge commit whose parents are all ancestors of the trunk, or the tip
+# adds nothing to the trunk as it stands now), the trunk exists, and nothing is
+# uncommitted inside. Undo:
 # `git worktree add --detach <path> <tip>`, printed at removal time.
 #
 # The third way in is for a verification tree: a merge seat checks a push by
@@ -48,6 +49,18 @@
 # tree is not in the trunk's history until the real merge lands, but every
 # commit it was made of is. Content is not compared. One parent outside the
 # trunk (a branch that has not landed) keeps the tree, as before.
+#
+# The fourth way in is for a verification tree stacked on an earlier one: its
+# parent is itself a merge commit that never reached the trunk, so the third way
+# keeps it. It goes when it adds nothing to the trunk, which takes both of:
+#   - no ordinary (non-merge) commit in `<trunk>..<tip>`: a cherry-picked copy has
+#     the same content under another hash and still counts as work that has not
+#     landed;
+#   - `git merge-tree --write-tree <trunk> <tip>` is clean and its tree is the
+#     trunk's own tree, measured against the trunk at removal time: a tree whose
+#     merge would change the trunk, or whose merge conflicts (a hand-resolved
+#     merge keeps content that exists only in the merge commit), stays.
+# Anything the two commands cannot answer keeps the tree.
 # `--remove-worktree PATH --dry-run` measures a tree and prints what it would do
 # without removing it.
 set -euo pipefail
@@ -154,6 +167,20 @@ tip_is_a_merge_of_trunk_commits() {
   [ "$count" -ge 2 ]
 }
 
+# True when the tip adds nothing to the trunk as it stands now: it has no ordinary
+# commit the trunk lacks, and merging it into the trunk gives the trunk's own tree.
+# A conflict, a failure of any command, or a tree that differs makes it false: the
+# check never reads a failure as a pass. `merge-tree --write-tree` touches no
+# index, no worktree and no ref; it only writes tree objects nothing refers to.
+tip_adds_nothing_to_trunk() {
+  local own merged trunk_tree
+  own="$(git rev-list --no-merges "refs/heads/$trunk..$1")" || return 1
+  [ -z "$own" ] || return 1
+  merged="$(git merge-tree --write-tree --no-messages "refs/heads/$trunk" "$1" 2>/dev/null)" || return 1
+  trunk_tree="$(git rev-parse --verify --quiet "refs/heads/$trunk^{tree}")" || return 1
+  [ -n "$merged" ] && [ "$merged" = "$trunk_tree" ]
+}
+
 # One detached worktree, named on the command line. It has no branch to
 # measure, so the tip comes from the porcelain listing and is checked against
 # the trunk: either the tip is an ancestor of the trunk, or its tree appears in
@@ -184,8 +211,8 @@ remove_detached_worktree() {
   if [ "$rc" = "1" ]; then
     tree="$(git rev-parse "$tip^{tree}")"
     seen="$(git log --format=%T "refs/heads/$trunk" | grep -Fxc "$tree" || true)"
-    if [ "${seen:-0}" = "0" ] && ! tip_is_a_merge_of_trunk_commits "$tip"; then
-      echo "tip $tip は幹 $trunk に無い（祖先でも、同じ木でも、幹の commit だけの merge でもない）: $target" >&2
+    if [ "${seen:-0}" = "0" ] && ! tip_is_a_merge_of_trunk_commits "$tip" && ! tip_adds_nothing_to_trunk "$tip"; then
+      echo "tip $tip は幹 $trunk に無い（祖先でも、同じ木でも、幹の commit だけの merge でもない。幹へ merge すると木が変わる、衝突する、または幹に無い通常の commit を持つ）: $target" >&2
       return 1
     fi
   elif [ "$rc" != "0" ]; then
