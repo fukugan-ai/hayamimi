@@ -38,7 +38,7 @@ Pythonの削除（R11）は入口の条件の待ちで、Pythonはまだ残っ�
 訳の字幕と起動の動きは、次のとおりです。
 
 - **書き直し（E）の依頼の形**：確定した文は、まず下書きの訳（T）を作り、次に下書きを書き直す訳（E）を作ります。Eの依頼は2つのmessageで、1つ目に下書きと「事実、数、固有名、否定、推量を保つ」注、2つ目に原文を置きます。Tの依頼は原文だけの1つのmessageです。この形では、Eの答えが指示文を復唱した行が、1 runあたり1件から0件になりました（E2Eの席の申告で、この文書は数え直していません）。数と推量を確かめる門は緩めていません。
-- **訳のserverへの最初の依頼**：`hayamimi-relay live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` のserverへ1本だけ送ります。最初の1回の遅さを、最初の字幕の前に払うためです。返れば `translate.warmup.sent`、返らなければ `translate.warmup.failed`（warn）が出て、起動は続きます。待つのは最長10秒です。訳のserverを起こしていないときは `translate.warmup.failed` が出ます。この1回がどれだけ遅いかは測っていません（NOT VERIFIED）。
+- **訳のserverへの最初の依頼**：`hayamimi-relay live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` のserverへ2本、Tの形、Eの形の順に1本ずつ送ります。最初の1回の遅さを、最初の字幕のTとEの前に払うためです。依頼ごとに、返れば `translate.warmup.sent`、返らなければ `translate.warmup.failed`（warn）が出て（どちらも `form` が `t` か `e`）、起動は続きます。待つのは2本で合わせて最長10秒です。訳のserverを起こしていないときは `translate.warmup.failed` が2件出ます。この2本が最初の行のEをどれだけ縮めるかは測っていません（NOT VERIFIED）。
 - **早い終わりの保留の理由**：`asr.endpoint.held` に `reason` が付きます。文が完結していないときは `incomplete`、完結していて声が短いときは `too_short` です。数え方は `docs/guide/run_hayamimi.ja.md` にあります。
 
 次の3つは未実装です。
