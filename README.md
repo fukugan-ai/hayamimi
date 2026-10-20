@@ -80,6 +80,7 @@ The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) 
 The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set aimed at 1200 ms), are in. They are not implemented yet.
 R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
 R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
+The not-implemented marks of the RP-83 to RP-87 tests moved from single rows to the header of each whole test (owners: R8x-1, R8x-3, R8x-4 and R8x-6).
 
 ### Related documents
 
