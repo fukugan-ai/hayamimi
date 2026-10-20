@@ -103,11 +103,13 @@ fn monitor_for(
         .or_else(|| window.current_monitor())
 }
 
-/// Works out where the band stands on the monitor the settings name.
+/// Works out where the band stands on the monitor the settings name, made
+/// `shrink_px` CSS px shorter (only a probe asks for that).
 pub fn target(
     window: &Window,
     config: &OverlayConfig,
     zoom_percent: u32,
+    shrink_px: u32,
     said: &mut HashSet<String>,
     sink: &mut dyn LogSink,
 ) -> Result<Target, Failure> {
@@ -117,7 +119,7 @@ pub fn target(
     let scale = place::effective_scale(monitor.scale_factor(), zoom_percent);
     let band = place::band(area, scale, config).map_err(Failure::Place)?;
     Ok(Target {
-        rect: place::to_physical(band, scale),
+        rect: place::to_physical(place::shrunk(band, shrink_px), scale),
         scale,
         monitor: monitor.name(),
         full_screen,

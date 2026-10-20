@@ -566,6 +566,16 @@ pub fn expected_band(area: Rect, scale: f64, spec: &BandSpec) -> Rect {
     }
 }
 
+/// `band` with its top edge moved down by `shrink_css` CSS px at `scale`, its
+/// bottom edge kept: the band of a probe started with `--probe-shrink`.
+pub fn shrunk_band(band: Rect, shrink_css: u32, scale: f64) -> Rect {
+    let cut = round_px(f64::from(shrink_css) * scale);
+    Rect {
+        top: (band.top + cut).min(band.bottom),
+        ..band
+    }
+}
+
 /// Whether every edge of `a` is within `tolerance` physical px of `b`.
 pub fn within(a: Rect, b: Rect, tolerance: i32) -> bool {
     (a.left - b.left).abs() <= tolerance
@@ -716,45 +726,135 @@ pub fn clipping(measured: &Measured) -> Vec<String> {
 
 // ---- comparing the screen before and after the window --------------------
 
-/// What comparing the ring around the band found.
+/// What comparing the ring around the band found. A pixel is the window's
+/// doing when it differs while the window is up and is the same again once the
+/// window is closed; one that differs and stays different is the screen's own
+/// change (`drifted`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RingReport {
-    /// Ring pixels that were steady between the two grabs before the window.
+    /// Ring pixels that were steady among the grabs before the window.
     pub compared: usize,
-    /// Pixels (ring or not) that changed between the two grabs before the window.
+    /// Pixels (ring or not) that changed among the grabs before the window or among those with it up.
     pub noisy: usize,
-    /// Steady ring pixels that differ after the window is up.
+    /// Steady ring pixels that the window changes.
     pub mismatched: usize,
-    /// Steady pixels inside the ring that differ after the window is up.
+    /// Steady pixels inside the ring that the window changes.
     pub interior_changed: usize,
+    /// Steady pixels under the work area (the taskbar) that the window changes.
+    /// Recorded, not judged: see `RingGeometry`.
+    pub taskbar_changed: usize,
+    /// Steady pixels anywhere that differ while the window is up and do not
+    /// return once it is closed: the screen changed by itself.
+    pub drifted: usize,
+    /// Where the first (top-left) mismatched ring pixel lies, as `(x, y)` of the grab.
+    pub first_mismatch: Option<(usize, usize)>,
 }
 
 fn same_colour(a: &[u8], b: &[u8]) -> bool {
     a.get(..3) == b.get(..3)
 }
 
-/// Whether the pixel `(x, y)` of a grab `margin` px wider on every side than a
-/// `band_width` x `band_height` band is within `margin` px of the band's edge,
-/// inside it or outside it.
-fn on_ring(x: usize, y: usize, band_width: usize, band_height: usize, margin: usize) -> bool {
-    x < 2 * margin || y < 2 * margin || x >= band_width || y >= band_height
+/// Where a pixel of a grab around a band lies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Spot {
+    /// Within the margin of the band's edge, inside it or outside it: where a
+    /// frame, a border or a shadow would be.
+    Ring,
+    /// Inside the ring.
+    Inside,
+    /// Under the work area, where the taskbar is.
+    Taskbar,
 }
 
-/// Compares three grabs of a region `margin` px wider on every side than a
-/// `band_width` x `band_height` band: two before the window, one after. The
-/// ring is the `margin` px at the edge of the band, inside it and outside it
-/// (where a frame, a border or a shadow would be). A pixel that changed
-/// between the two grabs before the window is noise and is left out.
-pub fn compare_ring(
-    first: &Pixels,
-    second: &Pixels,
-    after: &Pixels,
-    band_width: usize,
-    band_height: usize,
-    margin: usize,
-) -> Result<RingReport, String> {
-    let (width, height) = (band_width + 2 * margin, band_height + 2 * margin);
-    for grab in [first, second, after] {
+/// The shape of a grab of the band grown by `margin` px on every side.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RingGeometry {
+    pub band_width: usize,
+    pub band_height: usize,
+    pub margin: usize,
+    /// The rows at the bottom of the grab that lie under the work area. The
+    /// taskbar draws a button for the window when it is shown, so a change
+    /// there is not a frame, a border or a shadow of the band; the rows are
+    /// counted apart and never part of the ring.
+    pub rows_under_work_area: usize,
+}
+
+impl RingGeometry {
+    /// The geometry of a grab of `band.inflate(margin)` when the work area ends at `work`'s bottom.
+    pub fn around(band: Rect, work: Rect, margin: usize) -> Result<RingGeometry, String> {
+        let grown = i32::try_from(margin).map_err(|error| error.to_string())?;
+        let under = (band.bottom + grown - work.bottom).max(0);
+        Ok(RingGeometry {
+            band_width: usize::try_from(band.width()).map_err(|error| error.to_string())?,
+            band_height: usize::try_from(band.height()).map_err(|error| error.to_string())?,
+            margin,
+            rows_under_work_area: usize::try_from(under).map_err(|error| error.to_string())?,
+        })
+    }
+
+    fn width(&self) -> usize {
+        self.band_width + 2 * self.margin
+    }
+
+    fn height(&self) -> usize {
+        self.band_height + 2 * self.margin
+    }
+
+    /// Where the pixel `(x, y)` of the grab lies. The band occupies the grab from
+    /// `margin` on every side, so the ring is the first and last `2 * margin`
+    /// columns and rows (`margin` outside the edge, `margin` inside it).
+    fn spot(&self, x: usize, y: usize) -> Spot {
+        let margin = self.margin;
+        let first_taskbar_row = self.height().saturating_sub(self.rows_under_work_area);
+        if self.rows_under_work_area > 0 && y >= first_taskbar_row {
+            return Spot::Taskbar;
+        }
+        if x < 2 * margin || y < 2 * margin || x >= self.band_width || y >= self.band_height {
+            return Spot::Ring;
+        }
+        Spot::Inside
+    }
+}
+
+/// The grabs of the same region that `compare_ring` reads.
+pub struct Grabs<'a> {
+    /// Before the window (at least one); a pixel that differs among them is noise.
+    pub before: &'a [&'a Pixels],
+    /// With the window up (at least one); a pixel that differs among them is noise.
+    pub up: &'a [&'a Pixels],
+    /// After the window is closed.
+    pub closed: &'a Pixels,
+}
+
+/// The colour of the pixel at byte `at` of every grab, when it is the same in
+/// all of them; `None` when it moved.
+fn steady<'g>(grabs: &[&'g Pixels], at: usize) -> Result<Option<&'g [u8]>, String> {
+    let mut seen: Option<&'g [u8]> = None;
+    for grab in grabs {
+        let Some(now) = grab.bgra.get(at..at + 4) else {
+            return Err(String::from("a grab is shorter than its size says"));
+        };
+        match seen {
+            Some(before) if !same_colour(before, now) => return Ok(None),
+            _ => seen = Some(now),
+        }
+    }
+    Ok(seen)
+}
+
+/// Compares the grabs of the band grown by `geometry.margin`. A pixel that
+/// changed among the grabs before the window, or among the grabs with it up,
+/// is noise and is left out: a frame, a border or a shadow of the window
+/// stays put while the window is up.
+pub fn compare_ring(grabs: &Grabs<'_>, geometry: RingGeometry) -> Result<RingReport, String> {
+    let (width, height) = (geometry.width(), geometry.height());
+    if grabs.before.is_empty() || grabs.up.is_empty() {
+        return Err(String::from(
+            "the comparison needs a grab before the window and one with it up",
+        ));
+    }
+    let every = grabs.before.iter().chain(grabs.up).chain([&grabs.closed]);
+    for grab in every {
         if (grab.width, grab.height) != (width, height) {
             return Err(format!(
                 "a grab is {}x{}, not {width}x{height}",
@@ -767,27 +867,40 @@ pub fn compare_ring(
         noisy: 0,
         mismatched: 0,
         interior_changed: 0,
+        taskbar_changed: 0,
+        drifted: 0,
+        first_mismatch: None,
     };
     for y in 0..height {
         for x in 0..width {
             let at = (y * width + x) * 4;
-            let (Some(a), Some(b), Some(c)) = (
-                first.bgra.get(at..at + 4),
-                second.bgra.get(at..at + 4),
-                after.bgra.get(at..at + 4),
-            ) else {
-                return Err(String::from("a grab is shorter than its size says"));
-            };
-            if !same_colour(a, b) {
+            let spot = geometry.spot(x, y);
+            let Some(a) = steady(grabs.before, at)? else {
                 report.noisy += 1;
                 continue;
+            };
+            report.compared += usize::from(spot == Spot::Ring);
+            let Some(c) = steady(grabs.up, at)? else {
+                report.noisy += 1;
+                continue;
+            };
+            let Some(closed) = grabs.closed.bgra.get(at..at + 4) else {
+                return Err(String::from("a grab is shorter than its size says"));
+            };
+            if same_colour(a, c) {
+                continue;
             }
-            let changed = !same_colour(a, c);
-            if on_ring(x, y, band_width, band_height, margin) {
-                report.compared += 1;
-                report.mismatched += usize::from(changed);
-            } else {
-                report.interior_changed += usize::from(changed);
+            if !same_colour(a, closed) {
+                report.drifted += 1;
+                continue;
+            }
+            match spot {
+                Spot::Ring => {
+                    report.mismatched += 1;
+                    report.first_mismatch = report.first_mismatch.or(Some((x, y)));
+                }
+                Spot::Inside => report.interior_changed += 1,
+                Spot::Taskbar => report.taskbar_changed += 1,
             }
         }
     }
@@ -797,6 +910,14 @@ pub fn compare_ring(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A 40 x 30 band with a ring 4 px wide, in a grab of 48 x 38 px.
+    const GEOMETRY: RingGeometry = RingGeometry {
+        band_width: 40,
+        band_height: 30,
+        margin: 4,
+        rows_under_work_area: 0,
+    };
 
     fn flat(width: usize, height: usize, colour: u8) -> Pixels {
         Pixels {
@@ -934,13 +1055,47 @@ mod tests {
         );
     }
 
+    /// The grabs of a run in which the screen is back as it was once the window is closed.
+    fn compare(
+        first: &Pixels,
+        second: &Pixels,
+        up: &Pixels,
+        geometry: RingGeometry,
+    ) -> Result<RingReport, String> {
+        let grabs = Grabs {
+            before: &[first, second],
+            up: &[up],
+            closed: first,
+        };
+        compare_ring(&grabs, geometry)
+    }
+
+    /// A pixel that differs among the grabs with the window up is not
+    /// something the window drew: a frame stays put.
+    #[test]
+    fn a_pixel_that_moved_while_the_window_was_up_is_noise() -> Result<(), String> {
+        let first = flat(48, 38, 7);
+        let mut up = first.clone();
+        paint(&mut up, 1, 1, 200);
+        paint(&mut up, 5, 19, 200);
+        let mut up_again = up.clone();
+        paint(&mut up_again, 1, 1, 99);
+        let grabs = Grabs {
+            before: &[&first],
+            up: &[&up, &up_again],
+            closed: &first,
+        };
+        let report = compare_ring(&grabs, GEOMETRY)?;
+        assert_eq!((report.noisy, report.mismatched), (1, 1));
+        Ok(())
+    }
+
     #[test]
     fn a_change_inside_the_band_is_not_a_change_of_the_ring() -> Result<(), String> {
-        let (band_w, band_h, margin) = (40, 30, 4);
         let first = flat(48, 38, 7);
         let mut after = first.clone();
         paint(&mut after, 24, 19, 200);
-        let report = compare_ring(&first, &first, &after, band_w, band_h, margin)?;
+        let report = compare(&first, &first, &after, GEOMETRY)?;
         assert_eq!((report.mismatched, report.interior_changed), (0, 1));
         assert!(report.compared > 0);
         Ok(())
@@ -948,26 +1103,45 @@ mod tests {
 
     #[test]
     fn a_change_on_the_ring_is_found_inside_and_outside_the_band() -> Result<(), String> {
-        let (band_w, band_h, margin) = (40, 30, 4);
         let first = flat(48, 38, 7);
         let mut after = first.clone();
         paint(&mut after, 1, 1, 200);
         paint(&mut after, 5, 19, 200);
-        let report = compare_ring(&first, &first, &after, band_w, band_h, margin)?;
+        let report = compare(&first, &first, &after, GEOMETRY)?;
         assert_eq!(report.mismatched, 2);
         Ok(())
     }
 
     #[test]
     fn a_pixel_that_moved_before_the_window_is_noise_and_is_left_out() -> Result<(), String> {
-        let (band_w, band_h, margin) = (40, 30, 4);
         let first = flat(48, 38, 7);
         let mut second = first.clone();
         paint(&mut second, 1, 1, 99);
         let mut after = first.clone();
         paint(&mut after, 1, 1, 200);
-        let report = compare_ring(&first, &second, &after, band_w, band_h, margin)?;
+        let report = compare(&first, &second, &after, GEOMETRY)?;
         assert_eq!((report.noisy, report.mismatched), (1, 0));
+        Ok(())
+    }
+
+    /// A ring pixel that changes while the window is up and stays changed
+    /// after it is closed is the screen's own doing, not the window's.
+    #[test]
+    fn a_change_that_stays_after_the_window_is_closed_is_the_screens_own() -> Result<(), String> {
+        let first = flat(48, 38, 7);
+        let mut up = first.clone();
+        paint(&mut up, 1, 1, 200);
+        paint(&mut up, 24, 19, 200);
+        let grabs = Grabs {
+            before: &[&first],
+            up: &[&up],
+            closed: &up,
+        };
+        let report = compare_ring(&grabs, GEOMETRY)?;
+        assert_eq!(
+            (report.mismatched, report.interior_changed, report.drifted),
+            (0, 0, 2)
+        );
         Ok(())
     }
 
@@ -975,6 +1149,104 @@ mod tests {
     fn grabs_of_different_sizes_are_refused() {
         let small = flat(10, 10, 0);
         let big = flat(48, 38, 0);
-        assert!(compare_ring(&big, &big, &small, 40, 30, 4).is_err());
+        assert!(compare(&big, &big, &small, GEOMETRY).is_err());
+        let grabs = Grabs {
+            before: &[&big],
+            up: &[&big],
+            closed: &small,
+        };
+        assert!(compare_ring(&grabs, GEOMETRY).is_err());
+    }
+
+    /// The rows under the work area are the taskbar's: a change there is
+    /// counted apart and is not a mismatch of the ring.
+    #[test]
+    fn a_change_under_the_work_area_is_counted_apart_from_the_ring() -> Result<(), String> {
+        let geometry = RingGeometry {
+            rows_under_work_area: 4,
+            ..GEOMETRY
+        };
+        let first = flat(48, 38, 7);
+        let mut after = first.clone();
+        paint(&mut after, 24, 37, 200);
+        paint(&mut after, 24, 34, 200);
+        let report = compare(&first, &first, &after, geometry)?;
+        assert_eq!((report.taskbar_changed, report.mismatched), (2, 0));
+        let same_change_on_the_ring = compare(&first, &first, &after, GEOMETRY)?;
+        assert_eq!(same_change_on_the_ring.mismatched, 2);
+        Ok(())
+    }
+
+    /// The row just above the work area's bottom is still the band's own edge.
+    #[test]
+    fn the_last_inner_row_above_the_work_area_stays_on_the_ring() -> Result<(), String> {
+        let geometry = RingGeometry {
+            rows_under_work_area: 4,
+            ..GEOMETRY
+        };
+        let first = flat(48, 38, 7);
+        let mut after = first.clone();
+        paint(&mut after, 24, 33, 200);
+        let report = compare(&first, &first, &after, geometry)?;
+        assert_eq!((report.mismatched, report.taskbar_changed), (1, 0));
+        Ok(())
+    }
+
+    #[test]
+    fn a_band_on_the_bottom_of_the_work_area_has_a_margin_of_rows_under_it() -> Result<(), String> {
+        let work = Rect {
+            left: 0,
+            top: 0,
+            right: 1000,
+            bottom: 600,
+        };
+        let on_the_bottom = Rect {
+            left: 100,
+            top: 500,
+            right: 900,
+            bottom: 600,
+        };
+        let geometry = RingGeometry::around(on_the_bottom, work, 8)?;
+        assert_eq!(
+            (
+                geometry.band_width,
+                geometry.band_height,
+                geometry.rows_under_work_area
+            ),
+            (800, 100, 8)
+        );
+        let lifted = Rect {
+            top: 480,
+            bottom: 580,
+            ..on_the_bottom
+        };
+        assert_eq!(
+            RingGeometry::around(lifted, work, 8)?.rows_under_work_area,
+            0
+        );
+        let near = Rect {
+            top: 490,
+            bottom: 595,
+            ..on_the_bottom
+        };
+        assert_eq!(RingGeometry::around(near, work, 8)?.rows_under_work_area, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn a_shrunk_band_loses_its_height_at_the_top_and_keeps_its_bottom() {
+        let band = Rect {
+            left: 384,
+            top: 1851,
+            right: 3456,
+            bottom: 2088,
+        };
+        let cut = shrunk_band(band, 12, 1.5);
+        assert_eq!(
+            (cut.top, cut.bottom, cut.left, cut.right),
+            (1869, 2088, 384, 3456)
+        );
+        assert_eq!(shrunk_band(band, 0, 1.5), band);
+        assert_eq!(shrunk_band(band, 1000, 1.5).top, band.bottom);
     }
 }

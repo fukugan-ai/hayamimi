@@ -38,14 +38,15 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GWL_EXSTYLE,
-    GWL_STYLE, GetClassNameW, GetClientRect, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HWND_TOPMOST, IsWindowVisible, MSG,
-    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-    SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SetForegroundWindow, SetWindowPos, ShowWindow, TranslateMessage, WINDOW_EX_STYLE, WM_CLOSE,
-    WM_DESTROY, WM_LBUTTONDOWN, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW, WS_SIZEBOX, WS_VISIBLE,
+    BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GA_ROOT,
+    GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetClassNameW, GetClientRect, GetForegroundWindow,
+    GetMessageW, GetSystemMetrics, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
+    HWND_TOPMOST, IsWindowVisible, MSG, PostMessageW, PostQuitMessage, RegisterClassW,
+    SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow,
+    TranslateMessage, WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN, WNDCLASSW,
+    WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW,
+    WS_SIZEBOX, WS_VISIBLE, WindowFromPoint,
 };
 use windows::core::{BOOL, w};
 
@@ -374,13 +375,54 @@ pub fn normalise(pixel: i32, origin: i32, extent: i32) -> Result<i32, String> {
     i32::try_from(scaled).map_err(|error| error.to_string())
 }
 
-/// Moves the pointer to the physical pixel `(x, y)` and presses and releases the left button.
-pub fn click(x: i32, y: i32) -> Result<(), String> {
+/// The top-level window under the physical pixel `(x, y)`, if there is one.
+/// Hidden and disabled windows are not found (`WindowFromPoint`); a child
+/// window is reported as the top-level window that holds it.
+pub fn window_at(x: i32, y: i32) -> Option<Win> {
+    // SAFETY: takes the point by value and only reads which window is there.
+    let found = unsafe { WindowFromPoint(POINT { x, y }) };
+    if found.is_invalid() {
+        return None;
+    }
+    // SAFETY: `found` was just returned by the OS; a window that has gone since makes the call return NULL.
+    let top = unsafe { GetAncestor(found, GA_ROOT) };
+    (!top.is_invalid()).then(|| Win::from_raw(top))
+}
+
+/// Whether the window `found` under a point is one of `own`. Pure, so that the
+/// decision is tested without a window.
+fn judge_target(found: Option<Win>, own: &[Win]) -> Result<(), String> {
+    match found {
+        Some(top) if own.contains(&top) => Ok(()),
+        Some(top) => Err(format!(
+            "the window there is {top:?} (class {:?}), not one of the test's own windows {own:?}",
+            class_name(top)
+        )),
+        None => Err(format!(
+            "no window is there; the test's own windows are {own:?}"
+        )),
+    }
+}
+
+/// Stops with an error unless the window under the physical pixel `(x, y)` is
+/// one of `own`, the test's own windows. Nothing is sent.
+pub fn guard_click(x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+    judge_target(window_at(x, y), own)
+        .map_err(|why| format!("no input was sent to ({x}, {y}): {why}"))
+}
+
+/// Moves the pointer to the physical pixel `(x, y)` and presses and releases
+/// the left button, but only while the window under that pixel is one of
+/// `own`. The pixel is looked at before the pointer moves and again before the
+/// button goes down, so a click never lands on a window the test did not make.
+pub fn click(x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+    guard_click(x, y, own)?;
     let across = normalise(x, metric(SM_XVIRTUALSCREEN), metric(SM_CXVIRTUALSCREEN))?;
     let down = normalise(y, metric(SM_YVIRTUALSCREEN), metric(SM_CYVIRTUALSCREEN))?;
     let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
     send(&[mouse_input(across, down, place)])?;
     std::thread::sleep(Duration::from_millis(40));
+    guard_click(x, y, own)?;
     send(&[
         mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
         mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
@@ -731,6 +773,27 @@ mod tests {
         };
         assert!(bare.frameless());
         assert!(!framed.frameless());
+    }
+
+    #[test]
+    fn a_window_of_the_test_is_a_target_for_a_click() {
+        assert_eq!(judge_target(Some(Win(5)), &[Win(4), Win(5)]), Ok(()));
+    }
+
+    #[test]
+    fn a_window_the_test_did_not_make_is_refused_and_named() {
+        let said = judge_target(Some(Win(9)), &[Win(5)]).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("Win(9)") && text.contains("not one of")),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    fn no_window_at_the_point_and_an_empty_list_are_both_refused() {
+        assert!(judge_target(None, &[Win(5)]).is_err());
+        assert!(judge_target(Some(Win(5)), &[]).is_err());
     }
 
     #[test]
