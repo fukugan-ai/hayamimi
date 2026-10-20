@@ -23,7 +23,7 @@ SOFTWARE.
 ---
 
 This license covers the source code of this repository only. Pretrained
-models downloaded into `models/` by `scripts/download_models.py` are
+models downloaded into `models/` by `hayamimi models fetch` are
 third-party artifacts distributed under their own licenses -- see
 THIRD_PARTY_NOTICES.md. In particular, the ja->en translation model
 (FuguMT / mojicast-fugumt-ja-en-ct2) is CC BY-SA 4.0 (share-alike), not MIT.

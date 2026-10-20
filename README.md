@@ -106,14 +106,14 @@ models -- including the languages where hayamimi loses -- is in
 | Speaker labels | `--speakers` tags each utterance S1/S2/... live via CAM++ nearest-centroid matching, then the refine pass re-diarizes each group with pyannote segmentation-3.0 and remaps clusters onto the same S{n} labels (mean DER 25.7% -> 13.9% on 5 AMI meetings, see Limitations) |
 | Translation | `--translate en,zh,ko,es,...` translates Japanese lines live (en via FuguMT; any other M2M-100 target code is accepted if the model's vocabulary supports it -- zh/ko/es have measured quality, see docs/design/translate_m2m.md) |
 | Hotwords / user dictionary | `--hotwords` biases decoding toward proper nouns (currently has no effect on the ja tier -- see Limitations); `--replace` does post-hoc find/replace and works everywhere |
-| CJK number normalization | conservative kanji-numeral -> arabic-digit conversion (ja/zh/yue only): magnitude numbers, 点-decimals, and digit-string years/codes; idioms/proper nouns are left alone by default (`scripts/itn_cjk.py`) |
-| Runtime dictionary APIs | `RoutedASR.set_replacements()`/`set_itn_overrides()` swap the find/replace and ITN exclude/force dictionaries mid-session; with `--serve`, `GET`/`POST /replacements` and `/itn_overrides` do the same over HTTP |
+| CJK number normalization | conservative kanji-numeral -> arabic-digit conversion (ja/zh/yue only): magnitude numbers, 点-decimals, and digit-string years/codes; idioms/proper nouns are left alone by default (the Rust version is `hayamimi-asr::itn`) |
+| Runtime dictionary APIs | with `--serve`, `GET`/`POST /replacements` and `/itn_overrides` swap the find/replace and ITN exclude/force dictionaries mid-session |
 | Structured events + runtime config | every stage of the pipeline (finals, translations, model loads, warnings, session summaries...) publishes to an `EventHub` an embedding app can listen to directly; `--serve` additionally exposes `GET`/`POST /config` and `POST /reset` for changing language/translation/VAD settings and resetting a session without restarting the process -- see "Embedding: runtime control and structured events" below |
 | OBS overlay + dashboard | `--serve` starts a local HTTP server with a browser-source overlay and a live dashboard |
 | Network audio input | `--input ws` accepts mic audio over a WebSocket (phone, ESP32/stackchan) and feeds it through the same pipeline, including `--serve`'s dashboard/overlay |
 | Speaker loopback input | `--input speaker` transcribes whatever is playing on the PC's audio output (WASAPI loopback, Windows only, no Stereo Mix setup needed); `--input mix` sums it with the mic into one stream (e.g. meeting transcription) |
-| English tier v2 (opt-in) | `--en-tier v2` swaps the default multilingual Parakeet v3 for an en-only Parakeet TDT v2 (needs `download_models.py --en-parakeet-v2`, +~660MB resident); measured FLEURS en WER 10.0% -> 6.6% (`docs/eval/en_candidates.md`) |
-| 4-class ja punctuation (opt-in) | `--punct-model 4class` swaps the default BERT restorer for a single model predicting 、/。/？/！ directly (adds real ？/！ support the default model lacks); int8 ~37MB, ~4.6ms/line on FLEURS ja, but trained on dense web text -- underperforms the default on sparse-punctuation domains like TV captions (`docs/eval/punct_retrain.md`, see Limitations). Needs `download_models.py --punct-4class` |
+| English tier v2 (opt-in) | `--en-tier v2` swaps the default multilingual Parakeet v3 for an en-only Parakeet TDT v2 (needs `hayamimi models fetch --en-parakeet-v2`, +~660MB resident); measured FLEURS en WER 10.0% -> 6.6% (`docs/eval/en_candidates.md`) |
+| 4-class ja punctuation (opt-in) | `--punct-model 4class` swaps the default BERT restorer for a single model predicting 、/。/？/！ directly (adds real ？/！ support the default model lacks); int8 ~37MB, ~4.6ms/line on FLEURS ja, but trained on dense web text -- underperforms the default on sparse-punctuation domains like TV captions (`docs/eval/punct_retrain.md`, see Limitations). Needs `hayamimi models fetch --punct-4class` |
 | Memory-bounded | LRU model eviction keeps resident models under a configurable cap (default: <2GB total) |
 | CPU-only | every model runs as quantized ONNX via sherpa-onnx; no GPU or PyTorch required |
 
@@ -144,7 +144,7 @@ microphone, so a phone or a stackchan-class ESP32 board can stream mic audio
 over the LAN and get it transcribed through hayamimi's normal pipeline:
 
 ```bash
-.venv/Scripts/python scripts/realtime_transcribe.py --input ws --serve
+hayamimi --input ws --serve
 # -> ws://<host>:8766/ingest accepts audio; http://localhost:8833/dashboard shows the results
 ```
 
@@ -153,9 +153,9 @@ Protocol: connect to `/ingest`, send one JSON text frame
 `pcm_s16le` audio as binary frames. The server resamples non-16kHz audio and
 replies with the same partial/final/translation/refine JSON events the
 dashboard's SSE stream carries, so a client can show its own subtitles too.
-Only one audio-producing client is accepted at a time; `scripts/ws_mic_client.py`
-is a dependency-free reference client (streams a wav file at real-time pace)
-that doubles as a template for a phone/ESP32 implementation.
+Only one audio-producing client is accepted at a time. The reference client
+that streams a wav file to `/ingest` at real-time pace is `hayamimi-eval stream`;
+the way it sends audio is also a model for a phone/ESP32 implementation.
 
 `--input ws` binds `127.0.0.1` by default, so the endpoint is localhost-only
 until you opt in with `--ws-host 0.0.0.0` -- do that only on a network you
@@ -171,11 +171,11 @@ stream, e.g. for meeting transcription (your voice + the call audio
 together):
 
 ```bash
-.venv\Scripts\python scripts\realtime_transcribe.py --input speaker
-.venv\Scripts\python scripts\realtime_transcribe.py --input mix
+hayamimi --input speaker
+hayamimi --input mix
 ```
 
-This uses WASAPI loopback via the `soundcard` package, which taps the
+This uses WASAPI loopback (through the Rust `wasapi` crate), which taps the
 render endpoint directly -- unlike the classic "Stereo Mix" recording
 device, no opt-in is needed in Windows Sound settings, and it works even
 when the sound driver doesn't expose Stereo Mix at all. **Windows only**
@@ -189,9 +189,9 @@ stream. This is one mixed transcript, with no separate tracks or acoustic
 echo cancellation. Use headphones to avoid capturing the call audio twice.
 
 By default both modes use the system's default input/output device. If you
-have more than one mic or output device, `--list-audio-devices` prints what's
-available, and `--mic-device NAME` / `--speaker-device NAME` (substring
-match) pick a specific one. Over a Remote Desktop session, the PC's own
+have more than one mic or output device, `--mic-device NAME` /
+`--speaker-device NAME` (substring match) pick a specific one.
+Over a Remote Desktop session, the PC's own
 physical mic usually can't be opened at all (Windows blocks cross-session
 access) -- enable microphone redirection in your RDP client instead (in
 `mstsc`: Show Options > Local Resources > Remote audio > Recording >
@@ -199,74 +199,65 @@ access) -- enable microphone redirection in your RDP client instead (in
 
 ## Embedding in another app
 
-`scripts/realtime_transcribe.py`'s pieces (`RoutedASR`, `build_vad`,
-`run_stream`) are importable, not just CLI-only, and the session they build
-can be reconfigured and observed while it runs: `hub.add_listener(callback)`
-delivers structured JSON events (`partial`, `final`, `refine`,
-`model_load`, `warning`, ...) in-process with no HTTP server, and `--serve`
-adds `GET`/`POST /config` and `POST /reset` over the same session. The full
-guide -- the event table, the `/config` keys, and what `POST /reset` does --
-is in [`docs/guide/embedding.md`](docs/guide/embedding.md). For Flutter/Dart,
-see [`mobile/hayamimi_core/README.md`](mobile/hayamimi_core/README.md).
-
-```python
-from asr_engine import RoutedASR
-
-# en_tier="v2" and punct_model="4class" are both opt-in (see Features above);
-# leaving either out keeps the current default (v3 / bert). Both raise
-# ValueError at construction if given an unknown value, and degrade to their
-# default with a `warning` event if the opt-in model isn't downloaded.
-with RoutedASR(en_tier="v2", punct_model="4class", on_event=hub.publish) as asr:
-    ...  # asr.transcribe(...) / asr.partial(...)
-# close() runs automatically on exit; call asr.close() yourself if you're
-# not using `with` -- see "Shutting down a pipeline" in embedding.md.
-```
+The Rust version's parts live in `native/hayamimi-asr`: language routing is
+`hayamimi-asr::route`, speech detection is `hayamimi-asr::vad`, and the
+Japanese recognition flow is `hayamimi-asr::pipeline`. `hayamimi` is the
+executable that calls them. With `hayamimi --serve`, the running session gains
+`GET`/`POST /config`, `POST /reset`, and `GET`/`POST /replacements` and
+`/itn_overrides`, and the structured JSON events arrive on `GET /events`.
+The full guide -- the event table, the `/config` keys, and what `POST /reset`
+does -- is in [`docs/guide/embedding.md`](docs/guide/embedding.md).
+For Flutter/Dart, see [`mobile/hayamimi_core/README.md`](mobile/hayamimi_core/README.md).
 
 ## Requirements
 
-Python 3.10+ and ffmpeg on PATH. Developed and tested on **Windows 11**;
-macOS/Linux are expected to work (all runtimes are cross-platform) but are
-not yet CI-tested end to end — reports welcome.
+The Rust version of `hayamimi` is built from the Cargo workspace in `native/`.
+It needs a GPU build of sherpa-onnx first (steps are in
+[`docs/guide/build_gpu.ja.md`](docs/guide/build_gpu.ja.md) and
+[`docs/guide/run_hayamimi.ja.md`](docs/guide/run_hayamimi.ja.md), both Japanese only).
+Developed and tested on **Windows 11**.
+Audio capture covers the microphone on Windows and Linux, and speaker loopback on Windows only.
+On a machine with no capture path, such as macOS, use `--input ws` (`/ingest`) or a wav file.
+A real-device run of the Linux microphone has not been checked here (NOT VERIFIED: run `hayamimi --input mic` on a Linux machine and watch the subtitles).
 
 ## Quickstart
 
+Build the executable, fetch the models, then run.
+Type the steps one at a time.
+
 ```bash
-python -m venv .venv
+# 1. Build the executable (SHERPA_ONNX_LIB_DIR is the install/lib of the GPU sherpa-onnx build)
+cd native
+SHERPA_ONNX_LIB_DIR=<sherpa-onnx install/lib> cargo build --release -p hayamimi
 
-# Windows
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python scripts\download_models.py
+# 2. Fetch the models into models/ (git-ignored)
+hayamimi models fetch --dir models
 
-# macOS / Linux
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/download_models.py
-
-# Real-time transcription from your microphone
-.venv/Scripts/python scripts/realtime_transcribe.py     # Windows
-.venv/bin/python scripts/realtime_transcribe.py          # macOS/Linux
+# 3. Real-time transcription from your microphone
+hayamimi --input mic
 
 # From the PC's audio output instead (a call, a video) -- Windows only
-.venv\Scripts\python scripts\realtime_transcribe.py --input speaker
+hayamimi --input speaker
 
 # Mic + PC audio output together, e.g. for meeting transcription
-.venv\Scripts\python scripts\realtime_transcribe.py --input mix
+hayamimi --input mix
 
 # With the dashboard + OBS overlay
-.venv/Scripts/python scripts/realtime_transcribe.py --serve
+hayamimi --input mic --serve
 # -> open http://localhost:8833/dashboard in a browser
 ```
 
-`scripts/download_models.py` pulls ~3.1GB of pretrained models into
-`models/` (git-ignored). Pass `--minimal` for a ~1.1GB ja/en-only install
-(ReazonSpeech, whisper-tiny, Silero VAD, Japanese punctuation). Two opt-in
-flags add the tiers above: `--en-parakeet-v2` (+~460MB, `--en-tier v2`) and
-`--punct-4class` (+~40MB, `--punct-model 4class`); either combines with
-`--minimal` without being dropped. See `THIRD_PARTY_NOTICES.md` for what
-each model's license commits you to.
+With the default target directory, the executable is `native/target/release/hayamimi`.
+`models fetch` fetches every group by default.
+`--minimal` fetches only the four groups of the ja/en core: the ReazonSpeech int8 recognizer, the whisper-tiny language identifier, the Silero VAD and the BERT punctuation model.
+Two opt-in groups are added with their own flags: `--en-parakeet-v2` adds the en-only Parakeet v2, and `--punct-4class` adds the 4-class Japanese punctuation model; either combines with `--minimal`.
+The download size has not been measured for the Rust version (NOT VERIFIED: run `du -sh models` after the fetch).
+See `THIRD_PARTY_NOTICES.md` for what each model's license commits you to.
 
 ## CLI reference
 
-All flags are on `scripts/realtime_transcribe.py`:
+The table below lists the flags and defaults of the original Python runtime.
+The flags the Rust `hayamimi` accepts are shown by `hayamimi --help`, and their use is in [`docs/guide/run_hayamimi.ja.md`](docs/guide/run_hayamimi.ja.md) (Japanese only).
 
 | Flag | Default | Description |
 |---|---|---|
@@ -294,8 +285,8 @@ All flags are on `scripts/realtime_transcribe.py`:
 | `--speakers` | off | label utterances with speaker ids (S1, S2, ...); the refine pass re-diarizes each group with pyannote segmentation-3.0 |
 | `--speaker-remap-threshold T` | 0.35 | cosine-similarity threshold for mapping the refine pass's local diarization clusters onto the session's global S{n} labels (the live fast path keeps its own 0.45 threshold) |
 | `--translate [LANGS]` | off, `en` | translate Japanese lines to these comma-separated languages. `en` uses the dedicated FuguMT module; any other M2M-100 target code (`zh`, `ko`, `es`, `fr`, ...) is accepted if the model's vocabulary supports it -- unvalidated targets (anything outside `zh`/`ko`/`es`) print a quality-not-measured note, see docs/design/translate_m2m.md |
-| `--en-tier {v3,v2}` | `v3` | which Parakeet model handles `en`; `v3` also covers the other 24 V3_LANGS European languages. `v2` is opt-in, en-only, lower WER (needs `download_models.py --en-parakeet-v2`; degrades to `v3` with a `model_fallback` event if not downloaded) -- see docs/eval/en_candidates.md |
-| `--punct-model {bert,4class}` | `bert` | which model restores ja punctuation. `bert` is the currently shipped Mojicast BERT-char restorer (comma/period from the model + a `？` suffix heuristic, no `！`); `4class` is opt-in, predicts 、/。/？/！ directly (needs `download_models.py --punct-4class`; degrades to `bert` with a `warning` event if not downloaded) -- see docs/eval/punct_retrain.md |
+| `--en-tier {v3,v2}` | `v3` | which Parakeet model handles `en`; `v3` also covers the other 24 V3_LANGS European languages. `v2` is opt-in, en-only, lower WER (needs `hayamimi models fetch --en-parakeet-v2`; degrades to `v3` with a `model_fallback` event if not downloaded) -- see docs/eval/en_candidates.md |
+| `--punct-model {bert,4class}` | `bert` | which model restores ja punctuation. `bert` is the currently shipped Mojicast BERT-char restorer (comma/period from the model + a `？` suffix heuristic, no `！`); `4class` is opt-in, predicts 、/。/？/！ directly (needs `hayamimi models fetch --punct-4class`; degrades to `bert` with a `warning` event if not downloaded) -- see docs/eval/punct_retrain.md |
 
 ## Architecture
 
@@ -519,7 +510,7 @@ Headline numbers from that log:
 ## License
 
 Source code is MIT (`LICENSE`, copyright oboroge0). No model weights are
-committed to this repository -- `scripts/download_models.py` fetches them
+committed to this repository -- `hayamimi models fetch` fetches them
 from their original publishers at install time, and each carries its own
 license (`THIRD_PARTY_NOTICES.md` has the full table).
 
