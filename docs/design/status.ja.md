@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `1d0dc90`（2026-10-20 の `feat/r13-18` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `718ce89`（2026-10-20 の `fix/tidy-verify-trees` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -318,6 +318,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | 重ね窓の S2 と T、設計の差分、CI の直し（`verify/ov3-76e6f40`、PR #2。`design/r11c-followups`、`fix/ci-first-run`、`feat/ov-s2`、`feat/ov-t`、`design/overlay-ov-s2-points`、`fix/ov-ci-rows` の 6 本） | merge 済み。GitHub の CI は ubuntu も windows も success | `2945489`（`76e6f40` を `--no-ff` で取り込んだ） | 受付の実測で、手元の test が rc=0、passed 3017、failed 0、clippy が rc=0（log は repo の外）。GitHub の CI の run 39415818064 は ubuntu も windows も success。merge 後の木と `76e6f40` の差は文書 6 本だけで、code と test は同じ | 重ね窓の crate `hayamimi-overlay` と `hayamimi-ui` の部品が main に在る。`test.yml` の `--test` は 102 語、`--skip` は 9 語 | OV-V（窓を開く受入）が未着手。R13 の slice が残る |
 | R13-17 の受入 test（`feat/r13-17`。`rp32_validity_line_follows_the_rule_that_ended_each_final`） | merge 済み。T の `（未実装）` の印は 2 本になった（T-RP-10-007 は持ち主 R13-3、T-RP-16-037 は持ち主 R13-16） | `dd3d065`（`b49afc7` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外）：`test result: ok. 66 passed; 0 failed; 1 ignored`、標本の数を `jq` で数え直して 294 と 210 で一致、陰性対照 3 つが落ち、戻した後の sha256 は同じ。検証の木は `3bf4cfc`（tree `75d16b2`）。merge 後の木と `3bf4cfc` の差は文書 6 本だけで、`native/` と `.github/` は 0 行。文書を見張る test は受付の実測で、`-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | `native/hayamimi-eval/tests/rp32.rs` に、各 `final` を確定した規則に従う有効の行の test を足し、T の 1267 行目付近の `（未実装）` の印を外した | R13-3 と R13-16 が未実装。workspace 全体の test はこの merge の後には打っていない |
 | R13-18 の実装（`feat/r13-18`。CPU へ落ちる受入を CI で走らせる） | merge 済み。R13-18 は済み。GitHub の CI（run 39429756564 の再実行）は ubuntu も windows も success | `1d0dc90`（`f2e8317` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外。検証の木 `dc2b385`、tree `69053089`）。merge 後の木と `dc2b385` の差は `native/` と `.github/` が 0 行で、文書だけが違う。文書を見張る test は受付の実測で、`-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed | `rp16.rs` が期待の `reason` を自分で決める。`test.yml` の rp16 の 3 本の `--skip` と `ci_probe.md` の 3 本の行を外した。`ci_probe.md` に、runner の期待値は `driver_unreadable` と導いた値で、runner の `nvidia-smi` は NOT VERIFIED と書いてある | T-RP-16-037 の `（未実装）` は R13-16 の分として残る。workspace 全体の test はこの merge の後には打っていない |
+| tidy が検証の木を外せるようになった（`fix/tidy-verify-trees`） | merge 済み | `718ce89`（`2cc9025` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外）。受付の実測は `tests/tidy_branches_verify_trees.sh` が cases=11 failures=0、`tests/tidy_branches_verify.sh` が cases=15 failures=0（sudo の 1 case は main-lock を持っていたため skip）。`native/` と `.github/` は 0 件 | `scripts/tidy-branches.sh` が、親が全部 main に在る検証の木を外せる | 親が main に無い検証の木と、commit 0 件の detached の木は拒む |
 
 作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。
