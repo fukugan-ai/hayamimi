@@ -79,7 +79,7 @@ The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP
 The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in.
 The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set that shrinks L), are in. They are not implemented yet.
 R8y-1 is issued after R8x-3. T-RP-32-048 now carries the not-implemented mark (owner: the code slice of H88).
-R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
+R8x-2 is split into R8x-2a (create `rp67.rs`; the pass test is in, and its real-run row needs a record in `docs/results/rp67/` and waits for windows E3' and E4) and R8x-2b (the code of H88).
 The offline gate of C and D (R8x-5) was run against the current rule and failed: with C and D, the splits by the early path alone rise from 4 to 6 on lat-ja and from 9 to 26 on held-out ja, and the candidates finalised with voice going on after them rise from 9 to 18 on held-out ja. D finalises one of the two slow utterances (22) 192 ms earlier and does not act on the other (16). The record is `docs/results/r8v/extra.md`.
 By the council's verdict, C and D are both taken out. R8x-6, R8x-6b (`rp86.rs`), RP-86 and RP-87 are stopped (H132 of `rust_port.ja.md`).
 The pass line of RP-67 is now a p95 of 1600 ms or less. 1200 ms and 1000 ms stay as targets. 1200 ms is not reached yet; the estimate for the present set is a p95 of about 1473 ms. 1600 ms is a line that stops things getting worse, not a speed target.

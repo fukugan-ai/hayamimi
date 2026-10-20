@@ -2132,7 +2132,7 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 
 ### 4.65 RP-67（主指標 `L` の p95 を 1600 ms 以下にする）
 
-**未実装。** この節の行はどれも、test の file も関数も repo に無い。実装の席が足す。
+**実装済み。** 19 行の関数は、どれも `native/hayamimi-eval/tests/rp67.rs` に 1 本ずつ在る（各行の「関数の末尾」の名前で `grep -c "^fn <名前>("` が 1）。判定は `support/machine.rs` の `check_runs` を呼び、p95 は `percentile::nearest_rank` をマイクロ秒のまま 1600 ms の線と比べる（丸めた ms では比べない）。
 合否の線は 1600 ms で、1200 ms と 1000 ms は目標である（D 3.19、H132）。test は 1200 ms を超える標本の数と 1200 ms での判定も、目標の側の記録として並べて書く。
 test：`native/hayamimi-eval/tests/rp67.rs`。受入 test の名前は `rp67_speech_end_to_translation_p95_is_within_1600_ms`。実走の行（T-RP-67-015）だけが `#[ignore]` を持ち、`docs/results/rp67/` の `e2e1.jsonl` と `e2e2.jsonl` を読む。ほかの行は fixture を読み、`--ignored` を付けずに通る。
 command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp67`。実走の行はこれに `-- --ignored` を足す。
