@@ -60,8 +60,8 @@ The placement changes only after RP-78 confirms that, in the split form (encoder
 The state of each slice is in the table in `docs/design/status.md`.
 The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
 Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
-The design for removing Python is in. It is not implemented yet, and Python is still there.
-The four documentation rewrites that come before removing Python are in. What remains are the two slices that port the RP-19 tests (R12a1 and R12a2).
+The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
+172 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them.
 For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. It does not work as a window yet.
 
 ### Related documents
