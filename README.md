@@ -82,6 +82,7 @@ R8y-1 is issued after R8x-3 and R8x-6. T-RP-32-048 now carries the not-implement
 R8x-2 is split into R8x-2a (create `rp67.rs`) and R8x-2b (the code of H88).
 The not-implemented marks of the RP-83 to RP-87 tests moved from single rows to the header of each whole test (owners: R8x-1, R8x-3, R8x-4 and R8x-6).
 The acceptance test of RP-86 (R8x-6b: `rp86.rs`, T-RP-86-001 to 053) is added to the remaining work (L16b), which makes the remaining count 42.
+The T of R8x-6b now runs to T-RP-86-054, a row for the positive control (001 to 054).
 
 ### Related documents
 
