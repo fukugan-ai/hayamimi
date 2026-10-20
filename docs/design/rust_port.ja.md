@@ -602,11 +602,19 @@ probe は 1 回の実走で、`temperature` 0 でも出力は決まらない（1
 `eval_asks_e_with_ts_prompt_and_the_draft_in_a_system_message` は、`eval` の E も同じ形であることを確かめる。
 陰性対照は、E の依頼から system を外すと、この 3 本を含む 11 本が落ちることである（実走した）。
 
-**初回の依頼（warm-up）**：`live` は、`relay.serve.started` を出す前に、T の形の短い依頼（`こんにちは。`、`max_tokens` 8）を `--llm` に 1 本だけ送り、答えを捨てる。
+**初回の依頼（warm-up）**：`live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` に 2 本、次の順に 1 本ずつ送り、答えを捨てる。
 最初の 1 回の遅さを、最初の字幕の前に払うためである。
-返れば `translate.warmup.sent`（info）、返らなければ `translate.warmup.failed`（warn。`detail` は失敗の種類だけ）を出し、起動は止めない。待つのは最長 10 秒である。
+2 本の形が違うのは、E の依頼が T の依頼と別の経路（system が付く 2 つの message）を通り、T の形だけを温めると最初の行の E が冷えたまま残るからである。
+
+1. **T の形**：user の message 1 つ（`こんにちは。` の T の prompt）、`max_tokens` 8。
+2. **E の形**：system と user の 2 つ、`max_tokens` 8。user は 1 本目と同じ文で、system は `pipeline::edit_system` が ja の原文に対して組む注（下書きは固定の `Hello.`、後ろに en 向けの calques の行が並ぶ）である。
+
+2 本を並べて送らないのは、slot を取り合って T の依頼が遅れるからである。
+2 本の待ちは合わせて最長 10 秒で、2 本目は 1 本目が使った残りだけ待つ。残りが無ければ 2 本目は送らず、`translate.warmup.failed` の `detail` が `budget` になる。
+依頼ごとに 1 件の event を出す。返れば `translate.warmup.sent`（info）、返らなければ `translate.warmup.failed`（warn。`detail` は失敗の種類だけ）で、どちらも `form`（`t` か `e`）を持つ。
+片方が失敗してももう片方を送り、起動は止めない。
 `--llm-other` には送らない。
-最初の 1 回がどれだけ遅いかは測っていない（NOT VERIFIED）。RP-32 の 3 run で、最初の行の T の時間を比べる。
+E の形を足すと最初の行の E が縮むことは、RP-32 の 3 run の最初の行の E の時間が 2 行目以降の E の時間に近いことで確かめる（NOT VERIFIED）。
 
 `--translate` の言語（今は FuguMT の en と、M2M-100 の zh、ko、es ほか）も、言語モデルの T で訳す。
 ja と en の間は CAT-Translate-3.3b で訳す。
