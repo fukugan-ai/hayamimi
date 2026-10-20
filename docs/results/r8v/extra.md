@@ -11,6 +11,8 @@ The outputs are `extra-lat.log` and `extra-heldout-ja.log` (one JSON row per set
 
 The gate does not pass. The pass line is that, on lat-ja and on held-out ja, both figures of X are within those of W.
 
+The independent verification seat has not passed this record.
+
 | set | figure | W | X | within W |
 |---|---|---|---|---|
 | lat-ja (23 utterances) | candidates finalised with voice going on after them | 3 | 3 | yes |

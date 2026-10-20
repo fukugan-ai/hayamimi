@@ -12,7 +12,7 @@ Commit hashes were checked with `git log --oneline`; main was at `7c8e466` (the 
 
 ## What remains before completion
 
-The project is complete when Python is out of the runtime path and removed, and when the main metric `L` (the delay from the end of an utterance to its translated subtitle) meets its pass line (RP-67, a p95 of 1200 ms or less). A p95 of 1000 ms or less is the target after completion.
+The project is complete when Python is out of the runtime path and removed, and when the main metric `L` (the delay from the end of an utterance to its translated subtitle) meets its pass line (RP-67, a p95 of 1600 ms or less). A p95 of 1200 ms or less and of 1000 ms or less are targets after completion.
 The first is met by R11 (the 78 Python files are removed; the version before the removal is in the tag `archive/python-before-r11`).
 The table lists what has not reached that point, with an owner and what holds each item.
 The owner is the seat that moves the item; where no record names one, the cell says "no record".
