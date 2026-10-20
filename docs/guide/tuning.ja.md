@@ -1,5 +1,11 @@
 # チューニング一覧
 
+「Pythonエンジン」の節はR11より前のPythonエンジンの既定値の記録で、R11の後の`hayamimi`には当てはまりません。
+今も正しい節は、「`hayamimi_core`（Flutter/Dart）」です。
+今の`hayamimi`の既定値は`native/hayamimi/src/args.rs`の定数とclapの既定にあります。
+たとえば`--min-silence`の既定は0.30秒（`DEFAULT_MIN_SILENCE`）で、`--threads`はありません。
+R11より前の版の読み方は、[`docs/README.ja.md`](../README.ja.md)の索引にあります。
+
 hayamimiの両実装について、ユーザーが触れるつまみを、既定値・変更する場所・
 その既定値を決めた記録つきで並べたものです。推定値は入れていません。既定値は
 すべて行に書いたコードから読み出したもので、「根拠」欄のリンクはその値を決めた

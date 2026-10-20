@@ -410,7 +410,7 @@ hayamimi-eval stages --provider cuda --wav lat-ja.wav --models <models> --only c
 流れは、VAD、発話ごとの速報の話者、2 秒の無音か 25 秒で区切る group、group ごとの再分離と全体の対応づけ、simpleder と同じ式の採点です。
 認識は掛けません。
 
-出力の 1 行の形は Python の `eval_diar.py --method refine_diarize` と同じで、`--out` の file にも同じ文字が入ります。
+出力の 1 行の形は R11 より前の Python の採点（`refine_diarize` の method）と同じで、`--out` の file にも同じ文字が入ります。
 `--min-silence` の既定は Python の run と同じ 0.35 です。
 `--models` を付けなければ、cwd から上へ向かって `models/silero_vad.onnx` を持つ `models/` を探します。
 

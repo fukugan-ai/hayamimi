@@ -1,5 +1,10 @@
 # Embedding hayamimi's Python engine in another app
 
+This file describes the Python engine as it was before R11, and it does not apply to `hayamimi` after R11.
+The sections that are still correct are "Items that tie a line to its translation", "The `translation` event", "The `speaker` event" and "Forms not taken".
+The current behavior lives in `native/hayamimi/src/api.rs`, `control.rs` and `wire.rs`, and in `Hub` of `hayamimi::server`.
+How to read the version before R11 is in the index of [`docs/README.md`](../README.md).
+
 Moved out of the repository root `README.md` on 2026-09-03; the two sections
 below are verbatim, so "above" in them still means "earlier in the README"
 ([`../../README.md`](../../README.md)).

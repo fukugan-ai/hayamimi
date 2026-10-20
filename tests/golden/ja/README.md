@@ -49,26 +49,19 @@ benchmark set `docs/results/benchmarks.md` scores against; the reference text in
 
 ## How the expected text was produced
 
-`scripts/make_ja_golden.py` builds the same objects
-`scripts/realtime_transcribe.py`'s `main()` builds for
-
-```
-python scripts/realtime_transcribe.py --wav <clip> --no-realtime \
-    --mode single --lang ja --threads 4
-```
-
-and reads the results off the `EventHub` with `add_listener`, so what is
-recorded is the pipeline's own structured output, not scraped stdout.
+`golden.json` is a record of a run of the Python engine made before R11.
+That run built the same objects as the command line in the `cli` entry of
+`_settings` in `golden.json`, and read the results off the event hub with a
+listener, so what is recorded is the pipeline's own structured output, not
+scraped stdout.
 `finals` is one entry per `final` event (fast path, one per VAD segment, after
 ITN and punctuation) and `refine` is the text of the last `refine` event (the
 second pass over the whole utterance group).
 
-Regenerate after an intentional change:
-
-```
-python scripts/make_ja_golden.py            # rewrite golden.json
-python scripts/make_ja_golden.py --check    # run and report, write nothing
-```
+There is no command in Rust that rebuilds `golden.json`.
+The tool for it, `hayamimi-eval golden`, does not exist, and the design leaves
+open whether it will (H104 of `docs/design/rust_port.ja.md`).
+`golden_gpu.json` holds what the Rust route said for the same clips.
 
 `golden.json` also records the CER of each recorded text against the FLEURS
 reference. Those numbers are **transparency, not a threshold** — nothing
@@ -77,13 +70,29 @@ pipeline handles well and which it does not.
 
 ## The two-level comparison rule
 
-`tests/test_ja_golden.py` re-runs the pipeline and compares, at two levels:
+`native/hayamimi-asr/tests/rp02.rs` (RP-2) runs the eight clips through the
+Rust route and passes when both of these hold (`check_golden`):
 
-1. **Exact match** — the `finals` list, character for character. Counted and
-   reported, but *not* the pass condition.
-2. **CER against the golden text** — the pass condition. A clip fails when
-   the character error rate between the recorded text and the fresh run
-   exceeds **1.0%** (`make_ja_golden.CER_TOLERANCE`).
+1. **All eight clips are present** in the result.
+2. **Each clip's CER is no greater than its record.** The CER is scored
+   against the FLEURS reference and compared as an integer in ten-thousandths
+   with `cer_finals_vs_reference` in `golden.json`. The error names every
+   clip that is worse.
+
+The test also checks that each wav has the sha256 recorded in `golden.json`.
+Run it with:
+
+```
+cd native && cargo test --release --jobs 2 -p hayamimi-asr --test rp02
+```
+
+The tests that run the models are marked `#[ignore]`, so the full run adds
+`-- --ignored`.
+
+The two-level rule described next is the rule of the Python test that existed
+before R11 (exact match of `finals`, and CER within 1.0%, the `_cer_tolerance`
+of `golden.json`). It explains the reason for a tolerance and does not run any
+more.
 
 The reason for the second level is that the recognizer runs int8 ONNX
 kernels, and int8 kernels are not bit-reproducible across CPU

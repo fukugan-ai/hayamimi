@@ -1,5 +1,11 @@
 # Tuning reference
 
+The "Python engine" section records the defaults of the Python engine before R11, and it does not apply to `hayamimi` after R11.
+The section that is still correct is "`hayamimi_core` (Flutter/Dart)".
+The defaults of the current `hayamimi` are in the constants of `native/hayamimi/src/args.rs` and in the clap defaults.
+For example, the default of `--min-silence` is 0.30 s (`DEFAULT_MIN_SILENCE`), and there is no `--threads`.
+How to read the version before R11 is in the index of [`docs/README.md`](../README.md).
+
 Every user-facing knob on both sides of hayamimi, with the value it ships
 at, where you change it, and the record that set that value. Nothing here is
 an estimate: each default is read out of the code named in the row, and each

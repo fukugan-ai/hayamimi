@@ -1,5 +1,10 @@
 # Android emulator verification of `hayamimi_core` (2026-09-01)
 
+This file is a dated record of runs made against the Python engine, and the commands in it were correct at that time.
+It does not describe `hayamimi` after R11, and no section of it is rewritten.
+The current home of the desktop pipeline is `native/hayamimi-asr/src/` (`recognizer.rs`, `vad.rs`, `punct/`, `itn.rs`).
+How to read the version before R11 is in the index of [`docs/README.md`](../README.md).
+
 Split out of `docs/MOBILE.md` on 2026-09-03, verbatim: this file holds the
 three "Android emulator verification" runs; the quantization and sizing log
 they belong to stayed in [`../design/mobile_quantization.md`](../design/mobile_quantization.md).

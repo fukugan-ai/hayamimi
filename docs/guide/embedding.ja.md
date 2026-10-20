@@ -1,5 +1,10 @@
 # 他アプリへの組み込み（Pythonエンジン）
 
+このfileはR11より前のPythonエンジンの記述で、R11の後の`hayamimi`には当てはまりません。
+今も正しい節は、「行と訳を結ぶ項目」「訳の`translation`」「`speaker`イベント」「採らない形」です。
+今の振る舞いの在り処は、`native/hayamimi/src/api.rs`、`control.rs`、`wire.rs`と、`hayamimi::server`の`Hub`です。
+R11より前の版の読み方は、[`docs/README.ja.md`](../README.ja.md)の索引にあります。
+
 2026-09-03にリポジトリ直下の`README.ja.md`から切り出したもの。以下の2節は
 そのままの文面なので、文中の「前述」「上の」はREADME側を指しています
 （[`../../README.ja.md`](../../README.ja.md)）。
