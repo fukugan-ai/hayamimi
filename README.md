@@ -72,6 +72,8 @@ GitHub CI succeeded on both ubuntu and windows.
 The R13-17 acceptance test (checking that the validity line of each `final` follows the rule that ended it) is in. Only 2 tests in T are still marked as not implemented: T-RP-10-007 and T-RP-16-037.
 R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
 The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
+The test definitions of RP-83 to RP-87 are in. The only slices issued now are R8x-1, R8x-3, R8x-4 and `rp67.rs` of R8x-2. `rp79.rs`, L3, R8x-5, R8x-6, window E2 and window E3 are on hold.
+The offline gate of policy B (H100) failed. The rule of B is fixed and the gate is run again exactly once. The completion date (the night of 10-26 to the small hours of 10-27) assumes B passes, so it is issued again after B is settled.
 
 ### Related documents
 
