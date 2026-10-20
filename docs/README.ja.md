@@ -26,7 +26,7 @@ English: [README.md](README.md)
 | [`guide/embedding.md`](guide/embedding.md) / [`guide/embedding.ja.md`](guide/embedding.ja.md) | en / ja | 結論 | Pythonエンジンを自分のアプリから動かす方法。importできる部品、構造化イベントの一覧、`POST /config`、`POST /reset`。 |
 | [`../mobile/hayamimi_core/README.md`](../mobile/hayamimi_core/README.md) / [`../mobile/hayamimi_core/README.ja.md`](../mobile/hayamimi_core/README.ja.md) | en / ja | 結論 | Flutter/Dartパッケージのガイド。初期化、モデル配置、実行時設定、スレッドモデル、プラットフォーム状況。 |
 | [`spec/ja_pipeline.md`](spec/ja_pipeline.md) / [`spec/ja_pipeline.ja.md`](spec/ja_pipeline.ja.md) | en / ja | 結論 | 他言語で再実装できる粒度まで書いた日本語経路の仕様。 |
-| [`spec/ja_pipeline_spec.json`](spec/ja_pipeline_spec.json) | — | 結論 | 同じ設定の機械可読版。`scripts/dump_ja_config.py`が生成し、`tests/test_ja_pipeline_spec.py`が差分を見るので、仕様とコードが黙って乖離しない。 |
+| [`spec/ja_pipeline_spec.json`](spec/ja_pipeline_spec.json) | — | 結論 | 同じ設定の機械可読版。`hayamimi config dump`の出力から作り直す設計で、仕様とコードが黙って乖離しないようにする（このcommandは未実装）。 |
 
 ## 調整する
 
@@ -46,6 +46,8 @@ English: [README.md](README.md)
 
 特定の実行のスナップショットです。コードが先に進んでも更新しません。当時どう
 測って何が出たかを読むためのものです。
+`eval/`と、`results/`の日付つき記録にあるPythonのcommandは、R11でPythonを消す前の版で
+打った物です。打ち直すときは、その版のcheckoutで打ってください。
 
 | 文書 | 言語 | 種別 | 内容 |
 |---|---|---|---|
@@ -61,7 +63,7 @@ English: [README.md](README.md)
 | [`eval/ko_candidates.md`](eval/ko_candidates.md) | en | 日付つき記録 | 韓国語経路の代替: ゲイン正規化した zipformer-ko、言語固定の SenseVoice、Omnilingual。SenseVoice 維持。サイズ上限を緩めるなら Cohere Transcribe が次の候補。 |
 | [`eval/video_test.md`](eval/video_test.md) | ja | 日付つき記録 | 実YouTube動画6本をフルパイプラインに通した2026-08-24の記録。ノイズ抑制の作業はここから始まった。 |
 | [`eval/head_dropout.md`](eval/head_dropout.md) | ja | 日付つき記録 | 発話冒頭がどれだけ落ちるかの実測。プリロールと「疑わしいときだけ再試行」の根拠。 |
-| [`eval/head_dropout_results.json`](eval/head_dropout_results.json) | — | 日付つき記録 | その計測のクリップ単位の生出力。`scripts/eval_head_dropout.py`が書き出す。 |
+| [`eval/head_dropout_results.json`](eval/head_dropout_results.json) | — | 日付つき記録 | その計測のクリップ単位の生出力。R11で消える評価scriptが書き出した。 |
 | [`eval/en_candidates.md`](eval/en_candidates.md) | ja | 日付つき記録 | en経路をv3から en専用Parakeet v2に振り替える価値があるか。FLEURS/実音声WER・ライセンス・メモリを比較し、v2を採用(opt-in、既定はv3のまま)。 |
 | [`eval/punct_retrain.md`](eval/punct_retrain.md) | en | 日付つき記録 | 4クラス（＋なし）の日本語句読点モデルをゼロから再学習（MIT の `modernbert-ja-30m` ベース、ODC-By の FineWeb-2 テキスト）。FLEURS ja で F1 0.89（現行 0.62）、？／！対応、約10倍高速。opt-in の代替として採用（既定の句読点器は無変更）。1回目がライセンスで不採用になった経緯と、現行モデルが勝つセットも記載。 |
 

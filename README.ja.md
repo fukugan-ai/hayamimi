@@ -103,14 +103,14 @@ Whisper系・クラウドSTT API・他のローカルモデルとの比較（hay
 | 話者ラベル | `--speakers`でCAM++埋め込みによりリアルタイムにS1/S2/...をタグ付けし、清書パスでpyannote segmentation-3.0による本格的な再分離をかけ直して同じS{n}に対応付け（AMI 5会議でDER平均25.7%→13.9%、詳細はLimitations参照） |
 | 翻訳 | `--translate en,zh,ko,es,...`で日本語行をリアルタイム翻訳（en=FuguMT。それ以外はモデルの語彙が対応していれば任意のM2M-100ターゲット言語コードを受け付ける。zh/ko/esは品質を実測済み、詳細はdocs/design/translate_m2m.md） |
 | ホットワード/置換辞書 | `--hotwords`で固有名詞認識を強化（現状jaルートには効果なし。既知の制限を参照）、`--replace`は事後の検索置換でどのルートでも有効 |
-| 漢数字→算用数字変換 | 位取りの漢数字・点小数・桁読みの数字列を保守的に算用数字へ変換（日/中/広東語のみ）。慣用句・固有名詞（一番、一緒、九州など）は既定で変換しない（`scripts/itn_cjk.py`） |
-| 実行時辞書API | `RoutedASR.set_replacements()` / `set_itn_overrides()`でセッション中に置換辞書・ITN例外/強制指定を差し替え可能。`--serve`使用時は`GET`/`POST /replacements`・`/itn_overrides`でも同じことができる |
+| 漢数字→算用数字変換 | 位取りの漢数字・点小数・桁読みの数字列を保守的に算用数字へ変換（日/中/広東語のみ）。慣用句・固有名詞（一番、一緒、九州など）は既定で変換しない（Rust版は `hayamimi-asr::itn`） |
+| 実行時辞書API | `--serve`使用時は`GET`/`POST /replacements`・`/itn_overrides`で、セッション中に置換辞書・ITN例外/強制指定を差し替えられる |
 | 構造化イベント + 実行時設定 | パイプラインの各段階（確定文、翻訳、モデル読み込み、警告、セッション集計...）が`EventHub`に発行され、組み込み先アプリはこれを直接listenできる。`--serve`時はさらに`GET`/`POST /config`と`POST /reset`が使え、プロセスを再起動せずに言語・翻訳・VAD設定の変更やセッションのリセットができる（詳細は後述の「組み込み: 実行時制御と構造化イベント」参照） |
 | OBSオーバーレイ+ダッシュボード | `--serve`でローカルHTTPサーバーを起動、ブラウザソースオーバーレイとライブダッシュボードを提供 |
 | ネットワーク音声入力 | `--input ws`でWebSocket経由のマイク音声（スマホ、ESP32/スタックチャン等）を受け付け、`--serve`のダッシュボード/オーバーレイにもそのまま流れる |
 | スピーカーループバック入力 | `--input speaker`でPC内部のスピーカー（システム音声出力）をWASAPIループバックで文字起こし（Windows専用、Stereo Mixの有効化は不要）。`--input mix`はマイクとスピーカー音声を合成した1本のストリームとして文字起こし（会議の文字起こしなどに） |
-| 英語v2ティア（オプトイン） | `--en-tier v2`で既定の多言語Parakeet v3から英語専用のParakeet TDT v2に切り替え（`download_models.py --en-parakeet-v2`が必要、常駐+約660MB）。FLEURS enでWER 10.0%→6.6%を実測（`docs/eval/en_candidates.md`） |
-| 4クラス日本語句読点（オプトイン） | `--punct-model 4class`で既定のBERT復元器から、、/。/？/！を直接予測する単一モデルに切り替え（既定モデルにない？/！への本格対応）。int8で約37MB、FLEURS jaで約4.6ms/行だが、密なWebテキストで学習しているためTV字幕のような疎な句読点領域では既定モデルに劣る（`docs/eval/punct_retrain.md`、既知の制限参照）。`download_models.py --punct-4class`が必要 |
+| 英語v2ティア（オプトイン） | `--en-tier v2`で既定の多言語Parakeet v3から英語専用のParakeet TDT v2に切り替え（`hayamimi models fetch --en-parakeet-v2`が必要、常駐+約660MB）。FLEURS enでWER 10.0%→6.6%を実測（`docs/eval/en_candidates.md`） |
+| 4クラス日本語句読点（オプトイン） | `--punct-model 4class`で既定のBERT復元器から、、/。/？/！を直接予測する単一モデルに切り替え（既定モデルにない？/！への本格対応）。int8で約37MB、FLEURS jaで約4.6ms/行だが、密なWebテキストで学習しているためTV字幕のような疎な句読点領域では既定モデルに劣る（`docs/eval/punct_retrain.md`、既知の制限参照）。`hayamimi models fetch --punct-4class`が必要 |
 | メモリ上限管理 | LRUモデル退避で常駐モデルを上限内（既定<2GB）に制御 |
 | CPUのみ | すべてのモデルがsherpa-onnx経由の量子化ONNXとして動作。GPU・PyTorch不要 |
 
@@ -138,7 +138,7 @@ Whisper系・クラウドSTT API・他のローカルモデルとの比較（hay
 送って、hayamimiの通常パイプラインでそのまま文字起こしできます。
 
 ```bash
-.venv/Scripts/python scripts/realtime_transcribe.py --input ws --serve
+hayamimi --input ws --serve
 # -> ws://<host>:8766/ingest が音声を受け付け、http://localhost:8833/dashboard に結果が出る
 ```
 
@@ -147,9 +147,9 @@ Whisper系・クラウドSTT API・他のローカルモデルとの比較（hay
 `pcm_s16le`音声をバイナリフレームで連続送信します。16kHz以外はサーバー側で
 リサンプリングし、ダッシュボードのSSEストリームと同じpartial/final/translation/refine
 のJSONイベントを返すので、クライアント側で独自に字幕表示することもできます。
-音声を送るクライアントは同時に1本だけ受け付けます。`scripts/ws_mic_client.py`は
-外部ライブラリ不要の参照クライアント（wavファイルを実時間ペースで送信）で、
-スマホ/ESP32クライアントを作るときのテンプレートにもなります。
+音声を送るクライアントは同時に1本だけ受け付けます。wavファイルを実時間ペースで
+`/ingest`へ送る参照クライアントは`hayamimi-eval stream`で、送る形はスマホ/ESP32
+クライアントを作るときの手本にもなります。
 
 `--input ws`は既定で`127.0.0.1`にバインドするので、エンドポイントは何もしなければ
 localhostからしかアクセスできません。LAN上の他端末を受け付けたいときだけ
@@ -164,11 +164,11 @@ localhostからしかアクセスできません。LAN上の他端末を受け�
 会議の文字起こし（自分の声＋通話相手の声を両方拾う）などに使えます。
 
 ```bash
-.venv\Scripts\python scripts\realtime_transcribe.py --input speaker
-.venv\Scripts\python scripts\realtime_transcribe.py --input mix
+hayamimi --input speaker
+hayamimi --input mix
 ```
 
-`soundcard`パッケージ経由のWASAPIループバックを使っており、レンダー
+WASAPIのループバック（Rustの`wasapi` crate経由）を使っており、レンダー
 エンドポイントを直接タップするため、従来の「ステレオミキサー」のように
 Windowsのサウンド設定で事前に有効化する必要はなく、サウンドドライバーが
 ステレオミキサーを提供していない環境でも動作します。**Windows専用**です
@@ -182,8 +182,8 @@ Windowsのサウンド設定で事前に有効化する必要はなく、サウ�
 拾わないよう、ヘッドホンの利用を推奨します。
 
 既定ではシステムの既定入力/出力デバイスを使います。マイクや出力デバイスが
-複数ある場合は`--list-audio-devices`で一覧を確認でき、`--mic-device NAME`
-/ `--speaker-device NAME`（部分一致）で個別に指定できます。リモート
+複数ある場合は、`--mic-device NAME` / `--speaker-device NAME`（部分一致）で
+個別に指定できます。リモート
 デスクトップ経由で接続している場合、PC本体の物理マイクは基本的に開けません
 （Windowsがセッションをまたいだアクセスをブロックするため）――代わりに
 RDPクライアント側でマイクリダイレクトを有効にするか（`mstsc`の場合:
@@ -193,71 +193,64 @@ RDPクライアント側でマイクリダイレクトを有効にするか（`m
 
 ## 他アプリへの組み込み
 
-`scripts/realtime_transcribe.py`の各部品（`RoutedASR`、`build_vad`、
-`run_stream`）はCLI専用ではなくimportして使えます。組み立てたセッションは
-動かしたまま設定変更と監視ができ、`hub.add_listener(callback)`はHTTPサーバー
-なしで構造化JSONイベント（`partial`・`final`・`refine`・`model_load`・
-`warning`など）をプロセス内で受け取れます。`--serve`を付けると同じセッションに
-`GET`/`POST /config`と`POST /reset`が生えます。イベント一覧、`/config`のキー、
-`POST /reset`の挙動といった詳細は
+Rust版の部品は`native/hayamimi-asr`にあります。言語の振り分けは`hayamimi-asr::route`、
+発話の検出は`hayamimi-asr::vad`、日本語の認識の流れは`hayamimi-asr::pipeline`で、
+`hayamimi`はこれらを呼ぶ実行物です。`hayamimi --serve`を付けると、動かしている
+セッションに`GET`/`POST /config`、`POST /reset`、`GET`/`POST /replacements`と
+`/itn_overrides`が生え、構造化JSONイベントは`GET /events`で受け取れます。
+イベント一覧、`/config`のキー、`POST /reset`の挙動といった詳細は
 [`docs/guide/embedding.ja.md`](docs/guide/embedding.ja.md)にあります。
 Flutter/Dart側は[`mobile/hayamimi_core/README.md`](mobile/hayamimi_core/README.md)。
 
-```python
-from asr_engine import RoutedASR
-
-# en_tier="v2"、punct_model="4class"はどちらもオプトイン（上の「機能」参照）。
-# 省略すれば従来どおり（v3 / bert）。未知の値はコンストラクタでValueErrorになり、
-# 未ダウンロードのオプトインモデルは既定モデルへ自動で後退し`warning`イベントが出る。
-with RoutedASR(en_tier="v2", punct_model="4class", on_event=hub.publish) as asr:
-    ...  # asr.transcribe(...) / asr.partial(...)
-# `with`を抜けると自動でclose()が呼ばれる。使わない場合は自分でasr.close()を
-# 呼ぶこと -- 詳細はembedding.ja.mdの「パイプラインの終了」を参照。
-```
-
 ## 動作環境
 
-Python 3.10以上と、PATHの通ったffmpegが必要です。開発と検証は**Windows 11**で行いました。
-使っているランタイムはどれもクロスプラットフォームなのでmacOS/Linuxでも動くはずですが、
-実機での通し確認はまだできていません。動いた・動かなかったの報告を歓迎します。
+Rust版の`hayamimi`は、`native/`のCargo workspaceでbuildします。GPU版のsherpa-onnxのbuildが前提です
+（手順は[`docs/guide/build_gpu.ja.md`](docs/guide/build_gpu.ja.md)と
+[`docs/guide/run_hayamimi.ja.md`](docs/guide/run_hayamimi.ja.md)）。
+開発と検証は**Windows 11**で行いました。
+音声の取り込みは、マイクがWindowsとLinux、スピーカーのloopbackがWindowsです。
+macOSなど取り込みの経路が無い機械では、`--input ws`（`/ingest`）かwavファイルを使います。
+Linuxのマイクを実機で通した確認は、この文書では取っていません（NOT VERIFIED：確かめ方は、Linuxの実機で`hayamimi --input mic`を動かして字幕を見ることです）。
 
 ## クイックスタート
 
+実行物を作り、モデルを取り、動かす順です。
+手順は1つずつ打ちます。
+
 ```bash
-python -m venv .venv
+# 1. 実行物を作る（SHERPA_ONNX_LIB_DIRには、GPU版sherpa-onnxのbuildのinstall/libを渡す）
+cd native
+SHERPA_ONNX_LIB_DIR=<sherpa-onnxのinstall/lib> cargo build --release -p hayamimi
 
-# Windows
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python scripts\download_models.py
+# 2. モデルを取得する（models/ に置く。git管理外）
+hayamimi models fetch --dir models
 
-# macOS / Linux
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/download_models.py
-
-# マイクからリアルタイム認識
-.venv/Scripts/python scripts/realtime_transcribe.py     # Windows
-.venv/bin/python scripts/realtime_transcribe.py          # macOS/Linux
+# 3. マイクからリアルタイム認識
+hayamimi --input mic
 
 # PC内部のスピーカー（システム音声出力）から認識 -- Windows専用
-.venv\Scripts\python scripts\realtime_transcribe.py --input speaker
+hayamimi --input speaker
 
 # マイク+スピーカーを合成して同時に認識（会議の文字起こしなどに）
-.venv\Scripts\python scripts\realtime_transcribe.py --input mix
+hayamimi --input mix
 
 # ダッシュボード + OBSオーバーレイ付き
-.venv/Scripts/python scripts/realtime_transcribe.py --serve
+hayamimi --input mic --serve
 # -> ブラウザで http://localhost:8833/dashboard を開く
 ```
 
-`scripts/download_models.py`は約3.1GB分のモデルを`models/`（git管理外）にダウンロードします。
-`--minimal`を付けると日本語と英語だけの約1.1GB構成になります。上記2つのオプトイン
-ティアは個別のフラグで追加します: `--en-parakeet-v2`（+約460MB、`--en-tier v2`用）と
-`--punct-4class`（+約40MB、`--punct-model 4class`用）。どちらも`--minimal`と併用でき、
-省略されません。各モデルのライセンスは`THIRD_PARTY_NOTICES.md`にまとめてあります。
+`hayamimi`は、既定のtarget directoryでは`native/target/release/hayamimi`にできます。
+`models fetch`は既定の全組を取ります。`--minimal`を付けると、日本語と英語の核の4組
+（ReazonSpeechのint8認識、whisper-tinyの言語判定、SileroのVAD、BERTの句読点）だけです。
+オプトインの2組は個別のフラグで加えます。`--en-parakeet-v2`は英語専用のParakeet v2、
+`--punct-4class`は4クラスの日本語句読点モデルで、どちらも`--minimal`と併せられます。
+取得量はRust版で測っていません（NOT VERIFIED：確かめ方は、取得後に`du -sh models`を打つことです）。
+各モデルのライセンスは`THIRD_PARTY_NOTICES.md`にまとめてあります。
 
 ## CLIリファレンス
 
-フラグはすべて`scripts/realtime_transcribe.py`のものです。
+次の表は、原版のPython実行系のフラグと既定値です。
+Rust版の`hayamimi`が受けるフラグは`hayamimi --help`で見られ、使い方は[`docs/guide/run_hayamimi.ja.md`](docs/guide/run_hayamimi.ja.md)にあります。
 
 | フラグ | 既定値 | 説明 |
 |---|---|---|
@@ -285,8 +278,8 @@ python -m venv .venv
 | `--speakers` | オフ | 発話に話者ID（S1, S2, ...）をラベル付け。清書パスでpyannote segmentation-3.0による再分離をかけ直す |
 | `--speaker-remap-threshold T` | 0.35 | 清書パスの分離結果をセッション全体のS{n}ラベルへ対応付ける際のコサイン類似度閾値（速報パスは従来の0.45のまま） |
 | `--translate [LANGS]` | オフ、`en` | 日本語行をカンマ区切りの言語に翻訳。`en`は専用のFuguMTモジュール、それ以外（`zh`/`ko`/`es`/`fr`など）はモデルの語彙が対応していれば受け付ける。`zh`/`ko`/`es`以外は品質未実測の旨をnoteで表示、詳細はdocs/design/translate_m2m.md |
-| `--en-tier {v3,v2}` | `v3` | `en`をどのParakeetモデルで処理するか。`v3`は他の欧州24言語（V3_LANGS）も兼ねる。`v2`はオプトインの英語専用モデルでWERが低い（`download_models.py --en-parakeet-v2`が必要。未ダウンロードなら`v3`へ後退し`model_fallback`イベントが出る）。詳細は`docs/eval/en_candidates.md` |
-| `--punct-model {bert,4class}` | `bert` | 日本語の句読点復元にどのモデルを使うか。`bert`は現行のMojicast BERT-char復元器（モデルはコンマ/句点のみ予測し「？」はサフィックスの発見的規則で付与、「！」は非対応）。`4class`はオプトインで、、/。/？/！を直接予測する（`download_models.py --punct-4class`が必要。未ダウンロードなら`bert`へ後退し`warning`イベントが出る）。詳細は`docs/eval/punct_retrain.md` |
+| `--en-tier {v3,v2}` | `v3` | `en`をどのParakeetモデルで処理するか。`v3`は他の欧州24言語（V3_LANGS）も兼ねる。`v2`はオプトインの英語専用モデルでWERが低い（`hayamimi models fetch --en-parakeet-v2`が必要。未ダウンロードなら`v3`へ後退し`model_fallback`イベントが出る）。詳細は`docs/eval/en_candidates.md` |
+| `--punct-model {bert,4class}` | `bert` | 日本語の句読点復元にどのモデルを使うか。`bert`は現行のMojicast BERT-char復元器（モデルはコンマ/句点のみ予測し「？」はサフィックスの発見的規則で付与、「！」は非対応）。`4class`はオプトインで、、/。/？/！を直接予測する（`hayamimi models fetch --punct-4class`が必要。未ダウンロードなら`bert`へ後退し`warning`イベントが出る）。詳細は`docs/eval/punct_retrain.md` |
 
 ## アーキテクチャ
 
@@ -476,7 +469,7 @@ PythonとRustを同じ負荷で交互に3対流した測定で、E2E-1の正式�
 ## ライセンス
 
 ソースコードはMITライセンスです（`LICENSE`）。モデルの重みはこのリポジトリに含まれておらず、
-`scripts/download_models.py`が各配布元からダウンロードします。モデルごとのライセンスは
+`hayamimi models fetch`が各配布元からダウンロードします。モデルごとのライセンスは
 `THIRD_PARTY_NOTICES.md`にまとめました。
 
 1つだけ注意が必要なモデルがあります。日→英翻訳モデル（`mojicast-fugumt-ja-en-ct2`、
@@ -555,5 +548,6 @@ docs/images/   READMEが使う画像
 - 不採用の結果も残す。「実測したうえで不採用」は数値つきなら成功と同じだけ価値が
   あり、このプロジェクトの記録はそれで埋まっています。
 
-`docs/`の下で移動やリネームをしたら`python scripts/check_doc_links.py`を実行して
-ください。CIでは`tests/test_doc_links.py`が同じ検査をします。
+`docs/`の下で移動やリネームをしたら、repoの根で
+`cargo run --release --manifest-path native/Cargo.toml -p hayamimi-eval -- doc-links`
+を実行してください。Markdownのlinkの行き先のfileが在るかを見ます。

@@ -1,7 +1,7 @@
 # Third-Party Notices
 
 hayamimi (早耳)'s own source code is MIT-licensed (see `LICENSE`). It ships no
-model weights in this repository -- `scripts/download_models.py` fetches
+model weights in this repository -- `hayamimi models fetch` fetches
 pretrained models from their original publishers into `models/` (git-ignored).
 Those models carry their own licenses, listed below. **Read the "Translation
 models" row carefully before redistributing anything that bundles model
@@ -15,7 +15,7 @@ weights** -- one of them is share-alike, not permissive.
 | `sherpa-onnx-paraformer-zh-int8-2025-10-07` (Paraformer-zh, zh) | Alibaba DAMO Academy / FunASR | Apache-2.0 | [FunASR](https://github.com/modelscope/FunASR) / ModelScope, packaged by k2-fsa/sherpa-onnx |
 | `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17` (SenseVoice small, ko/yue) | Alibaba / FunAudioLLM | Apache-2.0 (code) + FunASR Model Open Source License Agreement (official weights; permits commercial use with attribution) | [FunAudioLLM/SenseVoice](https://github.com/FunAudioLLM/SenseVoice), packaged by k2-fsa/sherpa-onnx |
 | `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8` (Parakeet TDT 0.6B v3, en + 24 EU langs) | NVIDIA | CC-BY-4.0 | [nvidia/parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), packaged by k2-fsa/sherpa-onnx |
-| `sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8` (Parakeet TDT 0.6B v2, en-only; opt-in via `--en-tier v2` / `download_models.py --en-parakeet-v2`, see `docs/eval/en_candidates.md`) | NVIDIA | CC-BY-4.0 | [nvidia/parakeet-tdt-0.6b-v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2), packaged by k2-fsa/sherpa-onnx |
+| `sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8` (Parakeet TDT 0.6B v2, en-only; opt-in via `--en-tier v2` / `hayamimi models fetch --en-parakeet-v2`, see `docs/eval/en_candidates.md`) | NVIDIA | CC-BY-4.0 | [nvidia/parakeet-tdt-0.6b-v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2), packaged by k2-fsa/sherpa-onnx |
 | `omnilingual-300m-ctc-int8` (Meta Omnilingual ASR 300M CTC, ~1600-language fallback) | Meta AI | Apache-2.0 | [facebook/omniASR-CTC-300M](https://huggingface.co/facebook/omniASR-CTC-300M) / [facebookresearch/omnilingual-asr](https://github.com/facebookresearch/omnilingual-asr), ONNX export packaged by k2-fsa/sherpa-onnx |
 | `sherpa-onnx-whisper-tiny` (spoken-language ID) | OpenAI | MIT | [openai/whisper](https://github.com/openai/whisper), ONNX export packaged by k2-fsa/sherpa-onnx |
 | `silero_vad.onnx` (voice activity detection) | Silero Team | MIT | [snakers4/silero-vad](https://github.com/snakers4/silero-vad), packaged by k2-fsa/sherpa-onnx |
@@ -26,7 +26,7 @@ weights** -- one of them is share-alike, not permissive.
 | Model (dir under `models/`) | Publisher | License | Source |
 |---|---|---|---|
 | `mojicast-punct-onnx` (Japanese punctuation restoration) | Base models: Tohoku NLP + bobfromjapan; ONNX export: Mojicast (ishiki-emo) | Apache-2.0 | [tohoku-nlp/bert-base-japanese-char-v3](https://huggingface.co/tohoku-nlp/bert-base-japanese-char-v3), [bobfromjapan/bert_japanese_punctuation](https://huggingface.co/bobfromjapan/bert_japanese_punctuation), export: [ishiki-emo/mojicast-punct-onnx](https://huggingface.co/ishiki-emo/mojicast-punct-onnx) |
-| `punct-ja-4class-permissive` (Japanese 4-class punctuation restoration, opt-in `PunctuatorJa4Class` / `--punct-model 4class`; trained by `scripts/train_punct_ja.py`, downloaded via `download_models.py --punct-4class`) | Base model: SB Intuitions; fine-tune: hayamimi | MIT | [sbintuitions/modernbert-ja-30m](https://huggingface.co/sbintuitions/modernbert-ja-30m), fine-tuned on [HuggingFaceFW/fineweb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) `jpn_Jpan` (ODC-By 1.0 -- credit FineWeb-2 when redistributing the weights) -- see `docs/eval/punct_retrain.md` |
+| `punct-ja-4class-permissive` (Japanese 4-class punctuation restoration, opt-in `PunctuatorJa4Class` / `--punct-model 4class`; downloaded via `hayamimi models fetch --punct-4class`) | Base model: SB Intuitions; fine-tune: hayamimi | MIT | [sbintuitions/modernbert-ja-30m](https://huggingface.co/sbintuitions/modernbert-ja-30m), fine-tuned on [HuggingFaceFW/fineweb-2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) `jpn_Jpan` (ODC-By 1.0 -- credit FineWeb-2 when redistributing the weights) -- see `docs/eval/punct_retrain.md` |
 | `mojicast-m2m100-ct2` (M2M-100 418M, ja->zh/ko translation) | Meta AI (base model); CTranslate2 conversion: Mojicast (ishiki-emo) | MIT | [facebook/m2m100_418M](https://huggingface.co/facebook/m2m100_418M), conversion: [ishiki-emo/mojicast-m2m100-ct2](https://huggingface.co/ishiki-emo/mojicast-m2m100-ct2) |
 | `opus-mt-ja-en-src` / `opus-mt-ja-es-src` (translation replacement candidates, `--translate-candidates`, eval only -- not adopted) | Helsinki-NLP | Apache-2.0 | [Helsinki-NLP/opus-mt-ja-en](https://huggingface.co/Helsinki-NLP/opus-mt-ja-en), [Helsinki-NLP/opus-mt-ja-es](https://huggingface.co/Helsinki-NLP/opus-mt-ja-es) -- see `docs/eval/translate_candidates.md` |
 | `m2m100-1.2B-src` (translation replacement candidate, `--translate-candidates`, eval only -- not adopted) | Meta AI | MIT | [facebook/m2m100_1.2B](https://huggingface.co/facebook/m2m100_1.2B) -- see `docs/eval/translate_candidates.md` |
@@ -46,10 +46,9 @@ weights** -- one of them is share-alike, not permissive.
 
 ## Eval-only baseline models (not used by the runtime pipeline)
 
-These are downloaded only if you run `scripts/download_models.py` without
-`--minimal` and are referenced solely by `scripts/eval_accuracy.py` /
-`scripts/make_realset_zhko.py` as comparison baselines during accuracy
-evaluation -- `asr_engine.py`'s routing does not use them.
+`hayamimi models fetch` does not fetch these. They served only as comparison
+baselines during accuracy evaluation, and the runtime routing does not use
+them.
 
 | Model (dir under `models/`) | Publisher | License | Source |
 |---|---|---|---|
@@ -62,7 +61,7 @@ LID replacement candidates (a)/(d) in `docs/eval/lid_candidates.md` use
 the VoxLingua107 dataset) via a separate `.venv-train` (torch/speechbrain
 are not runtime dependencies of this project -- see that doc's "再現コマンド"
 section for setup). Downloaded into `.venv-train/pretrained/` (gitignored,
-outside `models/`), not by `download_models.py`.
+outside `models/`), not by `hayamimi models fetch`.
 
 ## Python runtime dependencies
 
@@ -119,11 +118,11 @@ feed.
 (`google/fleurs`, `ja_jp`), Copyright Google, licensed
 **CC BY 4.0** (<https://creativecommons.org/licenses/by/4.0/>). They are
 committed unmodified, together with their reference transcripts, so
-`tests/test_ja_golden.py` can pin the Japanese route's output without a
+the Rust tests can pin the Japanese route's output without a
 download. See `tests/golden/ja/README.md` for the per-clip FLEURS ids.
 
 No other corpus audio is committed: `testdata/` is untracked and is fetched
-by the eval scripts.
+by `hayamimi-eval fetch-set`.
 
 ## Design inspiration
 

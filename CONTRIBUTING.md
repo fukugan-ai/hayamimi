@@ -2,20 +2,28 @@
 
 ## Setup
 
+Build the executable and fetch the models. The build needs the GPU build of
+sherpa-onnx first (see [`docs/guide/build_gpu.ja.md`](docs/guide/build_gpu.ja.md),
+Japanese only).
+
 ```bash
-python -m venv .venv
-.venv/Scripts/pip install -r requirements-dev.txt   # includes requirements.txt
-.venv/Scripts/python scripts/download_models.py
+cd native
+SHERPA_ONNX_LIB_DIR=<sherpa-onnx install/lib> cargo build --release -p hayamimi
+hayamimi models fetch --dir models
 ```
 
 ## Tests
 
+Run the tests of one crate at a time, with the project's two build jobs:
+
 ```bash
-.venv/Scripts/python -m pytest tests
+cd native
+cargo test --release --jobs 2 -p hayamimi-asr
 ```
 
-`tests/test_units.py` covers unit-level logic (character-set arbitration,
-fallback behavior, etc.) and doesn't require the full model set.
+The unit-level logic (language routing, fallback behavior, etc.) is tested in
+the `#[cfg(test)]` modules next to the code in `native/hayamimi-asr`, and
+the other crates carry theirs the same way.
 
 ## Accuracy evaluation
 
@@ -25,12 +33,16 @@ built on real-speech regressions that unit tests alone would have missed
 (e.g. iteration #27's Cantonese regression from a routing change that passed
 every existing test).
 
-- `scripts/eval_accuracy.py` -- ja accuracy vs. `faster-whisper large-v3-turbo`
-  as reference.
-- `scripts/eval_engine.py` -- end-to-end scorecard across all 5 language
-  routes (what `docs/results/scorecard.md` is generated from).
-- `scripts/bench_offline.py` -- offline RTF (speed) benchmarking for a given
-  model directory.
+- `hayamimi-eval scorecard` -- scores the engine on the real-speech sets and
+  writes the scorecard as JSON (the kind of table `docs/results/scorecard.md`
+  holds).
+- `hayamimi-eval stages` -- times every stage of the Rust port on one
+  provider and writes a run file (RTF and the time of each stage).
+- `hayamimi-eval chrf` and `hayamimi-eval der` -- score translations with chrF
+  and speaker labels with DER.
+
+Run them as `cargo run --release -p hayamimi-eval -- <command> --help` from
+`native/`.
 
 **Policy: any change to model routing, decoding parameters, or
 language-detection logic should be re-validated by re-running the relevant
@@ -85,8 +97,9 @@ to find out.
 - Negative results are recorded too. "Measured, not adopted" with the numbers
   is worth as much as a win, and this project's history is full of them.
 
-Run `python scripts/check_doc_links.py` after moving or renaming anything
-under `docs/`; `tests/test_doc_links.py` runs the same check in CI.
+Run `cargo run --release --manifest-path native/Cargo.toml -p hayamimi-eval -- doc-links`
+from the repository root after moving or renaming anything under `docs/`.
+It checks that every Markdown link points at a file that exists.
 
 ## Pull requests
 
@@ -94,4 +107,5 @@ under `docs/`; `tests/test_doc_links.py` runs the same check in CI.
 - If you change decode parameters, routing thresholds, or add/replace a
   model, include the before/after eval numbers in the PR description.
 - If you add a new model dependency, update `THIRD_PARTY_NOTICES.md` and
-  `scripts/download_models.py` in the same PR.
+  the model list of `hayamimi models fetch` (`native/hayamimi/src/models_fetch/items.rs`)
+  in the same PR.
