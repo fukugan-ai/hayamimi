@@ -2318,6 +2318,9 @@ test の file と関数は repo に在る。command は `cd native && cargo test
 | E の system | calques、`ja_style.toml`、対の外の言語 | calques の行が注の後ろに並ぶ。ja 向けは `Style:` と `Avoid` の行。対の外は注だけ。対は `edit_system` と同じ | `hayamimi-relay/src/pipeline.rs` | `the_calques_stand_at_the_end_of_the_english_edit_system`、`the_edit_system_carries_the_draft_and_the_japanese_style`、`the_edit_system_into_a_named_target_follows_the_pair_only_for_the_pair` |
 | E の答え | 札を持たない訳（probe の e1 の答え 2 件） | trim して返す | `hayamimi-relay/src/edit_answer.rs` | `answers_to_the_card_form_request_are_returned_as_they_are` |
 | 早い終わりの reason | `incomplete` と `too_short` の保留 | 両方を数え、それぞれ `reason` と読んだ声の長さを持つ。log の event は `reason`、`span_ms`、`min_ms` を持つ | `hayamimi-asr/src/pipeline.rs`、`hayamimi-asr/src/endpoint.rs`、`hayamimi/src/log.rs` | `a_hold_carries_its_reason_and_the_speech_it_was_read_from`、`holds_are_named_for_the_log`、`a_held_endpoint_event_names_the_reason_the_span_and_the_minimum_without_the_text`、`every_event_the_code_emits_has_a_message_in_both_tables` |
+| 早い終わりの影の印 | `近藤さん。`、`独占配信。`、`本音とは。`、`これを。`、`さあ。`、閉じの記号の無い文、日本語以外 | 順に `honorific`、`noun`、`particle`、`particle`、`interjection`。記号が無くても種類は同じ。日本語以外は `other`。`noun` と `honorific` だけが影の規則で完結になり、声が 1 s に満たなければ `too_short`。それ以外の文と日本語以外は生きている規則と同じ答え。生きている規則は `独占配信。` を `incomplete` のまま持つ | `hayamimi-asr/src/endpoint.rs`、`hayamimi-asr/src/pipeline.rs` | `a_japanese_tail_is_told_by_the_form_before_the_closing_mark`、`a_tail_does_not_need_the_closing_mark_or_the_space_around_it`、`an_empty_body_and_a_language_but_ja_have_the_other_tail`、`only_a_noun_and_an_honorific_end_a_sentence_in_the_shadow_rule`、`tails_are_named_for_the_log`、`the_shadow_rule_finalises_a_noun_or_an_honorific_ending_that_the_live_rule_keeps`、`the_shadow_rule_keeps_every_other_ending_the_live_rule_keeps`、`the_shadow_rule_answers_as_the_live_rule_where_the_live_rule_finalises_or_does_not_judge`、`a_hold_carries_the_tail_and_what_the_shadow_rule_would_have_done` |
+| 早い終わりの影の印 | `asr.endpoint.held` の行 | `tail` と `shadow_complete` を持ち、項目は `reason`、`span_ms`、`min_ms`、`tail`、`shadow_complete` だけ（文の項目が無い） | `hayamimi/src/log.rs` | `a_held_endpoint_event_names_the_tail_and_the_shadow_answer_and_no_sentence` |
+| 確定の `plan` | 持った文を使った segment と、読み直した segment | `held` と `decode` と `rest` で `plan` が分かれ、`held_gap_ms` は読み直した時だけ（差 2243 sample は 140 ms）。final を作らない plan は種類を持たない。持った文との差は、使った時も使わない時も返る | `hayamimi-asr/src/endpoint.rs`、`hayamimi/src/log.rs` | `the_held_path_and_the_decode_path_are_named_apart`、`the_gap_is_noted_only_when_a_kept_sentence_was_read_again`、`a_plan_that_makes_no_final_names_no_kind`、`the_gap_to_a_kept_sentence_is_reported_whether_or_not_it_was_used`、`the_decided_event_names_the_plan_and_the_gap_of_a_segment_read_again` |
 | 初回の依頼 | 偽の `Llm` | 依頼は 2 本で、1 本目が T の形（user 1 つ）、2 本目が E の形（system と user。user は 1 本目と同じ文で、system は `edit_system` が ja の原文に対して組む注）。どちらも `max_tokens` 8。答えれば `form` が `t`、`e` の info が 1 件ずつ。T が失敗しても E を送り、E が失敗すれば `form` が `e` の warn 1 件で返る。transport の失敗は cause を event に載せない | `hayamimi-relay/src/warmup.rs` | `the_first_requests_are_t_in_one_message_then_e_in_two`、`answered_requests_log_one_info_event_each_with_their_form_and_time`、`a_failed_t_does_not_keep_e_from_being_sent`、`a_failed_e_logs_one_warn_event_and_returns`、`a_transport_failure_keeps_the_cause_out_of_both_events` |
 | 初回の依頼 | 偽の `Llm` と時間の予算 | 1 本目は予算の全部を、2 本目は 1 本目が使った残りだけを上限に受ける（予算から 1 本目の所要を引いた値の近くにあり、その値以下で、1 s を超えて下回らない）。残りが無ければ 2 本目は送らず、`form` が `e`、`detail` が `budget`、`duration_ms` が null の warn を出す。`warm_up` の予算は `TIMEOUT` である | `hayamimi-relay/src/warmup.rs` | `the_first_request_may_take_the_whole_budget_and_the_second_what_is_left`、`no_time_left_for_e_is_said_and_e_is_not_sent`、`warm_up_gives_the_first_request_the_timeout_of_the_first_requests` |
 | 初回の依頼 | `announce_when_warm` | 初回の依頼が T、E の順に 2 本、`relay.serve.started` より前に出る。失敗しても `relay.serve.started` に進む。2 つの event は日本語と英語の文言を持つ | `hayamimi-relay/src/cli.rs` | `the_first_requests_go_out_once_each_before_the_relay_says_it_serves`、`first_requests_that_fail_do_not_stop_the_relay_from_saying_it_serves`、`serving_events_are_worded_in_both_locales` |
@@ -2349,6 +2352,23 @@ command：fixture の行は `cd native && flock -w 1800 target/release/.cargo-lo
 7. **実装の順**：RP-73 は、RP-67 が初めて通ったと名乗る前に要る。それより前に、`L` を縮める仕事（D 10 の H93、VAD、訳の段）から cargo の席と load の窓を取らない。
 
 case 行（`T-RP-73-nnn`）は test-designer の席がこの節に書く。
+
+### 4.72 VAD の窓ごとの確率の probe
+
+判定の code は変えない。
+VAD の model を `ort` で開き、512 sample の窓ごとの確率を `lat-ja.wav` と `lat-en.wav` で出す。
+sherpa-onnx の C API は確率を返さないので、この probe だけが窓ごとの確率を出す。
+実走の command は `cd native && cargo test -j 2 --release -p hayamimi-asr --test vad_trace_probe -- --ignored --nocapture` で、出力は行の頭の語（`MODEL`、`GAP`、`NOISE`、`TRACE`、`FALL`、`CONTROL`）で分かれる。
+
+| case | 入力 | 期待値 | 置き場 | test の名前 |
+|---|---|---|---|---|
+| 実走 | `models/silero_vad.onnx`、`lat-ja.wav`、`lat-en.wav` | `MODEL` の行に tensor の名前と形と layout が出る。0 だけの 20 秒の流れで確率が 0.5 を超えない（超えれば Err）。元の音と、manifest の終わりの後の 0 の連なりを -60 dBFS の白色雑音に替えた音の両方で、発話ごとの `FALL` の行が出る | `hayamimi-asr/tests/vad_trace_probe.rs` | `vad_window_probabilities`（`#[ignore]`） |
+| layout | tensor の名前 | `x`、`h`、`c` と `prob`、`new_h`、`new_c` を LSTM の layout とする。ほかの 2 つの layout は名前で見分け、流さずに Err にする | 同上 | `the_lstm_names_give_the_lstm_layout`、`the_state_only_names_give_the_state_only_layout`、`the_rate_and_lstm_names_give_their_own_layout`、`other_names_give_no_layout` |
+| 雑音 | 0 の連なり | 512 sample 以上の 0 の連なりだけを置き換え、短い連なりと発話の中は変えない。雑音の RMS が -60 dBFS の 0.2 dB 以内 | 同上 | `only_long_zero_runs_inside_a_gap_become_noise`、`zero_runs_shorter_than_the_minimum_are_left_alone`、`noise_has_the_requested_level` |
+| 位置 | 窓の確率と manifest の終わり | 落ちる位置は、終わり以後に始まる最初の窓の開始から manifest の終わりを引いた ms。窓の置き場（発話の中か後か）は、直前に始まった発話で決める | 同上 | `a_fall_is_counted_from_the_manifest_end`、`a_window_is_placed_by_the_utterance_that_started_last` |
+| 入力 | 順序の崩れた manifest | 順序の崩れ、重なり、入力の外を Err にする | 同上 | `spans_out_of_order_or_outside_the_input_are_refused` |
+
+`--ignored` の無い run では、実走の 1 本を除く 10 本が通る。
 
 ## 5. RP-19 の対応表
 

@@ -213,7 +213,7 @@ lat-ja は確か 4（発話 1、6、8、16）、切れ 8（10、11、13、14、1
 ### 3.2 範囲：Python の file ごとの扱い
 
 `移す` は Rust の置き場、`消す` は理由を書く。
-「移さないで Python のまま残す」file は 0 本である（Python は規約で filmboard だけに使う）。
+「移さないで Python のまま残す」file は 0 本である（Python は、この repo の実行時には使わない）。
 78 本 = 移す 30 本 + 消す 48 本（`scripts/` 27 本、`demo/` 1 本、`tests/` 20 本）。
 R11 は 78 本を全部消す。
 移す 30 本は、実行時の役を Rust の置き場が既に持つか、未実装の行として RP-19 の一覧に残るので、Python の側を残す理由が無いからである。
@@ -867,8 +867,8 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `gpu.session.placed` | `--gpu-diagnose` で起こしたとき | ORT が CUDA に置いた node の数と CPU に置いた node の数 |
 | `asr.model.loaded` | 認識器を memory に読み込んだとき（info） | `model`（tier の名前）、`load_ms` |
 | `asr.final.dropped` | session の言語の文字を持たない 1〜2 字の確定文を出さなかったとき（info。8 の R3e） | `id`、`reason`（`off_script`） |
-| `asr.endpoint.decided` | 確定文ごとに、どの規則で区切ったか（info。3.17、8 の R8v） | `id`、`rule`（`early`、`silence`、`max_speech`、`flush`）、`silence_ms` |
-| `asr.endpoint.held` | 早い終わりの候補が文を読んだが、文が完結していないか、声が `EARLY_MIN_SEGMENT_MS` に満たず、確定せず持った時（info。3.17） | `reason`（`incomplete`、`too_short`）、`span_ms`（読んだ声の長さ）、`min_ms` |
+| `asr.endpoint.decided` | 確定文ごとに、どの規則で区切ったか（info。3.17、8 の R8v） | `id`、`rule`（`early`、`silence`、`max_speech`、`flush`）、`silence_ms`、`plan`（`held`、`decode`、`rest`。`rule` が `early` のときは無い）、`held_gap_ms`（持った文を使わず読み直したときだけ） |
+| `asr.endpoint.held` | 早い終わりの候補が文を読んだが、文が完結していないか、声が `EARLY_MIN_SEGMENT_MS` に満たず、確定せず持った時（info。3.17） | `reason`（`incomplete`、`too_short`）、`span_ms`（読んだ声の長さ）、`min_ms`、`tail`（`noun`、`honorific`、`particle`、`interjection`、`other`）、`shadow_complete`（下の影の印） |
 | `asr.model.evicted` | `--max-resident` の上限のため、最も使われていない認識器を手放したとき。新しい認識器を作る前に出す（info） | `model` |
 | `asr.lang.unknown` | SenseVoice の結果の `lang` の tag を読めないとき。言語は不明として続ける（warn） | `error_code` |
 | `gpu.memory.unreadable` | GPU の memory を読めないとき。予算なしで続ける（warn） | `error_code` |
@@ -890,6 +890,20 @@ RP-79 は、この event の `id` を `final` と結び、広げた判定で確�
 判定は変えず、文の字は載せない。
 
 本文、音声、path は log に書かない。
+
+#### 早い終わりの影の印
+
+`asr.endpoint.held` は、持った文の末尾の種類（`tail`）と、名詞止めと敬称を完結として数える規則ならその場で確定していたか（`shadow_complete`）を持つ。
+実際の判定（`is_complete`、`early_hold`）と確定の動きは変えない。印は、規則を切り替える前に、切り替えた時の割れと縮みを log から数えるために在る。
+
+- **`tail`**：日本語の文を、閉じの記号と空白を除いた形で分ける。順は `honorific`（さん、様、氏）、`interjection`（さあ、はい、あの など）、`particle`（を、も、は、に、の、へ、や、など、まで、より と、完結の判定が持つ接続の形）、`noun`（漢字、カタカナ、英数字で終わる）、`other` である。`あの` が `の` で終わるので、`interjection` を `particle` より先に読む。ひらがなだけの名詞（`これ`）は `other` になり、`同様`、`模様` は `honorific` に数える。日本語以外は常に `other` である。
+- **`shadow_complete`**：日本語の文が閉じの記号で終わり、`tail` が `noun` か `honorific` なら完結とみなし、声の長さの下限（`EARLY_MIN_SEGMENT_MS`）も満たす時に `true` である。生きている規則が完結とする文と、日本語以外では、生きている規則と同じ答えである。
+- **置き場**：種類の判定は `endpoint.rs` の `tail_of` の 1 つで、`shadow_early_hold` と log の項目はそれを使う。`r8v_probe.rs` は判定の写しを持たず、`endpoint::is_complete` を使う。
+- **文は書かない**：保持する値は種類と bool だけで、文の字は log にも `EarlyHold` にも載らない。
+
+`asr.endpoint.decided` は、主検出器の segment が何で文になったかを `plan` で持つ。`held` は早い検出器が持った文をそのまま使った時、`decode` は segment 全体を読んだ時、`rest` は早い検出器が確定した線より後ろだけを読んだ時である。
+持った文が在ったのに使わず読み直した時は、`held_gap_ms` に、持った文の範囲の終わりと segment の終わりの差を ms で載せる。使う許容は 1 窓（`WINDOW`、512 sample、32 ms）である。持った文が無い時と、使った時は載せない。
+`plan` と `held_gap_ms` も判定を変えない。持った文を使い回せる率と、差の分布を log から数えるために在る。
 
 ### 3.14 言語の切り替え（i18n）
 
