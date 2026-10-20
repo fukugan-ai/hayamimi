@@ -44,11 +44,6 @@ The CPU archive that the build script downloads ships `libonnxruntime.so` only, 
 They are skipped by name: `a_missing_model_directory_leaves_every_stage_out_and_the_engine_silent`,
 `an_engine_with_no_route_has_no_early_holds`, `an_engine_with_no_route_has_no_recognizers_to_report`,
 `with_no_stage_on_the_gpu_there_is_nothing_to_give_back`.
-Three tests of `hayamimi` (`rp16`) hide the GPU and expect the reason `no_device`.
-That reason needs a driver library that loads and reports no device.
-A GitHub runner has no `libcuda.so.1`, so the stage reports `driver_unreadable` and the three tests fail with `reason of `gpu.device.unavailable` is not no_device`.
-They are skipped by name: `missing_cuda_build_falls_through_to_the_cpu_build`, `hidden_gpu_translate_server_starts_on_cpu_with_a_reason`,
-`rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`.
 The first run on Windows is not measured here.
 
 ## Programs the test step needs first
