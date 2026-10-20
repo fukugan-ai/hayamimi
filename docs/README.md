@@ -49,7 +49,7 @@ Dated snapshots of a specific run. They are not updated when the code moves
 on — read them for how something was measured and what it showed at the time.
 The Python commands in `eval/` and in the dated records of `results/` are the
 ones that ran on versions before R11 removed Python; run them from a checkout of
-such a version.
+such a version. That version is the tag `archive/python-before-r11`.
 
 | Document | Language | Kind | What it is |
 |---|---|---|---|

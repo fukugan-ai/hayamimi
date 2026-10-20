@@ -47,7 +47,7 @@ English: [README.md](README.md)
 特定の実行のスナップショットです。コードが先に進んでも更新しません。当時どう
 測って何が出たかを読むためのものです。
 `eval/`と、`results/`の日付つき記録にあるPythonのcommandは、R11でPythonを消す前の版で
-打った物です。打ち直すときは、その版のcheckoutで打ってください。
+打った物です。打ち直すときは、その版のcheckoutで打ってください。その版はtag `archive/python-before-r11` です。
 
 | 文書 | 言語 | 種別 | 内容 |
 |---|---|---|---|

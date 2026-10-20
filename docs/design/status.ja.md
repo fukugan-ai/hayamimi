@@ -11,6 +11,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 ## 完成までに残っている物
 
 完成の条件は、実行時の経路から Python が無くなって消えることと、主指標 `L`（発話の終わりから訳の字幕が出るまでの遅れ）が目標を満たすことである。
+前者は R11 で満たした（Python の 78 本は消え、消す前の版は tag `archive/python-before-r11` にある）。
 次の表は、その条件に届いていない物を、持ち主と止めている物つきで並べる。
 「持ち主」は、その物を動かす席である。
 記録に持ち主が無い物は「記録に無い」と書く。
@@ -29,7 +30,7 @@ commit の番号は `git log --oneline` で確かめた値で、確かめた時�
 | RP-74：認識の encoder だけを GPU に置く形（方針 D）の見積り | 設計済みで未実装（評議 GO）。認識の置き場は、RP-78 が通るまで CPU（int8）のまま | E2E の後の窓の席 | E2E の窓が閉じること。RP-74 の後に RP-78（split の形で `L_asr` が縮み、訳が遅くならない）が通ること | `9f88e1e`、`rust_port.ja.md` の 3.5 と 6 の RP-74、RP-78 |
 | RP-1 の ko、T-RP-1-013 の実記録、RP-10 の `lang` の条件。RP-22 と言語判定の結線は通過 | R3b と R3c は検証済みで merge 済み。RP-22 は peak 8936 MiB（上限 14000）で通過。RP-1 は ja、en、zh、yue が Python と同じ値で、ko だけが配る形の build で 0.087（Python は 0.081） | ko は評議が R11 の入口の上限（RP-36）で受けた。T-RP-1-013 は E2E の席。RP-10 は Windows の build を持つ席 | ko は ORT の build の違いで、閾値は緩めない（H35）。H55 は Windows の build が無いと書く | `0358773`、`b8fd07e`、`docs/results/r3/rp22_run.json` |
 | RP-44：新しい held-out の組（RP-35 の最終の測りに使う） | 組はできた（`testdata/heldout/set2/`、git の外。en、zh、ko、es 各 35 行） | R12y の席 | 組を使う入口（`hayamimi-relay eval` の `--final`、`--heldout`、`--direction`）と、同じ組を 2 回使う拒み（CS-30）が未実装 | `rust_port.ja.md` の 8 の R12y、README |
-| RP-9、RP-19：Python を消す（R11） | RP-19 は 187 本が未実装。`rp19.rs` と `rp09.rs` が無い。R12a から R12g の branch に独自の commit は 0 件 | R12 の席 | RP-19 の 187 本（Refiner の R12w0 から R12w4 を含む）が全部入るまで R11 を始めない（`rust_port.ja.md` の 3.2 の 2） | `80e2812` |
+| RP-9、RP-19：Python を消す（R11） | R11 は入った。Python の 78 本と `requirements*.txt` は消え、CI は cargo で動く。RP-19 の未実装の行は `rp19.rs` が毎回数え、数は CI の専用の step が出す | R13 の席 | R13 の各 slice が写した名前を `rp19_ported/<slice>.txt` に足し、固定の一覧が空になるまで `rp19_python_cases_are_ported` は落ちる | `rp19.rs`、`rp09.rs`、`rp80.rs`、`rp81.rs`、`docs/results/r11/ci_probe.md` |
 | 重ね窓（`hayamimi-overlay`、透明で最前面の窓） | 未着手。`native/` に crate が無い | 記録に無い | `rust_port.ja.md` の 8 に slice の行が無い。設計は会話字幕の設計 3.12、受入は CS-10、CS-11、CS-12 | `git ls-tree origin/main native/` |
 | Zoom と Teams への送信の実機（CS-17、CS-18） | R8g は偽の受け手で検証済み。実機は打っていない | 記録に無い | Zoom の host の token と Teams の主催者の link が要る。手元にあるかは NOT VERIFIED | `a496066`、`state.json` の `blocked_on` |
 | 動画ファイルから SRT への実機（CS-14、CS-15） | R8g は検証済み。実機は日本語 9 秒の動画 1 本を CPU で通しただけ | 記録に無い | 英語の行、翻訳器、GPU、長い動画は通していない。MPC-HC が `<動画名>.ja.srt` を自動で読むかは NOT VERIFIED（会話字幕の設計 9 の H3、H18） | `a496066` |
@@ -65,7 +66,7 @@ Python を消す仕事が最も大きく、順位でも 1 位なので、どち�
 
 完成と呼ぶのは次の 3 つが揃った時である。
 
-1. R11 が入り、実行時の経路から Python が消えている（RP-9、RP-19）。
+1. R11 が入り、実行時の経路から Python が消えている（RP-9、RP-19）。満たした。RP-19 の写しは R13 が続ける。
 2. 清書（Refiner）まで入った build で、RP-67 が ja と en の両方で通り、RP-73 も通る。
 3. 重ね窓（`hayamimi-overlay`）が在り、CS-10、CS-11、CS-12 が通る。
 
@@ -154,12 +155,12 @@ en は今の build で `L` を測っていない（E2E-2 の 1303 ms は前の b
 
 | ID | 物 | 直接か | 依存 | 資源 | 量 | 出所 |
 |---|---|---|---|---|---|---|
-| P0 | R12a1（`rp19.rs`、`rp19_not_yet.txt`） | 直接（RP-19） | なし。他の R12 の門 | cargo | 55 分 | 8 の「作る slice」 |
+| P0 | R12a1（`rp19.rs`、`rp19_not_yet_at_r11.tsv`）。R11c の前に merge 済み | 直接（RP-19） | なし。他の R12 の門 | cargo | 55 分 | 8 の「作る slice」 |
 | P1 | R12b〜R12g（(a) 111 行、6 slice）【設計の席の返答で直す】 | 直接 | P0 | cargo、`session.rs` を触る R12b は P2 の R12h、R12i と順 | 6 × 51 分（推測。8 の見積りは build と直しの 180 分だけ） | 8 の「13:55 までに入る組」 |
 | P2 | R12h、i、v、q、r、s1、s2、t1、t2、t3、u1、u2、x（(c) 13 slice）【設計の席の返答で直す】 | 直接 | P0。s2 は s1、t2 は t1、t3 は t2、u2 は u1 の後 | cargo。R12r は Windows の build | 535 分 | 8 の「作る slice」 |
 | P3 | 清書 R12w0〜R12w4（RP-61） | 直接 | w1 は w0、w2 は w1、w3 は w1、w4 は w2 と w3 の後 | w4 は E2E の窓と GPU、Windows の実機 | 240 分。うち E2E の窓 60 分 | 8 の「清書を live に足す形」 |
 | P4 | R12a2（`rp09.rs`） | 直接（RP-9） | P0 | cargo | 40 分 | 8 の「作る slice」 |
-| P5 | R11（78 本と `requirements*.txt` を消し、CI を cargo に、Dart の comment を書き替える）【設計の席の返答で直す】 | 直接 | P1〜P4 が全部入り、RP-19 が通る | main の lock | 2 slice（推測） | 8 の R11、3.2 |
+| P5 | R11（78 本と `requirements*.txt` を消し、CI を cargo に、Dart の comment を書き替える）。R11c で入った | 直接 | 済み | main の lock | 済み | 8 の R11、3.2 |
 | L1 | 走っている 3 本の merge（`feat/e-warmup`、`feat/held-tail-shadow`、`feat/vad-trace`） | 直接（RP-67 の材料） | 検証の可 | main の lock | 3 × 51 分 | 各 branch |
 | L2 | H100 の offline の門（方針 B の手順 2） | 直接 | L1 の影の印 | cargo（CPU） | 60 分（推測） | `design/vad-end` の 3.17 |
 | L3 | `--early-complete nouns` と `asr.endpoint.widened` | 直接 | L2 が線を満たす | cargo。`args.rs` を触るので P2 の R12s1、R12t3 と順 | 51 分 | 同上 |
@@ -290,7 +291,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | RP-68 の test と H75 の直し（`Engine::finish` の後に detector を作り直す）、設計の直し（RP-68、H75、H76） | 検証済み | `5522942`（`5660032` と `4ca0f86` を含む） | 独立検証で可（merge の commit の本文）。workspace の test は Running 120＋Doc-tests 7＝127、ok 127、FAILED 0（`state.json` の記録、2 回目の run）。1 回目は `cs20` の `start_command_returns_while_the_server_keeps_running` が 24.8 s で落ちた（load 3.7 の時の時間の test で、差分とは無関係と記録されている）ので、式が合わず、同じ木で打ち直した | 直す前の main で `rp68` の 006、007、009、015 が落ち（子 process が SIGABRT）、直した後は通る（`5660032` の本文） | `cs20` の時間の test は load が高いと落ちる。RP-68 の子 3 は `finish` の後の feed を守るが、live の run で abort が起きた記録は探していない（H75） |
 | 実機のマイクの確かめと、process A、B、中継の起こし方 | 検証済み | `5ad5da1`（`2d18f1d`） | 書いていない席の可（受付の申告、git の外）。merge は documents のみで test を打っていない（merge の commit の本文） | 2026-10-15 15:43 の run：`capture.fallback.none` 0 件、`capture.device.opened` 1 件（device は「リモート オーディオ」、kind は mic）、`asr.model.loaded` 1 件、`asr.final.published` 8 件。存在しない装置名の陰性対照は `capture.fallback.none` 1 件 | 人が日本語を話した結果は機械では確かめられない（冒頭の表） |
 | 片づけの道具（`scripts/tidy-branches.sh` の `verify/` の規則） | 検証済み。`tidy-branches.sh` は、main と同じ位置の `verify/` の branch を、main-lock が空いているときに外す | `f0ba4f5`（merge の commit は `git log --merges -1 -- scripts/tidy-branches.sh` で引く） | 書いていない席の検証は記録に無い。merge の席（release-clerk）が merge の前に `tests/tidy_branches_verify.sh` を打ち直した | `tests/tidy_branches_verify.sh` が `cases=15 failures=0`。陰性対照は、lock を誰かが持つ、lock が古い、main-lock の binary が無い、自分の commit を持つ、worktree が持つ、`verify/` の外の branch の 6 つ | 対象は main と同じ位置の `verify/` の branch だけで、`verify/` の外の着手前の branch は今までどおり残す。lock が空かどうかは `main-lock check` の答えだけで読む |
-| R11（Python を消す） | 入口の条件待ち。RP-13 は満たし、RP-19 は 187 本が未実装（R12a〜R12g） | なし | なし | RP-9、RP-19 は未実行 | 3.2 の 3 つの条件 |
+| R11（Python を消す） | 入った。78 本と `requirements*.txt` を消し、CI を cargo に替えた | `docs/results/r11/ci_probe.md` | testdata と models の無い clone で CI の `run:` の行を打った結果が `ci_probe.md` に在る | RP-9、RP-14、RP-80、RP-81 | GitHub 上の最初の run は未確認（H103）。RP-19 の未実装の行は R13 が写す |
 | 端から端の受入（E2E-1 マイクの ja→en、E2E-2 loopback の en→ja） | 単独の 1 run で受入 test が PASS。E2E-1 の正式な判定は RP-32 の交互の 3 対で出す。結果は冒頭の表の RP-32 の行 | `dfa85d6`（受入 test は `9103c95`） | 実装の席の申告（git の外）。設計の席は打ち直していない | E2E-1、E2E-2 の受入 test は PASS。数は上の E2E の行 | RP-32 の品質の差の原因。実機のマイクに人が話した ja は機械では確かめられない |
 | Python を消す設計（`design/python-removal`、`rust_port.ja.md` の 3.2 と 8） | 設計は merge 済み。実装は未着手。R11 は評議の GO が `state.json` に在るまで R11c を始めない（H101） | `28990a2` | 文書だけの branch。木（`8b8041d`）の workspace の test は受付の実測で rc=0、suites 116、passed 2719、failed 0、ignored 117（log は repo の外）。評議の GO は `7dbf415`（RP-81 の入口の PAUSE を閉じた commit） | 消すのは R11 だけで、R11 に入る条件は 3 つ。組は R11a1、R11a2、R11b、R11c。rp19 と rp09 は R12a1、R12a2。置き換えの完了の定義と R11 の入口を引く 18 行（H110）は、R11c と同じ commit で書き替える | 作りかけの 7 つの tag は build も test も通していない（H102）。CI が GitHub で走るかは未確認（H103）。RP-14 の通過は status に記録が無い（H105） |
 | R11 の前の文書の組のうち G0、R11a1、R11a2、R11b（`docs/r11-g0`、`docs/r11a1`、`docs/r11a2`、`docs/r11b`） | 4 本が merge 済み。残りは R12a1 と R12a2 | `01ce0f7`、`49eef7f`、`e999000`、`9544240`（4 本を載せた木は `9e26fb3`、`1d6cae2`） | 文書と comment だけの branch。木の workspace の test と clippy は受付の実測で、test が rc=0、suites 121、passed 2836、failed 0、ignored 117、clippy が rc=0（log は repo の外）。前の suites 116、passed 2719 から増えたのは `hayamimi-ui` の 5 suite の 117 本（board 3、overlay_parity 8、rp12_pages 10、w7_limit 5、unittests 91）で、抜けた suite は 0 | G0 は RP-80 と RP-81 の case 行。R11a1 は README と文書の Python の command を Rust に替える。R11a2 と R11b は文書と Dart の comment | R11c（Python の 78 本を消す）は R12a1 と R12a2 の後。RP-14 の通過の記録が無い（H105） |
