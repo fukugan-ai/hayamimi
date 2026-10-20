@@ -1777,7 +1777,7 @@ pub const WINDOW_CLASS: &str = "hayamimi-overlay"; // passed to with_window_clas
 - **browser を `--app` で開いて重ねる**：browser の窓は最前面にもクリック素通しにもできない。
 - **画面全体の大きさから帯を置く（作業領域を引かない）**：taskbar に帯の下が隠れる。taskbar の高さを定数で引くと、自動で隠す taskbar と縦置きの taskbar で外れる。
 - **最前面を前面の窓の変化の hook（`SetWinEventHook`）で守る**：callback の thread と解除の管理が増える。1 秒ごとの上げ直しは 1 回の system call で、外れても 1 秒で戻る。
-- **`WS_EX_NOACTIVATE` を付ける**：tao に口が無く、クリックは既に素通しなので、効く場面が起動の一瞬だけである。`with_focused(false)` で足りるかは OV-5 で測る。
+- **`with_focused(false)` だけで起動の focus 奪取を防ぐ**：tao は窓を表示するとき `SW_SHOW` を使うので、窓が活性化して前面を奪う（OV-5 で測った）。`with_focusable(false)`（tao が `WS_EX_NOACTIVATE` を付ける）を足し、表示しても活性化しない形にした。
 - **拡大率を変えて CS-11 を測る**：画面の拡大率を変えるのは利用者の画面を動かすことになる。`--zoom` で写す（11.10 の H29）。
 
 ### 11.6 構造
@@ -1911,6 +1911,7 @@ GPU は使わない。
 - **H32** 認識の流れが切れている間の確定文は出ず、その間に着いた訳は 5 秒で捨てる。中継だけが生きている時に訳が消える。量は測っていない。
 - **H33** monitor は 1 枚しか無く（11.2）、2 枚の間の移動と拡大率の違う画面への移動は、この機械では測れない。2 枚目が在る時に OV-4 と CS-11 を打ち直す（前提なし）。
 - **H34** OBS の字幕頁（CS-13）は OV-S1 の `lanes` を使う前提で、その slice はこの節に無い。持ち主は受付が出す実装の席である。
+- **H36** CS-11 の外周の比べは、画面が動いている夜（別の app が描き続けている）には揺れで判定できなかった。窓を起こさない対照も外周の画素が変わって戻ることがあった。打ち直しは画面が静かな時に、受付が窓を取って行う。
 - **H35** 10.5 の窓の行はこの差分で直した。`status.ja.md`、`status.md` の重ね窓の行と、`rust_port.ja.md` の 8 の重ね窓の行は、この branch の土台（`4708711`）が main より古く、main の 3 file（status は両方とも +211 行、rust_port は +367 行の差）の上でしか正しく書けない。書き替える中身は次のとおりで、書くのは OV-S1、OV-S2、OV-T を main へ入れる merge の席が、その merge と同じ手番で main の上に書く。
   - `status.ja.md` の節「完成までに残っている物」の表の重ね窓の行と、`status.md` の節「What remains before completion」の表の overlay window の行：状態は「crate は `native/hayamimi-overlay`。OV-S1、OV-S2、OV-T を実装した。H28 は OV-S2 の席の申告で、OV-V で打ち直すまで閉じない。CS-11 の H29 と H30 は未検証」、根拠の command は `git ls-tree main native/hayamimi-overlay`。
   - `status.ja.md` の節「数え方と数」の表の「重ね窓の crate」の行と、`status.md` の節「What was counted, and the numbers」の表の「Overlay crate」の行：在る（crate は 8 つ）。

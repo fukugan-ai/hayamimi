@@ -21,8 +21,9 @@ use crate::config::OverlayConfig;
 use crate::place::{self, PhysicalRect, PlaceError};
 use crate::win;
 
-/// The attributes of the window. It is made hidden and unfocused; `open`
-/// shows it once it stands where it belongs.
+/// The attributes of the window. It is made hidden, unfocused and not
+/// focusable (`WS_EX_NOACTIVATE`, so that showing it never activates it);
+/// `open` shows it once it stands where it belongs.
 fn builder() -> WindowBuilder {
     WindowBuilder::new()
         .with_title("hayamimi")
@@ -31,6 +32,7 @@ fn builder() -> WindowBuilder {
         .with_transparent(true)
         .with_always_on_top(true)
         .with_focused(false)
+        .with_focusable(false)
         .with_visible(false)
         .with_undecorated_shadow(false)
         .with_window_classname(WINDOW_CLASS)
