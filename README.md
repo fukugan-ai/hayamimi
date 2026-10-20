@@ -65,7 +65,8 @@ The design and the implementation for removing Python (the documentation rewrite
 The design that checks that the acceptance test names in T match the implementation's tests (RP-82) is in. R13-15, R13-16 and R13-17 can be issued. It is not implemented yet.
 The design that runs, in CI, the check that a machine with no GPU falls back to the CPU (R13-18) is in. It is not implemented yet.
 The test definitions of R13-18 (the 11 tests T-RP-16-052 to 062) are in too, so R13-18 can be issued.
-For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. It does not work as a window yet.
+For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. The `hayamimi-overlay` crate is in too. The acceptance that opens the window (OV-V) is not done, so it does not work as a window yet.
+GitHub CI succeeded on both ubuntu and windows.
 
 ### Related documents
 
