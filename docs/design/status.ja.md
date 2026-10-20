@@ -6,7 +6,7 @@
 この文書は、完成までに残っている物と、slice ごとの状態を書く。
 冒頭の表が残っている物で、その後ろの表が slice ごとの状態、merge の commit、検証の出所、受入の通過、残る穴である。
 slice の中身と通す受入は `rust_port.ja.md` の 8 に、要件は [requirements.ja.md](requirements.ja.md) に在る。
-commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `8d0157a`（2026-10-21 の `design/f86l-live` の merge の commit。この文書を足した commit はその 1 つ上）である。
+commit の番号は `git log --oneline` で確かめた値で、確かめた時の main の先頭は `7c8e466`（2026-10-21 の `feat/r8x-1` の merge の commit。この文書を足した commit はその 1 つ上）である。
 
 ## 完成までに残っている物
 
@@ -176,7 +176,7 @@ B なしで通るかは、まず R8x-5 の offline の門（D が発話 16 と 2
 | L9 | 今の build の E2E-2（en の `L`） | 直接 | L1 | E2E の窓 | 1 run（約 17 分。15 発話 × 5 を ja の 26 分から比で推測） | RP-67 |
 | L10 | RP-73（`manifest.rs`、`tests/rp73.rs`） | 直接 | `L` を縮める仕事の後 | cargo | 51 分 | RP-73 |
 | L11 | 清書まで入った build での RP-67 と RP-32 の最後の run | 直接 | P3、L4、L6（1000 ms では L7、L8 も） | E2E の窓、GPU | 約 2 時間（RP-32 の 3 run の実績 71 分と E2E-1、E2E-2） | RP-67、RP-32 |
-| L12 | R8x-1：E2E の run の門（RP-83。前の 15 分平均と後の 5 分平均の load、run の間の cargo と rustc） | 直接（E2E の窓の全部の前） | なし | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.19 |
+| L12 | R8x-1：E2E の run の門（RP-83。前の 15 分平均と後の 5 分平均の load、run の間の cargo と rustc）。済み（`7c8e466`） | 直接（E2E の窓の全部の前） | なし | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.19 |
 | L13 | R8x-2a：`rp67.rs` を作る（repo に無い）。`rp79.rs` は止める | 直接 | L12 | cargo（`hayamimi-eval`） | 51 分（`rp79.rs` の 51 分が外れる） | 同上 |
 | L13b | R8x-2b：H88 の code（`support/e2e.rs`、`support/rp32_rules.rs` の id、`e2e1.rs`、`e2e2.rs`、`docs/results/e2e/README.md` の有効の文）。E2E の受入が早い規則の run を 300 ms の線で数えて落ちないようにする | 直接（E2E-1、E2E-2 の受入） | L13（R8x-2a）、L12（R8x-1） | cargo（`hayamimi-eval`） | 51 分（推測）。40 本に 1 本足して 41 本。1 日 8.3 本の数えで約 2.9 時間延びるが、B を外して外れた約 4.7 時間の内に収まるので、上限「10-26 の夜〜10-27 の未明、悪い側 10-27」は書き換えず、R8x-5 の結果で出し直す時に含めて数える | `rust_port.ja.md` の 3.1、H88 |
 | L14 | R8x-4：使い回しの鍵の広げ（RP-85） | 直接 | なし | cargo（`hayamimi-relay`）。品質の probe は 8080 の llama-server で約 20 分 | 60 分と 20 分 | 同上 |
@@ -325,6 +325,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | tidy が検証の木を外せるようになった（`fix/tidy-verify-trees`） | merge 済み | `718ce89`（`2cc9025` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外）。受付の実測は `tests/tidy_branches_verify_trees.sh` が cases=11 failures=0、`tests/tidy_branches_verify.sh` が cases=15 failures=0（sudo の 1 case は main-lock を持っていたため skip）。`native/` と `.github/` は 0 件 | `scripts/tidy-branches.sh` が、親が全部 main に在る検証の木を外せる | 親が main に無い検証の木と、commit 0 件の detached の木は拒む |
 | tidy が、前の検証の merge の上に積んだ検証の木も外せるようになった（`fix/tidy-tree-equal`） | 済み。merge 済み | `1ecdc06`（`7dcc6df` を `--no-ff` で取り込んだ） | 独立検証で可（検証の席の申告、git の外）。受付の実測は `tests/tidy_branches_verify_trees.sh` が cases=23 failures=0、`tests/tidy_branches_verify.sh` が cases=15 failures=0（sudo の 1 case は main-lock を持っていたため skip）。`native/` と `.github/` は 0 件 | 外す条件は、tip を main に merge しても main の木が変わらないこと。main 側で revert した変更や、`-s ours` で取り込んだ変更も、この形になるので外す側に入る。外した後に失われるのは tip の merge commit だけで、gc が走るまでは戻せる | 衝突する merge と、手で解決した内容だけを持つ merge は残す |
 | RP-83〜87 の T（`design/t-rp83-86`） | merge 済み。T が入った | `ce30fd2`（`12c0f62` を `--no-ff` で取り込んだ。評議の GO は `12c0f62` に限る） | 文書だけの branch（`rust_port.ja.md` と `rust_port_tests.ja.md`）。`native/` と `.github/` は 0 件。文書を見張る test は受付の実測で、`-p hayamimi-eval --test rp80 --test rp81 -- --skip rp81_owned_exceptions_are_gone` が rc=0、rp80 は 19 passed、0 failed、2 ignored、rp81 は 31 passed、0 failed。rp82 は `native/hayamimi-eval/tests/rp82.rs` がまだ無く（R13-15 の仕事）、打てていない | 今出す slice は R8x-1、R8x-3、R8x-4、R8x-2 の `rp67.rs` だけ。止める物は `rp79.rs`、L3、R8x-5、R8x-6、窓 E2、窓 E3 | 方針 B の offline の門（H100）は落ちた。B の規則を直して打ち直すのは 1 回だけ（評議の決定）。完成の日付（10-26 の夜〜10-27 の未明）は B が通る前提なので、B の決着の後に出し直す |
+| R8x-1 の実装（`feat/r8x-1`。E2E の run の門、RP-83） | 済み。merge 済み | `7c8e466`（`29c96a5` を `--no-ff` で取り込んだ。評議の GO は `29c96a5` に限る） | 独立検証は `d08ebbe` の木 `dfcb8c4` で可（検証の席の申告、git の外）。`29c96a5` は `test.yml` に `--test rp83` を 1 語足しただけで、`d08ebbe` との差は `.github/workflows/test.yml` の 1 本。受付の実測は `-p hayamimi-eval --lib --test rp80 --test rp81 --test rp83 --test rp32 --test rp33 -- --skip rp81_owned_exceptions_are_gone` が rc=0。lib は 470 passed、rp32 は 67 passed・1 ignored、rp33 は 15 passed・1 ignored、rp80 は 19 passed・2 ignored、rp81 は 31 passed、rp83 は 54 passed、どれも 0 failed。初めの試みは、`test.yml` に rp83 が無く rp80 が落ちたため、merge せずに戻した | `hayamimi-eval stream` が `<run>.machine.jsonl` を書き、E2E の run の門が前後の load と run の間の cargo と rustc を判定する | workspace 全体の test と CI の run は、この merge の後には打っていない。`ci_probe.md` に rp83 の行は無い |
 
 作業中の branch は 1 つある。
 `feat/r8v-probe` は R8v の手番 1 の probe で、流し直しを待っている。

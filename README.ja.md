@@ -84,6 +84,7 @@ R8x-2は、R8x-2a（`rp67.rs` を作る）とR8x-2b（H88のcode）に分かれ�
 RP-83〜87のtestの「実装がまだ」の印は、行ごとから、test全体の見出しに移りました（持ち主はR8x-1、R8x-3、R8x-4、R8x-6）。
 RP-86の受入のtest（R8x-6b。`rp86.rs`、T-RP-86-001〜053）が、残りの仕事に足されました（L16b）。残りは42本になります。
 R8x-6bのTは、T-RP-86-054（陽性対照の行）まで足されました（001〜054）。
+R8x-1（E2Eのrunの門、RP-83）の実装が入り、済みました。`hayamimi-eval stream` が `<run>.machine.jsonl` を書き、前後のloadとrunの間のcargoとrustcを見ます。
 
 ### 関連する文書
 
