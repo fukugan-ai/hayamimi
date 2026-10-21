@@ -47,6 +47,11 @@ impl SpeakerStage {
         })
     }
 
+    /// The speakers heard so far, for the reset of a session to forget.
+    pub(crate) fn centroids_mut(&mut self) -> &mut Centroids {
+        &mut self.centroids
+    }
+
     /// The mark of 16 kHz `samples`. A failure must not lose the
     /// transcription: it is handed on in [`Mark::error`].
     pub fn mark(&mut self, samples: &[f32]) -> Mark {
