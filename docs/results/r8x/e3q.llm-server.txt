@@ -1,0 +1,10 @@
+# llama-server of window E3'': hayamimi-llama-e2e.service on 127.0.0.1:18084, the translation server of every run of the window
+recorded 2026-10-21 14:31, before run e3q1.e2e1; the unit started at 14:29:37 (health ok after about 48 s) and stays up for the whole window
+ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m %h/models/CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 18084 -ngl 99 -c 16384
+build_info=b11628-a1361c790
+model_path=~/models/CAT-Translate-3.3b-Q8_0.gguf  (the home directory is written as ~)
+n_ctx=8192
+total_slots=4
+nvidia-smi memory.used=12052 MiB with the unit up and no run in progress (5603 MiB before the unit started; limit 14000 MiB)
+threads of the server not at nice -5: 0 of 23, checked again before each of the 4 streams (the trial and the 3 runs)
+nvidia-smi memory.used=12156 MiB after the last run with the unit still up; 5603 MiB after the unit stopped
