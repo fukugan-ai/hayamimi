@@ -14,8 +14,12 @@
 //! - 022 to 025 compare how often V stops the answer of the text in progress
 //!   with how often it stops the answer of the `final`. Only 025 asks a
 //!   llama-server (port 18084) and runs with `--ignored`.
-//! - 026 to 031 judge the records of the runs of window E3'. Only 031 reads
-//!   them and runs with `--ignored`.
+//! - 026 to 031 and 034 to 051 judge the records of the runs of window E3''
+//!   (utterance 7). The samples are split by the product's own key
+//!   (`reuse_match`) into those it matches and those it does not; only the
+//!   matched ones are held to the translation-stage line. The records are made
+//!   from formulas in this file; only 031 reads the recorded runs and runs
+//!   with `--ignored`.
 //! - 032 calls V directly on the scripted answer for utterance 7.
 //! - 033 is the rule that a run whose log dropped lines is not read.
 
@@ -962,34 +966,87 @@ fn the_draft_answers_stop_no_more_often_than_the_final_answers() -> TestResult {
     Ok(())
 }
 
-// ---- (5) the records of the runs of window E3' --------------------------------------------
+// ---- (5) the records of the runs of window E3'' -------------------------------------------
 
 const UTTERANCE: u64 = 7;
-/// The translation stage of utterance 7 may not exceed this at its 95th percentile.
+/// The translation stage of a sample whose pair the product key matches may not exceed this.
 const STAGE_LIMIT_US: i64 = 182_000;
+/// Each run needs at least this many such samples: a majority of the five takes.
+const MIN_KEYED: usize = 3;
+/// The runs of the window are named `<RUN_PREFIX><N>`; a record of any other name is not read.
+const RUN_PREFIX: &str = "e3q";
+/// The runs the recorded-run test reads.
+const RECORDED_RUNS: [&str; 2] = ["e3q1", "e3q2"];
 
-/// One run: its name, the samples (`<run>.e2e1.jsonl`) and the relay's stdout.
-struct XRun<'a> {
-    name: &'a str,
-    samples: &'a str,
-    relay_log: &'a str,
+/// One run: its name and the text of its three records.
+struct XRun {
+    name: String,
+    /// `<run>.e2e1.jsonl`
+    samples: String,
+    /// `<run>.e2e1.events.jsonl`
+    events: String,
+    /// `<run>.e2e1.relay.stdout.log`
+    relay_log: String,
+}
+
+/// Whether `name` is `<RUN_PREFIX>` followed by digits only.
+fn is_window_run(name: &str) -> bool {
+    name.strip_prefix(RUN_PREFIX)
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 #[derive(Debug, PartialEq)]
 enum Fault {
-    NoNormalizedReuse { run: String },
-    DroppedLines { run: String },
-    NoUtterance7Sample,
-    SlowUtterance7 { p95_us: i64 },
-    Unreadable { run: String, what: String },
+    NoWindowRun,
+    NoNormalizedReuse {
+        run: String,
+    },
+    DroppedLines {
+        run: String,
+    },
+    NoUtterance7Sample {
+        run: String,
+    },
+    UnjoinedSample {
+        run: String,
+        sample: String,
+        final_us: i64,
+    },
+    KeyedWithoutReuse {
+        run: String,
+        id: String,
+        stage_us: i64,
+    },
+    SlowKeyed {
+        run: String,
+        id: String,
+        stage_us: i64,
+    },
+    TooFewKeyed {
+        run: String,
+        keyed: usize,
+    },
+    Unreadable {
+        run: String,
+        what: String,
+    },
 }
 
-/// What a run that passed shows: how many samples of utterance 7 it holds and
-/// their 95th percentile.
-#[derive(Debug, PartialEq)]
-struct XReport {
-    samples: usize,
-    p95_us: i64,
+impl Fault {
+    /// The run the fault is about; none for a fault about the set of runs.
+    fn run(&self) -> Option<&str> {
+        match self {
+            Fault::NoWindowRun => None,
+            Fault::NoNormalizedReuse { run }
+            | Fault::DroppedLines { run }
+            | Fault::NoUtterance7Sample { run }
+            | Fault::UnjoinedSample { run, .. }
+            | Fault::KeyedWithoutReuse { run, .. }
+            | Fault::SlowKeyed { run, .. }
+            | Fault::TooFewKeyed { run, .. }
+            | Fault::Unreadable { run, .. } => Some(run),
+        }
+    }
 }
 
 /// Microseconds as `183.456 ms`.
@@ -1000,6 +1057,7 @@ fn millis(us: i64) -> String {
 impl std::fmt::Display for Fault {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Fault::NoWindowRun => write!(out, "no run named {RUN_PREFIX}<N> was given"),
             Fault::NoNormalizedReuse { run } => write!(
                 out,
                 "run {run} has no translate.draft.reused with match `normalized` (0 of them)"
@@ -1008,15 +1066,32 @@ impl std::fmt::Display for Fault {
                 out,
                 "run {run} dropped log lines (log.queue.dropped) and is not read"
             ),
-            Fault::NoUtterance7Sample => write!(
+            Fault::NoUtterance7Sample { run } => write!(
                 out,
-                "no sample of utterance {UTTERANCE} has a translation stage"
+                "run {run} has no sample of utterance {UTTERANCE} with a translation stage"
             ),
-            Fault::SlowUtterance7 { p95_us } => write!(
+            Fault::UnjoinedSample {
+                run,
+                sample,
+                final_us,
+            } => write!(
                 out,
-                "the translation stage of utterance {UTTERANCE} is {p95_us} us ({}) at p95, over {} ms",
-                millis(*p95_us),
+                "run {run}: sample {sample} (t_final_us {final_us}) has no final in the events at that time"
+            ),
+            Fault::KeyedWithoutReuse { run, id, stage_us } => write!(
+                out,
+                "run {run}: sample {id} (stage {}) is matched by the product key but has no translate.draft.reused of that id",
+                millis(*stage_us)
+            ),
+            Fault::SlowKeyed { run, id, stage_us } => write!(
+                out,
+                "run {run}: the translation stage of the matched sample {id} is {stage_us} us ({}), over {} ms",
+                millis(*stage_us),
                 STAGE_LIMIT_US / 1000
+            ),
+            Fault::TooFewKeyed { run, keyed } => write!(
+                out,
+                "run {run} has {keyed} keyed samples of utterance {UTTERANCE}, fewer than {MIN_KEYED}"
             ),
             Fault::Unreadable { run, what } => write!(out, "run {run} was not read: {what}"),
         }
@@ -1031,108 +1106,430 @@ fn describe(faults: &[Fault]) -> String {
         .join("; ")
 }
 
+// ---- reading the three records of a run ----
+
+/// The non-blank lines of a JSON-lines record as values. The first line that
+/// does not parse is named by its number.
+fn json_lines(text: &str) -> Result<Vec<Value>, String> {
+    text.lines()
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty())
+        .map(|(index, line)| {
+            serde_json::from_str(line).map_err(|error| format!("line {}: {error}", index + 1))
+        })
+        .collect()
+}
+
 /// What the relay's stdout holds that RP-85 reads.
 struct LogCounts {
+    /// How many `translate.draft.reused` lines have the match `normalized`.
     normalized: usize,
     dropped: bool,
+    /// The `id` of every `translate.draft.reused` line.
+    reused: Vec<String>,
+}
+
+fn note_reuse(row: &Value, counts: &mut LogCounts) {
+    if row.get("match").and_then(Value::as_str) == Some("normalized") {
+        counts.normalized += 1;
+    }
+    if let Some(id) = row.get("id").and_then(Value::as_str) {
+        counts.reused.push(id.to_owned());
+    }
 }
 
 fn log_counts(relay_log: &str) -> Result<LogCounts, String> {
     let mut counts = LogCounts {
         normalized: 0,
         dropped: false,
+        reused: Vec::new(),
     };
-    let lines = relay_log
-        .lines()
-        .enumerate()
-        .filter(|(_, line)| !line.trim().is_empty());
-    for (index, line) in lines {
-        let value: Value =
-            serde_json::from_str(line).map_err(|error| format!("line {}: {error}", index + 1))?;
-        match value.get("event").and_then(Value::as_str) {
+    for row in json_lines(relay_log)? {
+        match row.get("event").and_then(Value::as_str) {
             Some("log.queue.dropped") => counts.dropped = true,
-            Some("translate.draft.reused")
-                if value.get("match").and_then(Value::as_str) == Some("normalized") =>
-            {
-                counts.normalized += 1;
-            }
+            Some("translate.draft.reused") => note_reuse(&row, &mut counts),
             _ => {}
         }
     }
     Ok(counts)
 }
 
-/// The translation stage (`t_tr_us - t_final_us`) of each sample of
-/// utterance 7 that has both times. The validity line `d >= 120 ms` is not
-/// applied: the stage does not include `d`.
-fn utterance_7_stages(samples: &str) -> Result<Vec<i64>, String> {
-    let mut stages = Vec::new();
-    let lines = samples
-        .lines()
-        .enumerate()
-        .filter(|(_, line)| !line.trim().is_empty());
-    for (index, line) in lines {
-        let row: Value =
-            serde_json::from_str(line).map_err(|error| format!("line {}: {error}", index + 1))?;
-        let time = |key: &str| row.get(key).and_then(Value::as_i64);
-        if row.get("utt").and_then(Value::as_u64) != Some(UTTERANCE) {
-            continue;
-        }
-        if let (Some(final_us), Some(tr_us)) = (time("t_final_us"), time("t_tr_us")) {
-            stages.push(tr_us - final_us);
-        }
+/// A sample of utterance 7 that has both times. The validity line `d >= 120 ms`
+/// is not applied: the stage does not include `d`.
+struct Sample {
+    /// The row's `id` when it has one, else its repeat number.
+    name: String,
+    final_us: i64,
+    /// `t_tr_us - t_final_us`
+    stage_us: i64,
+}
+
+fn sample_of(row: &Value, record: usize) -> Result<Option<Sample>, String> {
+    if row.get("utt").and_then(Value::as_u64) != Some(UTTERANCE) {
+        return Ok(None);
     }
-    Ok(stages)
+    let time = |key: &str| row.get(key).and_then(Value::as_i64);
+    let (Some(final_us), Some(tr_us)) = (time("t_final_us"), time("t_tr_us")) else {
+        return Ok(None);
+    };
+    let Some(repeat) = row.get("repeat").and_then(Value::as_u64) else {
+        return Err(format!("record {record}: a sample has no repeat number"));
+    };
+    let name = match row.get("id").and_then(Value::as_str) {
+        Some(id) => id.to_owned(),
+        None => format!("repeat {repeat}"),
+    };
+    Ok(Some(Sample {
+        name,
+        final_us,
+        stage_us: tr_us - final_us,
+    }))
 }
 
-/// The nearest-rank 95th percentile; `None` for no sample.
-fn p95(stages: &mut [i64]) -> Option<i64> {
-    stages.sort_unstable();
-    let rank = (95 * stages.len()).div_ceil(100);
-    rank.checked_sub(1).and_then(|at| stages.get(at)).copied()
+fn utterance_7_samples(samples: &str) -> Result<Vec<Sample>, String> {
+    let mut found = Vec::new();
+    for (index, row) in json_lines(samples)?.iter().enumerate() {
+        found.extend(sample_of(row, index + 1)?);
+    }
+    Ok(found)
 }
 
-fn judge_log(run: &XRun<'_>, faults: &mut Vec<Fault>) {
-    let name = run.name.to_owned();
-    match log_counts(run.relay_log) {
-        Ok(counts) => {
-            if counts.dropped {
-                faults.push(Fault::DroppedLines { run: name.clone() });
-            }
-            if counts.normalized == 0 {
-                faults.push(Fault::NoNormalizedReuse { run: name });
-            }
-        }
-        Err(what) => faults.push(Fault::Unreadable { run: name, what }),
+/// Whether a recognizer event is a text in progress or a `final` with its id.
+enum Said {
+    Partial,
+    Final(String),
+}
+
+/// A `partial` or `final` event of the recognizer's record.
+struct Heard {
+    t_us: i64,
+    text: String,
+    said: Said,
+}
+
+impl Heard {
+    fn is_final(&self) -> bool {
+        matches!(self.said, Said::Final(_))
     }
 }
 
-/// Every run reuses an answer under the widened key, and the translation stage
-/// of utterance 7 over all runs stays within [`STAGE_LIMIT_US`] at p95.
-fn check_x_runs(runs: &[XRun<'_>]) -> Result<XReport, Vec<Fault>> {
-    let mut faults = Vec::new();
-    let mut stages = Vec::new();
-    for run in runs {
-        judge_log(run, &mut faults);
-        match utterance_7_stages(run.samples) {
-            Ok(mut found) => stages.append(&mut found),
-            Err(what) => faults.push(Fault::Unreadable {
-                run: run.name.to_owned(),
-                what,
+fn heard_of(row: &Value, record: usize) -> Result<Option<Heard>, String> {
+    let Some(event) = row.get("event") else {
+        return Ok(None);
+    };
+    let kind = match event.get("type").and_then(Value::as_str) {
+        Some(kind @ ("partial" | "final")) => kind,
+        _ => return Ok(None),
+    };
+    let broken = |what: &str| format!("record {record}: a {kind} event has no {what}");
+    let Some(t_us) = row.get("t_us").and_then(Value::as_i64) else {
+        return Err(broken("t_us"));
+    };
+    let Some(text) = event.get("text").and_then(Value::as_str) else {
+        return Err(broken("text"));
+    };
+    let said = if kind == "final" {
+        let Some(id) = event.get("id").and_then(Value::as_str) else {
+            return Err(broken("id"));
+        };
+        Said::Final(id.to_owned())
+    } else {
+        Said::Partial
+    };
+    Ok(Some(Heard {
+        t_us,
+        text: text.to_owned(),
+        said,
+    }))
+}
+
+fn heard_events(events: &str) -> Result<Vec<Heard>, String> {
+    let mut found = Vec::new();
+    for (index, row) in json_lines(events)?.iter().enumerate() {
+        found.extend(heard_of(row, index + 1)?);
+    }
+    Ok(found)
+}
+
+// ---- splitting the samples by the product's key ----
+
+/// Why the product key does not match a sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reason {
+    /// There was a text in progress and `reuse_match` returned `None` for it.
+    Key,
+    /// No `partial` came between the previous `final` and this one.
+    NoDraft,
+}
+
+impl std::fmt::Display for Reason {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        out.write_str(match self {
+            Reason::Key => "key",
+            Reason::NoDraft => "no_draft",
+        })
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Keyed {
+    id: String,
+    stage_us: i64,
+}
+
+#[derive(Debug, PartialEq)]
+struct Unmatched {
+    id: String,
+    stage_us: i64,
+    closing: String,
+    draft: Option<String>,
+    reason: Reason,
+}
+
+#[derive(Debug, PartialEq)]
+enum Split {
+    Keyed(Keyed),
+    Unmatched(Unmatched),
+}
+
+/// The `id` and text of the `final` stamped `final_us`.
+fn final_at(heard: &[Heard], final_us: i64) -> Option<(&str, &str)> {
+    heard.iter().find_map(|event| match &event.said {
+        Said::Final(id) if event.t_us == final_us => Some((id.as_str(), event.text.as_str())),
+        _ => None,
+    })
+}
+
+/// The text in progress when the `final` at `final_us` came: the last
+/// `partial` after the previous `final` and before this one.
+fn last_draft(heard: &[Heard], final_us: i64) -> Option<&str> {
+    let previous = heard
+        .iter()
+        .filter(|event| event.is_final() && event.t_us < final_us)
+        .map(|event| event.t_us)
+        .max();
+    heard
+        .iter()
+        .filter(|event| !event.is_final() && event.t_us < final_us)
+        .filter(|event| previous.is_none_or(|stamp| event.t_us > stamp))
+        .max_by_key(|event| event.t_us)
+        .map(|event| event.text.as_str())
+}
+
+/// Splits one sample by the product's own key. `None` when the events hold no
+/// `final` stamped with the sample's `t_final_us`.
+fn classify(sample: &Sample, heard: &[Heard]) -> Option<Split> {
+    let (id, closing) = final_at(heard, sample.final_us)?;
+    let draft = last_draft(heard, sample.final_us);
+    let id = id.to_owned();
+    let stage_us = sample.stage_us;
+    if draft.is_some_and(|draft| reuse_match(closing, draft, true).is_some()) {
+        return Some(Split::Keyed(Keyed { id, stage_us }));
+    }
+    let reason = if draft.is_some() {
+        Reason::Key
+    } else {
+        Reason::NoDraft
+    };
+    Some(Split::Unmatched(Unmatched {
+        id,
+        stage_us,
+        closing: closing.to_owned(),
+        draft: draft.map(str::to_owned),
+        reason,
+    }))
+}
+
+// ---- judging a run ----
+
+/// How one run's samples split.
+struct RunReport {
+    run: String,
+    keyed: Vec<Keyed>,
+    unmatched: Vec<Unmatched>,
+}
+
+/// The faults of the set of runs, and how each run's samples split.
+struct Judgement {
+    faults: Vec<Fault>,
+    runs: Vec<RunReport>,
+}
+
+/// What a run's three records hold once parsed.
+struct Read {
+    counts: LogCounts,
+    samples: Vec<Sample>,
+    heard: Vec<Heard>,
+}
+
+fn read_run(run: &XRun) -> Result<Read, String> {
+    let named = |file: &'static str| move |what: String| format!("{file}: {what}");
+    Ok(Read {
+        counts: log_counts(&run.relay_log).map_err(named("relay log"))?,
+        samples: utterance_7_samples(&run.samples).map_err(named("samples"))?,
+        heard: heard_events(&run.events).map_err(named("events"))?,
+    })
+}
+
+fn judge_log(run: &str, counts: &LogCounts, faults: &mut Vec<Fault>) {
+    if counts.dropped {
+        faults.push(Fault::DroppedLines {
+            run: run.to_owned(),
+        });
+    }
+    if counts.normalized == 0 {
+        faults.push(Fault::NoNormalizedReuse {
+            run: run.to_owned(),
+        });
+    }
+}
+
+/// Splits every sample of the run. A sample with no `final` at its time
+/// and a matched sample with no reuse of its id are faults.
+fn split_samples(run: &str, read: &Read, faults: &mut Vec<Fault>) -> RunReport {
+    let mut report = RunReport {
+        run: run.to_owned(),
+        keyed: Vec::new(),
+        unmatched: Vec::new(),
+    };
+    for sample in &read.samples {
+        match classify(sample, &read.heard) {
+            None => faults.push(Fault::UnjoinedSample {
+                run: run.to_owned(),
+                sample: sample.name.clone(),
+                final_us: sample.final_us,
             }),
+            Some(Split::Unmatched(unmatched)) => report.unmatched.push(unmatched),
+            Some(Split::Keyed(keyed)) => {
+                if !read.counts.reused.contains(&keyed.id) {
+                    faults.push(Fault::KeyedWithoutReuse {
+                        run: run.to_owned(),
+                        id: keyed.id.clone(),
+                        stage_us: keyed.stage_us,
+                    });
+                }
+                report.keyed.push(keyed);
+            }
         }
     }
-    let samples = stages.len();
-    let p95_us = p95(&mut stages);
-    match p95_us {
-        None => faults.push(Fault::NoUtterance7Sample),
-        Some(p95_us) if p95_us > STAGE_LIMIT_US => faults.push(Fault::SlowUtterance7 { p95_us }),
-        Some(_) => {}
+    report
+}
+
+/// The matched samples are enough in number and none is over the stage line.
+/// The line is held to the slowest one: with at most ten samples the
+/// nearest-rank 95th percentile is the maximum.
+fn judge_keyed(report: &RunReport, faults: &mut Vec<Fault>) {
+    let over = report
+        .keyed
+        .iter()
+        .max_by_key(|keyed| keyed.stage_us)
+        .filter(|slowest| slowest.stage_us > STAGE_LIMIT_US);
+    if let Some(slowest) = over {
+        faults.push(Fault::SlowKeyed {
+            run: report.run.clone(),
+            id: slowest.id.clone(),
+            stage_us: slowest.stage_us,
+        });
     }
-    match (p95_us, faults.is_empty()) {
-        (Some(p95_us), true) => Ok(XReport { samples, p95_us }),
-        _ => Err(faults),
+    if report.keyed.len() < MIN_KEYED {
+        faults.push(Fault::TooFewKeyed {
+            run: report.run.clone(),
+            keyed: report.keyed.len(),
+        });
     }
+}
+
+fn judge_run(run: &XRun, judgement: &mut Judgement) {
+    let name = run.name.as_str();
+    let read = match read_run(run) {
+        Ok(read) => read,
+        Err(what) => {
+            judgement.faults.push(Fault::Unreadable {
+                run: name.to_owned(),
+                what,
+            });
+            return;
+        }
+    };
+    judge_log(name, &read.counts, &mut judgement.faults);
+    if read.samples.is_empty() {
+        judgement.faults.push(Fault::NoUtterance7Sample {
+            run: name.to_owned(),
+        });
+        return;
+    }
+    let report = split_samples(name, &read, &mut judgement.faults);
+    judge_keyed(&report, &mut judgement.faults);
+    judgement.runs.push(report);
+}
+
+/// Judges the runs of the window; a run of any other name is left unread.
+fn check_x_runs(runs: &[XRun]) -> Judgement {
+    let mut judgement = Judgement {
+        faults: Vec::new(),
+        runs: Vec::new(),
+    };
+    let window: Vec<&XRun> = runs.iter().filter(|run| is_window_run(&run.name)).collect();
+    if window.is_empty() {
+        judgement.faults.push(Fault::NoWindowRun);
+    }
+    for run in window {
+        judge_run(run, &mut judgement);
+    }
+    judgement
+}
+
+// ---- the output of the judgement ----
+
+/// One line for each run and one for each sample the key does not match.
+fn listing(reports: &[&RunReport]) -> String {
+    let mut lines = Vec::new();
+    for report in reports {
+        let slowest = report.keyed.iter().map(|keyed| keyed.stage_us).max();
+        lines.push(format!(
+            "{} keyed {} slowest {} unmatched {}",
+            report.run,
+            report.keyed.len(),
+            slowest.map_or_else(|| String::from("-"), millis),
+            report.unmatched.len()
+        ));
+        for one in &report.unmatched {
+            lines.push(format!(
+                "{} unmatched {} stage {} reason {} final {:?} draft {:?}",
+                report.run,
+                one.id,
+                millis(one.stage_us),
+                one.reason,
+                one.closing,
+                one.draft
+            ));
+        }
+    }
+    lines.join("\n")
+}
+
+/// The listing of every run when the judgement passed. When it did not, the
+/// faults, then the listing of the runs they name.
+fn verdict(judgement: &Judgement) -> Result<String, String> {
+    if judgement.faults.is_empty() {
+        let all: Vec<&RunReport> = judgement.runs.iter().collect();
+        return Ok(listing(&all));
+    }
+    let named: Vec<&RunReport> = judgement
+        .runs
+        .iter()
+        .filter(|report| {
+            judgement
+                .faults
+                .iter()
+                .any(|fault| fault.run() == Some(report.run.as_str()))
+        })
+        .collect();
+    Err(format!(
+        "{}\n{}",
+        describe(&judgement.faults),
+        listing(&named)
+    ))
 }
 
 /// The text of a record file; the path when it cannot be read.
@@ -1140,196 +1537,401 @@ fn read_record(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-/// The three files of a run, as `(name, samples, relay log)`.
-type RunText = (String, String, String);
-
-fn run_text(name: &str, samples: &Path, relay_log: &Path) -> Result<RunText, String> {
-    Ok((
-        name.to_owned(),
-        read_record(samples)?,
-        read_record(relay_log)?,
-    ))
+/// The path of one record of a run: `<dir>/<run>.e2e1.<suffix>`.
+fn record_path(dir: &Path, run: &str, suffix: &str) -> PathBuf {
+    dir.join(format!("{run}.e2e1.{suffix}"))
 }
 
-/// A run known only by its samples: the recorded run has no relay log, and
-/// the check then finds no reuse in it, which is what 029 shows.
-fn samples_only(name: &str, samples: &Path) -> Result<RunText, String> {
-    Ok((name.to_owned(), read_record(samples)?, String::new()))
+/// The three records of a run from `dir`. A record that cannot be read is
+/// named by its path.
+fn load_run(dir: &Path, name: &str) -> Result<XRun, String> {
+    Ok(XRun {
+        name: name.to_owned(),
+        samples: read_record(&record_path(dir, name, "jsonl"))?,
+        events: read_record(&record_path(dir, name, "events.jsonl"))?,
+        relay_log: read_record(&record_path(dir, name, "relay.stdout.log"))?,
+    })
 }
 
-fn borrowed(texts: &[RunText]) -> Vec<XRun<'_>> {
-    texts
-        .iter()
-        .map(|(name, samples, relay_log)| XRun {
-            name,
-            samples,
-            relay_log,
-        })
-        .collect()
+// ---- fixtures of the runs (F85q) ----
+//
+// A made run holds five takes of utterance 7. Takes 1, 2, 3 and 5 close with
+// the recorded final, which the product key matches against the recorded
+// draft; take 4 closes with the final whose `連合国は` is `連合国が`, which it
+// does not. The records are written from these values, so a test changes a
+// value and the three records follow.
+
+const TAKE_GAP_US: i64 = 10_000_000;
+const KEYED_STAGE_US: i64 = 120_000;
+const UNKEYED_STAGE_US: i64 = 418_540;
+/// How long before its `final` the last text in progress of a take came.
+const DRAFT_LEAD_US: i64 = 500_000;
+/// How long before its `final` an earlier, shorter text in progress came.
+const EARLY_LEAD_US: i64 = 2_000_000;
+/// The earlier text in progress: a prefix of the recorded draft.
+const EARLY_DRAFT: &str = "千九百四十年";
+
+/// The recorded final with `連合国は` written `連合国が`: the product key does
+/// not match it against the recorded draft.
+fn unkeyed_final() -> String {
+    P7_FINAL.replace("連合国は", "連合国が")
 }
 
-// ---- fixtures of the runs ----
-
-/// A sample row of the run's `<run>.e2e1.jsonl`.
-fn sample_row(utt: u64, final_us: Option<i64>, tr_us: Option<i64>) -> String {
-    json!({"repeat": 1, "utt": utt, "t_final_us": final_us, "t_tr_us": tr_us}).to_string()
+struct Take {
+    id: String,
+    final_us: i64,
+    /// The last text in progress before the final; none when no `partial` came.
+    draft: Option<String>,
+    closing: String,
+    /// `t_tr_us - t_final_us`; none for a take that was not translated.
+    stage_us: Option<i64>,
+    /// `d` in ms: the sample's `(t_final_us - t_end_us) / 1000 - final_latency_ms`.
+    d_ms: i64,
+    /// Whether the events hold the `final` of the take.
+    final_kept: bool,
+    /// Another `final` of the take's id with its own time and text, written
+    /// after the real one.
+    other_final: Option<(i64, String)>,
 }
 
-/// The samples of a run: one row of utterance 7 for each stage, and two rows
-/// the check has to leave out (another utterance, and one with no translation).
-fn samples_with_stages(stages_us: &[i64]) -> String {
-    let mut rows: Vec<String> = stages_us
-        .iter()
-        .map(|stage| sample_row(UTTERANCE, Some(1_000_000), Some(1_000_000 + stage)))
+fn take(n: i64, keyed: bool) -> Take {
+    Take {
+        id: format!("mic-7{n}"),
+        final_us: n * TAKE_GAP_US,
+        draft: Some(P7_DRAFT.to_owned()),
+        closing: if keyed {
+            P7_FINAL.to_owned()
+        } else {
+            unkeyed_final()
+        },
+        stage_us: Some(if keyed {
+            KEYED_STAGE_US
+        } else {
+            UNKEYED_STAGE_US
+        }),
+        d_ms: 500,
+        final_kept: true,
+        other_final: None,
+    }
+}
+
+struct MadeRun {
+    name: String,
+    takes: Vec<Take>,
+    /// `(id, match)` of each `translate.draft.reused` of the relay's stdout.
+    reuses: Vec<(String, String)>,
+    /// Further lines of the relay's stdout.
+    extra_log: Vec<String>,
+}
+
+/// The made run of window E3'' with the given name. Besides the reuses of the
+/// matched takes, the relay's stdout holds one of another utterance (`mic-31`).
+fn made_run(name: &str) -> MadeRun {
+    let keyed = |n: i64| n != 4;
+    let mut reuses: Vec<(String, String)> = (1..=5)
+        .filter(|n| keyed(*n))
+        .map(|n| (format!("mic-7{n}"), String::from("normalized")))
         .collect();
-    rows.push(sample_row(8, Some(1_000_000), Some(1_900_000)));
-    rows.push(sample_row(UTTERANCE, Some(1_000_000), None));
-    rows.join("\n")
+    reuses.push((String::from("mic-31"), String::from("normalized")));
+    MadeRun {
+        name: name.to_owned(),
+        takes: (1..=5).map(|n| take(n, keyed(n))).collect(),
+        reuses,
+        extra_log: Vec::new(),
+    }
 }
 
-/// The relay's stdout of a run: one `translate.draft.reused` for each `match`.
-fn relay_log_with(matches: &[&str]) -> String {
-    matches
-        .iter()
-        .enumerate()
-        .map(|(index, matched)| {
-            json!({
-                "event": "translate.draft.reused", "id": format!("mic-{index}"),
-                "match": matched, "state": "done", "waited_ms": 0, "verdict": "ok",
+/// The made runs `e3q1` and `e3q2`.
+fn made_pair() -> (MadeRun, MadeRun) {
+    (made_run("e3q1"), made_run("e3q2"))
+}
+
+/// One `partial` or `final` row of a recognizer's events.
+fn event_line(kind: &str, id: Option<&str>, text: &str, t_us: i64) -> String {
+    let mut event = json!({"type": kind, "text": text});
+    if let Some(id) = id {
+        event["id"] = json!(id);
+    }
+    json!({"event": event, "t_us": t_us}).to_string()
+}
+
+impl MadeRun {
+    fn take_mut(&mut self, n: usize) -> Result<&mut Take, String> {
+        self.takes
+            .get_mut(n.wrapping_sub(1))
+            .ok_or_else(|| format!("{} has no take {n}", self.name))
+    }
+
+    /// Removes the reuse of the take with this `id`.
+    fn drop_reuse(&mut self, id: &str) {
+        self.reuses.retain(|(reused, _)| reused != id);
+    }
+
+    /// Takes `n` close with a final the key does not match, at `stage_us`, and
+    /// the relay does not reuse its draft.
+    fn unmatch(&mut self, n: usize, stage_us: i64) -> Result<(), String> {
+        let take = self.take_mut(n)?;
+        take.closing = unkeyed_final();
+        take.stage_us = Some(stage_us);
+        let id = take.id.clone();
+        self.drop_reuse(&id);
+        Ok(())
+    }
+
+    fn sample_rows(&self) -> String {
+        let rows: Vec<String> = self
+            .takes
+            .iter()
+            .zip(1..)
+            .map(|(take, repeat)| {
+                json!({
+                    "repeat": repeat, "utt": UTTERANCE, "id": take.id,
+                    "t_end_us": take.final_us - (take.d_ms + 100) * 1000,
+                    "t_final_us": take.final_us,
+                    "t_tr_us": take.stage_us.map(|stage| take.final_us + stage),
+                    "final_latency_ms": 100.0,
+                })
+                .to_string()
             })
-            .to_string()
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
+            .collect();
+        rows.join("\n")
+    }
 
-/// Two runs of five samples of utterance 7: the slowest stage is `slowest_us`.
-fn two_runs(slowest_us: i64) -> (String, String) {
-    let first = samples_with_stages(&[120_000; 5]);
-    let second = samples_with_stages(&[120_000, 120_000, 120_000, 120_000, slowest_us]);
-    (first, second)
-}
+    /// The events of one take: the earlier and the last text in progress, the
+    /// final, another final, and a row of a kind the check leaves out.
+    fn take_events(take: &Take, rows: &mut Vec<String>) {
+        if let Some(draft) = &take.draft {
+            let early = take.final_us - EARLY_LEAD_US;
+            rows.push(event_line("partial", None, EARLY_DRAFT, early));
+            let last = take.final_us - DRAFT_LEAD_US;
+            rows.push(event_line("partial", None, draft, last));
+        }
+        if take.final_kept {
+            let closing = event_line("final", Some(&take.id), &take.closing, take.final_us);
+            rows.push(closing);
+        }
+        if let Some((t_us, text)) = &take.other_final {
+            rows.push(event_line("final", Some(&take.id), text, *t_us));
+        }
+        let speaker =
+            json!({"event": {"type": "speaker", "id": take.id}, "t_us": take.final_us + 1000});
+        rows.push(speaker.to_string());
+    }
 
-fn pair_of_runs<'a>(samples: &'a (String, String), logs: &'a (String, String)) -> [XRun<'a>; 2] {
-    [
+    fn event_rows(&self) -> String {
+        let ready = json!({"event": {"sr": 16000, "type": "ready"}, "t_us": 16_093});
+        let mut rows = vec![ready.to_string()];
+        for take in &self.takes {
+            MadeRun::take_events(take, &mut rows);
+        }
+        rows.join("\n")
+    }
+
+    fn log_rows(&self) -> String {
+        let mut rows: Vec<String> = self
+            .reuses
+            .iter()
+            .map(|(id, matched)| {
+                json!({
+                    "event": "translate.draft.reused", "id": id, "match": matched,
+                    "source": "mic", "state": "done", "waited_ms": 0, "verdict": "ok",
+                })
+                .to_string()
+            })
+            .collect();
+        rows.extend(self.extra_log.iter().cloned());
+        rows.join("\n")
+    }
+
+    fn texts(&self) -> XRun {
         XRun {
-            name: "e3p1",
-            samples: &samples.0,
-            relay_log: &logs.0,
-        },
-        XRun {
-            name: "e3p2",
-            samples: &samples.1,
-            relay_log: &logs.1,
-        },
-    ]
+            name: self.name.clone(),
+            samples: self.sample_rows(),
+            events: self.event_rows(),
+            relay_log: self.log_rows(),
+        }
+    }
+
+    /// Writes the three records into `dir`, leaving out the events when asked.
+    fn write_to(&self, dir: &Path, with_events: bool) -> std::io::Result<()> {
+        let texts = self.texts();
+        std::fs::write(record_path(dir, &self.name, "jsonl"), texts.samples)?;
+        if with_events {
+            std::fs::write(record_path(dir, &self.name, "events.jsonl"), texts.events)?;
+        }
+        std::fs::write(
+            record_path(dir, &self.name, "relay.stdout.log"),
+            texts.relay_log,
+        )
+    }
 }
 
-fn reusing_logs() -> (String, String) {
-    (
-        relay_log_with(&["normalized", "normalized", "normalized", "same"]),
-        relay_log_with(&["normalized"]),
-    )
+/// Judges two made runs.
+fn judged(first: &MadeRun, second: &MadeRun) -> Judgement {
+    check_x_runs(&[first.texts(), second.texts()])
 }
 
-/// T-RP-85-026: utterance 7 at the line itself, and one reuse in each run.
+/// The text of a judgement that did not pass; an error when it passed.
+fn refused(judgement: &Judgement) -> Result<String, Box<dyn std::error::Error>> {
+    match verdict(judgement) {
+        Ok(listing) => Err(format!("the judgement passed:\n{listing}").into()),
+        Err(said) => Ok(said),
+    }
+}
+
+/// Whether one line of `text` holds every one of `parts`.
+fn has_line_with(text: &str, parts: &[&str]) -> bool {
+    text.lines()
+        .any(|line| parts.iter().all(|part| line.contains(part)))
+}
+
+fn assert_passes(judgement: &Judgement) {
+    assert_eq!(judgement.faults, Vec::<Fault>::new());
+}
+
+fn fault_keyed_without_reuse(run: &str, id: &str, stage_us: i64) -> Fault {
+    Fault::KeyedWithoutReuse {
+        run: run.to_owned(),
+        id: id.to_owned(),
+        stage_us,
+    }
+}
+
+fn run_report<'a>(judgement: &'a Judgement, run: &str) -> Result<&'a RunReport, String> {
+    judgement
+        .runs
+        .iter()
+        .find(|report| report.run == run)
+        .ok_or_else(|| format!("no report for {run}"))
+}
+
+fn unmatched_ids(report: &RunReport) -> Vec<&str> {
+    report.unmatched.iter().map(|one| one.id.as_str()).collect()
+}
+
+/// T-RP-85-026: the slowest matched sample is at the line itself, one sample
+/// is not matched, and each run holds a reuse of the earlier kind and of the
+/// new kind.
 #[test]
-fn x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass() {
-    let samples = two_runs(182_000);
-    let logs = reusing_logs();
-    let report = check_x_runs(&pair_of_runs(&samples, &logs));
-    assert_eq!(
-        report,
-        Ok(XReport {
-            samples: 10,
-            p95_us: 182_000
-        })
-    );
+fn x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass() -> TestResult {
+    let (mut first, mut second) = made_pair();
+    first.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US);
+    second.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US);
+    let judgement = judged(&first, &second);
+    assert_passes(&judgement);
+    for name in ["e3q1", "e3q2"] {
+        let report = run_report(&judgement, name)?;
+        assert_eq!(report.keyed.len(), 4, "{name}");
+        let unmatched = Unmatched {
+            id: String::from("mic-74"),
+            stage_us: 418_540,
+            closing: unkeyed_final(),
+            draft: Some(P7_DRAFT.to_owned()),
+            reason: Reason::Key,
+        };
+        assert_eq!(report.unmatched, [unmatched], "{name}");
+    }
+    let listing = verdict(&judgement)?;
+    for name in ["e3q1", "e3q2"] {
+        let parts = [name, "unmatched", "mic-74", "418.540 ms", "key"];
+        assert!(has_line_with(&listing, &parts), "{listing}");
+    }
+    Ok(())
 }
 
 /// T-RP-85-027: one microsecond over the line.
 #[test]
-fn utterance_7_one_microsecond_over_182_ms_is_rejected() {
-    let samples = two_runs(182_001);
-    let logs = reusing_logs();
-    let faults = check_x_runs(&pair_of_runs(&samples, &logs)).err();
-    assert_eq!(
-        faults,
-        Some(vec![Fault::SlowUtterance7 { p95_us: 182_001 }])
-    );
-    let said = faults.map(|faults| describe(&faults));
-    assert!(
-        said.as_deref()
-            .is_some_and(|text| text.contains("182001") && text.contains("182 ms")),
-        "{said:?}"
-    );
+fn utterance_7_one_microsecond_over_182_ms_is_rejected() -> TestResult {
+    let (mut first, mut second) = made_pair();
+    first.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US + 1);
+    second.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US);
+    let judgement = judged(&first, &second);
+    let slow = Fault::SlowKeyed {
+        run: String::from("e3q1"),
+        id: String::from("mic-73"),
+        stage_us: 182_001,
+    };
+    assert_eq!(judgement.faults, [slow]);
+    let said = refused(&judgement)?;
+    for part in ["e3q1", "mic-73", "182001", "182 ms"] {
+        assert!(said.contains(part), "{part}: {said}");
+    }
+    assert!(!said.contains("e3q2"), "{said}");
+    Ok(())
 }
 
 /// T-RP-85-028: a run whose reuses are all of the earlier keys.
 #[test]
-fn a_run_without_a_normalized_reuse_is_rejected() {
-    let samples = two_runs(182_000);
-    let logs = (
-        relay_log_with(&["normalized"]),
-        relay_log_with(&["same", "closing_mark", "same", "closing_mark"]),
-    );
-    let faults = check_x_runs(&pair_of_runs(&samples, &logs)).err();
-    assert_eq!(
-        faults,
-        Some(vec![Fault::NoNormalizedReuse {
-            run: String::from("e3p2")
-        }])
-    );
+fn a_run_without_a_normalized_reuse_is_rejected() -> TestResult {
+    let (first, mut second) = made_pair();
+    for (_, matched) in &mut second.reuses {
+        *matched = String::from("same");
+    }
+    let judgement = judged(&first, &second);
+    let none = Fault::NoNormalizedReuse {
+        run: String::from("e3q2"),
+    };
+    assert_eq!(judgement.faults, [none]);
+    let said = refused(&judgement)?;
+    assert!(said.contains("e3q2") && said.contains("`normalized` (0 of them)"));
+    assert!(!said.contains("e3q1"), "{said}");
+    for id in ["mic-71", "mic-72", "mic-73", "mic-75"] {
+        assert!(!said.contains(id), "{id}: {said}");
+    }
+    Ok(())
 }
 
-/// T-RP-85-029: the recorded run, with no reuse at all, is over the line.
+/// T-RP-85-029: no reuse at all in either run. The matched takes are named;
+/// the take the key does not match is not.
 #[test]
 fn the_recorded_utterance_7_is_over_182_ms_without_a_reuse() -> TestResult {
-    let dir = repo_root().join("docs/results/rp32");
-    let mut texts = Vec::new();
-    for name in ["rs1", "rs2", "rs3"] {
-        texts.push(samples_only(name, &dir.join(format!("{name}.jsonl")))?);
+    let (mut first, mut second) = made_pair();
+    first.reuses.clear();
+    second.reuses.clear();
+    let judgement = judged(&first, &second);
+    let mut expected = Vec::new();
+    for run in ["e3q1", "e3q2"] {
+        expected.push(Fault::NoNormalizedReuse {
+            run: run.to_owned(),
+        });
+        for id in ["mic-71", "mic-72", "mic-73", "mic-75"] {
+            expected.push(fault_keyed_without_reuse(run, id, KEYED_STAGE_US));
+        }
     }
-    let Some(faults) = check_x_runs(&borrowed(&texts)).err() else {
-        return Err("the recorded run passed".into());
-    };
-    let said = describe(&faults);
-    assert!(
-        faults.contains(&Fault::SlowUtterance7 { p95_us: 372_760 }),
-        "{said}"
-    );
-    assert!(said.contains("372.760 ms"), "{said}");
-    assert!(said.contains("`normalized` (0 of them)"), "{said}");
+    assert_eq!(judgement.faults, expected);
+    assert!(!describe(&judgement.faults).contains("mic-74"));
     Ok(())
 }
 
 /// T-RP-85-030: a run whose samples of utterance 7 have no translation stage.
 #[test]
-fn an_x_run_without_utterance_7_samples_is_rejected() {
-    let samples = (samples_with_stages(&[]), samples_with_stages(&[]));
-    let logs = reusing_logs();
-    let faults = check_x_runs(&pair_of_runs(&samples, &logs)).err();
-    assert_eq!(faults, Some(vec![Fault::NoUtterance7Sample]));
+fn an_x_run_without_utterance_7_samples_is_rejected() -> TestResult {
+    let (mut first, second) = made_pair();
+    for take in &mut first.takes {
+        take.stage_us = None;
+    }
+    let judgement = judged(&first, &second);
+    let none = Fault::NoUtterance7Sample {
+        run: String::from("e3q1"),
+    };
+    assert_eq!(judgement.faults, [none]);
+    let said = refused(&judgement)?;
+    assert!(said.contains("e3q1") && !said.contains("e3q2"), "{said}");
+    Ok(())
 }
 
-/// T-RP-85-031: the two Japanese runs of window E3', read from `docs/results/r8x/`.
+/// T-RP-85-031: the two Japanese runs of window E3'', read from `docs/results/r8x/`.
 #[test]
-#[ignore = "reads the records of window E3', which are put in docs/results/r8x/ after the window"]
+#[ignore = "reads the records of window E3'', which are put in docs/results/r8x/ after the window"]
 fn rp85_a_draft_differing_only_in_numerals_or_inner_marks_is_reused_and_checked_by_v() -> TestResult
 {
     let dir = repo_root().join("docs/results/r8x");
-    let mut texts = Vec::new();
-    for name in ["e3p1", "e3p2"] {
-        let samples = dir.join(format!("{name}.e2e1.jsonl"));
-        let relay_log = dir.join(format!("{name}.e2e1.relay.stdout.log"));
-        texts.push(run_text(name, &samples, &relay_log)?);
+    let mut runs = Vec::new();
+    for name in RECORDED_RUNS {
+        runs.push(load_run(&dir, name)?);
     }
-    let report = check_x_runs(&borrowed(&texts)).map_err(|faults| describe(&faults))?;
-    eprintln!(
-        "utterance {UTTERANCE}: {} samples, translation stage {} at p95",
-        report.samples,
-        millis(report.p95_us)
-    );
+    let listing = verdict(&check_x_runs(&runs))?;
+    eprintln!("utterance {UTTERANCE}:\n{listing}");
     Ok(())
 }
 
@@ -1345,18 +1947,429 @@ fn v_passes_the_scripted_answer_for_utterance_7() -> TestResult {
 
 /// T-RP-85-033: a run whose log dropped lines cannot be tied to its samples.
 #[test]
-fn a_run_whose_log_dropped_lines_is_rejected() {
-    let samples = two_runs(182_000);
+fn a_run_whose_log_dropped_lines_is_rejected() -> TestResult {
+    let (mut first, second) = made_pair();
     let dropped = json!({"event": "log.queue.dropped", "level": "warn", "dropped": 3});
-    let logs = (
-        format!("{}\n{dropped}", relay_log_with(&["normalized"])),
-        relay_log_with(&["normalized"]),
+    first.extra_log.push(dropped.to_string());
+    let judgement = judged(&first, &second);
+    let none = Fault::DroppedLines {
+        run: String::from("e3q1"),
+    };
+    assert_eq!(judgement.faults, [none]);
+    let said = refused(&judgement)?;
+    assert!(
+        said.contains("e3q1") && said.contains("log.queue.dropped"),
+        "{said}"
     );
-    let faults = check_x_runs(&pair_of_runs(&samples, &logs)).err();
+    Ok(())
+}
+
+/// T-RP-85-034: three matched samples are enough, and the unmatched ones are
+/// listed without being held to the line.
+#[test]
+fn three_keyed_samples_are_enough_and_the_unmatched_ones_are_listed() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.unmatch(2, 300_000)?;
+    let judgement = judged(&first, &second);
+    assert_passes(&judgement);
+    assert_eq!(run_report(&judgement, "e3q1")?.keyed.len(), 3);
     assert_eq!(
-        faults,
-        Some(vec![Fault::DroppedLines {
-            run: String::from("e3p1")
-        }])
+        unmatched_ids(run_report(&judgement, "e3q1")?),
+        ["mic-72", "mic-74"]
     );
+    assert_eq!(unmatched_ids(run_report(&judgement, "e3q2")?), ["mic-74"]);
+    let listing = verdict(&judgement)?;
+    for (run, id, stage) in [
+        ("e3q1", "mic-72", "300.000 ms"),
+        ("e3q1", "mic-74", "418.540 ms"),
+        ("e3q2", "mic-74", "418.540 ms"),
+    ] {
+        assert!(
+            has_line_with(&listing, &[run, id, stage, "key"]),
+            "{listing}"
+        );
+    }
+    Ok(())
+}
+
+/// T-RP-85-035: two matched samples are one short.
+#[test]
+fn two_keyed_samples_are_too_few_and_the_unmatched_ones_are_listed() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.unmatch(2, 300_000)?;
+    first.unmatch(3, 300_000)?;
+    let judgement = judged(&first, &second);
+    let few = Fault::TooFewKeyed {
+        run: String::from("e3q1"),
+        keyed: 2,
+    };
+    assert_eq!(judgement.faults, [few]);
+    let said = refused(&judgement)?;
+    for part in ["e3q1", "2 keyed", "fewer than 3", P7_DRAFT] {
+        assert!(said.contains(part), "{part}: {said}");
+    }
+    let unkeyed = unkeyed_final();
+    for id in ["mic-72", "mic-73", "mic-74"] {
+        let parts = ["unmatched", id, unkeyed.as_str()];
+        assert!(has_line_with(&said, &parts), "{id}: {said}");
+    }
+    assert!(!said.contains("e3q2"), "{said}");
+    Ok(())
+}
+
+/// T-RP-85-036: all five takes are matched; nothing is left unmatched.
+#[test]
+fn five_keyed_samples_pass_and_none_is_listed_as_unmatched() -> TestResult {
+    let (mut first, second) = made_pair();
+    let fourth = first.take_mut(4)?;
+    fourth.closing = P7_FINAL.to_owned();
+    fourth.stage_us = Some(KEYED_STAGE_US);
+    first
+        .reuses
+        .push((String::from("mic-74"), String::from("normalized")));
+    let judgement = judged(&first, &second);
+    assert_passes(&judgement);
+    assert_eq!(run_report(&judgement, "e3q1")?.keyed.len(), 5);
+    assert!(run_report(&judgement, "e3q1")?.unmatched.is_empty());
+    assert_eq!(run_report(&judgement, "e3q2")?.unmatched.len(), 1);
+    let listing = verdict(&judgement)?;
+    assert!(
+        has_line_with(&listing, &["e3q1 keyed 5", "unmatched 0"]),
+        "{listing}"
+    );
+    Ok(())
+}
+
+/// T-RP-85-037: no sample is matched; the reuse of another utterance does not
+/// stand for one.
+#[test]
+fn no_keyed_sample_is_rejected_with_all_five_listed() -> TestResult {
+    let (mut first, second) = made_pair();
+    for n in [1, 2, 3, 5] {
+        first.unmatch(n, KEYED_STAGE_US)?;
+    }
+    let judgement = judged(&first, &second);
+    let few = Fault::TooFewKeyed {
+        run: String::from("e3q1"),
+        keyed: 0,
+    };
+    assert_eq!(judgement.faults, [few]);
+    let said = refused(&judgement)?;
+    assert!(said.contains("0 keyed") && !said.contains("e3q2"), "{said}");
+    let unkeyed = unkeyed_final();
+    for id in ["mic-71", "mic-72", "mic-73", "mic-74", "mic-75"] {
+        let parts = ["unmatched", id, unkeyed.as_str(), P7_DRAFT];
+        assert!(has_line_with(&said, &parts), "{id}: {said}");
+    }
+    Ok(())
+}
+
+/// T-RP-85-038: a matched sample whose reuse is missing is named.
+#[test]
+fn a_keyed_sample_without_a_reuse_is_named_and_rejected() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.drop_reuse("mic-71");
+    let judgement = judged(&first, &second);
+    let missing = fault_keyed_without_reuse("e3q1", "mic-71", KEYED_STAGE_US);
+    assert_eq!(judgement.faults, [missing]);
+    let said = refused(&judgement)?;
+    assert!(
+        said.contains("mic-71") && said.contains("translate.draft.reused"),
+        "{said}"
+    );
+    for id in ["mic-72", "mic-73", "mic-75"] {
+        assert!(!said.contains(id), "{id}: {said}");
+    }
+    Ok(())
+}
+
+/// T-RP-85-039: a reuse line of another id is not the sample's reuse, though
+/// the count of reuse lines is unchanged.
+#[test]
+fn a_reuse_line_under_another_id_does_not_stand_for_the_keyed_sample() -> TestResult {
+    let (mut first, second) = made_pair();
+    let before = first.reuses.len();
+    for (id, _) in &mut first.reuses {
+        if id == "mic-71" {
+            *id = String::from("mic-91");
+        }
+    }
+    assert_eq!(first.reuses.len(), before);
+    let judgement = judged(&first, &second);
+    let missing = fault_keyed_without_reuse("e3q1", "mic-71", KEYED_STAGE_US);
+    assert_eq!(judgement.faults, [missing]);
+    Ok(())
+}
+
+/// T-RP-85-040: an unmatched sample, however slow, is not held to the line.
+#[test]
+fn a_slow_unmatched_sample_is_not_judged_against_the_182_ms_line() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.take_mut(4)?.stage_us = Some(1_000_000);
+    let judgement = judged(&first, &second);
+    assert_passes(&judgement);
+    let listing = verdict(&judgement)?;
+    let parts = ["e3q1", "unmatched", "mic-74", "1000.000 ms", "key"];
+    assert!(has_line_with(&listing, &parts), "{listing}");
+    // The run left as made: four matched samples, the slowest at 120 ms.
+    assert!(has_line_with(
+        &listing,
+        &["e3q2 keyed 4 slowest 120.000 ms"]
+    ));
+    eprintln!("{listing}");
+    Ok(())
+}
+
+/// T-RP-85-041: the product key matches this slow sample, so it is judged,
+/// and it has no reuse.
+#[test]
+fn a_slow_sample_whose_pair_the_product_key_matches_is_judged() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.take_mut(4)?.closing = P7_FINAL.to_owned();
+    let judgement = judged(&first, &second);
+    let slow = Fault::SlowKeyed {
+        run: String::from("e3q1"),
+        id: String::from("mic-74"),
+        stage_us: 418_540,
+    };
+    let missing = fault_keyed_without_reuse("e3q1", "mic-74", 418_540);
+    assert_eq!(judgement.faults, [missing, slow]);
+    let said = refused(&judgement)?;
+    for part in ["e3q1", "mic-74", "translate.draft.reused", "418.540 ms"] {
+        assert!(said.contains(part), "{part}: {said}");
+    }
+    Ok(())
+}
+
+/// The sample split of one pair: a made run of one take whose draft is
+/// `draft` and whose final is `closing`.
+fn split_of(draft: &str, closing: &str) -> Result<Split, String> {
+    let rows = [
+        event_line("partial", None, draft, 1_000_000),
+        event_line("final", Some("mic-1"), closing, 2_000_000),
+    ];
+    let heard = heard_events(&rows.join("\n"))?;
+    let sample = Sample {
+        name: String::from("one"),
+        final_us: 2_000_000,
+        stage_us: KEYED_STAGE_US,
+    };
+    classify(&sample, &heard).ok_or_else(|| String::from("the final was not found"))
+}
+
+/// T-RP-85-042: the split follows the product's key on the nine pairs of the
+/// key rows (001 to 005 match; 009 to 012 do not).
+#[test]
+fn the_sample_split_agrees_with_the_products_key_on_the_nine_pairs() -> TestResult {
+    let other_letter = P7_DRAFT.replace("連合国は", "連合国が");
+    let matched = [
+        (P7_DRAFT, P7_FINAL),
+        (P11_DRAFT, P11_FINAL),
+        (P20_DRAFT, P20_FINAL),
+        ("ところで、昨日は雨でした", "ところで昨日は雨でした。"),
+        (DAMAGE_DRAFT, "被害は3件でした"),
+    ];
+    let apart = [
+        ("これは本当ですか", "これは本当ですか？"),
+        ("すごいですね", "すごいですね！"),
+        (other_letter.as_str(), P7_FINAL),
+        ("三件と五件です", "3件と5件と7件です。"),
+    ];
+    for (draft, closing) in matched {
+        let split = split_of(draft, closing)?;
+        assert!(
+            matches!(split, Split::Keyed(_)),
+            "{draft} / {closing}: {split:?}"
+        );
+    }
+    for (draft, closing) in apart {
+        let split = split_of(draft, closing)?;
+        assert!(
+            matches!(&split, Split::Unmatched(one) if one.reason == Reason::Key),
+            "{draft} / {closing}: {split:?}"
+        );
+    }
+    Ok(())
+}
+
+/// T-RP-85-043: runs named for the earlier window are not read, however good
+/// their records are.
+#[test]
+fn a_set_of_runs_all_named_for_the_old_window_is_rejected_for_utterance_7() {
+    let judgement = judged(&made_run("e3p1"), &made_run("e3p2"));
+    assert_eq!(judgement.faults, [Fault::NoWindowRun]);
+    assert!(judgement.runs.is_empty());
+}
+
+/// T-RP-85-044: a run of the earlier window beside valid runs is not read.
+#[test]
+fn a_run_named_for_the_old_window_is_not_read_beside_valid_runs_for_utterance_7() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US);
+    let mut old = made_run("e3p1");
+    old.drop_reuse("mic-71");
+    old.take_mut(3)?.stage_us = Some(STAGE_LIMIT_US + 1);
+    let runs = [old.texts(), first.texts(), second.texts()];
+    let judgement = check_x_runs(&runs);
+    assert_passes(&judgement);
+    assert!(!verdict(&judgement)?.contains("e3p1"));
+    Ok(())
+}
+
+/// T-RP-85-045: a run without its events file is named by that file's path.
+#[test]
+fn a_missing_events_file_is_rejected_by_path() -> TestResult {
+    let (first, second) = made_pair();
+    let dir = TempDir::new("rp85-records")?;
+    first.write_to(dir.path(), false)?;
+    second.write_to(dir.path(), true)?;
+    let Err(said) = load_run(dir.path(), "e3q1") else {
+        return Err("a run without its events file was read".into());
+    };
+    assert!(said.contains("e3q1.e2e1.events.jsonl"), "{said}");
+    assert!(!said.contains("e3q2"), "{said}");
+    let loaded = load_run(dir.path(), "e3q2")?;
+    assert_passes(&check_x_runs(&[loaded]));
+    Ok(())
+}
+
+/// T-RP-85-046: the validity line `d >= 120 ms` is not applied to a matched
+/// sample.
+#[test]
+fn a_keyed_sample_below_the_validity_line_is_still_judged() -> TestResult {
+    let (mut first, second) = made_pair();
+    let third = first.take_mut(3)?;
+    third.d_ms = 100;
+    third.stage_us = Some(STAGE_LIMIT_US + 1);
+    let judgement = judged(&first, &second);
+    let slow = Fault::SlowKeyed {
+        run: String::from("e3q1"),
+        id: String::from("mic-73"),
+        stage_us: 182_001,
+    };
+    assert_eq!(judgement.faults, [slow]);
+    Ok(())
+}
+
+/// T-RP-85-047: a sample is joined to its `final` by time, not by id. Another
+/// `final` of the same id, a microsecond later, does not take its place.
+#[test]
+fn a_sample_is_joined_to_its_final_by_time_not_by_id() -> TestResult {
+    let (mut first, second) = made_pair();
+    first.drop_reuse("mic-73");
+    let third = first.take_mut(3)?;
+    third.other_final = Some((third.final_us + 1, unkeyed_final()));
+    let judgement = judged(&first, &second);
+    let missing = fault_keyed_without_reuse("e3q1", "mic-73", KEYED_STAGE_US);
+    assert_eq!(judgement.faults, [missing]);
+    let said = refused(&judgement)?;
+    assert!(
+        said.contains("mic-73") && said.contains("translate.draft.reused"),
+        "{said}"
+    );
+    Ok(())
+}
+
+/// T-RP-85-048: only `<prefix>` and digits is a run of the window.
+#[test]
+fn names_other_than_e3q_and_digits_are_not_read_for_utterance_7() {
+    let longer = format!("{RUN_PREFIX}1x");
+    let before = format!("x{RUN_PREFIX}1");
+    let runs: Vec<XRun> = [longer.as_str(), "E3Q1", before.as_str()]
+        .iter()
+        .map(|name| made_run(name).texts())
+        .collect();
+    let judgement = check_x_runs(&runs);
+    assert_eq!(judgement.faults, [Fault::NoWindowRun]);
+}
+
+/// T-RP-85-049: a sample that no `final` of the events is stamped for fails
+/// the run by name; it is not put with the unmatched ones.
+#[test]
+fn a_sample_whose_final_is_missing_from_the_events_fails_the_run_by_name() -> TestResult {
+    for other in [false, true] {
+        let (mut first, second) = made_pair();
+        let third = first.take_mut(3)?;
+        third.stage_us = Some(UNKEYED_STAGE_US);
+        third.final_kept = false;
+        if other {
+            third.other_final = Some((third.final_us + 1_000_000, unkeyed_final()));
+        }
+        let judgement = judged(&first, &second);
+        let unjoined = Fault::UnjoinedSample {
+            run: String::from("e3q1"),
+            sample: String::from("mic-73"),
+            final_us: 30_000_000,
+        };
+        assert_eq!(judgement.faults, [unjoined], "other final: {other}");
+        let said = refused(&judgement)?;
+        assert!(
+            said.contains("mic-73") && said.contains("30000000"),
+            "{said}"
+        );
+        assert!(!said.contains("e3q2"), "{said}");
+        assert!(!has_line_with(&said, &["unmatched", "mic-73"]), "{said}");
+    }
+    Ok(())
+}
+
+/// A made run whose take 3 has no text in progress in its span (take 2's text
+/// in progress stands before take 2's `final`).
+fn run_with_no_draft_for_take_3() -> Result<MadeRun, String> {
+    let mut run = made_run("e3q1");
+    run.take_mut(3)?.draft = None;
+    run.drop_reuse("mic-73");
+    Ok(run)
+}
+
+/// T-RP-85-050: a take with no text in progress in its span is listed as
+/// `no_draft`, and the text in progress of the take before is not taken for it.
+#[test]
+fn a_sample_with_no_draft_in_its_span_is_listed_as_no_draft_and_not_matched() -> TestResult {
+    let first = run_with_no_draft_for_take_3()?;
+    let judgement = judged(&first, &made_run("e3q2"));
+    assert_passes(&judgement);
+    let report = run_report(&judgement, "e3q1")?;
+    assert_eq!(report.keyed.len(), 3);
+    let reasons: Vec<(&str, Reason)> = report
+        .unmatched
+        .iter()
+        .map(|one| (one.id.as_str(), one.reason))
+        .collect();
+    assert_eq!(
+        reasons,
+        [("mic-73", Reason::NoDraft), ("mic-74", Reason::Key)]
+    );
+    let listing = verdict(&judgement)?;
+    assert!(
+        has_line_with(&listing, &["e3q1", "mic-73", "no_draft"]),
+        "{listing}"
+    );
+    Ok(())
+}
+
+/// T-RP-85-051: a `no_draft` sample is not counted among the matched ones.
+#[test]
+fn a_no_draft_sample_is_not_counted_among_the_keyed_samples() -> TestResult {
+    let mut first = run_with_no_draft_for_take_3()?;
+    first.unmatch(5, KEYED_STAGE_US)?;
+    let judgement = judged(&first, &made_run("e3q2"));
+    let few = Fault::TooFewKeyed {
+        run: String::from("e3q1"),
+        keyed: 2,
+    };
+    assert_eq!(judgement.faults, [few]);
+    let said = refused(&judgement)?;
+    assert!(
+        said.contains("2 keyed") && said.contains("fewer than 3"),
+        "{said}"
+    );
+    for (id, reason) in [("mic-73", "no_draft"), ("mic-74", "key"), ("mic-75", "key")] {
+        assert!(
+            has_line_with(&said, &["unmatched", id, reason]),
+            "{id}: {said}"
+        );
+    }
+    assert!(!said.contains("e3q2"), "{said}");
+    Ok(())
 }
