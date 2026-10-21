@@ -44,9 +44,43 @@ pub fn speaker_event(done: &Final, source: &str, label: &str) -> Value {
     })
 }
 
-/// What a session made, sent when it ends and on a reset. The refine
-/// counters and the speaker table belong to routes this build does not have;
-/// they keep their place on the wire as zeros and null.
+/// A group of utterances read again. `id` counts the groups of the process
+/// that were read again, apart from the `final` ids; `t0_s`, `t1_s` and
+/// `end_wall_ms` place the group like those of a `final`.
+#[derive(Debug, Clone, Copy)]
+pub struct Refinement<'a> {
+    pub id: u64,
+    pub source: &'a str,
+    pub t0_s: f64,
+    pub t1_s: f64,
+    pub end_wall_ms: u64,
+    pub text: &'a str,
+    pub lang: &'a str,
+    /// The speaker most of the group's utterances were given; empty when none had a mark.
+    pub speaker: &'a str,
+    /// Seconds of audio read, the pre-roll included.
+    pub audio_s: f64,
+}
+
+/// The `refine` event of a group read again.
+pub fn refine_event(read: &Refinement<'_>) -> Value {
+    json!({
+        "type": "refine",
+        "id": format!("{}-{}", read.source, read.id),
+        "source": read.source,
+        "t0_s": read.t0_s,
+        "t1_s": read.t1_s,
+        "end_wall_ms": read.end_wall_ms,
+        "text": read.text,
+        "lang": read.lang,
+        "speaker": read.speaker,
+        "audio_s": read.audio_s,
+    })
+}
+
+/// What a session made, sent when it ends and on a reset. The speaker table
+/// belongs to a route this build does not have; it keeps its place on the
+/// wire as null.
 pub fn session_summary(
     total_audio_s: f64,
     segments: u64,
@@ -181,6 +215,33 @@ mod tests {
     fn the_switched_flag_is_written_as_given() {
         assert_eq!(final_event(&finished(), "mic", true)["switched"], true);
         assert_eq!(final_event(&finished(), "mic", false)["switched"], false);
+    }
+
+    #[test]
+    fn the_refine_event_has_the_keys_of_the_existing_server_and_the_five_items_of_a_final() {
+        let event = refine_event(&Refinement {
+            id: 3,
+            source: "mic",
+            t0_s: 1.5,
+            t1_s: 8.25,
+            end_wall_ms: 1_790_000_000_456,
+            text: "警察の総監によれば被告人は出頭した。",
+            lang: "ja",
+            speaker: "S2",
+            audio_s: 7.75,
+        });
+        for key in ["type", "text", "lang", "speaker", "audio_s"] {
+            assert!(event.get(key).is_some(), "{key} is missing");
+        }
+        assert_eq!(event["type"], "refine");
+        assert_eq!(event["id"], "mic-3");
+        assert_eq!(event["source"], "mic");
+        assert_eq!(event["t0_s"], 1.5);
+        assert_eq!(event["t1_s"], 8.25);
+        assert_eq!(event["end_wall_ms"], 1_790_000_000_456_u64);
+        assert_eq!(event["speaker"], "S2");
+        assert_eq!(event["audio_s"], 7.75);
+        assert_eq!(event.as_object().map(serde_json::Map::len), Some(10));
     }
 
     #[test]
