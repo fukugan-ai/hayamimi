@@ -17,6 +17,7 @@ Each binary below fails in the clone because it reads `testdata/` or `models/`, 
 | `preload` | reads `models/silero_vad.onnx` | hayamimi-asr |
 | `rp18` | reads `models/silero_vad.onnx` | hayamimi-asr |
 | `rp68` | reads `models/silero_vad.onnx` | hayamimi-asr |
+| `r12b_live_vad` | reads `models/silero_vad.onnx` | hayamimi-asr |
 | `r0b` | reads `testdata/` | hayamimi-eval |
 | `rb01` | reads `testdata/` | hayamimi-eval |
 | `rb02` | reads `testdata/` | hayamimi-eval |
