@@ -1577,4 +1577,32 @@ mod tests {
         assert!(fallbacks.is_empty());
         Ok(())
     }
+
+    /// The `models` directory of the checkout that holds the fetched
+    /// punctuation model, found from this crate upward (a worktree sits
+    /// inside the checkout that holds the models).
+    fn fetched_models() -> Result<PathBuf, AsrError> {
+        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        here.ancestors()
+            .map(|directory| directory.join("models"))
+            .find(|models| models.join("mojicast-punct-onnx").is_dir())
+            .ok_or_else(|| AsrError::MissingModel(here.join("models/mojicast-punct-onnx")))
+    }
+
+    #[test]
+    #[ignore = "opens the fetched punctuation model"]
+    fn set_punctuate_off_then_on_is_a_noop_when_already_loaded() -> Result<(), AsrError> {
+        let mut settings = Settings::new(fetched_models()?);
+        settings.stages.speakers = false;
+        let mut engine = Engine::open(settings)?;
+        assert!(engine.can_punctuate(), "the model must be loaded to begin");
+        engine.set_punctuate(true);
+        assert!(engine.can_punctuate() && engine.stages.punctuate);
+        engine.set_punctuate(false);
+        assert!(engine.can_punctuate(), "off keeps the model loaded");
+        assert!(!engine.stages.punctuate);
+        engine.set_punctuate(true);
+        assert!(engine.can_punctuate() && engine.stages.punctuate);
+        Ok(())
+    }
 }

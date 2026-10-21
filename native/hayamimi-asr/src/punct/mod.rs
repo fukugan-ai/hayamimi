@@ -16,6 +16,7 @@ pub mod tokenizer;
 use std::path::Path;
 
 use crate::error::AsrError;
+use crate::fallback::{Fallback, Reason, Stage, To, reason_of};
 use crate::ort_runtime::{Device, OrtRuntime};
 
 pub use bert::PunctBert;
@@ -42,6 +43,111 @@ const WARMUP_CHAR: char = 'あ';
 /// one kana. It is model input only; it is never shown or logged.
 pub fn warmup_sentence() -> String {
     std::iter::repeat_n(WARMUP_CHAR, WARMUP_CHARS).collect()
+}
+
+/// Which punctuation model a run asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PunctModel {
+    /// The BERT model and the rules after it.
+    Bert,
+    /// The four-class model ([`four`]).
+    FourClass,
+}
+
+/// A `--punct-model` value that names no model.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnknownPunctModel(pub String);
+
+impl std::fmt::Display for UnknownPunctModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown punctuation model {:?} (bert or 4class)", self.0)
+    }
+}
+
+impl std::error::Error for UnknownPunctModel {}
+
+/// Reads a `--punct-model` value. An unknown value is an error, not a model.
+pub fn resolve_punct_model(name: &str) -> Result<PunctModel, UnknownPunctModel> {
+    match name {
+        "bert" => Ok(PunctModel::Bert),
+        "4class" => Ok(PunctModel::FourClass),
+        other => Err(UnknownPunctModel(other.to_owned())),
+    }
+}
+
+/// The code of the warning that says the chosen model was not there.
+pub const UNAVAILABLE_CODE: &str = "punct_model_unavailable";
+
+/// The warning of a four-class model that could not be opened and was
+/// replaced by BERT.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Warning {
+    pub code: &'static str,
+    pub reason: Reason,
+}
+
+/// The restorer a run ended up with, and what it gave up on the way.
+#[derive(Debug)]
+pub struct Chosen<T> {
+    /// `None` when no model could be opened: punctuation is off.
+    pub punctuator: Option<T>,
+    /// Set when the four-class model was asked for and BERT runs instead.
+    pub warning: Option<Warning>,
+    /// Set when no model could be opened.
+    pub disabled: Option<Fallback>,
+}
+
+impl<T> Chosen<T> {
+    fn on(punctuator: T) -> Self {
+        Self {
+            punctuator: Some(punctuator),
+            warning: None,
+            disabled: None,
+        }
+    }
+}
+
+/// Keeps the reason of a failure that is about a model; any other failure is
+/// the caller's to see.
+fn about_a_model(error: AsrError) -> Result<Reason, AsrError> {
+    reason_of(&error).ok_or(error)
+}
+
+/// Opens the model `model` names. A four-class model that is not there is
+/// replaced by BERT with one warning; BERT that is not there turns
+/// punctuation off. A failure that is not about a model is returned.
+pub fn select<T>(
+    model: PunctModel,
+    four: impl FnOnce() -> Result<T, AsrError>,
+    bert: impl FnOnce() -> Result<T, AsrError>,
+) -> Result<Chosen<T>, AsrError> {
+    let mut warning = None;
+    if model == PunctModel::FourClass {
+        match four() {
+            Ok(punctuator) => return Ok(Chosen::on(punctuator)),
+            Err(error) => {
+                warning = Some(Warning {
+                    code: UNAVAILABLE_CODE,
+                    reason: about_a_model(error)?,
+                });
+            }
+        }
+    }
+    match bert() {
+        Ok(punctuator) => Ok(Chosen {
+            warning,
+            ..Chosen::on(punctuator)
+        }),
+        Err(error) => Ok(Chosen {
+            punctuator: None,
+            warning,
+            disabled: Some(Fallback {
+                stage: Stage::Punct,
+                reason: about_a_model(error)?,
+                to: To::Disabled,
+            }),
+        }),
+    }
 }
 
 pub struct Punctuator {
@@ -91,7 +197,147 @@ impl Punctuator {
 mod tests {
     use super::*;
 
+    use std::cell::Cell;
+    use std::path::PathBuf;
+
     const VOCAB: &str = "[PAD]\n[UNK]\n[CLS]\n[SEP]\nあ\n";
+
+    fn missing() -> AsrError {
+        AsrError::MissingModel(PathBuf::from("no-such-models/punct"))
+    }
+
+    /// Runs `select` with fakes and counts how often each one was opened.
+    fn run(
+        model: PunctModel,
+        four: Result<&'static str, AsrError>,
+        bert: Result<&'static str, AsrError>,
+    ) -> (Result<Chosen<&'static str>, AsrError>, u32, u32) {
+        let (four_calls, bert_calls) = (Cell::new(0), Cell::new(0));
+        let chosen = select(
+            model,
+            || {
+                four_calls.set(four_calls.get() + 1);
+                four
+            },
+            || {
+                bert_calls.set(bert_calls.get() + 1);
+                bert
+            },
+        );
+        (chosen, four_calls.get(), bert_calls.get())
+    }
+
+    #[test]
+    fn resolve_punct_model_accepts_known_values() {
+        assert_eq!(resolve_punct_model("bert"), Ok(PunctModel::Bert));
+        assert_eq!(resolve_punct_model("4class"), Ok(PunctModel::FourClass));
+    }
+
+    #[test]
+    fn resolve_punct_model_rejects_unknown_value() {
+        for name in ["bert2", "", "4CLASS", " bert"] {
+            assert_eq!(
+                resolve_punct_model(name),
+                Err(UnknownPunctModel(name.to_owned())),
+                "{name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_unknown_value_is_named_in_the_message() {
+        let said = UnknownPunctModel("bert2".to_owned()).to_string();
+        assert!(
+            said.contains("\"bert2\"") && said.contains("4class"),
+            "{said}"
+        );
+    }
+
+    #[test]
+    fn punct_property_defaults_to_bert() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::Bert, Ok("4class"), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("bert"));
+        assert_eq!((chosen.warning, chosen.disabled), (None, None));
+        assert_eq!(
+            (four, bert),
+            (0, 1),
+            "BERT asked for: 4class is never opened"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_builds_4class_when_selected() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::FourClass, Ok("4class"), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("4class"));
+        assert_eq!((chosen.warning, chosen.disabled), (None, None));
+        assert_eq!((four, bert), (1, 0), "BERT is not opened when 4class opens");
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_4class_missing_falls_back_to_bert_with_warning() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::FourClass, Err(missing()), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("bert"), "punctuation stays on");
+        assert_eq!(
+            chosen.warning,
+            Some(Warning {
+                code: "punct_model_unavailable",
+                reason: Reason::Missing
+            })
+        );
+        assert_eq!(chosen.disabled, None);
+        assert_eq!((four, bert), (1, 1), "one warning, one try each");
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_disables_when_both_models_unavailable() -> Result<(), AsrError> {
+        let (chosen, _, _) = run(
+            PunctModel::FourClass,
+            Err(missing()),
+            Err(AsrError::Io("vocab.txt: gone".to_owned())),
+        );
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, None);
+        assert_eq!(chosen.warning.map(|w| w.reason), Some(Reason::Missing));
+        assert_eq!(
+            chosen.disabled,
+            Some(Fallback {
+                stage: Stage::Punct,
+                reason: Reason::Unreadable,
+                to: To::Disabled
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_missing_bert_with_bert_asked_for_turns_punctuation_off_without_a_warning()
+    -> Result<(), AsrError> {
+        let (chosen, four, _) = run(PunctModel::Bert, Ok("4class"), Err(missing()));
+        let chosen = chosen?;
+        assert_eq!((chosen.punctuator, chosen.warning), (None, None));
+        assert_eq!(chosen.disabled.map(|f| f.to), Some(To::Disabled));
+        assert_eq!(four, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_failure_that_is_not_about_a_model_is_returned_not_absorbed() {
+        let shape = || AsrError::Shape("rows".to_owned());
+        let (from_four, _, bert) = run(PunctModel::FourClass, Err(shape()), Ok("bert"));
+        assert!(matches!(from_four, Err(AsrError::Shape(_))));
+        assert_eq!(
+            bert, 0,
+            "BERT is not tried after an error that is not ours to absorb"
+        );
+        let (from_bert, _, _) = run(PunctModel::Bert, Ok("4class"), Err(shape()));
+        assert!(matches!(from_bert, Err(AsrError::Shape(_))));
+    }
 
     #[test]
     fn the_warmup_sentence_is_sixty_four_characters_of_one_kana() {
