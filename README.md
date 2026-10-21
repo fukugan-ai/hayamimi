@@ -29,6 +29,8 @@ Once the speed target is met, quality must match or beat the Python version.
 - Recognition runs on the CPU (int8) (R7 row of the [status table](docs/design/status.md)).
 - A measurement puts the CPU ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
 - The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
+- In the production command, the refine pass (re-reading each group of utterances) runs by default, and `--no-refine` stops it.
+- The delays in the table below are values from a build made before the refine pass was connected, and the values with the refine pass are measured in window E4 (RP-61 row of the [status table](docs/design/status.md)).
 
 | Language | p95 | 1600 ms line | 1200 ms target |
 |---|---|---|---|
