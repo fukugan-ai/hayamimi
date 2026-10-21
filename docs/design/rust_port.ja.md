@@ -1786,7 +1786,7 @@ cargo の並列は 2（`~/.cargo/config.toml`）で、E2E の窓の間はどの�
 | 窓 E4（L11、最後の RP-67、RP-32、RP-73） | 清書まで入った build | P3、E3'' | E2E の窓、GPU | 約 2 時間 |
 
 R8x-1、R8x-3、R8x-4 は触る crate が違うので、別の worktree で並べて出せる。
-R8x-7、R8x-8、R8x-9 も、触る crate が違う（`hayamimi-asr` と `hayamimi`、`hayamimi-relay` の test、`hayamimi-eval`）ので、別の worktree で並べて出せる。R8x-7 は `rp84.rs`（`hayamimi-eval`）も書くので、R8x-9 とは同じ crate の別の file で、merge の順を R8x-9、R8x-7 にする。
+R8x-7、R8x-8、R8x-9 も、触る crate が違う（`hayamimi-asr` と `hayamimi`、`hayamimi-relay` の test、`hayamimi-eval`）ので、別の worktree で並べて出せる。R8x-7 は `rp84.rs`（`hayamimi-eval`）も書き、R8x-9 と同じ crate の test の support（`tests/support/`）を共有するので、後に入れる方の merge の席が、merge の後の木で `hayamimi-eval` の全 target の clippy（`-D warnings`）と `rp83`、`rp84`、`--lib` を打つ。
 R8x-5 は済み、R8x-6 と R8x-6b は止めた（H132）。
 道は R8x-1、R8x-2a、R8x-2b、R8x-3、R8x-4、窓 E1、窓 E3'、R8x-7、R8x-8、R8x-9、窓 E3''、窓 E4 である。
 E2 と E3 を止めたので、E1、E3'、E3'' はそれぞれ単独の窓である。
