@@ -284,6 +284,76 @@ mod tests {
         assert!(controls.reset().is_none());
     }
 
+    /// Whether a reset's receiver is still waiting for the loop.
+    fn still_waiting(wait: &mut oneshot::Receiver<()>) -> bool {
+        matches!(wait.try_recv(), Err(oneshot::error::TryRecvError::Empty))
+    }
+
+    /// The names of the commands the loop would find queued, oldest first.
+    fn queued_names(rx: &mpsc::Receiver<Command>) -> Result<Vec<&'static str>, String> {
+        let mut names = Vec::new();
+        while let Ok(command) = rx.try_recv() {
+            names.push(match command {
+                Command::Replacements(_) => "replacements",
+                Command::Itn(_) => "itn",
+                Command::Punctuate(_) => "punctuate",
+                other => return Err(format!("unexpected {other:?}")),
+            });
+        }
+        Ok(names)
+    }
+
+    #[test]
+    fn control_queue_submit_does_not_run_synchronously() -> Result<(), Box<dyn std::error::Error>> {
+        let (tx, rx) = mpsc::channel();
+        let controls = Controls::new(live(true), tx);
+        let mut wait = controls.reset().ok_or("no receiver")?;
+        // The command is queued for the loop; nothing has answered it. The command is held
+        // while the receiver is asked: dropping it would end the wait.
+        let queued = rx.try_recv()?;
+        assert!(matches!(queued, Command::Reset(_)));
+        assert!(still_waiting(&mut wait));
+        Ok(())
+    }
+
+    #[test]
+    fn control_queue_poll_runs_queued_callables_in_fifo_order() -> Result<(), String> {
+        let (tx, rx) = mpsc::channel();
+        let controls = Controls::new(live(true), tx);
+        assert!(controls.set_replacements(vec![(String::from("p"), String::from("q"))]));
+        assert!(controls.set_itn(ItnBody::default()));
+        assert!(controls.apply_config(ConfigChange {
+            punctuate: Some(true),
+            vad: None,
+        }));
+        assert_eq!(queued_names(&rx)?, ["replacements", "itn", "punctuate"]);
+        Ok(())
+    }
+
+    #[test]
+    fn control_queue_poll_with_nothing_queued_is_a_noop() {
+        let (tx, rx) = mpsc::channel();
+        let controls = Controls::new(live(true), tx);
+        // Nothing was asked of the loop, so a read of the queue finds it empty and does not block.
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        assert_eq!(controls.live().config(), (true, sensitivity()));
+    }
+
+    #[test]
+    fn control_queue_poll_sets_the_event_after_running() -> Result<(), Box<dyn std::error::Error>> {
+        let (tx, rx) = mpsc::channel();
+        let controls = Controls::new(live(true), tx);
+        let mut wait = controls.reset().ok_or("no receiver")?;
+        let Command::Reset(done) = rx.try_recv()? else {
+            return Err("not a reset".into());
+        };
+        assert!(still_waiting(&mut wait));
+        // The loop has applied the command and tells the route.
+        assert!(done.send(()).is_ok());
+        assert!(wait.try_recv().is_ok());
+        Ok(())
+    }
+
     #[test]
     fn a_reset_hands_over_a_receiver_that_completes_when_the_loop_answers()
     -> Result<(), Box<dyn std::error::Error>> {
