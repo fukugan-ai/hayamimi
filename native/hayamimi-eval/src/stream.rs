@@ -60,6 +60,9 @@ pub struct Options {
     pub drain_s: u32,
     /// Where `loadavg` and `<pid>/comm` are read from for the machine record.
     pub proc_root: PathBuf,
+    /// The pids of the run's own processes, whose CPU time the machine record
+    /// keeps; none leaves the record as it was. The pid of this process is not one.
+    pub own_pids: Vec<u32>,
 }
 
 /// What a run produced.
@@ -267,6 +270,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
         &options.proc_root,
         &sidecar(&options.out, machine::FILE_SUFFIX),
         origin,
+        &options.own_pids,
     )?;
     let relay = match options.relay_port {
         Some(port) => Some(Watch::open(&options.host, port, origin)?),

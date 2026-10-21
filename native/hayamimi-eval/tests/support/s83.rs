@@ -71,7 +71,72 @@ impl ProcRoot {
         std::fs::write(process.join("comm"), format!("{comm}\n"))?;
         Ok(())
     }
+
+    /// The `stat` of process `pid`, in the kernel's format: `utime` and
+    /// `stime` are its fields 14 and 15.
+    pub fn set_stat(&self, pid: u32, comm: &str, utime: u64, stime: u64) -> Outcome<()> {
+        let text = format!(
+            "{pid} ({comm}) S 1 {pid} {pid} 0 -1 4194560 100 0 0 0 {utime} {stime} 0 0 20 0 8 0 \
+             12345 1000000 100 18446744073709551615\n"
+        );
+        std::fs::write(self.dir.join(pid.to_string()).join("stat"), text)?;
+        Ok(())
+    }
+
+    /// The `cmdline` of process `pid`: each word followed by a NUL, as
+    /// `/proc/<pid>/cmdline` is written (proc_pid_cmdline(5)). Built here, in
+    /// the test, and never read from a file of the repository.
+    pub fn set_cmdline(&self, pid: u32, words: &[&str]) -> Outcome<()> {
+        let bytes: Vec<u8> = words
+            .iter()
+            .flat_map(|word| word.bytes().chain([0]))
+            .collect();
+        self.set_cmdline_bytes(pid, &bytes)
+    }
+
+    /// The `cmdline` of process `pid` as these bytes.
+    pub fn set_cmdline_bytes(&self, pid: u32, bytes: &[u8]) -> Outcome<()> {
+        std::fs::write(self.dir.join(pid.to_string()).join("cmdline"), bytes)?;
+        Ok(())
+    }
+
+    /// Takes `file` (`comm`, `stat` or `cmdline`) out of process `pid`.
+    pub fn remove(&self, pid: u32, file: &str) -> Outcome<()> {
+        std::fs::remove_file(self.dir.join(pid.to_string()).join(file))?;
+        Ok(())
+    }
+
+    /// A process of the run: `comm` and a `stat` with these ticks.
+    pub fn add_own(&self, pid: u32, comm: &str, utime: u64, stime: u64) -> Outcome<()> {
+        self.add_process(&pid.to_string(), comm)?;
+        self.set_stat(pid, comm, utime, stime)
+    }
+
+    /// A `llama-server` of the run, started with these words.
+    pub fn add_server(&self, pid: u32, words: &[&str]) -> Outcome<()> {
+        self.add_own(pid, "llama-server", 10, 10)?;
+        self.set_cmdline(pid, words)
+    }
+
+    /// A `pressure/cpu` with this `total=` on its one `some` line.
+    pub fn set_cpu_pressure(&self, total: u64) -> Outcome<()> {
+        let dir = self.dir.join("pressure");
+        std::fs::create_dir_all(&dir)?;
+        std::fs::write(
+            dir.join("cpu"),
+            format!("some avg10=0.00 avg60=0.00 avg300=0.00 total={total}\n"),
+        )?;
+        Ok(())
+    }
 }
+
+/// The words the translation server of a run is started with (S83o).
+pub const SERVER_WORDS: [&str; 5] = ["llama-server", "-m", "model.gguf", "--port", "18084"];
+
+/// The three processes of a run (S83o) and what their `stat` files add up to:
+/// (1000 + 250) + (600 + 100) + (1500 + 301).
+pub const OWN_PIDS: [u32; 3] = [4242, 4243, 4244];
+pub const OWN_TICKS: u64 = 3751;
 
 /// A fake `/ingest`: it upgrades one connection, answers the config with
 /// `ready`, and counts the bytes of the binary frames.
@@ -236,6 +301,17 @@ impl Setup {
         })
     }
 
+    /// Files for the run `name` (S83o): the `/proc` also holds the three
+    /// processes of a run, `hayamimi`, its relay and the server on port 18084.
+    pub fn new_own(name: &str, seconds: u32) -> Outcome<Setup> {
+        let setup = Setup::new(name, seconds)?;
+        setup.proc_root.add_own(4242, "hayamimi", 1000, 250)?;
+        setup.proc_root.add_own(4243, "hayamimi-relay", 600, 100)?;
+        setup.proc_root.add_own(4244, "llama-server", 1500, 301)?;
+        setup.proc_root.set_cmdline(4244, &SERVER_WORDS)?;
+        Ok(setup)
+    }
+
     /// `<dir>/s83.machine.jsonl`.
     pub fn machine_file(&self) -> PathBuf {
         self.out.with_extension("machine.jsonl")
@@ -271,6 +347,13 @@ impl Setup {
     pub fn spawn(&self, port: u16, drain_s: u32, extra: &[&str]) -> Outcome<Child> {
         Ok(self.command(port, drain_s, extra).spawn()?)
     }
+}
+
+/// `--own-pid <pid>` for each pid, in the order given.
+pub fn own_args(pids: &[u32]) -> Vec<String> {
+    pids.iter()
+        .flat_map(|pid| [String::from("--own-pid"), pid.to_string()])
+        .collect()
 }
 
 /// What a finished process left.
