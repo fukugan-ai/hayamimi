@@ -22,15 +22,15 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
 ### 現在の状態
 
 - Pythonの78本は消え、旧版は tag `archive/python-before-r11` にあります（[状態表](docs/design/status.ja.md)のRP-9の行）。
-- Rustの test へまだ写していない Python の test は67本です（[状態表](docs/design/status.ja.md)のRP-19の行）。
+- Rustの test へまだ写していない Python の test は40本です（[状態表](docs/design/status.ja.md)のRP-19の行）。
 - 録音した音声を流す端から端の確認は、日本語から英語も英語から日本語も通っています（2026-10-15のbuild。[記録](docs/results/e2e/)）。
 - 実機のマイクに人が話した日本語での確認は、まだしていません（NOT VERIFIED。[状態表](docs/design/status.ja.md) のマイクの行）。
 - 遅れの最後の判定は、まだ打っていません（窓E4。[状態表](docs/design/status.ja.md) の RP-67 の行）。
-- 遅れの合否を通ったと言うには、発話の終わりの置き方が結果を左右しないことの確認も要ります（RP-73、未実装。[状態表](docs/design/status.ja.md)のRP-73の行）。
+- 遅れの合否を通ったと言うには、発話の終わりの置き方が結果を左右しないことの確認も要ります（RP-73。実装と test は入りましたが、受入 test は窓E4の記録を待って落ちます。[状態表](docs/design/status.ja.md)のRP-73の行）。
 - 認識はCPU（int8）で動かしています（[状態表](docs/design/status.ja.md) の R7 の行）。
 - CPUがGPUより速いという測定はありますが、測った時の機械の負荷が高く、値は未検証です（NOT VERIFIED）。
 - E2E用の訳のserverは、GPUに全層を載せます（[unit](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
-- 本番の command では、清書（group の読み直し）が既定で動き、`--no-refine` で止まります。
+- 本番の command では、清書（group の読み直し）が既定で動き、`--no-refine` で止まります。清書が動けない時は、その旨を画面と log に出して、清書なしで続けます。
 - 下の表の遅れは清書を結ぶ前の build の値で、清書ありの値は窓E4で測ります（[状態表](docs/design/status.ja.md)のRP-61の行）。
 
 | 言語 | p95 | 1600 msの線 | 1200 msの目標 |

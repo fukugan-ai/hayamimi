@@ -21,15 +21,15 @@ Once the speed target is met, quality must match or beat the Python version.
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### Current state
 - The 78 Python files are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` (RP-9 row of the [status table](docs/design/status.md)).
-- 67 Python tests are not yet ported to Rust tests (RP-19 row of the [status table](docs/design/status.md)).
+- 40 Python tests are not yet ported to Rust tests (RP-19 row of the [status table](docs/design/status.md)).
 - End-to-end checks on played-back recorded audio pass for Japanese to English and for English to Japanese (E2E; build of 2026-10-15; [records](docs/results/e2e/)).
 - A check with a person speaking Japanese into a real microphone is not done yet (NOT VERIFIED; microphone row of the [status table](docs/design/status.md)).
 - The final judgement of the delay has not been run yet (window E4; RP-67 row of the [status table](docs/design/status.md)).
-- The delay cannot be called passed until a check that the way the end of an utterance is placed does not sway the result is also done (RP-73, not implemented; RP-73 row of the [status table](docs/design/status.md)).
+- The delay cannot be called passed until a check that the way the end of an utterance is placed does not sway the result is also done (RP-73; the implementation and tests are in, but the acceptance test fails until the window E4 record exists; RP-73 row of the [status table](docs/design/status.md)).
 - Recognition runs on the CPU (int8) (R7 row of the [status table](docs/design/status.md)).
 - A measurement puts the CPU ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
 - The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
-- In the production command, the refine pass (re-reading each group of utterances) runs by default, and `--no-refine` stops it.
+- In the production command, the refine pass (re-reading each group of utterances) runs by default, and `--no-refine` stops it. When the refine pass cannot run, the screen and the log say so, and the run continues without it.
 - The delays in the table below are values from a build made before the refine pass was connected, and the values with the refine pass are measured in window E4 (RP-61 row of the [status table](docs/design/status.md)).
 
 | Language | p95 | 1600 ms line | 1200 ms target |
