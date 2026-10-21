@@ -239,7 +239,7 @@ That the amount of Python-removal work does not change with the line was confirm
 - In the section of 3.2 on the three conditions for entering R11 (the entry conditions of R11 and the table of the 78 files), `RP-67` appears 0 times and `RP-19` appears 3 times.
 - In the 6 rows of RP-9, RP-19 and RP-61 in 6 and 7, `RP-67` and `1000 ms` appear 0 times.
 
-The pass condition of RP-61 is the gap between Python's `L` and Rust's `L` with the refiner switched off (p50 30 ms, p95 60 ms); it does not read the RP-67 line.
+The pass condition of RP-61 is the gap between Python's `L` and Rust's `L` with the refiner switched off (p50 31 ms, p95 100 ms; H64 of `rust_port.ja.md`); it does not read the RP-67 line.
 However, RP-67 is measured again in a build that includes the refiner (L11), so for either line the refiner chain (P3) is merged before the RP-67 verdict.
 
 ### Policies
