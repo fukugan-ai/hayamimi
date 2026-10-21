@@ -6,6 +6,7 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
+use hayamimi_asr::pipeline::PunctWarmup;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
 use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
 use hayamimi_relay::logging::{Level, LogEvent};
@@ -414,6 +415,20 @@ pub fn warmup_punct_failed_line(strings: &Strings) -> String {
     warmup_failed_at(strings, WARMUP_STAGE_PUNCT)
 }
 
+/// The lines the start-up reads say, in order: `decoded` when the decode
+/// worked, then `failed` (stage `punct`) when the punctuation read failed; a
+/// failed decode says `failed` (stage `decode`) alone.
+pub fn warmup_lines<E>(strings: &Strings, read: &Result<Warmup, E>) -> Vec<String> {
+    match read {
+        Ok(warmed) if warmed.punct == PunctWarmup::Failed => Vec::from([
+            warmup_decoded_line(strings, warmed),
+            warmup_punct_failed_line(strings),
+        ]),
+        Ok(warmed) => Vec::from([warmup_decoded_line(strings, warmed)]),
+        Err(_) => Vec::from([warmup_failed_line(strings)]),
+    }
+}
+
 /// `asr.engine.failed`: the route stopped on an error.
 pub fn engine_failed_line(strings: &Strings) -> String {
     event_line(
@@ -486,7 +501,6 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
-    use hayamimi_asr::pipeline::PunctWarmup;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
 
@@ -777,6 +791,57 @@ mod tests {
         assert_eq!(event["level"], "warn");
         assert_eq!(event["error_code"], "HAYAMIMI_ASR_WARMUP_FAILED");
         assert_eq!(event["stage"], "decode");
+        Ok(())
+    }
+
+    type Said = Vec<(String, Option<String>)>;
+
+    /// The `event` of each line, and the `stage` of a failed one.
+    fn said(lines: &[String]) -> Result<Said, Box<dyn std::error::Error>> {
+        let mut found = Said::new();
+        for line in lines {
+            let event = parsed(line)?;
+            let name = event["event"].as_str().ok_or("a line has no event")?;
+            found.push((name.to_owned(), event["stage"].as_str().map(str::to_owned)));
+        }
+        Ok(found)
+    }
+
+    fn stage(name: &str, stage: &str) -> (String, Option<String>) {
+        (name.to_owned(), Some(stage.to_owned()))
+    }
+
+    #[test]
+    fn a_failed_punctuation_read_says_decoded_then_failed_with_the_punct_stage()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let read: Result<Warmup, ()> = Ok(warmed_with(PunctWarmup::Failed));
+        let lines = warmup_lines(&strings()?, &read);
+        let want = [
+            (WARMUP_DECODED.to_owned(), None),
+            stage(WARMUP_FAILED, "punct"),
+        ];
+        assert_eq!(said(&lines)?, want);
+        Ok(())
+    }
+
+    #[test]
+    fn a_punctuation_read_that_worked_or_did_not_run_says_decoded_alone()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for punct in [PunctWarmup::Read(12.0), PunctWarmup::Skipped] {
+            let read: Result<Warmup, ()> = Ok(warmed_with(punct));
+            let lines = warmup_lines(&strings()?, &read);
+            let want = [(WARMUP_DECODED.to_owned(), None)];
+            assert_eq!(said(&lines)?, want, "{punct:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_decode_says_the_failed_line_of_the_decode_stage_alone()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let read: Result<Warmup, ()> = Err(());
+        let lines = warmup_lines(&strings()?, &read);
+        assert_eq!(said(&lines)?, [stage(WARMUP_FAILED, "decode")]);
         Ok(())
     }
 
