@@ -3100,9 +3100,9 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 ### 4.82 RP-58（Windows の COM の初期化の HRESULT を分ける）
 
 test：`native/hayamimi/src/capture/windows.rs`、`native/hayamimi/src/capture/com_scope.rs`。受入 test の名前は `windows_com_scope_uses_existing_changed_mode_apartment`。
-行は 2 つの置き場に分かれる。001 から 006 は HRESULT を分ける純関数の行で、cfg を外した module（`com_scope.rs`）の `mod tests` に置き、Windows でなくても走る。007 から 012 は scope の型の行で、`windows.rs` の `mod tests` に置く。この module は Windows の build でだけ組まれるので、`#[ignore]` は付けない。
-command：001 から 006 は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi --lib windows_com_scope`（WSL）。007 から 012 は同じ command を Windows の shell で打つ（`flock` は無い）。
-走る行の数：WSL で同じ command に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 6、Windows で 12 になる。陽性対照は、同じ list に `windows_com_scope_classifies_s_ok_as_needing_cleanup` が 1 件在ること。WSL の 6 は、純関数の行が cfg を外した module に在ることを示す。
+行は 2 つの置き場に分かれる。001 から 010 は、HRESULT を分ける純関数（001 から 006）と scope の型（007 から 010。偽の後始末を渡す）の行で、cfg を外した module（`com_scope.rs`）の `mod tests` に置き、Windows でなくても走る。受入の名前の 008 も `com_scope.rs` に置く（rp82 は 2 file の和で名前を引く）。011 と 012 は本物の COM を呼ぶ Windows の実走の行で、`windows.rs` の `mod tests` に置く。この module は Windows の build でだけ組まれるので、`#[ignore]` は付けない。
+command：001 から 010 は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi --lib windows_com_scope`（WSL）。011 と 012 は同じ command を Windows の shell で打つ（`flock` は無い）。
+走る行の数：WSL で同じ command に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 10、Windows で 12 になる。陽性対照は、同じ list に `windows_com_scope_classifies_s_ok_as_needing_cleanup` が 1 件在ること。WSL の 10 は、純関数と scope の型の行が cfg を外した module に在ることを示す。
 関数の名前は各行の「関数の末尾」と同じにし、何も付けない。HRESULT を分ける純関数（HRESULT と endpoint の名前を受け、後始末の要る初期化、後始末しない既存の初期化、`CaptureError` のどれかを返す）の名前と引数の形、scope の型の名前は実装の席が決める。scope の型は後始末の関数（`FnMut()` か小さな trait）を引数に取る。007 から 010 は、呼ばれた回数を数える偽の関数を渡す。
 設計は D 3.7 の COM の初期化、D 8 の R12r、D 6 の RP-58 である。
 
@@ -3205,6 +3205,28 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 5. sha256 は、書き出した wav の file の bytes を取る（024、025）。
 6. 027 の関数は `#[ignore = "reads testdata/eval_diar, which is not in git"]` を付ける。`--skip` は足さない。
 7. 会議の名前の順は、文字列の昇順とした。AMI の名前は同じ長さで、数字の桁の違いは実物に無い。
+
+### 4.84 RP-61（R13-19b の固定の 4 本）
+
+test：`native/hayamimi-eval/tests/rp61.rs`。受入 test の名前は `the_comma_and_the_question_mark_each_pass_in_a_sentence_written_out`、`a_sample_that_waited_119_ms_is_not_valid_and_one_of_120_ms_is`、`the_p95_is_the_nearest_rank_value_and_a_rank_off_by_one_is_not`、`a_directory_missing_one_runs_samples_names_that_file_alone`。
+この節の行は R13-19 の `rp61.rs` の fixture の test を強める 4 本（001 から 004）と、その検出器の対照 2 本（005、006）である。窓 E4 の記録を読む実走の行は持たない。全行が `--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --test rp61`。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。値は定数（`MARKS`、`VALID_MS`）を回して作らず、行の数を直書きする。
+設計は D 8 の R13-19b と D 6 の RP-61 である。
+
+**数え方**：
+
+- 有効な標本は、待ち `d` が 120 ms 以上の標本である（`VALID_MS` = 120）。`d` は `(t_final_us − t_end_us) / 1000 − final_latency_ms`。
+- p95 は nearest-rank で、n 個の p% は小さい方から `(p × n + 99) / 100`（整数の割り算）番目である（T 4.1）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-61-001 | 受入：ja の清書の run を 2 つ作る。1 つは `refine` の event が 1 件で `lang` が `ja`、`text` が `予算は五百万円です、`。もう 1 つは同じ形で `text` が `本当ですか？`。どちらの文も他の 2 つの記号を持たない（直書き） | 記号 3 つのうち `、` だけの文と `？` だけの文 | 記号を持つ ja の `refine` が 1 件以上 | 2 つとも判定が通り、`1 of 1 ja refine events hold a mark` が出る（specified、RP-61 の「清書で句読点が付く」。`MARKS` を回した文でなく直書きの文で見る）。陰性：`MARKS` から `？` を外した build は 2 つ目で、`、` を外した build は 1 つ目で `0 of 1 ja refine events hold a mark` を出して落ちる | 陽性、陰性 | `the_comma_and_the_question_mark_each_pass_in_a_sentence_written_out` |
+| T-RP-61-002 | 受入：1 つの run に標本 3 つ。`d` が 119 ms、120 ms、121 ms。3 つとも訳が取れている | `VALID_MS` の境界。1 ms 下、ちょうど、1 ms 上 | `d` ≥ 120 ms | 判定が読む有効な標本の数が 2（120 ms と 121 ms）。119 ms は有効から外れ、120 ms は入る（specified、3.19 の有効の線。前例は `rp67.rs` の 120 と 300 を比べる test）。陰性：`VALID_MS` を 121 にした build は 1、119 にした build は 3 になって落ちる | 境界、陽性、陰性 | `a_sample_that_waited_119_ms_is_not_valid_and_one_of_120_ms_is` |
+| T-RP-61-003 | 受入：refine の run の標本 20 個。すべて有効で訳が取れ、`L` が 10、20、…、200 ms（10 ms 刻みで全部異なる）。別に 21 個の run を作る：`L` が 10、20、…、210 ms | 順位 ⌈0.95 n⌉ の値と、その前後 1 位の値が標本に在る n | nearest-rank | n = 20 の p95 は 19 番目の 190 ms（前後は 180 ms と 200 ms）。n = 21 の p95 は `(95 × 21 + 99) / 100` = 20 番目の 200 ms（前後は 190 ms と 210 ms）（specified、T 4.1 の順位の式。pseudo：`awk` で `int((95*n+99)/100)` を打った）。陰性：順位を 1 下げた build は 180 ms と 190 ms、1 上げた build は 200 ms と 210 ms を返して落ちる。切り捨ての `0.95 × 21` = 19 番目（190 ms）を採る build も n = 21 で落ちる | 境界、陰性 | `the_p95_is_the_nearest_rank_value_and_a_rank_off_by_one_is_not` |
+| T-RP-61-004 | 受入：test の中で `env!("CARGO_TARGET_TMPDIR")` の下に dir を作り、6 つの標本の file（`refine.e2e1.jsonl`、`refine.e2e2.jsonl`、`norefine.e2e1.jsonl`、`norefine.e2e2.jsonl`、`python.e2e1.jsonl`、`python.e2e2.jsonl`）のうち `python.e2e1.jsonl` だけを置かない | 6 つのうち 1 つだけ欠ける | 欠けた file だけを名指す | `load_runs` の `Err` が `1 of the 6 runs` と `python.e2e1.jsonl` を持ち、在る 5 つの file の名前を持たない（specified、RP-61 の「記録の欠けは名指す」。`python.e2e1.jsonl` は在る 5 つのどの名前の部分にもならない名前を選んだ）。陰性：欠けた file の名前を出さない build と、6 つ全部の名前を並べる build は落ちる | 境界、陰性 | `a_directory_missing_one_runs_samples_names_that_file_alone` |
+| T-RP-61-005 | 001 の 1 つ目の run の `text` を `予算は五百万円です`（3 つの記号のどれも持たない）にする | 検出器の陰性対照 | 記号が 0 件で落ちる | 判定が落ち、`0 of 1 ja refine events hold a mark` を出す（specified、同上。001 が同じ形の陽性対照で、記号が数えられていることを示す） | 陰性 | `a_sentence_with_none_of_the_three_marks_is_rejected` |
+| T-RP-61-006 | 002 の標本を、`d` が 119 ms の 1 つだけにする | 有効が 0 | 有効な標本が在る | 有効な標本の数が 0 で、判定は 0 件を通さず落ちる（implicit。0 件の p95 を作らない。002 の 2 が陽性対照） | 境界、陰性 | `a_run_whose_samples_are_all_under_120_ms_has_no_valid_sample` |
 
 ## 5. RP-19 の対応表
 
