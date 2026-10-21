@@ -732,7 +732,7 @@ test：`native/hayamimi-eval/tests/rp15.rs`（001〜011）と `native/hayamimi/t
 
 ### 4.26 RP-16（GPU の無い機械では段ごとに CPU へ落として字幕を出す）
 
-test：`native/hayamimi/tests/rp16.rs`（001〜016、018〜022、035、038〜062）、`native/hayamimi-asr/tests/rp16_lid.rs`（023〜026）、`native/hayamimi-asr/tests/gpu_guard.rs`（027〜030）、`native/hayamimi-asr/tests/rp16_sessions.rs`（036）、`native/hayamimi-asr/tests/lid_dual.rs`（031〜034）、`native/hayamimi/src/server.rs`（017。src の中の `#[test]`）。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`（`reason` は `expected_reason` の値）。
+test：`native/hayamimi/tests/rp16.rs`（001〜016、018〜022、035、038〜062）、`native/hayamimi-asr/tests/rp16_lid.rs`（023〜026）、`native/hayamimi-asr/tests/gpu_guard.rs`（027〜030）、`native/hayamimi-asr/tests/rp16_sessions.rs`（036）、`native/hayamimi-asr/tests/lid_dual.rs`（031〜034）、`native/hayamimi/src/server.rs`（017。src の中の `#[test]`）。受入 test の名前は `rp16_no_gpu_falls_back_to_cpu_and_says_so`（reason は expected_reason の値）。
 `check_no_gpu_run(run, 理由)` は、終了 code、stdout の JSONL の event、`/events` の `fallback` の event、stderr の文を確かめる。`gpu.device.unavailable` の `reason` には、引数の理由を求める。
 理由を決める関数 `expected_reason(起動)` は、`nvidia-smi -L` の起動の結果を受ける。終了 0 なら `no_device`、起動が `std::io::ErrorKind::NotFound`（PATH に無い）なら `driver_unreadable` を返す。終了 code が 0 以外、または `NotFound` 以外の起動の誤りは理由を返さず、終了 code か `ErrorKind` と path を名指す `Err` を返す。`hayamimi` の判定は呼ばない。2 つの値のどちらでも通す形は採らない。
 fixture の行（001〜014、018〜022）は、fixture の中身が `no_device` なので `no_device` を渡し、機械に依らない。実物の `hayamimi` を起こす行（015、受入）は `expected_reason` の値を渡す。
@@ -740,7 +740,7 @@ run は、その run が読み込んだ 3.5 の GPU の段の一覧（R2 の ja 
 `check_gpu_run(run)` は GPU の在る run を確かめる。
 
 訳の行（R8b）は、llama-server を起こす command（`hayamimi llama start --model <file> --port <n> --dir <root>`）の run を同じ形で確かめる（T-RP-16-038 から 051 と、理由の決め方の 052 から 062）。
-受入 test の名前は `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`（GPU を隠した run を ja と C.UTF-8 の 2 つの言語で打ち、どちらも 038 の形（`reason` は `expected_reason` の値）で、stderr の言語が分かれる）。
+受入 test の名前は `rp16_no_gpu_translate_server_falls_back_to_cpu_and_says_so`（GPU を隠した run を ja と C.UTF-8 の 2 つの言語で打ち、どちらも 038 の形（reason は expected_reason の値）で、stderr の言語が分かれる）。
 `check_translate_on_cpu(run, 理由)` は、終了 code、stdout の JSONL の event、起こした server の引数、stderr の文を確かめる。
 理由が `no_device` か `driver_unreadable` の run は `gpu.device.unavailable` を 1 件（`reason` = その理由）、`session_failed` の run は 0 件求める。実走の行（049、050）は `expected_reason` の値を渡し、fixture の行（038 から 048）は `no_device`（048 は `session_failed`）を渡す。
 `check_gpu_translate_run(run)` は GPU の在る run を確かめる。
