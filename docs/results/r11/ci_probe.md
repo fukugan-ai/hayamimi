@@ -47,6 +47,10 @@ They are skipped by name: `a_missing_model_directory_leaves_every_stage_out_and_
 `with_no_stage_on_the_gpu_there_is_nothing_to_give_back`.
 The first run on Windows is not measured here.
 
+Three unit tests of `hayamimi-asr` read `models/silero_vad.onnx`, which a clone of the repository does not carry.
+They are skipped by name: `live_vad_failed_rebuild_preserves_active_and_pending_state`,
+`live_vad_empty_update_does_not_rebuild_detector`, `live_vad_failed_early_rebuild_keeps_the_old_detector`.
+
 ## Programs the test step needs first
 
 `rp27` runs `rg` (ripgrep) to count imports, and the runner does not carry it, so the workflow installs it (`apt-get` on Linux, `choco` on Windows).
