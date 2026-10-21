@@ -1784,7 +1784,7 @@ cargo の並列は 2（`~/.cargo/config.toml`）で、E2E の窓の間はどの�
 | R8x-8（RP-85 の (4) の数え方。3.21 の 2） | `native/hayamimi-relay/tests/rp85.rs` だけ（`<run>.events.jsonl` を読む、`hayamimi_relay::partial::reuse_match` で標本を分ける、速報は 1 つ前の `final` の後から取る、確定文に結べない標本で run を落とす、標本は `utt 7 repeat <N>` と結んだ `final` の `id`（結べない標本は `t_final_us`）で名指し、標本の行の `id` は読まない（3.21 の 2 の 7）、前の速報の無い標本を理由 `no_draft` で合わない側に並べる、鍵が合う標本の `translate.draft.reused` を確かめる、最大を 182 ms と比べる、読む run の頭の字を `e3q` に）。製品の code は変えない | T の RP-85 の case 行（T-RP-85-026〜031 の直し。test-designer の席） | cargo（`hayamimi-relay`） | 40 分（推測） |
 | R8x-9（RP-83 の run 自身の分。3.21 の 3） | `native/hayamimi-eval/src/machine.rs`（`own`、`clk_tck`、`own_cpu_ticks`、`cpu_some_total`、pid の確かめの 4 段と `own_fault`、comm が `llama-server` の pid の `/proc/<pid>/cmdline` の語 `--port` の次の語が `18084` であることの確かめ、`reason` の順の先頭の `own_pid`、event の `own_fault` と `own_pid`、途中で読めない pid の行の null、unit test `the_process_stat_counts_the_ticks_of_its_ended_threads`（10 の H138）。`--own-pid` が 0 個の時は今の行のまま）、`native/hayamimi-eval/src/stream.rs` と `src/cli.rs`（`--own-pid`。`stream` 自身の pid は足さない）、`native/hayamimi-eval/tests/support/machine.rs`（`own5`、判定、run ごとの 1 行の出力）、`native/hayamimi-eval/tests/support/s83.rs`（`--own-pid` つきで `stream` を起こす組。`<proc-root>` に pid ごとの `comm`、`stat`、llama-server の `cmdline` を置く）、`native/hayamimi-eval/tests/rp83.rs`（(9) と (10) の行）、`docs/results/e2e/README.md` の「Conditions of the run」（`--own-pid` の渡し方） | T の RP-83 の case 行（test-designer の席）。R8x-7 と R8x-8 とは触る crate が違う | cargo（`hayamimi-eval`） | 60 分 |
 | 窓 E3''（RP-84、RP-85 の (4)、RP-83 の en、RP-67 の ja と en。3.21 の 4） | R8x-7、R8x-8、R8x-9 が入った 1 つの build で、ja（E2E-1）を 2 本、en（E2E-2）を 1 本。名前は `e3q1.e2e1`、`e3q2.e2e1`、`e3q1.e2e2`。`stream` に `--own-pid` で hayamimi、中継、18084 の llama-server の pid を渡す。3 つの process は、`stream` が終わり `<run>.machine.jsonl` の最後の行が書かれてから止める（先に止めると最後の行の `own_cpu_ticks` が null になり run が落ちる）。報告は en の最後の行の `load5`、`own5`、引いた後の値を数で出す（3.21 の 3 の決め 6） | R8x-7、R8x-8、R8x-9 | E2E の窓、GPU | 約 1 時間 20 分 |
-| 窓 E4（L11、最後の RP-67、RP-32、RP-73） | 清書まで入った build | P3、E3'' | E2E の窓、GPU | 約 2 時間 |
+| 窓 E4（L11、最後の RP-67、RP-32、RP-73、RP-61 の run） | 清書まで入った build（R13-20 が結び、`--no-refine` を付けない run で清書が動く）。RP-61 の run は同じ窓で、清書を入れた run と `--no-refine` の run を打つ | P3（R13-13、R13-20、R13-19）、RP-73、E3'' | E2E の窓、GPU | 約 2 時間 |
 
 R8x-1、R8x-3、R8x-4 は触る crate が違うので、別の worktree で並べて出せる。
 R8x-7、R8x-8、R8x-9 も、触る crate が違う（`hayamimi-asr` と `hayamimi`、`hayamimi-relay` の test、`hayamimi-eval`）ので、別の worktree で並べて出せる。R8x-7 は `rp84.rs`（`hayamimi-eval`）も書き、R8x-9 と同じ crate の test の support（`tests/support/`）を共有するので、後に入れる方の merge の席が、merge の後の木で `hayamimi-eval` の全 target の clippy（`-D warnings`）と `rp83`、`rp84`、`--lib` を打つ。
@@ -2236,8 +2236,8 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-56 | `final` の `switched` が前の `final` の言語と比べて決まる（8 の R12i） | `cargo test --release -p hayamimi --lib switched` | 最初の `final` で偽、言語が変わった `final` で真、同じ言語が続くと偽。session の reset の後の最初の `final` で偽 | 同じ test が、言語の同じ 2 本で偽を 2 回出す | `switched` を常に偽で出す今の `wire.rs` で、言語が変わった行が落ちる |
 | RP-57 | DER の内訳（8 の R12q） | `cargo test --release -p hayamimi-eval --lib der_breakdown` | 同じ ref と hyp で Miss、FA、Confusion が全部 0。話者を入れ替えた hyp で Confusion だけが増え、区間を落とした hyp で Miss だけが増える。3 つの和が `der` の値と 1e-9 以内で同じ | 同じ test が、内訳の和を `der` の値と比べる | Confusion を Miss に足す内訳で、入れ替えの行が落ちる |
 | RP-58 | Windows の COM の初期化の HRESULT を分ける（8 の R12r、3.7） | `cargo test --release -p hayamimi --lib windows_com_scope` | HRESULT を分ける純関数が、成功（`S_OK`、`S_FALSE`）を後始末の要る初期化、`RPC_E_CHANGED_MODE` を後始末しない既存の初期化、それ以外を endpoint の名前を持つ `CaptureError` に分ける。scope の型は成功の時だけ後始末を 1 回呼ぶ | 純関数の test は Windows でなくても走る | `RPC_E_CHANGED_MODE` を失敗として返す今の形（`windows.rs` の `run`）で落ちる |
-| RP-59 | 4 クラスの句読点（8 の R12t1〜R12t3、3.10 の `--punct-4class`） | `cargo test --release -p hayamimi-asr --lib punct::four`、model を使う行は `-- --ignored` | T の 5.3 の `test_punct_4class.py` の 14 行と、`--punct-model` の選択の 7 行が通る。既定は BERT のままで、4 クラスの model が無いときは BERT へ落ちて warn を 1 回出す | 同じ test が既定の BERT の経路で今と同じ文字列を出す（RP-18 が通ったまま） | 4 クラスを既定にした build で、既定の行が落ちる |
-| RP-61 | 清書を live に足しても `L` を延ばさない（8 の R12w4） | 清書を入れた `<hy>` と切った `<hy>` で RP-32 の順の run（rp03）と E2E-1、E2E-2 を打ち直し、`cargo test --release --test rp61 -- --ignored` が読む | 清書を入れた Rust の `L` の p50 と p95 が、同じ負荷の Python（清書を既定のまま）の p50 と p95 以下。清書を切った Rust との差が p50 で 30 ms 以下、p95 で 60 ms 以下（仮の値、10 の H64）。訳の取れた割合が 20 / 23 以上。`refine` の event が 1 件以上 | 同じ test が、清書を切った 2 run から差 0 を出す | 清書を live と同じ `Router` で解く build で、確定が group の解き直しを待ち、p95 の差が 60 ms を超えて落ちる |
+| RP-59 | 4 クラスの句読点（8 の R12t1〜R12t3、3.10 の `--punct-4class`。`--punct-model` を `Engine::open` へ結ぶのは R13-11b で、入るまで通ったと名乗らない） | `cargo test --release -p hayamimi-asr --lib punct::four`、model を使う行は `-- --ignored` | T の 5.3 の `test_punct_4class.py` の 14 行と、`--punct-model` の選択の 7 行が通る。既定は BERT のままで、4 クラスの model が無いときは BERT へ落ちて warn を 1 回出す | 同じ test が既定の BERT の経路で今と同じ文字列を出す（RP-18 が通ったまま） | 4 クラスを既定にした build で、既定の行が落ちる |
+| RP-61 | 清書を live に足しても `L` を延ばさない（8 の「清書を live に足す形」。test は R13-19、run は窓 E4） | 清書を入れた `<hy>` と `--no-refine` で切った `<hy>` で RP-32 の順の run（rp03）と E2E-1、E2E-2 を打ち直し、`cargo test --release --test rp61 -- --ignored` が読む | 清書を入れた Rust の `L` の p50 と p95 が、同じ負荷の Python（清書を既定のまま）の p50 と p95 以下。清書を切った Rust との差が p50 で 30 ms 以下、p95 で 60 ms 以下（仮の値、10 の H64）。訳の取れた割合が 20 / 23 以上。`refine` の event が 1 件以上 | 同じ test が、清書を切った 2 run から差 0 を出す | 清書を live と同じ `Router` で解く build で、確定が group の解き直しを待ち、p95 の差が 60 ms を超えて落ちる |
 | RP-62 | recluster の音声の寄せ集め（8 の R12x） | `cargo test --release -p hayamimi-asr --lib recluster` | T の 5.3 の `pool_audio_for_group_*` の 4 行が通る | 同じ test が、turn の在る group で turn の音声だけを返す | turn を見ずに buffer の全部を返す関数で、turn の行が落ちる |
 | RP-60 | 2 人の話者の材料（8 の R12u1） | `cargo test --release -p hayamimi-eval --lib two_speaker_clip` | 8 の小節の規則で `testdata/eval_diar/` の RTTM から窓を 1 つ選び、窓の中の話者が 2 人、区間が 4 つ、少ない方の区間が 1 つで 2〜4 秒、重なりが 0。manifest に会議の名前、始まり、終わり、sha256 が在る | 同じ関数が、規則に合う窓を手で置いた RTTM の fixture から同じ窓を選ぶ | 重なりの在る窓だけの fixture で、窓が無いと名指しして `Err` を返す |
 | RP-47 | 新しい確定文の T を前の行の E の後ろに並べない（8 の R8r） | `cargo test --release -p hayamimi-relay --test rp47` が、E に 1000 ms の待ちを入れた偽の llama-server に、200 ms 間を空けた 2 つの確定文を流す | 2 つ目の確定文の T の依頼が、1 つ目の E の応答より前に出る。slot の数（3.6 の 5）を超えて依頼を並べない | 同じ test が、E の無い形（zh）で 2 つの T が順に出ることを示す | 訳の lane が 1 本で直列の今の形で、2 つ目の T が 1 つ目の E の後になり落ちる |
@@ -2345,7 +2345,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-58 | `windows_com_scope_uses_existing_changed_mode_apartment` | `native/hayamimi/src/capture/windows.rs` の `mod tests`（純関数は cfg を外した module に置く） | `RPC_E_CHANGED_MODE` を失敗として返す形 |
 | RP-59 | `reconstruct_inserts_question_mark` | `native/hayamimi-asr/src/punct/four.rs` の `mod tests` | 4 クラスを既定にした build |
 | RP-60 | `two_speaker_clip_is_cut_by_the_rule_from_ami` | `native/hayamimi-eval/src/two_speakers.rs` の `mod tests` | 重なりの在る窓だけの RTTM |
-| RP-61 | `rp61_live_refine_does_not_delay_the_subtitle` | `native/hayamimi-eval/tests/rp61.rs` | 清書を live と同じ `Router` で解く build |
+| RP-61 | `rp61_live_refine_does_not_delay_the_subtitle` | `native/hayamimi-eval/tests/rp61.rs`（R13-19 が作る） | 清書を live と同じ `Router` で解く build |
 | RP-62 | `pool_audio_for_group_uses_diarizer_turns_when_present` | `native/hayamimi-asr/src/recluster.rs` の `mod tests` | turn を見ずに buffer の全部を返す関数 |
 | RP-19（R12a1） | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks` | `native/hayamimi-eval/tests/rp19.rs` | 4 つの木で、それぞれの test が落ちることを確かめる。`rp19_ported/` の file に在る名前が list に無い（写した後に消した。`a_name_ported_and_then_deleted_from_the_list_is_rejected`）。写した名前を `rp19_ported/` に書かない（`a_ported_name_missing_from_the_ported_files_is_rejected`）。`rp19_not_yet_at_r11.tsv` に行を足した（`a_row_added_to_the_fixed_list_is_rejected`）。ほかの札の行を自分の file に書いた（file の札は file 名の最初の `.` より前。`a_name_written_in_another_slices_file_is_rejected`） |
 | RP-80 | `rp80_ci_runs_cargo_and_no_python` | `native/hayamimi-eval/tests/rp80.rs` | `pytest` の step を残した workflow、`--skip` が前の語にくっついた `270a3bd` の形の workflow（R11d、H133） |
@@ -2405,6 +2405,7 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | G0、R12a1、R12a2 | T の 5.3 の書き替え、rp19 の照合、rp09 の確かめ（8 の「Python を消す（R11）の割り方」の R11 までの組） | RP-19、RP-9 | commit を revert |
 | R11a1、R11a2、R11b、R11c | 文書と comment の書き替え、Python の 78 本と `requirements*.txt` を消す、CI を cargo に替える（同じ小節の R11 までの組） | RP-9、RP-80、RP-81、RP-14 | R11c の commit を revert すると 78 本と 2 本が戻る（直前の commit の tag `archive/python-before-r11` からも読める）。文書の slice は各 commit を revert |
 | R13-1〜R13-13 | RP-19 の未実装の 172 行を、触る Rust の file で割った組（同じ小節の R11 の後の組。行ごとの持ち主は 8 の「RP-19 の未実装 187 行の仕分けと slice」の表の slice の列を、同じ小節の対応で読み替える） | RP-19 と各 slice の受入 ID | commit を revert |
+| R13-19、R13-20、R13-11b | RP-61 の test、清書の結線（`--no-refine`）、4 クラスの句読点の結線（`--punct-model`）。RP-19 の行を持たない（同じ小節の R11 の後の組） | RP-61、RP-59 | commit を revert |
 | 重ね窓 | 重ね窓、設計は `conversation_subtitles.ja.md`、受入は CS-10、CS-11、CS-12 | CS-10、CS-11、CS-12 | commit を revert |
 
 R0 で Python を動かすのは、置き換える前の物の速さと誤り率を同じ機械で測るためで、Python の file は 1 行も書かない。
@@ -2585,7 +2586,7 @@ rp19 は、名前を持つ行のうち list に無い行（未実装の行）を
 file の名前は、固定の一覧の持ち主の札で決める。
 
 - 札を 1 つの R13 の slice が丸ごと持つ時は `<札>.txt` とする（`R12e.txt`、`R12x.txt`、`R12s1.txt`、`R12s2.txt`）。
-- 札を複数の R13 の slice が分けて持つ時は `<札>.<R13 の slice>.txt` とする（`R12b.R13-1.txt`）。分けて持つ札は `R12b`、`R12c`、`R12d`、`R12f`、`R12g`、`R12h` の 6 つである（「R11 の後の組」の表の 2 列目を一覧の札へ読み替えて数えた。`R12w0〜R12w4` は一覧の `R12w`、`R12u1` は一覧に無い）。
+- 札を複数の R13 の slice が分けて持つ時は `<札>.<R13 の slice>.txt` とする（`R12b.R13-1.txt`）。分けて持つ札は `R12b`、`R12c`、`R12d`、`R12f`、`R12g`、`R12h` の 6 つである（「R11 の後の組」の表の 2 列目を一覧の札へ読み替えて数えた。`R12w1〜R12w3` は一覧の `R12w`、`R12u1` は一覧に無い）。
 - 1 つの R13 の slice が札を複数持つ時は、札ごとに 1 file を書く（R13-10 は `R12s1.txt` と `R12s2.txt`、R13-11 は `R12t1.txt`〜`R12t3.txt` と `R12b.R13-11.txt`）。
 
 file を書くのは、その名前の札を持つ slice だけである。
@@ -2819,10 +2820,13 @@ R12q は評価の道具だけ、R12r は Windows の取り込みの thread が�
 
 #### 清書（Refiner）を live に足す形
 
-今の Rust の live の経路は清書をしない。
-`hayamimi-asr/src/pipeline.rs` に清書の呼び出しは無く、`refine_group` の呼び手は評価の道具の `hayamimi-eval/src/der_run.rs` の `refine_all` だけで、`session_summary` の `refine_*` は 0 の定数である。
+R13-13 が main に入るまで、Rust の live の経路は清書をしない。
+その間、`hayamimi-asr/src/pipeline.rs` に清書の呼び出しは無く、`refine_group` の呼び手は評価の道具の `hayamimi-eval/src/der_run.rs` の `refine_all` だけで、`session_summary` の `refine_*` は 0 の定数である。
 Python は清書を既定で行い（`--no-refine` で切る）、3.2 は `realtime_transcribe.py` の Refiner を `hayamimi` へ移すと決めている。
-したがって Refiner の 17 行は「写さない」にせず、下の形で作る（評議の判定）。作るのは R11 の後の R13-13 である。
+したがって Refiner の 17 行は「写さない」にせず、下の形で作る（評議の判定）。
+作るのは R11 の後の 2 つの slice である。R13-13 は清書の部品（`native/hayamimi/src/refine.rs`）と `Session` の受け口（`refiner`）を作り、R13-20 は `run.rs` で清書を live の `Session` へ結ぶ。
+R13-13 の `run.rs` は `Session` に `refiner: None` を渡すので、R13-20 が入るまで、清書の部品が在っても live の run は清書をしない。
+R13-20 は `--no-refine` を足し、付けない run で清書を入れる（Python の既定と同じ）。
 17 行は作り終えるまで未実装の行に残り、置き換えの完了の条件から外れない。
 
 **認識器の持ち方**：清書は live と別の `Router` を持つ。
@@ -2843,24 +2847,36 @@ live の窓が遅れている間（`session.rs` の `behind()` が真）は、�
 前の確定文の終わりから 2.0 秒（`GROUP_GAP_SECONDS`）以上の無音が在る。
 group の長さが 25 秒（`GROUP_MAX_SECONDS`）を超える。
 session の reset と終わりでは、開いている group を閉じて清書してから `session_summary` を出す。
+音源が発話の途中で去った時（`/ingest` の client が切れて `AudioItem::Flush` が来た時）も、検出器の持つ発話を切った後に、開いている group を閉じる。
+Python も同じ時（`ws_ingest.FLUSH`）に `refiner.maybe_refine(..., force=True)` で group を閉じる。去った音源の後には無音が来ないので、閉じなければ 2.0 秒の規則が来ない無音を待つことになる。
 
-**受入（RP-61）**：清書を入れた `hayamimi` で、RP-3 の run（rp03）と E2E-1、E2E-2 を打ち直し、`L` の p50 と p95 を 2 つと比べる。
+**捨てた group の数と清書の後処理**：
+捨てた group の数は `session_summary` の key `refine_groups_skipped` に置く。Python の `session_summary` に無い key で、足すのは採る。待ちの列の上限（4 group）は Python に無い Rust の決めなので、それを数える key も Rust にだけ在る。ほかの 3 つの `refine_*` の key は Python と同じ名前と意味のまま残す。
+清書した文には、確定文と同じ順で ITN、句読点、置換辞書を当てる。Python の Refiner は、清書の解き直しにも確定文と同じ後処理（ITN → 句読点 → 置換、`asr_engine.py` の `transcribe`）を通すからである。
+ITN と置換辞書は model を持たない文字列の規則で、R13-20 が `run.rs` の中で清書の読み手（`Reread`）を包んで当てる。`refine.rs` は書かない。
+句読点は GPU の model（3.5）なので、清書の thread が 2 つ目の session を開くか、live の `Punctuator` を分けて使うかが `L` と RP-22 に効く。どちらにするかは評議の判定が要り（10 の H147）、決まるまで清書の文に句読点は当てない。
+
+**受入（RP-61）**：清書を入れた `hayamimi`（R13-20 の後の build で、`--no-refine` を付けない run）で、RP-3 の run（rp03）と E2E-1、E2E-2 を窓 E4 で打ち直し、`L` の p50 と p95 を 2 つと比べる。
 1 つ目は、同じ負荷で交互に測った Python（清書を既定のまま入れた run）で、Rust の `L` の p50 と p95 がその値以下であること。
-2 つ目は、清書を切った Rust の run で、清書を入れた Rust の `L` の p50 の悪化が 30 ms 以下、p95 の悪化が 60 ms 以下であること。
-30 ms と 60 ms は実測の裏づけの無い仮の値で、R12w0 の測りの後に持ち主の R12w4 の席が置き直し、超えたら評議へ戻す（10 の H64）。
+2 つ目は、同じ build に `--no-refine` を付けた Rust の run で、清書を入れた Rust の `L` の p50 の悪化が 30 ms 以下、p95 の悪化が 60 ms 以下であること。
+30 ms と 60 ms は仮の値で、窓 E4 の前に、`L` の run 間の揺れ（同じ build と同じ負荷の run の対の p50 と p95 の差。測りの床）と、R13-13 の検証の席が測る清書の重さから、設計の席が 10 の H64 の 1 行で決める。窓 E4 の値を見てから置き直さない。超えたら評議へ戻す。
+清書の thread の余裕（1 group の解き直しの秒と実時間比）は待ちの列が溢れるかを決める数で、`L` の悪化の ms を導かないので、幅の根拠に使わない。
 訳の取れた割合（RP-32 の 20 / 23）は清書の有無で下がらない。
 
-**作る前の安い測り（R12w0）**：`<ev> der --set testdata/eval_diar --collar 0.25` を 1 回打ち、会議ごとの `refine_seconds` と `audio_seconds`（`der_run.rs`）から、清書 1 group の重さ（group の数で割った秒）と実時間比を出して `docs/results/` に書く。
-これは話者の再分離の時間で、文の解き直しの時間を含まない。文の解き直しの重さは R12w2 の席が `Router::refine` を 25 秒の group に 5 回掛けて p50 を測る。
-実時間比が 0.5 を超えれば（清書が音声の長さの半分より長く掛かれば）、待ちの列が溢れる見込みなので、R12w1 の前に設計の席へ戻す。
+**作る前の安い測り（R12w0）**：`<ev> der --set testdata/eval_diar --collar 0.25` を 1 回打ち、会議ごとの `refine_seconds` と `audio_seconds`（`der_run.rs`）から、清書 1 group の重さ（group の数で割った秒）と実時間比を出す。
+これは話者の再分離の時間で、文の解き直しの時間を含まない。文の解き直しの重さは R13-13 の席が `Router::refine` を 25 秒の group に 5 回掛けて p50 を測る。
+実時間比が 0.5 を超えれば（清書が音声の長さの半分より長く掛かれば）、待ちの列が溢れる見込みなので、R13-13 の前に設計の席へ戻す。
+R12w0 は済んだ。記録は `results/r12w0` の枝の `docs/results/r12w0/README.md` で、5 会議の全体の実時間比は 0.0637、1 group の再分離は 1.32 秒である。
 
-| slice | 中身 | 見積り | 席と波 |
+| 段 | 中身 | 見積り | 持ち主 |
 |---|---|---|---|
-| R12w0 | 上の安い測り | 15 分 | W6（14:00〜15:00）の席 1 |
-| R12w1 | group を分ける規則（`refiner_add_span_*` 3）と、評価の複製との一致（`production_over_splits_relative_to_eval_replica_on_a_skipped_vad_segment`） | 45 分 | W6 の席 1（R12w0 の後） |
-| R12w2 | 清書の thread、待ちの列、閉じる時の掃き出し（`refiner_close_*` 4、`refiner_refuses_work_after_close`、`closing_the_refiner_releases_the_engine`、`refiner_worker_prints_groups_in_enqueue_order_despite_slower_first_decode`、`refiner_shutdown_must_drain_full_backlog_not_just_last_task`） | 60 分 | W7（15:00〜16:00）の席 1 |
-| R12w3 | `refine` の event、transcript の file、reset（`eventhub_replays_refine_events_to_new_subscribers`、`refiner_reset_*` 2、`reset_live_session_flushes_pending_refine_before_summarizing`、`live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates`） | 60 分 | W7 の席 2（R12w1 の後） |
-| R12w4 | RP-61 の run（rp03、E2E-1、E2E-2 の打ち直し。Windows の実機） | 60 分 | W8（16:00〜17:00）の席 1 |
+| R12w0 | 上の安い測り | 15 分 | 済み |
+| R12w1 | group を分ける規則（`refiner_add_span_*` 3）と、評価の複製との一致（`production_over_splits_relative_to_eval_replica_on_a_skipped_vad_segment`） | 45 分 | R13-13（1 席が w1、w2、w3 の順に commit を分ける） |
+| R12w2 | 清書の thread、待ちの列、閉じる時の掃き出し（`refiner_close_*` 4、`refiner_refuses_work_after_close`、`closing_the_refiner_releases_the_engine`、`refiner_worker_prints_groups_in_enqueue_order_despite_slower_first_decode`、`refiner_shutdown_must_drain_full_backlog_not_just_last_task`） | 60 分 | R13-13 |
+| R12w3 | `refine` の event、transcript の file、reset（`eventhub_replays_refine_events_to_new_subscribers`、`refiner_reset_*` 2、`reset_live_session_flushes_pending_refine_before_summarizing`、`live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates`） | 60 分 | R13-13 |
+| 結線 | `run.rs` で清書を live の `Session` へ結ぶ。`--no-refine`、清書の文の ITN と置換辞書 | 40 分（推測） | R13-20 |
+| RP-61 の test | `rp61.rs` の fixture の行と、`docs/results/rp61/` を読む `#[ignore]` の実走の行 | 45 分（推測） | R13-19 |
+| RP-61 の run | rp03、E2E-1、E2E-2 を、清書を入れた run と `--no-refine` の run で打ち直す（Windows の実機） | 窓 E4 の約 2 時間に入る | 窓 E4 の席 |
 
 #### recluster の純関数（R12x）
 
@@ -2907,6 +2923,7 @@ RP-19 の 5 つ目の種類は `写さない：Python の口（<Rust の在り�
 R11 の前に作るのは、T の 5.3 の書き替え（G0）、rp19（R12a1）、rp09（R12a2）と、文書と comment の書き替え 3 本（R11a1、R11a2、R11b）だけにする。
 R11c が Python の 78 本と `requirements*.txt` を消し、CI を cargo に替える。
 未実装の 172 行は R11 の後に、触る Rust の file で割った 14 の slice（R13-1〜R13-13。R13-5 は R13-5a と R13-5b の 2 本）で写し、置き換えの完了の条件に残す。
+RP-19 の行を持たない 3 つの slice（清書の結線 R13-20、RP-61 の test の R13-19、4 クラスの句読点の結線 R13-11b）は、R13-13 と R13-11 の後に置く。
 その後に、範囲の段落を付けて残した文書を Rust の code から書き直す文書の slice R13-14 を置く。
 この形（方針 C）は R11 を RP-19 の全行の後に置かないので、評議の GO が state.json に在るまで R11c を始めない（10 の H101）。
 G0、R12a1、R12a2、R11a1、R11a2、R11b は、どの方針でも要る。
@@ -2941,8 +2958,8 @@ Python の file ごと：test_embed_runtime 50、test_ws_ingest 21、test_units 
 
 | 方針 | 形 | ただし | 採るか |
 |---|---|---|---|
-| A | 今の 3.2 のまま。写さない 15 行を除く 172 行を、R13-1〜R13-13 で全部写してから R11 に入る | 一番長い鎖は R13-5a → R13-5b → R13-13（清書）の 365 分で、R13-13 の中の R12w4 は Windows の実機の run で E2E の席と窓を取り合う。cargo の席は同時 2 席までなので、R13-1〜R13-13 の見積りの和 1,045 分を 2 本に割ると約 525 分で、検証と merge を足すと R11 は 2026-10-21 の夜（推測） | 採らない。実行時に読まれない file を消すのを、実行時の機能の完成まで待たせるだけで、待つ間に守られる物が無い |
-| B | 実行時の 134 行だけを R11 の前提にし、測りの道具と出所の 38 行と口の 15 行を外す | 外れるのは R13-4、R13-7、R13-10 と R13-9 の 3 行で、清書の鎖（365 分）と 4 クラスの句読点の鎖（R13-10 → R13-11、235 分。R13-11 は R13-10 の後に `args.rs` を書く）は残る。R11 は 2026-10-21 の昼（推測） | 採らない。一番長い鎖が縮まないので速くならず、評議の判定は A を替える時と同じだけ要る |
+| A | 今の 3.2 のまま。写さない 15 行を除く 172 行を、R13-1〜R13-13 で全部写してから R11 に入る | 一番長い鎖は R13-5a → R13-5b → R13-13（清書）→ R13-20（結線）→ R13-19（`rp61.rs`）の 375 分で（R13-13 までは 290 分）、RP-61 の run は窓 E4 で E2E の窓を取る。cargo の席は同時 2 席までなので、R13-1〜R13-13 の見積りの和 970 分に R13-11b、R13-19、R13-20 の 125 分を足した 1,095 分を 2 本に割ると約 550 分で、検証と merge を足すと R11 は 2026-10-21 の夜（推測） | 採らない。実行時に読まれない file を消すのを、実行時の機能の完成まで待たせるだけで、待つ間に守られる物が無い |
+| B | 実行時の 134 行だけを R11 の前提にし、測りの道具と出所の 38 行と口の 15 行を外す | 外れるのは R13-4、R13-7、R13-10 と R13-9 の 3 行で、清書の鎖（375 分）と 4 クラスの句読点の鎖（R13-10 → R13-11 → R13-11b、275 分。R13-11b は R13-20 の後に `args.rs` を書く）は残る。R11 は 2026-10-21 の昼（推測） | 採らない。一番長い鎖が縮まないので速くならず、評議の判定は A を替える時と同じだけ要る |
 | C | R11 の前提を G0、R12a1、R12a2 と文書の 3 本だけにし、172 行は R11 の後に rp19 が数える未実装の行として写す | 1 つ目に、R11 の後に清書、4 クラスの句読点、COM の分け、`config dump` を写す席は、Python の source を git の履歴から読む（3.2 の command）。2 つ目に、CI の本体の step は `rp19_python_cases_are_ported` を外して打つので、本体の緑は置き換えの完了を意味しない。その test は別の step が打って未実装の数を出し、完了は status の席がその数で書く。3 つ目に、R11 を RP-19 の全行の後に置かない形なので、評議の判定が要る | **採る（この席の案）**。R11 は 2026-10-20 の 15:00（推測。評議の判定が 11:30 までに出て、R12a2 の Windows の 10 分の窓が E2E の席と重ならないこと） |
 
 #### 構造
@@ -2950,7 +2967,7 @@ Python の file ごと：test_embed_runtime 50、test_ws_ingest 21、test_units 
 ```
 G0（T の 5.3）──→ R12a1（rp19）─┐
                   R12a2（rp09）─┤
-                  R11a1（文書）─┼──→ 評議の判定（方針 C）──→ R11c（78 本を消す、CI）──→ R13-1〜R13-13 ──→ R13-14（文書）──→ 未実装の行 0、持ち主の在る RP-81 の例外 0（完了）
+                  R11a1（文書）─┼──→ 評議の判定（方針 C）──→ R11c（78 本を消す、CI）──→ R13-1〜R13-13、R13-11b、R13-19、R13-20 ──→ R13-14（文書）──→ 未実装の行 0、持ち主の在る RP-81 の例外 0（完了）
                   R11a2（文書）─┤
                   R11b（mobile）┘
 ```
@@ -3024,12 +3041,12 @@ R11 の入口と置き換えの完了の定義を書いた行なので、R11c �
 #### R11 の後の組（R13-1〜R13-15）
 
 同じ時に走る 2 つの slice は、同じ file を書かない。
-同じ file を書く組は依存で順を固定する。R13-1 → R13-13（`server.rs`）、R13-5b → R13-13（`session.rs`、`wire.rs`）、R13-10 → R13-11（`args.rs`）、R13-10 → R13-13（`native/hayamimi/src/lib.rs`）の 4 組である。
+同じ file を書く組は依存で順を固定する。R13-1 → R13-13（`server.rs`）、R13-5b → R13-13（`session.rs`、`wire.rs`）、R13-10 → R13-11（`args.rs`）、R13-10 → R13-13（`native/hayamimi/src/lib.rs`）、R13-13 → R13-20（`run.rs`、`strings.en.toml`、`strings.ja.toml`）、R13-20 → R13-11b（`args.rs`、`run.rs`、`strings.en.toml`、`strings.ja.toml`）、R13-11 → R13-11b（`pipeline.rs`）の 7 組である。
 新しい module の `mod` の行は、その crate の `lib.rs` を書く slice だけが足す（`hayamimi-asr` は R13-12、`hayamimi-eval` は R13-8、`hayamimi` は R13-10、その後の R13-13）。
 各 slice は、表の「書く file」に加えて、自分の写した名前の file を `native/hayamimi-eval/tests/rp19_ported/` に作って書く。
 file の名前は、固定の一覧 `rp19_not_yet_at_r11.tsv` の持ち主の札で決める。表の 2 列目の綴りは一覧の札と同じではないので、2 列目を一覧の札へ読み替えてから名付ける。
 札を丸ごと持つ slice は `<札>.txt`（R13-6 は `R12e.txt`）、札を分けて持つ slice は `<札>.<R13 の slice>.txt`（R13-1 は `R12b.R13-1.txt`）とする（8 の RP-19 の小節）。
-R13-13 の 2 列目の `R12w0〜R12w4` は `R12w` の中の段で、一覧の札は `R12w`（17 行）だけなので、R13-13 の file は `R12w.txt` である。
+R13-13 の 2 列目の `R12w1〜R12w3` は `R12w` の中の段で、一覧の札は `R12w`（17 行）だけなので、R13-13 の file は `R12w.txt` である。
 R13-8 の 2 列目の `R12u1` と `R12u2` のうち、一覧に札として在るのは `R12u2`（4 行）だけで、`R12u1` の行は一覧に無い。そこで R13-8 の file は `R12u2.txt` と `R12d.R13-8.txt` で、`R12u1` の file は作らない。
 この file を書くのはその slice だけで、固定の一覧と `rp19.rs` はどの R13 の slice も書かない。
 `<札>.txt` の file は今の `rp19.rs` の読み（`.txt` の前の全部を札とする）で通る。`<札>.<R13 の slice>.txt` の file は、`rp19.rs` の読みを最初の `.` より前に替える変更が main に入ってから入れる（10 の H134）。
@@ -3055,12 +3072,14 @@ r12c の `native/hayamimi/src/ingest.rs` の 222 行（手書きの codec）は�
 | R13-10 | R12s1、R12s2 | `config dump` と spec の 3 行 | `native/hayamimi/src/args.rs`、`native/hayamimi/src/config_dump.rs`（新規）、`native/hayamimi/src/main.rs`、`native/hayamimi/src/lib.rs`、`native/hayamimi/tests/ja_pipeline_spec.rs`、`docs/spec/ja_pipeline_spec.json`、`docs/spec/ja_pipeline.md`、`ja_pipeline.ja.md`、`native/hayamimi-eval/tests/rp81.rs` の例外の表の 3 行 | RP-19 の spec の行 | `config_matches_the_live_dump` | R11c | 75 分（作る slice の表の見積り、推測） |
 | R13-11 | R12t1〜R12t3、R12b の一部 | 4 クラスの句読点の 21 行と `set_punctuate_off_then_on_is_a_noop_when_already_loaded` | `native/hayamimi-asr/src/punct/mod.rs`、`native/hayamimi-asr/src/punct/four.rs`（新規）、`native/hayamimi/src/args.rs` | RP-19、RP-59 | `reconstruct_inserts_question_mark`、`punct_property_4class_missing_falls_back_to_bert_with_warning` | R13-10 | 160 分（同じ表の見積り、推測） |
 | R13-12 | R12x | recluster の 4 行 | `native/hayamimi-asr/src/recluster.rs`（新規）、`native/hayamimi-asr/src/lib.rs` | RP-62 | `pool_audio_for_group_uses_diarizer_turns_when_present` | R11c | 30 分（同じ表の見積り、推測） |
-| R13-13 | R12w1〜R12w3 | 清書の 17 行（R12w1〜R12w3 を 1 席が w1、w2、w3 の順に commit を分けて作る。R12w0 は済みで、`results/r12w0` の枝の 49d70ed の `docs/results/r12w0/README.md` が、話者の再分離の全体の実時間比 0.0637 を持つ。`rp61.rs` は R13-19 が作り、RP-61 の run は窓 E4 で取る） | `native/hayamimi/src/refine.rs`（新規）、`session.rs`、`wire.rs`、`server.rs`、`native/hayamimi/src/lib.rs`、新しい test target を作った時の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md` | RP-19（RP-61 は R13-19 と窓 E4） | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`（札 `R12w` が 0 になり、行は `rp19_ported/R12w.txt` へ移る） | R13-1、R13-5b、R13-10 | 165 分（R12w1 の 45 分＋R12w2 の 60 分＋R12w3 の 60 分、推測） |
-| R13-14 | なし（文書） | RP-19 の行は持たない。`docs/guide/` の embedding と tuning の対を Rust の code から書き直し、範囲の段落を外す（「R11 の前の文書の扱い」）。cargo なし | `docs/guide/embedding.md`、`embedding.ja.md`、`tuning.md`、`tuning.ja.md`、`native/hayamimi-eval/tests/rp81.rs` の例外の表の 4 行。mobile の Python の class `Refiner` を引く 11 行（`mobile/README.md` の 2、`mobile/hayamimi_core/README.md` の 1、`mobile/hayamimi_core/lib/live/live_transcriber.dart` の 4、`refine_pass.dart` の 4）を、R13-13 の `native/hayamimi/src/refine.rs` を引く comment に書き替える | RP-81 | `rp81_no_document_names_a_removed_python_file` | R13-1〜R13-13（書く振る舞いが全部 Rust に在ってから書く） | 90 分（推測。4 file。README と同じ `readme-writing.md` の翻訳の工程） |
-| R13-19 | R12w4 の test の形 | RP-61 の test の file。fixture の行と、`docs/results/rp61/` を読む `#[ignore]` の実走の行を作る（前例は R8x-2a の `rp67.rs`）。窓 E4 は cargo と rustc が走っていないことが門（RP-83）なので、窓の最中には組まず、窓の前に作る。窓 E4 で取るのは run の記録だけ | `native/hayamimi-eval/tests/rp61.rs`（新規）、要る時の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md` | RP-61 | `rp61_live_refine_does_not_delay_the_subtitle` | R13-13 | 45 分（推測。`rp67.rs` の型） |
+| R13-13 | R12w1〜R12w3 | 清書の 17 行（R12w1〜R12w3 を 1 席が w1、w2、w3 の順に commit を分けて作る。R12w0 は済みで、`results/r12w0` の枝の 49d70ed の `docs/results/r12w0/README.md` が、話者の再分離の全体の実時間比 0.0637 を持つ。`rp61.rs` は R13-19 が作り、RP-61 の run は窓 E4 で取る。`run.rs` は `Session` に `refiner: None` を渡し、live へ結ぶのは R13-20） | `native/hayamimi/src/refine.rs`（新規）、`session.rs`、`wire.rs`、`server.rs`、`run.rs`（`refiner: None` の 1 行）、`native/hayamimi/data/strings.en.toml`、`strings.ja.toml`、`native/hayamimi/src/lib.rs`、`native/hayamimi-asr/src/pipeline.rs`（`Engine::speech_in_progress`）、新しい test target を作った時の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md` | RP-19（RP-61 は R13-19 と窓 E4） | `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`（札 `R12w` が 0 になり、行は `rp19_ported/R12w.txt` へ移る） | R13-1、R13-5b、R13-10 | 165 分（R12w1 の 45 分＋R12w2 の 60 分＋R12w3 の 60 分、推測） |
+| R13-14 | なし（文書） | RP-19 の行は持たない。`docs/guide/` の embedding と tuning の対を Rust の code から書き直し、範囲の段落を外す（「R11 の前の文書の扱い」）。cargo なし | `docs/guide/embedding.md`、`embedding.ja.md`、`tuning.md`、`tuning.ja.md`、`native/hayamimi-eval/tests/rp81.rs` の例外の表の 4 行。mobile の Python の class `Refiner` を引く 11 行（`mobile/README.md` の 2、`mobile/hayamimi_core/README.md` の 1、`mobile/hayamimi_core/lib/live/live_transcriber.dart` の 4、`refine_pass.dart` の 4）を、R13-13 の `native/hayamimi/src/refine.rs` を引く comment に書き替える | RP-81 | `rp81_no_document_names_a_removed_python_file` | R13-1〜R13-13、R13-11b、R13-20（書く振る舞いが全部 Rust に在ってから書く。tuning の対は `--punct-model` と `--no-refine` を書く） | 90 分（推測。4 file。README と同じ `readme-writing.md` の翻訳の工程） |
+| R13-19 | なし（RP-61 の test） | RP-19 の行は持たない。RP-61 の test の file。fixture の行と、`docs/results/rp61/` を読む `#[ignore]` の実走の行を作る（前例は R8x-2a の `rp67.rs`）。窓 E4 は cargo と rustc が走っていないことが門（RP-83）なので、窓の最中には組まず、窓の前に作る。窓 E4 で取るのは run の記録だけ | `native/hayamimi-eval/tests/rp61.rs`（新規）、要る時の `.github/workflows/test.yml` と `docs/results/r11/ci_probe.md` | RP-61 | `rp61_live_refine_does_not_delay_the_subtitle` | R13-13、R13-20（RP-61 の run は清書を結んだ `hayamimi` で打つ） | 45 分（推測。`rp67.rs` の型） |
+| R13-20 | なし（結線） | RP-19 の行は持たない。`run.rs` で `Refiner::start` を起こして `Session` の `refiner` に渡し、`--no-refine` を足す（既定は清書あり）。清書の読み手（`Reread`）を `run.rs` の中で包み、清書した文に ITN と置換辞書を確定文と同じ順で当てる（句読点は 10 の H147）。`--no-refine` の時は `refiner: None` のまま。窓 E4 の前に要る（RP-67 を清書まで入った build で測り、RP-61 の run は清書を結んだ `hayamimi` で打つ） | `native/hayamimi/src/run.rs`、`native/hayamimi/src/args.rs`、`native/hayamimi/data/strings.en.toml`、`strings.ja.toml` | RP-61（結線の前提） | `run_without_no_refine_gives_the_session_a_refiner`（`run.rs` の `mod tests`。陰性は `--no-refine` で `refiner` が `None`） | R13-13 | 40 分（推測） |
+| R13-11b | なし（結線） | RP-19 の行は持たない。`--punct-model {bert,4class}` を `args.rs` に足し（既定は `bert`）、`run.rs` から `Engine::open` の設定へ渡し、`Engine::open` が `punct::select` で句読点の model を開く。4 クラスの model が無い時は BERT へ落ちて warn を 1 回出す（RP-59）。この slice が入るまで、RP-59 は通ったと名乗らない。窓 E4 の既定は BERT のままなので、E4 の前でなくてよい | `native/hayamimi/src/args.rs`、`native/hayamimi/src/run.rs`、`native/hayamimi/data/strings.en.toml`、`strings.ja.toml`、`native/hayamimi-asr/src/pipeline.rs`（`Engine::open`） | RP-59 | `punct_model_4class_opens_the_four_class_restorer_in_the_engine`（`pipeline.rs` の `mod tests`。model を使うので `#[ignore]`。陰性は `--punct-model` を付けない設定で BERT を開く） | R13-11、R13-20（`args.rs`、`run.rs`、`strings.*.toml` が R13-20 と重なるので、R13-20 の merge の後） | 40 分（推測） |
 
-R13-1〜R13-13 の行の和は 18 + 8 + 19 + 13 + 9 + 10 + 14 + 19 + 6 + 10 + 3 + 22 + 4 + 17 = 172 である。
-`rp19_not_yet_at_r11.tsv` の持ち主の列は、R12 の札（19 種）を持ち、R13 の slice の名前を持たない（8 の RP-19 の小節）。この表の 2 列目の綴りは一覧の札と同じではない（`R12w0〜R12w4` は一覧では `R12w`、`R12u1` は一覧に無い）。`rp19_ported/` の file の名前は一覧の札で決める。
+R13-1〜R13-13 の行の和は 18 + 8 + 19 + 13 + 9 + 10 + 14 + 19 + 6 + 10 + 3 + 22 + 4 + 17 = 172 である。R13-14、R13-19、R13-20、R13-11b は RP-19 の行を持たない。
+`rp19_not_yet_at_r11.tsv` の持ち主の列は、R12 の札（19 種）を持ち、R13 の slice の名前を持たない（8 の RP-19 の小節）。この表の 2 列目の綴りは一覧の札と同じではない（`R12w1〜R12w3` は一覧では `R12w`、`R12u1` は一覧に無い）。`rp19_ported/` の file の名前は一覧の札で決める。
 R13-13 の `live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates` は `vad.rs` に置かず、`refine.rs` の test に置く（`vad.rs` を書くのは R13-2 だけ）。
 R13-11 は `ort` の CUDA の実行 provider に `error_on_failure()` を付け、登録できなかった時は 3.15 の `<domain>.fallback.<落ち先>` の event を自分で出す。付けないと `ort` は黙って CPU で動く（S43）。
 R12y（RP-35）は RP-19 の行を持たず、`hayamimi-relay` の `cli.rs` と `eval.rs` だけを書くので、この組と並べてよい。
@@ -3093,10 +3112,10 @@ R13-18 は、GPU の無い機械で CPU へ落ちて落ちたと出す受入（R
 3. `ci_probe.md` の「Tests the CI skips by name」から 3 本の行を消し、GitHub の最初の run（ubuntu と windows）で 3 本が受けた `reason` の値と run の番号を「Result」の節に書く。
 依存は無い。cargo の 2 本の列の空いた所に受付が入れ、RP-16 の受入が CI で 1 本も走らない間は、ほかの R13 の slice より先に入れる。見積りは 60 分（推測）＋ GitHub の run 1 回（時間は NOT VERIFIED）。60 分は、前の 45 分（期待の関数と 3 本の呼び手と CI と記録）に、11 本の fixture の test を 8 の「見積りの出所」の式（書く test の本数 × 1 分）で足した 11 分を丸めた物で、11 本を含む。
 T の RP-16 の節の T-RP-16-049、050 と受入の行の期待値を同じ決め方の値に直し、052〜062 の 11 行を置くのは test-designer の席で、R13-18 より先に入れる（設計の席は case 行を書かない）。
-R13-14 は cargo を使わないので 2 本の列に入れず、R13-13 が main に入った後に受付が呼ぶ。
+R13-14 は cargo を使わないので 2 本の列に入れず、R13-20 と R13-11b が main に入った後に受付が呼ぶ。
 
 cargo の席は 2 本なので、この表の順は 2 本の列に分ける。
-1 本目は R13-5a → R13-5b → R13-13 → R13-8（460 分）、2 本目は R13-10 → R13-1 → R13-6 → R13-9 → R13-2 → R13-4 → R13-12 → R13-3 → R13-7 → R13-11（585 分）を起点にし、受付が席の空きで入れ替える。
+1 本目は R13-5a → R13-5b → R13-13 → R13-20 → R13-19 → R13-8（470 分）、2 本目は R13-10 → R13-1 → R13-6 → R13-9 → R13-2 → R13-4 → R13-12 → R13-3 → R13-7 → R13-11 → R13-11b（625 分）を起点にし、受付が席の空きで入れ替える。
 2 本目の頭に R13-10 と R13-1 を置くのは、R13-13 が 1 本目で始まる 125 分の時点で、R13-13 の待つ R13-10 と R13-1 が済んでいる（115 分）ようにするためである。
 
 #### 走らせる前の壊れ方
@@ -3108,7 +3127,7 @@ cargo の席は 2 本なので、この表の順は 2 本の列に分ける。
   - R11c の clone は `testdata/` も `models/` も持たないので、それを読む test は R0b の形の `Err` で落ちる（意図した落ち方で、RP-80 が名前を数える）。sherpa-onnx の CPU 版の archive は build script が網から取る（S3）。
 - **取り合う資源**：
   - cargo の席は同時 2 席までで、検証の席の cargo も数える。`--jobs 2`。
-  - Windows の実機、GPU、llama-server の port 8080 と 18081 は E2E の席と取り合う（R12a2 の 10 分と R13-13 の R12w4）。
+  - Windows の実機、GPU、llama-server の port 8080 と 18081 は E2E の席と取り合う（R12a2 の 10 分と、窓 E4 の RP-61 の run）。
   - main への merge は main-lock を持つ 1 席だけが打つ。
   - T の 5.3 を書くのは T の席 1 つだけである。
 - **始めてよい条件と確かめ方**：
@@ -3216,7 +3235,7 @@ u14 は 2 回とも T の訳が V に落ち、E を待った（T 255 ms と E 11
 - **H86** RP-32 の行ごとの有効の線（3.1 の例外）で、全標本を `min_silence` で数えた時と値が変わるのは、`rule` が `early` の Rust の標本だけである。対の比較の余裕（行ごとの線で数えた数 − 閾値）は小さいことがあり、その時は 1 発話の入れ替わりで合否が変わるので、報告に余裕を数で書く（3.16 の 4 の「RP-32 の報告」）。`rule` が `max_speech` と `flush` の標本を `min_silence` で数えるのは、線を下げる規則を早い規則で区切った標本だけに限るこの席の決めで、評議の判定は `early` と `silence` を名指した（ASSUMPTION。`max_speech` と `flush` の標本の数は結果に `rule` ごとに書くので、その数で読む）。負荷の差の向き（3.16 の 4）は、load が `L` を延ばす向きに効くこと（3.5 の R7 の測り直しの読み）に頼り、`L` が load とともに単調に延びるかは測っていない（ASSUMPTION）。Rust の run の前の load が基準の上端 0.83 より低い run は、負荷の差が Rust に有利な向きに効いた疑いとして結果に名前と値が残る。持ち主は R8h の 4 の run の席で、余裕が 0 以下か、0.83 より低い run で通った時は、値を添えて評議へ出す。T の 4.42 の行のうち、流した順を見る T-RP-32-001〜004 と 029 と、`hayamimi` の stdout の無い今の dir を読む T-RP-32-045 は、この形に合わせて test-designer の席が書き直す（セラが運ぶ）。受入 test の名前 `rp32_alternated_runs_under_the_same_load_beat_python` は code に在る名前なので変えず、意味は 6 の RP-32 の行で読む。
 - **H87** Python の基準の 3 run の GPU の読み（`stream` が `--out` の隣に書く `<run>.gpu.json`）は `docs/results/rp32/` に無い（`git ls-files docs/results/rp32/` は jsonl と `load<N>.txt` だけを返す）。そのため 3.16 の 3 の GPU の読みの対の規則と RP-34 の無効にする対の数は、基準の run の側の読みが無いまま組めない。git の外の run の作業 dir に `py<N>.gpu.json` が残っているかは確かめていない（NOT VERIFIED）。持ち主は R8h の 4 の run の席で、残っていれば同じ dir へ写し、無ければ RP-34 の対の規則をどうするかを評議へ出す。
 - **H88**（評議の判定で決定）E2E-1、E2E-2、RP-3 の 3 つとも、RP-32 と同じ標本ごとの線で有効を数える（3.1 の終端不正の例外）。全標本で `min_silence` を渡す形では、R8v の build（既定の `--endpoint early`）で早い規則で確定し `L_asr − L_dec` が `min_silence` より短い標本が有効から外れ、速く確定した標本ほど母数から抜けるからである。L9 の en の run では、300 ms の線で 74 標本のうち early の 39 標本が外れ、p95 は 2879 ms になった（標本ごとの線では n 74、p95 1318 ms）。RP-3 を入れるのは、RP-3 も Rust と Python の標本を同じ線で比べる受入で、同じ偏りを持ち、RP-61 が同じ形の run を読むからである。Python の側は早い規則を持たないので、`min_silence` の 1 本で数える。RP-67 は全標本 0.12 秒のまま動かさない（H70）。直す持ち主は、T（E2E の節の頭、F88、T-E2E-1-001、002、016〜023、T-E2E-2-001、012〜016、T-RP-3-022、023、T-RP-32-048）が test-designer の席、`native/hayamimi-eval/tests/support/e2e.rs` と `e2e1.rs`、`e2e2.rs`、`support/rp32_rules.rs` が実装の席である。`rp32_rules.rs` は id を運ぶ変更で、今の `joined_finals`（103 行）が `(t_us, rule)` だけを残すので、`closing_rule`（127 行）は落とす時に run、repeat、utt しか名指せない。3.1 の「同じ `t_us` に規則の違う `final` が 2 つ在る標本は run と `id` を名指して落とす」を満たすため、`joined_finals` が `final` の `id` も残し、`closing_rule` がその `id` を名指す形に直す。`docs/results/e2e/README.md` の有効の文も実装の席の slice で直す。`rp03.rs` は repo に無い（`ls native/hayamimi-eval/tests/` に無い）ので、作る席が同じ線で作る。
-- **H89** RP-61（8 の「清書（Refiner）を live に足す形」の受入と 6 の RP-61 の行）は、清書を入れた Rust を「同じ負荷で交互に測った Python」と比べる。RP-32 の基準を固定して Python の run を打たない形と食い違う。基準の `py1`〜`py3` が清書を既定のまま入れた run かは確かめていない（NOT VERIFIED）。RP-61 を固定した基準と比べる形に直すかは評議の判定が要る。持ち主は R12w4 の席で、run の前に評議へ出す。
+- **H89** RP-61（8 の「清書（Refiner）を live に足す形」の受入と 6 の RP-61 の行）は、清書を入れた Rust を「同じ負荷で交互に測った Python」と比べる。RP-32 の基準を固定して Python の run を打たない形と食い違う。基準の `py1`〜`py3` が清書を既定のまま入れた run かは確かめていない（NOT VERIFIED）。RP-61 を固定した基準と比べる形に直すかは評議の判定が要る。持ち主は窓 E4 の席で、run の前に評議へ出す。
 - **H64** RP-61 の許す悪化の幅（清書を切った Rust に対して p50 で 30 ms、p95 で 60 ms）は実測の裏づけが無い仮の値である（NOT VERIFIED）。清書の別の `Router` が足す host の memory の量も測っていない（NOT VERIFIED）。持ち主は R12w0（W6 の席 1、清書 1 group の重さ）と R12w4（W8 の席 1、RP-61 の run）で、R12w4 の席が幅を置き直し、超えたら評議へ戻す。Refiner の 17 行は R12w0〜R12w4（8 の「清書（Refiner）を live に足す形」の表）が入るまで未実装の一覧に残る。
 - **H65** `History::clear` が絶対の位置を戻さない形（R12h）は、Python の `test_audio_history_clear_empties_buffer_and_offsets` の「offsets を空にする」と違う。T の case 行は「buffer が空で、reset の前の sample が preroll に入らない」に合わせる。持ち主は T の席である。
 - **H58** R8m の `listen` が本物の中継の event を本物の `/events` から SSE で読むことは打てていない（WSL に出力の装置が無い）。持ち主は E2E の打ち直しの席で、Windows の実機で RP-41 の `--ignored` の行と E2E-2 を打つ。
@@ -3344,6 +3363,9 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H144** RP-85 の (4) の 2（鍵が合う標本に同じ `id` の `translate.draft.reused` が要る）は、鍵が合っても中継が使い回さない形を中継の欠けとして落とす。`Mailbox::close` は、速報の依頼を worker がまだ取っていない時（`Phase::Waiting`）と、依頼が答えを返さなかった時に使い回さない（`partial.rs` の `closes`）。この形は鍵の広げの欠けではないが、今の (4) では落ちる。窓 E3' では鍵が合う標本は run ごとに 4 で、4 とも使い回されていた。窓 E3'' でこの形が出るかは確かめていない（NOT VERIFIED）。出たら、R8x-8 の席は落ちた標本の `id` と中継の stdout の `translate.partial.*`（`ok`、`held`、`aborted`、`failed`、`skipped`、`kept`）の行を添えて設計の席へ返し、扱いは評議が決める。
 - **H145** T（`rust_port_tests.ja.md`）の RP-83 と RP-85 の case 行のうち、3.21 の 2 の 6 と 3 の 1、3、7 で決めた形と食い違う行は、test-designer の席が R8x-8 と R8x-9 の席より先に直す。食い違うのは、comm が `hayamimi-eval` の pid を受ける行と、`stat` を置かない pid を受ける行（今の T-RP-83-068）、`own` の要素の綴りを test の定数に任せる行（O83）、`stream` 自身の pid を条件にしないと断った行（T-RP-83-068 の注）、「この節の設計にない物」の 7 項と RP-85 の結べない標本の 1 項である。足す行は、`--own-pid` が 0 個の `stream` の行が `own` を持たないこと、`own_fault` の 4 つの語と `own_pid` の値、`own_pid` と `load1` が同時に外れた `reason`、`--port=18084` の 1 語、`--port` が 2 つ、途中の行の null、判定の出力の 1 行、RP-85 の結べない標本と `no_draft` の標本である。
 - **H146** 3.21 の 3 の 1 は、comm が `hayamimi` と `hayamimi-relay` の pid を comm だけで受ける。別の app（同じ机で動く別の hayamimi や中継）の pid を渡すと、その CPU を run 自身の分として引き、門を通しすぎる。窓 E3'' の手順は pid を port から引く（`ss -ltnpH 'sport = :8766'` と中継の待ち受けの port）ので、穴は手で pid を取り違えた時だけである。機械では当たらない。E2E の席は、報告に 3 つの pid と、それぞれを引いた command の出力を並べ、検証の席がその出力と行 1 の `own` の pid が同じであることを読む。
+- **H147** 清書した文に句読点を当てる形が決まっていない（評議の判定が要る）。句読点は GPU の BERT（3.5）で、清書の thread が 2 つ目の session を開けば GPU の memory（RP-22）が増え、live の `Punctuator` を分けて使えば live の確定文が清書の句読点を待つ。どちらの量も測っていない（NOT VERIFIED）。決まるまで、清書の文は ITN と置換辞書だけを通り、ja の清書の行は句読点を持たない。持ち主は評議の席で、決めた形を作る slice は判定の後に設計の席が置く。
+- **H148** `/config` が実行中に替える置換辞書と ITN の除外を、R13-20 が包む清書の読み手へ届ける形は決めていない。起動の時の値を写すだけでは、替えた後の清書の文が古い辞書で直る。Python は live と清書が同じ `RoutedASR` の辞書を引く。持ち主は R13-20 の席で、届けられない形しか無ければ書かずに設計の席へ返す。
+- **H149** R13-11（`feat/r13-11`）と R13-13（`feat/r13-13`）は、どちらも `native/hayamimi-asr/src/pipeline.rs` を書く（R13-11 は `mod tests` の末尾の 1 本、R13-13 は `Engine::speech_in_progress`）。同じ時に走った 2 つの slice が同じ file を書いた形で、hunk は重ならない見込みである（ASSUMPTION）。後に merge する席が `git merge-tree --write-tree` の rc と、merge の後の木の `-p hayamimi-asr --lib` を確かめる。
 
 ## 11. 出所
 
