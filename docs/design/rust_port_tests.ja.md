@@ -3057,6 +3057,152 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 |---|---|---|---|---|---|---|
 | T-RP-79-001 | S、W、S、W の 4 run（ja の `s1.e2e1`、`w1.e2e1`、`s2.e2e1`、`w2.e2e1`。Rust の run で、それぞれ T-RP-83-001 の形の `<run>.machine.jsonl` を持つ）の dir で、`w2.e2e1` の `<run>.machine.jsonl` の行 1 の `load15` を `"2.50"` にする（止めた。方針 B を外した。`rp79.rs` は作らない。H130） | E2E の run の門を呼ぶ確かめ（RP-83 の線の値） | `load15` < 2.50 | `Err` で `w2.e2e1`、`load15`、`2.50` を名指す。ほかの 3 run の名前は名指さない（specified、3.19 の「E2E の run の門」の 5「呼ぶことの確かめ」。判定の関数が RP-83 の support を呼び忘れた test は、ここで落ちる。4 run 全部が内側の形が陽性対照。fixture の dir は門の前の記録の一覧に当たらない一時 dir） | 陰性 | `a_run_with_a_first_row_load15_of_2_50_is_rejected_by_the_gate` |
 
+### 4.81 RP-57（DER の内訳）
+
+test：`native/hayamimi-eval/src/der.rs`。受入 test の名前は `der_breakdown_isolates_confusion_from_miss`。
+行は `der.rs` の `mod tests` に置く。全行が fixture を test の中に持ち、`--ignored` を付けずに通る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --lib der_breakdown`。
+走る行の数：同じ command に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 19（行の数と同じ）。今の木では 0 で、`native` の `.rs` に `der_breakdown` の語は 0 件、陽性対照の `fn der` は `der.rs` に 1 件在る。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。内訳を返す関数の名前と引数の形、内訳の struct の欄の名前と型は実装の席が決める。行では Miss、FA、Confusion と呼ぶ。`check_breakdown_sum` と `check_isolation` は test の中の検査の関数で、016 から 019 がこの 2 つに陽性と陰性の対照を当てる（`check_isolation` の陽性の対照は 003 の本物の内訳）。
+設計は D 8 の R12q と D 6 の RP-57 である。
+
+**数え方**：
+
+- 内訳は `der` と同じ分母の比である。分母は、collar の内側を除いた後の ref の発話時間の和で、重なった発話は話者の数だけ数える。Miss、FA、Confusion を足すと `der` の値になる。
+- 定義は NIST の md-eval（SCTK）の `MISSED_SPEAKER`、`FALARM_SPEAKER`、`SPEAKER_ERROR` である。区間ごとに、ref の話者数 Nref、hyp の話者数 Nhyp、対応のついた話者数 Ncorrect を取る。Miss は max(Nref − Nhyp, 0)、FA は max(Nhyp − Nref, 0)、Confusion は min(Nref, Nhyp) − Ncorrect を、区間の長さで足した値である。対応は `der` と同じで、ファイル全体で重なりの和が最大になる 1 対 1 である。
+- 3 つの和は、max(Nref, Nhyp) の積分から対応の重なりを引いた値になり、`der` の式（`load_length` から `best_pairing_overlap` を引く）と同じである。
+- 各行の値は手で当て、同じ定義を 1 ms の格子で数える別の式（awk。対応は全順列の総当たり）で確かめた（2026-10-22。15 本の fixture で、3 つの比が 6 桁まで一致した）。
+- 比べる許容は 1e-9 とする。境界の標本は 0.99e-9 と 1.01e-9 に置く。1e-9 そのものは f64 の丸めで内外が決まらず、0.6 の近くの f64 の刻みは 1.1e-16 なので、1% の差は区別できる。
+- 内訳が collar をどう扱うかは受入の行に無い。`der` の分母と同じ時間で数える読みにした（011、014）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-57-001 | ref = A 0〜5、B 5〜10。hyp = ref と同じ（collar 0） | 一致 | 3 つとも 0 | Miss、FA、Confusion が 3 つとも 0（specified、RP-57 の「同じ ref と hyp で全部 0」。格子の式でも 0） | 陽性 | `der_breakdown_zero_for_identical_ref_and_hyp` |
+| T-RP-57-002 | ref は 001 と同じ。hyp = S2 0〜5、S1 5〜10（名前だけ違う） | 名前でなく対応で決まる | 3 つとも 0 | 3 つとも 0（derived、`der.rs` の既存の test `names_do_not_matter_only_the_pairing` と同じ入力を内訳で読む）。名前の一致を数える build は全区間が不一致になり、Confusion が 1.0 になって落ちる | 境界、陽性 | `der_breakdown_ignores_speaker_names_when_pairing` |
+| T-RP-57-003 | 受入：2 入力（collar 0）。(a) ref = A 0〜10、hyp = A 0〜5、B 5〜10（後ろの半分を別の話者にした）。(b) ref は同じ、hyp = A 0〜5（後ろの半分を落とした） | 入れ替えは Confusion だけ、落とすと Miss だけ | 各比の誤差 1e-9 以内 | (a) は Confusion 0.5、Miss 0、FA 0。(b) は Miss 0.5、Confusion 0、FA 0。どちらも 3 つの和が `der` の値 0.5 と 1e-9 以内で同じ（specified、RP-57。pseudo：格子の式が (a) で confusion=0.500000、miss=0、fa=0、(b) で miss=0.500000、confusion=0、fa=0）。Confusion を Miss に足す内訳は、(a) の Miss が 0.5、Confusion が 0 になって落ちる | 陽性、陰性 | `der_breakdown_isolates_confusion_from_miss` |
+| T-RP-57-004 | ref = A 0〜4、B 4〜10。hyp = X 0〜6、Y 6〜10（話者の交代が 2 秒遅れ。collar 0） | 交代の位置のずれ | 各比の誤差 1e-9 以内 | Confusion 0.2、Miss 0、FA 0（derived。対応は A と X、B と Y で合う時間が 4 + 4 = 8、load が 10 なので 2 / 10。4〜6 の ref B に hyp X が当たり、人数は 1 対 1 なので Miss にも FA にもならない。pseudo：格子の式で confusion=0.200000） | 境界、陽性 | `der_breakdown_counts_a_late_speaker_change_as_confusion` |
+| T-RP-57-005 | ref = A 0〜5、B 5〜10。hyp = A 0〜5（2 人目を丸ごと落とした。collar 0） | hyp の人数が足りない | 各比の誤差 1e-9 以内 | Miss 0.5、FA 0、Confusion 0（derived。5〜10 は Nref 1、Nhyp 0。pseudo：格子の式で miss=0.500000） | 陽性 | `der_breakdown_counts_a_dropped_speaker_as_miss` |
+| T-RP-57-006 | ref = A 0〜10。hyp = A 0〜10、A 12〜14（ref の外に hyp の発話が在る。collar 0） | ref の無い時間の hyp | 各比の誤差 1e-9 以内 | FA 0.2、Miss 0、Confusion 0（derived。12〜14 は Nref 0、Nhyp 1 で 2 / 10。pseudo：格子の式で fa=0.200000） | 陽性 | `der_breakdown_counts_speech_outside_the_reference_as_false_alarm` |
+| T-RP-57-007 | ref = A 0〜10。hyp = A 0〜10、B 0〜5（ref の発話の中で hyp の人数が多い。collar 0） | ref の中で Nhyp が Nref を超える | 各比の誤差 1e-9 以内 | FA 0.5、Miss 0、Confusion 0（derived。0〜5 は Nref 1、Nhyp 2 で、A が A に対応して B が余る。pseudo：格子の式で fa=0.500000） | 陽性 | `der_breakdown_counts_an_extra_hypothesis_speaker_as_false_alarm` |
+| T-RP-57-008 | ref = A 0〜10、B 5〜10（5〜10 は 2 人の重なり）。hyp = A 0〜10（collar 0） | ref の重なりに hyp が答えない | 各比の誤差 1e-9 以内 | Miss 1/3、FA 0、Confusion 0（derived。分母は 10 + 5 = 15 秒で、5〜10 は Nref 2、Nhyp 1 なので Miss が 5 秒。pseudo：格子の式で miss=0.333333） | 境界、陽性 | `der_breakdown_counts_unanswered_overlap_as_miss` |
+| T-RP-57-009 | ref = A 0〜5、B 5〜10。hyp = X 0〜10（2 人を 1 人にまとめた。collar 0） | hyp の話者が少ないが、人数は 1 対 1 | 各比の誤差 1e-9 以内 | Confusion 0.5、Miss 0、FA 0（derived。X は A か B のどちらか 1 人にだけ対応し、残りの 5 秒が Confusion。pseudo：格子の式で confusion=0.500000） | 陽性 | `der_breakdown_counts_merged_speakers_as_confusion` |
+| T-RP-57-010 | ref = A 0〜10、B 10〜20。hyp = X 0〜8、Y 8〜14、X 16〜24（collar 0） | 3 つが 1 つの入力に同時に出る | 各比の誤差 1e-9 以内 | Miss 0.1、FA 0.2、Confusion 0.3、和 0.6（derived。採点する時間は 20 秒。対応は A と X、B と Y。0〜8 と 10〜14 は一致、8〜10 は Confusion 2、14〜16 は Miss 2、16〜20 は Confusion 4、20〜24 は FA 4。pseudo：格子の式で miss=0.100000、fa=0.200000、confusion=0.300000、der=0.600000） | 陽性 | `der_breakdown_separates_miss_false_alarm_and_confusion_in_one_input` |
+| T-RP-57-011 | collar 0.25。ref = A 0〜10、B 10〜20。hyp = A 0〜10.5、B 10.5〜20 | collar の外に出るずれ | 各比の誤差 1e-9 以内 | Confusion 0.25 / 19、Miss 0、FA 0（derived。除いた後の ref は A 0.25〜9.75、B 10.25〜19.75 で 19 秒。hyp の A の 10.25〜10.5 が ref の B に当たり、0.25 秒が Confusion。和は `der` の collar 0.25 の値と同じ。pseudo：格子の式で confusion=0.013158） | 境界、陽性 | `der_breakdown_scores_only_outside_the_collar` |
+| T-RP-57-012 | ref = なし（0 本）。hyp = A 0〜1（collar 0） | ref の発話時間が 0 | 3 つとも 0 で有限 | 3 つとも 0 で、NaN でない（specified、`der` の doc「A reference with no speech time scores 0」と RP-57 の「和が `der` の値と同じ」）。0 を 0 で割る build は NaN を返し、`der` の 0 との差が 1e-9 以内にならず落ちる | 境界、陰性 | `der_breakdown_of_an_empty_reference_is_zero_not_nan` |
+| T-RP-57-013 | ref = A 0〜3。hyp = なし（0 本）。collar 0 | hyp が空 | 各比の誤差 1e-9 以内 | Miss 1.0、FA 0、Confusion 0（derived。`der.rs` の既存の test `an_empty_hypothesis_misses_everything` の入力を内訳で読む） | 境界、陽性 | `der_breakdown_of_an_empty_hypothesis_is_all_miss` |
+| T-RP-57-014 | collar 0.25。ref = A 0〜0.4。hyp = B 0〜0.4 | collar が ref の時間を全部除く | 3 つとも 0 で有限 | 3 つとも 0 で、NaN でない（derived。除く区間は −0.25〜0.25 と 0.15〜0.65 で、つないで 0〜0.4 を覆い、分母が 0 になる。`der` は 0 を返す。pseudo：格子の式で total=0） | 境界、陰性 | `der_breakdown_is_zero_when_the_collar_covers_all_reference_time` |
+| T-RP-57-015 | 001 から 014 の fixture の全部を 1 本の test で順に読む（003 の 2 入力と、collar 0.25 の 2 本を含む） | 性質：和が `der` | 全入力で、和と `der` の差の絶対値が 1e-9 以下 | 全部で成り立つ（specified、RP-57 の「3 つの和が `der` の値と 1e-9 以内で同じ」。`der` は同じ入力で別に呼んだ値で、内訳の中身から出さない） | 陽性、性質 | `der_breakdown_sums_to_der_on_every_fixture` |
+| T-RP-57-016 | `check_breakdown_sum` に、`der` 0.6 と、Miss 0.1、FA 0.2、Confusion 0.3 に 0.99e-9 を足した内訳 | 1e-9 の内側 | `Ok` | `Ok`（specified、RP-57 の「1e-9 以内」。1% 内側の標本） | 境界、陽性 | `der_breakdown_sum_check_accepts_a_difference_just_inside_1e_9` |
+| T-RP-57-017 | 016 の内訳に足す値を 1.01e-9 にする | 1e-9 の外側 | `Err` | `Err`（specified、同上。1% 外側の標本。許容を 1e-8 などに広げた検査は、ここで落ちない build を通すので、この行で落とす） | 境界、陰性 | `der_breakdown_sum_check_rejects_a_difference_just_outside_1e_9` |
+| T-RP-57-018 | `check_breakdown_sum` に、`der` 0.5 と、Confusion を数えない内訳（Miss 0、FA 0、Confusion 0）。003 の (a) の `der` | 和が足りない内訳 | `Err` | `Err`（specified、RP-57 の「和が `der` の値と同じ」。Confusion を落とした build は和が 0 で、`der` の 0.5 と違う） | 陰性 | `der_breakdown_sum_check_rejects_a_dropped_confusion` |
+| T-RP-57-019 | `check_isolation` に、003 の (a) の内訳として Miss 0.5、FA 0、Confusion 0（Confusion を Miss に足した値） | Confusion が Miss に混ざった内訳 | `Err` | `Err` で、Miss が 0 でないことを名指す（specified、RP-57 の陰性欄「Confusion を Miss に足す内訳で、入れ替えの行が落ちる」。和は 0.5 で `der` と合うので 018 の検査は通る。003 の隔離の検査だけがこの内訳を落とす） | 陰性 | `der_breakdown_isolation_check_rejects_confusion_folded_into_miss` |
+
+### 4.82 RP-58（Windows の COM の初期化の HRESULT を分ける）
+
+test：`native/hayamimi/src/capture/windows.rs`。受入 test の名前は `windows_com_scope_uses_existing_changed_mode_apartment`。
+行は 2 つの置き場に分かれる。001 から 006 は HRESULT を分ける純関数の行で、cfg を外した module（`capture/` の下。file の名前は実装の席が決める）の `mod tests` に置き、Windows でなくても走る。007 から 012 は scope の型の行で、`windows.rs` の `mod tests` に置く。この module は Windows の build でだけ組まれるので、`#[ignore]` は付けない。
+command：001 から 006 は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi --lib windows_com_scope`（WSL）。007 から 012 は同じ command を Windows の shell で打つ（`flock` は無い）。
+走る行の数：WSL で同じ command に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 6、Windows で 12 になる。陽性対照は、同じ list に `windows_com_scope_classifies_s_ok_as_needing_cleanup` が 1 件在ること。WSL の 6 は、純関数の行が cfg を外した module に在ることを示す。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。HRESULT を分ける純関数（HRESULT と endpoint の名前を受け、後始末の要る初期化、後始末しない既存の初期化、`CaptureError` のどれかを返す）の名前と引数の形、scope の型の名前、後始末の差し込み口は実装の席が決める。007 から 010 は、呼ばれた回数を数える偽の後始末を差し込み口に渡す。
+設計は D 3.7 の COM の初期化、D 8 の R12r、D 6 の RP-58 である。
+
+**数え方**：
+
+- HRESULT は符号つき 32 bit の整数である。値は Microsoft の文書の値を literal で test に書く。S_OK は 0、S_FALSE は 1、RPC_E_CHANGED_MODE は 0x80010106、E_FAIL は 0x80004005、E_INVALIDARG は 0x80070057、E_OUTOFMEMORY は 0x8007000E、E_UNEXPECTED は 0x8000FFFF である（`CoInitializeEx` の文書と COM のエラー番号の表を 2026-10-22 に読んだ）。`windows` と `wasapi` の crate の定数を test で使わない。実装が同じ定数を使うと、定数の打ち間違いが自分と一致するからである。
+- 成功は S_OK と S_FALSE の 2 つだけとする。設計の文を字義どおりに読み、`SUCCEEDED` の「0 以上」にはしない。`CoInitializeEx` は 2 つ以外の成功を返さないので、2 などは未知の値として失敗に分ける（005）。
+- Microsoft の文書は、S_FALSE を返した呼び出しも `CoUninitialize` と対にすると書く。S_FALSE は S_OK と同じく後始末が要る。RPC_E_CHANGED_MODE は初期化が成立していないので、後始末を呼ばない。
+- endpoint の名前は呼び出し側が渡す文字列である。test は `mic-probe` と `speaker-probe` を渡し、実装の既定の名前に依存しない。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-58-001 | HRESULT 0（S_OK）、endpoint の名前 `mic-probe` | 成功の 1 つ目 | 後始末の要る初期化 | 後始末の要る初期化を返し、`Err` でない（specified、RP-58。rp19 の `windows_com_scope_balances_every_success_result` の 0 の側） | 陽性 | `windows_com_scope_classifies_s_ok_as_needing_cleanup` |
+| T-RP-58-002 | HRESULT 1（S_FALSE）、endpoint の名前 `mic-probe` | 成功の 2 つ目（同じ thread の 2 度目の呼び出し） | 後始末の要る初期化 | 後始末の要る初期化を返す（specified、RP-58 と Microsoft の文書の「S_FALSE を返した呼び出しも `CoUninitialize` と対にする」）。S_FALSE を既存の初期化に分けて後始末を落とす build は、ここで落ちる | 境界、陰性 | `windows_com_scope_classifies_s_false_as_needing_cleanup` |
+| T-RP-58-003 | HRESULT 0x80010106（RPC_E_CHANGED_MODE）、endpoint の名前 `mic-probe` | 既存の別 mode の apartment | 後始末しない既存の初期化 | 後始末しない既存の初期化を返し、`Err` でない（specified、RP-58）。今の `run`（`initialize_mta().ok().map_err(device_error)?`）の形は `Err` を返すので、この行で落ちる | 陰性 | `windows_com_scope_classifies_changed_mode_as_an_existing_apartment` |
+| T-RP-58-004 | HRESULT 0x80004005（E_FAIL）、0x80070057（E_INVALIDARG）、0x8007000E（E_OUTOFMEMORY）、0x8000FFFF（E_UNEXPECTED）の 4 つ。endpoint の名前 `mic-probe` | 失敗の代表 | `Err` | 4 つとも `CaptureError` の `Err`（specified、RP-58 の「それ以外」）。どれも後始末の要る初期化にも既存の初期化にも分けない | 陰性 | `windows_com_scope_classifies_other_failures_as_errors` |
+| T-RP-58-005 | HRESULT 2、-1（0xFFFFFFFF）、0x80010105、0x80010107。endpoint の名前 `mic-probe` | 名指しした値の隣。成功の 1 の隣（2）、負の端（-1）、RPC_E_CHANGED_MODE の前後 1 | `Err` | 4 つとも `Err`（specified、RP-58 の「それ以外」）。上位の bit や符号だけで分ける build は、0x80010105 と 0x80010107 を既存の初期化に分けて落ちる。0 以上を成功とする build は 2 を成功に分けて落ちる | 境界、陰性 | `windows_com_scope_values_next_to_the_named_ones_are_errors` |
+| T-RP-58-006 | HRESULT 0x80004005 を、endpoint の名前 `mic-probe` と `speaker-probe` で 1 回ずつ | 名前が結果に出る | 渡した名前 | それぞれの `Err` が渡した名前を持ち、もう片方の名前を持たない（specified、RP-58 の「endpoint の名前を持つ `CaptureError`」）。名前を固定の文字列にする build は、片方で落ちる。名前は欄で見るか、`to_string()` に含まれるかで見る（形は実装の席が決める） | 陰性 | `windows_com_scope_error_carries_the_endpoint_name_it_was_given` |
+| T-RP-58-007 | 偽の後始末（呼んだ回数を数える）。HRESULT 0 と 1 のそれぞれで scope を作り、scope が生きている間と、落とした後で回数を読む | 成功の 2 つ | 後始末は 1 回 | どちらも、生きている間は 0 回、落とした後は 1 回（specified、RP-58 の「成功の時だけ後始末を 1 回呼ぶ」）。作った時に呼ぶ build と、2 回呼ぶ build は落ちる | 陽性 | `windows_com_scope_balances_every_success_result` |
+| T-RP-58-008 | 受入：偽の後始末。HRESULT 0x80010106 で scope を作り、本体を走らせ、落とした後で回数を読む | 既存の別 mode の apartment | 本体が走る。後始末は 0 回 | scope が作れて（`Ok`）、本体が走り、後始末は 0 回（specified、RP-58）。今の `run` の形は scope が作れず、本体が走らないので落ちる。003 の純関数の行の scope 側の対 | 陰性 | `windows_com_scope_uses_existing_changed_mode_apartment` |
+| T-RP-58-009 | 偽の後始末。HRESULT 0x80004005 で scope を作る | 失敗 | scope が無い | `Err` で、本体が走らず、後始末は 0 回（specified、RP-58。失敗した初期化の後で本体に入ると、COM が無いまま capture が始まる） | 陰性 | `windows_com_scope_rejects_other_hresult_failures` |
+| T-RP-58-010 | 偽の後始末。HRESULT 0 で scope を作り、本体が `Err` を返す | 本体の失敗 | 後始末は 1 回 | 本体の `Err` がそのまま返り、後始末は 1 回（specified、RP-58。今の `run` が capture の結果を持って `deinitialize` を呼ぶ形を保つ） | 境界 | `windows_com_scope_cleans_up_once_when_the_body_fails` |
+| T-RP-58-011 | 実走：Windows の新しい thread で、本物の初期化（`initialize_mta`）で scope を作って落とし、続けて同じ thread でもう一度 `initialize_mta` を呼ぶ | 本物の COM で後始末が済む | 2 度目が S_OK | 2 度目の戻りが S_OK（0）で、S_FALSE（1）でない（derived、Microsoft の文書：初期化済みの thread への 2 度目の同じ mode の呼び出しは S_FALSE を返し、後始末が済んでいれば再び S_OK を返す）。後始末が漏れた build は 2 度目が S_FALSE になって落ちる。2 度目の呼び出しも `deinitialize` で対にする | 陽性 | `windows_com_scope_leaves_a_real_thread_uninitialized_after_the_scope` |
+| T-RP-58-012 | 実走：Windows の新しい thread を `initialize_sta` で STA にしておき、その thread で本物の scope を作って（MTA を求める）落とし、続けて同じ thread で `initialize_sta` をもう一度呼ぶ | 本物の RPC_E_CHANGED_MODE | scope が `Ok`。後始末は呼ばれない | scope が `Ok` で、落とした後の `initialize_sta` が S_FALSE（1）を返す（derived、Microsoft の文書：STA が初期化されたままなら 2 度目は S_FALSE）。既存の STA に後始末を呼ぶ build は STA を解いてしまい、2 度目が S_OK になって落ちる。呼んだ分は `deinitialize` で対にする | 陰性 | `windows_com_scope_keeps_an_existing_sta_apartment_of_a_real_thread` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+- 後始末の差し込み口の形。007 から 010 は、呼ばれた回数を数える偽を渡せる形を前提にした。scope の型が本物の `deinitialize` を直に呼ぶ形なら、007 から 010 は 011 と 012 の本物の COM の行に寄せる。
+- HRESULT の値を `CaptureError` の文言に入れるか。rp19 の元の Python の test は 0x80004005 を文言で照らしたが、RP-58 は endpoint の名前だけを求めるので、006 は名前だけを見る。
+- `speaker_capture_failure_is_reported_with_endpoint_context` は RP-19 の対応表が持つ。この節に行は置かない。
+- 呼び出し側（`windows.rs` の `run`）が実際の endpoint の名前を渡して、`supervise.rs` が log に出すこと。Windows の実機の run でだけ測れる。持ち主は T-RP-10-007 の `windows_loopback_reaches_events`（R13-3）である。
+
+### 4.83 RP-60（2 人の話者の材料）
+
+test：`native/hayamimi-eval/src/two_speakers.rs`。受入 test の名前は `two_speaker_clip_is_cut_by_the_rule_from_ami`。
+この file は R13-8 が新規に作る。行は `two_speakers.rs` の `mod tests` に置く。027 だけが `testdata/eval_diar/`（git 管理外）を読み、ほかの行は test の中で RTTM と wav を作る。scratch の dir は `testutil::scratch`（`target/eval-test-tmp/`）で取る。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-eval --lib two_speaker_clip`。
+走る行の数：同じ command に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 27（行の数と同じ）。今の木では `two_speaker_clip` の語が `native` の `.rs` に 0 件で、`two_speakers.rs` も無い。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。窓を選ぶ関数（会議の RTTM の dir を受け、窓か `Err` を返す）と、wav と manifest を書く関数（窓と dir を受ける）の名前と引数の形、manifest の key の綴りは実装の席が決める。test は key の綴りを定数として 1 か所に持つ。
+設計は D 8 の R12u1 と、その小節の「材料が無い 4 行」、D 6 の RP-60 である。
+
+**窓の読み**（設計の文が決めない所を、この節は次のように読んだ。残る穴の 1 と 2 は下に在る）：
+
+- 窓は、始まりで並べた連続する 4 区間である（長さが 0 以下の区間は数えない）。窓の始まりは最初の区間の始まり、終わりは最後の区間の終わりとする。窓の外の区間が、窓の始まりから終わりまでと交わってはならない。
+- 窓の中の話者がちょうど 2 人で、少ない方の話者の区間がちょうど 1 つ（もう 1 人は 3 つ）、その 1 区間の長さが 2.000 秒以上 4.000 秒以下である。「2〜4 秒」は両端を含む。
+- 重なりは窓の 4 区間のどの 2 つの間でも 0 である。前の終わりと次の始まりが同じ値で接する場合は、重なり 0 とする。
+- 会議は RTTM の file の名前（拡張子を除く）の昇順の文字列で読み、窓が見つかった最初の会議の、始まりが最も早い窓を採る。
+- RTTM の秒は小数 3 桁（1 ms）である。境界の標本は 1 ms 刻みで置く。f64 の足し引きで境界を 1 ms 未満でまたぐ値を入れた。(0.010 + 2.000) − 0.010 は 1.9999999999999998、(4.001 + 4.000) − 4.001 は 4.000000000000001、0.131 + 3.000 は 3.1310000000000002 で、次の区間の始まり 3.131（3.1309999999999998）より 4.4e-16 大きい。ms の整数で比べない build は、002、004、011 で落ちる。
+- 窓の音声は、元の wav と同じ 16 kHz、16 bit、mono のまま、始まりの sample から（始まり × 16000）、終わりの sample の手前まで（終わり × 16000）を切る。ms 刻みなので sample は整数になる。manifest の秒は、ms の整数に読んで比べる。
+
+**fixture**（RTTM の 1 行は `SPEAKER <会議> 1 <始まり> <長さ> <NA> <NA> <話者> <NA> <NA>`。表では「話者 始まり 長さ」と書き、単位は秒。会議の名前は mA と mB）：
+
+- **F60v**（mA）：A 10.000 5.000、B 16.000 3.000、A 20.000 4.000、A 25.000 2.500。窓は 10.000 から 27.500。少ない方の B は 1 区間で 3.000 秒。
+- **F60lo**（mA。下の境界）：B 0.010 2.000、A 3.000 1.000、A 5.000 1.000、A 7.000 1.000。窓は 0.010 から 8.000。
+- **F60hi**（mA。上の境界）：B 4.001 4.000、A 9.000 1.000、A 11.000 1.000、A 13.000 1.000。窓は 4.001 から 14.000。
+- **F60to**（mA。接する）：B 0.131 3.000、A 3.131 1.000、A 6.000 1.000、A 8.000 1.000。窓は 0.131 から 9.000。B の終わり 3.131 に A が始まる。
+- **F60ov**（mA。重なりだけ）：A 10.000 5.000、B 14.000 3.000、A 20.000 4.000、A 25.000 2.500。A と B が 14.000 から 15.000 の 1.000 秒重なる。
+- **S60**（音声）：16 kHz、16 bit、mono、30.000 秒（480000 sample）。sample i の値は、i の下位 16 bit を符号つきで読んだ値（i が 160000 で 28928、160001 で 28929、439999 で −18753、400000 で 6784、479999 で 21247）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-60-001 | F60v の 1 会議（mA） | 規則に合う窓が 1 つ。少ない方の区間が 2〜4 秒の内側（3.000） | 窓が 1 つ | 窓は mA の 10.000 から 27.500（specified、RP-60 の陽性「規則に合う窓を手で置いた RTTM の fixture から同じ窓を選ぶ」。pseudo：別の式（awk）で同じ fixture を数え、連続する 4 区間の候補が 1 つで 10.000 から 27.500） | 陽性 | `two_speaker_clip_picks_the_window_of_a_hand_placed_rttm` |
+| T-RP-60-002 | F60lo の 1 会議 | 少ない方の区間 2.000 秒（下の境界の上の側）。f64 で 1.9999999999999998 になる始まり | 2.000 秒以上 | 窓は mA の 0.010 から 8.000（specified、RP-60 の「2〜4 秒」を両端を含む読み。ms の整数でなく f64 の差で比べる build は 1.9999999999999998 を 2 未満と読んで落ちる） | 境界、陽性 | `two_speaker_clip_accepts_a_minority_turn_of_exactly_2_seconds` |
+| T-RP-60-003 | 002 の B の長さを 1.999 にする | 下の境界の下の側（1 ms 外） | 2.000 秒以上 | `Err` で、規則に合う窓が無いことを名指す（specified、同上）。002 が同じ fixture の陽性対照で、落ちる理由は長さだけ | 境界、陰性 | `two_speaker_clip_rejects_a_minority_turn_of_1_999_seconds` |
+| T-RP-60-004 | F60hi の 1 会議 | 少ない方の区間 4.000 秒（上の境界の内側）。f64 で 4.000000000000001 になる始まり | 4.000 秒以下 | 窓は mA の 4.001 から 14.000（specified、同上。f64 の差で比べる build は 4.000000000000001 を 4 超と読んで落ちる） | 境界、陽性 | `two_speaker_clip_accepts_a_minority_turn_of_exactly_4_seconds` |
+| T-RP-60-005 | 004 の B の長さを 4.001 にする | 上の境界の外側（1 ms 外） | 4.000 秒以下 | `Err` で、規則に合う窓が無いことを名指す（specified、同上。004 が陽性対照） | 境界、陰性 | `two_speaker_clip_rejects_a_minority_turn_of_4_001_seconds` |
+| T-RP-60-006 | F60v の C を足した形：A 10.000 5.000、B 16.000 3.000、C 20.000 4.000、A 25.000 2.500 | 話者 3 人（区間は 4 つ） | 話者はちょうど 2 人 | `Err` で、規則に合う窓が無いことを名指す（specified、RP-60 の「窓の中の話者が 2 人」。001 が対の陽性） | 境界、陰性 | `two_speaker_clip_rejects_three_speakers` |
+| T-RP-60-007 | A 10.000 5.000、A 16.000 3.000、A 20.000 4.000、A 25.000 2.500 | 話者 1 人（少ない方の話者が無い） | 話者はちょうど 2 人 | `Err` で、規則に合う窓が無いことを名指す（specified、同上） | 境界、陰性 | `two_speaker_clip_rejects_one_speaker` |
+| T-RP-60-008 | A 10.000 5.000、B 16.000 3.000、A 20.000 4.000、B 25.000 3.000 | 2 人が 2 区間ずつ（少ない方の区間が 2 つ） | 少ない方の区間は 1 つ | `Err` で、規則に合う窓が無いことを名指す（specified、RP-60 の「少ない方の区間が 1 つ」。001 が対の陽性） | 境界、陰性 | `two_speaker_clip_rejects_two_turns_for_each_speaker` |
+| T-RP-60-009 | A 10.000 5.000、A 16.000 3.000、A 20.000 4.000、B 25.000 3.000 | 少ない方の区間が最後の位置（001 は 2 番目、002 と 004 は先頭） | 位置によらない | 窓は mA の 10.000 から 28.000（specified、RP-60。位置を決め打つ build は落ちる） | 境界、陽性 | `two_speaker_clip_accepts_the_minority_turn_at_the_end` |
+| T-RP-60-010 | A 10.000 5.000、B 16.000 3.000、A 20.000 4.000 | 区間が 3 つ（4 つに 1 足りない） | 区間は 4 つ | `Err` で、規則に合う窓が無いことを名指す（specified、RP-60 の「区間が 4 つ」。001 が 4 つの陽性。5 つの側は残る穴の 1） | 境界、陰性 | `two_speaker_clip_rejects_three_turns` |
+| T-RP-60-011 | F60to の 1 会議 | 重なり 0 の境界の内側。B の終わりと A の始まりが同じ値（f64 で 3.1310000000000002 と 3.1309999999999998） | 重なり 0 | 窓は mA の 0.131 から 9.000（specified、RP-60 の「重なりが 0」。ms の整数でなく f64 の足し算で重なりを数える build は 4.4e-16 秒の重なりを見て落ちる） | 境界、陽性 | `two_speaker_clip_accepts_turns_that_touch_with_no_overlap` |
+| T-RP-60-012 | 011 の 2 番目の区間を A 3.130 1.000 にする | 重なり 1 ms（境界の外側の最小） | 重なり 0 | `Err` で、規則に合う窓が無いことを名指す（specified、同上。011 が同じ fixture の陽性対照で、落ちる理由は 1 ms の重なりだけ） | 境界、陰性 | `two_speaker_clip_rejects_an_overlap_of_1_ms` |
+| T-RP-60-013 | F60ov の 1 会議 | 重なりの在る窓だけ（1.000 秒） | 重なり 0 | `Err` で、規則に合う窓が無いことを名指す。`Ok` の窓を返さない（specified、RP-60 の陰性「重なりの在る窓だけの fixture で、窓が無いと名指しして `Err` を返す」。001 が同じ区間の長さの陽性） | 陰性 | `two_speaker_clip_names_the_missing_window_when_only_overlapping_windows_exist` |
+| T-RP-60-014 | dir に mB.rttm（F60v）と mA.rttm（A 100.000 5.000、B 106.000 3.000、A 110.000 4.000、A 115.000 2.500）。書く順は mB、mA | 会議の名前の順と、窓の始まりの順が逆 | 名前の昇順で最初の会議 | 窓は mA の 100.000 から 117.500（specified、8 の小節「会議の名前の順に読み」。始まりが最も早い 10.000 の mB を採る build と、書いた順に読む build は落ちる） | 境界、陽性 | `two_speaker_clip_reads_the_meetings_in_name_order` |
+| T-RP-60-015 | dir に mA.rttm（F60ov の区間）と mB.rttm（F60v の区間） | 先に読む会議に窓が無い | 窓の在る最初の会議 | 窓は mB の 10.000 から 27.500（specified、8 の小節の「最初の窓」。窓の無い会議で `Err` を返して止まる build は落ちる） | 境界、陽性 | `two_speaker_clip_skips_a_meeting_with_no_window` |
+| T-RP-60-016 | mA の 1 会議。F60v の 4 行と、F60v を 90 秒ずらした 4 行（A 100.000 5.000、B 106.000 3.000、A 110.000 4.000、A 115.000 2.500）。file には後ろの 4 行を先に書き、F60v の 4 行は逆順で書く | 1 会議に窓が 2 つ。file の行が時刻順でない | 始まりが最も早い窓 | 窓は mA の 10.000 から 27.500（specified、8 の小節「最初の窓」。file の行の順に窓を探す build は 100.000 の窓を採って落ちる） | 境界、陽性 | `two_speaker_clip_takes_the_earliest_window_of_a_meeting` |
+| T-RP-60-017 | RTTM が 1 つも無い dir（dir は在る） | 会議が 0 | 会議が在る | `Err` で、dir の path を名指す。「窓が無い」と同じ文言にしない（implicit、0 会議を通さない。013 の `Err` と別の理由であることを、path の名指しで分ける） | 境界、陰性 | `two_speaker_clip_rejects_a_directory_with_no_rttm` |
+| T-RP-60-018 | 0 byte の RTTM が 1 つの dir（mA.rttm） | 区間が 0 | 区間が在る | `Err` で、規則に合う窓が無いことを名指す（implicit、空の入力を Ok の窓にしない） | 境界、陰性 | `two_speaker_clip_rejects_an_rttm_with_no_turns` |
+| T-RP-60-019 | mA.rttm の 2 行目が `SPEAKER mA 1 12.0 1.0`（欄が足りない行）。1 行目は F60v の最初の行 | 壊れた RTTM | 壊れた行は読めない | `Err` で、`mA.rttm:2` を名指す。規則に合う窓が無いとは言わない（derived、`parse_rttm` の「malformed SPEAKER line は origin と行を名指す」を、窓を選ぶ側が握りつぶさない） | 境界、陰性 | `two_speaker_clip_reports_a_malformed_rttm_line_not_a_missing_window` |
+| T-RP-60-020 | 窓 mA の 10.000 から 27.500。元の音声は S60（mA.wav として dir に置く） | 切り出し。始まりと終わりが sample の整数 | 長さと中身 | 出力の wav は 16 kHz、16 bit、mono で、280000 sample（(27.500 − 10.000) × 16000）。0 番目が 28928、1 番目が 28929、279999 番目が −18753（derived。元の i = 160000 から 439999 を切る。算術は 160000 mod 65536 = 28928、439999 mod 65536 = 46783 を符号つきにして −18753。2026-10-22 にシェルの算術で打った） | 陽性 | `two_speaker_clip_writes_the_samples_of_the_window` |
+| T-RP-60-021 | 窓 mA の 25.000 から 30.000（元の音声の終わりに一致）。元の音声は S60 | 終わりが音声の終わりに一致（境界の内側） | 終わり ≤ 音声の長さ | `Ok` で、80000 sample。0 番目が 6784、79999 番目が 21247（derived。400000 mod 65536 と 479999 mod 65536。2026-10-22 にシェルの算術で打った） | 境界、陽性 | `two_speaker_clip_accepts_a_window_ending_at_the_end_of_the_audio` |
+| T-RP-60-022 | 窓 mA の 25.000 から 30.001。元の音声は S60 | 終わりが音声の終わりを 1 ms（16 sample）越える | 終わり ≤ 音声の長さ | `Err` で、元の wav の path を名指し、窓が音声の終わりを越えることを言う。短い wav を黙って書かない（implicit。短い wav を書くと manifest の終わりが嘘になる。021 が同じ始まりの陽性対照） | 境界、陰性 | `two_speaker_clip_rejects_a_window_ending_past_the_audio` |
+| T-RP-60-023 | 020 の切り出しが書いた manifest を読む | manifest の会議の名前、始まり、終わり | 3 項目 | 会議の名前が `mA`、始まりが 10.000、終わりが 27.500（ms の整数で 10000 と 27500）（specified、RP-60 の「manifest に会議の名前、始まり、終わり、sha256 が在る」の前の 3 項目） | 陽性 | `two_speaker_clip_manifest_names_the_meeting_and_the_window` |
+| T-RP-60-024 | 020 の切り出しが書いた manifest の sha256 と、書いた wav の bytes | manifest の sha256 | 一致 | sha256 の項目が 64 字の小文字の 16 進で、書いた wav の file の bytes の SHA-256 と同じ（specified、RP-60 の sha256 の項目。pseudo：`sha.rs` の `sha256_hex` で file を引く。`sha.rs` は NIST の標準 vector `abc` の test で別に確かめてある。「sha256 は記録だけ」の読みで、元の wav の sha256 と比べる検査は持たない） | 陽性 | `two_speaker_clip_manifest_sha256_is_the_digest_of_the_written_wav` |
+| T-RP-60-025 | 020 の切り出しを、S60 の 1 sample だけ値を変えた 4 通り（変える sample は 159999、160000、439999、440000）で打ち、それぞれの sha256 を、S60 を変えない 020 の切り出しの sha256 と比べる | 窓の始まりの 1 つ手前、始まり、終わりの 1 つ手前、終わり（終わりは含まない） | 窓の中だけが効く | 159999 と 440000 は sha256 が同じ。160000 と 439999 は違う（derived。窓は 160000 以上 440000 未満の sample。窓の外を巻き込む build と、窓の端を 1 sample 欠く build は落ちる） | 境界 | `two_speaker_clip_sha256_changes_with_a_sample_inside_the_window_only` |
+| T-RP-60-026 | 020 の切り出しを、別の 2 つの dir に 2 回打つ | 同じ入力の 2 回 | byte 単位で同じ | 2 つの wav の bytes が同じで、2 つの manifest の bytes が同じ（derived、`manifest.rs` の「同じ入力を 2 回 pin すると同じ bytes を出す」と同じ性質。時刻や乱数を書かない） | 性質 | `two_speaker_clip_is_byte_identical_when_cut_twice` |
+| T-RP-60-027 | 受入：実走。`testdata/eval_diar/` の 5 会議の RTTM と wav（git 管理外）を、会議の名前の順に読んで窓を選び、scratch の dir に wav と manifest を書く | 実物（AMI の 5 会議） | 規則に合う最初の窓 | 窓は IS1008a の 457.220 から 491.880。窓の 4 区間は MIO086 457.220 15.990、MIO086 473.530 9.960、FIE073 485.160 3.560、MIO086 489.320 2.560 で、話者は 2 人、少ない方の FIE073 は 1 区間で 3.560 秒、重なりは 0。ES2004a と ES2011a に、少ない方の区間が 2〜4 秒の窓は無い。wav は 554560 sample で、先頭の 4 sample が −542、−572、−621、−683、最後の 2 sample が 265、284。manifest は会議の名前 `IS1008a`、始まり、終わり、書いた wav の sha256 を持つ（pseudo：別の式（awk）で 5 つの RTTM の連続する 4 区間を数えた。少ない方の区間の長さは ES2004a で 0.08〜0.33 秒、ES2011a で 1.74 と 23.36 秒、IS1008a で 6.33、1.41、0.24、9.02、3.56 秒。sample は `od` で元の wav の 98 byte の先頭の後ろ（sample 7315520 から）を読んだ。2026-10-22 に打った。ASSUMPTION：窓の読みを設計の席が替えたら、この行の期待値を打ち直す） | 陽性 | `two_speaker_clip_is_cut_by_the_rule_from_ami` |
+
+**この節の設計にない物**（system-architect が決める。この席は受入の条件を足さない）：
+
+1. 窓の定義。設計は窓の境界（4 区間の最初の始まりと最後の終わりか、余白を足すか）と、4 区間より多い列の中でどの 4 区間を窓と読むか（連続した 4 区間ごとに見るか、区間がちょうど 4 つの塊だけを窓とするか）を決めていない。この節は上の「窓の読み」で行を置き、区間が 5 つの列の行は置かなかった。読みを替えるなら 010、027 の期待値と、5 つの側の行を設計の席が決める。
+2. 「2〜4 秒」の両端。この節は両端を含む読みで 002 と 004 を陽性に置いた。片側を含まない設計なら、002 か 004 を陰性に替える。
+3. 同じ話者の区間同士の重なりを「重なり」に数えるか。この節の重なりの行は A と B の間だけで、同じ話者の重なりの行は置かなかった。
+4. 長さが 0 以下の区間を窓の区間に数えるか。実物の 5 つの RTTM に長さ 0 の行は 0 本（awk で数えた）。この節は数えない読み（`scorable` と同じ）で、行を置かなかった。
+5. 窓の長さと、区間の間の無音の上限。設計に無く、F60v の区間の間は 1 秒、実物の窓は 34.660 秒である。
+6. sha256 の対象。この節は書いた wav の file の bytes と読んだ（`manifest.rs` の pin と同じ）。sample だけの SHA-256 と読むなら 024 と 025 を替える。
+7. 027 は git 管理外の `testdata/eval_diar/` を読む。CI の clone に無いなら、`--skip` に理由つきで足す必要がある（H113 の形）。足すかは設計の席が決める。
+8. 会議の名前の順は、文字列の昇順とした。AMI の名前は同じ長さで、数字の桁の違いは実物に無い。
+
 ## 5. RP-19 の対応表
 
 Python の `tests/*.py` の 20 本の case と、写した先の Rust の test の名前の対応を、この節の表に置く。
