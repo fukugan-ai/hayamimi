@@ -700,6 +700,7 @@ CPU の翻訳器を残さないのは、会話字幕の設計 3.6 の理由（�
 
 server は axum で、route、query、event の JSON の形、port の既定（8833、8766）を今の Python と同じにする。
 `/config` と `/reset`、`/replacements`、`/itn_overrides` の GET と POST も同じ形にする。
+`/config` のうち build が持たない member は、GET では `dual_confirm`、`lid_switch_confirm`、`min_switch_s` を null、`translate` を `[]`、`lang` を `"ja"` で返し、POST ではその値か null だけを受けて他の値には 400 を返し、その error の文には member 名を入れて送った値を入れない（`native/hayamimi/src/routes.rs` の `config_value`、`native/hayamimi/src/api.rs` の `only_null` と `check_lang` と `check_translate`）。
 今の形は R0 で Python の server から録った event と応答を fixture にし、Rust の出力と key と型で比べる（RP-12）。
 
 dashboard、OBS の overlay、transcript の 3 頁は Dioxus web（WASM）で作り、server が配る。
