@@ -27,7 +27,7 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
 - 遅れの最後の判定は、まだ打っていません（窓E4。[状態表](docs/design/status.ja.md) の RP-67 の行）。
 - 遅れの合否を通ったと言うには、発話の終わりの置き方が結果を左右しないことの確認も要ります（RP-73、未実装。[状態表](docs/design/status.ja.md)のRP-73の行）。
 - 認識はCPU（int8）で動かしています（[状態表](docs/design/status.ja.md) の R7 の行）。
-- GPUより速いという測定はありますが、測った時の機械の負荷が高く、値は未検証です（NOT VERIFIED）。
+- CPUがGPUより速いという測定はありますが、測った時の機械の負荷が高く、値は未検証です（NOT VERIFIED）。
 - E2E用の訳のserverは、GPUに全層を載せます（[unit](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
 
 | 言語 | p95 | 1600 msの線 | 1200 msの目標 |

@@ -26,7 +26,7 @@ Once the speed target is met, quality must match or beat the Python version.
 - The final judgement of the delay has not been run yet (window E4; RP-67 row of the [status table](docs/design/status.md)).
 - The delay cannot be called passed until a check that the way the end of an utterance is placed does not sway the result is also done (RP-73, not implemented; RP-73 row of the [status table](docs/design/status.md)).
 - Recognition runs on the CPU (int8) (R7 row of the [status table](docs/design/status.md)).
-- A measurement puts it ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
+- A measurement puts the CPU ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
 - The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
 
 | Language | p95 | 1600 ms line | 1200 ms target |
