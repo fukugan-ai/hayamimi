@@ -4,32 +4,42 @@
 
 **オリジナル**は [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi) で、GPUもクラウドAPIも使わず、CPUだけで動くリアルタイム多言語音声認識です（実行系はPython）。
 このリポジトリ（[fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)）は、そのオリジナルの **fork**（元の履歴を引き継いで、別に手を入れる複製）です。
-オリジナルへのpushとpull requestは行わず、この節の下にあるバッジはオリジナルのCIとリリースを指していて、この fork の結果ではありません。
+オリジナルへのpushとpull requestは行いません。
+この節の下にあるバッジは、オリジナルのCIとリリースを指します。
+この fork の結果ではありません。
 このあとの本文は、オリジナルのPython版の説明で、「GPUを使わない」など、Rust版には当てはまらない記述が残っています。
 
 ### いま実施していること
+
 Pythonの実行系をRust（`native/` のCargo workspace）へ置き換え、推論にGPU（CUDA）を使います。
-Pythonを実行の経路から外して消すところまでを完了とし、速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
-速度の指標は **L**（発話の終わりから、その発話の訳の字幕が出るまでの遅れ）で、p50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
+Pythonを実行の経路から外し、消すところまでを完了とします。
+速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
+速度の指標は **L**：発話の終わりから、その発話の訳の字幕が出るまでの遅れです。
+Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
 品質は、速度の目標を満たした上で、Python版と同じか良くします。
 
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### 現在の状態
+
 - Pythonの78本は消え、旧版は tag `archive/python-before-r11` にあります（[状態表](docs/design/status.ja.md)のRP-9の行）。
-- 録音した音声を流す端から端の確認は、日本語から英語も英語から日本語も通っています（E2E。[記録](docs/results/e2e/)）。
+- 録音した音声を流す端から端の確認は、日本語から英語も英語から日本語も通っています（2026-10-15のbuild。[記録](docs/results/e2e/)）。
 - 実機のマイクに人が話した日本語での確認は、まだしていません（NOT VERIFIED。[状態表](docs/design/status.ja.md) のマイクの行）。
 - 遅れの最後の判定は、まだ打っていません（窓E4。[状態表](docs/design/status.ja.md) の RP-67 の行）。
-- 遅れの合否を通ったと言うには、最後の判定と、未実装の起点の確認が要ります（RP-73。[設計](docs/design/rust_port.ja.md) の RP-67 の行）。
-- 認識はCPU（int8）で動かしていて、GPUより速かった測り直しの値は未検証です（NOT VERIFIED。[状態表](docs/design/status.ja.md) の R7 の行）。
+- 遅れの合否を通ったと言うには、発話の終わりの置き方が結果を左右しないことの確認も要ります（RP-73、未実装。[状態表](docs/design/status.ja.md)のRP-73の行）。
+- 認識はCPU（int8）で動かしています（[状態表](docs/design/status.ja.md) の R7 の行）。
+- GPUより速いという測定はありますが、測った時の機械の負荷が高く、値は未検証です（NOT VERIFIED）。
 - E2E用の訳のserverは、GPUに全層を載せます（[unit](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
 
-| 言語 | `L` のp95（最新の実機のrun。[状態表](docs/design/status.ja.md) の RP-67 の行） | 1600 msの線 | 1200 msの目標 |
+| 言語 | p95 | 1600 msの線 | 1200 msの目標 |
 |---|---|---|---|
 | 日本語（1本目） | 1484.8 ms | 内側 | 届いていない |
 | 日本語（2本目） | 1474.1 ms | 内側 | 届いていない |
 | 英語 | 1089.1 ms | 内側 | 届いている |
 
+表は `L` のp95で、最新の実機のrunの値です（[状態表](docs/design/status.ja.md) の RP-67 の行）。
+
 ### 関連する文書
+
 - 状態表：[docs/design/status.ja.md](docs/design/status.ja.md)
 - 設計：[docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
 - buildと実行の手順：[docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
@@ -290,7 +300,7 @@ Rust版の`hayamimi`が受けるフラグは`hayamimi --help`で見られ、使�
 
 ## 実測パフォーマンス
 
-この節の値は2026-10-15のbuildの測定。今の値は冒頭の「現在の状態」。
+この節の値は各小節の見出しの日付の測定。今の値は冒頭の「現在の状態」。
 
 ### Rust版の端から端の遅れ（2026-10-15 の測定）
 

@@ -4,28 +4,38 @@
 
 The **original**, [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi), is real-time multilingual speech recognition that runs on the CPU alone, with no GPU and no cloud API (its runtime is Python).
 This repository ([fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)) is a **fork** of it: a copy that keeps the original history and is developed separately.
-Nothing from this fork is pushed or sent as a pull request to the original, and the badges below this section point to the original's CI and releases, not to results of this fork; the text after this section describes the original Python version, and statements such as "no GPU" remain in it and do not apply to the Rust version.
+Nothing from this fork is pushed or sent as a pull request to the original.
+The badges below this section point to the original's CI and releases, not to results of this fork.
+The text after this section describes the original Python version.
+Statements such as "no GPU" remain in it and do not apply to the Rust version.
 
 ### What is being done here
+
 The Python runtime is being replaced with Rust (the Cargo workspace in `native/`), and inference uses the GPU (CUDA).
-The work is complete when Python is out of the runtime path and removed, and speed comes first while quality (recognition error rate and naturalness of translation) comes second.
-The speed measure is **L**, the delay from the end of an utterance to the appearance of its translated subtitle, measured at p50 (the median) and p95 (the delay within which 95% of utterances fall), and once the speed target is met, quality must match or beat the Python version.
+The work is complete when Python is out of the runtime path and removed.
+Speed comes first; quality (recognition error rate and naturalness of translation) comes second.
+The speed measure is **L**: the delay from the end of an utterance to the appearance of its translated subtitle.
+L is measured at p50 (the median) and p95 (the delay within which 95% of utterances fall).
+Once the speed target is met, quality must match or beat the Python version.
 
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### Current state
 - The 78 Python files are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` (RP-9 row of the [status table](docs/design/status.md)).
-- End-to-end checks on played-back recorded audio pass for Japanese to English and for English to Japanese (E2E; [records](docs/results/e2e/)).
+- End-to-end checks on played-back recorded audio pass for Japanese to English and for English to Japanese (E2E; build of 2026-10-15; [records](docs/results/e2e/)).
 - A check with a person speaking Japanese into a real microphone is not done yet (NOT VERIFIED; microphone row of the [status table](docs/design/status.md)).
 - The final judgement of the delay has not been run yet (window E4; RP-67 row of the [status table](docs/design/status.md)).
-- The delay cannot be called passed until that judgement and the unimplemented start-point check are done (RP-73; RP-67 row of the [design](docs/design/rust_port.ja.md)).
-- Recognition runs on the CPU (int8), and the re-measurement that found it faster than the GPU is unverified (NOT VERIFIED; R7 row of the [status table](docs/design/status.md)).
+- The delay cannot be called passed until a check that the way the end of an utterance is placed does not sway the result is also done (RP-73, not implemented; RP-73 row of the [status table](docs/design/status.md)).
+- Recognition runs on the CPU (int8) (R7 row of the [status table](docs/design/status.md)).
+- A measurement puts it ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
 - The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
 
-| Language | p95 of `L` (latest real-machine runs; RP-67 row of the [status table](docs/design/status.md)) | 1600 ms line | 1200 ms target |
+| Language | p95 | 1600 ms line | 1200 ms target |
 |---|---|---|---|
 | Japanese (run 1) | 1484.8 ms | inside | not reached |
 | Japanese (run 2) | 1474.1 ms | inside | not reached |
 | English | 1089.1 ms | inside | reached |
+
+The table shows the p95 of `L` from the latest real-machine runs (RP-67 row of the [status table](docs/design/status.md)).
 
 ### Related documents
 - State of each slice: [docs/design/status.md](docs/design/status.md)
@@ -298,7 +308,7 @@ bounded no matter how many languages a session wanders through.
 
 ## Measured performance
 
-The values in this section are from the measurement of the 2026-10-15 build; the current values are in "Current state" at the top.
+The values in this section are from the measurement dated in the heading of each subsection; the current values are in "Current state" at the top.
 
 ### End-to-end delay of the Rust version (measured 2026-10-15)
 
