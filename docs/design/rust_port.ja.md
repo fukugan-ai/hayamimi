@@ -1914,7 +1914,7 @@ git show 7b4b017:docs/results/r8x/e3p1.e2e1.hayamimi.stdout.log | jq -s -c 'def 
 
 **RP-85 の (4)**（発話 7、`t_final_us` と `t_tr_us` の在る標本。訳の段は `(t_tr − t_final)/1000`）：
 
-| 回 | `e3p1` の訳の段 | `e3p2` の訳の段 | 確定文の 4〜7 字目 | `translate.draft.reused` |
+| 回 | `e3p1` の訳の段 | `e3p2` の訳の段 | 確定文の「連合国」の助詞 | `translate.draft.reused` |
 |---|---|---|---|---|
 | 1 | 146.340 | 92.852 | 連合国は | `normalized`（`running`） |
 | 2 | 1.059 | 0.764 | 連合国は | `normalized`（`done`） |
