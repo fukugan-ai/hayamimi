@@ -164,6 +164,16 @@ impl History {
         out.extend_from_slice(segment);
         out
     }
+
+    /// Forgets every held sample, for the start of a new session. The absolute
+    /// position is kept: `end()` stays where it was, so the positions of the
+    /// next samples continue the earlier ones, and the pre-roll of the next
+    /// segment cannot reach back before this point.
+    pub fn clear(&mut self) {
+        self.offset = self.end();
+        self.buffer.clear();
+        self.last_segment_end = self.offset;
+    }
 }
 
 impl Default for History {
@@ -344,5 +354,125 @@ mod tests {
     fn a_missing_wav_is_a_wav_error() {
         let said = read_wav(Path::new("no-such-file.wav"));
         assert!(matches!(said, Err(AsrError::Wav(_))), "{said:?}");
+    }
+
+    /// A history at a tiny rate (`rate` samples per second), so that the
+    /// positions in a test stay readable. The pre-roll is one second.
+    fn history_at(rate: usize, keep_seconds: usize) -> History {
+        History {
+            buffer: VecDeque::new(),
+            keep: keep_seconds * rate,
+            preroll: (PREROLL_SECONDS * rate as f64) as usize,
+            offset: 0,
+            last_segment_end: 0,
+        }
+    }
+
+    #[test]
+    fn resample_linear_identity_when_rates_match() {
+        let samples = ramp(0, 10);
+        assert_eq!(resample_linear(&samples, 16_000, 16_000), samples);
+    }
+
+    #[test]
+    fn resample_linear_upsamples_to_expected_length() {
+        // One second at 8 kHz is one second at 16 kHz.
+        let out = resample_linear(&[0.0; 8_000], 8_000, 16_000);
+        assert_eq!(out.len(), 16_000);
+    }
+
+    #[test]
+    fn resample_linear_downsamples_to_expected_length() {
+        // One second at 48 kHz is one second at 16 kHz.
+        let out = resample_linear(&[0.0; 48_000], 48_000, 16_000);
+        assert_eq!(out.len(), 16_000);
+    }
+
+    #[test]
+    fn resample_linear_preserves_a_ramp_shape() {
+        // A linear ramp resampled linearly is still a ramp from 0 to 1.
+        let samples: Vec<f32> = (0..1_600).map(|i| i as f32 / 1_599.0).collect();
+        let out = resample_linear(&samples, 16_000, 8_000);
+        assert_eq!(out.len(), 800);
+        assert!(out[0].abs() < 1e-3, "{}", out[0]);
+        assert!((out[799] - 1.0).abs() < 1e-2, "{}", out[799]);
+    }
+
+    #[test]
+    fn preroll_prepends_context() {
+        let mut history = history_at(100, HISTORY_SECONDS);
+        history.push(&ramp(0, 1_000));
+        let out = history.with_preroll(500, &[0.0; 10]);
+        assert_eq!(out.len(), 100 + 10);
+        assert_eq!(out[0], 400.0);
+    }
+
+    #[test]
+    fn preroll_never_bleeds_into_previous_segment() {
+        let mut history = history_at(100, HISTORY_SECONDS);
+        history.push(&ramp(0, 1_000));
+        // The first segment runs 300..400.
+        history.with_preroll(300, &[0.0; 100]);
+        // Without the clamp the pre-roll of a start at 450 would begin at 350.
+        let out = history.with_preroll(450, &[0.0; 10]);
+        assert_eq!(out[0], 400.0);
+    }
+
+    #[test]
+    fn preroll_respects_rolling_buffer_offset() {
+        // Five seconds are kept: 500 of the 2000 samples.
+        let mut history = history_at(100, 5);
+        history.push(&ramp(0, 2_000));
+        assert_eq!(history.offset, 1_500);
+        let out = history.with_preroll(1_600, &[0.0; 10]);
+        assert_eq!(out[0], 1_500.0);
+    }
+
+    #[test]
+    fn live_path_preroll_keeps_utterance_initial_words() {
+        // The detector places the speech start 198 ms after the true onset.
+        // The pre-roll hands those samples back, in order, in front of the
+        // segment, so a word that starts before the detected start survives.
+        let onset = 20_000;
+        let late = onset + 198 * 16;
+        let mut history = History::new();
+        history.push(&ramp(0, 40_000));
+        let out = history.with_preroll(late, &[7.0; 512]);
+        let first = late - 16_000;
+        assert_eq!(out.len(), 16_000 + 512);
+        assert_eq!(out[onset - first], onset as f32);
+        assert_eq!(out[late - first - 1], (late - 1) as f32);
+        assert_eq!(out[late - first], 7.0);
+    }
+
+    /// After `clear`, nothing is held, `end()` is where it was, and the
+    /// pre-roll of the next segment cannot reach back before that point.
+    fn assert_cleared(history: &mut History, end_before: usize) {
+        assert!(history.buffer.is_empty());
+        assert_eq!(history.end(), end_before);
+        assert_eq!(history.offset, end_before);
+        assert_eq!(history.last_segment_end, end_before);
+        history.push(&[2.0; 1_000]);
+        assert_eq!(history.end(), end_before + 1_000);
+        let out = history.with_preroll(end_before + 500, &[3.0; 4]);
+        assert_eq!(out.len(), 500 + 4);
+        assert!(out[..500].iter().all(|sample| *sample == 2.0));
+    }
+
+    #[test]
+    fn audio_history_clear_empties_buffer_and_offsets() {
+        let mut history = History::new();
+        history.push(&[1.0; 8_000]);
+        assert_eq!(history.buffer.len(), 8_000);
+        history.clear();
+        assert_cleared(&mut history, 8_000);
+
+        // A history that has already dropped its oldest samples keeps a
+        // non-zero offset; clearing it does not move the position back.
+        let mut rolled = History::new();
+        rolled.push(&[1.0; 500_000]);
+        assert_eq!(rolled.offset, 20_000);
+        rolled.clear();
+        assert_cleared(&mut rolled, 500_000);
     }
 }

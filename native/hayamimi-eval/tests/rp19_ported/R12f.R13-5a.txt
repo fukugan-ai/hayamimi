@@ -1,0 +1,3 @@
+preroll_never_bleeds_into_previous_segment
+preroll_prepends_context
+preroll_respects_rolling_buffer_offset

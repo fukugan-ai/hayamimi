@@ -1,0 +1,1 @@
+audio_history_clear_empties_buffer_and_offsets
