@@ -24,6 +24,22 @@ const MODEL_DIR: &str = "mojicast-punct-onnx";
 pub const MODEL_FILE: &str = "punct_bert.onnx";
 const VOCAB_FILE: &str = "vocab.txt";
 
+/// The length, in characters, of the sentence that warms the model at
+/// start-up. It is longer than the longest final sentence the evaluation
+/// produced (45 characters), so the work areas the first read takes also fit
+/// the shorter inputs that follow.
+pub const WARMUP_CHARS: usize = 64;
+// The model reads at most `MAX_CHARS` characters; a longer warm-up sentence would be cut.
+const _: () = assert!(WARMUP_CHARS <= rules::MAX_CHARS);
+/// The character the warm-up sentence repeats.
+const WARMUP_CHAR: char = 'あ';
+
+/// The sentence the start-up read feeds the model: [`WARMUP_CHARS`] copies of
+/// one kana. It is model input only; it is never shown or logged.
+pub fn warmup_sentence() -> String {
+    std::iter::repeat_n(WARMUP_CHAR, WARMUP_CHARS).collect()
+}
+
 pub struct Punctuator {
     tokenizer: Tokenizer,
     bert: PunctBert,
@@ -64,5 +80,30 @@ impl Punctuator {
         }
         let logits = self.bert.logits(&encoded.ids)?;
         rules::punctuate(&encoded.chars, &logits)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const VOCAB: &str = "[PAD]\n[UNK]\n[CLS]\n[SEP]\nあ\n";
+
+    #[test]
+    fn the_warmup_sentence_is_sixty_four_characters_of_one_kana() {
+        let sentence = warmup_sentence();
+        assert_eq!(sentence.chars().count(), WARMUP_CHARS);
+        assert_eq!(WARMUP_CHARS, 64);
+        assert!(sentence.chars().all(|c| c == 'あ'));
+    }
+
+    #[test]
+    fn the_warmup_sentence_reaches_the_model_whole() -> Result<(), AsrError> {
+        let encoded = Tokenizer::from_vocab(VOCAB)?.encode(&warmup_sentence());
+        assert_eq!(encoded.chars.len(), WARMUP_CHARS);
+        assert_eq!(encoded.ids.len(), WARMUP_CHARS + 2);
+        // Every id after [CLS] and before [SEP] is the kana, never [UNK].
+        assert!(encoded.ids[1..=WARMUP_CHARS].iter().all(|id| *id == 4));
+        Ok(())
     }
 }

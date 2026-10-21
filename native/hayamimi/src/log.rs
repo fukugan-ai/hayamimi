@@ -366,7 +366,9 @@ pub fn partial_failed_line(strings: &Strings) -> String {
 }
 
 /// `asr.warmup.decoded`: the recognizer read the start-up silence once, before
-/// the first utterance. `decode_ms` is what that first decode took.
+/// the first utterance. `decode_ms` is what that first decode took. `punct_ms`
+/// is what the punctuation model's one read took; it is null when that read
+/// did not run or failed.
 pub fn warmup_decoded_line(strings: &Strings, warmed: &Warmup) -> String {
     event_line(
         strings,
@@ -378,20 +380,38 @@ pub fn warmup_decoded_line(strings: &Strings, warmed: &Warmup) -> String {
             ("model", Value::from(warmed.tier.name())),
             ("decode_ms", millis(warmed.decode_ms)),
             ("audio_s", Value::from(warmed.audio_s)),
+            ("punct_ms", warmed.punct.ms().map_or(Value::Null, millis)),
         ],
     )
 }
 
-/// `asr.warmup.failed`: the start-up decode failed; the run goes on without it.
-pub fn warmup_failed_line(strings: &Strings) -> String {
+/// The `stage` of a start-up read that failed: the recognizer's decode.
+const WARMUP_STAGE_DECODE: &str = "decode";
+/// The `stage` of a start-up read that failed: the punctuation model's read.
+const WARMUP_STAGE_PUNCT: &str = "punct";
+
+/// `asr.warmup.failed` for the read of `stage`; the run goes on without it.
+fn warmup_failed_at(strings: &Strings, stage: &str) -> String {
     event_line(
         strings,
         Level::Warn,
         WARMUP_FAILED,
         "asr",
         Some("HAYAMIMI_ASR_WARMUP_FAILED"),
-        &[],
+        &[("stage", Value::from(stage))],
     )
+}
+
+/// `asr.warmup.failed` with `stage` `decode`: the start-up decode failed; the
+/// run goes on without it.
+pub fn warmup_failed_line(strings: &Strings) -> String {
+    warmup_failed_at(strings, WARMUP_STAGE_DECODE)
+}
+
+/// `asr.warmup.failed` with `stage` `punct`: the punctuation model's start-up
+/// read failed; the run goes on without it.
+pub fn warmup_punct_failed_line(strings: &Strings) -> String {
+    warmup_failed_at(strings, WARMUP_STAGE_PUNCT)
 }
 
 /// `asr.engine.failed`: the route stopped on an error.
@@ -466,6 +486,7 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_asr::pipeline::PunctWarmup;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
 
@@ -705,28 +726,68 @@ mod tests {
     #[test]
     fn the_start_up_decode_is_an_info_line_with_the_model_the_time_and_the_seconds()
     -> Result<(), Box<dyn std::error::Error>> {
-        let warmed = Warmup {
-            tier: Tier::Rz,
-            audio_s: 10,
-            decode_ms: 987.65432,
-        };
+        let warmed = warmed_with(PunctWarmup::Read(448.4449));
         let event = parsed(&warmup_decoded_line(&strings()?, &warmed))?;
         assert_eq!(event["event"], WARMUP_DECODED);
         assert_eq!(event["level"], "info");
         assert_eq!(event["model"], "rz");
         assert_eq!(event["decode_ms"], 987.654);
         assert_eq!(event["audio_s"], 10);
+        assert_eq!(event["punct_ms"], 448.445);
         assert!(event["error_code"].is_null());
         Ok(())
     }
 
+    fn warmed_with(punct: PunctWarmup) -> Warmup {
+        Warmup {
+            tier: Tier::Rz,
+            audio_s: 10,
+            decode_ms: 987.65432,
+            punct,
+        }
+    }
+
     #[test]
-    fn a_failed_start_up_decode_is_a_warning_line_with_its_error_code()
+    fn a_punctuation_read_of_zero_milliseconds_is_the_number_zero()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let warmed = warmed_with(PunctWarmup::Read(0.0));
+        let event = parsed(&warmup_decoded_line(&strings()?, &warmed))?;
+        assert!(event["punct_ms"].is_number(), "{event}");
+        assert_eq!(event["punct_ms"], 0.0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_punctuation_read_that_did_not_run_or_failed_is_a_null_punct_ms_that_is_still_there()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for punct in [PunctWarmup::Skipped, PunctWarmup::Failed] {
+            let line = warmup_decoded_line(&strings()?, &warmed_with(punct));
+            let event = parsed(&line)?;
+            assert_eq!(event.get("punct_ms"), Some(&Value::Null), "{punct:?}");
+            assert_eq!(event["decode_ms"], 987.654, "{punct:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_start_up_decode_is_a_warning_line_with_its_error_code_and_the_decode_stage()
     -> Result<(), Box<dyn std::error::Error>> {
         let event = parsed(&warmup_failed_line(&strings()?))?;
         assert_eq!(event["event"], WARMUP_FAILED);
         assert_eq!(event["level"], "warn");
         assert_eq!(event["error_code"], "HAYAMIMI_ASR_WARMUP_FAILED");
+        assert_eq!(event["stage"], "decode");
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_punctuation_read_is_the_same_warning_with_the_punct_stage()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let event = parsed(&warmup_punct_failed_line(&strings()?))?;
+        assert_eq!(event["event"], WARMUP_FAILED);
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], "HAYAMIMI_ASR_WARMUP_FAILED");
+        assert_eq!(event["stage"], "punct");
         Ok(())
     }
 
