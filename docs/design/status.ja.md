@@ -177,7 +177,7 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | P3 | 清書（RP-61）。R12w0 は済み。R13-13 が部品（R12w1〜R12w3 を 1 席）、R13-20 が live への結線と `--no-refine`、R13-19 が `rp61.rs` を作り、RP-61 の run は窓 E4 で取る | 直接 | R13-13 → R13-20 → R13-19 → RP-73 → 窓 E4 | cargo。RP-61 の run は窓 E4（E2E の窓と GPU、Windows の実機） | 270 分（R13-13 の 165、R13-20 の 60、R13-19 の 45。推測）。run は窓 E4 の 3 時間台に入る | 8 の「清書を live に足す形」と R11 の後の組 |
 | P4 | R12a2（`rp09.rs`） | 直接（RP-9） | P0 | cargo | 40 分 | 8 の「作る slice」 |
 | P5 | R11（78 本と `requirements*.txt` を消し、CI を cargo に、Dart の comment を書き替える）。R11c で入った | 直接 | 済み | main の lock | 済み | 8 の R11、3.2 |
-| P6 | R13-11b：4 クラスの句読点を `Engine::open` へ結ぶ。R13-11 が入っても `--punct-model` は `hayamimi` の引数に無く、`punct::select` を `Engine::open` が呼ばないので、4 クラスの句読点は live の run から選べない。結ぶまで RP-59 は通ったと名乗らない | 間接（既定は BERT のまま） | R13-11、R13-20 | cargo | 40 分（推測） | 8 の R11 の後の組 |
+| P6 | R13-11b：4 クラスの句読点を `Engine::open` へ結ぶ。R13-11 が入っても `--punct-model` は `hayamimi` の引数に無く、`punct::select` を `Engine::open` が呼ばないので、4 クラスの句読点は live の run から選べない。結ぶまで RP-59 は通ったと名乗らない。清書の transcript の switch `--transcript <path>` も同じ slice で `Refiner::open_transcript` へ結ぶ（RP-59 の受入に数えない）。残る：窓 E4 の run では清書の transcript が書かれない（E4 は遅れだけを見るので、E4 の前に要らない） | 間接（既定は BERT のまま） | R13-11、R13-20 | cargo | 55 分（推測） | 8 の R11 の後の組 |
 | L1 | 3 本の merge（`feat/e-warmup`、`feat/held-tail-shadow`、`feat/vad-trace`）。済み（下の「slice ごとの状態」に merge 済みと在り、3 本とも `git ls-remote origin` に無い） | 直接（RP-67 の材料） | 済み | なし | 済み | 下の「slice ごとの状態」 |
 | L2 | H100 の offline の門（方針 B の手順 2） | 済み。門は落ちた（`origin/feat/l2-shadow-gate` の `d024bbe`） | — | — | — | `rust_port.ja.md` の H130 |
 | L3 | `--early-complete nouns` と `asr.endpoint.widened` | 止める（B を組から外した） | — | — | 51 分が外れる | 同上 |
