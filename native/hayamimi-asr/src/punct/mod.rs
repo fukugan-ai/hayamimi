@@ -4,8 +4,12 @@
 //! [`tokenizer`] turns text into the ids the model reads (a table lookup),
 //! `bert` runs the model (on the GPU), and [`rules`] turns the scores back into
 //! a string (string rules with no model and no device).
+//!
+//! [`four`] is the other restorer, chosen with `--punct-model 4class`: one
+//! model that predicts the marks itself, so it needs no rules after it.
 
 mod bert;
+pub mod four;
 pub mod rules;
 pub mod tokenizer;
 
