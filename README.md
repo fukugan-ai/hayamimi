@@ -63,7 +63,7 @@ The priority order and the expected completion dates are in the "Plan to complet
 The expected completion date on the 1600 ms line of L is the evening to night of 2026-10-26. The upper bound stays at the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. This date holds only while the line is 1600 ms. 39 slices remain. The target the coordinator works to is 2026-10-23. The fix of T-RP-32-014 (about 20 minutes) is not in the 39 and is counted separately.
 Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
 The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
-172 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them.
+151 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them, and R13-6 (ITN), R13-10 (the config dump) and R13-12 (the speaker recluster) are in.
 The design that checks that the acceptance test names in T match the implementation's tests (RP-82) is in. R13-15, R13-16 and R13-17 can be issued. It is not implemented yet.
 The design that runs, in CI, the check that a machine with no GPU falls back to the CPU (R13-18) is in. It is not implemented yet.
 The test definitions of R13-18 (the 11 tests T-RP-16-052 to 062) are in too, so R13-18 can be issued.
