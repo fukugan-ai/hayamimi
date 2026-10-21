@@ -8,6 +8,7 @@
 //! screen (`/events`) and on stderr.
 
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
@@ -16,11 +17,17 @@ use std::time::Instant;
 
 use axum::Router;
 use hayamimi_asr::audio::read_wav;
+use hayamimi_asr::itn::{self, Overrides};
+use hayamimi_asr::ort_runtime::{Device, OrtRuntime};
+use hayamimi_asr::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
 use hayamimi_asr::replace::Replacements;
+use hayamimi_asr::route::{Policy, Refined, RouteError};
 use hayamimi_asr::vad::{Sensitivity, VadSettings};
 use hayamimi_asr::{AsrError, Engine, Gpu, Settings, check_library};
 use hayamimi_gpu::memory::MemoryMeter;
 use hayamimi_relay::lan::{self, LanUrl};
+use hayamimi_relay::logging::Level;
+use serde_json::Value;
 
 #[cfg(test)]
 use crate::args::Mode;
@@ -35,6 +42,7 @@ use crate::inputs::Input;
 use crate::log;
 use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
+use crate::refine::{Refiner, Reread, Rereader};
 use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter, tell_resident};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
@@ -116,6 +124,199 @@ fn initial_of(settings: &Settings) -> Initial {
         can_punctuate: settings.stages.punctuate,
         vad: Sensitivity::starting(settings.vad),
     }
+}
+
+/// The language the punctuation model restores marks for.
+const PUNCTUATED_LANGUAGE: &str = "ja";
+/// `refine.punct.unavailable`: the refine pass has no punctuation model and goes on without marks.
+const PUNCT_UNAVAILABLE: &str = "refine.punct.unavailable";
+const PUNCT_UNAVAILABLE_CODE: &str = "HAYAMIMI_ASR_REFINE_PUNCT_UNAVAILABLE";
+
+/// `refine.punct.unavailable`: names the model and the device, never a path.
+fn punct_unavailable_line(strings: &Strings) -> String {
+    log::event_line(
+        strings,
+        Level::Warn,
+        PUNCT_UNAVAILABLE,
+        "asr",
+        Some(PUNCT_UNAVAILABLE_CODE),
+        &[
+            ("model", Value::from(PUNCT_MODEL)),
+            ("provider", Value::from(Device::Cpu.name())),
+        ],
+    )
+}
+
+/// Puts marks into a refined sentence. [`Punctuator`] is the one of a run; a
+/// test hands in a script, so that the refine pass is judged without a model.
+trait Restore {
+    fn restore(&mut self, text: &str) -> Result<String, AsrError>;
+}
+
+impl Restore for Punctuator {
+    fn restore(&mut self, text: &str) -> Result<String, AsrError> {
+        Punctuator::restore(self, text)
+    }
+}
+
+/// Opens the punctuation model of the refine pass.
+type Opener<P> = Box<dyn FnOnce() -> Result<P, AsrError>>;
+
+/// The punctuation model of the refine pass: opened once, when it is first
+/// wanted, and left out for good when it cannot be opened.
+enum Model<P> {
+    Closed(Opener<P>),
+    Open(P),
+    Unavailable,
+}
+
+/// What the live loop works by, read for one group: the refine pass follows a
+/// change made through `/config`, `/replacements` and `/itn_overrides`.
+struct Wanted {
+    overrides: Overrides,
+    replacements: Replacements,
+    punctuate: bool,
+}
+
+fn wanted(controls: &Controls) -> Wanted {
+    let live = controls.live();
+    let (exclude, force) = live.itn();
+    Wanted {
+        overrides: Overrides { exclude, force },
+        replacements: Replacements::from_pairs(live.replacements()),
+        punctuate: live.config().0,
+    }
+}
+
+/// A reader of the refine pass that gives a refined text what a final
+/// sentence gets: ITN, then punctuation, then the dictionary.
+struct Polish<R, P> {
+    inner: R,
+    controls: Arc<Controls>,
+    model: Model<P>,
+    /// Says that the model could not be opened.
+    say: Box<dyn FnMut()>,
+}
+
+impl<R: Reread, P: Restore> Polish<R, P> {
+    fn new(inner: R, controls: Arc<Controls>, open: Opener<P>, say: Box<dyn FnMut()>) -> Self {
+        Polish {
+            inner,
+            controls,
+            model: Model::Closed(open),
+            say,
+        }
+    }
+
+    /// Opens the model now when punctuation is on, so that the first group
+    /// does not wait for it.
+    fn warm(&mut self) {
+        if wanted(&self.controls).punctuate {
+            self.punctuator();
+        }
+    }
+
+    /// The model, opened on the first call. A model that cannot be opened is
+    /// said once and not tried again.
+    fn punctuator(&mut self) -> Option<&mut P> {
+        if matches!(self.model, Model::Closed(_)) {
+            self.open();
+        }
+        match &mut self.model {
+            Model::Open(model) => Some(model),
+            Model::Closed(_) | Model::Unavailable => None,
+        }
+    }
+
+    fn open(&mut self) {
+        let Model::Closed(open) = std::mem::replace(&mut self.model, Model::Unavailable) else {
+            return;
+        };
+        match open() {
+            Ok(model) => self.model = Model::Open(model),
+            Err(_) => (self.say)(),
+        }
+    }
+
+    /// Marks for a Japanese sentence when punctuation is on. A sentence the
+    /// model cannot read goes on without marks.
+    fn punctuate(&mut self, text: String, lang: &str, on: bool) -> String {
+        if !on || lang != PUNCTUATED_LANGUAGE || text.trim().is_empty() {
+            return text;
+        }
+        let Some(model) = self.punctuator() else {
+            return text;
+        };
+        match model.restore(&text) {
+            Ok(marked) => marked,
+            Err(_) => text,
+        }
+    }
+
+    /// The stages of a final sentence, in the order of the live path.
+    fn finish(&mut self, text: String, lang: &str) -> String {
+        let now = wanted(&self.controls);
+        let text = itn::convert(&text, lang, &now.overrides);
+        let text = self.punctuate(text, lang, now.punctuate);
+        now.replacements.apply(&text)
+    }
+}
+
+impl<R: Reread, P: Restore> Reread for Polish<R, P> {
+    /// The stages follow the language the second reading settled on.
+    fn reread(&mut self, audio: &[f32], lang: &str) -> Result<Refined, RouteError> {
+        let mut refined = self.inner.reread(audio, lang)?;
+        let text = std::mem::take(&mut refined.text);
+        refined.text = self.finish(text, &refined.lang);
+        Ok(refined)
+    }
+
+    fn release(&mut self) {
+        self.inner.release();
+    }
+}
+
+/// The punctuation model of the refine pass. It is a second one, opened on the
+/// CPU: the live one is not shared, and the GPU is not asked for more memory.
+fn open_cpu_punctuator(models: PathBuf) -> Result<Punctuator, AsrError> {
+    Punctuator::open(OrtRuntime::shared()?, &models, Device::Cpu, false)
+}
+
+/// The reader of the refine pass, built on the thread of the worker.
+fn polished_rereader(
+    models: PathBuf,
+    policy: Policy,
+    controls: Arc<Controls>,
+    strings: Strings,
+) -> Polish<Rereader, Punctuator> {
+    let reader = Rereader::new(&models, policy);
+    let open: Opener<Punctuator> = Box::new(move || open_cpu_punctuator(models));
+    let say = Box::new(move || log::print(&punct_unavailable_line(&strings)));
+    let mut polish = Polish::new(reader, controls, open, say);
+    polish.warm();
+    polish
+}
+
+/// Starts the refine pass unless the command line turned it off.
+fn start_refiner(
+    args: &Args,
+    strings: &Strings,
+    hub: &Hub,
+    controls: &Arc<Controls>,
+) -> Result<Option<Refiner>, RunError> {
+    if !args.refine {
+        return Ok(None);
+    }
+    let (models, policy) = (args.models.clone(), args.policy());
+    let (live, own) = (Arc::clone(controls), strings.clone());
+    let make = move || polished_rereader(models, policy, live, own);
+    let source = args.io.source_name();
+    Ok(Some(Refiner::start(
+        make,
+        hub.clone(),
+        strings.clone(),
+        source,
+    )?))
 }
 
 /// One server the run starts: how it is called, how its address reads, and
@@ -385,12 +586,12 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
         warm_recognizer(strings, opened);
     }
     let stop = install_stop()?;
+    let refiner = start_refiner(args, strings, &hub, &controls)?;
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;
     hub.publish_session_start();
     Session {
         engine,
-        // The command line has no switch for the refine pass.
-        refiner: None,
+        refiner,
         guard: open_guard(args, strings, gpu),
         hub: &hub,
         strings,
@@ -435,9 +636,15 @@ pub fn run(raw: &[String], locale_tag: Option<&str>) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::{ConfigChange, ItnBody};
     use crate::inputs::IoArgs;
     use hayamimi_asr::Reason;
+    use hayamimi_relay::lang::Lang;
+    use std::cell::{Cell, RefCell};
     use std::net::Ipv4Addr;
+    use std::rc::Rc;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn args_with(input: Option<Input>, replace: Option<&str>) -> Args {
         Args {
@@ -453,6 +660,7 @@ mod tests {
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             diagnose: false,
+            refine: true,
             max_resident: None,
             gpu_budget_mib: 14_000,
             io: IoArgs {
@@ -650,6 +858,458 @@ mod tests {
         )
         .map_err(|_| "the server did not start")?;
         assert!(notices.is_empty());
+        Ok(())
+    }
+
+    /// A control surface whose live view has nothing set. The receiver keeps
+    /// the commands the loop would read; a test holds it for as long as it
+    /// changes a setting.
+    fn controls_over(can_punctuate: bool) -> (Arc<Controls>, Receiver<Command>) {
+        let (commands, received) = mpsc::channel();
+        let vad = VadSettings {
+            min_silence: 0.35,
+            max_speech: 12.0,
+        };
+        let live = Live::new(Initial {
+            replacements: Replacements::default(),
+            overrides: Overrides::default(),
+            punctuate: true,
+            can_punctuate,
+            vad: Sensitivity::starting(vad),
+        });
+        (Arc::new(Controls::new(live, commands)), received)
+    }
+
+    /// A reader that answers every group with one text in one language.
+    struct Says(&'static str, &'static str);
+
+    impl Reread for Says {
+        fn reread(&mut self, _audio: &[f32], _lang: &str) -> Result<Refined, RouteError> {
+            Ok(Refined {
+                text: self.0.to_owned(),
+                lang: self.1.to_owned(),
+            })
+        }
+    }
+
+    /// What the scripted model was asked, and how often it was opened and complained about.
+    #[derive(Default)]
+    struct Tally {
+        opened: Rc<Cell<u32>>,
+        said: Rc<Cell<u32>>,
+        read: Rc<RefCell<Vec<String>>>,
+    }
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Behaviour {
+        Marks,
+        FailsToRead,
+        FailsToOpen,
+    }
+
+    /// A model that adds a full stop, or fails to read.
+    struct Marks {
+        read: Rc<RefCell<Vec<String>>>,
+        fails: bool,
+    }
+
+    impl Restore for Marks {
+        fn restore(&mut self, text: &str) -> Result<String, AsrError> {
+            self.read.borrow_mut().push(text.to_owned());
+            if self.fails {
+                Err(AsrError::NoResult)
+            } else {
+                Ok(format!("{text}。"))
+            }
+        }
+    }
+
+    fn polish_over(
+        reader: Says,
+        controls: &Arc<Controls>,
+        tally: &Tally,
+        how: Behaviour,
+    ) -> Polish<Says, Marks> {
+        let (opened, read) = (Rc::clone(&tally.opened), Rc::clone(&tally.read));
+        let said = Rc::clone(&tally.said);
+        let open: Opener<Marks> = Box::new(move || {
+            opened.set(opened.get() + 1);
+            if how == Behaviour::FailsToOpen {
+                return Err(AsrError::MissingModel(PathBuf::new()));
+            }
+            Ok(Marks {
+                read,
+                fails: how == Behaviour::FailsToRead,
+            })
+        });
+        let say = Box::new(move || said.set(said.get() + 1));
+        Polish::new(reader, Arc::clone(controls), open, say)
+    }
+
+    /// The text a group comes to when it was asked for in `lang`.
+    fn text_of<R: Reread>(
+        reader: &mut R,
+        lang: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let refined = reader.reread(&[], lang).map_err(|_| "the reader failed")?;
+        Ok(refined.text)
+    }
+
+    fn yen_to_dollars() -> Vec<(String, String)> {
+        vec![(String::from("円"), String::from("ドル"))]
+    }
+
+    #[test]
+    fn a_refined_text_gets_itn_then_punctuation_then_the_dictionary() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        assert!(controls.set_replacements(yen_to_dollars()));
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("三千二百円", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        assert_eq!(text_of(&mut polish, "ja")?, "3200ドル。");
+        // The model read the sentence after ITN and before the dictionary.
+        assert_eq!(*tally.read.borrow(), ["3200円"]);
+        Ok(())
+    }
+
+    #[test]
+    fn marks_follow_the_language_of_the_second_reading_and_only_japanese() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        // Asked for as English, read as Japanese: the second reading decides.
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        assert_eq!(text_of(&mut polish, "en")?, "こんにちは。");
+        // Asked for as Japanese, read as English: no marks and no model.
+        let tally = Tally::default();
+        let mut polish = polish_over(Says("hello", "en"), &controls, &tally, Behaviour::Marks);
+        assert_eq!(text_of(&mut polish, "ja")?, "hello");
+        assert_eq!(tally.opened.get(), 0);
+        // Chinese gets ITN and no marks.
+        let tally = Tally::default();
+        let mut polish = polish_over(Says("三千二百", "zh"), &controls, &tally, Behaviour::Marks);
+        assert_eq!(text_of(&mut polish, "zh")?, "3200");
+        assert_eq!(tally.opened.get(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_blank_text_does_not_wake_the_model() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let tally = Tally::default();
+        let mut polish = polish_over(Says("  ", "ja"), &controls, &tally, Behaviour::Marks);
+        assert_eq!(text_of(&mut polish, "ja")?, "  ");
+        assert_eq!(tally.opened.get(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_model_that_cannot_be_opened_is_tried_once_and_said_once() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::FailsToOpen,
+        );
+        for _ in 0..3 {
+            assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
+        }
+        assert_eq!((tally.opened.get(), tally.said.get()), (1, 1));
+        Ok(())
+    }
+
+    #[test]
+    fn a_sentence_the_model_cannot_read_goes_on_without_marks() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::FailsToRead,
+        );
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
+        assert_eq!((tally.opened.get(), tally.said.get()), (1, 0));
+        Ok(())
+    }
+
+    #[test]
+    fn punctuation_that_is_off_opens_no_model_and_says_nothing() -> TestResult {
+        // The live engine has no punctuation model: the view says it is off.
+        let (controls, _commands) = controls_over(false);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::FailsToOpen,
+        );
+        polish.warm();
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
+        assert_eq!((tally.opened.get(), tally.said.get()), (0, 0));
+        Ok(())
+    }
+
+    #[test]
+    fn the_model_is_opened_at_the_start_when_punctuation_is_on() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        polish.warm();
+        assert_eq!(tally.opened.get(), 1);
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは。");
+        assert_eq!(tally.opened.get(), 1);
+        Ok(())
+    }
+
+    /// H148: the dictionary set through `/replacements` after the pass began.
+    #[test]
+    fn the_refine_reader_uses_the_dictionary_set_after_it_started() -> TestResult {
+        let (controls, _commands) = controls_over(false);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("三千二百円", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        assert_eq!(text_of(&mut polish, "ja")?, "3200円");
+        assert!(controls.set_replacements(yen_to_dollars()));
+        assert_eq!(text_of(&mut polish, "ja")?, "3200ドル");
+        assert!(controls.set_replacements(Vec::new()));
+        assert_eq!(text_of(&mut polish, "ja")?, "3200円");
+        Ok(())
+    }
+
+    /// H148: the ITN overrides set through `/itn_overrides` after the pass began.
+    #[test]
+    fn the_refine_reader_uses_the_itn_overrides_set_after_it_started() -> TestResult {
+        let (controls, _commands) = controls_over(false);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("三千二百人", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        assert_eq!(text_of(&mut polish, "ja")?, "3200人");
+        let forced = ItnBody {
+            exclude: Vec::new(),
+            force: vec![(String::from("三千二百"), String::from("3,200"))],
+        };
+        assert!(controls.set_itn(forced));
+        assert_eq!(text_of(&mut polish, "ja")?, "3,200人");
+        let excluded = ItnBody {
+            exclude: vec![String::from("三千二百人")],
+            force: Vec::new(),
+        };
+        assert!(controls.set_itn(excluded));
+        assert_eq!(text_of(&mut polish, "ja")?, "三千二百人");
+        Ok(())
+    }
+
+    /// H148: punctuation switched through `/config` after the pass began.
+    #[test]
+    fn the_refine_reader_follows_punctuation_switched_after_it_started() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let tally = Tally::default();
+        let mut polish = polish_over(
+            Says("こんにちは", "ja"),
+            &controls,
+            &tally,
+            Behaviour::Marks,
+        );
+        let switch = |on| ConfigChange {
+            punctuate: Some(on),
+            vad: None,
+        };
+        assert!(controls.apply_config(switch(false)));
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
+        assert_eq!(tally.opened.get(), 0);
+        assert!(controls.apply_config(switch(true)));
+        assert_eq!(text_of(&mut polish, "ja")?, "こんにちは。");
+        Ok(())
+    }
+
+    fn refiner_over(list: &[&str]) -> Result<Option<Refiner>, Box<dyn std::error::Error>> {
+        let raw: Vec<String> = list.iter().map(|word| (*word).to_owned()).collect();
+        let Ok(Parsed::Run(args)) = args::parse(&raw) else {
+            return Err("the command line did not ask for a run".into());
+        };
+        // No punctuation model: the worker opens nothing while it starts.
+        let (controls, _commands) = controls_over(false);
+        let strings = Strings::embedded(Lang::En)?;
+        start_refiner(&args, &strings, &Hub::new(), &controls)
+            .map_err(|_| "the refiner did not start".into())
+    }
+
+    /// RP-61: a run that does not say `--no-refine` reads the groups again.
+    #[test]
+    fn run_without_no_refine_gives_the_session_a_refiner() -> TestResult {
+        let Some(mut refiner) = refiner_over(&["--wav", "a.wav"])? else {
+            return Err("no refiner was made".into());
+        };
+        assert!(refiner.worker_running());
+        refiner.close();
+        assert!(!refiner.worker_running());
+        Ok(())
+    }
+
+    #[test]
+    fn run_with_no_refine_leaves_the_session_without_a_refiner() -> TestResult {
+        assert!(refiner_over(&["--wav", "a.wav", "--no-refine"])?.is_none());
+        Ok(())
+    }
+
+    /// The directory that holds `models/` at or above this checkout: model
+    /// files are not in git, so a worktree reads them from the main checkout.
+    fn models_above() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let start = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize()?;
+        let found = start
+            .ancestors()
+            .map(|up| up.join("models"))
+            .find(|models| models.join("silero_vad.onnx").is_file())
+            .ok_or("no models/silero_vad.onnx at or above the checkout")?;
+        Ok(found)
+    }
+
+    /// The middle of the sorted values.
+    fn median(mut values: Vec<f64>) -> Result<f64, Box<dyn std::error::Error>> {
+        values.sort_by(f64::total_cmp);
+        let middle = values.get(values.len() / 2).ok_or("no values")?;
+        Ok(*middle)
+    }
+
+    /// Japanese without marks, `chars` characters long.
+    fn group_text(chars: usize) -> String {
+        const BASE: &str = "今日は天気が良いので散歩に出かけましたそれから友達と昼ご飯を食べて午後は図書館で本を読みました";
+        BASE.chars().cycle().take(chars).collect()
+    }
+
+    /// The seconds the punctuation model of the refine pass takes for the whole
+    /// text of a group, on the CPU. Run by hand, from the built test binary:
+    /// `-- --ignored --exact run::tests::refine_punctuation_seconds_of_a_group_on_the_cpu --nocapture`.
+    #[test]
+    #[ignore = "measures the refine pass's punctuation model on the CPU; reads the models"]
+    fn refine_punctuation_seconds_of_a_group_on_the_cpu() -> TestResult {
+        let began = Instant::now();
+        let mut model = open_cpu_punctuator(models_above()?)?;
+        eprintln!("open_s={:.3}", began.elapsed().as_secs_f64());
+        for chars in [125_usize, 250, 500] {
+            let text = group_text(chars);
+            let mut runs = Vec::new();
+            for _ in 0..5 {
+                let began = Instant::now();
+                let marked = model.restore(&text)?;
+                runs.push(began.elapsed().as_secs_f64());
+                assert!(!marked.is_empty());
+            }
+            eprintln!("chars={chars} runs_s={runs:.3?}");
+            eprintln!("chars={chars} median_s={:.3}", median(runs)?);
+        }
+        Ok(())
+    }
+
+    /// The resident memory (VmRSS, KiB) of this process.
+    #[cfg(target_os = "linux")]
+    fn rss_kib() -> Result<u64, Box<dyn std::error::Error>> {
+        let status = std::fs::read_to_string("/proc/self/status")?;
+        let line = status
+            .lines()
+            .find(|line| line.starts_with("VmRSS:"))
+            .ok_or("no VmRSS line")?;
+        let kib = line.split_whitespace().nth(1).ok_or("no VmRSS value")?;
+        Ok(kib.parse::<u64>()?)
+    }
+
+    /// Twenty-five seconds of the golden clips, joined.
+    #[cfg(target_os = "linux")]
+    fn group_audio() -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+        let directory =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/ja");
+        let wanted = 25 * hayamimi_asr::audio::SAMPLE_RATE as usize;
+        let mut audio = Vec::new();
+        for clip in ["ja_014.wav", "ja_024.wav", "ja_033.wav"] {
+            audio.extend(read_wav(&directory.join(clip))?);
+        }
+        audio.truncate(wanted);
+        Ok(audio)
+    }
+
+    /// The memory the refine pass adds beside a live engine, all on the CPU:
+    /// after the engine opened and warmed up, after the first group was read
+    /// again, after the first restore. A CPU engine's values, not the GPU
+    /// production ones. Run by hand, from the built test binary.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "measures the memory of the refine pass beside a live engine on the CPU; reads the models"]
+    fn refine_pass_memory_beside_the_live_engine_on_the_cpu() -> TestResult {
+        let models = models_above()?;
+        let mut settings = Settings::new(models.clone());
+        settings.gpu = Gpu::Absent(Reason::NoDevice);
+        let mut engine = Engine::open(settings)?;
+        assert!(engine.warm_up().is_some_and(|read| read.is_ok()));
+        let live = rss_kib()?;
+        let mut reader = Rereader::new(&models, Policy::balanced());
+        let audio = group_audio()?;
+        let began = Instant::now();
+        let refined = reader
+            .reread(&audio, "ja")
+            .map_err(|_| "the second reading failed")?;
+        let reread_s = began.elapsed().as_secs_f64();
+        let after_reread = rss_kib()?;
+        let mut model = open_cpu_punctuator(models)?;
+        let began = Instant::now();
+        let marked = model.restore(&refined.text)?;
+        let restore_s = began.elapsed().as_secs_f64();
+        let after_restore = rss_kib()?;
+        eprintln!(
+            "refined_chars={} marked_chars={}",
+            refined.text.chars().count(),
+            marked.chars().count()
+        );
+        eprintln!("reread_s={reread_s:.3} first_restore_s={restore_s:.3}");
+        eprintln!("rss_kib live={live} after_reread={after_reread} after_restore={after_restore}");
+        eprintln!(
+            "rss_kib reread_adds={} restore_adds={}",
+            after_reread.saturating_sub(live),
+            after_restore.saturating_sub(after_reread)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_punctuation_event_is_a_warning_that_names_the_model_and_no_path() -> TestResult {
+        for lang in [Lang::En, Lang::Ja] {
+            let line = punct_unavailable_line(&Strings::embedded(lang)?);
+            let event: Value = serde_json::from_str(&line)?;
+            assert_eq!(event["event"], PUNCT_UNAVAILABLE);
+            assert_eq!(event["level"], "warn");
+            assert_eq!(event["error_code"], PUNCT_UNAVAILABLE_CODE);
+            // The bare file name of the model, not a path to it.
+            assert_eq!(event["model"], "punct_bert.onnx");
+            assert_eq!(event["provider"], "cpu");
+            assert_ne!(
+                event["message"], PUNCT_UNAVAILABLE,
+                "{lang:?} has a message"
+            );
+        }
         Ok(())
     }
 }
