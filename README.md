@@ -4,103 +4,32 @@
 
 The **original**, [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi), is real-time multilingual speech recognition that runs on the CPU alone, with no GPU and no cloud API (its runtime is Python).
 This repository ([fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)) is a **fork** of it: a copy that keeps the original history and is developed separately.
-Nothing from this fork is pushed or sent as a pull request to the original.
-The badges below this section point to the original's CI and releases, not to results of this fork.
-The text after this section describes the original Python version.
-Statements such as "no GPU" remain in it and do not apply to the Rust version.
+Nothing from this fork is pushed or sent as a pull request to the original, and the badges below this section point to the original's CI and releases, not to results of this fork.
+The text after this section describes the original Python version, and statements such as "no GPU" remain in it and do not apply to the Rust version.
 
 ### What is being done here
 
 The Python runtime is being replaced with Rust (the Cargo workspace in `native/`), and inference uses the GPU (CUDA).
-The work is complete when Python is out of the runtime path and removed. The 78 Python files are removed (R11).
+The work is complete when Python is out of the runtime path and removed.
 Speed comes first; quality (recognition error rate and naturalness of translation) comes second.
 The speed measure is **L**: the delay from the end of an utterance to the appearance of its translated subtitle.
 L is measured at p50 (the median) and p95 (the delay within which 95% of utterances fall).
 Once the speed target is met, quality must match or beat the Python version.
 
-### State as of 2026-10-15
+<!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
+### Current state
 
-Both end-to-end checks (E2E) passed in the measurement of 2026-10-15.
-For Japanese to English (E2E-1), the delay (L) of the Rust version was below that of the Python version at both p50 and p95.
-For English to Japanese (E2E-2), L at p95 stayed within the 2000 ms limit.
-The values and conditions are under [Measured performance](#measured-performance).
-Each check is a single run that played recorded audio.
-A check with a person speaking Japanese into a real microphone has not been done yet (NOT VERIFIED).
-
-Removing Python (R11) is in: the 78 Python files and `requirements*.txt` are deleted, and the CI runs cargo. The version before the removal is in the tag `archive/python-before-r11`.
-The slices for recognition, language routing, speakers, audio capture, the subtitle server and screens, and the translation relay have passed verification by someone other than the implementer, and are merged.
-In the latest re-measurement the CPU (int8) was faster than the GPU for recognition, so recognition stays on the CPU.
-The machine load was high during that re-measurement, so the values are unverified and only the direction is used.
-
-### Translation and start-up behaviour as of 2026-10-20
-
-The translated subtitle and the start-up behave as follows.
-
-- **The form of the rewrite (E) request**: a finalized sentence is first translated as a draft (T), and then a second translation (E) rewrites the draft. The E request has two messages: the first holds the draft and a note to keep the facts, numbers, proper names, negation and uncertainty, and the second holds the source sentence. The T request is one message holding the source sentence only. With this form, lines where E's answer echoed the instruction text fell from 1 per run to 0 (the E2E seat's report; this document did not recount them). The gate that checks numbers and uncertainty is not loosened.
-- **The first request to the translation server**: before it emits `relay.serve.started`, `hayamimi-relay live` sends two short requests to the `--llm` server, one in the form of T and then one in the form of E. This pays the slowness of the very first request of each form before the first subtitle. For each request, if the server answers, `translate.warmup.sent` is emitted; if it does not, `translate.warmup.failed` (warn) is emitted (both carry `form`, `t` or `e`) and start-up goes on. The wait is at most 10 seconds for the two together. When the translation server has not been started, `translate.warmup.failed` appears twice. How much the two requests shorten the E of the first line has not been measured (NOT VERIFIED).
-- **The reason of an early-end hold**: `asr.endpoint.held` carries a `reason`. It is `incomplete` when the sentence is not complete, and `too_short` when it is complete but the speech is short. How to count them is in `docs/guide/run_hayamimi.ja.md`.
-
-Three things are not implemented:
-
-- RP-19 (the check that Python test cases were ported to Rust tests; the table has 386 rows): the rows with no Rust test yet are ported by the R13 slices. A separate CI step prints the number of remaining rows on every run.
-- R12y: the arguments of `hayamimi-relay eval` (`--final`, `--heldout`, `--direction`) for scoring translations on a held-out set (an evaluation set never shown during tuning), and the refusal to use the same set twice.
-- Sending to YouTube Live caption ingestion: the conversation-subtitle design lists it as something not to build, and streaming uses the OBS subtitle page burned into the video instead.
-
-### Delay target and recognizer placement as of 2026-10-20
-
-The pass line for the p95 of the delay (L) is 1600 ms or less.
-A p95 of 1200 ms or less and of 1000 ms or less stay as targets after completion. 1200 ms is not reached yet.
-For Japanese to English it is 1501 ms (the alternating measurement, RP-32); for English to Japanese it is 1303 ms (a single E2E-2 run).
-The start point of an utterance's end stays as it is, and no forced alignment will be built.
-The design checks with the RP-73 test that the verdict is not decided by how that start point is placed (not implemented yet).
-
-The GPU recognizer is not in use yet. Recognition stays on the CPU (int8).
-The option of putting only the encoder inside recognition on the GPU (policy D) is designed, and its timing estimate (RP-74) is taken after E2E.
-The placement changes only after RP-78 confirms that, in the split form (encoder on the GPU only), L shrinks and translation does not slow down.
-
-The state of each slice is in the table in `docs/design/status.md`.
-The priority order and the expected completion dates are in the "Plan to completion" section of the same document. The dates are estimates.
-The expected completion date on the 1600 ms line of L is the evening to night of 2026-10-26. The upper bound stays at the night of 2026-10-26 to the early hours of 2026-10-27, and 2026-10-27 at the worst. This date holds only while the line is 1600 ms. 39 slices remain. The target the coordinator works to is 2026-10-23. The fix of T-RP-32-014 (about 20 minutes) is not in the 39 and is counted separately.
-Records for measuring the end-of-utterance decision (the VAD trace and the shadow mark) are in. They do not change the decision.
-The design and the implementation for removing Python (the documentation rewrites, R12a1, R12a2 and R11c) are in. There are 0 Python files left.
-151 rows of RP-19 are not yet ported to Rust tests; R13-1 to R13-13 port them, and R13-6 (ITN), R13-10 (the config dump) and R13-12 (the speaker recluster) are in.
-The design that checks that the acceptance test names in T match the implementation's tests (RP-82) is in. R13-15, R13-16 and R13-17 can be issued. It is not implemented yet.
-The design that runs, in CI, the check that a machine with no GPU falls back to the CPU (R13-18) is in. It is not implemented yet.
-The test definitions of R13-18 (the 11 tests T-RP-16-052 to 062) are in too, so R13-18 can be issued.
-For the overlay window, the design and its first component (`lanes` in `hayamimi-ui`) are in. The `hayamimi-overlay` crate is in too. The acceptance that opens the window (OV-V) is not done, so it does not work as a window yet.
-GitHub CI succeeded on both ubuntu and windows.
-The R13-17 acceptance test (checking that the validity line of each `final` follows the rule that ended it) is in. Only 2 tests in T are still marked as not implemented: T-RP-10-007 and T-RP-16-037.
-R13-18 (the implementation that runs, in CI, the check that a machine with no GPU falls back to the CPU) is in, and R13-18 is done. GitHub CI succeeded on both ubuntu and windows. The not-implemented mark of T-RP-16-037 stays as the share of R13-16.
-The clean-up tool (`scripts/tidy-branches.sh`) can now remove a verify tree whose parents are all in main.
-The clean-up tool can also remove a verify tree stacked on an earlier verify merge, when merging it into main leaves main's tree as it is and it has no ordinary commit that main lacks (`fix/tidy-tree-equal`).
-The test definitions of RP-83 to RP-87 are in. R8x-1, R8x-2a, R8x-2b, R8x-3 and R8x-4 are done. The path that remains is window E1, window E3' and window E4. `rp79.rs`, L3, R8x-6, R8x-6b, window E2 and window E3 (the W and X pairs) are stopped.
-The offline gate of policy B (H100) failed. B is taken out of the set that shrinks L, and no further re-run is asked for.
-The stop mark of RP-79 and the definition of RP-86 (0) are in. Window E2 (the RP-79 run) stays on hold.
-The shadow-gate check of L2 (`r8v_probe`) and its records (`docs/results/r8v/`) are in.
-The design that makes E2E-1, E2E-2 and RP-3 count valid samples by the same per-sample line (H88), and the design that takes log writes out of the recognition loop (R8y-1 and R8y-2, a separate track outside the set that shrinks L), are in. The log-queue design is not implemented yet; the per-sample line is implemented for E2E-1 and E2E-2 (see the R8x-2b line below) and not yet for RP-3.
-R8y-1 is issued after R8x-3.
-R8x-2 is split into R8x-2a (create `rp67.rs`; the pass test is in, and its real-run row needs a record in `docs/results/rp67/` and waits for windows E3' and E4) and R8x-2b (the code of H88).
-The offline gate of C and D (R8x-5) was run against the current rule and failed: with C and D, the splits by the early path alone rise from 4 to 6 on lat-ja and from 9 to 26 on held-out ja, and the candidates finalised with voice going on after them rise from 9 to 18 on held-out ja. D finalises one of the two slow utterances (22) 192 ms earlier and does not act on the other (16). The record is `docs/results/r8v/extra.md`.
-By the council's verdict, C and D are both taken out. R8x-6, R8x-6b (`rp86.rs`), RP-86 and RP-87 are stopped (H132 of `rust_port.ja.md`).
-The pass line of RP-67 is now a p95 of 1600 ms or less. 1200 ms and 1000 ms stay as targets. 1200 ms is not reached yet; the estimate for the present set is a p95 of about 1473 ms. 1600 ms is a line that stops things getting worse, not a speed target.
-The remaining path is the quality probe and the real run of R8x-4, window E1, window E3' (2 runs of ja and 1 of en, about 1 hour 20 min) and window E4.
-The implementation of R8x-1 (the gate of an E2E run, RP-83) is in and done. `hayamimi-eval stream` writes `<run>.machine.jsonl`, and the gate looks at the load before and after and at cargo and rustc during the run. 39 slices remain.
-The design that makes RP-80 fail when a CI flag is glued to the word before it (such as `x--test`; R11d, H133) is in. When a flag is glued, CI stays green while that binary runs almost nothing. This check (R11d) is now in, and rp80 has 28 tests. It is a separate track outside the 39.
-The implementation of R8x-3 (the first decode of the recognizer, RP-84) is in and done. The decode of the first utterance now finishes before `/ingest`. The remaining count has not been recounted.
-The implementation of R8x-4 (reusing a draft that differs only in numerals or inner marks, RP-85) is in. The quality probe and the real run have not been run.
-Three counts in the design were corrected (448 to 443, 306 to 300). This is a docs-only change.
-The implementation of R8x-2b (H88) is in and done. The E2E-1 and E2E-2 acceptance tests now count a sample as valid against the line of the rule that closed it (120 ms for `early`, `--min-silence` for the others; Python always `--min-silence`), read from `<run>.hayamimi.stdout.log`. A `final` with no `decided` line, a `decided` id that stands twice, and two `final` at one `t_us` with different rules are refused by run and id. The four records of builds without the early rule (`e2e1`, `e2e2`, `rs1`, `e2e2c`) are listed by sha256 and counted at 300 ms with a note in the output. The RP-3 rows (T-RP-3-022, 023) stay not implemented because `rp03.rs` does not exist. 38 slices remain.
-The definition of the translation-server unit for windows E1, E3' and E4 (`native/hayamimi-relay/units/hayamimi-llama-e2e.service`, port 18084) is in. The window seat starts the unit, and it has not been started yet.
-The design now makes windows E1, E3' and E4 always use the translation server of this unit (port 18084), because port 8080 may be started by another app with another model, which would change the yardstick of `L`.
-The translation server that the quality probe of R8x-4 (RP-85 (3)) talks to was also changed from port 8080 to port 18084.
-The design that names the files of the ported RP-19 names after the owner tag of the fixed list, and the test definitions for it, are in. The R13 check that removes Python (`rp19.rs`) now lets one owner name be split across several slices. The rest of the R13 slices go on from here.
-The records of windows E1 and E3' (`docs/results/r8x/`) are in. The p95 of `L` is 1456 to 1506 ms for ja and 1141 ms for en, inside the 1600 ms line. The en run, however, is a run that failed the machine gate (RP-83), so the RP-67 pass is not settled. Three items are not met: the delay of the first utterance (RP-84), the reuse of a draft that differs only in numerals (RP-85 (4)), and the gate of the en run (RP-83). The design that fixes them is starting.
-The design that fixes the three items that failed in window E3', and its test rows, are in: the punctuation tier is also warmed at start-up (RP-84), the speed of a draft that differs only in numerals is counted on samples whose key matches (RP-85 (4)), and the run gate compares after subtracting the run's own load (RP-83). The implementations that fix the three are in, and all three passed on the real machine in window E3'' (two Japanese runs and one English run). The p95 of the delay from the end of an utterance to its translated subtitle is 1484.8 ms and 1474.1 ms for Japanese and 1089.1 ms for English. The pass line is 1600 ms, and Japanese does not yet reach the 1200 ms target.
+- The 78 Python files and `requirements*.txt` are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` ([`status.md`, lines 16 and 35](docs/design/status.md)).
+- The two end-to-end (E2E) acceptance tests on played-back recorded audio pass, and a check with a person speaking Japanese into a real microphone has not been done (NOT VERIFIED, [`status.md`, lines 321 and 40](docs/design/status.md)).
+- The latest p95 of `L` comes from the window E3'' runs on the real machine: 1484.8 ms and 1474.1 ms for Japanese, and 1089.1 ms for English, all three inside the pass line (RP-67) of 1600 ms or less, and against the 1200 ms target for after completion English reaches it and Japanese does not ([`status.md`, line 29](docs/design/status.md); records are the `e3q*` files in [`docs/results/r8x/`](docs/results/r8x/)).
+- The final judgement, window E4, is not done, and the records of the 2026-10-15 build ([`docs/results/e2e/`](docs/results/e2e/)) show a Japanese p95 of 1871.7 ms, outside the 1600 ms line ([`status.md`, line 29](docs/design/status.md)).
+- Recognition runs on the CPU (int8) because it is faster than the GPU (fp32) in the placement re-measurement, but the machine load during that measurement is high, so the values are NOT VERIFIED and only the direction is used ([`status.md`, lines 32 and 316](docs/design/status.md)).
+- The translation server used in the E2E windows (llama-server, CAT-Translate-3.3b at Q8_0) puts all layers on the GPU (`-ngl 99`; [line 58 of `hayamimi-llama-e2e.service`](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
+- Progress per slice and what remains: [`docs/design/status.md`](docs/design/status.md)
 
 ### Related documents
 
 - Design (Japanese only): [docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
-- State of each slice: [docs/design/status.md](docs/design/status.md)
 - Build and run guide (Japanese only): [docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
 
 [![tests](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml/badge.svg)](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![release](https://img.shields.io/github/v/release/oboroge0/hayamimi)](https://github.com/oboroge0/hayamimi/releases)

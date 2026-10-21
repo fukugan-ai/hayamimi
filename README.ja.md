@@ -5,103 +5,32 @@
 **オリジナル**は [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi) で、GPUもクラウドAPIも使わず、CPUだけで動くリアルタイム多言語音声認識です（実行系はPython）。
 このリポジトリ（[fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)）は、そのオリジナルの **fork**（元の履歴を引き継いで、別に手を入れる複製）です。
 オリジナルへのpushとpull requestは行いません。
-この節の下にあるバッジは、オリジナルのCIとリリースを指します。
-この fork の結果ではありません。
-このあとの本文は、オリジナルのPython版の説明です。
-「GPUを使わない」など、Rust版には当てはまらない記述が残っています。
+この節の下にあるバッジは、オリジナルのCIとリリースを指していて、この fork の結果ではありません。
+このあとの本文は、オリジナルのPython版の説明で、「GPUを使わない」など、Rust版には当てはまらない記述が残っています。
 
 ### いま実施していること
 
 Pythonの実行系をRust（`native/` のCargo workspace）へ置き換え、推論にGPU（CUDA）を使います。
-Pythonを実行の経路から外し、消すところまでを完了とします。Pythonの78本は消えました（R11）。
+Pythonを実行の経路から外し、消すところまでを完了とします。
 速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
 速度の指標は **L**：発話の終わりから、その発話の訳の字幕が出るまでの遅れです。
 Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
 品質は、速度の目標を満たした上で、Python版と同じか良くします。
 
-### 2026-10-15 時点の状態
+<!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
+### 現在の状態
 
-端から端の確認（E2E）は、2026-10-15 の測定で2本とも通りました。
-日本語から英語（E2E-1）では、遅れ（L）のp50とp95がどちらもPython版を下回りました。
-英語から日本語（E2E-2）では、Lのp95が上限の2000 msに収まりました。
-値と条件は「[実測パフォーマンス](#実測パフォーマンス)」にあります。
-どちらも、録音した音声を流した1回ずつの測定です。
-実機のマイクに人が話した日本語での確認は、まだ行っていません（NOT VERIFIED）。
-
-Pythonの削除（R11）は入りました。Pythonの78本と `requirements*.txt` を消し、CIはcargoで動きます。消す前の版は、tag `archive/python-before-r11` にあります。
-認識、言語の振り分け、話者、音声の取り込み、字幕のserverと画面、訳の中継のsliceは、実装した者とは別の検証を通ってmerge済みです。
-認識の置き場は、測り直しでCPU（int8）がGPUより速く、CPUのままです。
-測り直しの時は機械の負荷が高く、値は未検証で、向きだけを採っています。
-
-### 2026-10-20 時点の訳と起動の動き
-
-訳の字幕と起動の動きは、次のとおりです。
-
-- **書き直し（E）の依頼の形**：確定した文は、まず下書きの訳（T）を作り、次に下書きを書き直す訳（E）を作ります。Eの依頼は2つのmessageで、1つ目に下書きと「事実、数、固有名、否定、推量を保つ」注、2つ目に原文を置きます。Tの依頼は原文だけの1つのmessageです。この形では、Eの答えが指示文を復唱した行が、1 runあたり1件から0件になりました（E2Eの席の申告で、この文書は数え直していません）。数と推量を確かめる門は緩めていません。
-- **訳のserverへの最初の依頼**：`hayamimi-relay live` は、`relay.serve.started` を出す前に、短い依頼を `--llm` のserverへ2本、Tの形、Eの形の順に1本ずつ送ります。最初の1回の遅さを、最初の字幕のTとEの前に払うためです。依頼ごとに、返れば `translate.warmup.sent`、返らなければ `translate.warmup.failed`（warn）が出て（どちらも `form` が `t` か `e`）、起動は続きます。待つのは2本で合わせて最長10秒です。訳のserverを起こしていないときは `translate.warmup.failed` が2件出ます。この2本が最初の行のEをどれだけ縮めるかは測っていません（NOT VERIFIED）。
-- **早い終わりの保留の理由**：`asr.endpoint.held` に `reason` が付きます。文が完結していないときは `incomplete`、完結していて声が短いときは `too_short` です。数え方は `docs/guide/run_hayamimi.ja.md` にあります。
-
-次の3つは未実装です。
-
-- RP-19（Pythonのtestのcaseを、Rustのtestへ写したことの確認で、対応表は386行）：Rustのtestが未作成の行は、R13のsliceが写します。残りの行の数は、CIの専用のstepが毎回出します。
-- R12y：held-out（調整に一度も見せない評価用の組）で訳を採点するための、`hayamimi-relay eval` の引数（`--final`、`--heldout`、`--direction`）と、同じ組を2回使わせない拒みです。
-- YouTube Liveの字幕取り込みへの送信：会話字幕の設計は「作らない物」とし、配信にはOBSの字幕頁を映像に焼き込む経路を使います。
-
-### 2026-10-20 時点の遅れの目標と認識の置き場
-
-遅れ（L）のp95の合否の線は1600 ms以下です。
-1200 ms以下と1000 ms以下は、完成の後の目標として残します。1200 msにはまだ届いていません。
-日本語から英語は1501 ms（交互の測定RP-32）、英語から日本語は1303 ms（E2E-2の1回のrun）です。
-発話の終わりの起点は今のままで、強制の位置合わせは作りません。
-合否が起点の置き方の誤りで決まっていないことは、RP-73のtestで確かめる設計です（未実装）。
-
-GPUの認識器はまだ使っていません。認識はCPU（int8）のままです。
-認識の中のencoderだけをGPUに置く案（方針D）は設計が決まり、時間の見積り（RP-74）はE2Eの後に取ります。
-置き場を変えるのは、split（encoderだけGPU）の形でLが縮み、訳が遅くならないことをRP-78で確かめてからです。
-
-sliceごとの状態は、`docs/design/status.ja.md` の表にあります。
-完成までの順位と日付の見込みは、同じ文書の「完成までの計画」の節にあります。日付は推測です。
-Lの1600 msの線を通す完成の日付は、2026-10-26の夕方から夜の見込みです。上限は2026-10-26の夜から2026-10-27の未明、悪い側は2026-10-27のまま保ちます。この日付は、線が1600 msである間だけ成り立ちます。残りは39本です。受付が回す目標は2026-10-23です。T-RP-32-014の直し（約20分）は、残り39本に入れず、別に数えます。
-発話の終わりの判定を測るための記録（VADのtraceと影の印）が入りました。判定の結果は変えていません。
-Pythonを消す手順の設計と実装（文書の書き替え、R12a1、R12a2、R11c）が入りました。Pythonのfileは0本です。
-RP-19のうち、Rustのtestへ写していない行は151行で、R13-1〜R13-13が写し、そのうちR13-6（ITN）、R13-10（設定の書き出し）、R13-12（話者の束ね直し）が入りました。
-Tの受入のtestの名前が実装のtestと同じであることを確かめる設計（RP-82）が入りました。R13-15、R13-16、R13-17を出せます。実装はまだです。
-GPUの無い機械でCPUへ落ちる確認をCIで走らせる設計（R13-18）が入りました。実装はまだです。
-R13-18のtestの定義（T-RP-16-052〜062の11本）も入り、R13-18を出せます。
-重ね窓は、設計と部品（`hayamimi-ui` の `lanes`）に加えて、`hayamimi-overlay` のcrateが入りました。窓を開く受入（OV-V）はまだで、窓としては動きません。
-GitHubのCIは、ubuntuとwindowsの両方で成功しました。
-R13-17の受入test（各 `final` の有効の行が、確定した規則に従うことの確認）が入りました。Tで実装がまだの印が付くのは、T-RP-10-007とT-RP-16-037の2本です。
-R13-18（GPUの無い機械でCPUへ落ちる確認をCIで走らせる実装）が入り、R13-18は済みました。GitHubのCIは、ubuntuとwindowsの両方で成功しました。T-RP-16-037の「実装がまだ」の印は、R13-16の分として残ります。
-片づけの道具（`scripts/tidy-branches.sh`）が、親が全部 main に在る検証の木を外せるようになりました。
-前の検証の merge の上に積んだ検証の木も、main へ merge しても main の木が変わらず、main に無い通常の commit が 0 件なら外せるようになりました（`fix/tidy-tree-equal`）。
-RP-83〜87のtestの定義が入りました。R8x-1、R8x-2a、R8x-2b、R8x-3、R8x-4は済みました。残る道は窓E1、窓E3'、窓E4です。`rp79.rs`、L3、R8x-6、R8x-6b、窓E2、窓E3（WとXの対）は止めています。
-方針Bのofflineの門（H100）は落ちました。BはLを縮める組から外し、打ち直しはこれ以上求めません。
-RP-79の止めの印とRP-86 (0)の定義が入りました。窓E2（RP-79のrun）は止めたままです。
-L2の影の門の確認（`r8v_probe`）とその記録（`docs/results/r8v/`）が入りました。
-E2E-1、E2E-2、RP-3も標本ごとの線で有効を数える設計（H88）と、logの書き込みを認識のループから外す設計（R8y-1、R8y-2。Lを縮める組の外の別枠）が入りました。logの書き込みを外す設計の実装はまだです。標本ごとの線は、E2E-1とE2E-2には実装しました（下のR8x-2bの行）。RP-3にはまだです。
-R8y-1はR8x-3の後に出します。
-R8x-2は、R8x-2a（`rp67.rs` を作る。合否のtestは入りました。実走の行は `docs/results/rp67/` の記録を要し、窓E3'と窓E4を待ちます）とR8x-2b（H88のcode）に分かれました。
-CとDのofflineの門（R8x-5）を今の規則を相手に打ち、落ちました。CとDを足すと、早い終わりだけの割れはlat-jaで4から6、held-out jaで9から26に増え、後ろに声が続く確定はheld-out jaで9から18に増えます。Dは遅い2つの発話のうち22を192 ms早く確定し、16には効きません。記録は `docs/results/r8v/extra.md` です。
-評議の判定で、CとDは両方外しました。R8x-6、R8x-6b（`rp86.rs`）、RP-86、RP-87は止めました（`rust_port.ja.md` のH132）。
-RP-67の合否の線は、p95 1600 ms以下になりました。1200 msと1000 msは目標として残します。今は1200 msに届いておらず、今の組の見積りはp95 約1473 msです。1600 msは悪くなることを止める線で、速さの目標ではありません。
-残りの道は、R8x-4の品質のprobeと実走、窓E1、窓E3'（jaを2本、enを1本、約1時間20分）、窓E4です。
-R8x-1（E2Eのrunの門、RP-83）の実装が入り、済みました。`hayamimi-eval stream` が `<run>.machine.jsonl` を書き、前後のloadとrunの間のcargoとrustcを見ます。残りは39本です。
-RP-80に、CIの旗が前の語にくっついた形（`x--test` など）で落ちる条件を足す設計（R11d、H133）が入りました。くっつくとCIは緑のまま、そのbinaryはほとんど何も走らせません。この検査（R11d）が入り、rp80が28本になりました。39本の外の別枠です。
-R8x-3（認識器の初回の復号、RP-84）の実装が入り、済みました。最初の発話の復号が、`/ingest` の前に済みます。残りの数は、数え直していません。
-R8x-4（数字や中の記号だけが違う下書きを使い回す、RP-85）の実装が入りました。品質のprobeと実走は、まだ打っていません。
-設計の数を3か所直しました（448を443、306を300）。文書だけの変更です。
-R8x-2b（H88）の実装が入り、済みました。E2E-1とE2E-2の受入testは、標本を閉じた規則の線（`early` は120 ms、ほかは `--min-silence`。Pythonは常に `--min-silence`）で有効を数えます。規則は `<run>.hayamimi.stdout.log` から読みます。`decided` の行が無い `final`、同じidが2回出る `decided`、同じ `t_us` に規則の違う `final` が2つ在る標本は、runとidを名指して断ります。早い規則を持たないbuildの記録4本（`e2e1`、`e2e2`、`rs1`、`e2e2c`）はsha256の一覧に載せ、出力に断りを付けて300 msで数えます。RP-3の行（T-RP-3-022、023）は `rp03.rs` が無いので未実装のままです。残りは38本です。
-窓E1、E3'、E4のための訳のserverのunit（`native/hayamimi-relay/units/hayamimi-llama-e2e.service`、port 18084）の定義が入りました。unitを起こすのは窓の席で、まだ起こしていません。
-窓E1、E3'、E4は、常にこのunit（port 18084）の訳のserverを使うように、設計を直しました。8080は別のappが別のmodelで起こすことがあり、`L` の物差しが変わるためです。
-R8x-4の品質のprobe（RP-85の(3)）が当てる訳のserverも、8080から18084に替えました。
-RP-19の写した名前のfile名を、固定の一覧の持ち主の札で決める設計とtestの定義が入りました。Pythonを消すR13の検査（`rp19.rs`）が、1つの持ち主の名前を複数のsliceに分けて置けるようになりました。R13の残りのsliceはこの上で進みます。
-窓E1、E3'の記録（`docs/results/r8x/`）が入りました。`L` のp95はjaが1456〜1506 ms、enが1141 msで、1600 msの内です。ただしenのrunは機械の門（RP-83）で落ちたrunの値で、RP-67の合格は確定していません。初回の発話の遅れ（RP-84）、数字だけ違う速報の使い回し（RP-85 (4)）、enのrunの門（RP-83）の3つは未達で、直す設計に入ります。
-窓E3'で落ちた3つを直す設計と、そのtestの行が入りました。句読点の段も起動の時に温める（RP-84）、数字だけ違う速報の速さは鍵が合う標本で数える（RP-85 (4)）、runの門はrun自身の負荷を引いて比べる（RP-83）。3つを直す実装が入り、窓E3''の実機のrun（日本語2本、英語1本）で3つとも通りました。発話の終わりから訳の字幕までの遅れのp95は、日本語が1484.8 msと1474.1 ms、英語が1089.1 msです。合格の線は1600 msで、1200 msの目標には日本語がまだ届いていません。
+- Pythonの78本と `requirements*.txt` は消えていて、消す前の版は tag `archive/python-before-r11` から取り出せます（[`status.ja.md` の14行目と34行目](docs/design/status.ja.md)）。
+- 端から端の確認（E2E）は、録音した音声を流す受入testが2本とも通っていて、実機のマイクに人が話した日本語での確認は未実施です（NOT VERIFIED、[`status.ja.md` の319行目と39行目](docs/design/status.ja.md)）。
+- `L` のp95の最新は、窓E3''の実機のrunで、日本語が1484.8 msと1474.1 ms、英語が1089.1 msであり、合否の線（RP-67）の1600 ms以下には3本とも入っていて、完成の後の目標の1200 msには、英語は届いていて、日本語は届いていません（[`status.ja.md` の28行目](docs/design/status.ja.md)、記録は [`docs/results/r8x/`](docs/results/r8x/) の `e3q*`）。
+- 最後の判定の窓E4は未実施で、2026-10-15のbuildの記録（[`docs/results/e2e/`](docs/results/e2e/)）では、日本語のp95が1871.7 msと1600 msの線の外にあります（[`status.ja.md` の28行目](docs/design/status.ja.md)）。
+- 認識はCPU（int8）で動かしていて、置き場の測り直しでGPU（fp32）より速かったためですが、測った時の機械の負荷が高く、値はNOT VERIFIEDで向きだけを採っています（[`status.ja.md` の31行目と314行目](docs/design/status.ja.md)）。
+- E2Eの窓で使う訳のserver（llama-server、CAT-Translate-3.3bのQ8_0）は、GPUに全層を載せる設定（`-ngl 99`）です（[`hayamimi-llama-e2e.service` の58行目](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
+- sliceごとの進み具合と残りは [`docs/design/status.ja.md`](docs/design/status.ja.md)
 
 ### 関連する文書
 
 - 設計：[docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
-- sliceごとの状態：[docs/design/status.ja.md](docs/design/status.ja.md)
 - buildと実行の手順：[docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
 
 [![tests](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml/badge.svg)](https://github.com/oboroge0/hayamimi/actions/workflows/test.yml) [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![release](https://img.shields.io/github/v/release/oboroge0/hayamimi)](https://github.com/oboroge0/hayamimi/releases)

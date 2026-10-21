@@ -326,6 +326,10 @@ jq -s -r '[.[]|select(.event=="asr.feed.waited")|.wait_ms]|sort as $v|($v|length
 run の前と後に `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits` を 1 回ずつ読んだ値です。
 読めなかった側は `null` で、run は止めずに warn の `eval.stream.gpu_unreadable` を出します。
 
+`hayamimi-eval stream --out <run>.jsonl` は `<run>.machine.jsonl` も書きます。
+音声を送り始める前に 1 行、その後は最後の行まで 5 秒ごとに 1 行、最後の event を受けた後に 1 行です。
+1 行は `t_us`、`load1`、`load5`、`load15`（`/proc/loadavg` の 3 つ）、`cargo`、`rustc`（その名前の process の数）を持ちます。
+
 Python と Rust の対は、run の前の読みのどちらかの `utilization.gpu` が 5 % を超えるか、`memory.used` の差が 256 MiB を超えれば無効です（`hayamimi_eval::gpu_load::pair_is_valid`。2 つの幅は仮の値）。
 
 訳の取れた割合は `hayamimi_eval::compare::check_translated_share` が数えます。
