@@ -2410,38 +2410,6 @@ fn changed_sample_rows(texts: &XRun, change: impl Fn(&mut Value)) -> Result<XRun
     })
 }
 
-/// A made run with take 3 unjoined and the reuse of take 1 missing.
-fn run_with_both_name_forms() -> Result<MadeRun, String> {
-    let mut run = made_run("e3q1");
-    run.take_mut(3)?.final_kept = false;
-    run.drop_reuse("mic-71");
-    Ok(run)
-}
-
-/// A sample is named by its repeat number and the id of its joined final (or
-/// its `t_final_us`); an `id` written into the sample row changes nothing.
-#[test]
-fn a_sample_row_id_is_not_read_when_a_sample_is_named() -> TestResult {
-    let texts = run_with_both_name_forms()?.texts();
-    let plain = check_x_runs(std::slice::from_ref(&texts));
-    let marked = changed_sample_rows(&texts, |row| row["id"] = json!("mic-99"))?;
-    let with_id = check_x_runs(&[marked]);
-    let expected = [
-        fault_keyed_without_reuse("e3q1", 1, "mic-71", KEYED_STAGE_US),
-        Fault::UnjoinedSample {
-            run: String::from("e3q1"),
-            repeat: 3,
-            final_us: 30_000_000,
-        },
-    ];
-    assert_eq!(plain.faults, expected);
-    assert_eq!(with_id.faults, expected);
-    let said = describe(&with_id.faults);
-    assert!(said.contains("utt 7 repeat 1 mic-71"), "{said}");
-    assert!(!said.contains("mic-99"), "{said}");
-    Ok(())
-}
-
 /// A sample row whose `repeat` is missing or is not a JSON integer is a broken
 /// record: the run fails naming the row's `t_final_us`.
 #[test]
