@@ -119,6 +119,12 @@ struct StreamArgs {
     /// Where the machine's load and processes are read from: `loadavg` and `<pid>/comm`.
     #[arg(long, default_value = "/proc")]
     proc_root: PathBuf,
+    /// The pid of one of the run's own processes (`hayamimi`, its relay, the
+    /// translation `llama-server` on port 18084); give it once for each. The
+    /// machine record then keeps their CPU time, and the run is refused when
+    /// the three are not exactly these.
+    #[arg(long = "own-pid")]
+    own_pid: Vec<u32>,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -266,6 +272,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
                 gap_ms: args.gap_ms,
                 drain_s: args.drain_s,
                 proc_root: args.proc_root,
+                own_pids: args.own_pid,
             })
             .map(|_| ())
         }
