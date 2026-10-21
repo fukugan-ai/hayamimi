@@ -254,10 +254,13 @@ impl Vad {
     /// checks [`Vad::is_idle`] first; the old detector is kept when the new
     /// one cannot be built.
     pub fn rebuild(&mut self, sensitivity: Sensitivity) -> Result<(), AsrError> {
-        self.detector = build(&self.models, sensitivity)?;
-        if self.early.is_some() {
-            self.early = Some(build(&self.models, early_sensitivity(sensitivity))?);
-        }
+        let detector = build(&self.models, sensitivity)?;
+        let early = match self.early {
+            Some(_) => Some(build(&self.models, early_sensitivity(sensitivity))?),
+            None => None,
+        };
+        self.detector = detector;
+        self.early = early;
         self.sensitivity = sensitivity;
         self.offset = self.fed;
         Ok(())
@@ -266,13 +269,30 @@ impl Vad {
 
 #[cfg(test)]
 thread_local! {
-    /// Armed by a test: the next detector build on this thread fails once.
-    static FAIL_NEXT_BUILD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Armed by a test: this many detector builds on this thread succeed, and
+    /// the one after them fails once.
+    static FAIL_BUILD_IN: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+}
+
+/// Whether the build that is starting is the one a test armed to fail.
+#[cfg(test)]
+fn injected_failure() -> bool {
+    FAIL_BUILD_IN.with(|armed| {
+        let passing = armed.get();
+        if passing == Some(0) {
+            armed.set(None);
+            return true;
+        }
+        if let Some(left) = passing {
+            armed.set(Some(left - 1));
+        }
+        false
+    })
 }
 
 fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetector, AsrError> {
     #[cfg(test)]
-    if FAIL_NEXT_BUILD.with(std::cell::Cell::take) {
+    if injected_failure() {
         return Err(AsrError::Create("VAD (injected failure)"));
     }
     let config = silero_config_with(models, sensitivity.settings(), sensitivity.threshold)?;
@@ -283,7 +303,11 @@ fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetecto
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::{read_wav, windows};
     use crate::{Engine, Gpu, Reason, Settings};
+
+    /// A golden clip with speech in it, relative to this crate.
+    const GOLDEN_CLIP: &str = "../../tests/golden/ja/ja_014.wav";
 
     #[test]
     fn the_defaults_are_the_measured_values() {
@@ -327,7 +351,69 @@ mod tests {
     }
 
     fn fail_next_build() {
-        FAIL_NEXT_BUILD.with(|armed| armed.set(true));
+        fail_build_after(0);
+    }
+
+    /// Lets `passing` builds succeed, then fails the next one.
+    fn fail_build_after(passing: u32) {
+        FAIL_BUILD_IN.with(|left| left.set(Some(passing)));
+    }
+
+    #[test]
+    fn live_vad_failed_early_rebuild_keeps_the_old_detector() -> Check {
+        let mut vad = Vad::open_with_early(&models_dir()?, VadSettings::default())?;
+        vad.accept(&[0.0; WINDOW]);
+        let active = vad.sensitivity();
+        // A detector that cuts speech after one second makes other segments
+        // from the clip than the default one, which tells the two apart.
+        let short = Sensitivity {
+            max_speech: 1.0,
+            ..active
+        };
+        let clip = [
+            read_wav(&Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_CLIP))?,
+            vec![0.0_f32; SAMPLE_RATE as usize],
+        ]
+        .concat();
+        let expected = segments_heard(
+            &mut Vad::open(&models_dir()?, VadSettings::default())?,
+            &clip,
+        )?;
+        let changed = segments_heard(
+            &mut {
+                let mut vad = Vad::open(&models_dir()?, VadSettings::default())?;
+                vad.rebuild(short)?;
+                vad
+            },
+            &clip,
+        )?;
+        assert_ne!(changed, expected, "the two settings must be told apart");
+
+        // The main detector is built, then the early one fails.
+        fail_build_after(1);
+        let said = vad.rebuild(short).err();
+        assert!(matches!(said, Some(AsrError::Create(_))), "{said:?}");
+        assert_eq!(vad.sensitivity(), active);
+        assert!(vad.has_early(), "the early detector is still open");
+        assert_eq!(vad.offset, 0);
+        assert_eq!(vad.fed, WINDOW);
+
+        // The old detector is the one still in use: it cuts the clip as before.
+        assert_eq!(segments_heard(&mut vad, &clip)?, expected);
+        vad.rebuild(short)?;
+        assert_eq!(vad.sensitivity(), short);
+        assert_eq!(vad.offset, vad.fed);
+        Ok(())
+    }
+
+    /// The lengths of the segments `vad` makes from `clip`, taken after each window.
+    fn segments_heard(vad: &mut Vad, clip: &[f32]) -> Result<Vec<usize>, AsrError> {
+        let mut lengths = Vec::new();
+        for window in windows(clip) {
+            vad.accept(&window);
+            lengths.extend(vad.take_segments()?.iter().map(|found| found.samples.len()));
+        }
+        Ok(lengths)
     }
 
     #[test]
