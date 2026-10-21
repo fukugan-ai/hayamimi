@@ -199,8 +199,8 @@ R8x-5 の offline の門は落ち（L15）、C と D は両方外した。線は
 | L19 | R8y-2：中継の log の queue（RP-88）。別枠の強化 | 間接。L18 と同じ（完成までの 39 本の外。E1 の流し直しで止まりが再び出たら完成の条件に上げ、その時は約 111 分と窓 20 分を足す） | L18 | cargo（`hayamimi-relay`） | 51 分（推測） | 同上 |
 | L20 | 済み（`5274a30`）。R11d：rp80 に、CI の `run:` の行で `--test`、`--skip`、`--exact`、`--ignored`、`--include-ignored` が前の語にくっついた形で落ちる検査を足す（RP-80）。くっつくと CI は緑のまま、その binary はほとんど何も走らせない | 間接。完成までの 39 本の外（別枠）。完成の 3 つの条件の合否は検証の席が手で打つ test で決まり、CI の緑を根拠にしないため。ただし同じ欠陥が 3 回出たので、`test.yml` を次に書く slice の merge より前に出す | T の RP-80 の case 行（test-designer の席）。`test.yml` を書く slice とは触る file が違うので並べて出せる | cargo（`hayamimi-eval`） | 30 分（推測）と検証と merge 7〜20 分 | `rust_port.ja.md` の 6 の RP-80、8 の R11d、H133 |
 | L21 | R8x-7：句読点の段の温め（RP-84）。`Engine::warm_up` が Rz の復号の後に 64 字の文を `Punctuator::restore` に 1 回掛け、`asr.warmup.decoded` に `punct_ms` を足す。受入の判定の文と test の名前は変えない | 直接 | T の RP-84 の case 行（test-designer の席） | cargo（`hayamimi-asr`、`hayamimi`、`hayamimi-eval`） | 51 分（推測） | `rust_port.ja.md` の 3.21 の 1 |
-| L22 | R8x-8：RP-85 の (4) の数え方。発話 7 の標本を製品の `reuse_match` で分け、鍵が合う標本（各 run で 3 以上）だけで訳の段の最大を 182 ms と比べ、合う標本が使い回されたことを確かめる。test だけで、鍵と中継は変えない | 直接 | T の RP-85 の case 行（test-designer の席）、評議の判定（`rust_port.ja.md` の H141） | cargo（`hayamimi-relay`） | 40 分（推測） | `rust_port.ja.md` の 3.21 の 2 |
-| L23 | R8x-9：RP-83 の判定で、最後の行の `load5` から run 自身の分（`--own-pid` の process の CPU 時間を 5 分の指数で均した値）を引く。線 2.50 は変えない | 直接 | T の RP-83 の case 行（test-designer の席）、評議の判定（H141） | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.21 の 3 |
+| L22 | R8x-8：RP-85 の (4) の数え方。発話 7 の標本を製品の `reuse_match` で分け、鍵が合う標本（各 run で 3 以上）だけで訳の段の最大を 182 ms と比べ、合う標本が使い回されたことを確かめる。test だけで、鍵と中継は変えない | 直接 | T の RP-85 の case 行（test-designer の席）、設計の merge | cargo（`hayamimi-relay`） | 40 分（推測） | `rust_port.ja.md` の 3.21 の 2 |
+| L23 | R8x-9：RP-83 の判定で、最後の行の `load5` から run 自身の分（`--own-pid` の process の CPU 時間を 5 分の指数で均した値）を引く。線 2.50 は変えない | 直接 | T の RP-83 の case 行（test-designer の席）、設計の merge | cargo（`hayamimi-eval`） | 60 分 | `rust_port.ja.md` の 3.21 の 3 |
 | L24 | 窓 E3''：L21〜L23 が入った 1 つの build で、ja を 2 本、en を 1 本（名前は `e3q1.e2e1`、`e3q2.e2e1`、`e3q1.e2e2`。RP-84、RP-85 の (4)、RP-83 の en、RP-67 の ja と en）。`e3p` の記録は上書きしない | 直接 | L21、L22、L23 | E2E の窓と GPU。窓の間はどの席も cargo を打たない。訳の server は常に `hayamimi-llama-e2e.service`（18084） | 約 1 時間 20 分 | `rust_port.ja.md` の 3.21 の 4 |
 | O1 | 重ね窓の板（designer）、slice の行を 8 に置く設計【設計の席の返答で直す】 | 直接（goal と FR-9） | 会話字幕の設計 3.12 | 設計の席、designer の席 | 板と設計で約 4 時間（R6 の板から merge までの実績） | 3.12、CS-10〜CS-12 |
 | O2 | 重ね窓の crate と CS-10〜CS-12【設計の席の返答で直す】 | 直接 | O1 | cargo、Windows の実機 | 3 slice（推測） | 同上 |
@@ -284,7 +284,7 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 - **PL-H4** `L` の埋め方の表は、1 つの build の 3 run（ja だけ）の標本の段を置き換えた計算で、段の間の待ちの干渉と load は入っていない（ASSUMPTION）。en は今の build で測っていない（L9）。
 - **PL-H5** RP-71 の訳の縮み、L5 と L8 の量、重ね窓の量は記録に実績が無い（推測）。L8 は評議で止まりうる。R8v の設計（3.17）は merge から 5 日で実装に入っていない。
 - **PL-H6** 英語版 `status.md` に、この節の訳を足した。2 本は、日本語を先に直して揃える。
-- **PL-H10** L21〜L24（3 slice と窓 E3''）は、残りの本数と完成の日付の数えに入っていない。足す量は slice が約 2 時間 30 分（51 分、40 分、60 分。推測）と窓の約 1 時間 20 分で、L11（窓 E4）は L24 の後になる。L22 と L23 は評議の判定（`rust_port.ja.md` の H141）を待ち、L21 は待たずに出せる。数え直すのは、計画の数を次に書く席である。
+- **PL-H10** L21〜L24（3 slice と窓 E3''）は、残りの本数と完成の日付の数えに入っていない。足す量は slice が約 2 時間 30 分（51 分、40 分、60 分。推測）と窓の約 1 時間 20 分で、L11（窓 E4）は L24 の後になる。評議は 3.21 の 2 を採り、3 を `llama-server` の pid を cmdline の `--port 18084` で確かめる形を足して採った（`rust_port.ja.md` の H141）。L21〜L23 は設計の merge の後に出せる。数え直すのは、計画の数を次に書く席である。
 
 ## slice ごとの状態
 
