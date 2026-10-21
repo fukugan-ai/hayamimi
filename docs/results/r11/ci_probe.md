@@ -51,6 +51,16 @@ Three unit tests of `hayamimi-asr` read `models/silero_vad.onnx`, which a clone 
 They are skipped by name: `live_vad_failed_rebuild_preserves_active_and_pending_state`,
 `live_vad_empty_update_does_not_rebuild_detector`, `live_vad_failed_early_rebuild_keeps_the_old_detector`.
 
+## Tests marked `#[ignore]` in a binary the CI runs
+
+The `ja_golden` binary of `hayamimi-asr` runs in the CI: two of its tests read only the tracked `tests/golden/ja/`.
+The other two carry `#[ignore]` because a clone has neither `testdata/` nor `models/`.
+
+| test | reason | crate |
+|---|---|---|
+| `references_still_match_the_fleurs_manifest` | reads `testdata/fleurs_bench/ja/manifest.json` | hayamimi-asr |
+| `pipeline_still_produces_the_golden_text` | reads the Japanese route under `models/` and runs it on the GPU | hayamimi-asr |
+
 ## Programs the test step needs first
 
 `rp27` runs `rg` (ripgrep) to count imports, and the runner does not carry it, so the workflow installs it (`apt-get` on Linux, `choco` on Windows).
