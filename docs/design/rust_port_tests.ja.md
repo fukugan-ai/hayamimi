@@ -2702,7 +2702,7 @@ command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo t
 - 途中の打ち切りで `rustc` の process が現れる形は走らせない（13 秒かかる行を増やさない）。`cargo` と `rustc` は同じ数え方（034 と 010、012）を通る。
 - 056 から 090 は、3.21 の 3 の 1、3、7 で決まった形で書いた（`--own-pid` の 0 個は今のまま動き、行は `own` 等を持たない：087。`stream` 自身の pid は足さない：068。`own` の要素は `{"pid","comm"}`：O83。`own_fault` の 4 語：069 から 078、081 から 084、090。`reason` の順 `own_pid`、`load1`、`load15`、`build`：085。`--port=18084` は拒む：083。`--port` が 2 つは拒む：084。途中の行の stat の null：088 と 065。判定の出力の 1 行：089）。
 - 設計の文のうち、case 行にしていない物：
-  1. H138 の unit test（自分の process の中で CPU を使う thread を走らせ、終えた thread の ticks が `/proc/<pid>/stat` の値に数えられていること。子 process は起こさない）は、受入 ID の行ではなく R8x-9 の席の test である。
+  1. H138 の unit test（自分の process の中で CPU を使う thread を 1 本走らせる。その thread は自分の `/proc/thread-self/stat` の utime と stime の和が 1 tick 以上になるまで回し、終わる直前にその和を読む。join の後、`/proc/self/stat` の和が `/proc/self/task/*/stat` の和と終わった thread の値の和以上であることを見る。実の `/proc` を読むだけで、file を書かず、子 process も起こさない）は、受入 ID の行ではなく R8x-9 の席の test である。
   2. H142（llama-server が argv を書き換えないこと）と H143（`stream` 自身の CPU を引かない量）は、窓の席が報告に書く事で、test の行にならない。
   3. 拒んだ時の最初の行が `own` を持つか。設計は「最初の行は今と同じく 1 行書く」とだけ書くので、085 は行数だけを見る。
 
