@@ -1782,7 +1782,7 @@ cargo の並列は 2（`~/.cargo/config.toml`）で、E2E の窓の間はどの�
 | R8x-7（RP-84 の句読点の温め。3.21 の 1） | `native/hayamimi-asr/src/punct/mod.rs`（`WARMUP_CHARS` と温めの文）、`native/hayamimi-asr/src/pipeline.rs`（`Engine::warm_up` が Rz の復号の後に `Punctuator::restore` を 1 回、`Warmup` に `punct_ms`）、`native/hayamimi/src/log.rs`（`asr.warmup.decoded` の `punct_ms`、`asr.warmup.failed` の `stage`）、`native/hayamimi/data/strings.*.toml`（文言を変える時だけ）、`native/hayamimi-eval/tests/rp84.rs`（`punct_ms` の条件、読む run の頭の字を `e3q` に）と `fixtures/rp84_recorded/`、`native/hayamimi/tests/rp84_start.rs`（起動の run の `punct_ms` が数） | T の RP-84 の case 行（test-designer の席）。`run.rs` と `session.rs` は触らない | cargo（`hayamimi-asr`、`hayamimi`、`hayamimi-eval`） | 51 分（推測） |
 | R8x-8（RP-85 の (4) の数え方。3.21 の 2） | `native/hayamimi-relay/tests/rp85.rs` だけ（`<run>.events.jsonl` を読む、`hayamimi_relay::partial::reuse_match` で標本を分ける、速報は 1 つ前の `final` の後から取る、確定文に結べない標本で run を落とす、前の速報の無い標本を理由 `no_draft` で合わない側に並べる、鍵が合う標本の `translate.draft.reused` を確かめる、最大を 182 ms と比べる、読む run の頭の字を `e3q` に）。製品の code は変えない | T の RP-85 の case 行（T-RP-85-026〜031 の直し。test-designer の席） | cargo（`hayamimi-relay`） | 40 分（推測） |
 | R8x-9（RP-83 の run 自身の分。3.21 の 3） | `native/hayamimi-eval/src/machine.rs`（`own`、`clk_tck`、`own_cpu_ticks`、`cpu_some_total`、pid の確かめの 4 段と `own_fault`、comm が `llama-server` の pid の `/proc/<pid>/cmdline` の語 `--port` の次の語が `18084` であることの確かめ、`reason` の順の先頭の `own_pid`、event の `own_fault` と `own_pid`、途中で読めない pid の行の null、unit test `the_process_stat_counts_the_ticks_of_its_ended_threads`（10 の H138）。`--own-pid` が 0 個の時は今の行のまま）、`native/hayamimi-eval/src/stream.rs` と `src/cli.rs`（`--own-pid`。`stream` 自身の pid は足さない）、`native/hayamimi-eval/tests/support/machine.rs`（`own5`、判定、run ごとの 1 行の出力）、`native/hayamimi-eval/tests/rp83.rs`（(9) と (10) の行）、`docs/results/e2e/README.md` の「Conditions of the run」（`--own-pid` の渡し方） | T の RP-83 の case 行（test-designer の席）。R8x-7 と R8x-8 とは触る crate が違う | cargo（`hayamimi-eval`） | 60 分 |
-| 窓 E3''（RP-84、RP-85 の (4)、RP-83 の en、RP-67 の ja と en。3.21 の 4） | R8x-7、R8x-8、R8x-9 が入った 1 つの build で、ja（E2E-1）を 2 本、en（E2E-2）を 1 本。名前は `e3q1.e2e1`、`e3q2.e2e1`、`e3q1.e2e2`。`stream` に `--own-pid` で hayamimi、中継、18084 の llama-server の pid を渡す。報告は en の最後の行の `load5`、`own5`、引いた後の値を数で出す（3.21 の 3 の決め 6） | R8x-7、R8x-8、R8x-9 | E2E の窓、GPU | 約 1 時間 20 分 |
+| 窓 E3''（RP-84、RP-85 の (4)、RP-83 の en、RP-67 の ja と en。3.21 の 4） | R8x-7、R8x-8、R8x-9 が入った 1 つの build で、ja（E2E-1）を 2 本、en（E2E-2）を 1 本。名前は `e3q1.e2e1`、`e3q2.e2e1`、`e3q1.e2e2`。`stream` に `--own-pid` で hayamimi、中継、18084 の llama-server の pid を渡す。3 つの process は、`stream` が終わり `<run>.machine.jsonl` の最後の行が書かれてから止める（先に止めると最後の行の `own_cpu_ticks` が null になり run が落ちる）。報告は en の最後の行の `load5`、`own5`、引いた後の値を数で出す（3.21 の 3 の決め 6） | R8x-7、R8x-8、R8x-9 | E2E の窓、GPU | 約 1 時間 20 分 |
 | 窓 E4（L11、最後の RP-67、RP-32、RP-73） | 清書まで入った build | P3、E3'' | E2E の窓、GPU | 約 2 時間 |
 
 R8x-1、R8x-3、R8x-4 は触る crate が違うので、別の worktree で並べて出せる。
@@ -2063,6 +2063,7 @@ RP-67 の実走の行（`docs/results/rp67/` を読む）は、今までと同�
 
 窓 E3'' の手順は 3.19 の「窓の訳の server」と「走らせる前の壊れ方」のとおりで、足す物は `--own-pid` の 3 つの pid である。
 pid は、`ss -ltnpH 'sport = :8766'` と中継の待ち受けの port で引いた pid と、`systemctl --user show -p MainPID --value hayamimi-llama-e2e.service` の値を使う。
+3 つの process（hayamimi、中継、llama-server）は、`stream` が終わり、`<run>.machine.jsonl` の最後の行が書かれてから止める。`stream` は最後の event を受けた後に最後の行を書き（3.19 の「E2E の run の門」の 1）、その時に stat が読めない pid が在ると `own_cpu_ticks` が null になって、判定がその行を名指して落とす（3.21 の 3 の 1 と 3）。
 RP-85 の (3) の probe は E3' で通ったので、打ち直さない。
 
 #### 構造
@@ -2096,6 +2097,10 @@ RP-85 の (3) の probe は E3' で通ったので、打ち直さない。
 - **`stream` 自身の pid を足す**：fixture の `/proc` に子の pid を前もって置けず、test が `own_cpu_ticks` を固定できない。足さない分は引く量が減る側で、門は通しすぎない。足さないので、受ける comm から `hayamimi-eval` を外す。
 - **`--port=18084` も受ける**：その形を生む unit が無い。受ける形を増やすほど、別の app の server を通す綴りも増える。
 - **18084 で listen している pid を `/proc/net/tcp` と fd の socket から引いて確かめる**：listen を直に見る分だけ確かだが、`--proc-root` の fixture に net と fd を組む手間が増え、cmdline の確かめで別の app の server は既に外れる。
+- **`own_pid` を拒みの理由の最後に置く**：load が下がるのを待ってから引数の誤りを知ることになり、待った時間を失う。引数の誤りは待っても直らない。
+- **`own` を pid を鍵にした JSON の object にする**：JSON の鍵は文字列なので pid が整数でなくなり、渡された順も失う。配列の `{"pid", "comm"}` なら型と順が残る。
+- **途中で stat が読めない pid が出たら `stream` を止める**：音声の途中で run が切れ、残りの行が書かれない。行を null にして書き続ければ、記録は最後まで揃い、判定がその行を名指して落とす。
+- **窓の報告の `own5` を、報告の席が jq や awk で file から計算する**：判定と別の式がもう 1 本でき、2 本が食い違っても気付けない。判定が出す 1 行を写す。
 - **確定文に結べない標本を合わない側に入れる**：鍵が合って遅い標本が結べない形で隠れると、182 ms の判定から外れて通る。run を落とす。
 - **前の速報の無い標本で run を落とす**：速報が無い標本は中継に使い回す答えが無く、鍵が合わないのと同じ形である。速報が出る前に確定したことで落とすと、(4) が測る物（鍵の広げで訳の段が縮むか）と別の事情で落ちる。数が足りなければ「3 以上」が落とす。
 - **run の process の load を下げる（ORT の spin を止める、`omni` を起動の時に読む）**：製品の形と `L` を変える別の問いで、門の直しに混ぜない（10 の H139）。
@@ -2103,7 +2108,7 @@ RP-85 の (3) の probe は E3' で通ったので、打ち直さない。
 
 #### 受入、slice、残る穴の在り処
 
-受入は 6 の RP-83、RP-84、RP-85 の行（直した文）で、test の名前は 7 の表のまま、slice は 8 の R8x と 3.19 の「順と slice」の R8x-7〜R8x-9 と窓 E3''、残る穴は 10 の H136〜H145 である。
+受入は 6 の RP-83、RP-84、RP-85 の行（直した文）で、test の名前は 7 の表のまま、slice は 8 の R8x と 3.19 の「順と slice」の R8x-7〜R8x-9 と窓 E3''、残る穴は 10 の H136〜H146 である。
 各 ID の case 行（T）は、test-designer の席が R8x-7〜R8x-9 の席より先に直す。
 
 ## 4. 採らない手段
@@ -3326,7 +3331,7 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H135** `docs/spec/ja_pipeline_spec.json` は `hayamimi config dump` の出力で作り直すので、dump が実行時の値を読まずに宣言した値を出す項目は、実装の値が動いても spec との差に出ず、drift を検出しない。どの項目がその形かは数えていない（NOT VERIFIED）。数えるのは R13-10 の検証の席で、作り直した spec の差が 3.9 の表の 3 つの例外だけであることと合わせて、項目ごとに dump が値をどこから読むかを確かめる。
 - **H136** 句読点の温めを 64 字の文 1 回で済ませると、最初の発話の句読点が残りと同じ速さになるか（ASSUMPTION）。遅さが CUDA の最初の推論の 1 回だけの準備か、入力の長さごとの作業域の確保かは測っていない。窓 E3' の残りの `punct_ms` の最大は 81.825 ms と 66.666 ms で、長さごとの費用が残っても RP-84 の p95 の内に入る見込みである（推測）。RP-84 が窓 E3'' で受け、落ちたら、長さを 3 つ（16、32、64 字）にして 3 回打つ案を評議へ出す。持ち主は R8x-7 の席と E2E の席。
 - **H137** 認識器の確定文が、同じ発話の最後の速報と字で違う標本がある（発話 7 の 4 回目の「連合国が」、発話 1 の 1 回目の「ソダンキ」と「ソランキ」）。この標本は鍵の広げでは縮まず、`L` から使い回しの縮みを差し引く。全発話でこの形が何標本あるかは数えていない（NOT VERIFIED）。同じ流れの同じ位置で同じ字が出るか（2 本とも 4 回目が「が」）も確かめていない。数えるのは原因分析の席で、鍵を変える案は採らない（3.21 の採らない手段）。
-- **H138** RP-83 の run 自身の分（3.21 の 3）は、CPU 時間で load の寄与を見積もる（ASSUMPTION。待ちの時間は数えないので少なめに出る）。`/proc/<pid>/stat` の utime と stime が process の全 thread（終わった thread を含む）の和であることは、man page の文に書かれていない（S47。ASSUMPTION）。R8x-9 の席は、unit test `the_process_stat_counts_the_ticks_of_its_ended_threads`（`native/hayamimi-eval/src/machine.rs` の `#[cfg(test)]`）で確かめる。test は自分の process の中で CPU を回す thread を 1 本走らせ、その thread が終わる直前に `/proc/thread-self/stat` の utime と stime を読み、join の後に `/proc/self/stat` の和が、`/proc/self/task/*/stat` の和と終わった thread の値の和以上であることを見る。実の `/proc` を読むだけで、file を書かず、子の process も起こさない。線 2.50 は、run 自身の分を含む値で置いた線である。窓 E3'' の記録で、ja と en の「引いた値」が分かったら、線を下げる側にだけ見直す（上げない）。見直すかは評議が決める。持ち主は R8x-9 の席、窓 E3'' の E2E の席、設計の席。
+- **H138** RP-83 の run 自身の分（3.21 の 3）は、CPU 時間で load の寄与を見積もる（ASSUMPTION。待ちの時間は数えないので少なめに出る）。`/proc/<pid>/stat` の utime と stime が process の全 thread（終わった thread を含む）の和であることは、man page の文に書かれていない（S47。ASSUMPTION）。R8x-9 の席は、unit test `the_process_stat_counts_the_ticks_of_its_ended_threads`（`native/hayamimi-eval/src/machine.rs` の `#[cfg(test)]`）で確かめる。test は自分の process の中で CPU を回す thread を 1 本走らせる。その thread は、自分の `/proc/thread-self/stat` の utime と stime の和が 1 tick 以上になるまで回し、終わる直前にその和を読む（0 tick のままでは比べる式が `0 ≥ 0` で必ず通り、何も確かめない）。join の後に `/proc/self/stat` の和が、`/proc/self/task/*/stat` の和と終わった thread の値の和以上であることを見る。実の `/proc` を読むだけで、file を書かず、子の process も起こさない。線 2.50 は、run 自身の分を含む値で置いた線である。窓 E3'' の記録で、ja と en の「引いた値」が分かったら、線を下げる側にだけ見直す（上げない）。見直すかは評議が決める。持ち主は R8x-9 の席、窓 E3'' の E2E の席、設計の席。
 - **H139** en の run は、`omni` の認識器を run の途中（16 発話目の前、`load_ms` 3653.567）で読み、run の 1 秒あたりの復号が ja の約 3.2〜3.3 倍である。途中の読み込みがその前後の発話の `L` を延ばしたか、起動の時に読むべきかは数えていない（NOT VERIFIED）。門の直しとは別の問いで、持ち主は en の R7 の席。
 - **H140** 窓 E3' の run の名前（`e3p<N>`）を読む T の case 行（T-RP-84-021、T-RP-84-023、T-RP-85-026〜031 など）は、窓 E3'' の名前（`e3q<N>`）と 3.21 の数え方に合わせて、test-designer の席が R8x-7 と R8x-8 の席より先に直す。`e3p` の記録は `docs/results/r8x/` に残し、どの test も読まない。
 - **H141**（評議の判定で決定）3.21 の 2（RP-85 の (4) の数え方）は採る。3.21 の 3（RP-83 の判定に run 自身の分を引く形）は、comm が `llama-server` の pid を `/proc/<pid>/cmdline` の `--port 18084` で確かめる形を足して採る（3.21 の 3 の決め 1）。R8x-7、R8x-8、R8x-9 は、この設計の merge の後に出せる。
@@ -3334,6 +3339,7 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H143** `stream` 自身の CPU は引かない（3.21 の 3 の 1）。その量は測っていない（NOT VERIFIED）。引かない分だけ「引いた値」は大きく出て、門は拒む側に倒れる。窓 E3'' の en の run が `judged` 250 前後で落ちたら、E2E の席は `stream` の pid の `/proc/<pid>/stat` の utime と stime を run の終わりに 1 回読んで報告に足し、設計の席が引く物に入れるかを決め直す。
 - **H144** RP-85 の (4) の 2（鍵が合う標本に同じ `id` の `translate.draft.reused` が要る）は、鍵が合っても中継が使い回さない形を中継の欠けとして落とす。`Mailbox::close` は、速報の依頼を worker がまだ取っていない時（`Phase::Waiting`）と、依頼が答えを返さなかった時に使い回さない（`partial.rs` の `closes`）。この形は鍵の広げの欠けではないが、今の (4) では落ちる。窓 E3' では鍵が合う標本は run ごとに 4 で、4 とも使い回されていた。窓 E3'' でこの形が出るかは確かめていない（NOT VERIFIED）。出たら、R8x-8 の席は落ちた標本の `id` と中継の stdout の `translate.partial.*`（`ok`、`held`、`aborted`、`failed`、`skipped`、`kept`）の行を添えて設計の席へ返し、扱いは評議が決める。
 - **H145** T（`rust_port_tests.ja.md`）の RP-83 と RP-85 の case 行のうち、3.21 の 2 の 6 と 3 の 1、3、7 で決めた形と食い違う行は、test-designer の席が R8x-8 と R8x-9 の席より先に直す。食い違うのは、comm が `hayamimi-eval` の pid を受ける行と、`stat` を置かない pid を受ける行（今の T-RP-83-068）、`own` の要素の綴りを test の定数に任せる行（O83）、`stream` 自身の pid を条件にしないと断った行（T-RP-83-068 の注）、「この節の設計にない物」の 7 項と RP-85 の結べない標本の 1 項である。足す行は、`--own-pid` が 0 個の `stream` の行が `own` を持たないこと、`own_fault` の 4 つの語と `own_pid` の値、`own_pid` と `load1` が同時に外れた `reason`、`--port=18084` の 1 語、`--port` が 2 つ、途中の行の null、判定の出力の 1 行、RP-85 の結べない標本と `no_draft` の標本である。
+- **H146** 3.21 の 3 の 1 は、comm が `hayamimi` と `hayamimi-relay` の pid を comm だけで受ける。別の app（同じ机で動く別の hayamimi や中継）の pid を渡すと、その CPU を run 自身の分として引き、門を通しすぎる。窓 E3'' の手順は pid を port から引く（`ss -ltnpH 'sport = :8766'` と中継の待ち受けの port）ので、穴は手で pid を取り違えた時だけである。機械では当たらない。E2E の席は、報告に 3 つの pid と、それぞれを引いた command の出力を並べ、検証の席がその出力と行 1 の `own` の pid が同じであることを読む。
 
 ## 11. 出所
 
