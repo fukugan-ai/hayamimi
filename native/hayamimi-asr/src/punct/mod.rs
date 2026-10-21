@@ -4,14 +4,19 @@
 //! [`tokenizer`] turns text into the ids the model reads (a table lookup),
 //! `bert` runs the model (on the GPU), and [`rules`] turns the scores back into
 //! a string (string rules with no model and no device).
+//!
+//! [`four`] is the other restorer, chosen with `--punct-model 4class`: one
+//! model that predicts the marks itself, so it needs no rules after it.
 
 mod bert;
+pub mod four;
 pub mod rules;
 pub mod tokenizer;
 
 use std::path::Path;
 
 use crate::error::AsrError;
+use crate::fallback::{Fallback, Reason, Stage, To, reason_of};
 use crate::ort_runtime::{Device, OrtRuntime};
 
 pub use bert::PunctBert;
@@ -38,6 +43,111 @@ const WARMUP_CHAR: char = 'あ';
 /// one kana. It is model input only; it is never shown or logged.
 pub fn warmup_sentence() -> String {
     std::iter::repeat_n(WARMUP_CHAR, WARMUP_CHARS).collect()
+}
+
+/// Which punctuation model a run asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PunctModel {
+    /// The BERT model and the rules after it.
+    Bert,
+    /// The four-class model ([`four`]).
+    FourClass,
+}
+
+/// A `--punct-model` value that names no model.
+#[derive(Debug, PartialEq, Eq)]
+pub struct UnknownPunctModel(pub String);
+
+impl std::fmt::Display for UnknownPunctModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown punctuation model {:?} (bert or 4class)", self.0)
+    }
+}
+
+impl std::error::Error for UnknownPunctModel {}
+
+/// Reads a `--punct-model` value. An unknown value is an error, not a model.
+pub fn resolve_punct_model(name: &str) -> Result<PunctModel, UnknownPunctModel> {
+    match name {
+        "bert" => Ok(PunctModel::Bert),
+        "4class" => Ok(PunctModel::FourClass),
+        other => Err(UnknownPunctModel(other.to_owned())),
+    }
+}
+
+/// The code of the warning that says the chosen model was not there.
+pub const UNAVAILABLE_CODE: &str = "punct_model_unavailable";
+
+/// The warning of a four-class model that could not be opened and was
+/// replaced by BERT.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Warning {
+    pub code: &'static str,
+    pub reason: Reason,
+}
+
+/// The restorer a run ended up with, and what it gave up on the way.
+#[derive(Debug)]
+pub struct Chosen<T> {
+    /// `None` when no model could be opened: punctuation is off.
+    pub punctuator: Option<T>,
+    /// Set when the four-class model was asked for and BERT runs instead.
+    pub warning: Option<Warning>,
+    /// Set when no model could be opened.
+    pub disabled: Option<Fallback>,
+}
+
+impl<T> Chosen<T> {
+    fn on(punctuator: T) -> Self {
+        Self {
+            punctuator: Some(punctuator),
+            warning: None,
+            disabled: None,
+        }
+    }
+}
+
+/// Keeps the reason of a failure that is about a model; any other failure is
+/// the caller's to see.
+fn about_a_model(error: AsrError) -> Result<Reason, AsrError> {
+    reason_of(&error).ok_or(error)
+}
+
+/// Opens the model `model` names. A four-class model that is not there is
+/// replaced by BERT with one warning; BERT that is not there turns
+/// punctuation off. A failure that is not about a model is returned.
+pub fn select<T>(
+    model: PunctModel,
+    four: impl FnOnce() -> Result<T, AsrError>,
+    bert: impl FnOnce() -> Result<T, AsrError>,
+) -> Result<Chosen<T>, AsrError> {
+    let mut warning = None;
+    if model == PunctModel::FourClass {
+        match four() {
+            Ok(punctuator) => return Ok(Chosen::on(punctuator)),
+            Err(error) => {
+                warning = Some(Warning {
+                    code: UNAVAILABLE_CODE,
+                    reason: about_a_model(error)?,
+                });
+            }
+        }
+    }
+    match bert() {
+        Ok(punctuator) => Ok(Chosen {
+            warning,
+            ..Chosen::on(punctuator)
+        }),
+        Err(error) => Ok(Chosen {
+            punctuator: None,
+            warning,
+            disabled: Some(Fallback {
+                stage: Stage::Punct,
+                reason: about_a_model(error)?,
+                to: To::Disabled,
+            }),
+        }),
+    }
 }
 
 pub struct Punctuator {
