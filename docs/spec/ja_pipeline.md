@@ -4,7 +4,8 @@
 
 This file describes the Python engine as it was before R11, and it does not apply to `hayamimi` after R11.
 No section is named as still correct.
-The slice that rebuilds the paired `docs/spec/ja_pipeline_spec.json` from the output of `hayamimi config dump` is R13-10 of the design, and `config dump` is not implemented.
+The numbers are made differently: the `config` block of the paired `docs/spec/ja_pipeline_spec.json` is the output of `hayamimi config dump`, and a test keeps the two equal.
+It records the values of the Rust implementation, and two of them differ from the tables in this document (see "Configuration dump and CI check").
 The current home is `recognizer.rs`, `vad.rs`, `punct/`, `itn.rs` and `audio.rs` under `native/hayamimi-asr/src/`.
 How to read the version before R11 is in the index of [`docs/README.md`](../README.md).
 
@@ -28,7 +29,7 @@ only handles Japanese needs none of it. When `RoutedASR.forced_lang` is set
 to `"ja"`, language identification (LID), language-switch confirmation,
 zh/yue arbitration, and script-based re-decoding are all skipped wholesale
 inside `transcribe()` (see the top of `transcribe()` in
-`scripts/asr_engine.py` and the `if self.forced_lang is not None:` branch
+the recognition module of the pre-R11 engine and the `if self.forced_lang is not None:` branch
 inside it). So a Japanese-only implementation only needs to provide three
 models: the recognizer, the VAD, and the punctuation restorer.
 
@@ -52,7 +53,7 @@ Terms are defined once here:
 ## Model inventory
 
 The Japanese route loads 7 files. The sha256 and byte counts are computed
-from the actual files by `scripts/dump_ja_config.py --with-models`; the
+from the actual files by `hayamimi config dump --with-models`; the
 machine-readable form is the `models` block of
 `docs/spec/ja_pipeline_spec.json`.
 
@@ -87,7 +88,7 @@ are in `docs/design/punct_ja.md`.
 ### Choosing fp32 vs. fp16
 
 hayamimi re-quantized the model itself into three variants and scored them
-on FLEURS ja, 250 sentences (seed 0), with `scripts/quantize_punct.py`. The
+on FLEURS ja, 250 sentences (seed 0), with the quantization tool of the pre-R11 engine. The
 pre-declared pass condition was "F1 within −0.02 of fp32."
 
 | Variant | Size | P | R | F1 | Verdict |
@@ -109,7 +110,7 @@ quantization recipe.
 Decision:
 
 - **Use fp32 on PC (desktop).** There's no size constraint, so there's no
-  reason to convert. This is `scripts/punct_ja.py`'s default.
+  reason to convert. This is the file `hayamimi-asr::punct` loads (`punct::MODEL_FILE`).
 - **Use fp16 wherever memory or package size is constrained.** Accuracy is
   identical to fp32, size is halved. That brings the total down to
   255,720,140 bytes (243.9 MiB). The Android emulator verification below
@@ -122,7 +123,7 @@ Decision:
 
 ## Recognizer configuration
 
-`_build_reazon()` in `scripts/asr_engine.py` is the single construction
+`_build_reazon()` in the recognition module of the pre-R11 engine is the single construction
 point. Every value passed to sherpa-onnx's
 `OfflineRecognizer.from_transducer` is listed here, and maps one-to-one to
 C++'s `OfflineRecognizerConfig`.
@@ -172,7 +173,7 @@ a UI, either document this limitation or don't expose them at all.
 
 ## VAD configuration
 
-`build_vad()` in `scripts/realtime_transcribe.py` is the single
+`build_vad()` in the realtime transcriber of the pre-R11 engine is the single
 construction point.
 
 | Field | Value | Constant |
@@ -290,14 +291,14 @@ of 15.5% − 8.6% is context loss from streaming segmentation itself — a
 separate problem.
 
 This invariant is pinned by
-`tests/test_asr_segment.py::test_live_path_preroll_keeps_utterance_initial_words`,
+the test `test_live_path_preroll_keeps_utterance_initial_words` of the pre-R11 engine,
 which runs a 3-sentence fixture through the real VAD → pre-roll → decode
 path and requires every sentence's leading word to survive.
 
 ### Mitigation 2 (secondary): retry-on-suspicion split
 
 Added in v0.3.1. `_looks_truncated()` and `_split_retry()`
-(`scripts/asr_engine.py`).
+(the recognition module of the pre-R11 engine).
 
 Splitting a long buffer at its internal silences and re-decoding it one
 utterance at a time fixes clips whose head was dropped (FLEURS ja clip 15:
@@ -474,7 +475,7 @@ lead-in silence).
 Correct output with the current configuration:
 
 ```
-python scripts/realtime_transcribe.py --wav testdata/multi_sentence_ja.wav \
+<realtime transcriber of the pre-R11 engine> --wav testdata/multi_sentence_ja.wav \
     --no-realtime --mode single --lang ja --threads 4
 ```
 
@@ -494,12 +495,12 @@ Android x86_64: **this recognizer, given audio with multiple utterances,
 only returns the last one.** VAD-based splitting is required for
 correctness here, not merely an optimization.
 
-To re-run the incidence table above:
+To re-run the incidence table above, use the evaluator of the pre-R11 engine (the tag `archive/python-before-r11` holds it; the Rust tree has no evaluator for it):
 
 ```
-python scripts/eval_head_dropout.py --limit 100 --threads 4        # the table above
-python scripts/eval_head_dropout.py --limit 20 --threads 4 --determinism
-python scripts/eval_head_dropout.py --multi-sentence --threads 4   # 3 spans x every condition
+<head-dropout evaluator> --limit 100 --threads 4        # the table above
+<head-dropout evaluator> --limit 20 --threads 4 --determinism
+<head-dropout evaluator> --multi-sentence --threads 4   # 3 spans x every condition
 ```
 
 Per-clip hypotheses, leading-character deletions, CER, and timing are in
@@ -534,7 +535,7 @@ implementation is in parentheses.
     `wrong=right` pairs supplied via `--replace`. **Always last**, so it can
     override anything ITN or punctuation produced. **Optional.**
 
-The 8 → 9 → 10 order is fixed; the module docstring of `scripts/itn_cjk.py`
+The 8 → 9 → 10 order is fixed; the module docstring of the ITN module of the pre-R11 engine
 gives the reasoning. ITN runs first so punctuation restoration sees
 already-normalized digits (this matters for decimal points). The
 replacement dictionary runs last so the user's own instruction always wins.
@@ -563,15 +564,15 @@ What a Japanese-only reimplementation needs at minimum:
   implementation of `AudioHistory` is about 30 lines, so it can be ported
   as-is.
 - One ONNX Runtime session for the punctuation model (next section).
-- ITN is pure string processing with no dependencies. `scripts/itn_cjk.py`
-  is 239 lines, zero external dependencies, and every regex quantifier is
+- ITN is pure string processing with no dependencies. The ITN module of the
+  pre-R11 engine is 239 lines, zero external dependencies, and every regex quantifier is
   bounded (no catastrophic backtracking), so it can be ported directly.
 
 Split retry and second opinion don't need to be included from the start.
 
 ## C++ reimplementation spec for punctuation restoration
 
-The complete specification of `PunctuatorJa` in `scripts/punct_ja.py`. A
+The complete specification of `PunctuatorJa` in the punctuation module of the pre-R11 engine (its Rust home is `hayamimi-asr::punct`). A
 Dart port exists on the `agent/feature/core-release` branch, so reading it
 before writing C++ is worthwhile (see "Reference implementation" below).
 
@@ -611,12 +612,12 @@ the vocabulary fall back to `[UNK]`.
 
 The original `BertJapaneseTokenizer` pipeline is "NFKC normalize → split
 into morphemes with MeCab → split each morpheme into individual
-characters." `scripts/punct_ja.py` reproduces that with fugashi +
+characters." The punctuation module of the pre-R11 engine reproduces that with fugashi +
 unidic-lite. But since **every morpheme gets split back into individual
 characters** right afterward, MeCab's only observable effect is **dropping
 whitespace**.
 
-This has been verified. `scripts/make_punct_fixture.py` cross-checks the
+This has been verified. The fixture generator of the pre-R11 engine cross-checks the
 rule
 
 ```
@@ -814,7 +815,7 @@ reading before writing C++.
 | `mobile/hayamimi_core/lib/punct/punct_ja_tokenizer.dart` | Vocab loading and MeCab-free tokenization. |
 | `mobile/hayamimi_core/lib/punct/punct_ja_text.dart` | Thresholds, mark insertion, question-mark rule. The punctuation set and suffix list constants are here too. |
 | `mobile/hayamimi_core/test/fixtures/punct_ja_parity.json` | **The parity fixture.** |
-| `scripts/make_punct_fixture.py` | The script that generates it (also on this branch). |
+| The fixture generator of the pre-R11 engine | The tool that generated it (also on this branch). |
 
 The fixture format has a header (generator, source, model used,
 onnxruntime version, `unicodedata` version, thresholds) and a `cases`
@@ -847,12 +848,12 @@ currently produces for them, as `golden.json`. Details are in
 
 Summary:
 
-- Generated by `scripts/make_ja_golden.py`. It builds the same objects
+- Generated by the golden generator of the pre-R11 engine. It builds the same objects
   `realtime_transcribe.main()` assembles for
   `--wav X --no-realtime --mode single --lang ja --threads 4`
   (`RoutedASR(forced_lang="ja")`, `LiveVad`, `AudioHistory`, `Refiner`), and
   reads results off `EventHub.add_listener`. stdout is not read.
-- Checked by `tests/test_ja_golden.py`, with a **two-level judgment**: (1)
+- Checked by the golden test of the pre-R11 engine, with a **two-level judgment**: (1)
   the count of exact matches is reported but not itself the pass condition;
   (2) pass/fail is decided by whether the **CER against the golden text is
   1.0% or less**. int8 ONNX kernels aren't bit-reproducible across CPU
@@ -883,31 +884,54 @@ use it, re-derive the CER threshold from your own measurements.
 Left alone, documentation drifts away from code. So the numbers here are
 generated mechanically from one place.
 
-- `scripts/dump_ja_config.py` prints the Japanese route's effective
-  configuration as JSON **without loading any model**. Every value comes
-  from a module-level constant or a function's declared default (some read
-  via `inspect.signature`), so it works even without a `models/` directory.
-  `--with-models` additionally reads `models/` to add sha256 and byte
-  counts.
+- `hayamimi config dump` prints the Japanese route's effective
+  configuration as JSON **without loading any model**. A value that
+  `hayamimi-asr` exports as a constant, or that is a default of `hayamimi`,
+  is read from there; the declared values below are written in
+  `native/hayamimi/src/config_dump.rs`. It works even
+  without a `models/` directory. `--with-models` additionally reads
+  `models/` to add sha256 and byte counts.
 - That output is pinned in `docs/spec/ja_pipeline_spec.json`. Regenerate
-  with:
+  with, from `native/`:
 
   ```
-  python scripts/dump_ja_config.py --with-models --out docs/spec/ja_pipeline_spec.json
+  cargo run --release -p hayamimi -- config dump --with-models --models ../models \
+      --out ../docs/spec/ja_pipeline_spec.json
   ```
 
-- `tests/test_ja_pipeline_spec.py` re-dumps the `config` block every run
-  and compares it against the committed one — this is the **drift
-  detector**. The `models` block is only compared where `models/` exists,
-  and is skipped otherwise.
+- `native/hayamimi/tests/ja_pipeline_spec.rs` runs `hayamimi config dump`
+  and compares its `config` block against the committed one — this is the
+  **drift detector**. No test compares the `models` block.
 
-Building this required pulling the code's bare literals out into module
-constants (`asr_engine.RZ_MODEL_TYPE` / `RZ_DECODING_METHOD` /
-`RZ_MODELING_UNIT` / `RZ_HOTWORDS_SCORE` / `RZ_MODEL_FILES`,
-`realtime_transcribe.VAD_MIN_SPEECH_S` / `VAD_BUFFER_S` / `VAD_NUM_THREADS`,
-`punct_ja.PUNCT_*`). No value was changed in the process. `punct_ja.py` now
-imports numpy / onnxruntime / fugashi inside its methods, so none of the
-three is needed just to read the constants.
+The `config` block holds the values of the Rust implementation. The tables
+in the sections above give the values of the pre-R11 engine. Two values
+differ between them:
+
+- `vad.min_silence_duration` is 0.30 in the implementation (`DEFAULT_MIN_SILENCE`
+  in `native/hayamimi/src/args.rs`) and 0.35 in the tables above.
+- `punctuation.intra_op_num_threads` is 2 in the implementation and 4 in the
+  tables above.
+
+`itn.module` is `hayamimi-asr::itn`; it named a Python file before.
+
+**Declared values (drift is not detected).** These values are written in
+`native/hayamimi/src/config_dump.rs`, and a change to the code behind them
+does not fail the test. The test reads every other value from a constant of
+`hayamimi-asr` or a default of `hayamimi`.
+
+- `route`: `forced_lang`, `language_identification`, `second_opinion_default`,
+  `postprocessing_order`.
+- `recognizer`: `name`, `api`, `files` (the file name patterns),
+  `model_type`, `decoding_method`, `modeling_unit`, `hotwords_file`,
+  `hotwords_usable`, `feature_dim`.
+- `vad`: `speech_padding_supported`.
+- `preroll`: `history_keep_seconds`, `clamped_to_previous_segment_end`,
+  `source`.
+- `head_dropout_retry`: `pad_real_context_each_side`,
+  `pad_zero_samples_each_side`.
+- `punctuation`: `vocab`, `input_names`, `output_name`,
+  `force_final_period`, `intra_op_num_threads`, `normalization`.
+- `itn`: `enabled`, `module`, `applicable_langs`.
 
 ## Not yet verified
 

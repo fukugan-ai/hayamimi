@@ -25,7 +25,7 @@ const TOKENS: &str = "tokens.txt";
 pub const THREADS: i32 = 4;
 /// The weight of hot words. The recognizer's tokens cannot encode hot words,
 /// so none are given and this only matches the measured configuration.
-const HOTWORDS_SCORE: f32 = 2.0;
+pub const HOTWORDS_SCORE: f32 = 2.0;
 /// Annotation brackets the model puts around boundary words; they carry no speech.
 const JUNK: [char; 4] = ['［', '］', '〈', '〉'];
 

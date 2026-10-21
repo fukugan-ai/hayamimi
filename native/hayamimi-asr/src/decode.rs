@@ -35,18 +35,18 @@ use crate::tier::is_installed;
 /// language written without spaces is suspected of having dropped its
 /// beginning: the log-midpoint between the slowest healthy clip measured and
 /// the known defect.
-const DENSITY_FLOOR_SPACELESS: f64 = 2.4;
+pub const DENSITY_FLOOR_SPACELESS: f64 = 2.4;
 /// The same for the other languages: Latin script packs fewer phonemes into a
 /// character, so the floor is the measured one times about 2.5.
-const DENSITY_FLOOR_SPACED: f64 = 6.0;
+pub const DENSITY_FLOOR_SPACED: f64 = 6.0;
 /// How many trailing characters of the whole-buffer text must reappear in the retry text ...
-const TAIL_CHARS: usize = 12;
+pub const TAIL_CHARS: usize = 12;
 /// ... and what share of them.
-const TAIL_MATCH: f64 = 0.6;
+pub const TAIL_MATCH: f64 = 0.6;
 /// Without the cutting detector, a buffer is cut into chunks of this length ...
-const CHUNK_SECONDS: f64 = 8.0;
+pub const CHUNK_SECONDS: f64 = 8.0;
 /// ... that overlap by this much, so a word on a seam is whole in one of two chunks.
-const CHUNK_OVERLAP_SECONDS: f64 = 0.25;
+pub const CHUNK_OVERLAP_SECONDS: f64 = 0.25;
 /// A chunk shorter than this is dropped.
 const MIN_CHUNK_SECONDS: f64 = 0.2;
 /// The languages written without spaces between words.

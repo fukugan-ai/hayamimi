@@ -30,8 +30,8 @@ const REMOVED_PYTHON_SHA256: &str =
     "f223d62505d89d662b88c8ef5f822e1edf589af961949197bdcac7ecd9579220";
 const REMOVED_PYTHON_ROWS: usize = 78;
 /// The sha256 and the row count of `rp81_owned_lines.tsv`.
-const OWNED_LINES_SHA256: &str = "41db22cd02f4580c9c74e20428bd85098cba28521979716d3825327971926e8c";
-const OWNED_LINES_ROWS: usize = 68;
+const OWNED_LINES_SHA256: &str = "f6ca926ced47803722788526e97b5b781c3362b87db8d9db4bf216614354258a";
+const OWNED_LINES_ROWS: usize = 18;
 
 /// Directories that hold records, which are not rewritten afterwards.
 const RECORD_DIRS: [&str; 3] = ["docs/eval/", "docs/design/", "docs/results/"];
@@ -51,10 +51,7 @@ const TOOL_FILES: [&str; 3] = [
 const TOOL_DIR_PARENT: &str = "native/hayamimi-eval/tests/";
 const TOOL_DIR_PREFIX: &str = "rp81_";
 /// Files that another slice rewrites; a hit passes only when the tsv lists it.
-const OWNED_FILES: [&str; 7] = [
-    "docs/spec/ja_pipeline.md",
-    "docs/spec/ja_pipeline.ja.md",
-    "docs/spec/ja_pipeline_spec.json",
+const OWNED_FILES: [&str; 4] = [
     "docs/guide/embedding.md",
     "docs/guide/embedding.ja.md",
     "docs/guide/tuning.md",
@@ -424,7 +421,7 @@ fn each_added_line_passes(path: &str, line: &str) -> TestResult {
     accepted(judge(&with_line(&f81(), path, line)))
 }
 
-/// The seven owned files, each holding `line`, and the tsv that lists them.
+/// The owned files, each holding `line`, and the tsv that lists them.
 fn owned_fixture(line: &str) -> (Vec<Tracked>, String) {
     let files = OWNED_FILES
         .iter()

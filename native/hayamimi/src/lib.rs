@@ -4,6 +4,7 @@
 pub mod api;
 pub mod args;
 pub mod capture;
+pub mod config_dump;
 pub mod control;
 pub mod feed;
 pub mod gpu_check;
