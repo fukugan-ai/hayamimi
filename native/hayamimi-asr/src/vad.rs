@@ -264,7 +264,17 @@ impl Vad {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Armed by a test: the next detector build on this thread fails once.
+    static FAIL_NEXT_BUILD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetector, AsrError> {
+    #[cfg(test)]
+    if FAIL_NEXT_BUILD.with(std::cell::Cell::take) {
+        return Err(AsrError::Create("VAD (injected failure)"));
+    }
     let config = silero_config_with(models, sensitivity.settings(), sensitivity.threshold)?;
     let _building = lock_for_session();
     VoiceActivityDetector::create(&config, BUFFER_SECONDS).ok_or(AsrError::Create("VAD"))
@@ -273,6 +283,7 @@ fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetecto
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Engine, Gpu, Reason, Settings};
 
     #[test]
     fn the_defaults_are_the_measured_values() {
@@ -300,5 +311,79 @@ mod tests {
     fn a_missing_model_is_refused_before_the_c_library_is_called() {
         let said = Vad::open(Path::new("no-such-models"), VadSettings::default()).err();
         assert!(matches!(said, Some(AsrError::MissingModel(_))), "{said:?}");
+    }
+
+    type Check = Result<(), Box<dyn std::error::Error>>;
+
+    /// The first `models/` at or above this crate that holds the VAD model;
+    /// model files are not in git, so a worktree reads the main checkout's.
+    fn models_dir() -> Result<PathBuf, String> {
+        let start = env!("CARGO_MANIFEST_DIR");
+        Path::new(start)
+            .ancestors()
+            .map(|directory| directory.join("models"))
+            .find(|models| models.join(VAD_FILE).is_file())
+            .ok_or_else(|| format!("no models/{VAD_FILE} at or above {start}"))
+    }
+
+    fn fail_next_build() {
+        FAIL_NEXT_BUILD.with(|armed| armed.set(true));
+    }
+
+    #[test]
+    fn live_vad_failed_rebuild_preserves_active_and_pending_state() -> Check {
+        let mut vad = Vad::open(&models_dir()?, VadSettings::default())?;
+        vad.accept(&[0.0; WINDOW]);
+        let active = vad.sensitivity();
+        // The request that could not be applied; the caller keeps it.
+        let pending = Sensitivity {
+            threshold: 0.7,
+            ..active
+        };
+
+        fail_next_build();
+        let said = vad.rebuild(pending).err();
+        assert!(matches!(said, Some(AsrError::Create(_))), "{said:?}");
+        assert_eq!(vad.sensitivity(), active, "the old settings stay in effect");
+        assert!(vad.is_idle(), "the old detector is still the one in use");
+        assert_eq!(vad.offset, 0, "the timeline is not moved by a failure");
+        vad.accept(&[0.0; WINDOW]);
+
+        // A later change composes with the pending request and applies.
+        let composed = Sensitivity {
+            min_silence: 0.6,
+            ..pending
+        };
+        vad.rebuild(composed)?;
+        assert_eq!(vad.sensitivity(), composed);
+        assert_eq!(vad.fed, 2 * WINDOW, "the failed rebuild did not drop audio");
+        assert_eq!(vad.offset, vad.fed, "positions continue from the audio fed");
+        Ok(())
+    }
+
+    /// The engine moves the detector only when the settings asked for differ
+    /// from the ones in effect. A build is armed to fail: an update that
+    /// changes nothing must not reach it, and one that changes something must.
+    #[test]
+    fn live_vad_empty_update_does_not_rebuild_detector() -> Check {
+        let mut settings = Settings::new(models_dir()?);
+        settings.gpu = Gpu::Absent(Reason::NoDevice);
+        settings.stages.punctuate = false;
+        settings.stages.speakers = false;
+        let mut engine = Engine::open(settings)?;
+        let Some(unchanged) = engine.sensitivity() else {
+            return Err("the engine opened without a voice detector".into());
+        };
+
+        fail_next_build();
+        assert!(engine.retune_vad(unchanged)?, "nothing to apply is done");
+        let changed = Sensitivity {
+            threshold: 0.7,
+            ..unchanged
+        };
+        let said = engine.retune_vad(changed).err();
+        assert!(matches!(said, Some(AsrError::Create(_))), "{said:?}");
+        assert_eq!(engine.sensitivity(), Some(unchanged));
+        Ok(())
     }
 }
