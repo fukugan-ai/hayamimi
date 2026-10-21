@@ -9,9 +9,10 @@
 //! The rows whose test is not in the list are the cases not yet implemented.
 //! They are recounted on every run. The set must equal the fixed list
 //! `rp19_not_yet_at_r11.tsv` less the names that the slices record in
-//! `rp19_ported/<slice>.txt`, so a port that is deleted again, a port that is
-//! not recorded, a row added to the fixed list and a name written in another
-//! slice's file all fail
+//! `rp19_ported/<owner>.txt` or `rp19_ported/<owner>.<slice>.txt` (the owner
+//! label is what precedes the first `.` once `.txt` is dropped), so a port
+//! that is deleted again, a port that is not recorded, a row added to the
+//! fixed list and a name written in another owner's file all fail
 //! `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`.
 //! `rp19_python_cases_are_ported` fails while any row is missing from the
 //! list and prints the count per slice.
@@ -103,20 +104,22 @@ struct Owned {
     slice: String,
 }
 
-/// One file of `rp19_ported/`: the names its slice has ported.
+/// One file of `rp19_ported/`: the names its owner has ported.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PortedFile {
-    /// The file name, `<slice>.txt`.
+    /// The file name, `<owner>.txt` or `<owner>.<slice>.txt`.
     file: String,
+    /// The owner label: what precedes the first `.` of the name without `.txt`.
     slice: String,
     names: Vec<String>,
 }
 
 impl PortedFile {
     fn from_text(file: &str, text: &str) -> Result<Self, Failure> {
-        let Some(slice) = file.strip_suffix(".txt") else {
-            return Err(format!("{file} is not a <slice>.txt file"));
+        let Some(stem) = file.strip_suffix(".txt") else {
+            return Err(format!("{file} is not an <owner>[.<slice>].txt file"));
         };
+        let slice = stem.split_once('.').map_or(stem, |(owner, _)| owner);
         let names = text
             .lines()
             .map(str::trim)
@@ -399,7 +402,7 @@ fn paths_in(dir: &Path) -> Result<Vec<PathBuf>, Failure> {
     Ok(paths)
 }
 
-/// The files of `rp19_ported/`. A file that is not `<slice>.txt` is refused.
+/// The files of `rp19_ported/`. A file that does not end in `.txt` is refused.
 fn read_ported(dir: &Path) -> Result<Vec<PortedFile>, Failure> {
     let mut files = Vec::new();
     for path in paths_in(dir)? {
@@ -900,7 +903,7 @@ const PORTED_BETA_GAMMA: &str = include_str!("fixtures/rp19_r11/ported_beta_gamm
 const PORTED_ALPHA_ZETA: &str = include_str!("fixtures/rp19_r11/ported_alpha_zeta.txt");
 
 /// The sha256 and the rows of `fixed.tsv`, the baseline fixed list.
-const BASELINE_SHA256: &str = "6cd94c4b22f462c0727c0ff0fac59d6e8a7ea9da7e289221d0d575e914b7d2ff";
+const BASELINE_SHA256: &str = "22f60128b350e30585e8a3d7e3e495c9c4d80657f811bc188e6e8dc95c994010";
 const BASELINE_ROWS: usize = 3;
 /// The three rows of the table in the baseline state.
 const TABLE_NAMES: [&str; 3] = ["alpha", "beta", "gamma"];
@@ -929,7 +932,7 @@ fn judge(
 /// T-RP-19-014: `alpha` is recorded as ported and is gone from the list.
 #[test]
 fn a_name_ported_and_then_deleted_from_the_list_is_rejected() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_EMPTY, &[("R13-1.txt", PORTED_ALPHA)])?;
+    let said = judge(BASELINE_FIXED, LIST_EMPTY, &[("R12b.txt", PORTED_ALPHA)])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::PortedNotListed(String::from("alpha"))])
@@ -940,7 +943,7 @@ fn a_name_ported_and_then_deleted_from_the_list_is_rejected() -> TestResult {
 /// T-RP-19-015: `alpha` is in the list and no ported file records it.
 #[test]
 fn a_ported_name_missing_from_the_ported_files_is_rejected() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R13-1.txt", PORTED_BLANK)])?;
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R12b.txt", PORTED_BLANK)])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::ListedNotPorted(String::from("alpha"))])
@@ -961,17 +964,17 @@ fn a_row_added_to_the_fixed_list_is_rejected() {
     );
 }
 
-/// T-RP-19-017: `alpha` is written in the file of slice `R13-6`, which does not own it.
+/// T-RP-19-017: `alpha` is written in the file of owner `R12e`, which does not own it.
 #[test]
 fn a_name_written_in_another_slices_file_is_rejected() -> TestResult {
-    let ported = [("R13-1.txt", PORTED_BLANK), ("R13-6.txt", PORTED_ALPHA)];
+    let ported = [("R12b.txt", PORTED_BLANK), ("R12e.txt", PORTED_ALPHA)];
     let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported)?;
     assert_eq!(
         said,
         Err(vec![NotYetError::OtherSlice {
-            file: String::from("R13-6.txt"),
+            file: String::from("R12e.txt"),
             name: String::from("alpha"),
-            owner: String::from("R13-1")
+            owner: String::from("R12b")
         }])
     );
     Ok(())
@@ -980,12 +983,12 @@ fn a_name_written_in_another_slices_file_is_rejected() -> TestResult {
 /// T-RP-19-018: a name the fixed list does not hold, in a ported file.
 #[test]
 fn a_name_unknown_to_the_fixed_list_is_rejected_in_a_ported_file() -> TestResult {
-    let ported = [("R13-1.txt", PORTED_ALPHA_ZETA)];
+    let ported = [("R12b.txt", PORTED_ALPHA_ZETA)];
     let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported)?;
     assert_eq!(
         said,
         Err(vec![NotYetError::UnknownName {
-            file: String::from("R13-1.txt"),
+            file: String::from("R12b.txt"),
             name: String::from("zeta")
         }])
     );
@@ -1005,7 +1008,7 @@ fn a_changed_row_with_the_same_count_changes_the_digest() {
 /// T-RP-19-020: the baseline state passes both checks.
 #[test]
 fn the_baseline_state_passes() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R13-1.txt", PORTED_ALPHA)])?;
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R12b.txt", PORTED_ALPHA)])?;
     assert_eq!(said, Ok(()));
     let fixed = check_fixed_list(BASELINE_FIXED, BASELINE_SHA256, BASELINE_ROWS);
     assert_eq!(fixed, Ok(()));
@@ -1026,17 +1029,45 @@ fn an_absent_ported_directory_reads_as_empty() -> TestResult {
 /// T-RP-19-022: every name is in the list and recorded by its slice.
 #[test]
 fn a_fully_ported_state_passes() -> TestResult {
-    let ported = [
-        ("R13-1.txt", PORTED_ALPHA),
-        ("R13-6.txt", PORTED_BETA_GAMMA),
-    ];
+    let ported = [("R12b.txt", PORTED_ALPHA), ("R12e.txt", PORTED_BETA_GAMMA)];
     assert_eq!(judge(BASELINE_FIXED, LIST_ALL, &ported)?, Ok(()));
+    Ok(())
+}
+
+/// T-RP-19-026: `R12b.R13-1.txt` reads the owner `R12b` before the first `.`.
+#[test]
+fn a_file_named_owner_dot_slice_reads_the_owner_before_the_first_dot() -> TestResult {
+    let said = judge(
+        BASELINE_FIXED,
+        LIST_ALPHA,
+        &[("R12b.R13-1.txt", PORTED_ALPHA)],
+    )?;
+    assert_eq!(said, Ok(()));
+    Ok(())
+}
+
+/// T-RP-19-027: `R12e.R13-1.txt` has the owner `R12e`, which does not own `alpha`.
+#[test]
+fn a_name_in_a_file_of_another_owner_with_a_slice_suffix_is_rejected() -> TestResult {
+    let said = judge(
+        BASELINE_FIXED,
+        LIST_ALPHA,
+        &[("R12e.R13-1.txt", PORTED_ALPHA)],
+    )?;
+    assert_eq!(
+        said,
+        Err(vec![NotYetError::OtherSlice {
+            file: String::from("R12e.R13-1.txt"),
+            name: String::from("alpha"),
+            owner: String::from("R12b")
+        }])
+    );
     Ok(())
 }
 
 #[test]
 fn a_file_that_is_not_a_slice_file_is_refused() {
-    let said = PortedFile::from_text("R13-1.md", "alpha\n");
+    let said = PortedFile::from_text("R12b.md", "alpha\n");
     assert!(said.is_err());
 }
 
@@ -1045,7 +1076,7 @@ fn a_malformed_or_repeated_row_of_the_fixed_list_is_refused() {
     let texts = [
         "alpha\n",
         "alpha\t\n",
-        "\tR13-1\n",
+        "\tR12b\n",
         "a\tb\tc\n",
         "a\tR1\na\tR2\n",
         "a\tR1\n\n",
