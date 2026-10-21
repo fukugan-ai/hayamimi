@@ -389,6 +389,8 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
     hub.publish_session_start();
     Session {
         engine,
+        // The command line has no switch for the refine pass.
+        refiner: None,
         guard: open_guard(args, strings, gpu),
         hub: &hub,
         strings,

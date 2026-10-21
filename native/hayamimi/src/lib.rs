@@ -15,6 +15,7 @@ pub mod log;
 pub mod memory_guard;
 pub mod models_fetch;
 pub mod notice;
+pub mod refine;
 pub mod report;
 pub mod routes;
 pub mod run;

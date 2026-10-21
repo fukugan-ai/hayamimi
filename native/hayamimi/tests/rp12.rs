@@ -36,8 +36,8 @@ use support::{Failure, TestResult, find_above, read};
 const FINAL_EXTRAS: [&str; 5] = ["id", "source", "t0_s", "t1_s", "end_wall_ms"];
 /// The key Rust may add to a `translation`.
 const TRANSLATION_EXTRAS: [&str; 1] = ["src_sha256"];
-/// The event types whose producers are later slices of the port: the refine pass and the translation.
-const LATER: [&str; 2] = ["refine", "translation"];
+/// The event types that have no producer in this build yet: the translation.
+const LATER: [&str; 1] = ["translation"];
 
 fn allowed_for(kind: &str) -> &'static [&'static str] {
     match kind {
@@ -171,6 +171,17 @@ fn rust_samples() -> Vec<Value> {
     vec![
         wire::final_event(&finished(), "file", false),
         wire::partial_event("警察の"),
+        wire::refine_event(&wire::Refinement {
+            id: 1,
+            source: "file",
+            t0_s: 0.25,
+            t1_s: 8.5,
+            end_wall_ms: 1_790_000_000_456,
+            text: "警察の総監によれば被告人は出頭した。",
+            lang: "ja",
+            speaker: "",
+            audio_s: 9.25,
+        }),
         wire::session_summary(11.0, 1, Some(533.0), Some(533.0)),
         wire::session_reset(),
         wire::ready_event(16_000),
@@ -679,6 +690,33 @@ fn rp12_wire_format_matches_python() -> TestResult {
         .err()
         .ok_or("it passed")?;
     assert!(said.contains("`lang`"), "{said}");
+    Ok(())
+}
+
+fn key_set(event: &Value) -> Result<BTreeSet<String>, Failure> {
+    let object = event.as_object().ok_or("an event is not a JSON object")?;
+    Ok(object.keys().cloned().collect())
+}
+
+fn first_of_kind<'a>(events: &'a [Value], kind: &str) -> Result<&'a Value, Failure> {
+    events
+        .iter()
+        .find(|event| kind_of(event).is_ok_and(|found| found == kind))
+        .ok_or_else(|| format!("no `{kind}` event"))
+}
+
+/// The `refine` event the Rust side makes has the keys of the recorded one
+/// and the five a `final` gets besides, and no others.
+#[test]
+fn the_refine_event_has_the_recorded_keys_and_the_five_extras() -> TestResult {
+    let recorded = recorded_events()?;
+    let python = key_set(first_of_kind(&recorded, "refine")?)?;
+    let samples = rust_samples();
+    let rust = key_set(first_of_kind(&samples, "refine")?)?;
+    let mut expected = python.clone();
+    expected.extend(FINAL_EXTRAS.iter().map(|key| (*key).to_owned()));
+    println!("python={python:?}\nrust={rust:?}");
+    assert_eq!(rust, expected);
     Ok(())
 }
 

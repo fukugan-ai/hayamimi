@@ -5,6 +5,7 @@
 //! every client that is connected. Each event is one JSON object in a `data:`
 //! line of `GET /events`, the form the existing overlay pages read.
 
+use std::collections::VecDeque;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -26,6 +27,12 @@ const BACKLOG: usize = 1024;
 /// Ports tried after the requested one when it is taken.
 pub const NEXT_PORTS: u16 = 10;
 
+/// How many `refine` events a client that connects later receives.
+pub const REFINE_REPLAY: usize = 200;
+
+/// The `type` of the event that is replayed.
+const REFINE_TYPE: &str = "refine";
+
 /// The key under which `session_start` is kept.
 const SESSION_START_KEY: &str = "session_start";
 
@@ -36,23 +43,31 @@ struct Kept {
     text: String,
 }
 
+/// What a client that connects later receives before anything else.
+#[derive(Debug, Default)]
+struct Replay {
+    /// The events in effect: one `fallback` per stage, and `session_start`.
+    kept: Vec<Kept>,
+    /// The last [`REFINE_REPLAY`] `refine` events, oldest first, so a page
+    /// opened late still shows the refined text.
+    refines: VecDeque<String>,
+}
+
 /// Where events are published.
 #[derive(Clone)]
 pub struct Hub {
     sender: broadcast::Sender<String>,
-    /// The events in effect that a client which connects later receives
-    /// before anything else: one `fallback` per stage, and `session_start`.
-    /// Held under the lock that also guards sending, so a client sees each
-    /// kept event exactly once.
-    active: Arc<Mutex<Vec<Kept>>>,
+    /// What is replayed to a client that connects later. Held under the lock
+    /// that also guards sending, so a client sees each replayed event exactly once.
+    active: Arc<Mutex<Replay>>,
     /// Turns true when `session_start` is published: the models are open and
     /// the loop is about to run.
     started: Arc<watch::Sender<bool>>,
 }
 
-/// The guard of the list of kept events. A thread that panicked while
-/// holding the lock left a list of whole entries, which is still valid.
-fn locked(active: &Mutex<Vec<Kept>>) -> MutexGuard<'_, Vec<Kept>> {
+/// The guard of the replay. A thread that panicked while holding the lock
+/// left a list of whole entries, which is still valid.
+fn locked(active: &Mutex<Replay>) -> MutexGuard<'_, Replay> {
     match active.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -65,15 +80,30 @@ impl Hub {
         let (started, _) = watch::channel(false);
         Hub {
             sender,
-            active: Arc::new(Mutex::new(Vec::new())),
+            active: Arc::new(Mutex::new(Replay::default())),
             started: Arc::new(started),
         }
     }
 
     /// Sends an event to every connected client. With nobody connected there
-    /// is nobody to tell, which is not an error.
+    /// is nobody to tell, which is not an error. A `refine` event is also
+    /// kept for the clients that connect later.
     pub fn publish(&self, event: &Value) {
-        let _ = self.sender.send(event.to_string());
+        if event.get("type").and_then(Value::as_str) == Some(REFINE_TYPE) {
+            self.publish_refine(event);
+        } else {
+            let _ = self.sender.send(event.to_string());
+        }
+    }
+
+    fn publish_refine(&self, event: &Value) {
+        let text = event.to_string();
+        let mut active = locked(&self.active);
+        if active.refines.len() >= REFINE_REPLAY {
+            active.refines.pop_front();
+        }
+        active.refines.push_back(text.clone());
+        let _ = self.sender.send(text);
     }
 
     /// Sends a `fallback` event. One per stage is kept for the clients that
@@ -112,9 +142,9 @@ impl Hub {
     fn publish_kept(&self, key: String, event: &Value) {
         let text = event.to_string();
         let mut active = locked(&self.active);
-        match active.iter_mut().find(|kept| kept.key == key) {
+        match active.kept.iter_mut().find(|kept| kept.key == key) {
             Some(kept) => kept.text.clone_from(&text),
-            None => active.push(Kept {
+            None => active.kept.push(Kept {
                 key,
                 text: text.clone(),
             }),
@@ -124,15 +154,21 @@ impl Hub {
 
     fn publish_forgetting(&self, key: &str, event: &Value) {
         let mut active = locked(&self.active);
-        active.retain(|kept| kept.key != key);
+        active.kept.retain(|kept| kept.key != key);
         let _ = self.sender.send(event.to_string());
     }
 
-    /// The kept events and a receiver of everything published after them.
+    /// The events replayed to a new client (the kept ones, then the last
+    /// `refine` events, oldest first) and a receiver of everything published after them.
     pub fn subscribe(&self) -> (Vec<String>, broadcast::Receiver<String>) {
         let active = locked(&self.active);
-        let kept = active.iter().map(|kept| kept.text.clone()).collect();
-        (kept, self.sender.subscribe())
+        let replayed = active
+            .kept
+            .iter()
+            .map(|kept| kept.text.clone())
+            .chain(active.refines.iter().cloned())
+            .collect();
+        (replayed, self.sender.subscribe())
     }
 
     /// A receiver of everything published from now on, with no replay.
@@ -496,5 +532,59 @@ mod tests {
             assert!(receiver.try_recv().is_err());
         }
         Ok(())
+    }
+
+    fn refine(number: usize) -> Value {
+        serde_json::json!({"type": "refine", "text": format!("r{number}")})
+    }
+
+    fn texts_of(replayed: &[String]) -> Result<Vec<String>, serde_json::Error> {
+        replayed
+            .iter()
+            .map(|text| serde_json::from_str::<Value>(text).map(|event| event["text"].to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn eventhub_replays_refine_events_to_new_subscribers() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let hub = Hub::new();
+        hub.publish_session_start();
+        hub.publish(&serde_json::json!({"type": "final", "text": "f"}));
+        hub.publish(&refine(1));
+        hub.publish(&refine(2));
+        let (replayed, mut live) = hub.subscribe();
+        // The kept event first, then the refine events oldest first; a final is not replayed.
+        assert_eq!(replayed.len(), 3, "{replayed:?}");
+        assert!(replayed[0].contains("session_start"));
+        assert_eq!(texts_of(&replayed[1..])?, ["\"r1\"", "\"r2\""]);
+        // Nothing is delivered twice: the next event is the next one published.
+        assert!(live.try_recv().is_err());
+        hub.publish(&refine(3));
+        assert!(live.try_recv()?.contains("r3"));
+        Ok(())
+    }
+
+    #[test]
+    fn the_replay_keeps_the_last_two_hundred_refine_events_and_drops_the_oldest()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let hub = Hub::new();
+        for number in 0..REFINE_REPLAY + 5 {
+            hub.publish(&refine(number));
+        }
+        let (replayed, _live) = hub.subscribe();
+        assert_eq!(replayed.len(), REFINE_REPLAY);
+        let texts = texts_of(&replayed)?;
+        assert_eq!(texts.first().map(String::as_str), Some("\"r5\""));
+        assert_eq!(texts.last().map(String::as_str), Some("\"r204\""));
+        Ok(())
+    }
+
+    #[test]
+    fn a_live_subscription_does_not_receive_the_replayed_refine_events() {
+        let hub = Hub::new();
+        hub.publish(&refine(1));
+        let mut live = hub.subscribe_live();
+        assert!(live.try_recv().is_err());
     }
 }
