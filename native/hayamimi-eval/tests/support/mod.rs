@@ -17,6 +17,7 @@ pub mod machine;
 pub mod rp32;
 pub mod rp32_rules;
 pub mod rp33;
+pub mod rp67;
 pub mod rp70;
 pub mod s83;
 pub mod stages;

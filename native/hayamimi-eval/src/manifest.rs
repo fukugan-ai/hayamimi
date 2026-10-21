@@ -34,6 +34,29 @@ const SPEECH_RANGE_DB: f32 = 25.0;
 /// A click in the noise after the voice is shorter than that.
 const SPEECH_RUN: usize = 5;
 
+/// The percentile of the frame levels taken as the quiet level.
+const QUIET_PERCENT: usize = 10;
+
+/// The percentile of the frame levels taken as the loud level.
+const LOUD_PERCENT: usize = 95;
+
+/// The heights of the speech line, as fractions of the way from the quiet to
+/// the loud level. The first is the rule of `speech_end`; the lower ones show
+/// how far the end moves when the line is lowered.
+pub const LINE_FRACTIONS: [f32; 4] = [SPEECH_FRACTION, 0.25, 0.15, 0.10];
+
+/// The end of the voice is stable when no lower line moves it by more than
+/// this many samples: 40 ms.
+const STABLE_MOVE: usize = 40 * SAMPLES_PER_MS;
+
+/// How many frames after the voice are averaged to tell how quiet it is: 300 ms.
+const TAIL_FRAMES: usize = 15;
+
+/// How far below the rule's line the mean level after the voice must lie, in
+/// dB. Both are counted side by side, so a verdict can be shown not to depend
+/// on which one is used.
+pub const LOW_LINES_DB: [f32; 2] = [6.0, 10.0];
+
 /// The level of a frame in dB relative to full scale, floored at -120 dB.
 fn frame_level_db(frame: &[i16]) -> f32 {
     let energy: f32 = frame.iter().map(|s| f32::from(*s) * f32::from(*s)).sum();
@@ -49,22 +72,126 @@ fn frame_level_db(frame: &[i16]) -> f32 {
 /// not from the end of that noise. `None` for a clip without frames or
 /// without such a run.
 pub fn speech_end(samples: &[i16]) -> Option<usize> {
-    let levels: Vec<f32> = samples.chunks(END_FRAME).map(frame_level_db).collect();
-    let mut sorted = levels.clone();
-    sorted.sort_by(f32::total_cmp);
-    let at = |percent: usize| {
-        sorted
-            .get(sorted.len().checked_sub(1)? * percent / 100)
-            .copied()
-    };
-    let (quiet, loud) = (at(10)?, at(95)?);
-    let threshold = (quiet + SPEECH_FRACTION * (loud - quiet)).max(loud - SPEECH_RANGE_DB);
-    let loud_frames: Vec<bool> = levels.iter().map(|level| *level >= threshold).collect();
-    let run = SPEECH_RUN.min(loud_frames.len());
-    let first = loud_frames
-        .windows(run)
-        .rposition(|window| window.iter().all(|loud| *loud))?;
-    Some(((first + run) * END_FRAME).min(samples.len()))
+    let levels = Levels::of(samples)?;
+    Some((levels.end_frame(SPEECH_FRACTION)? * END_FRAME).min(samples.len()))
+}
+
+/// The frame levels of a clip and the quiet and loud levels they span.
+struct Levels {
+    frames: Vec<f32>,
+    quiet: f32,
+    loud: f32,
+}
+
+impl Levels {
+    /// `None` for a clip without frames.
+    fn of(samples: &[i16]) -> Option<Self> {
+        let frames: Vec<f32> = samples.chunks(END_FRAME).map(frame_level_db).collect();
+        let mut sorted = frames.clone();
+        sorted.sort_by(f32::total_cmp);
+        let last = sorted.len().checked_sub(1)?;
+        let at = |percent: usize| sorted.get(last * percent / 100).copied();
+        let (quiet, loud) = (at(QUIET_PERCENT)?, at(LOUD_PERCENT)?);
+        Some(Self {
+            frames,
+            quiet,
+            loud,
+        })
+    }
+
+    /// The level a frame must reach to count as speech when the line stands
+    /// `fraction` of the way from the quiet to the loud level.
+    fn line(&self, fraction: f32) -> f32 {
+        (self.quiet + fraction * (self.loud - self.quiet)).max(self.loud - SPEECH_RANGE_DB)
+    }
+
+    /// The index of the frame just past the last run of `SPEECH_RUN` frames
+    /// that all reach the line at `fraction`.
+    fn end_frame(&self, fraction: f32) -> Option<usize> {
+        let line = self.line(fraction);
+        let run = SPEECH_RUN.min(self.frames.len());
+        let first = self
+            .frames
+            .windows(run)
+            .rposition(|window| window.iter().all(|level| *level >= line))?;
+        Some(first + run)
+    }
+
+    /// How far below the rule's line the mean level of the `TAIL_FRAMES`
+    /// frames from `end_frame` on lies, in dB. The mean is of the dB values,
+    /// not of the power. `None` when no frame follows.
+    fn tail_low_db(&self, end_frame: usize) -> Option<f32> {
+        let after = self.frames.get(end_frame..)?;
+        let tail = &after[..after.len().min(TAIL_FRAMES)];
+        if tail.is_empty() {
+            return None;
+        }
+        let sum: f64 = tail.iter().map(|level| f64::from(*level)).sum();
+        let mean = sum / tail.len() as f64;
+        Some((f64::from(self.line(SPEECH_FRACTION)) - mean) as f32)
+    }
+}
+
+/// How certain it is that the voice of a clip ends where `speech_end` says.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndGroup {
+    /// Lowering the line barely moves the end, and what follows is quiet.
+    Certain,
+    /// The voice runs to the last frame, so the clip is cut inside it.
+    Cut,
+    /// Neither: a tail of the voice and the background do not part by level.
+    Uncertain,
+}
+
+/// Where the voice of a clip ends at each height of the line, and how quiet
+/// the clip is after the rule's end.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EndReading {
+    /// The end in samples at each of `LINE_FRACTIONS`, cut at the clip's
+    /// length. The first is `speech_end`.
+    pub ends: [usize; LINE_FRACTIONS.len()],
+    /// How far below the rule's line the mean level after the first end lies,
+    /// in dB; `None` when the clip ends with the voice.
+    pub tail_low_db: Option<f32>,
+    cut: bool,
+}
+
+impl EndReading {
+    /// The group of the clip when the level after the voice must lie
+    /// `low_line_db` below the rule's line to be quiet.
+    pub fn group(&self, low_line_db: f32) -> EndGroup {
+        if self.cut {
+            return EndGroup::Cut;
+        }
+        let stable = self
+            .ends
+            .iter()
+            .all(|end| end.abs_diff(self.ends[0]) <= STABLE_MOVE);
+        let quiet = self.tail_low_db.is_some_and(|low| low >= low_line_db);
+        if stable && quiet {
+            EndGroup::Certain
+        } else {
+            EndGroup::Uncertain
+        }
+    }
+}
+
+/// Reads the end of the voice of a clip at every height of the line. `None`
+/// when `speech_end` finds no voice, so the clip has no group.
+pub fn read_end(samples: &[i16]) -> Option<EndReading> {
+    let levels = Levels::of(samples)?;
+    let mut end_frames = [0_usize; LINE_FRACTIONS.len()];
+    for (slot, fraction) in end_frames.iter_mut().zip(LINE_FRACTIONS) {
+        *slot = levels.end_frame(fraction)?;
+    }
+    let ends = end_frames.map(|frame| (frame * END_FRAME).min(samples.len()));
+    Some(EndReading {
+        ends,
+        tail_low_db: levels.tail_low_db(end_frames[0]),
+        // The end lies inside the last 20 ms of the clip, whether or not the
+        // clip's length is a whole number of frames.
+        cut: ends[0] + END_FRAME > samples.len(),
+    })
 }
 
 /// A path as the manifests spell it: forward slashes on every platform.
@@ -629,5 +756,471 @@ mod tests {
     #[test]
     fn slash_paths_use_forward_slashes() {
         assert_eq!(slash_path(Path::new(r"a\b\c.wav")), "a/b/c.wav");
+    }
+
+    // ---- the groups of a clip (RP-73) ----
+    //
+    // A clip is written as frames of 320 samples of one amplitude, so the
+    // level of each frame is 10 * log10(amplitude^2 / 32768^2). Three rooms
+    // are used: quiet 164 and voice 10362 (-46.01 and -10.00 dB), quiet 328 and
+    // voice 6540 (-39.99 and -14.00 dB), and quiet 1000 with a voice chosen
+    // per clip.
+
+    /// `n` frames of 320 samples at `amplitude`.
+    fn frames(n: usize, amplitude: i16) -> Vec<i16> {
+        tone(n * END_FRAME, amplitude)
+    }
+
+    fn read(clip: &[i16]) -> Result<EndReading, String> {
+        read_end(clip).ok_or_else(|| String::from("the clip has no run of speech"))
+    }
+
+    /// The groups of a clip at the 6 dB line and at the 10 dB line.
+    fn groups_of(clip: &[i16]) -> Result<(EndGroup, EndGroup), String> {
+        let reading = read(clip)?;
+        Ok((
+            reading.group(LOW_LINES_DB[0]),
+            reading.group(LOW_LINES_DB[1]),
+        ))
+    }
+
+    /// The low level after the voice is `expected` dB, within `tolerance`.
+    fn assert_low(reading: &EndReading, expected: f32, tolerance: f32) -> Result<(), String> {
+        let low = reading
+            .tail_low_db
+            .ok_or_else(|| String::from("no frame follows the voice"))?;
+        if (low - expected).abs() <= tolerance {
+            Ok(())
+        } else {
+            Err(format!("low {low} dB is not {expected} dB +- {tolerance}"))
+        }
+    }
+
+    fn clip_001() -> Vec<i16> {
+        [frames(20, 164), frames(30, 10362), frames(50, 164)].concat()
+    }
+
+    fn clip_002() -> Vec<i16> {
+        [
+            frames(20, 164),
+            frames(30, 10362),
+            frames(2, 639),
+            frames(48, 164),
+        ]
+        .concat()
+    }
+
+    fn clip_003() -> Vec<i16> {
+        [
+            frames(20, 164),
+            frames(30, 10362),
+            frames(3, 639),
+            frames(47, 164),
+        ]
+        .concat()
+    }
+
+    fn clip_004() -> Vec<i16> {
+        [
+            frames(20, 328),
+            frames(30, 6540),
+            frames(3, 474),
+            frames(47, 328),
+        ]
+        .concat()
+    }
+
+    fn clip_005() -> Vec<i16> {
+        [
+            frames(20, 328),
+            frames(30, 6540),
+            frames(3, 583),
+            frames(47, 328),
+        ]
+        .concat()
+    }
+
+    fn clip_006() -> Vec<i16> {
+        [
+            frames(20, 328),
+            frames(30, 6540),
+            frames(3, 823),
+            frames(47, 328),
+        ]
+        .concat()
+    }
+
+    fn clip_007() -> Vec<i16> {
+        [
+            frames(20, 328),
+            frames(30, 6540),
+            frames(15, 328),
+            frames(20, 596),
+            frames(15, 328),
+        ]
+        .concat()
+    }
+
+    fn clip_008() -> Vec<i16> {
+        [frames(20, 164), frames(40, 10362)].concat()
+    }
+
+    fn clip_009() -> Vec<i16> {
+        [frames(20, 164), frames(39, 10362), frames(1, 164)].concat()
+    }
+
+    fn clip_010() -> Vec<i16> {
+        [frames(20, 164), frames(39, 10362), tone(100, 10362)].concat()
+    }
+
+    fn clip_011() -> Vec<i16> {
+        [frames(20, 164), frames(30, 10362), frames(5, 164)].concat()
+    }
+
+    fn clip_012() -> Vec<i16> {
+        [frames(20, 1000), frames(30, 7173), frames(5, 1000)].concat()
+    }
+
+    fn clip_013() -> Vec<i16> {
+        [frames(20, 1000), frames(30, 7197), frames(50, 1000)].concat()
+    }
+
+    fn clip_014() -> Vec<i16> {
+        [frames(20, 1000), frames(30, 7173), frames(50, 1000)].concat()
+    }
+
+    fn clip_015() -> Vec<i16> {
+        [frames(20, 1000), frames(30, 26828), frames(50, 1000)].concat()
+    }
+
+    fn clip_016() -> Vec<i16> {
+        [frames(20, 1000), frames(30, 26738), frames(50, 1000)].concat()
+    }
+
+    /// The quiet frame and the isolated frame just under the rule's line,
+    /// five times, then a quiet room: 10 quiet and 5 isolated frames follow
+    /// the voice inside the window.
+    fn clip_017() -> Vec<i16> {
+        let mut parts = vec![frames(20, 164), frames(30, 10362)];
+        for _ in 0..5 {
+            parts.push(frames(1, 164));
+            parts.push(frames(1, 661));
+        }
+        parts.push(frames(40, 164));
+        parts.concat()
+    }
+
+    fn clip_018() -> Vec<i16> {
+        [
+            frames(20, 328),
+            frames(30, 6540),
+            frames(6, 583),
+            frames(44, 328),
+        ]
+        .concat()
+    }
+
+    fn clip_019() -> Vec<i16> {
+        [
+            frames(20, 164),
+            frames(30, 10362),
+            frames(6, 519),
+            frames(44, 164),
+        ]
+        .concat()
+    }
+
+    fn clip_020() -> Vec<i16> {
+        [
+            frames(20, 164),
+            frames(6, 10362),
+            frames(25, 519),
+            frames(52, 164),
+        ]
+        .concat()
+    }
+
+    fn clip_021() -> Vec<i16> {
+        [
+            frames(10, 0),
+            frames(14, 164),
+            frames(30, 3277),
+            frames(6, 328),
+            frames(40, 164),
+        ]
+        .concat()
+    }
+
+    /// Voice frames that never make a run of five.
+    fn clip_022_isolated() -> Vec<i16> {
+        let mut parts = Vec::new();
+        for _ in 0..4 {
+            parts.push(frames(10, 164));
+            parts.push(frames(1, 10362));
+        }
+        parts.push(frames(10, 164));
+        parts.concat()
+    }
+
+    /// Every clip above that has a voice, for the properties of all of them.
+    fn clips_with_a_voice() -> Vec<Vec<i16>> {
+        vec![
+            clip_001(),
+            clip_002(),
+            clip_003(),
+            clip_004(),
+            clip_005(),
+            clip_006(),
+            clip_007(),
+            clip_008(),
+            clip_009(),
+            clip_010(),
+            clip_011(),
+            clip_012(),
+            clip_013(),
+            clip_014(),
+            clip_015(),
+            clip_016(),
+            clip_017(),
+            clip_018(),
+            clip_019(),
+            clip_020(),
+            clip_021(),
+        ]
+    }
+
+    const BOTH_CERTAIN: (EndGroup, EndGroup) = (EndGroup::Certain, EndGroup::Certain);
+    const BOTH_UNCERTAIN: (EndGroup, EndGroup) = (EndGroup::Uncertain, EndGroup::Uncertain);
+    const BOTH_CUT: (EndGroup, EndGroup) = (EndGroup::Cut, EndGroup::Cut);
+
+    #[test]
+    fn a_clip_whose_voice_stops_dead_is_certain_at_both_lines() -> Result<(), String> {
+        let reading = read(&clip_001())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 12.60, 0.05)?;
+        assert_eq!(groups_of(&clip_001())?, BOTH_CERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_movement_of_exactly_40_ms_is_still_certain() -> Result<(), String> {
+        let reading = read(&clip_002())?;
+        assert_eq!(reading.ends, [16_000, 16_640, 16_640, 16_640]);
+        assert_low(&reading, 11.03, 0.05)?;
+        assert_eq!(groups_of(&clip_002())?, BOTH_CERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_movement_of_60_ms_is_not_certain_though_the_tail_is_low() -> Result<(), String> {
+        let reading = read(&clip_003())?;
+        assert_eq!(reading.ends, [16_000, 16_960, 16_960, 16_960]);
+        assert_low(&reading, 10.24, 0.05)?;
+        assert_eq!(groups_of(&clip_003())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn only_the_lowest_line_moving_60_ms_makes_the_clip_uncertain() -> Result<(), String> {
+        let reading = read(&clip_004())?;
+        assert_eq!(reading.ends, [16_000, 16_000, 16_000, 16_960]);
+        assert_low(&reading, 8.46, 0.05)?;
+        assert_eq!(groups_of(&clip_004())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn the_two_lowest_lines_moving_60_ms_make_the_clip_uncertain() -> Result<(), String> {
+        let reading = read(&clip_005())?;
+        assert_eq!(reading.ends, [16_000, 16_000, 16_960, 16_960]);
+        assert_low(&reading, 8.10, 0.05)?;
+        assert_eq!(groups_of(&clip_005())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn the_three_lower_lines_moving_60_ms_make_the_clip_uncertain() -> Result<(), String> {
+        let reading = read(&clip_006())?;
+        assert_eq!(reading.ends, [16_000, 16_960, 16_960, 16_960]);
+        assert_low(&reading, 7.50, 0.05)?;
+        assert_eq!(groups_of(&clip_006())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tail_beyond_the_window_makes_the_clip_uncertain() -> Result<(), String> {
+        let reading = read(&clip_007())?;
+        assert_eq!(reading.ends, [16_000, 16_000, 27_200, 27_200]);
+        assert_low(&reading, 9.10, 0.05)?;
+        assert_eq!(groups_of(&clip_007())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_voice_running_to_the_last_frame_is_cut() -> Result<(), String> {
+        let reading = read(&clip_008())?;
+        assert_eq!(reading.ends, [19_200; 4]);
+        assert_eq!(reading.tail_low_db, None);
+        assert_eq!(groups_of(&clip_008())?, BOTH_CUT);
+        Ok(())
+    }
+
+    #[test]
+    fn a_voice_ending_one_frame_before_the_end_is_not_cut() -> Result<(), String> {
+        let reading = read(&clip_009())?;
+        assert_eq!(reading.ends, [18_880; 4]);
+        assert_low(&reading, 12.60, 0.05)?;
+        assert_eq!(groups_of(&clip_009())?, BOTH_CERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_last_frame_shorter_than_320_samples_ends_the_voice_at_the_clip_length()
+    -> Result<(), String> {
+        let reading = read(&clip_010())?;
+        assert_eq!(reading.ends, [18_980; 4]);
+        assert_eq!(groups_of(&clip_010())?, BOTH_CUT);
+        Ok(())
+    }
+
+    #[test]
+    fn a_voice_ending_where_a_short_last_frame_begins_is_cut() -> Result<(), String> {
+        let clip = [frames(20, 164), frames(30, 10362), tone(185, 164)].concat();
+        let reading = read(&clip)?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_eq!(groups_of(&clip)?, BOTH_CUT);
+        Ok(())
+    }
+
+    #[test]
+    fn a_window_shorter_than_300_ms_is_averaged_over_its_own_frames() -> Result<(), String> {
+        let reading = read(&clip_011())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 12.60, 0.05)?;
+        assert_eq!(groups_of(&clip_011())?, BOTH_CERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_short_window_that_is_not_low_enough_is_not_padded_with_silence() -> Result<(), String> {
+        let reading = read(&clip_012())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 5.98991, 0.001)?;
+        assert_eq!(groups_of(&clip_012())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tail_6_db_below_the_line_is_certain_at_the_6_db_line_only() -> Result<(), String> {
+        let reading = read(&clip_013())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 6.00006, 0.001)?;
+        assert_eq!(
+            groups_of(&clip_013())?,
+            (EndGroup::Certain, EndGroup::Uncertain)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_tail_exactly_on_the_low_line_is_certain() {
+        let on_the_line = EndReading {
+            ends: [16_000; LINE_FRACTIONS.len()],
+            tail_low_db: Some(LOW_LINES_DB[0]),
+            cut: false,
+        };
+        assert_eq!(on_the_line.group(LOW_LINES_DB[0]), EndGroup::Certain);
+        assert_eq!(on_the_line.group(LOW_LINES_DB[1]), EndGroup::Uncertain);
+    }
+
+    #[test]
+    fn a_tail_0_01_db_short_of_6_db_is_not_certain() -> Result<(), String> {
+        let reading = read(&clip_014())?;
+        assert_low(&reading, 5.98991, 0.001)?;
+        assert_eq!(groups_of(&clip_014())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tail_10_db_below_the_line_is_certain_at_both_lines() -> Result<(), String> {
+        let reading = read(&clip_015())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 10.00012, 0.001)?;
+        assert_eq!(groups_of(&clip_015())?, BOTH_CERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn a_tail_0_01_db_short_of_10_db_is_certain_only_at_the_6_db_line() -> Result<(), String> {
+        let reading = read(&clip_016())?;
+        assert_low(&reading, 9.98990, 0.001)?;
+        assert_eq!(
+            groups_of(&clip_016())?,
+            (EndGroup::Certain, EndGroup::Uncertain)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_tail_is_averaged_in_decibels_not_in_power() -> Result<(), String> {
+        let reading = read(&clip_017())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 8.57, 0.05)?;
+        assert_eq!(
+            groups_of(&clip_017())?,
+            (EndGroup::Certain, EndGroup::Uncertain)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_percentile_line_decides_when_it_is_above_the_25_db_floor() -> Result<(), String> {
+        let reading = read(&clip_018())?;
+        assert_eq!(reading.ends, [16_000, 16_000, 17_920, 17_920]);
+        assert_eq!(groups_of(&clip_018())?, BOTH_UNCERTAIN);
+        Ok(())
+    }
+
+    #[test]
+    fn the_25_db_floor_decides_when_the_percentile_line_is_lower() -> Result<(), String> {
+        let reading = read(&clip_019())?;
+        assert_eq!(reading.ends, [16_000; 4]);
+        assert_low(&reading, 8.60, 0.05)?;
+        assert_eq!(
+            groups_of(&clip_019())?,
+            (EndGroup::Certain, EndGroup::Uncertain)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_loud_level_is_the_95th_percentile_by_integer_rank() -> Result<(), String> {
+        assert_eq!(read(&clip_020())?.ends, [16_320; 4]);
+        Ok(())
+    }
+
+    #[test]
+    fn the_quiet_level_is_the_10th_percentile_by_integer_rank() -> Result<(), String> {
+        assert_eq!(read(&clip_021())?.ends, [19_200; 4]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_clip_without_a_speech_run_has_no_group() {
+        assert_eq!(read_end(&[]), None);
+        assert_eq!(read_end(&clip_022_isolated()), None);
+    }
+
+    #[test]
+    fn the_ends_never_move_earlier_as_the_line_goes_down() -> Result<(), String> {
+        for (index, clip) in clips_with_a_voice().iter().enumerate() {
+            let reading = read(clip)?;
+            assert!(
+                reading.ends.windows(2).all(|pair| pair[0] <= pair[1]),
+                "clip {index}: {:?}",
+                reading.ends
+            );
+        }
+        Ok(())
     }
 }
