@@ -22,7 +22,7 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
 ### 現在の状態
 
 - Pythonの78本は消え、旧版は tag `archive/python-before-r11` にあります（[状態表](docs/design/status.ja.md)のRP-9の行）。
-- Rustの test へまだ写していない Python の test は106本です（[状態表](docs/design/status.ja.md)のRP-19の行）。
+- Rustの test へまだ写していない Python の test は89本です（[状態表](docs/design/status.ja.md)のRP-19の行）。
 - 録音した音声を流す端から端の確認は、日本語から英語も英語から日本語も通っています（2026-10-15のbuild。[記録](docs/results/e2e/)）。
 - 実機のマイクに人が話した日本語での確認は、まだしていません（NOT VERIFIED。[状態表](docs/design/status.ja.md) のマイクの行）。
 - 遅れの最後の判定は、まだ打っていません（窓E4。[状態表](docs/design/status.ja.md) の RP-67 の行）。
