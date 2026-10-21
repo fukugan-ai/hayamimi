@@ -30,6 +30,8 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
 - 認識はCPU（int8）で動かしています（[状態表](docs/design/status.ja.md) の R7 の行）。
 - CPUがGPUより速いという測定はありますが、測った時の機械の負荷が高く、値は未検証です（NOT VERIFIED）。
 - E2E用の訳のserverは、GPUに全層を載せます（[unit](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
+- 本番の command では、清書（group の読み直し）が既定で動き、`--no-refine` で止まります。
+- 下の表の遅れは清書を結ぶ前の build の値で、清書ありの値は窓E4で測ります（[状態表](docs/design/status.ja.md)のRP-61の行）。
 
 | 言語 | p95 | 1600 msの線 | 1200 msの目標 |
 |---|---|---|---|

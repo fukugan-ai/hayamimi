@@ -78,6 +78,20 @@ hayamimi --wav lat-ja.wav --models <models の directory>
 | `--min-silence` | 発話の終わりにする無音の秒数。既定は 0.30 |
 | `--replace` | 置換辞書。読めなければ使わずに続ける |
 | `--gpu-diagnose` | 句読点の model の node の置き場を log に出す |
+| `--no-refine` | 清書を止める。確定した発話の group を読み直さない |
+
+**清書**：確定した発話の group を読み直し、直した文を字幕の event へ出す処理です。
+`hayamimi` は既定で清書を走らせます。
+`--no-refine` を付けると、確定した発話の group を読み直しません。
+
+清書の文にも、確定文と同じ順で ITN、句読点、置換辞書が当たります。
+句読点が付くのは日本語の文だけです。
+清書の側は、確定文の側とは別に、句読点の model を CPU で開きます。
+開けないときは、清書の文を句読点なしで続け、warn の `refine.punct.unavailable` を 1 回出します（下の「落ちるときの形」の表）。
+
+`/config` で替えた置換辞書、ITN、句読点の入切は、清書にも、次に読み直す group から届きます。
+清書の読み手は、group を読み直すたびに今の値を読むからです。
+待ち行列に入っていた group も、読み直す時点の値で処理されます。
 
 log は JSONL で stdout に出ます。
 字幕の文字と file の path は入りません。
@@ -292,11 +306,13 @@ device が在って session が作れなければ、その段だけを CPU で�
 | 推論の library（sherpa-onnx、ORT）が開けない | `asr.fallback.disabled` | `asr`、`disabled` |
 | port が使われている | `server.fallback.port`（`url` に実際の URL） | `events`、`next_port`（10 個とも塞がっていれば `disabled`） |
 | 置換辞書が読めない | `config.fallback.default` | `replace`、`default` |
+| 清書用の句読点の model が開けない | `refine.punct.unavailable`（`error_code` は `HAYAMIMI_ASR_REFINE_PUNCT_UNAVAILABLE`。`model` と `provider` を持つ） | 出ない |
 
 次の番号から 10 個までの port を試します。
 遅れて接続した client や接続し直した client には、効いている `fallback` と `session_start` が、その順で最初にまとめて届きます。
 stderr には、落ちた段、理由、落ち先の 3 行を locale の言葉で出します。
 GPU が原因なら、`nvidia-smi` で確かめる案内の 1 行を足します。
+清書の句読点の行だけは、stdout の log の event 1 行で、`/events` の `fallback` も stderr の 3 行も出しません。
 
 推論の library が開けない場面は、Windows の実行物でだけ起こせます。
 Linux の実行物は、共有ライブラリを起動前に loader が解決します。

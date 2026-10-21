@@ -53,6 +53,8 @@ pub struct Args {
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
     pub serve_host: IpAddr,
     pub diagnose: bool,
+    /// Whether the groups of finished utterances are read again (`--no-refine` turns it off).
+    pub refine: bool,
     /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
     pub max_resident: Option<NonZeroUsize>,
     /// The GPU memory in use, in MiB, at which a GPU stage moves to the CPU.
@@ -204,6 +206,7 @@ impl Args {
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
             diagnose: false,
+            refine: true,
             max_resident: DEFAULT_MAX_RESIDENT,
             gpu_budget_mib: DEFAULT_GPU_BUDGET_MIB,
             io: IoArgs::default(),
@@ -225,6 +228,7 @@ impl Args {
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
             "--gpu-diagnose" => self.diagnose = true,
+            "--no-refine" => self.refine = false,
             "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
             "--gpu-budget" => self.gpu_budget_mib = positive_mib(value_of(rest)?)?,
             _ => return self.io.apply(option, rest),
@@ -377,6 +381,30 @@ mod tests {
         assert_eq!(budget("13999")?, 13_999);
         for bad in ["0", "-5", "x", "1.5"] {
             assert_eq!(budget(bad), Err(ArgError::BadNumber), "{bad}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn groups_are_read_again_unless_no_refine_is_given() -> Result<(), ArgError> {
+        assert!(run(&["--wav", "a.wav"])?.refine);
+        assert!(!run(&["--wav", "a.wav", "--no-refine"])?.refine);
+        assert!(!run(&["--no-refine", "--wav", "a.wav"])?.refine);
+        Ok(())
+    }
+
+    #[test]
+    fn both_help_texts_name_the_no_refine_option() -> Result<(), String> {
+        use hayamimi_relay::lang::Lang;
+        for lang in [Lang::En, Lang::Ja] {
+            let table = crate::strings::Strings::embedded(lang)?;
+            assert!(
+                table
+                    .cli_text(keys::HELP)
+                    .lines()
+                    .any(|line| line.trim_start().starts_with("--no-refine ")),
+                "{lang:?} does not list --no-refine"
+            );
         }
         Ok(())
     }
