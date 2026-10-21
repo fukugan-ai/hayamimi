@@ -255,12 +255,13 @@ fn open_engine(
 
 /// Reads silence once with the Japanese recognizer, so that the first
 /// utterance does not pay for the first decode of the process. A decode that
-/// fails is said, and the run goes on.
+/// fails is said, and the run goes on. The punctuation model is read once
+/// after it; the lines to say are chosen by [`log::warmup_lines`].
 fn warm_recognizer(strings: &Strings, engine: &mut Engine) {
-    match engine.warm_up() {
-        None => {}
-        Some(Ok(warmed)) => log::print(&log::warmup_decoded_line(strings, &warmed)),
-        Some(Err(_)) => log::print(&log::warmup_failed_line(strings)),
+    if let Some(read) = engine.warm_up() {
+        for line in log::warmup_lines(strings, &read) {
+            log::print(&line);
+        }
     }
 }
 

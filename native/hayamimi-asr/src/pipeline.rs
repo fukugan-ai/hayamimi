@@ -19,7 +19,7 @@ use crate::itn::{self, Overrides};
 use crate::lid::{self, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::partial::{self, DraftClock};
-use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
+use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
 use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier};
@@ -216,7 +216,37 @@ pub struct Demotion {
     pub report: Option<SessionReport>,
 }
 
-/// What the start-up decode of the Japanese recognizer measured.
+/// How the start-up read of the punctuation model went.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PunctWarmup {
+    /// Not read: the stage is off, its model is not open, or the decode before it failed.
+    Skipped,
+    /// Read once; the time of that read, in milliseconds.
+    Read(f64),
+    /// Tried and failed; the run goes on.
+    Failed,
+}
+
+impl PunctWarmup {
+    /// The outcome of a read that took `read` milliseconds or failed with an error.
+    fn of<E>(read: Result<f64, E>) -> PunctWarmup {
+        match read {
+            Ok(ms) => PunctWarmup::Read(ms),
+            Err(_) => PunctWarmup::Failed,
+        }
+    }
+
+    /// The time of the read, when one succeeded.
+    pub fn ms(self) -> Option<f64> {
+        match self {
+            PunctWarmup::Read(ms) => Some(ms),
+            PunctWarmup::Skipped | PunctWarmup::Failed => None,
+        }
+    }
+}
+
+/// What the start-up reads of the Japanese recognizer and the punctuation
+/// model measured.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Warmup {
     /// The recognizer that read the silence.
@@ -225,6 +255,14 @@ pub struct Warmup {
     pub audio_s: u32,
     /// The recognizer's time for that one decode, in milliseconds.
     pub decode_ms: f64,
+    /// The punctuation model's one read, after the decode.
+    pub punct: PunctWarmup,
+}
+
+/// Whether the start-up reads the punctuation model: the decode before it
+/// worked, the model is open, and the stage is on.
+fn reads_punct(decoded: bool, model_open: bool, stage_on: bool) -> bool {
+    decoded && model_open && stage_on
 }
 
 pub struct Engine {
@@ -541,22 +579,36 @@ impl Engine {
     }
 
     /// Reads [`WARMUP_SECONDS`] of silence once with the resident Japanese
-    /// recognizer, through the decode the finals use, and drops the text. The
-    /// first decode of a process pays for the work areas the runtime takes
-    /// then; this pays it before the first utterance. `None` for an engine
-    /// with no route, which has no recognizer to warm.
+    /// recognizer, through the decode the finals use, and drops the text; then
+    /// reads one sentence through the punctuation model. The first decode of a
+    /// process, and the first run of a model on the GPU, pay for the work
+    /// areas the runtime takes then; this pays them before the first
+    /// utterance. A punctuation read that fails does not fail the warm-up.
+    /// `None` for an engine with no route, which has no recognizer to warm.
     pub fn warm_up(&mut self) -> Option<Result<Warmup, AsrError>> {
         let route = self.route.as_mut()?;
         let silence = warmup_silence();
         let read = route.router.decoder_mut().decode_exact(Tier::Rz, &silence);
-        Some(read.and_then(|done| {
-            let done = done.ok_or(AsrError::NoRecognizer)?;
-            Ok(Warmup {
-                tier: done.tier,
-                audio_s: WARMUP_SECONDS,
-                decode_ms: done.decode_ms,
-            })
+        let decoded = read.and_then(|done| done.ok_or(AsrError::NoRecognizer));
+        let punct = self.warm_punct(decoded.is_ok());
+        Some(decoded.map(|done| Warmup {
+            tier: done.tier,
+            audio_s: WARMUP_SECONDS,
+            decode_ms: done.decode_ms,
+            punct,
         }))
+    }
+
+    /// Runs the punctuation model once on the warm-up sentence, when
+    /// [`reads_punct`] says to.
+    fn warm_punct(&mut self, decoded: bool) -> PunctWarmup {
+        let wanted = reads_punct(decoded, self.punctuator.is_some(), self.stages.punctuate);
+        let Some(punctuator) = self.punctuator.as_mut().filter(|_| wanted) else {
+            return PunctWarmup::Skipped;
+        };
+        let sentence = warmup_sentence();
+        let (read, ms) = timed(|| punctuator.restore(&sentence));
+        PunctWarmup::of(read.map(|_| ms))
     }
 
     /// The steps the language route took off the design since the last call
@@ -1199,6 +1251,37 @@ mod tests {
         let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
         assert!(engine.warm_up().is_none());
         Ok(())
+    }
+
+    #[test]
+    fn the_punctuation_model_is_read_when_the_decode_worked_and_the_stage_is_open_and_on() {
+        assert!(reads_punct(true, true, true));
+    }
+
+    #[test]
+    fn the_punctuation_model_is_not_read_after_a_failed_decode() {
+        assert!(!reads_punct(false, true, true));
+    }
+
+    #[test]
+    fn the_punctuation_model_is_not_read_when_it_is_not_open_or_the_stage_is_off() {
+        assert!(!reads_punct(true, false, true));
+        assert!(!reads_punct(true, true, false));
+    }
+
+    #[test]
+    fn a_punctuation_read_that_failed_is_failed_and_has_no_time() {
+        let failed = PunctWarmup::of::<AsrError>(Err(AsrError::NoRecognizer));
+        assert_eq!(failed, PunctWarmup::Failed);
+        assert_eq!(failed.ms(), None);
+    }
+
+    #[test]
+    fn a_punctuation_read_that_worked_keeps_its_time_and_a_skipped_one_has_none() {
+        let read = PunctWarmup::of::<AsrError>(Ok(12.5));
+        assert_eq!(read, PunctWarmup::Read(12.5));
+        assert_eq!(read.ms(), Some(12.5));
+        assert_eq!(PunctWarmup::Skipped.ms(), None);
     }
 
     #[test]

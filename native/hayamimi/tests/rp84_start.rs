@@ -1,8 +1,8 @@
 //! RP-84, the start: a run of the program reads silence once with the
-//! Japanese recognizer before it reads any audio. Its stdout holds one
-//! `asr.warmup.decoded` (10 s of audio, a decode time above zero), after
-//! `asr.model.loaded` and before the first `asr.endpoint.decided`, and no
-//! `asr.warmup.failed`.
+//! Japanese recognizer, and once the punctuation model, before it reads any
+//! audio. Its stdout holds one `asr.warmup.decoded` (10 s of audio, a decode
+//! time above zero, `punct_ms` a JSON number), after `asr.model.loaded` and
+//! before the first `asr.endpoint.decided`, and no `asr.warmup.failed`.
 //!
 //! The judgement is checked on stdout written by hand. The real run is
 //! `#[ignore]`: it starts the program on the CPU with the models and counts
@@ -45,7 +45,18 @@ fn check_fields(decoded: &Value) -> Result<(), Failure> {
             "{DECODED} has no decode time above zero: {decoded}"
         ));
     }
-    Ok(())
+    check_punct_ms(decoded)
+}
+
+/// The punctuation model was read at start-up: `punct_ms` is a JSON number,
+/// whatever its value. A `null` or a missing field is a stage not warmed.
+fn check_punct_ms(decoded: &Value) -> Result<(), Failure> {
+    if decoded.get("punct_ms").is_some_and(Value::is_number) {
+        return Ok(());
+    }
+    Err(format!(
+        "{DECODED} has no numeric punct_ms, so the punctuation model was not read: {decoded}"
+    ))
 }
 
 fn check_order(all: &[Value]) -> Result<(), Failure> {
@@ -79,7 +90,7 @@ fn check_start(all: &[Value]) -> Result<(), Failure> {
 }
 
 fn decoded_line() -> Value {
-    json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10})
+    json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10, "punct_ms": 448.445})
 }
 
 fn start_of(middle: Vec<Value>) -> Vec<Value> {
@@ -140,6 +151,31 @@ fn a_start_up_decode_that_read_less_than_ten_seconds_is_rejected() {
             .is_some_and(|text| text.contains("10 s of audio")),
         "{said:?}"
     );
+}
+
+#[test]
+fn a_start_up_decode_without_a_numeric_punct_ms_is_rejected() {
+    let cases = [
+        json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10}),
+        json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10, "punct_ms": null}),
+        json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10, "punct_ms": "448.445"}),
+    ];
+    for decoded in cases {
+        let said = check_start(&start_of(vec![decoded])).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("no numeric punct_ms")),
+            "{said:?}"
+        );
+    }
+}
+
+#[test]
+fn a_punct_ms_of_zero_is_a_number() -> TestResult {
+    let zero =
+        json!({"event": DECODED, "model": "rz", "decode_ms": 950.5, "audio_s": 10, "punct_ms": 0});
+    check_start(&start_of(vec![zero]))?;
+    Ok(())
 }
 
 /// The program on the clip of the acceptance runs, on the CPU: the lines it printed.
