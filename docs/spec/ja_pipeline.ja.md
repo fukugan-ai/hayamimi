@@ -2,7 +2,9 @@
 
 この file は R11 より前の Python のエンジンの記述で、R11 の後の `hayamimi` には当てはまらない。
 今も正しい節として挙げる節は無い。
-組の `docs/spec/ja_pipeline_spec.json` を `hayamimi config dump` の出力で作り直す slice は設計の R13-10 で、`config dump` は未実装である。
+数値だけは作り方が違う。
+組の `docs/spec/ja_pipeline_spec.json` の `config` ブロックは `hayamimi config dump` の出力で、test が両者を等しく保つ。
+この数値は Rust の実装の値で、そのうち 2 つはこの文書の表と違う (「設定ダンプと CI チェック」の章)。
 今の置き場は `native/hayamimi-asr/src/` の `recognizer.rs`、`vad.rs`、`punct/`、`itn.rs`、`audio.rs` である。
 R11 より前の版の読み方は、[`docs/README.ja.md`](../README.ja.md) の索引に在る。
 
@@ -21,7 +23,7 @@ ONNX Runtime を直接叩いて動かす構成である。
 言語ルーティング (`docs/eval/lid.md`) を持つが、日本語しか扱わない再実装にはそのどれも要らない。
 `RoutedASR.forced_lang` が `"ja"` に設定されていると、言語判定 (LID)、言語切替の確認、
 zh/yue の仲裁、文字種による再デコードのすべてが `transcribe()` の中で丸ごと飛ばされる
-(`scripts/asr_engine.py` の `transcribe()` 冒頭と、その中の `if self.forced_lang is not None:`
+(R11 より前のエンジンの認識モジュールの `transcribe()` 冒頭と、その中の `if self.forced_lang is not None:`
 の分岐)。したがって日本語専用の実装が用意すべきモデルは、認識器・VAD・句読点の 3 つだけになる。
 
 用語をここで一度だけ定義しておく。
@@ -39,7 +41,7 @@ zh/yue の仲裁、文字種による再デコードのすべてが `transcribe(
 ## モデル一覧
 
 日本語経路が読み込むファイルは 7 個。sha256 とバイト数は
-`scripts/dump_ja_config.py --with-models` が実ファイルから計算したもので、
+`hayamimi config dump --with-models` が実ファイルから計算したもので、
 機械可読な形は `docs/spec/ja_pipeline_spec.json` の `models` ブロックにある。
 
 | 役割 | ファイル (models/ 以下) | bytes | sha256 | ライセンス / 出所 |
@@ -69,7 +71,7 @@ onnxruntime 1.29.0 の CPU EP 上で、乱数トークン列を入れても実�
 ### fp32 と fp16 のどちらを選ぶか
 
 hayamimi 自身で量子化をやり直した 3 通りを、FLEURS ja 250 文 (seed 0) で
-`scripts/quantize_punct.py` により採点した。合格条件は事前宣言で「F1 が fp32 比 −0.02 以内」。
+R11 より前のエンジンの量子化の道具で採点した。合格条件は事前宣言で「F1 が fp32 比 −0.02 以内」。
 
 | variant | サイズ | P | R | F1 | 判定 |
 |---|---:|---:|---:|---:|---|
@@ -87,7 +89,7 @@ recall が崩れるという同じ壊れ方をしており、この BERT-char �
 判断:
 
 - **PC (デスクトップ) では fp32 を使う。** サイズ制約がないので、わざわざ変換する理由がない。
-  `scripts/punct_ja.py` の既定はこれ。
+  `hayamimi-asr::punct` が読む file はこれ (`punct::MODEL_FILE`)。
 - **メモリやパッケージサイズに制約がある実装では fp16 を使う。** 精度は fp32 と同一、
   サイズは半分。合計は 255,720,140 bytes (243.9 MiB) まで落ちる。
   Android エミュレータでの実動作確認は fp16 で行っている (後述)。
@@ -98,7 +100,7 @@ recall が崩れるという同じ壊れ方をしており、この BERT-char �
 
 ## 認識器設定
 
-`scripts/asr_engine.py` の `_build_reazon()` が唯一の構築点。sherpa-onnx の
+R11 より前のエンジンの認識モジュールの `_build_reazon()` が唯一の構築点。sherpa-onnx の
 `OfflineRecognizer.from_transducer` に渡す値は全部これで、C++ の
 `OfflineRecognizerConfig` に一対一で対応する。
 
@@ -141,7 +143,7 @@ publish する (`RoutedASR._warn_hotwords_encodability`)。
 
 ## VAD 設定
 
-`scripts/realtime_transcribe.py` の `build_vad()` が唯一の構築点。
+R11 より前のエンジンのリアルタイム文字起こしの `build_vad()` が唯一の構築点。
 
 | 項目 | 値 | 定数 |
 |---|---|---|
@@ -232,13 +234,13 @@ want = max(seg_start - PREROLL_S * sr,   # 1 秒より前には遡らない
 現在の実装は 1.0 秒)。クリップ丸ごとのオフラインデコード (参考上限) が 8.6% なので、
 残差 15.5% − 8.6% はストリーミング分割そのものによる文脈喪失で、これは別の問題である。
 
-この不変条件は `tests/test_asr_segment.py::test_live_path_preroll_keeps_utterance_initial_words`
+この不変条件は R11 より前のエンジンの test `test_live_path_preroll_keeps_utterance_initial_words`
 で固定してある。3 文のフィクスチャを VAD → プリロール → デコードの実経路に通し、
 各文の冒頭語が残ることを要求する。
 
 ### 対策 2 (副): 疑わしいときだけの分割再試行
 
-v0.3.1 で入れた。`_looks_truncated()` と `_split_retry()` (`scripts/asr_engine.py`)。
+v0.3.1 で入れた。`_looks_truncated()` と `_split_retry()` (R11 より前のエンジンの認識モジュール)。
 
 長いバッファを内部の無音で切って 1 発話ずつデコードし直すと、冒頭を落としたクリップは
 直る (FLEURS ja clip 15 は CER 0.67 → 0.11)。しかし**無条件にやると全体では損**で、
@@ -379,7 +381,7 @@ min_silence 0.35 秒、512 サンプル窓)。CPU は AMD Ryzen 5 5600 / Windows
 現行構成での正解:
 
 ```
-python scripts/realtime_transcribe.py --wav testdata/multi_sentence_ja.wav \
+<R11 より前のエンジンのリアルタイム文字起こし> --wav testdata/multi_sentence_ja.wav \
     --no-realtime --mode single --lang ja --threads 4
 ```
 
@@ -397,12 +399,12 @@ python scripts/realtime_transcribe.py --wav testdata/multi_sentence_ja.wav \
 **この認識器は複数発話を含む音声を渡すと最後の 1 発話しか返さない**。
 VAD による分割は最適化ではなく正しさのために必須である。
 
-上の発生率の表そのものを取り直すなら:
+上の発生率の表そのものを取り直すなら、R11 より前のエンジンの評価の道具を使う (tag `archive/python-before-r11` に在る。Rust の木にこの評価の道具は無い):
 
 ```
-python scripts/eval_head_dropout.py --limit 100 --threads 4        # 本文の表
-python scripts/eval_head_dropout.py --limit 20 --threads 4 --determinism
-python scripts/eval_head_dropout.py --multi-sentence --threads 4   # 3 区間 x 全条件
+<冒頭欠落の評価の道具> --limit 100 --threads 4        # 本文の表
+<冒頭欠落の評価の道具> --limit 20 --threads 4 --determinism
+<冒頭欠落の評価の道具> --multi-sentence --threads 4   # 3 区間 x 全条件
 ```
 
 クリップ別の仮説・先頭削除数・CER・時間は
@@ -430,7 +432,7 @@ python scripts/eval_head_dropout.py --multi-sentence --threads 4   # 3 区間 x 
 10. **ユーザ置換辞書** (`RoutedASR._replace`)。`--replace` で与えた `wrong=right` を適用する。
     **常に最後**なので、ITN や句読点が作った結果も上書きできる。**任意**。
 
-8 → 9 → 10 の順序は固定で、`scripts/itn_cjk.py` の module docstring が根拠を書いている。
+8 → 9 → 10 の順序は固定で、R11 より前のエンジンの ITN module の docstring が根拠を書いている。
 ITN を先にするのは、句読点復元が正規化済みの数字を見るようにするため (小数点で効く)。
 置換辞書を最後にするのは、ユーザの指定が常に勝つようにするため。
 
@@ -457,7 +459,7 @@ ITN を先にするのは、句読点復元が正規化済みの数字を見る�
   「直前のセグメント末尾」を覚えておく変数 1 個。実装は `AudioHistory` が 30 行程度なので
   そのまま移せる。
 - 句読点モデル用の ONNX Runtime セッション 1 個 (次章)。
-- ITN は純粋な文字列処理で依存がない。`scripts/itn_cjk.py` は 239 行、外部依存ゼロ、
+- ITN は純粋な文字列処理で依存がない。R11 より前のエンジンの ITN module は 239 行、外部依存ゼロ、
   正規表現の量指定子はすべて有界 (catastrophic backtracking がない) なので、
   そのまま移植できる。
 
@@ -465,7 +467,7 @@ ITN を先にするのは、句読点復元が正規化済みの数字を見る�
 
 ## 句読点復元の C++ 再現仕様
 
-`scripts/punct_ja.py` の `PunctuatorJa` の完全仕様。Dart 移植が
+R11 より前のエンジンの句読点 module (Rust の置き場は `hayamimi-asr::punct`) の `PunctuatorJa` の完全仕様。Dart 移植が
 `agent/feature/core-release` ブランチにあるので、C++ を書く前にそちらを読むと早い
 (下の「参照実装」)。
 
@@ -500,11 +502,11 @@ fp16 モデルも `keep_io_types=True` で変換してあるので入出力の�
 ### トークン化 (MeCab は要らない)
 
 元の `BertJapaneseTokenizer` は「NFKC 正規化 → MeCab で形態素分割 → 各形態素を 1 文字ずつに
-分割」というパイプラインで、`scripts/punct_ja.py` は fugashi + unidic-lite でそれを
+分割」というパイプラインで、R11 より前のエンジンの句読点 module は fugashi + unidic-lite でそれを
 再現している。しかし**形態素はその場で 1 文字ずつにばらされる**ので、MeCab の唯一の
 観測可能な効果は**空白が落ちること**だけである。
 
-これは検証してある。`scripts/make_punct_fixture.py` が
+これは検証してある。R11 より前のエンジンの fixture 生成の道具が
 
 ```
 NFKC 正規化 → 空白文字を除去 → コードポイントに分割
@@ -666,7 +668,7 @@ sherpa-onnx 1.13.6 が同梱する ONNX Runtime が 1.27.1 だという事実は
 | `mobile/hayamimi_core/lib/punct/punct_ja_tokenizer.dart` | vocab 読み込みと MeCab なしトークン化 |
 | `mobile/hayamimi_core/lib/punct/punct_ja_text.dart` | 閾値・印の挿入・疑問符規則。句読点集合と接尾辞リストの定数もここ |
 | `mobile/hayamimi_core/test/fixtures/punct_ja_parity.json` | **パリティ用フィクスチャ** |
-| `scripts/make_punct_fixture.py` | それを生成するスクリプト (このブランチにもある) |
+| R11 より前のエンジンの fixture 生成の道具 | それを生成する道具 (このブランチにもある) |
 
 フィクスチャの形式は、ヘッダ (生成元・出典・使ったモデル・onnxruntime のバージョン・
 `unicodedata` のバージョン・閾値) と `cases` 配列。各ケースは:
@@ -694,11 +696,11 @@ FLEURS ja には疑問文が 1 つもないので、疑問符規則・空文字�
 
 要点だけ:
 
-- 生成は `scripts/make_ja_golden.py`。`realtime_transcribe.main()` が
+- 生成は R11 より前のエンジンの golden 生成の道具。`realtime_transcribe.main()` が
   `--wav X --no-realtime --mode single --lang ja --threads 4` で組むのと同じ
   オブジェクト (`RoutedASR(forced_lang="ja")`, `LiveVad`, `AudioHistory`, `Refiner`) を
   組み、`EventHub.add_listener` で結果を受け取る。stdout は読まない。
-- 検証は `tests/test_ja_golden.py`。**2 段階の判定**で、
+- 検証は R11 より前のエンジンの golden の test。**2 段階の判定**で、
   (1) 完全一致した本数は報告するだけ、(2) 合否は**ゴールデンテキストに対する CER が
   1.0% 以下**かどうかで決める。int8 の ONNX カーネルは CPU のマイクロアーキテクチャを
   またぐと bit 再現しない (onnxruntime がベクトル幅に応じて別のコード経路を選ぶ) ので、
@@ -721,26 +723,41 @@ FLEURS ja には疑問文が 1 つもないので、疑問符規則・空文字�
 
 文書は放っておくとコードから離れる。そこで数値は 1 か所から機械的に出している。
 
-- `scripts/dump_ja_config.py` が、**モデルを一切ロードせずに**日本語経路の実効設定を
-  JSON で出す。値はすべてモジュール定数か関数の宣言済み既定値から取っており
-  (`inspect.signature` を使っている箇所もある)、`models/` がない環境でも動く。
+- `hayamimi config dump` が、**モデルを一切ロードせずに**日本語経路の実効設定を
+  JSON で出す。`hayamimi-asr` が定数として出している値と `hayamimi` の既定はそこから読み、
+  下の宣言値は `native/hayamimi/src/config_dump.rs` に書いてある。`models/` がない環境でも動く。
   `--with-models` を付けると `models/` を読んで sha256 とバイト数も足す。
-- その出力を `docs/spec/ja_pipeline_spec.json` に固定してある。再生成は:
+- その出力を `docs/spec/ja_pipeline_spec.json` に固定してある。再生成は `native/` で:
 
   ```
-  python scripts/dump_ja_config.py --with-models --out docs/spec/ja_pipeline_spec.json
+  cargo run --release -p hayamimi -- config dump --with-models --models ../models \
+      --out ../docs/spec/ja_pipeline_spec.json
   ```
 
-- `tests/test_ja_pipeline_spec.py` が、その `config` ブロックを毎回ダンプし直して
-  committed のものと比較する。これが**ドリフト検出**である。`models` ブロックは
-  `models/` がある環境でだけ比較し、ない環境では skip する。
+- `native/hayamimi/tests/ja_pipeline_spec.rs` が、`hayamimi config dump` を実行して
+  その `config` ブロックを committed のものと比較する。これが**ドリフト検出**である。
+  `models` ブロックを比較する test は無い。
 
-この仕組みのために、コード側の裸のリテラルをモジュール定数に括り出した
-(`asr_engine.RZ_MODEL_TYPE` / `RZ_DECODING_METHOD` / `RZ_MODELING_UNIT` /
-`RZ_HOTWORDS_SCORE` / `RZ_MODEL_FILES`、`realtime_transcribe.VAD_MIN_SPEECH_S` /
-`VAD_BUFFER_S` / `VAD_NUM_THREADS`、`punct_ja.PUNCT_*`)。値は 1 つも変えていない。
-`punct_ja.py` は numpy / onnxruntime / fugashi の import をメソッド内に移してあり、
-定数を読むだけなら 3 つとも要らない。
+`config` ブロックは Rust の実装の値を持つ。
+上の章の表は R11 より前のエンジンの値を書いている。
+2 つの値が両者で違う。
+
+- `vad.min_silence_duration` は実装では 0.30 (`native/hayamimi/src/args.rs` の `DEFAULT_MIN_SILENCE`)、上の表では 0.35。
+- `punctuation.intra_op_num_threads` は実装では 2、上の表では 4。
+
+`itn.module` は `hayamimi-asr::itn` である。以前は Python の file を指していた。
+
+**宣言値 (drift を検出しない)。**
+次の値は `native/hayamimi/src/config_dump.rs` に書いてあり、元の code が変わっても test は落ちない。
+これ以外の値は、test が `hayamimi-asr` の定数か `hayamimi` の既定から読む。
+
+- `route`: `forced_lang`、`language_identification`、`second_opinion_default`、`postprocessing_order`。
+- `recognizer`: `name`、`api`、`files` (file 名の pattern)、`model_type`、`decoding_method`、`modeling_unit`、`hotwords_file`、`hotwords_usable`、`feature_dim`。
+- `vad`: `speech_padding_supported`。
+- `preroll`: `history_keep_seconds`、`clamped_to_previous_segment_end`、`source`。
+- `head_dropout_retry`: `pad_real_context_each_side`、`pad_zero_samples_each_side`。
+- `punctuation`: `vocab`、`input_names`、`output_name`、`force_final_period`、`intra_op_num_threads`、`normalization`。
+- `itn`: `enabled`、`module`、`applicable_langs`。
 
 ## 未検証事項
 

@@ -18,14 +18,14 @@ pub const MAX_CHARS: usize = 500;
 /// Marks that are never followed or preceded by an inserted mark. Half-width
 /// and full-width forms are both listed because NFKC folds the full-width
 /// ones into the half-width ones before this set is consulted.
-const MARKS: [char; 21] = [
+pub const MARKS: [char; 21] = [
     '。', '、', '！', '？', '!', '?', '…', '「', '」', '『', '』', '（', '）', '(', ')', '【',
     '】', '・', ',', '.', '\n',
 ];
 
 /// Sentence endings that make a sentence a question. The model scores commas
 /// and periods only, so the question mark is a hand-written rule.
-const QUESTION_SUFFIXES: [&str; 10] = [
+pub const QUESTION_SUFFIXES: [&str; 10] = [
     "ですか",
     "ますか",
     "でしょうか",

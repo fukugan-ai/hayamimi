@@ -14,8 +14,8 @@ use crate::strings::keys;
 /// The port the subtitle events are served on when `--serve` has no value.
 pub const DEFAULT_PORT: u16 = 8833;
 const DEFAULT_MODELS: &str = "models";
-const DEFAULT_MIN_SILENCE: f32 = 0.30;
-const DEFAULT_MAX_SPEECH: f32 = 12.0;
+pub const DEFAULT_MIN_SILENCE: f32 = 0.30;
+pub const DEFAULT_MAX_SPEECH: f32 = 12.0;
 /// The memory in use on the GPU, in MiB, at which a GPU stage moves to the
 /// CPU. It counts every process of the GPU, the translator's included.
 pub const DEFAULT_GPU_BUDGET_MIB: u64 = 14_000;
@@ -257,6 +257,41 @@ pub fn parse(args: &[String]) -> Result<Parsed, ArgError> {
     }
 }
 
+/// What `hayamimi config dump` asks for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigDump {
+    /// Also hash the model files under `models` (`--with-models`).
+    pub with_models: bool,
+    pub models: PathBuf,
+    /// Write the document to this file instead of the standard output (`--out`).
+    pub out: Option<PathBuf>,
+}
+
+/// Parses the arguments after `config`: the one command `dump` and its options.
+pub fn parse_config(args: &[String]) -> Result<ConfigDump, ArgError> {
+    let Some((command, options)) = args.split_first() else {
+        return Err(ArgError::UnknownOption);
+    };
+    if command != "dump" {
+        return Err(ArgError::UnknownOption);
+    }
+    let mut parsed = ConfigDump {
+        with_models: false,
+        models: PathBuf::from(DEFAULT_MODELS),
+        out: None,
+    };
+    let mut rest = options.iter().peekable();
+    while let Some(option) = rest.next() {
+        match option.as_str() {
+            "--with-models" => parsed.with_models = true,
+            "--models" => parsed.models = PathBuf::from(value_of(&mut rest)?),
+            "--out" => parsed.out = Some(PathBuf::from(value_of(&mut rest)?)),
+            _ => return Err(ArgError::UnknownOption),
+        }
+    }
+    Ok(parsed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -455,6 +490,64 @@ mod tests {
         );
         assert_eq!(
             parse(&args(&["--wav", "a", "--serve-host"])),
+            Err(ArgError::MissingValue)
+        );
+    }
+
+    #[test]
+    fn config_dump_reads_nothing_of_the_models_unless_asked() {
+        assert_eq!(
+            parse_config(&args(&["dump"])),
+            Ok(ConfigDump {
+                with_models: false,
+                models: PathBuf::from("models"),
+                out: None,
+            })
+        );
+    }
+
+    #[test]
+    fn config_dump_takes_its_three_options() {
+        let parsed = parse_config(&args(&[
+            "dump",
+            "--with-models",
+            "--models",
+            "m",
+            "--out",
+            "spec.json",
+        ]));
+        assert_eq!(
+            parsed,
+            Ok(ConfigDump {
+                with_models: true,
+                models: PathBuf::from("m"),
+                out: Some(PathBuf::from("spec.json")),
+            })
+        );
+    }
+
+    #[test]
+    fn config_without_dump_or_with_another_command_is_refused() {
+        assert_eq!(parse_config(&[]), Err(ArgError::UnknownOption));
+        assert_eq!(
+            parse_config(&args(&["--with-models"])),
+            Err(ArgError::UnknownOption)
+        );
+        assert_eq!(parse_config(&args(&["load"])), Err(ArgError::UnknownOption));
+    }
+
+    #[test]
+    fn config_dump_refuses_an_unknown_option_and_a_missing_value() {
+        assert_eq!(
+            parse_config(&args(&["dump", "--bogus"])),
+            Err(ArgError::UnknownOption)
+        );
+        assert_eq!(
+            parse_config(&args(&["dump", "--out"])),
+            Err(ArgError::MissingValue)
+        );
+        assert_eq!(
+            parse_config(&args(&["dump", "--models"])),
             Err(ArgError::MissingValue)
         );
     }

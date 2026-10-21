@@ -14,12 +14,12 @@ use crate::error::AsrError;
 use crate::vad::{VadSettings, silero_config, take_segments};
 
 /// A buffer this short cannot hold two utterances.
-pub(crate) const MIN_BUFFER_SECONDS: f64 = 4.0;
+pub const MIN_BUFFER_SECONDS: f64 = 4.0;
 /// Only silences at least this long cut a piece; the same value as the live
 /// detector's, so a live segment splits into exactly one piece.
-const MIN_SILENCE_SECONDS: f32 = 0.35;
+pub const MIN_SILENCE_SECONDS: f32 = 0.35;
 /// Real audio kept on both sides of a piece, and the synthesised silence around it.
-const PAD_SECONDS: f64 = 0.35;
+pub const PAD_SECONDS: f64 = 0.35;
 /// The shortest ring buffer of the cutting detector, in seconds.
 const MIN_CAPACITY_SECONDS: f64 = 60.0;
 

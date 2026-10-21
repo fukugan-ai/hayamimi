@@ -8,15 +8,15 @@ use sherpa_onnx::{SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
 use crate::audio::{SAMPLE_RATE, WINDOW};
 use crate::error::AsrError;
 
-const VAD_FILE: &str = "silero_vad.onnx";
+pub const VAD_FILE: &str = "silero_vad.onnx";
 /// Silero's own speech-probability cutoff.
 const THRESHOLD: f32 = 0.5;
 /// Speech runs shorter than this are ignored.
-const MIN_SPEECH_SECONDS: f32 = 0.25;
+pub const MIN_SPEECH_SECONDS: f32 = 0.25;
 /// Seconds of audio the detector's ring buffer holds.
-const BUFFER_SECONDS: f32 = 30.0;
+pub const BUFFER_SECONDS: f32 = 30.0;
 /// The model is tiny; one thread is plenty.
-const THREADS: i32 = 1;
+pub const THREADS: i32 = 1;
 
 /// The two knobs a user may turn.
 #[derive(Debug, Clone, Copy, PartialEq)]
