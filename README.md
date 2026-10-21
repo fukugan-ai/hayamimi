@@ -4,31 +4,31 @@
 
 The **original**, [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi), is real-time multilingual speech recognition that runs on the CPU alone, with no GPU and no cloud API (its runtime is Python).
 This repository ([fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)) is a **fork** of it: a copy that keeps the original history and is developed separately.
-Nothing from this fork is pushed or sent as a pull request to the original, and the badges below this section point to the original's CI and releases, not to results of this fork.
-The text after this section describes the original Python version, and statements such as "no GPU" remain in it and do not apply to the Rust version.
+Nothing from this fork is pushed or sent as a pull request to the original, and the badges below this section point to the original's CI and releases, not to results of this fork; the text after this section describes the original Python version, and statements such as "no GPU" remain in it and do not apply to the Rust version.
 
 ### What is being done here
-
 The Python runtime is being replaced with Rust (the Cargo workspace in `native/`), and inference uses the GPU (CUDA).
-The work is complete when Python is out of the runtime path and removed.
-Speed comes first; quality (recognition error rate and naturalness of translation) comes second.
-The speed measure is **L**: the delay from the end of an utterance to the appearance of its translated subtitle.
-L is measured at p50 (the median) and p95 (the delay within which 95% of utterances fall).
-Once the speed target is met, quality must match or beat the Python version.
+The work is complete when Python is out of the runtime path and removed, and speed comes first while quality (recognition error rate and naturalness of translation) comes second.
+The speed measure is **L**, the delay from the end of an utterance to the appearance of its translated subtitle, measured at p50 (the median) and p95 (the delay within which 95% of utterances fall), and once the speed target is met, quality must match or beat the Python version.
 
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### Current state
+- The 78 Python files are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` (RP-9 row of the [status table](docs/design/status.md)).
+- End-to-end checks on played-back recorded audio pass for Japanese to English and for English to Japanese (E2E; [records](docs/results/e2e/)).
+- A check with a person speaking Japanese into a real microphone is not done yet (NOT VERIFIED; microphone row of the [status table](docs/design/status.md)).
+- The final judgement of the delay has not been run yet (window E4; RP-67 row of the [status table](docs/design/status.md)).
+- The delay cannot be called passed until that judgement and the unimplemented start-point check are done (RP-73; RP-67 row of the [design](docs/design/rust_port.ja.md)).
+- Recognition runs on the CPU (int8), and the re-measurement that found it faster than the GPU is unverified (NOT VERIFIED; R7 row of the [status table](docs/design/status.md)).
+- The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
 
-- The 78 Python files and `requirements*.txt` are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` ([`status.md`, lines 16 and 35](docs/design/status.md)).
-- The two end-to-end (E2E) acceptance tests on played-back recorded audio pass, and a check with a person speaking Japanese into a real microphone has not been done (NOT VERIFIED, [`status.md`, lines 321 and 40](docs/design/status.md)).
-- The latest p95 of `L` comes from the window E3'' runs on the real machine: 1484.8 ms and 1474.1 ms for Japanese, and 1089.1 ms for English, all three inside the pass line (RP-67) of 1600 ms or less, and against the 1200 ms target for after completion English reaches it and Japanese does not ([`status.md`, line 29](docs/design/status.md); records are the `e3q*` files in [`docs/results/r8x/`](docs/results/r8x/)).
-- The final judgement, window E4, is not done, and the records of the 2026-10-15 build ([`docs/results/e2e/`](docs/results/e2e/)) show a Japanese p95 of 1871.7 ms, outside the 1600 ms line ([`status.md`, line 29](docs/design/status.md)).
-- Recognition runs on the CPU (int8) because it is faster than the GPU (fp32) in the placement re-measurement, but the machine load during that measurement is high, so the values are NOT VERIFIED and only the direction is used ([`status.md`, lines 32 and 316](docs/design/status.md)).
-- The translation server used in the E2E windows (llama-server, CAT-Translate-3.3b at Q8_0) puts all layers on the GPU (`-ngl 99`; [line 58 of `hayamimi-llama-e2e.service`](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
-- Progress per slice and what remains: [`docs/design/status.md`](docs/design/status.md)
+| Language | p95 of `L` (latest real-machine runs; RP-67 row of the [status table](docs/design/status.md)) | 1600 ms line | 1200 ms target |
+|---|---|---|---|
+| Japanese (run 1) | 1484.8 ms | inside | not reached |
+| Japanese (run 2) | 1474.1 ms | inside | not reached |
+| English | 1089.1 ms | inside | reached |
 
 ### Related documents
-
+- State of each slice: [docs/design/status.md](docs/design/status.md)
 - Design (Japanese only): [docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
 - Build and run guide (Japanese only): [docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
 
@@ -298,6 +298,8 @@ bounded no matter how many languages a session wanders through.
 
 ## Measured performance
 
+The values in this section are from the measurement of the 2026-10-15 build; the current values are in "Current state" at the top.
+
 ### End-to-end delay of the Rust version (measured 2026-10-15)
 
 **L** is the delay from the moment the last audio sample of an utterance is sent to the moment the translated subtitle of that utterance appears.
@@ -333,8 +335,7 @@ What this measurement does not show:
 - The record does not say whether the E2E-2 capture came from the output device of a real Windows machine (NOT VERIFIED: check by running E2E-2 again on a real Windows machine).
 
 The per-run sample jsonl files and the conditions are in `docs/results/e2e/` (commit `9103c95`).
-A later E2E-2 record, `e1pre` (`docs/results/r8x/`), is a record only and does not decide RP-67, because the machine load around the run was above the RP-83 line of 2.50. The value of en comes from window E1, run again after R8x-1.
-
+A later E2E-2 record, `e1pre` (`docs/results/r8x/`), is a record only and does not decide RP-67, because the machine load around the run was above the RP-83 line of 2.50.
 ### Alternating Rust and Python measurement (RP-32, 2026-10-20)
 
 Python and Rust were run in 3 alternating pairs under the same load; this is the formal verdict of E2E-1.

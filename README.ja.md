@@ -4,32 +4,33 @@
 
 **オリジナル**は [oboroge0/hayamimi](https://github.com/oboroge0/hayamimi) で、GPUもクラウドAPIも使わず、CPUだけで動くリアルタイム多言語音声認識です（実行系はPython）。
 このリポジトリ（[fukugan-ai/hayamimi](https://github.com/fukugan-ai/hayamimi)）は、そのオリジナルの **fork**（元の履歴を引き継いで、別に手を入れる複製）です。
-オリジナルへのpushとpull requestは行いません。
-この節の下にあるバッジは、オリジナルのCIとリリースを指していて、この fork の結果ではありません。
+オリジナルへのpushとpull requestは行わず、この節の下にあるバッジはオリジナルのCIとリリースを指していて、この fork の結果ではありません。
 このあとの本文は、オリジナルのPython版の説明で、「GPUを使わない」など、Rust版には当てはまらない記述が残っています。
 
 ### いま実施していること
-
 Pythonの実行系をRust（`native/` のCargo workspace）へ置き換え、推論にGPU（CUDA）を使います。
-Pythonを実行の経路から外し、消すところまでを完了とします。
-速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
-速度の指標は **L**：発話の終わりから、その発話の訳の字幕が出るまでの遅れです。
-Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
+Pythonを実行の経路から外して消すところまでを完了とし、速度が第一、品質（認識の誤り率と訳の自然さ）が第二です。
+速度の指標は **L**（発話の終わりから、その発話の訳の字幕が出るまでの遅れ）で、p50（中央値）とp95（95%の発話が収まる遅れ）で測ります。
 品質は、速度の目標を満たした上で、Python版と同じか良くします。
 
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### 現在の状態
+- Pythonの78本は消え、旧版は tag `archive/python-before-r11` にあります（[状態表](docs/design/status.ja.md)のRP-9の行）。
+- 録音した音声を流す端から端の確認は、日本語から英語も英語から日本語も通っています（E2E。[記録](docs/results/e2e/)）。
+- 実機のマイクに人が話した日本語での確認は、まだしていません（NOT VERIFIED。[状態表](docs/design/status.ja.md) のマイクの行）。
+- 遅れの最後の判定は、まだ打っていません（窓E4。[状態表](docs/design/status.ja.md) の RP-67 の行）。
+- 遅れの合否を通ったと言うには、最後の判定と、未実装の起点の確認が要ります（RP-73。[設計](docs/design/rust_port.ja.md) の RP-67 の行）。
+- 認識はCPU（int8）で動かしていて、GPUより速かった測り直しの値は未検証です（NOT VERIFIED。[状態表](docs/design/status.ja.md) の R7 の行）。
+- E2E用の訳のserverは、GPUに全層を載せます（[unit](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
 
-- Pythonの78本と `requirements*.txt` は消えていて、消す前の版は tag `archive/python-before-r11` から取り出せます（[`status.ja.md` の14行目と34行目](docs/design/status.ja.md)）。
-- 端から端の確認（E2E）は、録音した音声を流す受入testが2本とも通っていて、実機のマイクに人が話した日本語での確認は未実施です（NOT VERIFIED、[`status.ja.md` の319行目と39行目](docs/design/status.ja.md)）。
-- `L` のp95の最新は、窓E3''の実機のrunで、日本語が1484.8 msと1474.1 ms、英語が1089.1 msであり、合否の線（RP-67）の1600 ms以下には3本とも入っていて、完成の後の目標の1200 msには、英語は届いていて、日本語は届いていません（[`status.ja.md` の28行目](docs/design/status.ja.md)、記録は [`docs/results/r8x/`](docs/results/r8x/) の `e3q*`）。
-- 最後の判定の窓E4は未実施で、2026-10-15のbuildの記録（[`docs/results/e2e/`](docs/results/e2e/)）では、日本語のp95が1871.7 msと1600 msの線の外にあります（[`status.ja.md` の28行目](docs/design/status.ja.md)）。
-- 認識はCPU（int8）で動かしていて、置き場の測り直しでGPU（fp32）より速かったためですが、測った時の機械の負荷が高く、値はNOT VERIFIEDで向きだけを採っています（[`status.ja.md` の31行目と314行目](docs/design/status.ja.md)）。
-- E2Eの窓で使う訳のserver（llama-server、CAT-Translate-3.3bのQ8_0）は、GPUに全層を載せる設定（`-ngl 99`）です（[`hayamimi-llama-e2e.service` の58行目](native/hayamimi-relay/units/hayamimi-llama-e2e.service)）。
-- sliceごとの進み具合と残りは [`docs/design/status.ja.md`](docs/design/status.ja.md)
+| 言語 | `L` のp95（最新の実機のrun。[状態表](docs/design/status.ja.md) の RP-67 の行） | 1600 msの線 | 1200 msの目標 |
+|---|---|---|---|
+| 日本語（1本目） | 1484.8 ms | 内側 | 届いていない |
+| 日本語（2本目） | 1474.1 ms | 内側 | 届いていない |
+| 英語 | 1089.1 ms | 内側 | 届いている |
 
 ### 関連する文書
-
+- 状態表：[docs/design/status.ja.md](docs/design/status.ja.md)
 - 設計：[docs/design/rust_port.ja.md](docs/design/rust_port.ja.md)
 - buildと実行の手順：[docs/guide/run_hayamimi.ja.md](docs/guide/run_hayamimi.ja.md)
 
@@ -289,6 +290,8 @@ Rust版の`hayamimi`が受けるフラグは`hayamimi --help`で見られ、使�
 
 ## 実測パフォーマンス
 
+この節の値は2026-10-15のbuildの測定。今の値は冒頭の「現在の状態」。
+
 ### Rust版の端から端の遅れ（2026-10-15 の測定）
 
 **L**は、発話の最後の音声を送った時刻から、その発話の訳の字幕が出る時刻までの遅れです。
@@ -324,7 +327,7 @@ p50とp95は、訳が取れた有効な標本だけで出しました。
 - E2E-2の取り込みがWindows実機の出力装置のloopbackかは、記録に書かれていません（NOT VERIFIED：確かめ方は、Windowsの実機でE2E-2を打ち直すことです）。
 
 run ごとの標本のjsonlと条件は、`docs/results/e2e/`（commit `9103c95`）にあります。
-その後のE2E-2の記録 `e1pre`（`docs/results/r8x/`）は、runの前後の負荷がRP-83の線2.50を超えているため記録だけで、RP-67の判定には使いません。enの値は、R8x-1の後に窓E1を流し直して取ります。
+その後のE2E-2の記録 `e1pre`（`docs/results/r8x/`）は、runの前後の負荷がRP-83の線2.50を超えているため記録だけで、RP-67の判定には使いません。
 
 ### Rust版の交互の測定（RP-32、2026-10-20）
 
