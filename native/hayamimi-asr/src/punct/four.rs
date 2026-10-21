@@ -1631,4 +1631,146 @@ mod tests {
         assert_eq!(previous.1, sentence.chars().count());
         Ok(())
     }
+
+    // The choice between the two models (`super::super::select`), with fakes.
+    use super::super::{
+        Chosen, PunctModel, UnknownPunctModel, Warning, resolve_punct_model, select,
+    };
+
+    fn no_model() -> AsrError {
+        AsrError::MissingModel(PathBuf::from("no-such-models/punct"))
+    }
+
+    /// Runs `select` with fakes and counts how often each one was opened.
+    fn run(
+        model: PunctModel,
+        four: Result<&'static str, AsrError>,
+        bert: Result<&'static str, AsrError>,
+    ) -> (Result<Chosen<&'static str>, AsrError>, u32, u32) {
+        let (four_calls, bert_calls) = (Cell::new(0), Cell::new(0));
+        let chosen = select(
+            model,
+            || {
+                four_calls.set(four_calls.get() + 1);
+                four
+            },
+            || {
+                bert_calls.set(bert_calls.get() + 1);
+                bert
+            },
+        );
+        (chosen, four_calls.get(), bert_calls.get())
+    }
+
+    #[test]
+    fn resolve_punct_model_accepts_known_values() {
+        assert_eq!(resolve_punct_model("bert"), Ok(PunctModel::Bert));
+        assert_eq!(resolve_punct_model("4class"), Ok(PunctModel::FourClass));
+    }
+
+    #[test]
+    fn resolve_punct_model_rejects_unknown_value() {
+        for name in ["bert2", "", "4CLASS", " bert"] {
+            assert_eq!(
+                resolve_punct_model(name),
+                Err(UnknownPunctModel(name.to_owned())),
+                "{name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_unknown_value_is_named_in_the_message() {
+        let said = UnknownPunctModel("bert2".to_owned()).to_string();
+        assert!(
+            said.contains("\"bert2\"") && said.contains("4class"),
+            "{said}"
+        );
+    }
+
+    #[test]
+    fn punct_property_defaults_to_bert() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::Bert, Ok("4class"), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("bert"));
+        assert_eq!((chosen.warning, chosen.disabled), (None, None));
+        assert_eq!(
+            (four, bert),
+            (0, 1),
+            "BERT asked for: 4class is never opened"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_builds_4class_when_selected() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::FourClass, Ok("4class"), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("4class"));
+        assert_eq!((chosen.warning, chosen.disabled), (None, None));
+        assert_eq!((four, bert), (1, 0), "BERT is not opened when 4class opens");
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_4class_missing_falls_back_to_bert_with_warning() -> Result<(), AsrError> {
+        let (chosen, four, bert) = run(PunctModel::FourClass, Err(no_model()), Ok("bert"));
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, Some("bert"), "punctuation stays on");
+        assert_eq!(
+            chosen.warning,
+            Some(Warning {
+                code: "punct_model_unavailable",
+                reason: Reason::Missing
+            })
+        );
+        assert_eq!(chosen.disabled, None);
+        assert_eq!((four, bert), (1, 1), "one warning, one try each");
+        Ok(())
+    }
+
+    #[test]
+    fn punct_property_disables_when_both_models_unavailable() -> Result<(), AsrError> {
+        let (chosen, _, _) = run(
+            PunctModel::FourClass,
+            Err(no_model()),
+            Err(AsrError::Io("vocab.txt: gone".to_owned())),
+        );
+        let chosen = chosen?;
+        assert_eq!(chosen.punctuator, None);
+        assert_eq!(chosen.warning.map(|w| w.reason), Some(Reason::Missing));
+        assert_eq!(
+            chosen.disabled,
+            Some(Fallback {
+                stage: Stage::Punct,
+                reason: Reason::Unreadable,
+                to: To::Disabled
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_missing_bert_with_bert_asked_for_turns_punctuation_off_without_a_warning()
+    -> Result<(), AsrError> {
+        let (chosen, four, _) = run(PunctModel::Bert, Ok("4class"), Err(no_model()));
+        let chosen = chosen?;
+        assert_eq!((chosen.punctuator, chosen.warning), (None, None));
+        assert_eq!(chosen.disabled.map(|f| f.to), Some(To::Disabled));
+        assert_eq!(four, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_failure_that_is_not_about_a_model_is_returned_not_absorbed() {
+        let shape = || AsrError::Shape("rows".to_owned());
+        let (from_four, _, bert) = run(PunctModel::FourClass, Err(shape()), Ok("bert"));
+        assert!(matches!(from_four, Err(AsrError::Shape(_))));
+        assert_eq!(
+            bert, 0,
+            "BERT is not tried after an error that is not ours to absorb"
+        );
+        let (from_bert, _, _) = run(PunctModel::Bert, Ok("4class"), Err(shape()));
+        assert!(matches!(from_bert, Err(AsrError::Shape(_))));
+    }
 }
