@@ -22,6 +22,7 @@ pub mod ort_runtime;
 pub mod partial;
 pub mod pipeline;
 pub mod punct;
+pub mod recluster;
 pub mod recognizer;
 pub mod refine;
 pub mod replace;
