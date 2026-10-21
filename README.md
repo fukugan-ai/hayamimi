@@ -94,6 +94,7 @@ The definition of the translation-server unit for windows E1, E3' and E4 (`nativ
 The design now makes windows E1, E3' and E4 always use the translation server of this unit (port 18084), because port 8080 may be started by another app with another model, which would change the yardstick of `L`.
 The translation server that the quality probe of R8x-4 (RP-85 (3)) talks to was also changed from port 8080 to port 18084.
 The design that names the files of the ported RP-19 names after the owner tag of the fixed list, and the test definitions for it, are in. The change to how `rp19.rs` reads those file names is not implemented yet.
+The records of windows E1 and E3' (`docs/results/r8x/`) are in. The p95 of `L` is 1456 to 1506 ms for ja and 1141 ms for en, inside the 1600 ms line. The en run, however, is a run that failed the machine gate (RP-83), so the RP-67 pass is not settled. Three items are not met: the delay of the first utterance (RP-84), the reuse of a draft that differs only in numerals (RP-85 (4)), and the gate of the en run (RP-83). The design that fixes them is starting.
 
 ### Related documents
 
