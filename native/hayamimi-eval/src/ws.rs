@@ -327,7 +327,7 @@ mod tests {
     use std::net::TcpListener;
 
     #[test]
-    fn the_accept_key_matches_the_rfc_example() {
+    fn compute_accept_key_matches_rfc_example() {
         assert_eq!(
             accept_key("dGhlIHNhbXBsZSBub25jZQ=="),
             "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
@@ -422,6 +422,104 @@ mod tests {
         let wire = encode_frame(OP_TEXT, b"x", None);
         let mut reader = FrameReader::new(std::io::empty(), wire);
         assert_eq!(reader.next_frame()?, Incoming::Frame(text_frame(b"x")));
+        Ok(())
+    }
+
+    /// The ping opcode of RFC 6455; the codec carries any opcode through.
+    const OP_PING: u8 = 0x9;
+
+    /// The first frame of `wire` and the bytes it used; a buffer that holds
+    /// no complete frame is an error here.
+    fn decoded(wire: &[u8]) -> Result<(Frame, usize), EvalError> {
+        match decode_frame(wire)? {
+            Some(found) => Ok(found),
+            None => Err(EvalError::Protocol(String::from(
+                "the buffer holds no complete frame",
+            ))),
+        }
+    }
+
+    #[test]
+    fn frame_roundtrip_unmasked_binary() -> Result<(), EvalError> {
+        // 1024 bytes are past 125, so the length takes the 16-bit form.
+        let payload: Vec<u8> = (0..=255_u8).cycle().take(1024).collect();
+        let wire = encode_frame(OP_BINARY, &payload, None);
+        assert_eq!(wire[1] & 0x7f, 126);
+        let (frame, used) = decoded(&wire)?;
+        assert_eq!(frame.opcode, OP_BINARY);
+        assert_eq!(frame.payload, payload);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_roundtrip_masked_text() -> Result<(), EvalError> {
+        let payload = br#"{"sr": 16000, "format": "pcm_s16le", "channels": 1}"#;
+        let wire = client_frame(OP_TEXT, payload);
+        assert_eq!(wire[1] & 0x80, 0x80);
+        let (frame, used) = decoded(&wire)?;
+        assert_eq!(frame.opcode, OP_TEXT);
+        assert_eq!(frame.payload, payload);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_masked_bytes_differ_from_plaintext_on_wire() -> Result<(), EvalError> {
+        // An all-zero payload is its own masked form under an all-zero key, so
+        // the key is fixed and not zero.
+        let payload = [0_u8; 32];
+        let wire = encode_frame(OP_BINARY, &payload, Some([1, 2, 3, 4]));
+        let header_len = 2 + 4;
+        assert_ne!(wire[header_len..], payload);
+        assert_eq!(decoded(&wire)?.0.payload, payload);
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_incomplete_returns_none() -> Result<(), EvalError> {
+        let wire = encode_frame(OP_BINARY, &[b'x'; 50], None);
+        assert!(decode_frame(&wire[..5])?.is_none());
+        // The same frame, whole, is complete.
+        assert_eq!(decoded(&wire)?.1, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_two_frames_in_one_buffer() -> Result<(), EvalError> {
+        let mut buffer = encode_frame(OP_TEXT, b"one", None);
+        buffer.extend(encode_frame(OP_TEXT, b"two", None));
+        let (first, first_used) = decoded(&buffer)?;
+        assert_eq!(first, text_frame(b"one"));
+        let (second, second_used) = decoded(&buffer[first_used..])?;
+        assert_eq!(second, text_frame(b"two"));
+        assert_eq!(first_used + second_used, buffer.len());
+        Ok(())
+    }
+
+    #[test]
+    fn decode_frame_large_payload_uses_64bit_length() -> Result<(), EvalError> {
+        // 70000 does not fit 16 bits, so the length marker is 127.
+        let payload = vec![b'z'; 70_000];
+        let wire = encode_frame(OP_BINARY, &payload, None);
+        assert_eq!(wire[1] & 0x7f, 127);
+        assert_eq!(wire[2..10], 70_000_u64.to_be_bytes());
+        let (frame, used) = decoded(&wire)?;
+        assert_eq!(frame.opcode, OP_BINARY);
+        assert_eq!(frame.payload.len(), 70_000);
+        assert_eq!(used, wire.len());
+        Ok(())
+    }
+
+    #[test]
+    fn frame_close_and_ping_opcodes_roundtrip() -> Result<(), EvalError> {
+        for opcode in [OP_CLOSE, OP_PING] {
+            let wire = encode_frame(opcode, &[], None);
+            let (frame, used) = decoded(&wire)?;
+            assert_eq!(frame.opcode, opcode);
+            assert!(frame.payload.is_empty());
+            assert_eq!(used, wire.len());
+        }
         Ok(())
     }
 
