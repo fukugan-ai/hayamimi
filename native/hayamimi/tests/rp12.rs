@@ -169,7 +169,7 @@ fn finished() -> Final {
 /// One event of each type the Rust server makes, from the real builders.
 fn rust_samples() -> Vec<Value> {
     vec![
-        wire::final_event(&finished(), "file"),
+        wire::final_event(&finished(), "file", false),
         wire::partial_event("警察の"),
         wire::session_summary(11.0, 1, Some(533.0), Some(533.0)),
         wire::session_reset(),

@@ -16,13 +16,16 @@ use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State, Tail};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
-use crate::lid::{self, Lid};
+use crate::lid::{self, Identify, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::partial::{self, DraftClock};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
-use crate::route::{Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier};
+use crate::route::{
+    Decode, Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier,
+};
+use crate::speaker::Centroids;
 use crate::speaker_stage::{Mark, SpeakerStage};
 use crate::vad::{EARLY_MIN_SILENCE_MS, Segment, Sensitivity, Vad, VadSettings};
 
@@ -1055,6 +1058,17 @@ impl Engine {
         Some(stage.mark(&done.speaker_audio))
     }
 
+    /// Starts a new session: the audio held, the language the route settled
+    /// on and the speakers heard so far are forgotten. Call it once what the
+    /// detector holds is finished. Nothing is reloaded.
+    pub fn reset_session(&mut self) {
+        let Some(route) = self.route.as_mut() else {
+            return;
+        };
+        let centroids = self.speakers.as_mut().map(SpeakerStage::centroids_mut);
+        reset_parts(&mut route.history, &mut route.router, centroids);
+    }
+
     /// Inverse text normalisation, when the stage is on, and the time it took.
     fn normalize(&self, text: String, lang: &str) -> (String, f64) {
         if !self.stages.itn {
@@ -1162,10 +1176,26 @@ fn timed<T>(work: impl FnOnce() -> T) -> (T, f64) {
     (value, millis(started))
 }
 
+/// Makes the three things a session leaves behind forget it. The history
+/// keeps its absolute position, so the times of the next session continue
+/// those of the last. `centroids` is `None` when the speaker stage is out.
+fn reset_parts<D: Decode, L: Identify>(
+    history: &mut History,
+    router: &mut Router<D, L>,
+    centroids: Option<&mut Centroids>,
+) {
+    history.clear();
+    router.reset_session();
+    if let Some(centroids) = centroids {
+        centroids.reset();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::route::EnTier;
+    use crate::speaker::Source;
 
     #[test]
     fn every_stage_runs_by_default() {
@@ -1205,6 +1235,96 @@ mod tests {
         let report = cpu_report(String::from("x.onnx"));
         assert_eq!((report.requested, report.actual), ("cpu", "cpu"));
         assert!(report.nodes.is_none());
+    }
+
+    /// A recognizer that reads every segment as the same Japanese word.
+    struct Reads;
+
+    impl Decode for Reads {
+        fn decode(
+            &mut self,
+            _tier: Tier,
+            _samples: &[f32],
+        ) -> Result<crate::route::Decoded, crate::route::DecodeError> {
+            Ok(crate::route::Decoded {
+                text: String::from("あ"),
+                tag: String::new(),
+            })
+        }
+
+        fn split_retry(
+            &mut self,
+            text: &str,
+            _samples: &[f32],
+            _lang: &str,
+            _tier: Tier,
+        ) -> Result<String, crate::route::DecodeError> {
+            Ok(text.to_owned())
+        }
+
+        fn prefetch(&mut self, _tier: Tier) {}
+
+        fn close(&mut self) {}
+    }
+
+    /// An identifier that is never asked: the policy forces the language.
+    struct Unasked;
+
+    impl Identify for Unasked {
+        fn identify(&self, _samples: &[f32]) -> Result<String, AsrError> {
+            Err(AsrError::NoResult)
+        }
+    }
+
+    /// Two seconds of audio held.
+    fn history_of_two_seconds() -> History {
+        let mut history = History::new();
+        history.push(&vec![0.5; 2 * SAMPLE_RATE as usize]);
+        history
+    }
+
+    /// A router that has read one segment in Japanese.
+    fn router_in_japanese() -> Result<Router<Reads, Unasked>, RouteError> {
+        let mut router = Router::new(Reads, None, Policy::single("ja"));
+        router.transcribe(&Request::live(&[0.5; WINDOW]))?;
+        Ok(router)
+    }
+
+    #[test]
+    fn reset_parts_forget_the_previous_sessions_audio_language_and_speakers()
+    -> Result<(), RouteError> {
+        let segment = [0.25_f32; WINDOW];
+        let mut history = history_of_two_seconds();
+        let end = history.end();
+        let mut router = router_in_japanese()?;
+        let mut centroids = Centroids::default();
+        centroids.label(&[1.0, 0.0], Source::Fast);
+
+        // Control: a session that is not reset keeps all three.
+        assert!(!history.slice(0, end).is_empty());
+        assert!(history_of_two_seconds().with_preroll(end, &segment).len() > segment.len());
+        assert_eq!(router.last_lang(), Some("ja"));
+        assert_eq!(centroids.centroid_summary().len(), 1);
+
+        reset_parts(&mut history, &mut router, Some(&mut centroids));
+
+        assert!(history.slice(0, end).is_empty());
+        assert_eq!(history.with_preroll(end, &segment), segment);
+        assert_eq!(history.end(), end);
+        assert_eq!(router.last_lang(), None);
+        assert!(centroids.centroid_summary().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn reset_parts_without_a_speaker_stage_still_forgets_audio_and_language()
+    -> Result<(), RouteError> {
+        let mut history = history_of_two_seconds();
+        let mut router = router_in_japanese()?;
+        reset_parts(&mut history, &mut router, None);
+        assert!(history.slice(0, history.end()).is_empty());
+        assert_eq!(router.last_lang(), None);
+        Ok(())
     }
 
     #[test]

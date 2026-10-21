@@ -1,0 +1,2 @@
+run_stream_stops_mid_wav_when_stop_event_is_set
+run_stream_without_stop_event_runs_to_completion

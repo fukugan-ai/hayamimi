@@ -125,7 +125,7 @@ fn r8a_the_relay_translates_a_final_event_served_by_this_programs_server() -> Te
     let served = relay::start(relay_hub::bind(0)?, config, make, sink)?;
     let mut watch = watch_relay(served)?;
     wait_until(&opened)?;
-    recognizer.publish(&final_event(&utterance(), "mic"));
+    recognizer.publish(&final_event(&utterance(), "mic", false));
     let body = read_until(&mut watch, "\n\n")?;
     assert!(body.contains("\"type\":\"translation\""), "{body}");
     assert!(body.contains("\"id\":\"mic-1\""), "{body}");

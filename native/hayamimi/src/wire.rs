@@ -11,8 +11,9 @@ pub fn partial_event(text: &str) -> Value {
 }
 
 /// A finished utterance. `id`, `source`, `t0_s`, `t1_s` and `end_wall_ms` let
-/// the relay join a translation to this line and measure it.
-pub fn final_event(done: &Final, source: &str) -> Value {
+/// the relay join a translation to this line and measure it. `switched` says
+/// the language differs from the previous `final` of the session.
+pub fn final_event(done: &Final, source: &str, switched: bool) -> Value {
     let t = &done.timings;
     json!({
         "type": "final",
@@ -30,7 +31,7 @@ pub fn final_event(done: &Final, source: &str) -> Value {
         "audio_s": done.audio_seconds,
         "lid_ms": t.lid_ms,
         "decode_ms": t.decode_ms + t.itn_ms + t.punct_ms,
-        "switched": false,
+        "switched": switched,
     })
 }
 
@@ -119,16 +120,16 @@ mod tests {
     #[test]
     fn the_final_leaves_the_speaker_empty_and_the_speaker_event_names_the_same_id() {
         let done = finished();
-        assert_eq!(final_event(&done, "file")["speaker"], "");
+        assert_eq!(final_event(&done, "file", false)["speaker"], "");
         let event = speaker_event(&done, "file", "S2");
         assert_eq!(event["type"], "speaker");
-        assert_eq!(event["id"], final_event(&done, "file")["id"]);
+        assert_eq!(event["id"], final_event(&done, "file", false)["id"]);
         assert_eq!(event["speaker"], "S2");
     }
 
     #[test]
     fn the_final_event_has_the_keys_of_the_existing_server() {
-        let event = final_event(&finished(), "file");
+        let event = final_event(&finished(), "file", false);
         for key in [
             "type",
             "text",
@@ -150,12 +151,36 @@ mod tests {
 
     #[test]
     fn the_final_event_carries_the_five_items_the_relay_joins_on() {
-        let event = final_event(&finished(), "mic");
+        let event = final_event(&finished(), "mic", false);
         assert_eq!(event["id"], "mic-1");
         assert_eq!(event["source"], "mic");
         assert_eq!(event["t0_s"], 0.25);
         assert_eq!(event["t1_s"], 1.75);
         assert_eq!(event["end_wall_ms"], 1_790_000_000_123_u64);
+    }
+
+    #[test]
+    fn final_event_carries_audio_s_lid_ms_decode_ms() {
+        let mut done = finished();
+        done.text = String::from("hello in ja");
+        done.audio_seconds = 1.0;
+        done.timings.lid_ms = 12.0;
+        done.timings.decode_ms = 34.0;
+        done.timings.punct_ms = 0.0;
+        done.timings.itn_ms = 0.0;
+        let event = final_event(&done, "mic", false);
+        assert_eq!(event["text"], "hello in ja");
+        assert_eq!(event["lang"], "ja");
+        assert_eq!(event["tier"], "rz");
+        assert_eq!(event["audio_s"], 1.0);
+        assert_eq!(event["lid_ms"], 12.0);
+        assert_eq!(event["decode_ms"], 34.0);
+    }
+
+    #[test]
+    fn the_switched_flag_is_written_as_given() {
+        assert_eq!(final_event(&finished(), "mic", true)["switched"], true);
+        assert_eq!(final_event(&finished(), "mic", false)["switched"], false);
     }
 
     #[test]
