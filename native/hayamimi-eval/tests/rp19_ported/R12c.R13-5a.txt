@@ -1,0 +1,4 @@
+resample_linear_downsamples_to_expected_length
+resample_linear_identity_when_rates_match
+resample_linear_preserves_a_ramp_shape
+resample_linear_upsamples_to_expected_length
