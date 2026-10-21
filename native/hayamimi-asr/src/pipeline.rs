@@ -756,6 +756,14 @@ impl Engine {
         self.route.as_ref().map(|route| route.vad.sensitivity())
     }
 
+    /// Whether the detector is inside speech that has not been cut yet. The
+    /// time since the last utterance says nothing about a group while this is true.
+    pub fn speech_in_progress(&self) -> bool {
+        self.route
+            .as_ref()
+            .is_some_and(|route| route.vad.detected())
+    }
+
     /// Moves the detector to `wanted` when that loses no audio, which is
     /// when it is idle. Returns whether it was moved; a `false` is asked
     /// again at the next window.

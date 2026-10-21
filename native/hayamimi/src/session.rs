@@ -7,6 +7,10 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
+use hayamimi_asr::itn::Overrides;
+use hayamimi_asr::pipeline::Demotion;
+use hayamimi_asr::replace::Replacements;
+use hayamimi_asr::speaker_stage::Mark;
 use hayamimi_asr::vad::Sensitivity;
 use hayamimi_asr::{AsrError, Engine, Final};
 use hayamimi_gpu::memory::MemoryMeter;
@@ -17,6 +21,7 @@ use crate::feed::{AudioItem, AudioRx};
 use crate::log;
 use crate::memory_guard::{Look, MemoryGuard};
 use crate::notice::Notice;
+use crate::refine::{Closed, RefineCounts, Refiner, Spoken};
 use crate::report::{self, log_session, say_notice};
 use crate::server::Hub;
 use crate::strings::Strings;
@@ -37,6 +42,8 @@ pub struct Stats {
     latency_max_ms: Option<f64>,
     /// The language of the last `final` of the session; none before the first.
     last_final_lang: Option<String>,
+    /// What the refine pass counted for the session.
+    refine: RefineCounts,
 }
 
 impl Stats {
@@ -72,21 +79,114 @@ impl Stats {
         );
     }
 
+    /// Adds what the refine pass counted since it was last asked.
+    fn add_refine(&mut self, counts: RefineCounts) {
+        self.refine.groups_closed += counts.groups_closed;
+        self.refine.lang_corrections += counts.lang_corrections;
+        self.refine.lang_boundary_flushes += counts.lang_boundary_flushes;
+        self.refine.groups_skipped += counts.groups_skipped;
+    }
+
     /// The `session_summary` event of what is counted.
     pub fn summary_event(&self) -> Value {
         let mean = (self.segments > 0).then(|| self.latency_sum_ms / self.segments as f64);
-        wire::session_summary(
+        wire::session_summary_with(
             self.samples as f64 / f64::from(SAMPLE_RATE),
             self.segments,
             mean,
             self.latency_max_ms,
+            &self.refine,
         )
     }
 }
 
+/// What the loop needs of the recognition side. [`Engine`] is the one of a
+/// run; a test hands in a script, so that the order of what a reset or a
+/// retune does is judged without a model.
+pub trait Hearing {
+    fn feed(&mut self, window: &[f32]) -> Result<Vec<Final>, AsrError>;
+    fn finish(&mut self) -> Result<Vec<Final>, AsrError>;
+    fn partial(&mut self) -> Result<Option<String>, AsrError>;
+    /// Whether the detector is inside speech that has not been cut yet.
+    fn speech_in_progress(&self) -> bool;
+    fn sensitivity(&self) -> Option<Sensitivity>;
+    /// Moves the detector to `wanted` when that loses no audio; whether it moved.
+    fn retune_vad(&mut self, wanted: Sensitivity) -> Result<bool, AsrError>;
+    fn set_replacements(&mut self, replacements: Replacements);
+    fn set_itn_overrides(&mut self, overrides: Overrides);
+    fn set_punctuate(&mut self, on: bool);
+    fn has_speaker_stage(&self) -> bool;
+    fn mark_speaker(&mut self, done: &Final) -> Option<Mark>;
+    fn demote_for_memory(&mut self) -> Result<Option<Demotion>, AsrError>;
+    /// Forgets the audio, the language and the speakers of the session.
+    fn reset_session(&mut self);
+    /// Says what the recognizers and the route did since the last call.
+    fn tell_resident(&mut self, strings: &Strings, hub: &Hub);
+}
+
+impl Hearing for Engine {
+    fn feed(&mut self, window: &[f32]) -> Result<Vec<Final>, AsrError> {
+        Engine::feed(self, window)
+    }
+
+    fn finish(&mut self) -> Result<Vec<Final>, AsrError> {
+        Engine::finish(self)
+    }
+
+    fn partial(&mut self) -> Result<Option<String>, AsrError> {
+        Engine::partial(self)
+    }
+
+    fn speech_in_progress(&self) -> bool {
+        Engine::speech_in_progress(self)
+    }
+
+    fn sensitivity(&self) -> Option<Sensitivity> {
+        Engine::sensitivity(self)
+    }
+
+    fn retune_vad(&mut self, wanted: Sensitivity) -> Result<bool, AsrError> {
+        Engine::retune_vad(self, wanted)
+    }
+
+    fn set_replacements(&mut self, replacements: Replacements) {
+        Engine::set_replacements(self, replacements);
+    }
+
+    fn set_itn_overrides(&mut self, overrides: Overrides) {
+        Engine::set_itn_overrides(self, overrides);
+    }
+
+    fn set_punctuate(&mut self, on: bool) {
+        Engine::set_punctuate(self, on);
+    }
+
+    fn has_speaker_stage(&self) -> bool {
+        Engine::has_speaker_stage(self)
+    }
+
+    fn mark_speaker(&mut self, done: &Final) -> Option<Mark> {
+        Engine::mark_speaker(self, done)
+    }
+
+    fn demote_for_memory(&mut self) -> Result<Option<Demotion>, AsrError> {
+        Engine::demote_for_memory(self)
+    }
+
+    fn reset_session(&mut self) {
+        Engine::reset_session(self);
+    }
+
+    fn tell_resident(&mut self, strings: &Strings, hub: &Hub) {
+        report::tell_resident(strings, hub, self);
+    }
+}
+
 /// What the loop is run with.
-pub struct Session<'a> {
-    pub engine: Option<Engine>,
+pub struct Session<'a, E = Engine> {
+    pub engine: Option<E>,
+    /// Reads the closed groups of utterances again; none when the refine pass is off.
+    pub refiner: Option<Refiner>,
     /// Reads the GPU memory; none when there is no GPU or it cannot be read.
     pub guard: Option<MemoryGuard<MemoryMeter>>,
     pub hub: &'a Hub,
@@ -111,9 +211,10 @@ struct State {
     pending_vad: Option<Sensitivity>,
 }
 
-impl Session<'_> {
+impl<E: Hearing> Session<'_, E> {
     /// Runs until the input ends, the stop flag is set or the engine fails.
-    /// What the detector holds is finished and a summary is published.
+    /// What the detector holds is finished, what the refine pass holds is
+    /// read, and a summary is published.
     pub fn run(mut self) -> Result<(), AsrError> {
         let mut state = State {
             stats: Stats::default(),
@@ -123,6 +224,7 @@ impl Session<'_> {
         while !self.stop.load(Ordering::Relaxed) {
             self.apply_commands(&mut state)?;
             self.retune(&mut state)?;
+            self.tell_refine_if_behind();
             match self.audio.recv_timeout(TICK) {
                 Ok(AudioItem::Window(window)) => self.on_window(&mut state, &window)?,
                 Ok(AudioItem::Flush) => self.flush(&mut state)?,
@@ -131,7 +233,11 @@ impl Session<'_> {
             }
         }
         self.flush(&mut state)?;
+        self.settle_refine(&mut state);
         self.hub.publish(&state.stats.summary_event());
+        if let Some(mut refiner) = self.refiner.take() {
+            refiner.close();
+        }
         Ok(())
     }
 
@@ -140,6 +246,9 @@ impl Session<'_> {
         self.keep_within_budget()?;
         // Read before the feed: the wait is the queue's, not the feed's own time.
         let (waited, backlog) = (self.audio.last_wait(), self.audio.backlog());
+        if let Some(refiner) = self.refiner.as_mut() {
+            refiner.hear(window);
+        }
         let finals = match self.engine.as_mut() {
             Some(engine) => engine.feed(window)?,
             None => return Ok(()),
@@ -147,8 +256,44 @@ impl Session<'_> {
         self.announce(state, &finals);
         self.say_feed_waits(&finals, waited, backlog);
         self.tell_resident();
+        self.close_due_group();
         self.draft();
         Ok(())
+    }
+
+    /// Runs `step` on the refine pass. One that has closed is dropped, and
+    /// the run goes on without it.
+    fn with_refiner(&mut self, step: impl FnOnce(&mut Refiner) -> Result<(), Closed>) {
+        if let Some(refiner) = self.refiner.as_mut()
+            && step(refiner).is_err()
+        {
+            self.refiner = None;
+        }
+    }
+
+    /// Closes the open group when it is due, but not while speech is in
+    /// progress: the silence since the last utterance is then not the group's.
+    fn close_due_group(&mut self) {
+        if !self.engine.as_ref().is_some_and(E::speech_in_progress) {
+            self.with_refiner(Refiner::tick);
+        }
+    }
+
+    /// Tells the refine pass whether the loop is behind the audio, so that it
+    /// starts no new group until the loop has caught up.
+    fn tell_refine_if_behind(&self) {
+        if let Some(refiner) = self.refiner.as_ref() {
+            refiner.set_behind(self.behind());
+        }
+    }
+
+    /// Reads every group that is waiting, whatever the loop is doing, and
+    /// adds what the refine pass counted to the session's.
+    fn settle_refine(&mut self, state: &mut State) {
+        if let Some(refiner) = self.refiner.as_mut() {
+            refiner.drain();
+            state.stats.add_refine(refiner.take_counts());
+        }
     }
 
     /// Reads the GPU memory when it is time to, and moves the next GPU stage
@@ -176,7 +321,7 @@ impl Session<'_> {
     /// Says what the recognizers and the route did since the last call.
     fn tell_resident(&mut self) {
         if let Some(engine) = self.engine.as_mut() {
-            report::tell_resident(self.strings, self.hub, engine);
+            engine.tell_resident(self.strings, self.hub);
         }
     }
 
@@ -213,44 +358,44 @@ impl Session<'_> {
             ));
         }
         for done in finals {
-            self.announce_speaker(done);
+            let speaker = self.announce_speaker(done);
+            // DEFAULT: an utterance with no speaker mark has the empty speaker, as its `final` event states it.
+            let label = speaker.as_deref().unwrap_or_default();
+            self.with_refiner(|refiner| refiner.add_span(Spoken::of(done, label)));
         }
     }
 
     /// Sends the speaker of one utterance as its own event, once; says so in
-    /// the log when the mark failed.
-    fn announce_speaker(&mut self, done: &Final) {
-        let Some(engine) = self
+    /// the log when the mark failed. Returns the mark, or `None` when there is none.
+    fn announce_speaker(&mut self, done: &Final) -> Option<String> {
+        let engine = self
             .engine
             .as_mut()
-            .filter(|engine| engine.has_speaker_stage())
-        else {
-            return;
-        };
+            .filter(|engine| engine.has_speaker_stage())?;
         log::print(&log::embedding_started_line(
             self.strings,
             done.id,
             log::mono_us(),
         ));
-        let Some(mark) = engine.mark_speaker(done) else {
-            return;
-        };
+        let mark = engine.mark_speaker(done)?;
         if mark.error.is_some() {
             log::print(&log::speaker_failed_line(self.strings, done));
-            return;
+            return None;
         }
         self.hub
             .publish(&wire::speaker_event(done, self.source, &mark.label));
+        Some(mark.label)
     }
 
-    /// Ends the speech in progress and publishes what it made.
+    /// Ends the speech in progress and publishes what it made. The open
+    /// group of the refine pass is closed too, whatever its age.
     fn flush(&mut self, state: &mut State) -> Result<(), AsrError> {
-        let finals = match self.engine.as_mut() {
-            Some(engine) => engine.finish()?,
-            None => return Ok(()),
-        };
-        self.announce(state, &finals);
-        self.tell_resident();
+        if let Some(engine) = self.engine.as_mut() {
+            let finals = engine.finish()?;
+            self.announce(state, &finals);
+            self.tell_resident();
+        }
+        self.with_refiner(Refiner::flush);
         Ok(())
     }
 
@@ -292,7 +437,7 @@ impl Session<'_> {
             Command::Vad(change) => {
                 let base = match state.pending_vad {
                     Some(pending) => Some(pending),
-                    None => self.engine.as_ref().and_then(Engine::sensitivity),
+                    None => self.engine.as_ref().and_then(E::sensitivity),
                 };
                 state.pending_vad = base.map(|current| change.apply(current));
             }
@@ -315,12 +460,16 @@ impl Session<'_> {
     }
 
     /// Ends the session in progress, says what it made, and starts a new one.
-    /// The engine forgets the audio, the language and the speakers of the old
-    /// one after the summary, so that nothing above still needs them.
+    /// What the refine pass holds is read before the summary, so that the
+    /// outgoing session's tail is not lost; the refine pass and the engine
+    /// forget the audio, the language and the speakers of the old session
+    /// after it, so that nothing above still needs them.
     fn reset(&mut self, state: &mut State) -> Result<(), AsrError> {
         self.flush(state)?;
+        self.settle_refine(state);
         self.hub.publish(&state.stats.summary_event());
         state.stats = Stats::default();
+        self.with_refiner(Refiner::reset);
         if let Some(engine) = self.engine.as_mut() {
             engine.reset_session();
         }
@@ -483,6 +632,7 @@ mod tests {
         ) -> Session<'a> {
             Session {
                 engine: None,
+                refiner: None,
                 guard: None,
                 hub: &self.hub,
                 strings: &self.strings,
@@ -494,6 +644,41 @@ mod tests {
                 live: false,
                 source: "file",
             }
+        }
+
+        /// A loop over `engine` and `refiner`, with no memory guard.
+        fn session_over<'a, E: Hearing>(
+            &'a self,
+            engine: E,
+            refiner: Option<Refiner>,
+            audio: AudioRx,
+            commands: Receiver<Command>,
+            stop: &'a AtomicBool,
+        ) -> Session<'a, E> {
+            Session {
+                engine: Some(engine),
+                refiner,
+                guard: None,
+                hub: &self.hub,
+                strings: &self.strings,
+                controls: &self.controls,
+                audio,
+                commands,
+                stop,
+                partial: false,
+                live: false,
+                source: "file",
+            }
+        }
+
+        /// A refine pass over `reader` that publishes to this rig's hub.
+        fn refiner<R, M>(&self, make: M) -> Result<Refiner, String>
+        where
+            R: Reread,
+            M: FnOnce() -> R + Send + 'static,
+        {
+            Refiner::start(make, self.hub.clone(), self.strings.clone(), "file")
+                .map_err(|error| error.to_string())
         }
     }
 
@@ -677,6 +862,440 @@ mod tests {
         let window_seconds = WINDOW as f64 / f64::from(SAMPLE_RATE);
         assert!(seconds >= 0.2, "{seconds}");
         assert!(seconds < 0.2 + window_seconds, "{seconds}");
+        Ok(())
+    }
+
+    // The loop over a script and the refine pass: the order of what a reset
+    // and a retune do, and what the refine pass is told, judged with no model.
+
+    use std::collections::VecDeque;
+    use std::io::Write;
+    use std::sync::Mutex;
+
+    use hayamimi_asr::route::{Refined, RouteError};
+
+    use crate::refine::{Reread, locked};
+
+    type Check = Result<(), Box<dyn std::error::Error>>;
+
+    /// How the script answers a request to move the detector.
+    #[derive(Clone, Copy)]
+    enum Retune {
+        Moves,
+        Waits,
+        Fails,
+    }
+
+    type Calls = Arc<Mutex<Vec<&'static str>>>;
+
+    /// A recognition side that answers from a script and writes down the calls that matter.
+    struct Script {
+        calls: Calls,
+        /// What each `feed` returns, one entry per call.
+        feeds: VecDeque<Vec<Final>>,
+        retune: Retune,
+        in_speech: bool,
+    }
+
+    impl Script {
+        fn new(retune: Retune) -> (Script, Calls) {
+            let calls = Calls::default();
+            let script = Script {
+                calls: Arc::clone(&calls),
+                feeds: VecDeque::new(),
+                retune,
+                in_speech: false,
+            };
+            (script, calls)
+        }
+
+        fn note(&self, call: &'static str) {
+            locked(&self.calls).push(call);
+        }
+    }
+
+    impl Hearing for Script {
+        fn feed(&mut self, _window: &[f32]) -> Result<Vec<Final>, AsrError> {
+            Ok(self.feeds.pop_front().into_iter().flatten().collect())
+        }
+
+        fn finish(&mut self) -> Result<Vec<Final>, AsrError> {
+            self.note("finish");
+            Ok(Vec::new())
+        }
+
+        fn partial(&mut self) -> Result<Option<String>, AsrError> {
+            Ok(None)
+        }
+
+        fn speech_in_progress(&self) -> bool {
+            self.in_speech
+        }
+
+        fn sensitivity(&self) -> Option<Sensitivity> {
+            Some(Sensitivity::starting(VadSettings::default()))
+        }
+
+        fn retune_vad(&mut self, _wanted: Sensitivity) -> Result<bool, AsrError> {
+            self.note("retune");
+            match self.retune {
+                Retune::Moves => Ok(true),
+                Retune::Waits => Ok(false),
+                Retune::Fails => Err(AsrError::Create("vad")),
+            }
+        }
+
+        fn set_replacements(&mut self, _replacements: Replacements) {}
+
+        fn set_itn_overrides(&mut self, _overrides: Overrides) {}
+
+        fn set_punctuate(&mut self, _on: bool) {}
+
+        fn has_speaker_stage(&self) -> bool {
+            false
+        }
+
+        fn mark_speaker(&mut self, _done: &Final) -> Option<Mark> {
+            None
+        }
+
+        fn demote_for_memory(&mut self) -> Result<Option<Demotion>, AsrError> {
+            Ok(None)
+        }
+
+        fn reset_session(&mut self) {
+            self.note("reset_session");
+        }
+
+        fn tell_resident(&mut self, _strings: &Strings, _hub: &Hub) {}
+    }
+
+    /// A reader that answers every group with the same text after `delay`,
+    /// writes down how many samples each group had, and holds a token while it lives.
+    struct Echo {
+        heard: Arc<Mutex<Vec<usize>>>,
+        delay: Duration,
+        token: Arc<()>,
+    }
+
+    impl Echo {
+        fn after(delay_ms: u64) -> (Echo, Arc<Mutex<Vec<usize>>>) {
+            let heard = Arc::new(Mutex::new(Vec::new()));
+            let echo = Echo {
+                heard: Arc::clone(&heard),
+                delay: Duration::from_millis(delay_ms),
+                token: Arc::new(()),
+            };
+            (echo, heard)
+        }
+    }
+
+    impl Reread for Echo {
+        fn reread(&mut self, audio: &[f32], lang: &str) -> Result<Refined, RouteError> {
+            let _held = &self.token;
+            std::thread::sleep(self.delay);
+            locked(&self.heard).push(audio.len());
+            Ok(Refined {
+                text: String::from("テスト"),
+                lang: lang.to_owned(),
+            })
+        }
+    }
+
+    /// A transcript that keeps what it is given.
+    struct Kept(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Kept {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            locked(&self.0).extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    const SECOND: usize = SAMPLE_RATE as usize;
+
+    fn one_second_of(lang: &str, text: &str) -> Spoken {
+        Spoken {
+            start: 0,
+            end: SECOND,
+            lang: lang.to_owned(),
+            text: text.to_owned(),
+            speaker: String::new(),
+            end_wall_ms: 0,
+        }
+    }
+
+    /// Gives the refine pass `seconds` of silence with one utterance in it.
+    fn give_an_utterance(
+        refiner: &mut Refiner,
+        seconds: usize,
+        spoken: Spoken,
+    ) -> Result<(), Closed> {
+        refiner.hear(&vec![0.0; seconds * SECOND]);
+        refiner.add_span(spoken)
+    }
+
+    fn wanted_sensitivity() -> Sensitivity {
+        Sensitivity {
+            threshold: 0.9,
+            ..Sensitivity::starting(VadSettings::default())
+        }
+    }
+
+    #[test]
+    fn the_summary_adds_what_the_refine_pass_counted_each_time_it_was_asked() {
+        let mut stats = Stats::default();
+        stats.add_refine(RefineCounts {
+            groups_closed: 2,
+            lang_corrections: 1,
+            lang_boundary_flushes: 1,
+            groups_skipped: 0,
+        });
+        stats.add_refine(RefineCounts {
+            groups_closed: 1,
+            lang_corrections: 0,
+            lang_boundary_flushes: 0,
+            groups_skipped: 3,
+        });
+        let counted = &stats.summary_event()["stats"];
+        assert_eq!(counted["refine_groups_closed"], 3);
+        assert_eq!(counted["refine_lang_corrections"], 1);
+        assert_eq!(counted["refine_lang_boundary_flushes"], 1);
+        assert_eq!(counted["refine_groups_skipped"], 3);
+    }
+
+    #[test]
+    fn reset_live_session_flushes_pending_refine_before_summarizing() -> Check {
+        let (rig, commands) = rig()?;
+        let mut events = rig.hub.subscribe_live();
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, _heard) = Echo::after(30);
+        let mut refiner = rig.refiner(move || reader)?;
+        give_an_utterance(&mut refiner, 3, one_second_of("ja", "テスト"))?;
+        let (script, _calls) = Script::new(Retune::Moves);
+        let mut session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+
+        session.reset(&mut new_state())?;
+
+        // The group still open is read, and sent, before the summary that counts it.
+        let published = drain(&mut events)?;
+        assert_eq!(
+            types_of(&published),
+            ["refine", "session_summary", "session_reset"]
+        );
+        assert_eq!(published[0]["text"], "テスト");
+        assert_eq!(published[1]["stats"]["refine_groups_closed"], 1);
+        Ok(())
+    }
+
+    #[test]
+    fn a_reset_makes_the_engine_and_the_refine_pass_forget_after_the_summary() -> Check {
+        let (rig, commands) = rig()?;
+        let mut events = rig.hub.subscribe_live();
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, _heard) = Echo::after(0);
+        let refiner = rig.refiner(move || reader)?;
+        let written = Arc::new(Mutex::new(Vec::new()));
+        refiner.set_transcript(Box::new(Kept(Arc::clone(&written))));
+        let (script, calls) = Script::new(Retune::Moves);
+        let mut session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+
+        session.reset(&mut new_state())?;
+
+        assert_eq!(*locked(&calls), ["finish", "reset_session"]);
+        assert_eq!(
+            String::from_utf8_lossy(&locked(&written)),
+            "\n----- session reset -----\n\n"
+        );
+        let published = drain(&mut events)?;
+        assert_eq!(types_of(&published), ["session_summary", "session_reset"]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_retune_that_moves_the_detector_clears_the_request_and_tells_the_controls() -> Check {
+        let (rig, commands) = rig()?;
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (script, calls) = Script::new(Retune::Moves);
+        let mut session = rig.session_over(script, None, audio, commands, &stop);
+        let mut state = new_state();
+        state.pending_vad = Some(wanted_sensitivity());
+
+        session.retune(&mut state)?;
+
+        assert_eq!(state.pending_vad, None);
+        assert_eq!(rig.controls.live().config().1, wanted_sensitivity());
+        assert_eq!(*locked(&calls), ["retune"]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_retune_that_waits_keeps_the_request_for_the_next_window() -> Check {
+        let (rig, commands) = rig()?;
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (script, _calls) = Script::new(Retune::Waits);
+        let mut session = rig.session_over(script, None, audio, commands, &stop);
+        let mut state = new_state();
+        state.pending_vad = Some(wanted_sensitivity());
+
+        session.retune(&mut state)?;
+
+        assert_eq!(state.pending_vad, Some(wanted_sensitivity()));
+        assert_ne!(rig.controls.live().config().1, wanted_sensitivity());
+        Ok(())
+    }
+
+    #[test]
+    fn a_retune_that_cannot_build_the_detector_returns_the_error_and_keeps_the_request() -> Check {
+        let (rig, commands) = rig()?;
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (script, _calls) = Script::new(Retune::Fails);
+        let mut session = rig.session_over(script, None, audio, commands, &stop);
+        let mut state = new_state();
+        state.pending_vad = Some(wanted_sensitivity());
+
+        let result = session.retune(&mut state);
+
+        assert!(matches!(result, Err(AsrError::Create("vad"))), "{result:?}");
+        assert_eq!(state.pending_vad, Some(wanted_sensitivity()));
+        assert_ne!(rig.controls.live().config().1, wanted_sensitivity());
+        Ok(())
+    }
+
+    #[test]
+    fn live_vad_rebuild_keeps_stream_preroll_and_refiner_coordinates() -> Check {
+        let (rig, commands) = rig()?;
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, heard) = Echo::after(0);
+        let refiner = rig.refiner(move || reader)?;
+        let (mut script, calls) = Script::new(Retune::Moves);
+        // The utterance of seconds 1.5 to 2.0 is heard in the 66th window, after the rebuild.
+        let mut utterance = done(100.0);
+        (utterance.t0_s, utterance.t1_s) = (1.5, 2.0);
+        script.feeds = (0..65)
+            .map(|_| Vec::new())
+            .chain(std::iter::once(vec![utterance]))
+            .collect();
+        let mut session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+        let mut state = new_state();
+        let window = vec![0.0; WINDOW];
+
+        for _ in 0..40 {
+            session.on_window(&mut state, &window)?;
+        }
+        state.pending_vad = Some(wanted_sensitivity());
+        session.retune(&mut state)?;
+        for _ in 40..70 {
+            session.on_window(&mut state, &window)?;
+        }
+        session.flush(&mut state)?;
+        session.settle_refine(&mut state);
+
+        assert_eq!(*locked(&calls), ["retune", "finish"]);
+        // From a second before the utterance (sample 8000) to its end (sample 32000), across the
+        // rebuild at sample 20480: the audio and the coordinates of the refine pass did not move.
+        assert_eq!(*locked(&heard), [24_000]);
+        assert_eq!(state.stats.refine.groups_closed, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn the_refine_pass_starts_no_group_while_the_input_is_behind_and_starts_it_when_caught_up()
+    -> Check {
+        let (rig, commands) = rig()?;
+        let (tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, heard) = Echo::after(0);
+        let refiner = rig.refiner(move || reader)?;
+        let (script, _calls) = Script::new(Retune::Moves);
+        let mut session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+        session.live = true;
+        for _ in 0..BEHIND_WINDOWS + 2 {
+            assert!(tx.send(AudioItem::Window(vec![0.0; WINDOW])));
+        }
+        assert!(session.behind());
+        session.tell_refine_if_behind();
+
+        session.with_refiner(|refiner| {
+            give_an_utterance(refiner, 3, one_second_of("ja", "テスト"))?;
+            refiner.flush()
+        });
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(
+            locked(&heard).is_empty(),
+            "a group was started while the loop was behind"
+        );
+
+        // The loop takes windows until it has caught up.
+        while session.behind() {
+            session.audio.recv_timeout(TICK)?;
+        }
+        session.tell_refine_if_behind();
+        let started = Instant::now();
+        while locked(&heard).is_empty() && started.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(*locked(&heard), [SECOND]);
+        Ok(())
+    }
+
+    #[test]
+    fn an_open_group_is_not_closed_by_silence_while_speech_is_in_progress() -> Check {
+        let (rig, commands) = rig()?;
+        let (_tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, _heard) = Echo::after(0);
+        let mut refiner = rig.refiner(move || reader)?;
+        // Two seconds of silence follow the utterance: the group is due.
+        give_an_utterance(&mut refiner, 3, one_second_of("ja", "テスト"))?;
+        let (mut script, _calls) = Script::new(Retune::Moves);
+        script.in_speech = true;
+        let mut session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+        let mut state = new_state();
+
+        session.close_due_group();
+        session.settle_refine(&mut state);
+        assert_eq!(state.stats.refine.groups_closed, 0);
+
+        if let Some(engine) = session.engine.as_mut() {
+            engine.in_speech = false;
+        }
+        session.close_due_group();
+        session.settle_refine(&mut state);
+        assert_eq!(state.stats.refine.groups_closed, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn the_end_of_the_run_reads_what_waits_counts_it_and_closes_the_refine_pass() -> Check {
+        let (rig, commands) = rig()?;
+        let mut events = rig.hub.subscribe_live();
+        let (tx, audio) = feed::channel();
+        let stop = AtomicBool::new(false);
+        let (reader, _heard) = Echo::after(0);
+        let watch = Arc::downgrade(&reader.token);
+        let mut refiner = rig.refiner(move || reader)?;
+        give_an_utterance(&mut refiner, 3, one_second_of("ja", "テスト"))?;
+        let (script, _calls) = Script::new(Retune::Moves);
+        let session = rig.session_over(script, Some(refiner), audio, commands, &stop);
+        assert!(tx.send(AudioItem::End));
+
+        session.run()?;
+
+        let published = drain(&mut events)?;
+        assert_eq!(types_of(&published), ["refine", "session_summary"]);
+        assert_eq!(published[1]["stats"]["refine_groups_closed"], 1);
+        assert!(watch.upgrade().is_none(), "the reader was not released");
         Ok(())
     }
 }

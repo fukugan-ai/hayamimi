@@ -5,6 +5,8 @@
 use hayamimi_asr::Final;
 use serde_json::{Value, json};
 
+use crate::refine::RefineCounts;
+
 /// A draft of the utterance in progress.
 pub fn partial_event(text: &str) -> Value {
     json!({"type": "partial", "text": text})
@@ -78,14 +80,32 @@ pub fn refine_event(read: &Refinement<'_>) -> Value {
     })
 }
 
-/// What a session made, sent when it ends and on a reset. The speaker table
-/// belongs to a route this build does not have; it keeps its place on the
-/// wire as null.
+/// What a session made, sent when it ends and on a reset, for a session in
+/// which the refine pass did nothing. The speaker table belongs to a route
+/// this build does not have; it keeps its place on the wire as null.
 pub fn session_summary(
     total_audio_s: f64,
     segments: u64,
     mean_latency_ms: Option<f64>,
     max_latency_ms: Option<f64>,
+) -> Value {
+    session_summary_with(
+        total_audio_s,
+        segments,
+        mean_latency_ms,
+        max_latency_ms,
+        &RefineCounts::default(),
+    )
+}
+
+/// [`session_summary`] with what the refine pass counted. `refine_groups_skipped`
+/// is the groups dropped from a full waiting line, which keep their fast text.
+pub fn session_summary_with(
+    total_audio_s: f64,
+    segments: u64,
+    mean_latency_ms: Option<f64>,
+    max_latency_ms: Option<f64>,
+    refine: &RefineCounts,
 ) -> Value {
     json!({
         "type": "session_summary",
@@ -94,9 +114,10 @@ pub fn session_summary(
             "segments": segments,
             "mean_latency_ms": mean_latency_ms,
             "max_latency_ms": max_latency_ms,
-            "refine_lang_corrections": 0,
-            "refine_groups_closed": 0,
-            "refine_lang_boundary_flushes": 0,
+            "refine_lang_corrections": refine.lang_corrections,
+            "refine_groups_closed": refine.groups_closed,
+            "refine_lang_boundary_flushes": refine.lang_boundary_flushes,
+            "refine_groups_skipped": refine.groups_skipped,
         },
         "speakers": null,
     })
@@ -267,6 +288,25 @@ mod tests {
         }
         assert!(event["speakers"].is_null());
         assert_eq!(stats["segments"], 3);
+    }
+
+    #[test]
+    fn the_summary_carries_what_the_refine_pass_counted() {
+        let counts = RefineCounts {
+            groups_closed: 4,
+            lang_corrections: 2,
+            lang_boundary_flushes: 1,
+            groups_skipped: 3,
+        };
+        let stats = &session_summary_with(1.0, 1, None, None, &counts)["stats"];
+        assert_eq!(stats["refine_groups_closed"], 4);
+        assert_eq!(stats["refine_lang_corrections"], 2);
+        assert_eq!(stats["refine_lang_boundary_flushes"], 1);
+        assert_eq!(stats["refine_groups_skipped"], 3);
+        // The summary of a session that never refined says zero for all four.
+        let plain = &session_summary(1.0, 1, None, None)["stats"];
+        assert_eq!(plain["refine_groups_skipped"], 0);
+        assert_eq!(plain["refine_groups_closed"], 0);
     }
 
     #[test]

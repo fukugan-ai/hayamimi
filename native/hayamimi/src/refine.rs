@@ -17,6 +17,8 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
@@ -51,6 +53,11 @@ pub const GROUP_SKIPPED: &str = "refine.group.skipped";
 pub const GROUP_FAILED: &str = "refine.group.failed";
 /// `refine.group.refined`: a group was read again and published.
 pub const GROUP_REFINED: &str = "refine.group.refined";
+/// `refine.transcript.failed`: a line could not be written to the transcript.
+pub const TRANSCRIPT_FAILED: &str = "refine.transcript.failed";
+const TRANSCRIPT_CODE: &str = "HAYAMIMI_ASR_REFINE_TRANSCRIPT_FAILED";
+/// What the transcript gets when a new session begins.
+const RESET_MARK: &str = "\n----- session reset -----\n\n";
 const SKIPPED_CODE: &str = "HAYAMIMI_ASR_REFINE_QUEUE_FULL";
 const FAILED_CODE: &str = "HAYAMIMI_ASR_REFINE_FAILED";
 
@@ -332,7 +339,7 @@ impl Reread for Rereader {
 
 /// The lock of `mutex`. A thread that panicked while holding it left the
 /// value whole, so the poison is passed over.
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     match mutex.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -566,7 +573,50 @@ fn refined_line(strings: &Strings, group: &Group, stood: &Standing, refine_ms: f
     )
 }
 
-/// Where the worker puts what it read: the event stream and the log.
+/// `refine.transcript.failed`: a line could not be written to the transcript.
+fn transcript_failed_line(strings: &Strings) -> String {
+    log::event_line(
+        strings,
+        Level::Warn,
+        TRANSCRIPT_FAILED,
+        "asr",
+        Some(TRANSCRIPT_CODE),
+        &[],
+    )
+}
+
+/// Where the refined lines are also written: a file of the run, or whatever a
+/// test hands in. Shared by the worker, which writes the lines, and the
+/// caller, which writes the reset mark and closes it.
+type Transcript = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
+
+/// The line a group adds to the transcript: the speaker, when there is one, then the text.
+fn transcript_line(speaker: &str, text: &str) -> String {
+    if speaker.is_empty() {
+        format!("{text}\n")
+    } else {
+        format!("{speaker}: {text}\n")
+    }
+}
+
+/// Writes `text` to the transcript, if one is open, and flushes it, so that a
+/// reader of the file sees every line as soon as it is read again. Says so in
+/// the log when it fails.
+fn write_transcript(transcript: &Transcript, strings: &Strings, text: &str) {
+    let mut sink = locked(transcript);
+    let Some(file) = sink.as_mut() else {
+        return;
+    };
+    if file
+        .write_all(text.as_bytes())
+        .and_then(|()| file.flush())
+        .is_err()
+    {
+        log::print(&transcript_failed_line(strings));
+    }
+}
+
+/// Where the worker puts what it read: the event stream, the transcript and the log.
 struct Output {
     hub: Hub,
     strings: Strings,
@@ -574,6 +624,7 @@ struct Output {
     /// The `refine` ids handed out so far; they start at 1 and run on across sessions.
     issued: u64,
     corrections: Arc<AtomicU64>,
+    transcript: Transcript,
 }
 
 impl Output {
@@ -604,6 +655,8 @@ impl Output {
             speaker: &group.speaker,
             audio_s: group.audio.len() as f64 / f64::from(SAMPLE_RATE),
         }));
+        let line = transcript_line(&group.speaker, &stood.text);
+        write_transcript(&self.transcript, &self.strings, &line);
         log::print(&refined_line(&self.strings, group, &stood, refine_ms));
     }
 }
@@ -631,6 +684,7 @@ pub struct Refiner {
     queue: Arc<Queue>,
     worker: Option<JoinHandle<()>>,
     corrections: Arc<AtomicU64>,
+    transcript: Transcript,
     /// Groups dropped from a full line since the counts were last taken.
     skipped: u64,
     strings: Strings,
@@ -653,12 +707,14 @@ impl Refiner {
     {
         let queue = Arc::new(Queue::default());
         let corrections = Arc::new(AtomicU64::new(0));
+        let transcript = Transcript::default();
         let output = Output {
             hub,
             strings: strings.clone(),
             source,
             issued: 0,
             corrections: Arc::clone(&corrections),
+            transcript: Arc::clone(&transcript),
         };
         let line = Arc::clone(&queue);
         let worker = std::thread::Builder::new()
@@ -669,10 +725,37 @@ impl Refiner {
             queue,
             worker: Some(worker),
             corrections,
+            transcript,
             skipped: 0,
             strings,
             closed: false,
         })
+    }
+
+    /// Appends every refined line to the file at `path` (created if it is
+    /// not there), until the refiner is closed.
+    pub fn open_transcript(&self, path: &Path) -> std::io::Result<()> {
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
+        self.set_transcript(Box::new(file));
+        Ok(())
+    }
+
+    /// Writes every refined line to `sink` instead of a file. It is dropped,
+    /// and so closed, when the refiner is closed.
+    pub fn set_transcript(&self, sink: Box<dyn Write + Send>) {
+        *locked(&self.transcript) = Some(sink);
+    }
+
+    /// Starts a new session: reads what is waiting first, then forgets the
+    /// open group and the audio held, and marks the transcript so that its
+    /// readers can tell where the new session begins. An open group is not
+    /// read here: [`Refiner::flush`] first if it should be.
+    pub fn reset(&mut self) -> Result<(), Closed> {
+        self.check_open()?;
+        self.queue.drain();
+        self.collector.reset();
+        write_transcript(&self.transcript, &self.strings, RESET_MARK);
+        Ok(())
     }
 
     fn check_open(&self) -> Result<(), Closed> {
@@ -745,9 +828,9 @@ impl Refiner {
             .is_some_and(|worker| !worker.is_finished())
     }
 
-    /// Reads every group that is waiting, then stops the worker and gives the
-    /// reader back. The open group is not read: [`Refiner::flush`] first if
-    /// it should be. Calling it again does nothing.
+    /// Reads every group that is waiting, then stops the worker, gives the
+    /// reader back and closes the transcript. The open group is not read:
+    /// [`Refiner::flush`] first if it should be. Calling it again does nothing.
     pub fn close(&mut self) {
         if self.closed {
             return;
@@ -758,6 +841,8 @@ impl Refiner {
             // A worker that panicked outside a reading has nothing left to give back.
             let _ = worker.join();
         }
+        // After the join: the worker writes the last lines.
+        *locked(&self.transcript) = None;
     }
 }
 
@@ -771,6 +856,7 @@ impl Drop for Refiner {
 mod tests {
     use super::*;
     use hayamimi_asr::refine::group_ranges;
+    use std::sync::atomic::AtomicBool;
 
     const SECOND: usize = SAMPLE_RATE as usize;
 
@@ -1496,6 +1582,219 @@ mod tests {
         })?;
         drop(refiner);
         assert!(watch.upgrade().is_none());
+        Ok(())
+    }
+
+    /// A transcript that keeps what it is given, and says when it is dropped.
+    struct Sink {
+        written: Arc<Mutex<Vec<u8>>>,
+        dropped: Arc<AtomicBool>,
+        broken: bool,
+    }
+
+    impl Write for Sink {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.broken {
+                return Err(std::io::Error::other("the disk is full"));
+            }
+            locked(&self.written).extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Drop for Sink {
+        fn drop(&mut self) {
+            self.dropped.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// What a [`Sink`] was given, and whether it was dropped.
+    struct Watch {
+        written: Arc<Mutex<Vec<u8>>>,
+        dropped: Arc<AtomicBool>,
+    }
+
+    impl Watch {
+        fn text(&self) -> String {
+            String::from_utf8_lossy(&locked(&self.written)).into_owned()
+        }
+
+        fn is_dropped(&self) -> bool {
+            self.dropped.load(Ordering::SeqCst)
+        }
+    }
+
+    fn sink(broken: bool) -> (Sink, Watch) {
+        let written = Arc::new(Mutex::new(Vec::new()));
+        let dropped = Arc::new(AtomicBool::new(false));
+        let sink = Sink {
+            written: Arc::clone(&written),
+            dropped: Arc::clone(&dropped),
+            broken,
+        };
+        (sink, Watch { written, dropped })
+    }
+
+    /// An utterance of the first second, marked as spoken by `speaker`.
+    fn spoken_by(speaker: &str) -> Spoken {
+        Spoken {
+            speaker: speaker.to_owned(),
+            ..spoken(0, SECOND, "ja", "こんにちは")
+        }
+    }
+
+    #[test]
+    fn a_line_has_the_speaker_in_front_when_there_is_one() {
+        assert_eq!(transcript_line("S1", "こんにちは"), "S1: こんにちは\n");
+        assert_eq!(transcript_line("", "こんにちは"), "こんにちは\n");
+    }
+
+    #[test]
+    fn refiner_close_closes_the_transcript_file() -> Check {
+        let (mut refiner, _events) = started(|| scripted(echo_read))?;
+        let (sink, watch) = sink(false);
+        refiner.set_transcript(Box::new(sink));
+        refiner.hear(&vec![0.0; 3 * SECOND]);
+        refiner.add_span(spoken_by("S1"))?;
+        refiner.flush()?;
+        refiner.drain();
+        assert!(
+            !watch.is_dropped(),
+            "the transcript stays open while the refiner runs"
+        );
+        assert_eq!(watch.text(), "S1: text-ja\n");
+        refiner.close();
+        assert!(watch.is_dropped());
+        Ok(())
+    }
+
+    #[test]
+    fn a_group_read_while_closing_is_written_before_the_transcript_closes() -> Check {
+        let (mut refiner, _events) = started(|| scripted(echo_read))?;
+        let (sink, watch) = sink(false);
+        refiner.set_transcript(Box::new(sink));
+        refiner.hear(&vec![0.0; 3 * SECOND]);
+        refiner.add_span(spoken_by(""))?;
+        refiner.flush()?;
+        refiner.close();
+        assert_eq!(watch.text(), "text-ja\n");
+        assert!(watch.is_dropped());
+        Ok(())
+    }
+
+    #[test]
+    fn a_transcript_that_cannot_be_written_does_not_stop_the_events_or_the_worker() -> Check {
+        let (mut refiner, mut events) = started(|| scripted(echo_read))?;
+        let (sink, watch) = sink(true);
+        refiner.set_transcript(Box::new(sink));
+        refiner.hear(&vec![0.0; 3 * SECOND]);
+        refiner.add_span(spoken_by(""))?;
+        refiner.flush()?;
+        refiner.add_span(Spoken {
+            lang: String::from("en"),
+            ..spoken(2 * SECOND, 3 * SECOND, "en", "hello")
+        })?;
+        refiner.flush()?;
+        refiner.close();
+        assert_eq!(refined_texts(&mut events)?, ["text-ja", "text-en"]);
+        assert_eq!(watch.text(), "");
+        Ok(())
+    }
+
+    #[test]
+    fn the_transcript_failed_line_is_a_warning_with_a_code_and_no_text() -> Check {
+        let strings = Strings::embedded(Lang::En)?;
+        let event: Value = serde_json::from_str(&transcript_failed_line(&strings))?;
+        assert_eq!(event["event"], TRANSCRIPT_FAILED);
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], TRANSCRIPT_CODE);
+        assert_ne!(
+            event["message"], TRANSCRIPT_FAILED,
+            "the table has a message"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn open_transcript_appends_to_the_file_and_creates_it() -> Check {
+        let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/unit-tmp");
+        std::fs::create_dir_all(&directory)?;
+        let path = directory.join(format!("refine-transcript-{}.txt", std::process::id()));
+        if path.exists() {
+            std::fs::remove_file(&path)?;
+        }
+        for _ in 0..2 {
+            let (mut refiner, _events) = started(|| scripted(echo_read))?;
+            refiner.open_transcript(&path)?;
+            refiner.hear(&vec![0.0; 3 * SECOND]);
+            refiner.add_span(spoken_by("S2"))?;
+            refiner.flush()?;
+            refiner.close();
+        }
+        let content = std::fs::read_to_string(&path)?;
+        std::fs::remove_file(&path)?;
+        assert_eq!(content, "S2: text-ja\nS2: text-ja\n");
+        Ok(())
+    }
+
+    #[test]
+    fn refiner_reset_drops_spans_and_clears_history() -> Check {
+        let (mut refiner, mut events) = started(|| scripted(echo_read))?;
+        refiner.hear(&vec![0.0; 3 * SECOND]);
+        refiner.add_span(spoken(0, SECOND, "ja", "あ"))?;
+        assert_eq!(refiner.collector.pending(), 1);
+        refiner.reset()?;
+        assert_eq!(refiner.collector.pending(), 0, "the open group is dropped");
+        // The audio is gone too: an utterance heard after the reset has nothing to be cut from.
+        refiner.add_span(spoken(2 * SECOND, 3 * SECOND, "ja", "い"))?;
+        refiner.flush()?;
+        refiner.close();
+        assert!(refined_texts(&mut events)?.is_empty());
+        assert_eq!(refiner.take_counts().groups_closed, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_reset_reads_the_groups_that_are_waiting_before_it_forgets() -> Check {
+        let (mut refiner, mut events) = started(|| scripted(echo_read))?;
+        refiner.hear(&vec![0.0; 3 * SECOND]);
+        refiner.add_span(spoken(0, SECOND, "ja", "あ"))?;
+        refiner.flush()?;
+        refiner.reset()?;
+        assert_eq!(refined_texts(&mut events)?, ["text-ja"]);
+        refiner.close();
+        Ok(())
+    }
+
+    #[test]
+    fn refiner_reset_writes_a_separator_into_an_open_transcript() -> Check {
+        let (mut refiner, _events) = started(|| scripted(echo_read))?;
+        let (sink, watch) = sink(false);
+        refiner.set_transcript(Box::new(sink));
+        refiner.reset()?;
+        assert_eq!(watch.text(), "\n----- session reset -----\n\n");
+        assert!(
+            !watch.is_dropped(),
+            "the transcript stays open across a reset"
+        );
+        // The new session goes on in the same file, after the mark.
+        refiner.hear(&vec![0.0; 2 * SECOND]);
+        refiner.add_span(spoken_by(""))?;
+        refiner.flush()?;
+        refiner.drain();
+        assert_eq!(watch.text(), "\n----- session reset -----\n\ntext-ja\n");
+        Ok(())
+    }
+
+    #[test]
+    fn a_closed_refiner_cannot_be_reset() -> Check {
+        let (mut refiner, _events) = started(|| scripted(echo_read))?;
+        refiner.close();
+        assert_eq!(refiner.reset(), Err(Closed));
         Ok(())
     }
 
