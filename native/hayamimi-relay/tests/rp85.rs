@@ -1009,16 +1009,18 @@ enum Fault {
     },
     UnjoinedSample {
         run: String,
-        sample: String,
+        repeat: u64,
         final_us: i64,
     },
     KeyedWithoutReuse {
         run: String,
+        repeat: u64,
         id: String,
         stage_us: i64,
     },
     SlowKeyed {
         run: String,
+        repeat: u64,
         id: String,
         stage_us: i64,
     },
@@ -1072,20 +1074,33 @@ impl std::fmt::Display for Fault {
             ),
             Fault::UnjoinedSample {
                 run,
-                sample,
+                repeat,
                 final_us,
             } => write!(
                 out,
-                "run {run}: sample {sample} (t_final_us {final_us}) has no final in the events at that time"
+                "run {run}: sample {} t_final_us {final_us} has no final in the events at that time",
+                sample_name(*repeat)
             ),
-            Fault::KeyedWithoutReuse { run, id, stage_us } => write!(
+            Fault::KeyedWithoutReuse {
+                run,
+                repeat,
+                id,
+                stage_us,
+            } => write!(
                 out,
-                "run {run}: sample {id} (stage {}) is matched by the product key but has no translate.draft.reused of that id",
+                "run {run}: sample {} {id} (stage {}) is matched by the product key but has no translate.draft.reused of that id",
+                sample_name(*repeat),
                 millis(*stage_us)
             ),
-            Fault::SlowKeyed { run, id, stage_us } => write!(
+            Fault::SlowKeyed {
+                run,
+                repeat,
+                id,
+                stage_us,
+            } => write!(
                 out,
-                "run {run}: the translation stage of the matched sample {id} is {stage_us} us ({}), over {} ms",
+                "run {run}: the translation stage of the matched sample {} {id} is {stage_us} us ({}), over {} ms",
+                sample_name(*repeat),
                 millis(*stage_us),
                 STAGE_LIMIT_US / 1000
             ),
@@ -1154,11 +1169,17 @@ fn log_counts(relay_log: &str) -> Result<LogCounts, String> {
     Ok(counts)
 }
 
+/// How every fault and the listing name a sample: by its repeat number.
+fn sample_name(repeat: u64) -> String {
+    format!("utt {UTTERANCE} repeat {repeat}")
+}
+
 /// A sample of utterance 7 that has both times. The validity line `d >= 120 ms`
 /// is not applied: the stage does not include `d`.
 struct Sample {
-    /// The row's `id` when it has one, else its repeat number.
-    name: String,
+    /// The row's `repeat`. A sample is named by it; the row's `id`, if it has
+    /// one, is not read.
+    repeat: u64,
     final_us: i64,
     /// `t_tr_us - t_final_us`
     stage_us: i64,
@@ -1173,14 +1194,12 @@ fn sample_of(row: &Value, record: usize) -> Result<Option<Sample>, String> {
         return Ok(None);
     };
     let Some(repeat) = row.get("repeat").and_then(Value::as_u64) else {
-        return Err(format!("record {record}: a sample has no repeat number"));
-    };
-    let name = match row.get("id").and_then(Value::as_str) {
-        Some(id) => id.to_owned(),
-        None => format!("repeat {repeat}"),
+        return Err(format!(
+            "record {record}: the sample with t_final_us {final_us} has no repeat that is a JSON integer"
+        ));
     };
     Ok(Some(Sample {
-        name,
+        repeat,
         final_us,
         stage_us: tr_us - final_us,
     }))
@@ -1273,12 +1292,15 @@ impl std::fmt::Display for Reason {
 
 #[derive(Debug, PartialEq)]
 struct Keyed {
+    repeat: u64,
+    /// The `id` of the `final` the sample is joined to.
     id: String,
     stage_us: i64,
 }
 
 #[derive(Debug, PartialEq)]
 struct Unmatched {
+    repeat: u64,
     id: String,
     stage_us: i64,
     closing: String,
@@ -1323,8 +1345,13 @@ fn classify(sample: &Sample, heard: &[Heard]) -> Option<Split> {
     let draft = last_draft(heard, sample.final_us);
     let id = id.to_owned();
     let stage_us = sample.stage_us;
+    let repeat = sample.repeat;
     if draft.is_some_and(|draft| reuse_match(closing, draft, true).is_some()) {
-        return Some(Split::Keyed(Keyed { id, stage_us }));
+        return Some(Split::Keyed(Keyed {
+            repeat,
+            id,
+            stage_us,
+        }));
     }
     let reason = if draft.is_some() {
         Reason::Key
@@ -1332,6 +1359,7 @@ fn classify(sample: &Sample, heard: &[Heard]) -> Option<Split> {
         Reason::NoDraft
     };
     Some(Split::Unmatched(Unmatched {
+        repeat,
         id,
         stage_us,
         closing: closing.to_owned(),
@@ -1396,7 +1424,7 @@ fn split_samples(run: &str, read: &Read, faults: &mut Vec<Fault>) -> RunReport {
         match classify(sample, &read.heard) {
             None => faults.push(Fault::UnjoinedSample {
                 run: run.to_owned(),
-                sample: sample.name.clone(),
+                repeat: sample.repeat,
                 final_us: sample.final_us,
             }),
             Some(Split::Unmatched(unmatched)) => report.unmatched.push(unmatched),
@@ -1404,6 +1432,7 @@ fn split_samples(run: &str, read: &Read, faults: &mut Vec<Fault>) -> RunReport {
                 if !read.counts.reused.contains(&keyed.id) {
                     faults.push(Fault::KeyedWithoutReuse {
                         run: run.to_owned(),
+                        repeat: keyed.repeat,
                         id: keyed.id.clone(),
                         stage_us: keyed.stage_us,
                     });
@@ -1427,6 +1456,7 @@ fn judge_keyed(report: &RunReport, faults: &mut Vec<Fault>) {
     if let Some(slowest) = over {
         faults.push(Fault::SlowKeyed {
             run: report.run.clone(),
+            repeat: slowest.repeat,
             id: slowest.id.clone(),
             stage_us: slowest.stage_us,
         });
@@ -1495,8 +1525,9 @@ fn listing(reports: &[&RunReport]) -> String {
         ));
         for one in &report.unmatched {
             lines.push(format!(
-                "{} unmatched {} stage {} reason {} final {:?} draft {:?}",
+                "{} unmatched {} {} stage {} reason {} final {:?} draft {:?}",
                 report.run,
+                sample_name(one.repeat),
                 one.id,
                 millis(one.stage_us),
                 one.reason,
@@ -1685,7 +1716,7 @@ impl MadeRun {
             .zip(1..)
             .map(|(take, repeat)| {
                 json!({
-                    "repeat": repeat, "utt": UTTERANCE, "id": take.id,
+                    "repeat": repeat, "utt": UTTERANCE,
                     "t_end_us": take.final_us - (take.d_ms + 100) * 1000,
                     "t_final_us": take.final_us,
                     "t_tr_us": take.stage_us.map(|stage| take.final_us + stage),
@@ -1766,9 +1797,24 @@ impl MadeRun {
     }
 }
 
-/// Judges two made runs.
+/// Judges two made runs. The same runs with an `id` of `mic-99` written into
+/// every sample row must be judged the same, and `mic-99` must not appear.
 fn judged(first: &MadeRun, second: &MadeRun) -> Judgement {
-    check_x_runs(&[first.texts(), second.texts()])
+    let runs = [first.texts(), second.texts()];
+    let judgement = check_x_runs(&runs);
+    let marked: Result<Vec<XRun>, String> = runs
+        .iter()
+        .map(|run| changed_sample_rows(run, |row| row["id"] = json!("mic-99")))
+        .collect();
+    let Ok(marked) = marked else {
+        panic!("the sample rows were not rewritten");
+    };
+    let with_id = check_x_runs(&marked);
+    assert_eq!(with_id.faults, judgement.faults, "an id in a sample row");
+    let (plain, said) = (verdict(&judgement), verdict(&with_id));
+    assert_eq!(plain, said, "an id in a sample row");
+    assert!(!format!("{said:?}").contains("mic-99"), "{said:?}");
+    judgement
 }
 
 /// The text of a judgement that did not pass; an error when it passed.
@@ -1789,9 +1835,10 @@ fn assert_passes(judgement: &Judgement) {
     assert_eq!(judgement.faults, Vec::<Fault>::new());
 }
 
-fn fault_keyed_without_reuse(run: &str, id: &str, stage_us: i64) -> Fault {
+fn fault_keyed_without_reuse(run: &str, repeat: u64, id: &str, stage_us: i64) -> Fault {
     Fault::KeyedWithoutReuse {
         run: run.to_owned(),
+        repeat,
         id: id.to_owned(),
         stage_us,
     }
@@ -1823,6 +1870,7 @@ fn x_runs_with_a_reuse_each_and_utterance_7_at_182_ms_pass() -> TestResult {
         let report = run_report(&judgement, name)?;
         assert_eq!(report.keyed.len(), 4, "{name}");
         let unmatched = Unmatched {
+            repeat: 4,
             id: String::from("mic-74"),
             stage_us: 418_540,
             closing: unkeyed_final(),
@@ -1848,6 +1896,7 @@ fn utterance_7_one_microsecond_over_182_ms_is_rejected() -> TestResult {
     let judgement = judged(&first, &second);
     let slow = Fault::SlowKeyed {
         run: String::from("e3q1"),
+        repeat: 3,
         id: String::from("mic-73"),
         stage_us: 182_001,
     };
@@ -1894,8 +1943,8 @@ fn the_recorded_utterance_7_is_over_182_ms_without_a_reuse() -> TestResult {
         expected.push(Fault::NoNormalizedReuse {
             run: run.to_owned(),
         });
-        for id in ["mic-71", "mic-72", "mic-73", "mic-75"] {
-            expected.push(fault_keyed_without_reuse(run, id, KEYED_STAGE_US));
+        for (repeat, id) in [(1, "mic-71"), (2, "mic-72"), (3, "mic-73"), (5, "mic-75")] {
+            expected.push(fault_keyed_without_reuse(run, repeat, id, KEYED_STAGE_US));
         }
     }
     assert_eq!(judgement.faults, expected);
@@ -2070,7 +2119,7 @@ fn a_keyed_sample_without_a_reuse_is_named_and_rejected() -> TestResult {
     let (mut first, second) = made_pair();
     first.drop_reuse("mic-71");
     let judgement = judged(&first, &second);
-    let missing = fault_keyed_without_reuse("e3q1", "mic-71", KEYED_STAGE_US);
+    let missing = fault_keyed_without_reuse("e3q1", 1, "mic-71", KEYED_STAGE_US);
     assert_eq!(judgement.faults, [missing]);
     let said = refused(&judgement)?;
     assert!(
@@ -2096,7 +2145,7 @@ fn a_reuse_line_under_another_id_does_not_stand_for_the_keyed_sample() -> TestRe
     }
     assert_eq!(first.reuses.len(), before);
     let judgement = judged(&first, &second);
-    let missing = fault_keyed_without_reuse("e3q1", "mic-71", KEYED_STAGE_US);
+    let missing = fault_keyed_without_reuse("e3q1", 1, "mic-71", KEYED_STAGE_US);
     assert_eq!(judgement.faults, [missing]);
     Ok(())
 }
@@ -2129,10 +2178,11 @@ fn a_slow_sample_whose_pair_the_product_key_matches_is_judged() -> TestResult {
     let judgement = judged(&first, &second);
     let slow = Fault::SlowKeyed {
         run: String::from("e3q1"),
+        repeat: 4,
         id: String::from("mic-74"),
         stage_us: 418_540,
     };
-    let missing = fault_keyed_without_reuse("e3q1", "mic-74", 418_540);
+    let missing = fault_keyed_without_reuse("e3q1", 4, "mic-74", 418_540);
     assert_eq!(judgement.faults, [missing, slow]);
     let said = refused(&judgement)?;
     for part in ["e3q1", "mic-74", "translate.draft.reused", "418.540 ms"] {
@@ -2150,7 +2200,7 @@ fn split_of(draft: &str, closing: &str) -> Result<Split, String> {
     ];
     let heard = heard_events(&rows.join("\n"))?;
     let sample = Sample {
-        name: String::from("one"),
+        repeat: 1,
         final_us: 2_000_000,
         stage_us: KEYED_STAGE_US,
     };
@@ -2244,6 +2294,7 @@ fn a_keyed_sample_below_the_validity_line_is_still_judged() -> TestResult {
     let judgement = judged(&first, &second);
     let slow = Fault::SlowKeyed {
         run: String::from("e3q1"),
+        repeat: 3,
         id: String::from("mic-73"),
         stage_us: 182_001,
     };
@@ -2260,7 +2311,7 @@ fn a_sample_is_joined_to_its_final_by_time_not_by_id() -> TestResult {
     let third = first.take_mut(3)?;
     third.other_final = Some((third.final_us + 1, unkeyed_final()));
     let judgement = judged(&first, &second);
-    let missing = fault_keyed_without_reuse("e3q1", "mic-73", KEYED_STAGE_US);
+    let missing = fault_keyed_without_reuse("e3q1", 3, "mic-73", KEYED_STAGE_US);
     assert_eq!(judgement.faults, [missing]);
     let said = refused(&judgement)?;
     assert!(
@@ -2298,15 +2349,13 @@ fn a_sample_whose_final_is_missing_from_the_events_fails_the_run_by_name() -> Te
         let judgement = judged(&first, &second);
         let unjoined = Fault::UnjoinedSample {
             run: String::from("e3q1"),
-            sample: String::from("mic-73"),
+            repeat: 3,
             final_us: 30_000_000,
         };
         assert_eq!(judgement.faults, [unjoined], "other final: {other}");
         let said = refused(&judgement)?;
-        assert!(
-            said.contains("mic-73") && said.contains("30000000"),
-            "{said}"
-        );
+        let parts = ["utt 7 repeat 3", "t_final_us 30000000"];
+        assert!(has_line_with(&said, &parts), "{said}");
         assert!(!said.contains("e3q2"), "{said}");
         assert!(!has_line_with(&said, &["unmatched", "mic-73"]), "{said}");
     }
@@ -2345,6 +2394,81 @@ fn a_sample_with_no_draft_in_its_span_is_listed_as_no_draft_and_not_matched() ->
         has_line_with(&listing, &["e3q1", "mic-73", "no_draft"]),
         "{listing}"
     );
+    Ok(())
+}
+
+/// The sample rows of `texts` with `change` applied to each row.
+fn changed_sample_rows(texts: &XRun, change: impl Fn(&mut Value)) -> Result<XRun, String> {
+    let mut rows = json_lines(&texts.samples)?;
+    rows.iter_mut().for_each(change);
+    let lines: Vec<String> = rows.iter().map(ToString::to_string).collect();
+    Ok(XRun {
+        name: texts.name.clone(),
+        samples: lines.join("\n"),
+        events: texts.events.clone(),
+        relay_log: texts.relay_log.clone(),
+    })
+}
+
+/// A made run with take 3 unjoined and the reuse of take 1 missing.
+fn run_with_both_name_forms() -> Result<MadeRun, String> {
+    let mut run = made_run("e3q1");
+    run.take_mut(3)?.final_kept = false;
+    run.drop_reuse("mic-71");
+    Ok(run)
+}
+
+/// A sample is named by its repeat number and the id of its joined final (or
+/// its `t_final_us`); an `id` written into the sample row changes nothing.
+#[test]
+fn a_sample_row_id_is_not_read_when_a_sample_is_named() -> TestResult {
+    let texts = run_with_both_name_forms()?.texts();
+    let plain = check_x_runs(std::slice::from_ref(&texts));
+    let marked = changed_sample_rows(&texts, |row| row["id"] = json!("mic-99"))?;
+    let with_id = check_x_runs(&[marked]);
+    let expected = [
+        fault_keyed_without_reuse("e3q1", 1, "mic-71", KEYED_STAGE_US),
+        Fault::UnjoinedSample {
+            run: String::from("e3q1"),
+            repeat: 3,
+            final_us: 30_000_000,
+        },
+    ];
+    assert_eq!(plain.faults, expected);
+    assert_eq!(with_id.faults, expected);
+    let said = describe(&with_id.faults);
+    assert!(said.contains("utt 7 repeat 1 mic-71"), "{said}");
+    assert!(!said.contains("mic-99"), "{said}");
+    Ok(())
+}
+
+/// A sample row whose `repeat` is missing or is not a JSON integer is a broken
+/// record: the run fails naming the row's `t_final_us`.
+#[test]
+fn a_sample_row_without_an_integer_repeat_fails_the_run_by_its_final_time() -> TestResult {
+    let texts = made_run("e3q1").texts();
+    let broken: [fn(&mut Value); 2] = [
+        |row| {
+            let third = row["t_final_us"] == json!(30_000_000);
+            if let Some(fields) = row.as_object_mut().filter(|_| third) {
+                fields.remove("repeat");
+            }
+        },
+        |row| {
+            if row["t_final_us"] == json!(30_000_000) {
+                row["repeat"] = json!("3");
+            }
+        },
+    ];
+    for change in broken {
+        let run = changed_sample_rows(&texts, change)?;
+        let judgement = check_x_runs(&[run]);
+        let [Fault::Unreadable { run, what }] = judgement.faults.as_slice() else {
+            return Err(format!("not one unreadable run: {:?}", judgement.faults).into());
+        };
+        assert_eq!(run, "e3q1");
+        assert!(what.contains("t_final_us 30000000"), "{what}");
+    }
     Ok(())
 }
 
