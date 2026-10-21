@@ -1,5 +1,5 @@
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 14] = [
+pub const STAGES: [&str; 16] = [
     "source",
     "punct",
     "recognizer",
@@ -13,10 +13,12 @@ pub const STAGES: [&str; 14] = [
     "translate",
     "lid",
     "second_opinion",
+    "refine",
+    "refine_punct",
     "extra_stage",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 11] = [
+pub const REASONS: [&str; 12] = [
     "bad_value",
     "no_device",
     "driver_unreadable",
@@ -28,4 +30,5 @@ pub const REASONS: [&str; 11] = [
     "in_use",
     "device_missing",
     "provider_mismatch",
+    "spawn_failed",
 ];

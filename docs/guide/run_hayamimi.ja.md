@@ -87,7 +87,10 @@ hayamimi --wav lat-ja.wav --models <models の directory>
 清書の文にも、確定文と同じ順で ITN、句読点、置換辞書が当たります。
 句読点が付くのは日本語の文だけです。
 清書の側は、確定文の側とは別に、句読点の model を CPU で開きます。
-開けないときは、清書の文を句読点なしで続け、warn の `refine.punct.unavailable` を 1 回出します（下の「落ちるときの形」の表）。
+開けないときは、清書の文を句読点なしで続け、`refine_punct` の `fallback` を 1 回出します。
+確定文の側の句読点が使えないときは、清書の側も model を開かず、`refine_punct` は出ません。
+清書の thread を起こせないときは、清書なしで続け、`refine` の `fallback` を 1 回出します。
+model は開けて、ある 1 つの文だけ読めなかったときは、その文を句読点なしで出し、warn の `refine.punct.failed` を log に 1 行出します（どれも下の「落ちるときの形」の表）。
 
 `/config` で替えた置換辞書、ITN、句読点の入切は、清書にも、次に読み直す group から届きます。
 清書の読み手は、group を読み直すたびに今の値を読むからです。
@@ -306,13 +309,18 @@ device が在って session が作れなければ、その段だけを CPU で�
 | 推論の library（sherpa-onnx、ORT）が開けない | `asr.fallback.disabled` | `asr`、`disabled` |
 | port が使われている | `server.fallback.port`（`url` に実際の URL） | `events`、`next_port`（10 個とも塞がっていれば `disabled`） |
 | 置換辞書が読めない | `config.fallback.default` | `replace`、`default` |
-| 清書用の句読点の model が開けない | `refine.punct.unavailable`（`error_code` は `HAYAMIMI_ASR_REFINE_PUNCT_UNAVAILABLE`。`model` と `provider` を持つ） | 出ない |
+| 清書の thread を起こせない | `refine.fallback.disabled`（`error_code` は `HAYAMIMI_REFINE_FALLBACK`） | `refine`、`disabled`（`reason` は `spawn_failed`） |
+| 清書用の句読点の model が開けない | `refine.fallback.disabled`（`error_code` は同じ） | `refine_punct`、`disabled`（`reason` は `missing` か `unreadable`） |
 
 次の番号から 10 個までの port を試します。
-遅れて接続した client や接続し直した client には、効いている `fallback` と `session_start` が、その順で最初にまとめて届きます。
+遅れて接続した client や接続し直した client には、効いている `fallback` と `session_start` が、送った順に最初にまとめて届きます。
+清書の句読点の `fallback` のように実行中に決まる物は、別の thread が送るので、`session_start` の前に着くか後に着くかは決まりません。
 stderr には、落ちた段、理由、落ち先の 3 行を locale の言葉で出します。
 GPU が原因なら、`nvidia-smi` で確かめる案内の 1 行を足します。
-清書の句読点の行だけは、stdout の log の event 1 行で、`/events` の `fallback` も stderr の 3 行も出しません。
+
+清書の句読点が 1 つの文だけ読めなかったときの `refine.punct.failed` は、stage が落ちたのではなく、その文が句読点なしになるだけです。
+そのため、stdout の log の event 1 行だけで、`/events` の `fallback` も stderr の 3 行も出しません。
+読めない文があるたびに 1 行出し、`audio_ms` に読み直した group の長さを持ちます。
 
 推論の library が開けない場面は、Windows の実行物でだけ起こせます。
 Linux の実行物は、共有ライブラリを起動前に loader が解決します。

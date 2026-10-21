@@ -8,7 +8,7 @@ use hayamimi_asr::{Fallback, Reason, ResidentEvent, To};
 use serde_json::{Value, json};
 
 /// Every stage name a notice can carry.
-pub const STAGES: [&str; 13] = [
+pub const STAGES: [&str; 15] = [
     "source",
     "punct",
     "recognizer",
@@ -22,9 +22,11 @@ pub const STAGES: [&str; 13] = [
     "translate",
     "lid",
     "second_opinion",
+    "refine",
+    "refine_punct",
 ];
 /// Every reason a notice can carry.
-pub const REASONS: [&str; 11] = [
+pub const REASONS: [&str; 12] = [
     "bad_value",
     "no_device",
     "driver_unreadable",
@@ -36,6 +38,7 @@ pub const REASONS: [&str; 11] = [
     "in_use",
     "device_missing",
     "provider_mismatch",
+    "spawn_failed",
 ];
 /// Every destination a notice can carry.
 pub const DESTINATIONS: [&str; 8] = [
@@ -69,6 +72,8 @@ pub const CAPTURE_SINGLE: &str = "capture.fallback.single";
 pub const CAPTURE_NONE: &str = "capture.fallback.none";
 /// The log event of an audio device that came back.
 pub const CAPTURE_CLEARED: &str = "capture.fallback.cleared";
+/// The log event of the refine pass, or its punctuation, left out.
+pub const REFINE_DISABLED: &str = "refine.fallback.disabled";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
@@ -180,6 +185,32 @@ impl Notice {
             error_code: "HAYAMIMI_ASR_FALLBACK",
             stage: "asr",
             reason: "library_unavailable",
+            to: "disabled",
+            url: None,
+            tiers: None,
+        }
+    }
+
+    /// The thread of the refine pass could not be started, so the run goes on
+    /// without the pass.
+    pub fn refine_disabled() -> Notice {
+        Notice::refine("refine", "spawn_failed")
+    }
+
+    /// The punctuation model of the refine pass could not be opened, for
+    /// `reason`: refined sentences go on without marks, and the pass goes on.
+    pub fn refine_punct_disabled(reason: Reason) -> Notice {
+        Notice::refine("refine_punct", reason.name())
+    }
+
+    /// The stage of the refine pass is named apart from `punct`: the screen
+    /// keeps one `fallback` per stage, and the live punctuation's would be replaced.
+    fn refine(stage: &'static str, reason: &'static str) -> Notice {
+        Notice {
+            event: REFINE_DISABLED,
+            error_code: "HAYAMIMI_REFINE_FALLBACK",
+            stage,
+            reason,
             to: "disabled",
             url: None,
             tiers: None,
@@ -540,6 +571,9 @@ mod tests {
             Notice::translate_on_cpu(Reason::NoDevice),
             Notice::translate_on_cpu(Reason::DriverUnreadable),
             Notice::translate_on_cpu(Reason::SessionFailed),
+            Notice::refine_disabled(),
+            Notice::refine_punct_disabled(Reason::Missing),
+            Notice::refine_punct_disabled(Reason::Unreadable),
         ];
         let resident = [
             v2_for_v3(),
@@ -551,6 +585,52 @@ mod tests {
             assert!(STAGES.contains(&notice.stage), "{}", notice.stage);
             assert!(REASONS.contains(&notice.reason), "{}", notice.reason);
             assert!(DESTINATIONS.contains(&notice.to), "{}", notice.to);
+        }
+    }
+
+    #[test]
+    fn the_refine_pass_left_out_is_a_refine_fallback_of_its_own_stage() {
+        let notice = Notice::refine_disabled();
+        assert_eq!(
+            (notice.event, notice.error_code),
+            (REFINE_DISABLED, "HAYAMIMI_REFINE_FALLBACK")
+        );
+        assert_eq!(notice.domain(), "refine");
+        assert!(!notice.is_gpu());
+        assert_eq!(
+            (notice.stage, notice.reason, notice.to),
+            ("refine", "spawn_failed", "disabled")
+        );
+        assert_eq!(
+            notice.wire(),
+            json!({"type": "fallback", "stage": "refine", "reason": "spawn_failed", "to": "disabled"})
+        );
+    }
+
+    /// The stage differs from `punct`: the screen keeps one `fallback` per
+    /// stage, and the same name would replace the live punctuation's.
+    #[test]
+    fn the_punctuation_of_the_refine_pass_is_not_the_stage_of_the_live_punctuation() {
+        let live = punct_on_cpu();
+        for (reason, name) in [
+            (Reason::Missing, "missing"),
+            (Reason::Unreadable, "unreadable"),
+        ] {
+            let notice = Notice::refine_punct_disabled(reason);
+            assert_eq!(
+                (notice.event, notice.error_code, notice.stage),
+                (REFINE_DISABLED, "HAYAMIMI_REFINE_FALLBACK", "refine_punct")
+            );
+            assert_eq!((notice.reason, notice.to), (name, "disabled"));
+            assert_ne!(notice.stage, live.stage);
+            assert_eq!(
+                notice.stderr_keys(),
+                [
+                    "stage_refine_punct".to_owned(),
+                    format!("reason_{name}"),
+                    "to_disabled".to_owned()
+                ]
+            );
         }
     }
 

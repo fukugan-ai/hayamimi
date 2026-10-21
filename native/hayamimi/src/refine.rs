@@ -520,8 +520,13 @@ fn millis_value(ms: f64) -> Value {
     Value::from((ms * 1000.0).round() / 1000.0)
 }
 
+/// The length of `samples` of the input, in milliseconds.
+pub(crate) fn samples_ms(samples: &[f32]) -> u64 {
+    samples.len() as u64 * 1000 / u64::from(SAMPLE_RATE)
+}
+
 fn audio_ms(group: &Group) -> u64 {
-    group.audio.len() as u64 * 1000 / u64::from(SAMPLE_RATE)
+    samples_ms(&group.audio)
 }
 
 /// `refine.group.skipped`: the group dropped from a full line.

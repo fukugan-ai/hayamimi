@@ -8,7 +8,7 @@
 //! screen (`/events`) and on stderr.
 
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver};
@@ -19,11 +19,11 @@ use axum::Router;
 use hayamimi_asr::audio::read_wav;
 use hayamimi_asr::itn::{self, Overrides};
 use hayamimi_asr::ort_runtime::{Device, OrtRuntime};
-use hayamimi_asr::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator};
+use hayamimi_asr::punct::Punctuator;
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::route::{Policy, Refined, RouteError};
 use hayamimi_asr::vad::{Sensitivity, VadSettings};
-use hayamimi_asr::{AsrError, Engine, Gpu, Settings, check_library};
+use hayamimi_asr::{AsrError, Engine, Gpu, Reason, Settings, check_library};
 use hayamimi_gpu::memory::MemoryMeter;
 use hayamimi_relay::lan::{self, LanUrl};
 use hayamimi_relay::logging::Level;
@@ -42,7 +42,7 @@ use crate::inputs::Input;
 use crate::log;
 use crate::memory_guard::MemoryGuard;
 use crate::notice::Notice;
-use crate::refine::{Refiner, Reread, Rereader};
+use crate::refine::{Refiner, Reread, Rereader, samples_ms};
 use crate::report::{log_sessions, say, say_notice, spawn_capture_reporter, tell_resident};
 use crate::routes::{self, AppState};
 use crate::server::{self, Hub};
@@ -128,23 +128,52 @@ fn initial_of(settings: &Settings) -> Initial {
 
 /// The language the punctuation model restores marks for.
 const PUNCTUATED_LANGUAGE: &str = "ja";
-/// `refine.punct.unavailable`: the refine pass has no punctuation model and goes on without marks.
-const PUNCT_UNAVAILABLE: &str = "refine.punct.unavailable";
-const PUNCT_UNAVAILABLE_CODE: &str = "HAYAMIMI_ASR_REFINE_PUNCT_UNAVAILABLE";
+/// `refine.punct.failed`: a refined sentence the punctuation model could not read goes on without marks.
+const PUNCT_FAILED: &str = "refine.punct.failed";
 
-/// `refine.punct.unavailable`: names the model and the device, never a path.
-fn punct_unavailable_line(strings: &Strings) -> String {
+/// `refine.punct.failed`: the shape of the live `asr.punct.failed`. It names
+/// the group by its length, never its text.
+fn punct_failed_line(strings: &Strings, audio_ms: u64) -> String {
     log::event_line(
         strings,
         Level::Warn,
-        PUNCT_UNAVAILABLE,
+        PUNCT_FAILED,
         "asr",
-        Some(PUNCT_UNAVAILABLE_CODE),
-        &[
-            ("model", Value::from(PUNCT_MODEL)),
-            ("provider", Value::from(Device::Cpu.name())),
-        ],
+        None,
+        &[("audio_ms", Value::from(audio_ms))],
     )
+}
+
+/// What the refine pass has to say about its punctuation model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Told {
+    /// The model could not be opened, for this reason. The pass goes on without marks.
+    Unavailable(Reason),
+    /// The model could not read one sentence of a group of `audio_ms`. The sentence went on without marks.
+    Failed { audio_ms: u64 },
+}
+
+/// Says one thing the refine pass has to say.
+type Say = Box<dyn FnMut(Told)>;
+
+/// Says `told` where it belongs. A model that cannot be opened is a fallback
+/// of the stage `refine_punct`, said on the three channels. A sentence that
+/// failed is a log event only, as in the live pass.
+fn tell(strings: &Strings, hub: &Hub, told: Told) {
+    match told {
+        Told::Unavailable(reason) => {
+            say_notice(strings, hub, &Notice::refine_punct_disabled(reason));
+        }
+        Told::Failed { audio_ms } => log::print(&punct_failed_line(strings, audio_ms)),
+    }
+}
+
+/// Why a punctuation model could not be opened: its file is not there, or it cannot be used.
+fn refine_punct_reason(error: &AsrError) -> Reason {
+    match error {
+        AsrError::MissingModel(_) => Reason::Missing,
+        _ => Reason::Unreadable,
+    }
 }
 
 /// Puts marks into a refined sentence. [`Punctuator`] is the one of a run; a
@@ -194,12 +223,12 @@ struct Polish<R, P> {
     inner: R,
     controls: Arc<Controls>,
     model: Model<P>,
-    /// Says that the model could not be opened.
-    say: Box<dyn FnMut()>,
+    /// Says that the model could not be opened, and that it could not read a sentence.
+    say: Say,
 }
 
 impl<R: Reread, P: Restore> Polish<R, P> {
-    fn new(inner: R, controls: Arc<Controls>, open: Opener<P>, say: Box<dyn FnMut()>) -> Self {
+    fn new(inner: R, controls: Arc<Controls>, open: Opener<P>, say: Say) -> Self {
         Polish {
             inner,
             controls,
@@ -234,13 +263,14 @@ impl<R: Reread, P: Restore> Polish<R, P> {
         };
         match open() {
             Ok(model) => self.model = Model::Open(model),
-            Err(_) => (self.say)(),
+            Err(error) => (self.say)(Told::Unavailable(refine_punct_reason(&error))),
         }
     }
 
-    /// Marks for a Japanese sentence when punctuation is on. A sentence the
-    /// model cannot read goes on without marks.
-    fn punctuate(&mut self, text: String, lang: &str, on: bool) -> String {
+    /// Marks for a Japanese sentence of a group of `audio_ms` when punctuation
+    /// is on. A sentence the model cannot read goes on without marks, and the
+    /// failure is said.
+    fn punctuate(&mut self, text: String, lang: &str, on: bool, audio_ms: u64) -> String {
         if !on || lang != PUNCTUATED_LANGUAGE || text.trim().is_empty() {
             return text;
         }
@@ -249,15 +279,18 @@ impl<R: Reread, P: Restore> Polish<R, P> {
         };
         match model.restore(&text) {
             Ok(marked) => marked,
-            Err(_) => text,
+            Err(_) => {
+                (self.say)(Told::Failed { audio_ms });
+                text
+            }
         }
     }
 
     /// The stages of a final sentence, in the order of the live path.
-    fn finish(&mut self, text: String, lang: &str) -> String {
+    fn finish(&mut self, text: String, lang: &str, audio_ms: u64) -> String {
         let now = wanted(&self.controls);
         let text = itn::convert(&text, lang, &now.overrides);
-        let text = self.punctuate(text, lang, now.punctuate);
+        let text = self.punctuate(text, lang, now.punctuate, audio_ms);
         now.replacements.apply(&text)
     }
 }
@@ -267,7 +300,7 @@ impl<R: Reread, P: Restore> Reread for Polish<R, P> {
     fn reread(&mut self, audio: &[f32], lang: &str) -> Result<Refined, RouteError> {
         let mut refined = self.inner.reread(audio, lang)?;
         let text = std::mem::take(&mut refined.text);
-        refined.text = self.finish(text, &refined.lang);
+        refined.text = self.finish(text, &refined.lang, samples_ms(audio));
         Ok(refined)
     }
 
@@ -276,26 +309,46 @@ impl<R: Reread, P: Restore> Reread for Polish<R, P> {
     }
 }
 
-/// The punctuation model of the refine pass. It is a second one, opened on the
-/// CPU: the live one is not shared, and the GPU is not asked for more memory.
-fn open_cpu_punctuator(models: PathBuf) -> Result<Punctuator, AsrError> {
-    Punctuator::open(OrtRuntime::shared()?, &models, Device::Cpu, false)
+/// The device the punctuation model of the refine pass is opened on. It is a
+/// second model, opened on the CPU: the live one is not shared, and the GPU is
+/// not asked for more memory.
+const REFINE_PUNCT_DEVICE: Device = Device::Cpu;
+
+/// Opens the punctuation model of the refine pass through `open`, which is
+/// told the device. This is the one place that decides it.
+fn open_on_refine_device<P>(
+    models: &Path,
+    open: impl FnOnce(&Path, Device) -> Result<P, AsrError>,
+) -> Result<P, AsrError> {
+    open(models, REFINE_PUNCT_DEVICE)
 }
 
-/// The reader of the refine pass, built on the thread of the worker.
+/// The punctuation model of the refine pass.
+fn open_cpu_punctuator(models: PathBuf) -> Result<Punctuator, AsrError> {
+    open_on_refine_device(&models, |models, device| {
+        Punctuator::open(OrtRuntime::shared()?, models, device, false)
+    })
+}
+
+/// The reader of the refine pass, built on the thread of the worker. What the
+/// pass has to say about its punctuation model is said through `hub`.
 fn polished_rereader(
     models: PathBuf,
     policy: Policy,
     controls: Arc<Controls>,
     strings: Strings,
+    hub: Hub,
 ) -> Polish<Rereader, Punctuator> {
     let reader = Rereader::new(&models, policy);
     let open: Opener<Punctuator> = Box::new(move || open_cpu_punctuator(models));
-    let say = Box::new(move || log::print(&punct_unavailable_line(&strings)));
+    let say: Say = Box::new(move |told| tell(&strings, &hub, told));
     let mut polish = Polish::new(reader, controls, open, say);
     polish.warm();
     polish
 }
+
+/// Builds the reader of the refine pass on the thread of its worker.
+type Maker = Box<dyn FnOnce() -> Polish<Rereader, Punctuator> + Send>;
 
 /// Starts the refine pass unless the command line turned it off.
 fn start_refiner(
@@ -303,20 +356,33 @@ fn start_refiner(
     strings: &Strings,
     hub: &Hub,
     controls: &Arc<Controls>,
-) -> Result<Option<Refiner>, RunError> {
+) -> Option<Refiner> {
+    start_refiner_with(args, strings, hub, controls, Refiner::start)
+}
+
+/// [`start_refiner`] with the way the worker is started. A worker that cannot
+/// be started leaves the pass out: the run goes on without it, and says so once.
+fn start_refiner_with(
+    args: &Args,
+    strings: &Strings,
+    hub: &Hub,
+    controls: &Arc<Controls>,
+    start: impl FnOnce(Maker, Hub, Strings, &'static str) -> std::io::Result<Refiner>,
+) -> Option<Refiner> {
     if !args.refine {
-        return Ok(None);
+        return None;
     }
     let (models, policy) = (args.models.clone(), args.policy());
-    let (live, own) = (Arc::clone(controls), strings.clone());
-    let make = move || polished_rereader(models, policy, live, own);
+    let (live, own, told) = (Arc::clone(controls), strings.clone(), hub.clone());
+    let make: Maker = Box::new(move || polished_rereader(models, policy, live, own, told));
     let source = args.io.source_name();
-    Ok(Some(Refiner::start(
-        make,
-        hub.clone(),
-        strings.clone(),
-        source,
-    )?))
+    match start(make, hub.clone(), strings.clone(), source) {
+        Ok(refiner) => Some(refiner),
+        Err(_) => {
+            say_notice(strings, hub, &Notice::refine_disabled());
+            None
+        }
+    }
 }
 
 /// One server the run starts: how it is called, how its address reads, and
@@ -586,7 +652,7 @@ fn execute(args: &Args, strings: &Strings) -> Result<(), RunError> {
         warm_recognizer(strings, opened);
     }
     let stop = install_stop()?;
-    let refiner = start_refiner(args, strings, &hub, &controls)?;
+    let refiner = start_refiner(args, strings, &hub, &controls);
     let _input = start_input(args, strings, &hub, audio_tx, samples)?;
     hub.publish_session_start();
     Session {
@@ -638,11 +704,12 @@ mod tests {
     use super::*;
     use crate::api::{ConfigChange, ItnBody};
     use crate::inputs::IoArgs;
-    use hayamimi_asr::Reason;
+    use hayamimi_asr::{Fallback, Stage, To};
     use hayamimi_relay::lang::Lang;
     use std::cell::{Cell, RefCell};
     use std::net::Ipv4Addr;
     use std::rc::Rc;
+    use tokio::sync::broadcast::{self, error::TryRecvError};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -892,19 +959,22 @@ mod tests {
         }
     }
 
-    /// What the scripted model was asked, and how often it was opened and complained about.
+    /// What the scripted model was asked, how often it was opened, and what the pass said about it.
     #[derive(Default)]
     struct Tally {
         opened: Rc<Cell<u32>>,
-        said: Rc<Cell<u32>>,
+        said: Rc<RefCell<Vec<Told>>>,
         read: Rc<RefCell<Vec<String>>>,
     }
 
-    #[derive(Clone, Copy, PartialEq)]
+    #[derive(Debug, Clone, Copy, PartialEq)]
     enum Behaviour {
         Marks,
         FailsToRead,
+        /// The model file is not there.
         FailsToOpen,
+        /// The model file is there and cannot be read.
+        FailsToOpenUnreadable,
     }
 
     /// A model that adds a full stop, or fails to read.
@@ -924,26 +994,85 @@ mod tests {
         }
     }
 
+    /// A pass over a scripted model that says what it has to say through `say`.
+    fn polish_saying(
+        reader: Says,
+        controls: &Arc<Controls>,
+        tally: &Tally,
+        how: Behaviour,
+        say: Say,
+    ) -> Polish<Says, Marks> {
+        let (opened, read) = (Rc::clone(&tally.opened), Rc::clone(&tally.read));
+        let open: Opener<Marks> = Box::new(move || {
+            opened.set(opened.get() + 1);
+            match how {
+                Behaviour::FailsToOpen => Err(AsrError::MissingModel(PathBuf::new())),
+                Behaviour::FailsToOpenUnreadable => {
+                    Err(AsrError::Io(String::from("cannot be read")))
+                }
+                Behaviour::Marks | Behaviour::FailsToRead => Ok(Marks {
+                    read,
+                    fails: how == Behaviour::FailsToRead,
+                }),
+            }
+        });
+        Polish::new(reader, Arc::clone(controls), open, say)
+    }
+
+    /// A pass whose sayings are recorded in `tally`.
     fn polish_over(
         reader: Says,
         controls: &Arc<Controls>,
         tally: &Tally,
         how: Behaviour,
     ) -> Polish<Says, Marks> {
-        let (opened, read) = (Rc::clone(&tally.opened), Rc::clone(&tally.read));
         let said = Rc::clone(&tally.said);
-        let open: Opener<Marks> = Box::new(move || {
-            opened.set(opened.get() + 1);
-            if how == Behaviour::FailsToOpen {
-                return Err(AsrError::MissingModel(PathBuf::new()));
-            }
-            Ok(Marks {
-                read,
-                fails: how == Behaviour::FailsToRead,
-            })
+        let say: Say = Box::new(move |told| said.borrow_mut().push(told));
+        polish_saying(reader, controls, tally, how, say)
+    }
+
+    /// A pass whose sayings are recorded in `tally` and also told on the
+    /// channels of `hub`, the way a run tells them.
+    fn polish_telling(
+        reader: Says,
+        controls: &Arc<Controls>,
+        tally: &Tally,
+        how: Behaviour,
+        strings: &Strings,
+        hub: &Hub,
+    ) -> Polish<Says, Marks> {
+        let (said, strings, hub) = (Rc::clone(&tally.said), strings.clone(), hub.clone());
+        let say: Say = Box::new(move |told| {
+            said.borrow_mut().push(told);
+            tell(&strings, &hub, told);
         });
-        let say = Box::new(move || said.set(said.get() + 1));
-        Polish::new(reader, Arc::clone(controls), open, say)
+        polish_saying(reader, controls, tally, how, say)
+    }
+
+    /// The `fallback` events the hub keeps for a client that connects later.
+    fn kept_fallbacks(hub: &Hub) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+        let mut kept = Vec::new();
+        for text in hub.subscribe().0 {
+            let event: Value = serde_json::from_str(&text)?;
+            if event["type"] == "fallback" {
+                kept.push(event);
+            }
+        }
+        Ok(kept)
+    }
+
+    /// Everything published on the hub since `events` was subscribed.
+    fn published(
+        events: &mut broadcast::Receiver<String>,
+    ) -> Result<Vec<Value>, Box<dyn std::error::Error>> {
+        let mut all = Vec::new();
+        loop {
+            match events.try_recv() {
+                Ok(text) => all.push(serde_json::from_str(&text)?),
+                Err(TryRecvError::Empty) => return Ok(all),
+                Err(other) => return Err(other.into()),
+            }
+        }
     }
 
     /// The text a group comes to when it was asked for in `lang`.
@@ -1024,7 +1153,7 @@ mod tests {
         for _ in 0..3 {
             assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
         }
-        assert_eq!((tally.opened.get(), tally.said.get()), (1, 1));
+        assert_eq!((tally.opened.get(), tally.said.borrow().len()), (1, 1));
         Ok(())
     }
 
@@ -1040,7 +1169,9 @@ mod tests {
         );
         assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
         assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
-        assert_eq!((tally.opened.get(), tally.said.get()), (1, 0));
+        // Each sentence is told as a sentence that failed; the model itself was opened.
+        assert_eq!(tally.opened.get(), 1);
+        assert_eq!(*tally.said.borrow(), [Told::Failed { audio_ms: 0 }; 2]);
         Ok(())
     }
 
@@ -1057,7 +1188,7 @@ mod tests {
         );
         polish.warm();
         assert_eq!(text_of(&mut polish, "ja")?, "こんにちは");
-        assert_eq!((tally.opened.get(), tally.said.get()), (0, 0));
+        assert_eq!((tally.opened.get(), tally.said.borrow().len()), (0, 0));
         Ok(())
     }
 
@@ -1147,16 +1278,59 @@ mod tests {
         Ok(())
     }
 
-    fn refiner_over(list: &[&str]) -> Result<Option<Refiner>, Box<dyn std::error::Error>> {
+    fn args_of(list: &[&str]) -> Result<Args, Box<dyn std::error::Error>> {
         let raw: Vec<String> = list.iter().map(|word| (*word).to_owned()).collect();
         let Ok(Parsed::Run(args)) = args::parse(&raw) else {
             return Err("the command line did not ask for a run".into());
         };
+        Ok(*args)
+    }
+
+    fn refiner_over(list: &[&str]) -> Result<Option<Refiner>, Box<dyn std::error::Error>> {
+        let args = args_of(list)?;
         // No punctuation model: the worker opens nothing while it starts.
         let (controls, _commands) = controls_over(false);
         let strings = Strings::embedded(Lang::En)?;
-        start_refiner(&args, &strings, &Hub::new(), &controls)
-            .map_err(|_| "the refiner did not start".into())
+        Ok(start_refiner(&args, &strings, &Hub::new(), &controls))
+    }
+
+    /// R13-20b (a), T-RP-29-029: a worker thread that cannot be started leaves
+    /// the refine pass out, and the run says so once.
+    #[test]
+    fn a_refiner_that_cannot_start_falls_back_and_the_run_goes_on() -> TestResult {
+        let args = args_of(&["--wav", "a.wav"])?;
+        let (controls, _commands) = controls_over(false);
+        let strings = Strings::embedded(Lang::En)?;
+        let notice = Notice::refine_disabled();
+        // No thread: no refiner, and the notice is sent to the screen once.
+        let hub = Hub::new();
+        let mut events = hub.subscribe_live();
+        let refused = start_refiner_with(&args, &strings, &hub, &controls, |_, _, _, _| {
+            Err(std::io::Error::other("no thread"))
+        });
+        assert!(refused.is_none());
+        assert_eq!(kept_fallbacks(&hub)?, [notice.wire()]);
+        assert_eq!(published(&mut events)?, [notice.wire()]);
+        // The log event, its code, and the three stderr lines come from the same notice.
+        let line: Value = serde_json::from_str(&log::fallback_line(&strings, &notice))?;
+        assert_eq!(line["event"], "refine.fallback.disabled");
+        assert_eq!(line["error_code"], "HAYAMIMI_REFINE_FALLBACK");
+        assert_eq!(line["stage"], "refine");
+        assert_eq!(line["reason"], "spawn_failed");
+        assert_eq!(
+            notice.stderr_keys(),
+            ["stage_refine", "reason_spawn_failed", "to_disabled"]
+        );
+        // A thread that can be started: a refiner, and nothing is said.
+        let hub = Hub::new();
+        let Some(mut refiner) =
+            start_refiner_with(&args, &strings, &hub, &controls, Refiner::start)
+        else {
+            return Err("a worker that can start gave no refiner".into());
+        };
+        refiner.close();
+        assert!(kept_fallbacks(&hub)?.is_empty());
+        Ok(())
     }
 
     /// RP-61: a run that does not say `--no-refine` reads the groups again.
@@ -1294,22 +1468,127 @@ mod tests {
         Ok(())
     }
 
+    /// R13-20b (b), T-RP-29-030: a sentence the model cannot read goes on
+    /// without marks and is told once, as a log event only; a sentence it can
+    /// read is not told.
     #[test]
-    fn the_punctuation_event_is_a_warning_that_names_the_model_and_no_path() -> TestResult {
+    fn a_failed_refine_punctuation_is_said_as_an_event() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let strings = Strings::embedded(Lang::En)?;
+        // Two seconds of audio: the event names the length of the group.
+        let audio = vec![0.0_f32; 2 * 16_000];
+        for (how, want) in [
+            (
+                Behaviour::FailsToRead,
+                vec![Told::Failed { audio_ms: 2000 }; 2],
+            ),
+            (Behaviour::Marks, Vec::new()),
+        ] {
+            let hub = Hub::new();
+            let mut events = hub.subscribe_live();
+            let tally = Tally::default();
+            let reader = Says("こんにちは", "ja");
+            let mut polish = polish_telling(reader, &controls, &tally, how, &strings, &hub);
+            let first = polish
+                .reread(&audio, "ja")
+                .map_err(|_| "the reader failed")?;
+            polish
+                .reread(&audio, "ja")
+                .map_err(|_| "the reader failed")?;
+            let marks = if how == Behaviour::Marks { "。" } else { "" };
+            assert_eq!(first.text, format!("こんにちは{marks}"), "{how:?}");
+            assert_eq!(*tally.said.borrow(), want, "{how:?}");
+            // Told in the log only: nothing reaches the screen.
+            assert!(published(&mut events)?.is_empty(), "{how:?}");
+        }
+        Ok(())
+    }
+
+    /// `refine.punct.failed` has the shape of the live `asr.punct.failed`, and
+    /// names the group by its length where the live line names the utterance.
+    #[test]
+    fn the_refine_punctuation_event_is_a_warning_that_names_the_group_and_not_its_text()
+    -> TestResult {
         for lang in [Lang::En, Lang::Ja] {
-            let line = punct_unavailable_line(&Strings::embedded(lang)?);
+            let line = punct_failed_line(&Strings::embedded(lang)?, 2000);
             let event: Value = serde_json::from_str(&line)?;
-            assert_eq!(event["event"], PUNCT_UNAVAILABLE);
+            assert_eq!(event["event"], "refine.punct.failed");
             assert_eq!(event["level"], "warn");
-            assert_eq!(event["error_code"], PUNCT_UNAVAILABLE_CODE);
-            // The bare file name of the model, not a path to it.
-            assert_eq!(event["model"], "punct_bert.onnx");
-            assert_eq!(event["provider"], "cpu");
+            assert_eq!(event["component"], "asr");
+            assert!(event["error_code"].is_null());
+            assert_eq!(event["audio_ms"], 2000);
+            assert!(event.get("id").is_none());
             assert_ne!(
-                event["message"], PUNCT_UNAVAILABLE,
+                event["message"], "refine.punct.failed",
                 "{lang:?} has a message"
             );
         }
+        Ok(())
+    }
+
+    /// R13-20b (c), T-RP-29-031: a model that cannot be opened is told once on
+    /// the three channels as the stage `refine_punct`, however many groups
+    /// follow, and the fallback of the live punctuation stays kept.
+    #[test]
+    fn an_unavailable_refine_punctuation_sends_one_fallback_event() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let strings = Strings::embedded(Lang::En)?;
+        let live = Notice::from_fallback(&Fallback {
+            stage: Stage::Punct,
+            reason: Reason::NoDevice,
+            to: To::Cpu,
+        })
+        .wire();
+        let unavailable = Notice::refine_punct_disabled(Reason::Missing).wire();
+        for (how, want) in [
+            (Behaviour::FailsToOpen, vec![unavailable.clone()]),
+            (Behaviour::Marks, Vec::new()),
+        ] {
+            let hub = Hub::new();
+            hub.publish_fallback(&live);
+            let mut events = hub.subscribe_live();
+            let tally = Tally::default();
+            let reader = Says("こんにちは", "ja");
+            let mut polish = polish_telling(reader, &controls, &tally, how, &strings, &hub);
+            text_of(&mut polish, "ja")?;
+            text_of(&mut polish, "ja")?;
+            assert_eq!(published(&mut events)?, want, "{how:?}");
+            let kept = kept_fallbacks(&hub)?;
+            assert!(
+                kept.contains(&live),
+                "{how:?}: the live fallback stays kept"
+            );
+            assert_eq!(kept.contains(&unavailable), !want.is_empty(), "{how:?}");
+        }
+        Ok(())
+    }
+
+    /// An open that fails for another reason than a missing file is `unreadable`.
+    #[test]
+    fn an_unreadable_refine_punctuation_model_is_said_as_unreadable() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        for (how, reason) in [
+            (Behaviour::FailsToOpenUnreadable, Reason::Unreadable),
+            (Behaviour::FailsToOpen, Reason::Missing),
+        ] {
+            let tally = Tally::default();
+            let mut polish = polish_over(Says("こんにちは", "ja"), &controls, &tally, how);
+            text_of(&mut polish, "ja")?;
+            assert_eq!(*tally.said.borrow(), [Told::Unavailable(reason)], "{how:?}");
+        }
+        Ok(())
+    }
+
+    /// R13-20b (j), T-RP-29-032: the punctuation model of the refine pass is
+    /// opened on the CPU. The model is not opened here; the device asked for is.
+    #[test]
+    fn the_refine_punctuator_is_opened_on_the_cpu() -> TestResult {
+        let asked: RefCell<Vec<Device>> = RefCell::new(Vec::new());
+        open_on_refine_device(std::path::Path::new("models"), |_, device| {
+            asked.borrow_mut().push(device);
+            Ok(())
+        })?;
+        assert_eq!(*asked.borrow(), [Device::Cpu]);
         Ok(())
     }
 }
