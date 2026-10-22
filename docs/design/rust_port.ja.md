@@ -1735,7 +1735,7 @@ unit の file は repo に置くだけで、`~/.config/systemd/user/` へ置い�
 決めは次のとおりである。
 
 1. **8080 と同じ model と引数**：引数は `-m CAT-Translate-3.3b-Q8_0.gguf --host 127.0.0.1 --port 18084 -ngl 99 -c 16384` で、`-np` を付けない。binary は 8080 と同じ `build-cuda120/bin/llama-server` である。`ExecStart` の違いは port だけで、`-m` の file 名は unit に直に書く。`MemoryMax=8G` と `KillSignal=SIGKILL` は `hayamimi-llama-pair.service` と `hayamimi-llama-other.service` と同じで、8080 の unit は `MemoryMax=15G` である。測る訳の model と量子化は 8080 と同じなので、`L` の物差しと 1600 ms の線は変わらない。
-2. **Q6_K の unit を窓に使わない**：`hayamimi-llama-pair.service`（18083）は Q6_K で、`-c 8192 -np 4` である。量子化と slot の形が 8080 と違うので、訳の質と訳の段の時間が 8080 の物差しからずれ、1600 ms の線で見た値と比べられなくなる。
+2. **Q6_K の unit を窓に使わない**：`hayamimi-llama-pair.service`（18083）は Q6_K で、`-c 4096 -np 4 -cram 0` である。量子化と slot の形が 8080 と違うので、訳の質と訳の段の時間が 8080 の物差しからずれ、1600 ms の線で見た値と比べられなくなる。
 3. **llama.cpp を build し直さない**：今の binary のまま起こす。build は CPU を長く使い、窓の load の門（RP-83）を閉じる。8080 の unit も同じ binary を読むので、窓の間に binary が変わると、別の app の server も変わる。起こしてから `/props` を記録し、その `build_info` を build の記録にする（`llama-server` を窓の席が直に打つと、unit 経由で起こす規則に止められる）。
 4. **起こす前の確かめ**：次の 3 つがそろった時だけ起こす。
    1. `ss -ltn | grep -c ':18084\b'` が 0。

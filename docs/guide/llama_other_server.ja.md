@@ -67,4 +67,8 @@ rm ~/.config/systemd/user/hayamimi-llama-other.service
 systemctl --user daemon-reload
 ```
 
-止めると GPU の memory が戻ります（この model は GPU の memory を 4629 MiB 使います。1000 MiB から 5629 MiB への実測です。1 本目と並べた値は RP-22 で測ります）。
+止めると GPU の memory が戻ります（この model は GPU の memory を 4263 MiB 使います。`-c 768 -cram 0` の unit を、llama.cpp の build 11669（v0.7.0）で起こした直後の実測で、1039 MiB から 5302 MiB への増えです。1 本目と並べた値は RP-22 で測ります）。
+unit の `-c 768` は slot が 1 本の長さで、最長の要求（prompt 158 token と `max_tokens` の 256 token、合わせて 414 token）に余裕を持たせた値です。
+`-cram 0` は host の RAM に溜まる prompt cache（既定は 8192 MiB まで）を切ります。
+中継は `finish_reason` を見ないので、context を超えた要求は合図なしに切れます。
+切れたかは、`journalctl --user -u hayamimi-llama-other` に `truncated = 1` が出ていないかで確かめます。

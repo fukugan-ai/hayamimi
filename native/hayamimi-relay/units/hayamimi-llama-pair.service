@@ -8,13 +8,24 @@
 # The default `--llm` (http://127.0.0.1:8080) and the second server on 18081
 # (hayamimi-llama-other.service) are not touched by this unit.
 #
-# Memory: the weights and the four slots take about 2.6 GiB of GPU memory.
+# Memory: the weights and the four slots take about 3.3 GiB of GPU memory
+# (memory.used rose by 3281 MiB right after /health turned ok, and by 3391 MiB
+# after a pass of 41 requests). The sizes were measured with llama.cpp build
+# 11669 (v0.7.0). `-cram` is also in the help of build 11628, but it was not run
+# on that build.
 # Start it only when the GPU has room under the 14000 MiB budget of `hayamimi
 # --gpu-budget` (query: `nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits`).
 # Stop hayamimi-llama-other.service first when it does not fit; that server is
 # idle unless a language outside the live pair is translated.
 #
-# `-c 8192 -np 4` gives each of the four slots a context of 2048 tokens.
+# `-c 4096 -np 4` gives each of the four slots a context of 1024 tokens. The
+# longest request is an edit-form line of 328 characters: 537 prompt tokens plus
+# the 128 tokens of `max_tokens` is 665, which fits with 359 tokens to spare.
+# The relay does not read `finish_reason`, so a request that does not fit would be
+# cut without a signal; keep the slot above 665 tokens and check the journal for
+# `truncated = 1`. The calque table adds about 22 tokens per entry.
+# `-cram 0` turns off the host-RAM prompt cache (default 8192 MiB), which grows
+# with every distinct request.
 #
 # Install: mkdir -p ~/.config/systemd/user
 #          cp native/hayamimi-relay/units/hayamimi-llama-pair.service ~/.config/systemd/user/
@@ -35,7 +46,7 @@ StartLimitBurst=3
 [Service]
 Type=simple
 Slice=engines.slice
-ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m /mnt/h3-models/ollama/CAT-Translate-3.3b-Q6_K.gguf --host 127.0.0.1 --port 18083 -ngl 99 -c 8192 -np 4
+ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m /mnt/h3-models/ollama/CAT-Translate-3.3b-Q6_K.gguf --host 127.0.0.1 --port 18083 -ngl 99 -c 4096 -np 4 -cram 0
 Restart=no
 MemoryMax=8G
 MemorySwapMax=0
