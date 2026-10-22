@@ -369,6 +369,67 @@ What this measurement does not show:
 - The cause of the L p95 getting worse than in the run before the change of E's form is not identified.
 - The Python baseline is fixed to the 3 pairs of 2026-10-15 and was not re-run.
 
+### Speaker diarization and recognition on YouTube meetings (measured 2026-10-22)
+
+Six YouTube meeting videos under the Creative Commons Attribution license were used as audio that has no reference speaker turns.
+The measurement reports two things.
+One is how many speakers the speaker diarization (the step that splits speech by who spoke) found, against the number named in each video's description.
+The other is the character error rate (CER) of Japanese recognition, against the uploader's captions, which are the uploader's own text and not a verified reference.
+**RTF** (real-time factor) is the processing time divided by the audio length.
+
+Speaker count:
+
+| Video id | Language | Seconds used | Named in the description | Found | Difference | Diarization seconds | RTF |
+|---|---|---|---|---|---|---|---|
+| JPfo6wXM0BY | en | 1200 (first 20 min) | 4 | 5 | +1 | 101.7 | 0.085 |
+| nfchIbbkaxE | en | 1548.9 | 2 | 13 | +11 | 115.1 | 0.074 |
+| yZ78p5dvnRU | en | 820.1 | 2 | 2 | 0 | 79.6 | 0.097 |
+| Laef392EX6g | ja | 2369.1 | 4 | 9 | +5 | 226.9 | 0.096 |
+| HfoqGsKAALg | ja | 2384.4 | 2 | 6 | +4 | 237.3 | 0.100 |
+| rVRnAq0K318 | ja | 2408.2 | 3 | 7 | +4 | 219.8 | 0.091 |
+
+The found count equals the named count in 1 of 6 videos (17%) and is within ±1 in 2 of 6 (33%).
+The count bias is +4.2, so the diarization over-counts speakers; for one video with 2 named speakers it found 13.
+The diarization ran on the CPU (`embedder.rs:61`, `vad.rs:85`); the GPU was not used for it.
+
+Japanese recognition against the uploader's captions:
+
+| Video id | Clips | CER | RTF |
+|---|---|---|---|
+| Laef392EX6g | 27 | 35.9% | 0.045 |
+| HfoqGsKAALg | 27 | 31.9% | 0.028 |
+| rVRnAq0K318 | 26 | 28.3% | 0.034 |
+| all | 80 | 32.2% | 0.036 |
+
+Conditions of the measurement:
+
+- Clips: the first 10 minutes of each Japanese video, cut at caption boundaries into clips of about 20 seconds.
+- Tool: the `scorecard` command with `Gpu::Try`.
+- Build: main at 38712d0.
+- Audio: converted to 16 kHz mono.
+
+What this measurement does not show:
+
+- The DER (diarization error rate) cannot be computed on these videos, because they have no reference speaker turns. The speaker count is compared with the names in the description, which is not a reference of the speaker turns.
+- For reference, the AMI meeting ES2011a, which has reference speaker turns, gives a DER of 17.5% (4 speakers in the reference, 5 found, diarization RTF 0.045). This is one meeting and is separate from the 5-meeting AMI mean (13.9%) in the speaker-label row of the feature table.
+- The CER is measured against the uploader's captions, which are not a verified reference.
+- The device used for recognition is not confirmed (NOT VERIFIED: `Gpu::Try` tries the GPU first, and only the diarization is confirmed to run on the CPU).
+- The English WER (word error rate) could not be measured, because the three English videos have no uploader captions.
+
+Sources and license:
+
+- <https://www.youtube.com/watch?v=JPfo6wXM0BY>
+- <https://www.youtube.com/watch?v=nfchIbbkaxE>
+- <https://www.youtube.com/watch?v=yZ78p5dvnRU>
+- <https://www.youtube.com/watch?v=Laef392EX6g>
+- <https://www.youtube.com/watch?v=HfoqGsKAALg>
+- <https://www.youtube.com/watch?v=rVRnAq0K318>
+
+All six videos are under the Creative Commons Attribution license (the license YouTube labels as allowing reuse); the license version is not given, because YouTube does not show one.
+The uploader of each video is shown on the linked page.
+The audio was used on the local machine only for this analysis, deleted after the measurement, and not distributed.
+The results come with no warranty.
+
 ### Clip-level scoring of the original Python version (re-measured 2026-09-01)
 
 End-to-end (LID -> routing -> decode -> ja punctuation), real speech, no
