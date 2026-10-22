@@ -609,7 +609,7 @@ test：`native/hayamimi/tests/rp10.rs`。
 | T-RP-10-004 | fixture：`partial` が 0 件 | 件数の下側 | `Err` | `Err`（specified、RP-10） | 境界、陰性 | `no_partial_is_rejected` |
 | T-RP-10-005 | fixture：`final` の `lang` が `ja` | 言語 | `Err` | `Err`（specified、RP-10 の `lang` が `en`） | 陰性 | `non_english_final_is_rejected` |
 | T-RP-10-006 | fixture：出力の装置が無い run。終了 code 0、`capture.fallback.single` が 1 件（`reason` が `device_missing`）、`/events` の `fallback` が 1 件、マイクの `final` が 1 件以上、`error` の event が 0 件 | 出力の装置を止めた run（落ちた形） | `Ok` | `Ok`。止まらず、落ちた event が段ごとに 1 件出る（specified、RP-10 の陰性欄と 3.15 の「取り込みの装置が無い」）。検査は `check_capture_fallback(run)` | 陰性 | `missing_output_device_falls_back_to_the_microphone` |
-| T-RP-10-007 | 実走：Windows 11、loopback へ英語の wav を鳴らし `/events` を読む | 実走 | 実走 | 001 の形（specified、RP-10）。マイクは入力の装置が在るときだけ同じ形 | 陽性 | `windows_loopback_reaches_events`（未実装、持ち主 R13-3） |
+| T-RP-10-007 | 実走：Windows 11、loopback へ英語の wav を鳴らし `/events` を読む | 実走 | 実走 | 001 の形（specified、RP-10）。マイクは入力の装置が在るときだけ同じ形 | 陽性 | `windows_loopback_reaches_events`（`tests/rp10.rs`、`#[cfg(windows)]` と `#[ignore]`。実走は窓 E4） |
 | T-RP-10-008 | 実走：WSL で `--wav` の同じ test | 陽性対照 | 実走 | 001 の形（specified、RP-10 の陽性対照） | 陽性 | `wsl_wav_run_passes_the_same_check` |
 | T-RP-10-009 | fixture：出力の装置もマイクも在る run。`final` が 1 件以上、`capture.fallback.single` と `capture.fallback.none` が 0 件、`/events` の `fallback` が 0 件 | 在るのに落ちない（006 の対） | `Ok` | `Ok`。装置が在るのに落ちた event が 0 件（specified、RP-10 の対照と 3.15） | 陽性 | `present_devices_emit_no_capture_fallback` |
 | T-RP-10-010 | fixture：006 と同じ run で `capture.fallback.single` が 0 件 | 落ちたのに言わない | `Err` | `Err` で `capture.fallback.single` を名指し（specified、3.15 の「段ごとに出す」） | 陰性 | `silent_capture_fallback_is_rejected` |
@@ -3764,10 +3764,10 @@ total 386
 | `test_ws_ingest.py` | `test_decode_frame_two_frames_in_one_buffer` | `decode_frame_two_frames_in_one_buffer` | `hayamimi-eval/src/ws.rs` |
 | `test_ws_ingest.py` | `test_decode_frame_large_payload_uses_64bit_length` | `decode_frame_large_payload_uses_64bit_length` | `hayamimi-eval/src/ws.rs` |
 | `test_ws_ingest.py` | `test_frame_close_and_ping_opcodes_roundtrip` | `frame_close_and_ping_opcodes_roundtrip` | `hayamimi-eval/src/ws.rs` |
-| `test_ws_ingest.py` | `test_decode_pcm16_mono_roundtrip` | `decode_pcm16_mono_roundtrip` | `hayamimi-asr/src/audio.rs` |
-| `test_ws_ingest.py` | `test_decode_pcm16_drops_trailing_odd_byte` | `decode_pcm16_drops_trailing_odd_byte` | `hayamimi-asr/src/audio.rs` |
-| `test_ws_ingest.py` | `test_decode_pcm16_averages_stereo_to_mono` | `decode_pcm16_averages_stereo_to_mono` | `hayamimi-asr/src/audio.rs` |
-| `test_ws_ingest.py` | `test_decode_pcm16_empty_input` | `decode_pcm16_empty_input` | `hayamimi-asr/src/audio.rs` |
+| `test_ws_ingest.py` | `test_decode_pcm16_mono_roundtrip` | `decode_pcm16_mono_roundtrip` | `hayamimi/src/capture/convert.rs` |
+| `test_ws_ingest.py` | `test_decode_pcm16_drops_trailing_odd_byte` | `decode_pcm16_drops_trailing_odd_byte` | `hayamimi/src/capture/convert.rs` |
+| `test_ws_ingest.py` | `test_decode_pcm16_averages_stereo_to_mono` | `decode_pcm16_averages_stereo_to_mono` | `hayamimi/src/capture/convert.rs` |
+| `test_ws_ingest.py` | `test_decode_pcm16_empty_input` | `decode_pcm16_empty_input` | `hayamimi/src/capture/convert.rs` |
 | `test_ws_ingest.py` | `test_resample_linear_identity_when_rates_match` | `resample_linear_identity_when_rates_match` | `hayamimi-asr/src/audio.rs` |
 | `test_ws_ingest.py` | `test_resample_linear_upsamples_to_expected_length` | `resample_linear_upsamples_to_expected_length` | `hayamimi-asr/src/audio.rs` |
 | `test_ws_ingest.py` | `test_resample_linear_downsamples_to_expected_length` | `resample_linear_downsamples_to_expected_length` | `hayamimi-asr/src/audio.rs` |
