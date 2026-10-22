@@ -845,6 +845,29 @@ mod tests {
     }
 
     #[test]
+    fn a_half_hour_in_words_agrees_between_japanese_and_english() {
+        // `1時半` carries a 30 only when the half hour is read; `one thirty` carries it as a number.
+        assert!(numbers_agree(
+            "1時半に会いましょう",
+            "ja",
+            "Let's meet at one thirty",
+            "en"
+        ));
+        assert!(numbers_agree(
+            "Let's meet at one thirty",
+            "en",
+            "1時半に会いましょう",
+            "ja"
+        ));
+    }
+
+    #[test]
+    fn a_half_hour_is_not_read_outside_the_japanese_english_pair() {
+        // The Japanese side would carry a 30 that the Spanish side cannot.
+        assert!(numbers_agree("1時半です", "ja", "Es la una", "es"));
+    }
+
+    #[test]
     fn a_polite_apology_is_not_a_negation() {
         let said = check(
             "すみません、少し音声が途切れました。",

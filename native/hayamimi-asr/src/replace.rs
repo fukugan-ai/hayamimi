@@ -178,6 +178,14 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_dictionary_path_is_an_io_error_and_not_an_empty_dictionary() {
+        // `Replacements::load` is the one door a dictionary file comes through;
+        // an empty path does not name a file and is not read as "no dictionary".
+        let said = Replacements::load(Path::new(""));
+        assert!(matches!(said, Err(AsrError::Io(_))), "{said:?}");
+    }
+
+    #[test]
     fn a_missing_file_is_an_io_error() {
         let said = Replacements::load(Path::new("no-such-dictionary.txt"));
         assert!(matches!(said, Err(AsrError::Io(_))), "{said:?}");
