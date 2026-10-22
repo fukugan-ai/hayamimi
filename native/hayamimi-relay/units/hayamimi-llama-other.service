@@ -7,6 +7,16 @@
 # process on this machine. To use another port, change `--port` here and pass
 # the same address to `--llm-other`.
 #
+# Memory: the weights and the slot take about 4.2 GiB of GPU memory (memory.used
+# rose by 4263 MiB right after /health turned ok). The size was measured with
+# llama.cpp build 11669 (v0.7.0). `-cram` is also in the help of build 11628, but
+# it was not run on that build.
+# `-np 1 -c 768` gives the one slot 768 tokens. The longest request is a line of
+# 158 prompt tokens plus the 256 tokens of `max_tokens`, 414 in all. The relay
+# does not read `finish_reason`, so keep the slot above that and check the
+# journal for `truncated = 1`. `-cram 0` turns off the host-RAM prompt cache
+# (default 8192 MiB), which grows with every distinct request.
+#
 # Install: mkdir -p ~/.config/systemd/user
 #          install -m 0644 native/hayamimi-relay/units/hayamimi-llama-other.service ~/.config/systemd/user/
 #          systemctl --user daemon-reload
@@ -30,7 +40,7 @@ StartLimitBurst=3
 [Service]
 Type=simple
 Slice=engines.slice
-ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m /mnt/h3-models/ollama/translategemma-4b-it-Q8_0.gguf --host 127.0.0.1 --port 18081 -np 1 -c 8192 -ngl 99
+ExecStart=%h/source/llama.cpp/build-cuda120/bin/llama-server -m /mnt/h3-models/ollama/translategemma-4b-it-Q8_0.gguf --host 127.0.0.1 --port 18081 -np 1 -c 768 -ngl 99 -cram 0
 Restart=no
 MemoryMax=8G
 MemorySwapMax=0
