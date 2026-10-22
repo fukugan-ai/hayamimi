@@ -2128,9 +2128,10 @@ file:line は main（`d298c81`）の物である。
 #### 結論
 
 1. **復号の長さに上限 `C` を置く**：Rz の 1 回の復号に渡す音声を `C` 秒までにする。`C` を超える buffer は、静かな所で切った片に分けて 1 片ずつ復号し、文を順に繋ぐ。`C` 以下の buffer は今と 1 bit も変えない。
-2. **置き場は 1 か所**：`Recognizer::run`（`native/hayamimi-asr/src/recognizer.rs:196-204`）。製品の中で `self.inner.decode` を呼ぶのはここだけ（`:200`）なので、live（確定、早い確定、速報）、温め、分け直しの片、清書、scorecard、srt の全部の経路が同じ上限を通る。経路ごとに値を分けない（下の 3）。
-3. **`C` の仮の値は 10 秒**（掃引の前の仮）。片の重なり `O` は仮に 0 秒。値は LB-2 の掃引（`C` ∈ {4, 6, 8, 10, 14} × `O` ∈ {0, 0.5}）で決め、決めるまで「仮」と書く。
-4. **分け直し（密度の門 2.4 字/秒）は残す**：値も形も変えない。上限が入った後は、`C` 以下の buffer の末尾欠けだけを拾う役になる。外すかどうかは掃引の数を添えて評議の席へ出し、判定を待つ（10 の H156）。
+2. **置き場は `Recognizer` の 2 つの口**：`Recognizer::decode`（`native/hayamimi-asr/src/recognizer.rs:207`）と `Recognizer::decode_tagged`（`:214`）の文の側に置き、`Recognizer::run`（`:196-204`）は 1 buffer を 1 回復号するまま変えない。製品の中で `self.inner.decode` を呼ぶのは `run` だけ（`:200`）で、`run` を呼ぶのはこの 2 つの口だけなので、live（確定、早い確定、速報）、温め、分け直しの片、清書、scorecard、srt の全部の経路が同じ上限を通る。経路ごとに値を分けない（下の 3）。
+3. **`C` の仮の値は 10 秒**（掃引の前の仮。既定に入れる時期は 7）。片の重なり `O` は仮に 0 秒。値は LB-2 の掃引（`C` ∈ {4, 6, 8, 10, 14} × `O` ∈ {0, 0.5}）で決め、決めるまで「仮」と書く。
+4. **分け直し（密度の門 2.4 字/秒）は残す**（評議の判定で決定）：値も形も変えない。上限が入った後は、`C` 以下の buffer の末尾欠けだけを拾う役になる。外す提案は、LB-2 で撃つ回数が 0 で、外しても RP-90 と RP-91 の結果が変わらない時だけ、別の slice で出す（10 の H156）。
+7. **既定の値の入れ方**（評議の判定で決定）：LB-1 は窓 E4 の build に入れ、既定は `off` のままにする。E4 の基準の run は `--decode-cap off` を明示して取る。既定を掃引で選んだ `C` へ替えるのは、RP-93 と RP-95 が通った後の別の commit である（10 の H158）。
 5. **live の遅れは「話し終わってから残りを復号する」形（下の A）を今採る**：`C` = 10 秒なら、`C` を超える発話だけ `L_dec` が 51〜88 ms 延びる（式は下の「遅れの式」）。lat-ja の発話は全部 `C` 以下で、主指標 `L` の標本は変わらない見込みである（ASSUMPTION。RP-95 が測る）。「話している間に先に復号する」形（B）は ④ 速くの段で、測った後に別の slice として出す。
 6. **戻し方**：flag `--decode-cap <秒|off>` を `hayamimi` と `hayamimi-eval scorecard` に足す。`off` で今の形（上限なし）に戻る。同じ build で A/B を交互に流す物差しも、この flag で作る。
 
@@ -2170,7 +2171,7 @@ file:line は main（`d298c81`）の物である。
 
 **復号の時間**（`docs/results/rp32/` の rs1〜rs3 の `asr.utterance.timed` を発話の長さと結んだ 423 標本、発話は最長 8.1 秒）：`decode_ms ≈ 23.0 + 19.8 × 秒` の直線に乗る。8.1 秒を超える長さへ伸ばした値は外挿である（10 の H152）。
 
-**README の 15 本の長さ**（`testdata/eval_real/ja_*.wav`）：3.11〜8.79 秒、平均 5.70 秒。2 本を繋いでも 20 秒に届かないので、長い材料は 3 本の組で作る。重ならない 3 本の組で、間 0.5 秒で 20〜25 秒に入る物は 3 組在る（`ja_01`+`ja_03`+`ja_05` で 20.32 秒、`ja_02`+`ja_06`+`ja_10` で 21.50 秒、`ja_08`+`ja_09`+`ja_13` で 20.39 秒）。
+**README の 15 本の長さ**（`testdata/eval_real/ja_*.wav`）：3.11〜8.79 秒、平均 5.70 秒。2 本を繋いでも 20 秒に届かないので、長い材料は 3 本の組で作る。重ならない 3 本の組で、間 0.5 秒で 20〜25 秒に入る物は 3 組在る（`ja_01`+`ja_03`+`ja_05` で 20.32 秒、`ja_02`+`ja_06`+`ja_10` で 21.50 秒、`ja_08`+`ja_09`+`ja_13` で 20.39 秒）。間 0.2 秒では同じ 3 組が 19.71、20.90、19.79 秒で、2 組が 20 秒に届かない。組の選び直しは test-designer の席が T の新しい節で決める。
 
 #### 方針と理由
 
@@ -2183,9 +2184,11 @@ file:line は main（`d298c81`）の物である。
 - 当てるのは Tier::Rz だけ。ほかの tier（Whisper、Parakeet ほか）は 30 秒の窓など別の形を持ち、測っていない（10 の H155）。
 - 片に分けた時は、log の event `asr.decode.chunked`（`pieces`、`buffer_ms`、`cap_ms`、`tier`）を 1 回出す。文言は 3.15 の i18n の表に足す。`/config` には出さない（実行中に替える値ではない）。
 
-**2. 置き場を `Recognizer::run` にする理由**
+**2. 置き場を `decode` と `decode_tagged` の文の側にする理由**
 
-- 製品の中で model を呼ぶのは `recognizer.rs:200` の 1 か所で、ここに置けば経路ごとに上限を書き分けず、経路を足しても漏れない。
+- 製品の中で model を呼ぶのは `recognizer.rs:200`（`run` の中）の 1 か所で、`run` を呼ぶのは `decode`（`:207`）と `decode_tagged`（`:214`）だけである。この 2 つの口に置けば、経路ごとに上限を書き分けず、経路を足しても漏れない。
+- `run` は `(OfflineStream, String)` を返し、stream を使うのは `tag_of`（`:219`）だけである。片に分けると stream が片の数だけでき、`run` の返す形（1 つの stream）が成り立たない。`run` を 1 buffer のままにすれば、片ごとに `run` を呼んで文だけを繋げばよく、stream の扱いを変えずに済む。
+- Rz では `tag_of` が `NotApplicable` を返す（`:220-221`。SenseVoice の tier だけが言語の札を読む）ので、上限を当てる Rz で片の stream を捨てても、札は失われない。`decode_tagged` は、片に分けた時は文を繋いだ物と `NotApplicable` を返す。上限を当てない tier（SenseVoice を含む）は今と同じく 1 回の `run` の stream から札を読む。
 - 経路ごとに置くと、早い確定（`pipeline.rs:851`）、前の余白つきの確定（`pipeline.rs:973`）、清書（`route/refine.rs:77`）、scorecard（`scorecard_run.rs:125`）、温め（`pipeline.rs:594`）の 5 か所を書き、1 か所の書き漏れが同じ欠けを残す。
 - VAD で切る形（`max_speech` を強く当てる）は、live の経路にしか効かず、清書と scorecard の長い buffer を残す。
 - eval の段の道具（`native/hayamimi-eval/src/stage_runs.rs:592`、`:609`、`stage_peer.rs:65`、`native/hayamimi-gpu/src/probe.rs:196`）は製品の外で raw の復号を測る物で、上限の外に置く（段の時間の物差しを変えない）。
@@ -2200,21 +2203,21 @@ file:line は main（`d298c81`）の物である。
 | scorecard | `scorecard_run.rs:125` | `C`（flag で `off` も） | 製品と同じ形で測る |
 | srt | `media.rs:131-136`（live の確定） | live と同じ | 別の口を持たない |
 
-値を経路ごとに分けないのは、同じ model の同じ欠けで、分ける根拠の数が無いためである。掃引で経路ごとに違う値が勝ったら、評議の席へ出す（10 の H157）。
+値を経路ごとに分けないのは、同じ model の同じ欠けで、分ける根拠の数が無いためである（評議の判定で決定）。掃引は経路ごとに RP-90 と RP-91 を通る組を出し、全部の経路で通る組の共通部分のうち `C` の最も大きい物を採る。共通部分が空なら評議の席へ出す（10 の H157）。
 
 **4. `C` を仮に 10 秒にする理由**
 
 - README の 15 本（最長 8.79 秒）と lat-ja の発話（最長 8.1 秒に前の余白 1 秒）が全部 `C` 以下に入り、短い buffer の CER（3.8 %、`docs/results/scorecard.md`）と主指標 `L` の標本を 1 bit も変えない。
 - icefall の勧め（20 秒未満）と v1 の学習の上限（14 秒）の内側にある。
 - 料理の番組の密度は 10 秒を超えると 2.0 字/秒前後へ下がる（上の表）。ただしこれが欠けか、話していない時間かは分けていない（10 の H160）。
-- 値を決めるのは掃引で、仮の 10 秒は掃引が走るまでの既定である。
+- 値を決めるのは掃引で、仮の 10 秒は掃引が走るまでの候補である。既定は結論の 7 のとおり、掃引と RP-95 が通るまで `off` に置く。
 
 **5. 掃引（LB-2）**
 
 - 材料：長い材料（下の「材料」）と README の 15 本。
 - 組：`C` ∈ {4, 6, 8, 10, 14} × `O` ∈ {0, 0.5} と `off`。
 - 数える物：長い材料の CER の平均と、組ごとの文の長さの比（仮説の字の数 / 参照の字の数）、README の 15 本の CER の平均、RP-94 の復号の時間。
-- 決め方：RP-90 と RP-91 を通す組（LB-2）のうち、窓 E4 で RP-94 も通す組（LB-3）で、`C` の最も大きい物。同点なら `O` = 0。結果は `docs/results/long_buffer/sweep.tsv` に書き、既定の値は RP-93 がその file と照らす。時間は窓 E4 の外では測らない。
+- 決め方：全部の経路で RP-90 と RP-91 を通す組の共通部分（LB-2）のうち、窓 E4 で RP-94 も通す組（LB-3）で、`C` の最も大きい物。同点なら `O` = 0。結果は `docs/results/long_buffer/sweep.tsv` に書き、既定の値は RP-93 がその file と照らす。時間は窓 E4 の外では測らない。
 - 料理の番組と会議の cue（既に手元に在る cache の物だけ、取り直さない）は、字の数を補助に出すだけで、判定に入れない。
 
 #### 遅れの式
@@ -2271,11 +2274,12 @@ file:line は main（`d298c81`）の物である。
 #### 構造
 
 ```
-Recognizer::run(tier, samples)            recognizer.rs:196-204
-  ├─ tier != Rz か T ≤ C か cap = off ─ inner.decode(samples)   （今と同じ）
+Recognizer::decode(samples)          recognizer.rs:207
+Recognizer::decode_tagged(samples)   recognizer.rs:214
+  ├─ tier != Rz か T ≤ C か cap = off ─ run(samples)（1 回。今と同じ）
   └─ T > C ─ cap::pieces(samples, C, W, O)  ← native/hayamimi-asr/src/cap.rs（作る）
                ├─ N = ceil(T/C)、的 k·T/N、±W/2 の最も静かな 20 ms
-               ├─ 片ごとに前後 0.35 秒の無音 ─ inner.decode(片)
+               ├─ 片ごとに前後 0.35 秒の無音 ─ run(片) の文だけを採る（stream は捨てる）
                ├─ 繋ぐ（O > 0 なら重なりの字を 1 回）
                └─ asr.decode.chunked（pieces、buffer_ms、cap_ms、tier）
 ```
@@ -2283,18 +2287,18 @@ Recognizer::run(tier, samples)            recognizer.rs:196-204
 - 値の持ち方：`Recognizers::new`（`native/hayamimi-asr/src/pipeline.rs:402` が呼ぶ形）に上限を渡し、`open_tier`（`recognizer.rs:180`）で Rz の `Recognizer` に持たせる。呼ぶ側は `pipeline.rs:402`、`native/hayamimi/src/refine.rs:319`、`scorecard_run.rs:101` の 3 か所。
 - flag：`--decode-cap <秒|off>` を `native/hayamimi/src/args.rs` に足す（`:231` の `--no-refine` と同じ形）。`hayamimi-eval scorecard`（`native/hayamimi-eval/src/cli.rs:338`）にも足す。
 - 設定の写し：`native/hayamimi/src/config_dump.rs:172-188` の分け直しの節の隣に上限の節を足し、`docs/spec/ja_pipeline_spec.json` を `hayamimi config dump` で作り直す（`native/hayamimi/tests/ja_pipeline_spec.rs` が照らす）。
-- 既存の test：`native/hayamimi-asr/tests/decode.rs:291` は `decode_whole` を「全体の 1 回」の基準にしている（`:294`）。上限が `Recognizer::run` に入ると `decode_whole` も片に分かれ、`:301` の比べが成り立たなくなる。LB-1 の席は、この test の基準を `off` の recognizer の復号に替える。
+- 既存の test：`native/hayamimi-asr/tests/decode.rs:291` は `decode_whole` を「全体の 1 回」の基準にしている（`:294`）。上限が `Recognizer::decode` に入ると `decode_whole` も片に分かれ、`:301` の比べが成り立たなくなる。LB-1 の席は、この test の基準を `off` の recognizer の復号に替える。
 
 #### 順と slice
 
 | slice | 中身 | 始めてよい条件 | 止める条件 |
 |---|---|---|---|
 | LB-0 | 長い材料を作り、RP-89（陽性の対照）を今の build で通す | README の 15 本が `testdata/eval_real/` に在る | 今の build が長い材料で字を落とさない（RP-89 が落ちる）。評議の席へ出し、材料か仕組みを考え直す |
-| LB-1 | `cap.rs`、`Recognizer::run` の分岐、値の持ち方、flag、log と文言、`config_dump` と spec、`tests/decode.rs:291` の基準の替え。RP-90、RP-91、RP-92 | LB-0 が通った | RP-91 が落ちる（`C` 以下の buffer が変わった） |
+| LB-1 | `cap.rs`、`Recognizer::decode` と `decode_tagged` の分岐、値の持ち方、flag、log と文言、`config_dump` と spec、`tests/decode.rs:291` の基準の替え。RP-90、RP-91、RP-92 | LB-0 が通った | RP-91 が落ちる（`C` 以下の buffer が変わった） |
 | LB-2 | 質の掃引。`docs/results/long_buffer/sweep.tsv` の質の列（RP-90、RP-91 の数）を全部の組で書く | LB-1 が通った | 全部の組が RP-90 か RP-91 で落ちる。評議の席へ出す |
-| LB-3 | 窓 E4 で、質を通った組に RP-94 を流し、既定の値を決めて `sweep.tsv` の時間の列と既定を書き（RP-93）、既定の build で RP-95 を流す | LB-2 が通り、窓 E4 が開いた | RP-94 が全部の組で落ちるか、RP-95 が落ちる。既定を `off` に戻し、採らない |
+| LB-3 | 窓 E4 で、質を通った組に RP-94 を流し、`sweep.tsv` の時間の列と選んだ行を書き（RP-93）、`--decode-cap <選んだ C>` と明示の `off` で RP-95 を流す。RP-93 と RP-95 が通った後に、既定を選んだ `C` へ替える別の commit を積む | LB-2 が通り、窓 E4 が開いた | RP-94 が全部の組で落ちるか、RP-95 が落ちる。既定を `off` のまま替えず、採らない |
 
-- merge の前に、検証の席は rp19、rp80、rp81 を流す（T の 5.3 の表と RP-19 の固定の数、`docs/design/` の記録の dir の規則）。この節を足したので、本文を読む rp06、rp08、rp20、rp23（3.5 の段の表）、rp30（3.15 の表）、rp82（T の名前）も流す。
+- merge の前に、検証の席は rp19、rp80、rp81 を流す（T の 5.3 の表と RP-19 の固定の数、`docs/design/` の記録の dir の規則）。この節を足したので、本文を読む rp06、rp08、rp20、rp23（3.5 の段の表）、rp30（3.15 の表）も流す。rp82（T の名前）は R13-15 が作る test で main にはまだ無いので、在れば流す。
 - LB-1 は `native/hayamimi-asr/src/recognizer.rs` と `pipeline.rs` を書く。同じ時に `pipeline.rs` を書く席が在れば直列にする。
 
 #### 受入、slice、残る穴の在り処
@@ -2447,11 +2451,11 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-82 | T の受入の test の名前が、実装の test と同じ（R13-15） | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp82`。rp82 は `docs/design/rust_port_tests.ja.md` を読み、節ごとに、`test：` の行に backtick で書かれた file の全部（複数在れば全部の和）を、その節の file の組にする。test の binary の dir（`tests/rp29.rs` に対する `tests/rp29/` の下の `.rs`）もその binary の file に入れる。名前は 2 種類を調べる。1 つ目は「受入 test の名前は」の名前で、file の組に `#[test]` の付いた `fn <名前>(` が完全に一致して 1 件在る。この句が `test：` の行の外の行に在っても（RP-16 の節の 2 つ目の「受入 test の名前は」の文）、照らす file の組は、句の在る節（`### ` で始まる見出しから次の見出しまで）の `test：` の行の組である。句の後の backtick のうち、`.` か `/` を含む物（E2E-1 と E2E-2 の節の「受入 test の名前は」の文の `rust_port.ja.md`）は file の名前として飛ばし、名前として探さない。その文（`。` まで）の中で後ろに在る backtick の名前を全部、受入 test の名前として照らす（E2E-1 と E2E-2 の節の 2 名の文なら `e2e1_mic_process_ja_to_en_beats_python` と `e2e2_loopback_process_en_to_ja_within_budget` の 2 つ）。2 つ目は、入力の列が「受入」か「実走」で始まる case 行（「実走の記録：」で始まる行も入れる）の関数の末尾で、次の順で 1 件を決める。完全に一致する `fn <関数の末尾>(` が file の組に 1 件在れば、それを採る。完全に一致する物が無い時だけ、T 4.1 の決まりどおり `fn ([a-z0-9_]+_)?<関数の末尾>\(` が 1 件在ることを求める（前に `rp17_` のような接頭を許す）。完全に一致する物が 2 件以上か、完全に一致する物が無くて接頭つきが 2 件以上なら落とす。関数の末尾か「受入 test の名前は」の名前の後に `（未実装）` と書いた物は、調べずに数と持ち主を出す。file の組が repo に 1 つも無い節は、数だけを出して通す | 対が全部在る。rp82 が通る。調べた対の数、`（未実装）` の行の数、file の組が無い節の数を出す | `75e813f` の T（blob `03459169dd16d791ace0c5e94cb365a1b9ea9ff0`）と実装で通り、調べた対の数が 0 でない（0 なら読み方の誤りで落とす）。T-RP-9-010 と T-RP-19-010 の対が調べた対に入っている。G1 の前の main の T では、case 行の 15 行（名前が 0 件の行。接頭つきだけで数えた 17 から、完全一致が 1 件在る 2 行が抜けた数）と、受入の名前の 1 つ（H115）を名指して落ちる。対の数は 8 の R13-15 の段落に在る（R13-15 を出す前にその時の T で測り直す。`75e813f` の T（blob `03459169dd16d791ace0c5e94cb365a1b9ea9ff0`）と実装の手数えで 118 本、通る 100、`（未実装）` 6、組が無い 12（8 節）、落ちる 0。手数えなので正は rp82 の出力で、R13-15 の実装の席が rp82 の出力と照らす。`（未実装）` の持ち主が merge すると数は「通る」へ動くので、`75e813f` に固定した数である。8 の段落の 106 本は `f29b6e9`・`de7c8fc` の T の数えの履歴で、`75e813f` の数は 118 本である） | T の受入の名前を 1 文字替えた T、`#[test]` の無い同じ名前の `fn` だけが在る file、受入の名前が別の節の file にだけ在る T で、rp82 がその名前を名指して落ちる |
 | RP-89 | 今の build（上限なし）が長い材料で字を落とす（陽性の対照。3.22、LB-0） | `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp89 -- --ignored`。`testdata/long_ja/` の組ごとに、`--decode-cap off` と同じ形（上限なし）の Rz で組の全体を 1 回で復号した CER と、組の 3 本を 1 本ずつ復号した CER を出す | 組の CER の平均が、1 本ずつの CER の平均より 5.0 pt 以上悪い（仮。LB-0 の数で決め直す時は評議へ） | `testdata/eval_real/` の 8 本と 0.5 秒の間（`native/hayamimi-asr/tests/decode.rs:277` の形、約 51.7 秒）で同じ差が出る | 1 本だけの組（`C` 以下）では差が 1.0 pt 未満。差が出なければ、材料か仕組みの見立てが違うので LB-1 へ進まず評議へ出す |
 | RP-90 | 上限を入れた復号が長い buffer の字を残す（3.22、LB-1） | `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp90 -- --ignored` | `testdata/long_ja/` の組の CER の平均が、1 本ずつの CER の平均 + 2.0 pt 以下で、上限なしより小さい。どの組も、仮説の字の数 / 参照の字の数が 0.8 以上 | 上限なしで同じ判定が落ちる | 片の繋ぎで 1 片を捨てる build（試験の中だけの形）で、字の数の比が 0.8 を割って落ちる |
-| RP-91 | `C` 以下の buffer の文が今と同じ（3.22、LB-1） | `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp91 -- --ignored`。README の 15 本（`testdata/eval_real/ja_*.wav`）を、既定の上限と `off` で読む | 長さが `C` 以下の clip は、文が byte で一致する。15 本の CER の平均が `off` 以下（今の 3.8 %、`docs/results/scorecard.md`） | `C` = 2 秒で、少なくとも 1 本の文が変わる | 長さが `C` を超える clip が 15 本の中に無いことを数えて出す（`C` = 10 秒なら 0 本） |
+| RP-91 | `C` 以下の buffer の文が今と同じ（3.22、LB-1） | `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp91 -- --ignored`。README の 15 本（`testdata/eval_real/ja_*.wav`）を、上限 `C` を明示した recognizer と `off` で読む | 長さが `C` 以下の clip は、文が byte で一致する。15 本の CER の平均が `off` 以下（今の 3.8 %、`docs/results/scorecard.md`） | `C` = 2 秒で、少なくとも 1 本の文が変わる | 長さが `C` を超える clip が 15 本の中に無いことを数えて出す（`C` = 10 秒なら 0 本） |
 | RP-92 | 長い buffer を最も静かな所で、釣り合った片に切る（3.22、LB-1。unit） | `cd native && cargo test --release --jobs 2 -p hayamimi-asr --lib cap` | 合成の音声（`T` = 25 秒、`C` = 10 秒、無音の谷を的の ±1 秒に置く）で、片は 3 つ、切れ目は谷の 20 ms の枠、各片は `C` 以下。`off` と `T ≤ C` は 1 片で入力と同じ。Rz 以外の tier は切らない | 谷を的の外に置くと、切れ目が的の ±`W/2` の中の最も静かな枠に来る | 無音の無い音声でも片は `C` 以下で、片の数は `ceil(T/C)` |
-| RP-93 | 既定の上限が掃引で選んだ値（3.22、LB-3） | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp93`。`docs/results/long_buffer/sweep.tsv` を読み、`hayamimi config dump` の上限と照らす | 既定の `C` と `O` が、`sweep.tsv` で RP-90、RP-91、RP-94 を全部通した組のうち `C` の最も大きい物（同点は `O` = 0）と一致する | 既定を 1 秒ずらした dump で落ちる | `sweep.tsv` が無いか列が欠けると、path と列を名指して落ちる |
-| RP-94 | 上限が復号の時間に足す分が線の内（3.22、窓 E4 だけ） | 窓 E4 で `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp94 -- --ignored`。長い材料の組ごとに、`off` と候補の上限を交互に 5 回ずつ復号し、1 回の復号の時間（ms）を数える。始める前と終わった後の `load1` を記録し、2.0 未満で始める | 上限が足す分が p50 で 150 ms 以下、p95 で 250 ms 以下（nearest-rank） | `C` = 2 秒で線を超える | 足す分を 3.22 の「遅れの式」の A と並べて出す（外れが 2 倍を超えたら式を直す。10 の H152） |
-| RP-95 | 上限で字幕が遅れない（3.22、窓 E4 だけ） | 窓 E4 で、lat-ja の E2E-1（RP-32 の交互の形）を同じ build の `--decode-cap off` と既定で交互に流す。基準は `docs/results/r8x/e3q1.e2e1`、`e3q2.e2e1` と `docs/results/rp32/` | 既定の `L` が `off` に対して p50 で 31 ms、p95 で 100 ms を超えて悪化しない（10 の H64 の幅）。訳の取れた対が 20 / 23 以上。RP-67 の 1600 ms の線を保つ | `off` と `off` の対で差が幅の内（物差しの床） | 超えたら採らない：既定を `off` に戻す。`C` を超えた発話の数を数えて出す（0 本なら `L` は変わらない見込みの確かめ） |
+| RP-93 | 既定の上限が掃引で選んだ値（3.22、LB-3） | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp93`。`docs/results/long_buffer/sweep.tsv` を読み、`hayamimi config dump` の上限と照らす | `sweep.tsv` の選んだ行が、全部の経路で RP-90 と RP-91 を通り RP-94 も通した組のうち `C` の最も大きい物（同点は `O` = 0）である。dump の既定は、既定を替える commit の前は `off`、後は選んだ行の `C` と `O` に一致する（それ以外の値で落ちる） | 選んだ行を 1 秒ずらした `sweep.tsv` と、既定を 1 秒ずらした dump で落ちる | `sweep.tsv` が無いか列が欠けると、path と列を名指して落ちる |
+| RP-94 | 上限が復号の時間に足す分が線の内（3.22、窓 E4 だけ） | 窓 E4 で `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp94 -- --ignored`。長い材料の組ごとに、`off` と候補の上限を交互に 5 回ずつ復号し、1 回の復号の時間（ms）を数える。始める前と終わった後の `load1` を記録し、2.0 未満で始める | 上限が足す分が p50 で 150 ms 以下（仮）、p95 で 250 ms 以下（仮）（nearest-rank）。線は 3.22 の「遅れの式」の A から引いた：p95 の 250 ms は、掃引の格子で式が最も大きい `C` = 4 秒・`T` = 25 秒の +235.0 ms を、10 ms の位へ上げて余白 15 ms を足した値。p50 の 150 ms は、材料の最長の組（21.5 秒）での式の値（`C` = 14 で +50.7、10 と 8 で +87.6、6 で +124.4、4 で +198.2 ms）のうち、`C` ≥ 6 を通し `C` = 4（3.22 の「採らない手段」の「いつも 4 秒で切る」）を外す値で、実測の前の仮。実測が式から 2 倍を超えて外れたら、線を引き直して評議の席へ出す | `C` = 2 秒で線を超える | 足す分を 3.22 の「遅れの式」の A と並べて出す（外れが 2 倍を超えたら式を直す。10 の H152） |
+| RP-95 | 上限で字幕が遅れない（3.22、窓 E4 だけ） | 窓 E4 で、lat-ja の E2E-1（RP-32 の交互の形）を同じ build の `--decode-cap off`（明示）と `--decode-cap <選んだ C>` で交互に流す。基準は `docs/results/r8x/e3q1.e2e1`、`e3q2.e2e1` と `docs/results/rp32/` | 既定の `L` が `off` に対して p50 で 31 ms、p95 で 100 ms を超えて悪化しない（10 の H64 の幅）。訳の取れた対が 20 / 23 以上。RP-67 の 1600 ms の線を保つ | `off` と `off` の対で差が幅の内（物差しの床） | 超えたら採らない：既定を `off` のまま替えない。`C` を超えた発話の数を数えて出す（0 本なら `L` は変わらない見込みの確かめ） |
 
 ## 7. test の名前
 
@@ -3657,11 +3661,11 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H153** 最も静かな 20 ms の枠で切っても、息継ぎの無い長い発話では言葉の中で切ることがある。切った所の前後の字の誤りは RP-90 の CER に入るが、切れ目ごとには数えない。`W`（仮 2.0 秒）と `O` を掃引で見る。
 - **H154** VAD の ring buffer（`native/hayamimi-asr/src/vad.rs:17`、30 秒）を超える 1 つの発話の扱いは測っていない。溢れても copy されて落ちない（srt の run の log）が、30 秒を超える buffer の上限の片の数と遅れは見積りだけである。
 - **H155** 上限は Tier::Rz だけに当てる。ほかの tier の長い buffer の欠けは測っていない。
-- **H156**（評議の判定を待つ）分け直し（`native/hayamimi-asr/src/decode.rs:492-504`）を残すか外すか。上限が入った後に撃つ回数を LB-2 の掃引で数え、数を添えて評議の席へ出す。判定までは値も形も変えない。
-- **H157**（評議の判定を待つ）掃引で、経路（live、清書、scorecard）ごとに違う `C` が勝った時に、値を分けるか。分けるなら `Recognizer` の上限を依頼ごとに渡す形が要り、3.22 の構造を変える。
-- **H158**（評議の判定を待つ）LB-1 を窓 E4 の build に入れるか、E4 の後にするか。清書は 25 秒の束（`native/hayamimi-asr/src/refine.rs:22`）を片に分けて読むので、清書の時間（RP-61）が延びる。E4 の merge の順は受付と評議の席が決める。
+- **H156**（評議の判定で決定）分け直し（`native/hayamimi-asr/src/decode.rs:492-504`）の門は残し、値も形も変えない。外す提案は、LB-2 の掃引で上限が入った後に撃つ回数が 0 で、かつ外しても RP-90 と RP-91 の結果が変わらない時だけ、別の slice で出す。撃つ回数は LB-2 の席が `sweep.tsv` に書く。
+- **H157**（評議の判定で決定）`C` は経路（live、清書、scorecard）ごとに分けない。全部の経路で RP-90 と RP-91 を通る組の共通部分のうち、`C` の最も大きい物を採る。共通部分が空なら評議の席へ出す。
+- **H158**（評議の判定で決定）LB-1 は窓 E4 の build に入れ、既定は `off` のままにする。E4 の基準の run は `--decode-cap off` を明示して取る。既定を選んだ `C` へ替えるのは、RP-93 と RP-95 が通った後の別の commit である。清書は 25 秒の束（`native/hayamimi-asr/src/refine.rs:22`）を片に分けて読むので、`C` を明示した run では清書の時間（RP-61）が延びる見込みで、その数は E4 の記録に並べて出す。
 - **H159** 掃引で `C` が 8.79 秒未満に決まると、README の 15 本のうち長い clip が片に分かれ、RP-1（`native/hayamimi-eval/tests/rp01.rs`）と RP-5 の数が動く。その時は RP-1 と RP-5 を流し直し、`docs/results/scorecard.md` を書き直す。
-- **H160**（評議の判定を待つ）料理の番組と会議の cue の数（3.22 の密度の表）は YouTube 由来の音声の cache から数えた物で、`docs/design/diarization.md` §22.4 の決まり（YouTube の音声を材料にしない）と食い違う。3.22 は補助の数としてだけ使い、取り直さず、判定に入れない。使ってよいかを評議の席が決める。長い cue で密度が下がるのが欠けか、話していない時間かも分けていない。
+- **H160**（評議の判定で決定）料理の番組と会議の cue の数（3.22 の密度の表）は YouTube 由来の音声の cache から数えた物で、補助の観測に限って使う。受入にも `C` の決定にも入れず、取り直さない。§22.4（`docs/design/diarization.md:3562`）は音声を取る手順と素材を禁じる。ここで引くのは、既に測った後の、字数と秒数の集計だけである。長い cue で密度が下がるのが欠けか、話していない時間かは分けていない。
 - **H161** 長い材料（`testdata/long_ja/`）は README の 15 本の派生で、元の音声の権利の形に従って手元だけに置く。commit せず、sha256 だけを `docs/results/long_buffer/README.md` に書く。
 - **H162** 清書の `KEEP_RATIO`（`native/hayamimi/src/refine.rs:48`、0.7）は、清書の文が速い文の 0.7 倍より短い時に速い文を残す。上限が入ると速い文と清書の文の両方の字が増え、残す側が替わる発話が出る。その数は LB-1 の席が清書の test で数える。
 - **H163** sherpa-onnx の `OfflineRecognizer::decode_multiple_streams`（crate 1.13.8 の `offline_asr.rs:691`）で片をまとめて復号すると、A の `a·(N − 1)` が縮む見込みだが、測っていない。④ 速くの段の候補で、B と同じく測った後に別の slice にする。
