@@ -1,9 +1,10 @@
-//! The recorded Japanese golden clips: the record describes the clips that are
-//! committed, its references are the FLEURS ones, and the route still says
-//! what the record says. Exact text is not the pass condition. The pass
-//! condition is the rate against the recorded text, per clip, at most the
-//! tolerance the record carries: int8 kernels are not bit-reproducible across
-//! CPU families.
+//! The recorded Japanese golden clips: `golden.json` describes the clips that
+//! are committed and carries the tolerance, its references are the FLEURS
+//! ones, and the route still says what `golden_gpu.json` says (the text the
+//! Rust route produced for the same clips on the GPU). Exact text is not the
+//! pass condition. The pass condition is the rate against `golden_gpu.json`,
+//! per clip, at most the tolerance `golden.json` carries: int8 kernels are not
+//! bit-reproducible across CPU families.
 
 mod support;
 
@@ -21,11 +22,20 @@ fn record() -> Result<Value, Failure> {
     read_json(&Path::new(GOLDEN).join("golden.json"))
 }
 
+/// What the Rust route said for the golden clips on the GPU.
+fn gpu_record() -> Result<Value, Failure> {
+    read_json(&Path::new(GOLDEN).join("golden_gpu.json"))
+}
+
 fn clips_of(record: &Value) -> Result<&Vec<Value>, Failure> {
     record
         .get("clips")
         .and_then(Value::as_array)
-        .ok_or_else(|| String::from("golden.json has no `clips` array"))
+        .ok_or_else(|| String::from("a golden record has no `clips` array"))
+}
+
+fn wavs_of(clips: &[Value]) -> Result<Vec<&str>, Failure> {
+    clips.iter().map(|clip| text_of(clip, "wav")).collect()
 }
 
 fn text_of<'a>(item: &'a Value, key: &str) -> Result<&'a str, Failure> {
@@ -112,6 +122,33 @@ fn rate(wav: &str, want: &str, got: &str) -> Result<f64, Failure> {
     Ok(measured.dist as f64 / measured.denom as f64)
 }
 
+/// The failure line of one clip, or `None` when the rate of `got` against
+/// `want` is at most `tolerance`.
+fn verdict(wav: &str, want: &str, got: &str, tolerance: f64) -> Result<Option<String>, Failure> {
+    let value = rate(wav, want, got)?;
+    Ok((value > tolerance).then(|| format!("{wav}: CER {value:.4} > {tolerance}")))
+}
+
+/// The text the route is expected to produce for each clip, in the order of
+/// `golden.json`: the finals `golden_gpu.json` records for it, joined. The two
+/// records must list the same clips in the same order.
+fn expected_texts<'a>(
+    golden: &'a Value,
+    gpu: &'a Value,
+) -> Result<Vec<(&'a str, String)>, Failure> {
+    let wavs = wavs_of(clips_of(golden)?)?;
+    let gpu_clips = clips_of(gpu)?;
+    if wavs != wavs_of(gpu_clips)? {
+        return Err(String::from(
+            "golden_gpu.json lists other clips, or the same clips in another order, than golden.json",
+        ));
+    }
+    wavs.into_iter()
+        .zip(gpu_clips)
+        .map(|(wav, clip)| finals_of(clip).map(|finals| (wav, finals.concat())))
+        .collect()
+}
+
 #[test]
 fn golden_file_is_self_consistent() -> TestResult {
     let record = record()?;
@@ -181,18 +218,82 @@ fn references_still_match_the_fleurs_manifest() -> TestResult {
 #[test]
 #[ignore = "runs the models on the GPU"]
 fn pipeline_still_produces_the_golden_text() -> TestResult {
-    let record = record()?;
-    let tolerance = tolerance_of(&record)?;
+    let golden = record()?;
+    let gpu = gpu_record()?;
+    let tolerance = tolerance_of(&golden)?;
     let models = models_dir()?;
     let mut failures = Vec::new();
-    for clip in clips_of(&record)? {
-        let wav = text_of(clip, "wav")?;
+    for (wav, want) in expected_texts(&golden, &gpu)? {
         let got = route_text(&models, wav)?;
-        let value = rate(wav, &finals_of(clip)?.concat(), &got)?;
-        if value > tolerance {
-            failures.push(format!("{wav}: CER {value:.4} > {tolerance}"));
-        }
+        failures.extend(verdict(wav, &want, &got, tolerance)?);
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+    Ok(())
+}
+
+/// `text` with its first character replaced by another one.
+fn with_first_character_changed(text: &str) -> String {
+    let mut characters = text.chars();
+    characters.next();
+    std::iter::once('亜').chain(characters).collect()
+}
+
+#[test]
+fn golden_gpu_lists_the_clips_of_golden_in_the_same_order() -> TestResult {
+    let golden = record()?;
+    let gpu = gpu_record()?;
+    let wavs: Vec<&str> = expected_texts(&golden, &gpu)?
+        .into_iter()
+        .map(|(wav, _)| wav)
+        .collect();
+    assert_eq!(wavs, wavs_of(clips_of(&golden)?)?);
+    let mut reversed = gpu.clone();
+    let Some(clips) = reversed.get_mut("clips").and_then(Value::as_array_mut) else {
+        return Err(String::from("golden_gpu.json has no `clips` array").into());
+    };
+    clips.reverse();
+    assert!(expected_texts(&golden, &reversed).is_err());
+    Ok(())
+}
+
+#[test]
+fn the_expected_text_is_what_golden_gpu_records() -> TestResult {
+    let golden = record()?;
+    let gpu = gpu_record()?;
+    let expected = expected_texts(&golden, &gpu)?;
+    let clips = clips_of(&gpu)?;
+    assert!(!clips.is_empty());
+    assert_eq!(expected.len(), clips.len());
+    for ((wav, want), clip) in expected.iter().zip(clips) {
+        assert_eq!(text_of(clip, "wav")?, *wav);
+        assert_eq!(*want, finals_of(clip)?.concat(), "{wav}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_one_character_change_in_the_gpu_text_fails_the_verdict() -> TestResult {
+    let golden = record()?;
+    let gpu = gpu_record()?;
+    let tolerance = tolerance_of(&golden)?;
+    for (wav, want) in expected_texts(&golden, &gpu)? {
+        assert_eq!(verdict(wav, &want, &want, tolerance)?, None, "{wav}");
+        let changed = with_first_character_changed(&want);
+        assert_ne!(changed, want, "{wav}");
+        assert!(
+            verdict(wav, &want, &changed, tolerance)?.is_some(),
+            "{wav}: one changed character passed"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn the_verdict_passes_at_the_tolerance_and_names_an_empty_record() -> TestResult {
+    let want = "あ".repeat(100);
+    let one_off = format!("{}い", "あ".repeat(99));
+    assert_eq!(verdict("x.wav", &want, &one_off, 0.01)?, None);
+    assert!(verdict("x.wav", &want, &one_off, 0.005)?.is_some());
+    assert!(verdict("x.wav", "。", "あ", 0.01).is_err());
     Ok(())
 }
