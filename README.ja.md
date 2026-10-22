@@ -509,6 +509,7 @@ Creative Commons Attribution のlicenseで公開された、YouTubeの会議の�
   ja TV 字幕（`testdata/eval_real`）でも既定モデルを上回り（F1 0.64 対 0.62）、FLEURS ja では
   0.89 対 0.62 です。「！」が要る密なテキストでは `PunctuatorJa4Class(exclaim_threshold=0.9)` を
   渡してください。`docs/eval/punct_retrain.md` の「Decode gates」を参照。
+- **20秒前後の1続きの発話を1回で文字にすると、途中の字がまとまって落ちます。** 20〜21秒の6本（上の評価の clip を3本ずつ繋いだ物）で、1回の復号のCERは38.5%、元の1本ずつは8.7%でした（2026-10-22の1回の測定。bdc071aの木で`cargo test --release`。認識がGPUとCPUのどちらかは記録していません。独立の検証は未）。記録はbranch `feat/long-buffer`（59c078f）の`docs/results/long_buffer/README.md`にあり、mainには未取り込みです。直しの設計は`docs/design/rust_port.ja.md`の3.22にあり、実装は精度の仕事として止めてあります。
 ## ライセンス
 
 ソースコードはMITライセンスです（`LICENSE`）。モデルの重みはこのリポジトリに含まれておらず、

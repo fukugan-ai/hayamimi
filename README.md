@@ -547,6 +547,7 @@ Headline numbers from that log:
   ja TV captions too (`testdata/eval_real`: F1 0.64 vs 0.62) and on FLEURS ja
   (0.89 vs 0.62). Pass `PunctuatorJa4Class(exclaim_threshold=0.9)` for dense
   text where `！` matters. See `docs/eval/punct_retrain.md`, "Decode gates".
+- **Transcribing one continuous utterance of about 20 seconds in a single pass drops runs of characters in the middle.** On 6 clips of 20 to 21 seconds (the evaluation clips above, joined 3 at a time), the CER of a single-pass decode was 38.5%, against 8.7% for the original clips decoded one by one (one measurement on 2026-10-22: `cargo test --release` on the tree of bdc071a; whether recognition ran on the GPU or the CPU was not recorded; not independently verified). The record is `docs/results/long_buffer/README.md` on the branch `feat/long-buffer` (59c078f), which is not on main. The design of the fix is in section 3.22 of `docs/design/rust_port.ja.md`; the implementation is on hold as part of the accuracy work.
 
 ## License
 
