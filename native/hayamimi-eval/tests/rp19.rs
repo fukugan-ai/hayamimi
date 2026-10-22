@@ -10,9 +10,11 @@
 //! They are recounted on every run. The set must equal the fixed list
 //! `rp19_not_yet_at_r11.tsv` less the names that the slices record in
 //! `rp19_ported/<owner>.txt` or `rp19_ported/<owner>.<slice>.txt` (the owner
-//! label is what precedes the first `.` once `.txt` is dropped), so a port
-//! that is deleted again, a port that is not recorded, a row added to the
-//! fixed list and a name written in another owner's file all fail
+//! label is what precedes the first `.` once `.txt` is dropped) and less the
+//! names the table closes with a reason (the rows whose Rust test is `-`), so
+//! a port that is deleted again, a port that is not recorded, a row added to
+//! the fixed list, a name written in another owner's file and a name that is
+//! both closed and recorded all fail
 //! `rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks`.
 //! `rp19_python_cases_are_ported` fails while any row is missing from the
 //! list and prints the count per slice.
@@ -151,6 +153,8 @@ enum NotYetError {
         name: String,
         owner: String,
     },
+    /// A ported file names a test that the table closes with a reason.
+    ClosedAlsoPorted { file: String, name: String },
 }
 
 impl fmt::Display for NotYetError {
@@ -166,7 +170,7 @@ impl fmt::Display for NotYetError {
             ),
             NotYetError::ListedNotPorted(name) => write!(
                 f,
-                "`{name}` is in the fixed list and in no rp19_ported/ file, but it is not a missing row (write it in its slice's file)"
+                "`{name}` is in the fixed list, in no rp19_ported/ file and not closed by the table, but it is not a missing row (write it in its slice's file)"
             ),
             NotYetError::UnknownName { file, name } => {
                 write!(f, "{file}: `{name}` is not a name of the fixed list")
@@ -174,6 +178,10 @@ impl fmt::Display for NotYetError {
             NotYetError::OtherSlice { file, name, owner } => {
                 write!(f, "{file}: `{name}` is a row of slice {owner}")
             }
+            NotYetError::ClosedAlsoPorted { file, name } => write!(
+                f,
+                "{file}: `{name}` is closed by the table with a reason and is also recorded as ported"
+            ),
         }
     }
 }
@@ -252,6 +260,23 @@ fn port_rows() -> Result<Vec<PortRow>, Failure> {
 /// The Rust test names of the rows that give one.
 fn named(rows: &[PortRow]) -> Vec<String> {
     rows.iter().filter_map(|row| row.rust.clone()).collect()
+}
+
+/// A case name without its leading `test_`.
+fn without_test_prefix(case: &str) -> &str {
+    match case.strip_prefix("test_") {
+        Some(rest) => rest,
+        None => case,
+    }
+}
+
+/// The names the table closes: the case of each row that gives no Rust test,
+/// without its leading `test_`.
+fn closed_names(rows: &[PortRow]) -> Vec<String> {
+    rows.iter()
+        .filter(|row| row.rust.is_none())
+        .map(|row| without_test_prefix(&row.case).to_owned())
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -501,14 +526,16 @@ fn owner_map(fixed: &[Owned]) -> BTreeMap<&str, &str> {
 }
 
 /// The set errors: the rows missing from the list, against the fixed list
-/// less the names the ported files record.
+/// less the names the ported files record and the names the table closes.
 fn set_errors(
     table_names: &[String],
     listed: &[String],
     fixed: &[Owned],
     ported: &[PortedFile],
+    closed: &[String],
 ) -> Vec<NotYetError> {
     let listed: BTreeSet<&str> = listed.iter().map(String::as_str).collect();
+    let closed: BTreeSet<&str> = closed.iter().map(String::as_str).collect();
     let claimed: BTreeSet<&str> = ported
         .iter()
         .flat_map(|file| file.names.iter().map(String::as_str))
@@ -521,7 +548,7 @@ fn set_errors(
     let expected: BTreeSet<&str> = fixed
         .iter()
         .map(|owned| owned.name.as_str())
-        .filter(|name| !claimed.contains(name))
+        .filter(|name| !claimed.contains(name) && !closed.contains(name))
         .collect();
     let mut errors = Vec::new();
     for name in actual.difference(&expected) {
@@ -540,12 +567,20 @@ fn set_errors(
     errors
 }
 
-/// The ownership errors: each ported name is a row of the file's own slice.
-fn ownership_errors(fixed: &[Owned], ported: &[PortedFile]) -> Vec<NotYetError> {
+/// The ownership errors: each ported name is a row of the file's own slice
+/// and is not a name the table closes.
+fn ownership_errors(fixed: &[Owned], ported: &[PortedFile], closed: &[String]) -> Vec<NotYetError> {
     let owners = owner_map(fixed);
+    let closed: BTreeSet<&str> = closed.iter().map(String::as_str).collect();
     let mut errors = Vec::new();
     for file in ported {
         for name in &file.names {
+            if closed.contains(name.as_str()) {
+                errors.push(NotYetError::ClosedAlsoPorted {
+                    file: file.file.clone(),
+                    name: name.clone(),
+                });
+            }
             match owners.get(name.as_str()) {
                 None => errors.push(NotYetError::UnknownName {
                     file: file.file.clone(),
@@ -565,15 +600,17 @@ fn ownership_errors(fixed: &[Owned], ported: &[PortedFile]) -> Vec<NotYetError> 
 
 /// The rows of the table missing from the list (the cases not yet
 /// implemented) are exactly the fixed list less the names the ported files
-/// record, and each recorded name is a row of its own slice.
+/// record and the names the table closes, each recorded name is a row of its
+/// own slice, and no recorded name is a closed one.
 fn check_not_yet_set(
     table_names: &[String],
     listed: &[String],
     fixed: &[Owned],
     ported: &[PortedFile],
+    closed: &[String],
 ) -> Result<(), Vec<NotYetError>> {
-    let mut errors = set_errors(table_names, listed, fixed, ported);
-    errors.extend(ownership_errors(fixed, ported));
+    let mut errors = set_errors(table_names, listed, fixed, ported, closed);
+    errors.extend(ownership_errors(fixed, ported, closed));
     if errors.is_empty() {
         Ok(())
     } else {
@@ -688,12 +725,13 @@ fn rp19_ported_rows_pass_and_the_not_yet_list_only_shrinks() -> TestResult {
     ));
     let fixed = parse_fixed_list(&fixed_text)?;
     let ported = read_ported(Path::new(PORTED_DIR))?;
-    let table_names = named(&port_rows()?);
+    let rows = port_rows()?;
     problems.extend(lines_of(check_not_yet_set(
-        &table_names,
+        &named(&rows),
         listed_names()?,
         &fixed,
         &ported,
+        &closed_names(&rows),
     )));
     finish(problems)
 }
@@ -845,9 +883,9 @@ fn is_python_mouth(row: &PortRow) -> bool {
 
 /// T-RP-19-023
 #[test]
-fn the_table_has_exactly_fifteen_python_mouth_rows() -> TestResult {
+fn the_table_has_exactly_twenty_python_mouth_rows() -> TestResult {
     let rows = port_rows()?;
-    assert_eq!(rows.iter().filter(|row| is_python_mouth(row)).count(), 15);
+    assert_eq!(rows.iter().filter(|row| is_python_mouth(row)).count(), 20);
     Ok(())
 }
 
@@ -863,20 +901,25 @@ fn the_ingest_codec_rows_are_placed_in_eval_ws_rs() -> TestResult {
     let rows = port_rows()?;
     let owned = ["test_ws_ingest", ".py"].concat();
     let file = owned.as_str();
-    assert_eq!(rows_placed_at(&rows, file, "hayamimi-eval/src/ws.rs"), 13);
+    assert_eq!(rows_placed_at(&rows, file, "hayamimi-eval/src/ws.rs"), 8);
     assert_eq!(rows_placed_at(&rows, file, "hayamimi-asr/src/audio.rs"), 8);
     assert_eq!(rows_placed_at(&rows, file, "hayamimi/src/ingest.rs"), 0);
+    let mouths = rows
+        .iter()
+        .filter(|row| row.file == file && is_python_mouth(row))
+        .count();
+    assert_eq!(mouths, 5);
     assert_eq!(rows.iter().filter(|row| row.file == file).count(), 21);
     Ok(())
 }
 
-/// The table holds 319 named rows and 67 that are not ported (the 52 of the
-/// four ordinary reasons and the 15 Python mouths).
+/// The table holds 314 named rows and 72 that are not ported (the 52 of the
+/// four ordinary reasons and the 20 Python mouths).
 #[test]
-fn the_document_table_has_319_named_rows_and_67_reasons() -> TestResult {
+fn the_document_table_has_314_named_rows_and_72_reasons() -> TestResult {
     let rows = port_rows()?;
-    assert_eq!(rows.iter().filter(|row| row.rust.is_some()).count(), 319);
-    assert_eq!(rows.iter().filter(|row| row.rust.is_none()).count(), 67);
+    assert_eq!(rows.iter().filter(|row| row.rust.is_some()).count(), 314);
+    assert_eq!(rows.iter().filter(|row| row.rust.is_none()).count(), 72);
     assert_eq!(check_port_table(&rows, &named(&rows)), Ok(()));
     Ok(())
 }
@@ -899,6 +942,7 @@ const LIST_EMPTY: &str = include_str!("fixtures/rp19_r11/list_empty.txt");
 const LIST_ALL: &str = include_str!("fixtures/rp19_r11/list_all.txt");
 const PORTED_ALPHA: &str = include_str!("fixtures/rp19_r11/ported_alpha.txt");
 const PORTED_BLANK: &str = include_str!("fixtures/rp19_r11/ported_blank.txt");
+const PORTED_BETA: &str = include_str!("fixtures/rp19_r11/ported_beta.txt");
 const PORTED_BETA_GAMMA: &str = include_str!("fixtures/rp19_r11/ported_beta_gamma.txt");
 const PORTED_ALPHA_ZETA: &str = include_str!("fixtures/rp19_r11/ported_alpha_zeta.txt");
 
@@ -908,31 +952,39 @@ const BASELINE_ROWS: usize = 3;
 /// The three rows of the table in the baseline state.
 const TABLE_NAMES: [&str; 3] = ["alpha", "beta", "gamma"];
 
-/// The not-yet check on a state: the fixed list, the text of the list, and
-/// the ported files as `(file name, text)`.
+fn owned_names(names: &[&str]) -> Vec<String> {
+    names.iter().map(|name| (*name).to_owned()).collect()
+}
+
+/// The not-yet check on a state: the fixed list, the text of the list, the
+/// ported files as `(file name, text)`, the names of the table's rows that
+/// give a Rust test, and the names the table closes.
 fn judge(
     fixed_text: &str,
     list_text: &str,
     ported: &[(&str, &str)],
+    table: &[&str],
+    closed: &[&str],
 ) -> Result<Result<(), Vec<NotYetError>>, Failure> {
     let fixed = parse_fixed_list(fixed_text)?;
     let mut files = Vec::new();
     for (file, text) in ported {
         files.push(PortedFile::from_text(file, text)?);
     }
-    let table: Vec<String> = TABLE_NAMES.iter().map(|name| (*name).to_owned()).collect();
     Ok(check_not_yet_set(
-        &table,
+        &owned_names(table),
         &parse_list(list_text),
         &fixed,
         &files,
+        &owned_names(closed),
     ))
 }
 
 /// T-RP-19-014: `alpha` is recorded as ported and is gone from the list.
 #[test]
 fn a_name_ported_and_then_deleted_from_the_list_is_rejected() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_EMPTY, &[("R12b.txt", PORTED_ALPHA)])?;
+    let ported = [("R12b.txt", PORTED_ALPHA)];
+    let said = judge(BASELINE_FIXED, LIST_EMPTY, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::PortedNotListed(String::from("alpha"))])
@@ -943,7 +995,8 @@ fn a_name_ported_and_then_deleted_from_the_list_is_rejected() -> TestResult {
 /// T-RP-19-015: `alpha` is in the list and no ported file records it.
 #[test]
 fn a_ported_name_missing_from_the_ported_files_is_rejected() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R12b.txt", PORTED_BLANK)])?;
+    let ported = [("R12b.txt", PORTED_BLANK)];
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::ListedNotPorted(String::from("alpha"))])
@@ -968,7 +1021,7 @@ fn a_row_added_to_the_fixed_list_is_rejected() {
 #[test]
 fn a_name_written_in_another_slices_file_is_rejected() -> TestResult {
     let ported = [("R12b.txt", PORTED_BLANK), ("R12e.txt", PORTED_ALPHA)];
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported)?;
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::OtherSlice {
@@ -984,7 +1037,7 @@ fn a_name_written_in_another_slices_file_is_rejected() -> TestResult {
 #[test]
 fn a_name_unknown_to_the_fixed_list_is_rejected_in_a_ported_file() -> TestResult {
     let ported = [("R12b.txt", PORTED_ALPHA_ZETA)];
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported)?;
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::UnknownName {
@@ -1008,7 +1061,8 @@ fn a_changed_row_with_the_same_count_changes_the_digest() {
 /// T-RP-19-020: the baseline state passes both checks.
 #[test]
 fn the_baseline_state_passes() -> TestResult {
-    let said = judge(BASELINE_FIXED, LIST_ALPHA, &[("R12b.txt", PORTED_ALPHA)])?;
+    let ported = [("R12b.txt", PORTED_ALPHA)];
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(said, Ok(()));
     let fixed = check_fixed_list(BASELINE_FIXED, BASELINE_SHA256, BASELINE_ROWS);
     assert_eq!(fixed, Ok(()));
@@ -1022,7 +1076,8 @@ fn an_absent_ported_directory_reads_as_empty() -> TestResult {
         .join("rp19_r11")
         .join("no_ported_dir_here");
     assert_eq!(read_ported(&absent)?, Vec::<PortedFile>::new());
-    assert_eq!(judge(BASELINE_FIXED, LIST_EMPTY, &[])?, Ok(()));
+    let said = judge(BASELINE_FIXED, LIST_EMPTY, &[], &TABLE_NAMES, &[])?;
+    assert_eq!(said, Ok(()));
     Ok(())
 }
 
@@ -1030,18 +1085,16 @@ fn an_absent_ported_directory_reads_as_empty() -> TestResult {
 #[test]
 fn a_fully_ported_state_passes() -> TestResult {
     let ported = [("R12b.txt", PORTED_ALPHA), ("R12e.txt", PORTED_BETA_GAMMA)];
-    assert_eq!(judge(BASELINE_FIXED, LIST_ALL, &ported)?, Ok(()));
+    let said = judge(BASELINE_FIXED, LIST_ALL, &ported, &TABLE_NAMES, &[])?;
+    assert_eq!(said, Ok(()));
     Ok(())
 }
 
 /// T-RP-19-026: `R12b.R13-1.txt` reads the owner `R12b` before the first `.`.
 #[test]
 fn a_file_named_owner_dot_slice_reads_the_owner_before_the_first_dot() -> TestResult {
-    let said = judge(
-        BASELINE_FIXED,
-        LIST_ALPHA,
-        &[("R12b.R13-1.txt", PORTED_ALPHA)],
-    )?;
+    let ported = [("R12b.R13-1.txt", PORTED_ALPHA)];
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(said, Ok(()));
     Ok(())
 }
@@ -1049,17 +1102,72 @@ fn a_file_named_owner_dot_slice_reads_the_owner_before_the_first_dot() -> TestRe
 /// T-RP-19-027: `R12e.R13-1.txt` has the owner `R12e`, which does not own `alpha`.
 #[test]
 fn a_name_in_a_file_of_another_owner_with_a_slice_suffix_is_rejected() -> TestResult {
-    let said = judge(
-        BASELINE_FIXED,
-        LIST_ALPHA,
-        &[("R12e.R13-1.txt", PORTED_ALPHA)],
-    )?;
+    let ported = [("R12e.R13-1.txt", PORTED_ALPHA)];
+    let said = judge(BASELINE_FIXED, LIST_ALPHA, &ported, &TABLE_NAMES, &[])?;
     assert_eq!(
         said,
         Err(vec![NotYetError::OtherSlice {
             file: String::from("R12e.R13-1.txt"),
             name: String::from("alpha"),
             owner: String::from("R12b")
+        }])
+    );
+    Ok(())
+}
+
+/// The state of T-RP-19-028 to 030: the row of `beta` is closed by the table,
+/// so the table names are `alpha` and `gamma`.
+const TABLE_WITHOUT_BETA: [&str; 2] = ["alpha", "gamma"];
+
+/// T-RP-19-028: `beta` is closed by the table and is left out of the expected set.
+#[test]
+fn a_name_closed_in_the_table_is_left_out_of_the_expected_not_yet_set() -> TestResult {
+    let ported = [("R12b.txt", PORTED_ALPHA)];
+    let said = judge(
+        BASELINE_FIXED,
+        LIST_ALPHA,
+        &ported,
+        &TABLE_WITHOUT_BETA,
+        &["beta"],
+    )?;
+    assert_eq!(said, Ok(()));
+    Ok(())
+}
+
+/// T-RP-19-029: the same state with no closed name passed; `beta` stays in the expected set.
+#[test]
+fn a_closed_name_that_is_not_subtracted_is_named_as_listed_not_ported() -> TestResult {
+    let ported = [("R12b.txt", PORTED_ALPHA)];
+    let said = judge(
+        BASELINE_FIXED,
+        LIST_ALPHA,
+        &ported,
+        &TABLE_WITHOUT_BETA,
+        &[],
+    )?;
+    assert_eq!(
+        said,
+        Err(vec![NotYetError::ListedNotPorted(String::from("beta"))])
+    );
+    Ok(())
+}
+
+/// T-RP-19-030: `beta` is closed by the table and also recorded in the file of its owner.
+#[test]
+fn a_name_both_closed_in_the_table_and_ported_is_rejected() -> TestResult {
+    let ported = [("R12b.txt", PORTED_ALPHA), ("R12e.txt", PORTED_BETA)];
+    let said = judge(
+        BASELINE_FIXED,
+        LIST_ALPHA,
+        &ported,
+        &TABLE_WITHOUT_BETA,
+        &["beta"],
+    )?;
+    assert_eq!(
+        said,
+        Err(vec![NotYetError::ClosedAlsoPorted {
+            file: String::from("R12e.txt"),
+            name: String::from("beta")
         }])
     );
     Ok(())
