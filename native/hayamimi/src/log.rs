@@ -36,6 +36,7 @@ pub const MODEL_LOADED: &str = "asr.model.loaded";
 pub const MODEL_EVICTED: &str = "asr.model.evicted";
 pub const MEMORY_UNREADABLE: &str = "gpu.memory.unreadable";
 pub const LANG_UNKNOWN: &str = "asr.lang.unknown";
+pub const DECODE_CHUNKED: &str = "asr.decode.chunked";
 pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
 pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
@@ -442,7 +443,8 @@ pub fn engine_failed_line(strings: &Strings) -> String {
 }
 
 /// `asr.model.loaded` and `asr.model.evicted`: a recognizer came into memory
-/// or was dropped to make room. The other events of the recognizers are
+/// or was dropped to make room. `asr.decode.chunked`: a buffer longer than the
+/// decode cap was read in pieces. The other events of the recognizers are
 /// fallbacks and have a [`Notice`].
 pub fn resident_line(strings: &Strings, event: &ResidentEvent) -> Option<String> {
     match event {
@@ -472,6 +474,19 @@ pub fn resident_line(strings: &Strings, event: &ResidentEvent) -> Option<String>
             "asr",
             Some("HAYAMIMI_ASR_LANG_UNKNOWN"),
             &[],
+        )),
+        ResidentEvent::DecodeChunked { tier, cut } => Some(event_line(
+            strings,
+            Level::Info,
+            DECODE_CHUNKED,
+            "asr",
+            None,
+            &[
+                ("tier", Value::from(tier.name())),
+                ("pieces", Value::from(cut.pieces)),
+                ("buffer_ms", Value::from(cut.buffer_ms)),
+                ("cap_ms", Value::from(cut.cap_ms)),
+            ],
         )),
         ResidentEvent::Substituted { .. } | ResidentEvent::CutIntoChunks { .. } => None,
     }
@@ -717,6 +732,7 @@ mod tests {
                 MODEL_EVICTED,
                 MEMORY_UNREADABLE,
                 LANG_UNKNOWN,
+                DECODE_CHUNKED,
                 WARMUP_DECODED,
                 WARMUP_FAILED,
                 SERVER_LAN_OPENED,
@@ -881,6 +897,33 @@ mod tests {
         let event = parsed(&dropped)?;
         assert_eq!(event["event"], MODEL_EVICTED);
         assert_eq!(event["model"], "sv");
+        Ok(())
+    }
+
+    #[test]
+    fn a_buffer_read_in_pieces_is_an_info_line_with_the_counts_and_no_text()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let cut = hayamimi_asr::cap::Cut {
+            pieces: 3,
+            buffer_ms: 25_000,
+            cap_ms: 10_000,
+        };
+        let event = ResidentEvent::DecodeChunked {
+            tier: Tier::Rz,
+            cut,
+        };
+        let Some(line) = resident_line(&strings()?, &event) else {
+            return Err("a chunked decode made no line".into());
+        };
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], DECODE_CHUNKED);
+        assert_eq!(event["level"], "info");
+        assert_eq!(event["tier"], "rz");
+        assert_eq!(event["pieces"], 3);
+        assert_eq!(event["buffer_ms"], 25_000);
+        assert_eq!(event["cap_ms"], 10_000);
+        assert!(event["error_code"].is_null());
+        assert_ne!(event["message"], DECODE_CHUNKED, "the table has no message");
         Ok(())
     }
 

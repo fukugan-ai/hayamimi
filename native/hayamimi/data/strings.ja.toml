@@ -29,6 +29,7 @@
 "asr.model.loaded" = "認識器を読み込みました"
 "asr.model.evicted" = "上限を守るため、最も使われていない認識器を手放しました"
 "asr.lang.unknown" = "SenseVoice の結果の言語の tag を読めないので、言語は不明として扱います"
+"asr.decode.chunked" = "復号の上限より長い音声を、静かな所で切って片ごとに読みました"
 "asr.warmup.decoded" = "最初の発話の前に、認識器が 10 秒の無音を 1 回読みました（句読点の段が在れば、その model も文を 1 回読みました）"
 "asr.warmup.failed" = "起動時の読み（復号か句読点）に失敗しましたが、その読みなしで続けます"
 "gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
@@ -77,6 +78,7 @@ options:
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
   --max-resident <n>   日本語の認識器のほかに memory へ置く認識器の数（既定は 3。0 なら全部）
   --gpu-budget <MiB>   使用中の GPU memory がこの値になったら段を CPU へ移す（既定は 14000）
+  --decode-cap <sec>   日本語の 1 回の復号が読む音声の最長の秒数。これより長い音声は静かな所で切り、片ごとに読む（既定は off）
   --gpu-diagnose       GPU の model の node がどこへ置かれたかを log に出す
   --no-refine          確定した発話の group を読み直さない
   --help               この文を出す"""

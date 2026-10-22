@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::audio::SAMPLE_RATE;
+use crate::cap::{Cut, DecodeCap};
 use crate::error::AsrError;
 use crate::fallback::{Reason, reason_of};
 use crate::recognizer::{LangTag, Recognizer};
@@ -256,6 +257,9 @@ pub enum ResidentEvent {
     /// SenseVoice wrote no language tag that could be read. Said once; every
     /// such decode still carries [`LangTag::Unknown`].
     LangUnknown,
+    /// A buffer longer than the decode cap was read in pieces. Said for every
+    /// such decode.
+    DecodeChunked { tier: Tier, cut: Cut },
 }
 
 /// What a decode made.
@@ -274,6 +278,8 @@ pub struct Decoded {
 pub struct Recognizers {
     models: PathBuf,
     threads: i32,
+    /// The longest audio one decode of the Japanese tier reads.
+    cap: DecodeCap,
     residents: Residents<Recognizer>,
     /// Tiers that cannot be used on this machine, and why. Asked once.
     unavailable: BTreeMap<Tier, Reason>,
@@ -295,11 +301,18 @@ fn millis(since: Instant) -> f64 {
 
 impl Recognizers {
     /// An engine with nothing loaded. `max_resident` caps the tiers kept in
-    /// memory besides the Japanese one; `None` keeps them all.
-    pub fn new(models: &Path, threads: i32, max_resident: Option<NonZeroUsize>) -> Recognizers {
+    /// memory besides the Japanese one; `None` keeps them all. `cap` limits
+    /// the audio one decode of the Japanese tier reads.
+    pub fn new(
+        models: &Path,
+        threads: i32,
+        max_resident: Option<NonZeroUsize>,
+        cap: DecodeCap,
+    ) -> Recognizers {
         Recognizers {
             models: models.to_path_buf(),
             threads,
+            cap,
             residents: Residents::new(max_resident),
             unavailable: BTreeMap::new(),
             reported: BTreeSet::new(),
@@ -330,7 +343,7 @@ impl Recognizers {
             self.events.push(ResidentEvent::Evicted { tier: victim });
         }
         let started = Instant::now();
-        let opened = Recognizer::open_tier(&self.models, tier, self.threads);
+        let opened = Recognizer::open_tier(&self.models, tier, self.threads, self.cap);
         let ms = millis(started);
         self.load_ms += ms;
         match opened {
@@ -398,7 +411,8 @@ impl Recognizers {
         let Some(recognizer) = self.residents.get(used) else {
             return Err(AsrError::NoRecognizer);
         };
-        let (text, lang) = recognizer.decode_tagged(samples)?;
+        let (text, lang, cut) = recognizer.decode_noted(samples)?;
+        self.note_cut(used, cut);
         if lang == LangTag::Unknown && !self.lang_unknown_reported {
             self.lang_unknown_reported = true;
             self.events.push(ResidentEvent::LangUnknown);
@@ -409,6 +423,13 @@ impl Recognizers {
             tier: used,
             decode_ms: millis(started),
         })
+    }
+
+    /// Says that a decode read its buffer in pieces, when it did.
+    fn note_cut(&mut self, tier: Tier, cut: Option<Cut>) {
+        if let Some(cut) = cut {
+            self.events.push(ResidentEvent::DecodeChunked { tier, cut });
+        }
     }
 
     /// The pieces to decode again and the speech seconds. Without the cutting
@@ -475,10 +496,18 @@ impl Recognizers {
         let Some(recognizer) = self.residents.get(tier) else {
             return Ok(text.to_owned());
         };
+        let mut cuts = Vec::new();
         let parts = pieces
             .iter()
-            .map(|piece| recognizer.decode(piece))
+            .map(|piece| {
+                let (text, _, cut) = recognizer.decode_noted(piece)?;
+                cuts.extend(cut);
+                Ok(text)
+            })
             .collect::<Result<Vec<String>, AsrError>>()?;
+        for cut in cuts {
+            self.note_cut(tier, Some(cut));
+        }
         let joined = join_pieces(&parts, lang);
         if retry_is_better(text, &joined, speech_seconds, lang) {
             Ok(joined)
@@ -786,7 +815,7 @@ mod tests {
     }
 
     fn nothing_installed() -> Recognizers {
-        Recognizers::new(Path::new("no-such-models"), 1, None)
+        Recognizers::new(Path::new("no-such-models"), 1, None, DecodeCap::Off)
     }
 
     #[test]

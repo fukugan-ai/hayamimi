@@ -1,5 +1,9 @@
 {
   "config": {
+    "decode_cap": {
+      "cap_s": "off",
+      "overlap_s": 0.0
+    },
     "head_dropout_retry": {
       "density_floor_cjk": 2.4,
       "density_floor_latin": 6.0,
@@ -124,7 +128,7 @@
     }
   },
   "describes": "docs/spec/ja_pipeline.md",
-  "generated_at": "2026-10-21T01:39:11Z",
+  "generated_at": "2026-10-22T09:00:03Z",
   "generated_by": "hayamimi config dump",
   "models": {
     "_total_bytes": 437418086,

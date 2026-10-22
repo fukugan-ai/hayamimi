@@ -1,6 +1,7 @@
 //! The recognizers: one sherpa-onnx offline recognizer per tier, int8, on the
 //! CPU. The Japanese tier is the ReazonSpeech zipformer transducer.
 
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use hayamimi_gpu::session_lock::lock_for_session;
@@ -12,6 +13,7 @@ use sherpa_onnx::{
 };
 
 use crate::audio::SAMPLE_RATE;
+use crate::cap::{Cut, DecodeCap, join_sentences, pad_into};
 use crate::error::AsrError;
 use crate::lid::sv_lid_tag;
 use crate::route::Tier;
@@ -167,17 +169,32 @@ pub fn tag_from(raw: &str) -> LangTag {
 pub struct Recognizer {
     inner: OfflineRecognizer,
     tier: Tier,
+    cap: DecodeCap,
+}
+
+/// What one buffer was read as: one call on the whole buffer, which still
+/// holds the whole result, or a call per piece, which leaves only the text.
+enum Reading {
+    Whole(OfflineStream, String),
+    Pieces(String, Cut),
 }
 
 impl Recognizer {
-    /// Opens the Japanese transducer under `models`. A missing file is
-    /// refused first: the C library ends the whole process on a missing model.
+    /// Opens the Japanese transducer under `models`, with no cap on the length
+    /// of a decode. A missing file is refused first: the C library ends the
+    /// whole process on a missing model.
     pub fn open(models: &Path) -> Result<Self, AsrError> {
-        Recognizer::open_tier(models, Tier::Rz, THREADS)
+        Recognizer::open_tier(models, Tier::Rz, THREADS, DecodeCap::Off)
     }
 
     /// Opens the recognizer of `tier` under `models` with `threads` threads.
-    pub fn open_tier(models: &Path, tier: Tier, threads: i32) -> Result<Self, AsrError> {
+    /// `cap` limits the audio of one decode of the Japanese tier.
+    pub fn open_tier(
+        models: &Path,
+        tier: Tier,
+        threads: i32,
+        cap: DecodeCap,
+    ) -> Result<Self, AsrError> {
         let mut config = OfflineRecognizerConfig::default();
         model_of(tier, models, &mut config.model_config)?;
         decoding_of(tier, &mut config);
@@ -189,7 +206,7 @@ impl Recognizer {
             OfflineRecognizer::create(&config)
         }
         .ok_or(AsrError::Create("recognizer"))?;
-        Ok(Recognizer { inner, tier })
+        Ok(Recognizer { inner, tier, cap })
     }
 
     /// Runs the model on one buffer; the stream still holds the whole result.
@@ -203,17 +220,53 @@ impl Recognizer {
         Ok((stream, text))
     }
 
+    /// Runs the model on each piece of `samples` and joins the sentences.
+    fn run_pieces(&self, samples: &[f32], pieces: &[Range<usize>]) -> Result<String, AsrError> {
+        let mut padded = Vec::new();
+        let mut sentences = Vec::with_capacity(pieces.len());
+        for piece in pieces {
+            pad_into(&mut padded, &samples[piece.clone()]);
+            sentences.push(self.run(&padded)?.1);
+        }
+        Ok(join_sentences(&sentences, self.cap.folds()))
+    }
+
+    /// Reads one buffer: in one call, or in pieces when the cap cuts it.
+    fn read(&self, samples: &[f32]) -> Result<Reading, AsrError> {
+        let Some(pieces) = self.cap.plan(self.tier, samples) else {
+            let (stream, text) = self.run(samples)?;
+            return Ok(Reading::Whole(stream, text));
+        };
+        let text = self.run_pieces(samples, &pieces)?;
+        let cut = self.cap.cut_of(samples.len(), pieces.len());
+        Ok(Reading::Pieces(text, cut))
+    }
+
     /// Decodes one buffer of 16 kHz samples.
     pub fn decode(&self, samples: &[f32]) -> Result<String, AsrError> {
-        Ok(self.run(samples)?.1)
+        match self.read(samples)? {
+            Reading::Whole(_, text) | Reading::Pieces(text, _) => Ok(text),
+        }
     }
 
     /// Decodes one buffer and reads the language the model put on it. Only
     /// SenseVoice identifies languages; a tag it did not write, or one that
     /// cannot be read, is [`LangTag::Unknown`] and does not stop the decode.
+    /// A buffer read in pieces has no tag to read: it is the Japanese tier's.
     pub fn decode_tagged(&self, samples: &[f32]) -> Result<(String, LangTag), AsrError> {
-        let (stream, text) = self.run(samples)?;
-        Ok((text, self.tag_of(&stream)))
+        let (text, tag, _) = self.decode_noted(samples)?;
+        Ok((text, tag))
+    }
+
+    /// [`Recognizer::decode_tagged`] and how the buffer was cut, when it was.
+    pub(crate) fn decode_noted(
+        &self,
+        samples: &[f32],
+    ) -> Result<(String, LangTag, Option<Cut>), AsrError> {
+        Ok(match self.read(samples)? {
+            Reading::Whole(stream, text) => (text, self.tag_of(&stream), None),
+            Reading::Pieces(text, cut) => (text, LangTag::NotApplicable, Some(cut)),
+        })
     }
 
     fn tag_of(&self, stream: &OfflineStream) -> LangTag {
@@ -299,7 +352,8 @@ mod tests {
     #[test]
     fn every_tier_without_its_files_is_refused_before_the_c_library_is_called() {
         for tier in Tier::ALL {
-            let said = Recognizer::open_tier(Path::new("no-such-models"), tier, 1).err();
+            let said =
+                Recognizer::open_tier(Path::new("no-such-models"), tier, 1, DecodeCap::Off).err();
             assert!(
                 matches!(said, Some(AsrError::MissingModel(_))),
                 "{tier:?}: {said:?}"

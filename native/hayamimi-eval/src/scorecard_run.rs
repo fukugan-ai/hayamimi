@@ -16,7 +16,7 @@ use hayamimi_asr::audio::read_wav;
 use hayamimi_asr::itn::{self, Overrides};
 use hayamimi_asr::lid::{self, Lid};
 use hayamimi_asr::route::{Policy, Request, Router};
-use hayamimi_asr::{Gpu, Recognizers, ResidentEvent};
+use hayamimi_asr::{DecodeCap, Gpu, Recognizers, ResidentEvent};
 
 use crate::error::EvalError;
 use crate::manifest::read_rows;
@@ -30,6 +30,8 @@ pub struct Options {
     pub models: PathBuf,
     pub sets: Vec<PathBuf>,
     pub max_resident: Option<NonZeroUsize>,
+    /// The longest audio one decode of the Japanese tier reads.
+    pub decode_cap: DecodeCap,
 }
 
 /// A clip of an evaluation set.
@@ -69,7 +71,8 @@ fn fallback_event(event: &ResidentEvent) -> Option<&'static str> {
         ResidentEvent::CutIntoChunks { .. } => Some("model.fallback.chunks"),
         ResidentEvent::Loaded { .. }
         | ResidentEvent::Evicted { .. }
-        | ResidentEvent::LangUnknown => None,
+        | ResidentEvent::LangUnknown
+        | ResidentEvent::DecodeChunked { .. } => None,
     }
 }
 
@@ -98,7 +101,12 @@ fn open_router(options: &Options) -> Result<Router<Recognizers, Lid>, EvalError>
             "the identifier is not installed, so no language can be detected",
         )));
     };
-    let recognizers = Recognizers::new(&options.models, THREADS, options.max_resident);
+    let recognizers = Recognizers::new(
+        &options.models,
+        THREADS,
+        options.max_resident,
+        options.decode_cap,
+    );
     Ok(Router::new(
         recognizers,
         Some(identifier),

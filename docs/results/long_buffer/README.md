@@ -70,3 +70,34 @@ Per clip, whole and one by one are the same decode of the same samples: `ja_10` 
 - Base: `bdc071a` of `design/long-buffer`, `rustc 1.99.1 (58cf8f9c3 2026-10-13)`, `cargo test --release`.
 - The four ignored tests of `rp89.rs` ran in one process on parallel test threads. Whether the decoder ran on the GPU or the CPU was left to `Gpu::Try` and is not recorded.
 - These numbers come from one run; a second run was not made.
+
+# RP-90: the cap (C = 10 s, O = 0, W = 2 s) did not reach the one-by-one error
+
+LB-1 built the cap (`native/hayamimi-asr/src/cap.rs`) and ran RP-90 on the six buffers above. The judgement of RP-90 failed: the capped decode is 136612 millionths above the clips decoded one by one, and 20000 are allowed. By the stop condition of LB-1, W and the cut rules were not tuned; this table goes to the LB-2 sweep.
+
+    cd native && cargo test --release -p hayamimi-asr --test rp90 -j 2 -- --ignored --nocapture
+
+CER in millionths with (distance / reference characters). "chars" is the characters of the capped output against the reference characters.
+
+| buffer | uncapped | one by one | capped | chars | cut samples |
+|---|---|---|---|---|---|
+| L1 200 ms | 285714 (16/56) | 107142 (6/56) | 178571 (10/56) | 54 / 56 | 109440, 223040 |
+| L1 500 ms | 321428 (18/56) | 107142 (6/56) | 178571 (10/56) | 54 / 56 | 109440, 227840 |
+| L2 200 ms | 553846 (36/65) | 76923 (5/65) | 292307 (19/65) | 52 / 65 | 119040, 228480 |
+| L2 500 ms | 661538 (43/65) | 76923 (5/65) | 292307 (19/65) | 52 / 65 | 124160, 233280 |
+| L3 200 ms | 258064 (16/62) | 80645 (5/62) | 129032 (8/62) | 58 / 62 | 125120, 226240 |
+| L3 500 ms | 193548 (12/62) | 80645 (5/62) | 258064 (16/62) | 66 / 62 | 125120, 241280 |
+| total | 385245 (141/366) | 87431 (32/366) | 224043 (82/366) | | |
+
+The cap halves the gap to the uncapped decode (385245 to 224043) but does not close it. The uncapped decode fails the same judgement (297814 above), as the control `the_uncapped_decode_fails_the_same_judgement` expects.
+
+## What was seen
+
+- The pipeline itself is sound. With the cuts placed by hand in the middle of each gap, the same pieces read 6/56 (L1) and 5/65 (L2), the one-by-one numbers.
+- The balanced targets `floor(k*T/N)` with a window of +-1 s do not fall in the gaps. The quietest 20 ms frame inside the window is often inside speech, and a word cut there is lost or garbled. L2 lost "駿河さん" and "体感はどうでしょうか近藤さん" this way.
+- L3 500 ms reads more characters than its reference (66 against 62). `ja_04` holds speech that its reference does not carry; the padding lets the model read it in a piece of its own, and that raises the error although the buffer is read more completely.
+- A cap of 2 s (RP-91 `a_two_second_cap_changes_a_short_clip`) makes the heads of the pieces read filler words, 138/291 against 17/291.
+
+## For LB-2
+
+W (2 s, provisional) and the target rule are the suspects: a wider window, or a window centred on silence found first (a gap of at least 150 ms) with the balanced target used only when no gap exists, are the two to sweep. RP-91 is green (the cap changes nothing for a buffer within it), and the default stays `off`.

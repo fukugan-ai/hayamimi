@@ -4,9 +4,9 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
-use hayamimi_asr::DEFAULT_MAX_RESIDENT;
 use hayamimi_asr::endpoint::Mode as Endpoint;
 use hayamimi_asr::route::{Policy, is_routable};
+use hayamimi_asr::{DEFAULT_MAX_RESIDENT, DecodeCap};
 
 use crate::inputs::{Input, IoArgs};
 use crate::strings::keys;
@@ -16,6 +16,9 @@ pub const DEFAULT_PORT: u16 = 8833;
 const DEFAULT_MODELS: &str = "models";
 pub const DEFAULT_MIN_SILENCE: f32 = 0.30;
 pub const DEFAULT_MAX_SPEECH: f32 = 12.0;
+/// The cap on the audio of one decode of the Japanese tier: off, so that a run
+/// reads as it did before the cap existed unless `--decode-cap` is given.
+pub const DEFAULT_DECODE_CAP: DecodeCap = DecodeCap::Off;
 /// The memory in use on the GPU, in MiB, at which a GPU stage moves to the
 /// CPU. It counts every process of the GPU, the translator's included.
 pub const DEFAULT_GPU_BUDGET_MIB: u64 = 14_000;
@@ -59,6 +62,8 @@ pub struct Args {
     pub max_resident: Option<NonZeroUsize>,
     /// The GPU memory in use, in MiB, at which a GPU stage moves to the CPU.
     pub gpu_budget_mib: u64,
+    /// The longest audio one decode of the Japanese tier reads (`--decode-cap`).
+    pub decode_cap: DecodeCap,
     /// Where the audio comes from besides the wav file.
     pub io: IoArgs,
 }
@@ -128,6 +133,11 @@ fn positive_mib(text: &str) -> Result<u64, ArgError> {
         Ok(value) if value > 0 => Ok(value),
         _ => Err(ArgError::BadNumber),
     }
+}
+
+/// `--decode-cap`: `off`, or the seconds of audio one decode reads at most.
+fn decode_cap_of(text: &str) -> Result<DecodeCap, ArgError> {
+    DecodeCap::parse(text).map_err(|_| ArgError::BadNumber)
 }
 
 /// The arguments not yet read.
@@ -209,6 +219,7 @@ impl Args {
             refine: true,
             max_resident: DEFAULT_MAX_RESIDENT,
             gpu_budget_mib: DEFAULT_GPU_BUDGET_MIB,
+            decode_cap: DEFAULT_DECODE_CAP,
             io: IoArgs::default(),
         }
     }
@@ -231,6 +242,7 @@ impl Args {
             "--no-refine" => self.refine = false,
             "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
             "--gpu-budget" => self.gpu_budget_mib = positive_mib(value_of(rest)?)?,
+            "--decode-cap" => self.decode_cap = decode_cap_of(value_of(rest)?)?,
             _ => return self.io.apply(option, rest),
         }
         Ok(())
@@ -381,6 +393,39 @@ mod tests {
         assert_eq!(budget("13999")?, 13_999);
         for bad in ["0", "-5", "x", "1.5"] {
             assert_eq!(budget(bad), Err(ArgError::BadNumber), "{bad}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_decode_is_not_capped_unless_a_cap_is_given() -> Result<(), ArgError> {
+        assert_eq!(run(&["--wav", "a.wav"])?.decode_cap, DecodeCap::Off);
+        let cap = |text: &str| run(&["--wav", "a", "--decode-cap", text]).map(|a| a.decode_cap);
+        assert_eq!(cap("off")?, DecodeCap::Off);
+        assert_eq!(cap("10")?.cap_seconds(), Some(10.0));
+        assert_eq!(cap("8.5")?.cap_seconds(), Some(8.5));
+        for bad in ["0", "-1", "x", "", "nan", "0.01"] {
+            assert_eq!(cap(bad), Err(ArgError::BadNumber), "{bad}");
+        }
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--decode-cap"])),
+            Err(ArgError::MissingValue)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn both_help_texts_name_the_decode_cap_option() -> Result<(), String> {
+        use hayamimi_relay::lang::Lang;
+        for lang in [Lang::En, Lang::Ja] {
+            let table = crate::strings::Strings::embedded(lang)?;
+            assert!(
+                table
+                    .cli_text(keys::HELP)
+                    .lines()
+                    .any(|line| line.trim_start().starts_with("--decode-cap ")),
+                "{lang:?} does not list --decode-cap"
+            );
         }
         Ok(())
     }

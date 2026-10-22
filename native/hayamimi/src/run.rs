@@ -23,7 +23,9 @@ use hayamimi_asr::punct::Punctuator;
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::route::{Policy, Refined, RouteError};
 use hayamimi_asr::vad::{Sensitivity, VadSettings};
-use hayamimi_asr::{AsrError, Engine, Gpu, Reason, Settings, check_library};
+use hayamimi_asr::{
+    AsrError, DecodeCap, Engine, Gpu, Reason, ResidentEvent, Settings, check_library,
+};
 use hayamimi_gpu::memory::MemoryMeter;
 use hayamimi_relay::lan::{self, LanUrl};
 use hayamimi_relay::logging::Level;
@@ -103,6 +105,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.diagnose = args.diagnose;
     settings.gpu = gpu;
     settings.max_resident = args.max_resident;
+    settings.decode_cap = args.decode_cap;
     settings.endpoint = args.endpoint;
     settings.policy = args.policy();
     let mut notice = None;
@@ -304,6 +307,10 @@ impl<R: Reread, P: Restore> Reread for Polish<R, P> {
         Ok(refined)
     }
 
+    fn take_events(&mut self) -> Vec<ResidentEvent> {
+        self.inner.take_events()
+    }
+
     fn release(&mut self) {
         self.inner.release();
     }
@@ -335,11 +342,12 @@ fn open_cpu_punctuator(models: PathBuf) -> Result<Punctuator, AsrError> {
 fn polished_rereader(
     models: PathBuf,
     policy: Policy,
+    decode_cap: DecodeCap,
     controls: Arc<Controls>,
     strings: Strings,
     hub: Hub,
 ) -> Polish<Rereader, Punctuator> {
-    let reader = Rereader::new(&models, policy);
+    let reader = Rereader::new(&models, policy, decode_cap);
     let open: Opener<Punctuator> = Box::new(move || open_cpu_punctuator(models));
     let say: Say = Box::new(move |told| tell(&strings, &hub, told));
     let mut polish = Polish::new(reader, controls, open, say);
@@ -372,9 +380,9 @@ fn start_refiner_with(
     if !args.refine {
         return None;
     }
-    let (models, policy) = (args.models.clone(), args.policy());
+    let (models, policy, cap) = (args.models.clone(), args.policy(), args.decode_cap);
     let (live, own, told) = (Arc::clone(controls), strings.clone(), hub.clone());
-    let make: Maker = Box::new(move || polished_rereader(models, policy, live, own, told));
+    let make: Maker = Box::new(move || polished_rereader(models, policy, cap, live, own, told));
     let source = args.io.source_name();
     match start(make, hub.clone(), strings.clone(), source) {
         Ok(refiner) => Some(refiner),
@@ -730,6 +738,7 @@ mod tests {
             refine: true,
             max_resident: None,
             gpu_budget_mib: 14_000,
+            decode_cap: DecodeCap::Off,
             io: IoArgs {
                 input,
                 mic_device: Some(String::from("usb")),
@@ -1440,7 +1449,7 @@ mod tests {
         let mut engine = Engine::open(settings)?;
         assert!(engine.warm_up().is_some_and(|read| read.is_ok()));
         let live = rss_kib()?;
-        let mut reader = Rereader::new(&models, Policy::balanced());
+        let mut reader = Rereader::new(&models, Policy::balanced(), DecodeCap::Off);
         let audio = group_audio()?;
         let began = Instant::now();
         let refined = reader

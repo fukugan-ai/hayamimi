@@ -11,7 +11,7 @@ use std::num::NonZeroUsize;
 
 use hayamimi_asr::audio::{SAMPLE_RATE, read_wav};
 use hayamimi_asr::retry::Splitter;
-use hayamimi_asr::{LangTag, Reason, Recognizers, ResidentEvent, Tier};
+use hayamimi_asr::{DecodeCap, LangTag, Reason, Recognizers, ResidentEvent, Tier};
 use hayamimi_eval::cer::cer;
 use serde_json::Value;
 use support::{TestResult, models_dir, read_json, testdata_dir};
@@ -43,11 +43,14 @@ fn clip(set: &str, lang: &str, index: usize) -> Result<Clip, Box<dyn std::error:
     })
 }
 
+/// Recognizers with no cap on the length of a decode: `decode_whole` is the
+/// reference of one call on a whole buffer.
 fn recognizers(cap: Option<usize>) -> Result<Recognizers, Box<dyn std::error::Error>> {
     Ok(Recognizers::new(
         &models_dir()?,
         THREADS,
         cap.and_then(NonZeroUsize::new),
+        DecodeCap::Off,
     ))
 }
 
@@ -170,6 +173,9 @@ fn kinds(events: &[ResidentEvent]) -> Vec<String> {
             }
             ResidentEvent::CutIntoChunks { .. } => String::from("chunks"),
             ResidentEvent::LangUnknown => String::from("lang unknown"),
+            ResidentEvent::DecodeChunked { tier, cut } => {
+                format!("decode chunked {} into {}", tier.name(), cut.pieces)
+            }
         })
         .collect()
 }

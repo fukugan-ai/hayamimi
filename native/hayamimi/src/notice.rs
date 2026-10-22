@@ -124,7 +124,8 @@ impl Notice {
             ResidentEvent::CutIntoChunks { reason } => Some(Notice::cut_into_chunks(*reason)),
             ResidentEvent::Loaded { .. }
             | ResidentEvent::Evicted { .. }
-            | ResidentEvent::LangUnknown => None,
+            | ResidentEvent::LangUnknown
+            | ResidentEvent::DecodeChunked { .. } => None,
         }
     }
 

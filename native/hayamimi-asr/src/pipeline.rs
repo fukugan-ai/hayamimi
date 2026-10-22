@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, WINDOW, windows};
+use crate::cap::DecodeCap;
 use crate::decode::{Recognizers, ResidentEvent};
 use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State, Tail};
 use crate::error::AsrError;
@@ -73,6 +74,8 @@ pub struct Settings {
     pub gpu: Gpu,
     /// How many recognizers besides the Japanese one stay in memory; `None` keeps them all.
     pub max_resident: Option<NonZeroUsize>,
+    /// The longest audio one decode of the Japanese tier reads.
+    pub decode_cap: DecodeCap,
     /// How languages are chosen. A policy that forces a language opens no
     /// language identifier.
     pub policy: Policy,
@@ -88,6 +91,7 @@ impl Settings {
             policy: Policy::single("ja"),
             gpu: Gpu::Try,
             max_resident: DEFAULT_MAX_RESIDENT,
+            decode_cap: DecodeCap::Off,
             vad: VadSettings::default(),
             stages: Stages::default(),
             itn_overrides: Overrides::default(),
@@ -399,7 +403,12 @@ fn open_route(
         Mode::Silence => Vad::open(&settings.models, settings.vad),
     };
     let vad = open_or_disable(opened, Stage::Vad, fallbacks)?;
-    let mut recognizers = Recognizers::new(&settings.models, THREADS, settings.max_resident);
+    let mut recognizers = Recognizers::new(
+        &settings.models,
+        THREADS,
+        settings.max_resident,
+        settings.decode_cap,
+    );
     let recognizer_out = recognizers.load(Tier::Rz)?;
     if let Some(reason) = recognizer_out {
         fallbacks.push(disabled(Stage::Recognizer, reason));
@@ -1364,6 +1373,12 @@ mod tests {
         assert_eq!(DEFAULT_MAX_RESIDENT, NonZeroUsize::new(3));
         let settings = Settings::new(PathBuf::from("models"));
         assert_eq!(settings.max_resident, DEFAULT_MAX_RESIDENT);
+    }
+
+    #[test]
+    fn the_decode_cap_starts_off() {
+        let settings = Settings::new(PathBuf::from("models"));
+        assert_eq!(settings.decode_cap, DecodeCap::Off);
     }
 
     #[test]

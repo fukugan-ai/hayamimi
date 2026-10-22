@@ -18,6 +18,9 @@ Each binary below fails in the clone because it reads `testdata/` or `models/`, 
 | `rp18` | reads `models/silero_vad.onnx` | hayamimi-asr |
 | `rp68` | reads `models/silero_vad.onnx` | hayamimi-asr |
 | `r12b_live_vad` | reads `models/silero_vad.onnx` | hayamimi-asr |
+| `rp89` | reads `testdata/eval_real` and the ReazonSpeech model under `models/` | hayamimi-asr |
+| `rp90` | reads `testdata/eval_real` and the ReazonSpeech model under `models/` | hayamimi-asr |
+| `rp91` | reads `testdata/eval_real` and the ReazonSpeech model under `models/` | hayamimi-asr |
 | `r0b` | reads `testdata/` | hayamimi-eval |
 | `rb01` | reads `testdata/` | hayamimi-eval |
 | `rb02` | reads `testdata/` | hayamimi-eval |

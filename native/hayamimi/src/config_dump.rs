@@ -27,7 +27,7 @@ use hayamimi_asr::{decode, punct, recognizer, retry, vad};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::args::{self, ConfigDump, DEFAULT_MAX_SPEECH, DEFAULT_MIN_SILENCE};
+use crate::args::{self, ConfigDump, DEFAULT_DECODE_CAP, DEFAULT_MAX_SPEECH, DEFAULT_MIN_SILENCE};
 use crate::run::{EXIT_FAILED, EXIT_OK, EXIT_REFUSED};
 use crate::strings::{self, Strings, keys};
 
@@ -187,6 +187,16 @@ fn head_dropout_retry_section() -> Result<Value, DumpError> {
     }))
 }
 
+/// The cap on the audio of one decode of the Japanese tier, as `hayamimi`
+/// starts: `off`, or the seconds of a cap and of the overlap of its pieces.
+fn decode_cap_section() -> Value {
+    let cap = DEFAULT_DECODE_CAP;
+    json!({
+        "cap_s": cap.cap_seconds().map_or_else(|| json!("off"), |seconds| json!(seconds)),
+        "overlap_s": cap.overlap_seconds(),
+    })
+}
+
 /// The punctuation marks in code point order.
 fn sorted_marks() -> Vec<String> {
     let mut marks = MARKS.to_vec();
@@ -227,6 +237,7 @@ pub fn config() -> Result<Value, DumpError> {
         "vad": vad_section()?,
         "preroll": preroll_section(),
         "head_dropout_retry": head_dropout_retry_section()?,
+        "decode_cap": decode_cap_section(),
         "punctuation": punctuation_section()?,
         "itn": itn_section(),
     }))
@@ -415,6 +426,16 @@ mod tests {
     }
 
     #[test]
+    fn the_dump_says_the_decode_cap_is_off_by_default() -> TestResult {
+        let dump = config()?;
+        assert_eq!(
+            dump["decode_cap"],
+            json!({ "cap_s": "off", "overlap_s": 0.0 })
+        );
+        Ok(())
+    }
+
+    #[test]
     fn the_epoch_is_the_first_second_of_1970() {
         assert_eq!(utc_stamp(0), "1970-01-01T00:00:00Z");
     }
@@ -452,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn the_config_has_the_seven_sections() -> TestResult {
+    fn the_config_has_the_eight_sections() -> TestResult {
         let Value::Object(sections) = config()? else {
             return Err("the config is not an object".into());
         };
@@ -463,6 +484,7 @@ mod tests {
             "vad",
             "preroll",
             "head_dropout_retry",
+            "decode_cap",
             "punctuation",
             "itn",
         ];

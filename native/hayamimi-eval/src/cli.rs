@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
+use hayamimi_asr::DecodeCap;
 
 use crate::error::EvalError;
 use crate::{
@@ -92,6 +93,9 @@ struct ScorecardArgs {
     /// Recognizers kept in memory besides the Japanese one; 0 keeps all.
     #[arg(long, default_value_t = 3)]
     max_resident: usize,
+    /// The longest audio, in seconds, one Japanese decode reads; `off` reads any length in one call.
+    #[arg(long, default_value = "off", value_parser = DecodeCap::parse)]
+    decode_cap: DecodeCap,
 }
 
 #[derive(Args)]
@@ -350,6 +354,7 @@ fn scorecard(args: ScorecardArgs) -> Result<(), EvalError> {
         models: args.models,
         sets: args.sets,
         max_resident: std::num::NonZeroUsize::new(args.max_resident),
+        decode_cap: args.decode_cap,
     })?;
     scorecard::write_json(&args.out, &outcome.card)?;
     for clip in &outcome.clips {
@@ -459,6 +464,36 @@ mod tests {
     #[test]
     fn the_command_line_definition_is_consistent() {
         Cli::command().debug_assert();
+    }
+
+    /// The cap `scorecard` would decode with for these extra arguments.
+    fn scorecard_cap(extra: &[&str]) -> Result<DecodeCap, clap::Error> {
+        let mut argv = vec!["hayamimi-eval", "scorecard", "--sets", "s", "--out", "o"];
+        argv.extend_from_slice(extra);
+        match Cli::try_parse_from(argv)?.command {
+            Command::Scorecard(args) => Ok(args.decode_cap),
+            _ => Err(Cli::command().error(ErrorKind::UnknownArgument, "not scorecard")),
+        }
+    }
+
+    #[test]
+    fn the_scorecard_decodes_without_a_cap_unless_one_is_given() -> Result<(), clap::Error> {
+        assert_eq!(scorecard_cap(&[])?, DecodeCap::Off);
+        assert_eq!(scorecard_cap(&["--decode-cap", "off"])?, DecodeCap::Off);
+        let ten = scorecard_cap(&["--decode-cap", "10"])?;
+        assert_eq!(ten.cap_seconds(), Some(10.0));
+        Ok(())
+    }
+
+    #[test]
+    fn a_decode_cap_that_is_not_off_or_seconds_is_a_usage_error() {
+        for bad in ["0", "nan", "ten", "0.01"] {
+            let refused = scorecard_cap(&["--decode-cap", bad]);
+            assert!(
+                matches!(&refused, Err(error) if error.kind() == ErrorKind::ValueValidation),
+                "{bad}: {refused:?}"
+            );
+        }
     }
 
     #[test]

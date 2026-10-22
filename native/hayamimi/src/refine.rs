@@ -31,7 +31,7 @@ use hayamimi_asr::audio::{History, PREROLL_SECONDS, SAMPLE_RATE};
 use hayamimi_asr::lid::{Identify, script_corrected_lang};
 use hayamimi_asr::refine::{GROUP_GAP_SECONDS, GROUP_MAX_SECONDS, Span, majority_label};
 use hayamimi_asr::route::{Decode, Policy, Refined, RouteError, Router};
-use hayamimi_asr::{AsrError, Final, Recognizers};
+use hayamimi_asr::{AsrError, DecodeCap, Final, Recognizers, ResidentEvent};
 use hayamimi_relay::logging::Level;
 use serde_json::Value;
 
@@ -275,6 +275,12 @@ pub trait Reread {
     /// Reads `audio`, a group in `lang`, again.
     fn reread(&mut self, audio: &[f32], lang: &str) -> Result<Refined, RouteError>;
 
+    /// What the recognizers of the reader did since the last call, in order.
+    /// Called after every group, so that the events do not pile up.
+    fn take_events(&mut self) -> Vec<ResidentEvent> {
+        Vec::new()
+    }
+
     /// Gives back what the reader holds: its models. Called once, on the
     /// worker's thread, after the last group.
     fn release(&mut self) {}
@@ -314,9 +320,11 @@ pub struct Rereader {
 impl Rereader {
     /// A reader over the models in `models`. `policy` is the live one; its
     /// forced language is dropped, since each group names its own.
-    pub fn new(models: &Path, policy: Policy) -> Rereader {
+    /// `decode_cap` is the live one too: a group is read under the same cap.
+    pub fn new(models: &Path, policy: Policy, decode_cap: DecodeCap) -> Rereader {
         let given = Arc::new(Mutex::new(String::new()));
-        let recognizers = Recognizers::new(models, RECOGNIZER_THREADS, NonZeroUsize::new(1));
+        let recognizers =
+            Recognizers::new(models, RECOGNIZER_THREADS, NonZeroUsize::new(1), decode_cap);
         let policy = Policy {
             forced_lang: None,
             ..policy
@@ -330,6 +338,10 @@ impl Reread for Rereader {
     fn reread(&mut self, audio: &[f32], lang: &str) -> Result<Refined, RouteError> {
         lang.clone_into(&mut locked(&self.given));
         self.router.refine(audio, lang)
+    }
+
+    fn take_events(&mut self) -> Vec<ResidentEvent> {
+        self.router.decoder_mut().take_events()
     }
 
     fn release(&mut self) {
@@ -633,6 +645,17 @@ struct Output {
 }
 
 impl Output {
+    /// Logs the buffers the reader cut into pieces. The other events of its
+    /// recognizers (a model loaded or dropped) are not told: the refine pass
+    /// keeps its own recognizers, and the log speaks for the live ones.
+    fn tell_chunks(&self, events: Vec<ResidentEvent>) {
+        events
+            .iter()
+            .filter(|event| matches!(event, ResidentEvent::DecodeChunked { .. }))
+            .filter_map(|event| log::resident_line(&self.strings, event))
+            .for_each(|line| log::print(&line));
+    }
+
     /// Publishes the reading of `group`, or says it failed. `reading` is
     /// `None` when the recognizers failed. The `refine` event goes out before
     /// the log line, so that a line never delays a subtitle.
@@ -676,6 +699,7 @@ fn work<R: Reread>(queue: &Queue, mut reader: R, mut output: Output) {
             reader.reread(&group.audio, &group.lang)
         }));
         let refine_ms = started.elapsed().as_secs_f64() * 1000.0;
+        output.tell_chunks(reader.take_events());
         output.deliver(&group, read.ok().and_then(Result::ok), refine_ms);
         queue.done();
     }
@@ -1833,7 +1857,7 @@ mod tests {
     #[ignore = "measures; needs the models directory"]
     fn measure_rss_before_and_after_the_refine_router_is_made() -> Check {
         let before = rss_kib()?;
-        let reader = Rereader::new(&models_dir()?, Policy::balanced());
+        let reader = Rereader::new(&models_dir()?, Policy::balanced(), DecodeCap::Off);
         let after = rss_kib()?;
         eprintln!("VmRSS before = {before} KiB, after Rereader::new = {after} KiB");
         drop(reader);
@@ -1853,7 +1877,7 @@ mod tests {
             audio.extend(hayamimi_asr::audio::read_wav(&golden.join(clip))?);
         }
         audio.truncate(25 * SECOND);
-        let mut reader = Rereader::new(&models_dir()?, Policy::balanced());
+        let mut reader = Rereader::new(&models_dir()?, Policy::balanced(), DecodeCap::Off);
         let first = Instant::now();
         reader.reread(&audio, "ja")?;
         eprintln!(

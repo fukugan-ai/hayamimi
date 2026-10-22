@@ -16,7 +16,7 @@ use hayamimi_asr::lid::{self, Identify};
 use hayamimi_asr::ort_runtime::{Device, OrtRuntime};
 use hayamimi_asr::punct::Punctuator;
 use hayamimi_asr::recognizer::Recognizer;
-use hayamimi_asr::{Gpu, Reason, Tier};
+use hayamimi_asr::{DecodeCap, Gpu, Reason, Tier};
 use hayamimi_gpu::session_lock::set_enabled_for_test;
 use support::{GOLDEN, TestResult, models_dir};
 
@@ -87,7 +87,7 @@ fn open_punctuation() -> TestResult {
 }
 
 fn open_recognizer() -> TestResult {
-    Recognizer::open_tier(&models_dir()?, Tier::Rz, 1)?;
+    Recognizer::open_tier(&models_dir()?, Tier::Rz, 1, DecodeCap::Off)?;
     Ok(())
 }
 

@@ -17,93 +17,20 @@ mod support;
 use std::error::Error;
 use std::path::Path;
 
+use hayamimi_asr::DecodeCap;
+use hayamimi_asr::Recognizers;
 use hayamimi_asr::audio::{SAMPLE_RATE, read_wav};
-use hayamimi_asr::{Recognizers, Tier};
-use hayamimi_eval::cer::{Cer, cer, normalize_ja};
+use hayamimi_eval::cer::{Cer, cer};
 use hayamimi_eval::wav::read_wav as read_pcm;
 use serde_json::Value;
+use support::long::{GAPS, GROUPS, Gap, Group, Side, THREADS, eval_clip, measure, measure_each};
 use support::{Failure, TARGET, TestResult, models_dir, read_json, testdata_dir};
-
-const THREADS: i32 = 2;
 
 /// RP-89: the whole decode is at least this much worse (5.0 pt, in millionths).
 const DROP_MICROS: i128 = 50_000;
 
 /// RP-89, a buffer within the cap: the difference stays below this (1.0 pt).
 const NO_DROP_BELOW_MICROS: i128 = 10_000;
-
-/// A group of three clips, in the order they are joined.
-struct Group {
-    name: &'static str,
-    clips: [&'static str; 3],
-    refs: [&'static str; 3],
-    /// Reference characters after normalisation.
-    chars: usize,
-    /// The sample count of the joined file for each gap of `GAPS`.
-    lengths: [usize; 2],
-}
-
-const GROUPS: [Group; 3] = [
-    Group {
-        name: "L1",
-        clips: ["ja_10", "ja_13", "ja_15"],
-        refs: [
-            "勝利はしたものの１０万人以上の戦死者を出していた。",
-            "高校生２００人に聞きました。",
-            "模擬裁判に参加した大学１年生の本音とは。",
-        ],
-        chars: 56,
-        lengths: [323_218, 332_818],
-    },
-    Group {
-        name: "L2",
-        clips: ["ja_05", "ja_08", "ja_07"],
-        refs: [
-            "でも敦賀さん、９１歳力強い走りに変わっていきます。",
-            "けさの東京、風はなさそうですけどね、体感はどうでしょうか、近藤さん。",
-            "しっかり打ち切れるかです。",
-        ],
-        chars: 65,
-        lengths: [321_116, 330_716],
-    },
-    Group {
-        name: "L3",
-        clips: ["ja_03", "ja_09", "ja_04"],
-        refs: [
-            "そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを。",
-            "そしてもう一つ大きな勢力があります。",
-            "今、１００ｍのターンを迎える。",
-        ],
-        chars: 62,
-        lengths: [329_519, 339_119],
-    },
-];
-
-/// A silence between clips: its length in milliseconds (it names the file)
-/// and in samples.
-struct Gap {
-    millis: u32,
-    samples: usize,
-}
-
-const GAPS: [Gap; 2] = [
-    Gap {
-        millis: 200,
-        samples: 3_200,
-    },
-    Gap {
-        millis: 500,
-        samples: 8_000,
-    },
-];
-
-impl Group {
-    /// The reference of the joined buffer: the three references, in order,
-    /// with nothing between them.
-    fn reference(&self) -> String {
-        self.refs.concat()
-    }
-}
 
 // --- the shape of the material ------------------------------------------------
 
@@ -182,9 +109,9 @@ fn check_join(parts: &[&[i16]], gap: usize, joined: &[i16]) -> Result<(), Failur
     walk(parts, gap, joined)
 }
 
-/// The samples of one joined file of `dir`; the error names the path.
-fn read_material(dir: &Path, group: &Group, gap: &Gap) -> Result<Vec<i16>, Failure> {
-    let path = dir.join(format!("{}_g{}.wav", group.name, gap.millis));
+/// The samples of one joined file of `testdata`; the error names the path.
+fn read_material(testdata: &Path, group: &Group, gap: &Gap) -> Result<Vec<i16>, Failure> {
+    let path = group.material(testdata, gap);
     read_pcm(&path)
         .map(|wav| wav.samples)
         .map_err(|error| format!("{}: {error}", path.display()))
@@ -223,22 +150,6 @@ fn judge_no_drop(whole: u64, each: u64) -> Result<(), Failure> {
 
 // --- decoding and counting ----------------------------------------------------
 
-/// An error measurement and the number of characters the decoded text holds.
-#[derive(Clone, Copy, Default)]
-struct Side {
-    cer: Cer,
-    chars: usize,
-}
-
-impl Side {
-    fn plus(self, other: Side) -> Side {
-        Side {
-            cer: self.cer.plus(other.cer),
-            chars: self.chars + other.chars,
-        }
-    }
-}
-
 /// One buffer of the long material: its whole decode against the one-by-one
 /// decode of its clips, both scored against the reference of the group.
 struct Pair {
@@ -248,45 +159,15 @@ struct Pair {
     reference_chars: usize,
 }
 
+/// Recognizers with no cap on the length of a decode: the reference of one
+/// call on a whole buffer.
 fn recognizers() -> Result<Recognizers, Failure> {
-    Ok(Recognizers::new(&models_dir()?, THREADS, None))
-}
-
-/// The error of the whole-buffer decode of `samples` against `reference`.
-fn measure(
-    recognizers: &mut Recognizers,
-    samples: &[f32],
-    reference: &str,
-) -> Result<Side, Box<dyn Error>> {
-    let decoded = recognizers.decode_whole(Tier::Rz, samples)?;
-    if decoded.tier != Tier::Rz {
-        return Err(format!("the Japanese tier did not answer; {:?} did", decoded.tier).into());
-    }
-    Ok(Side {
-        cer: cer(reference, &decoded.text),
-        chars: normalize_ja(&decoded.text).len(),
-    })
-}
-
-/// The samples of the clip `name` of `testdata/eval_real`.
-fn eval_clip(testdata: &Path, name: &str) -> Result<Vec<f32>, Box<dyn Error>> {
-    Ok(read_wav(
-        &testdata.join("eval_real").join(format!("{name}.wav")),
-    )?)
-}
-
-/// The clips decoded one by one, each against its own reference, summed.
-fn measure_each(
-    recognizers: &mut Recognizers,
-    testdata: &Path,
-    group: &Group,
-) -> Result<Side, Box<dyn Error>> {
-    let mut total = Side::default();
-    for (name, reference) in group.clips.iter().zip(group.refs) {
-        let samples = eval_clip(testdata, name)?;
-        total = total.plus(measure(recognizers, &samples, reference)?);
-    }
-    Ok(total)
+    Ok(Recognizers::new(
+        &models_dir()?,
+        THREADS,
+        None,
+        DecodeCap::Off,
+    ))
 }
 
 /// Both joined buffers of a group, each against the one-by-one decode.
@@ -298,12 +179,10 @@ fn measure_group(
     let each = measure_each(recognizers, testdata, group)?;
     let mut pairs = Vec::with_capacity(GAPS.len());
     for gap in &GAPS {
-        let path = testdata
-            .join("long_ja")
-            .join(format!("{}_g{}.wav", group.name, gap.millis));
+        let path = group.material(testdata, gap);
         let whole = measure(recognizers, &read_wav(&path)?, &group.reference())?;
         pairs.push(Pair {
-            label: format!("{} gap {} ms", group.name, gap.millis),
+            label: group.label(gap),
             whole,
             each,
             reference_chars: group.chars,
@@ -562,8 +441,8 @@ fn the_long_material_is_the_three_clips_joined_by_zero_gaps() -> TestResult {
             .collect::<Result<Vec<_>, _>>()?;
         let parts: Vec<&[i16]> = sources.iter().map(Vec::as_slice).collect();
         for (gap, length) in GAPS.iter().zip(group.lengths) {
-            let joined = read_material(&testdata.join("long_ja"), group, gap)?;
-            assert_eq!(joined.len(), length, "{} gap {} ms", group.name, gap.millis);
+            let joined = read_material(&testdata, group, gap)?;
+            assert_eq!(joined.len(), length, "{}", group.label(gap));
             check_join(&parts, gap.samples, &joined)?;
         }
     }

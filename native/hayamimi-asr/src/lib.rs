@@ -8,6 +8,7 @@
 
 pub mod audio;
 mod backend;
+pub mod cap;
 pub mod cluster;
 pub mod decode;
 pub mod diarize;
@@ -34,6 +35,7 @@ pub mod speaker_stage;
 pub mod tier;
 pub mod vad;
 
+pub use cap::DecodeCap;
 pub use decode::{Decoded, Recognizers, ResidentEvent};
 pub use error::AsrError;
 pub use fallback::{Fallback, Gpu, Reason, Stage, To};

@@ -3,6 +3,8 @@
 //! Each test binary uses its own subset.
 #![allow(dead_code)]
 
+pub mod long;
+
 use std::path::{Path, PathBuf};
 
 /// What a `check_*` function returns for a wrong input: a message that

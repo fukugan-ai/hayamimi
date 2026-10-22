@@ -29,6 +29,7 @@
 "asr.model.loaded" = "A recognizer was loaded"
 "asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
 "asr.lang.unknown" = "The language tag of a SenseVoice result could not be read; the language is unknown"
+"asr.decode.chunked" = "A buffer longer than the decode cap was cut at its quietest frames and read in pieces"
 "asr.warmup.decoded" = "The recognizer read ten seconds of silence once, and the punctuation model one sentence when it is on, before the first utterance"
 "asr.warmup.failed" = "A start-up read (the decode or the punctuation) failed; the run goes on without it"
 "gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"
@@ -77,6 +78,7 @@ options:
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
   --max-resident <n>   recognizers kept in memory besides the Japanese one (default 3; 0 keeps all)
   --gpu-budget <MiB>   GPU memory in use at which a stage moves to the CPU (default 14000)
+  --decode-cap <sec>   longest audio one Japanese decode reads: longer audio is cut at its quietest frames and read in pieces (default off)
   --gpu-diagnose       log where the nodes of each GPU model were placed
   --no-refine          do not read the groups of finished utterances again
   --help               show this text"""
