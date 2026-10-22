@@ -447,6 +447,20 @@ impl Recognizers {
         samples: &[f32],
     ) -> Result<String, AsrError> {
         let (pieces, speech_seconds) = self.pieces(samples)?;
+        self.retry_pieces(tier, lang, text, pieces, speech_seconds)
+    }
+
+    /// The second half of the split retry, once the buffer is cut: the pieces
+    /// are decoded again only when `text` is sparse for the speech time
+    /// `speech_seconds`, and the result stands only when it is a recovery.
+    fn retry_pieces(
+        &mut self,
+        tier: Tier,
+        lang: &str,
+        text: &str,
+        pieces: Pieces,
+        speech_seconds: f64,
+    ) -> Result<String, AsrError> {
         let Some(pieces) = pieces else {
             return Ok(text.to_owned());
         };
@@ -782,6 +796,27 @@ mod tests {
         let kept = recognizers.retry_if_truncated(Tier::Rz, "ja", WHOLE, &vec![0.0; 3 * 16_000])?;
         assert_eq!(kept, WHOLE);
         assert!(recognizers.take_events().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn split_retry_stands_down_when_the_speech_measure_clears_the_buffer_alarm()
+    -> Result<(), AsrError> {
+        // The buffer-length alarm: 18 characters over 30 s is sparse.
+        assert!(looks_truncated(WHOLE, 30.0, 30.0, "ja"));
+        let mut recognizers = nothing_installed();
+        // The detector found 6 s of speech in it: the same text is dense enough,
+        // so no tier is looked for and nothing is decoded.
+        let pieces = Some(vec![vec![0.0; 16_000]; 2]);
+        let kept = recognizers.retry_pieces(Tier::Rz, "ja", WHOLE, pieces, 6.0)?;
+        assert_eq!(kept, WHOLE);
+        assert!(recognizers.unavailable.is_empty());
+        // The control: a speech measure that keeps the alarm up goes on to look
+        // for the tier (it is not installed here, so the text still stands).
+        let pieces = Some(vec![vec![0.0; 16_000]; 2]);
+        let kept = recognizers.retry_pieces(Tier::Rz, "ja", WHOLE, pieces, 30.0)?;
+        assert_eq!(kept, WHOLE);
+        assert!(recognizers.unavailable.contains_key(&Tier::Rz));
         Ok(())
     }
 

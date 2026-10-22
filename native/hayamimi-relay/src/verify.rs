@@ -822,6 +822,29 @@ mod tests {
     }
 
     #[test]
+    fn digits_pass_when_source_has_no_ascii_digits() {
+        // The number is written in kanji, so there is no digit to carry over.
+        let said = check("午後三時から始まります", "It starts at 3 pm", Lang::Ja);
+        assert_eq!(said, Ok(Verdict::Ok));
+    }
+
+    #[test]
+    fn digits_pass_on_exact_and_superset() {
+        // `3:00` holds a `00` the source does not have; `500` is the same on both sides.
+        assert_eq!(check("3時です", "It is 3:00", Lang::Ja), Ok(Verdict::Ok));
+        assert_eq!(
+            check("500円です", "It costs 500 yen", Lang::Ja),
+            Ok(Verdict::Ok)
+        );
+    }
+
+    #[test]
+    fn digits_fail_on_mangled_number() {
+        let said = check("500万円です", "It costs 5 pounds", Lang::Ja);
+        assert_eq!(said, Ok(Verdict::Held(HoldReason::Number)));
+    }
+
+    #[test]
     fn a_polite_apology_is_not_a_negation() {
         let said = check(
             "すみません、少し音声が途切れました。",

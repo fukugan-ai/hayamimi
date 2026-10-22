@@ -144,6 +144,39 @@ mod tests {
         assert_eq!(replacements.pairs()[1].0, "b");
     }
 
+    /// Where the tests that need a file make it; the directory is not tracked.
+    const SCRATCH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../target/unit-tmp");
+
+    fn pair(wrong: &str, right: &str) -> (String, String) {
+        (wrong.to_owned(), right.to_owned())
+    }
+
+    #[test]
+    fn load_replacements_formats() -> Result<(), Box<dyn std::error::Error>> {
+        let text = "# comment\nA=B\nC\tD\nE→F\n\n";
+        let directory = Path::new(SCRATCH).join(format!("replace-formats-{}", std::process::id()));
+        std::fs::create_dir_all(&directory)?;
+        let file = directory.join("dict.txt");
+        std::fs::write(&file, text)?;
+        let loaded = Replacements::load(&file)?;
+        assert_eq!(
+            loaded.pairs(),
+            [pair("A", "B"), pair("C", "D"), pair("E", "F")]
+        );
+        assert_eq!(loaded, Replacements::parse(text));
+        Ok(())
+    }
+
+    #[test]
+    fn load_replacements_empty_path() {
+        // No dictionary path is `None`, so nothing is loaded and the settings
+        // hold the empty dictionary, which leaves a text as it is.
+        let none = crate::pipeline::Settings::new(std::path::PathBuf::new()).replacements;
+        assert!(none.is_empty());
+        assert_eq!(none, Replacements::parse(""));
+        assert_eq!(none.apply("abc"), "abc");
+    }
+
     #[test]
     fn a_missing_file_is_an_io_error() {
         let said = Replacements::load(Path::new("no-such-dictionary.txt"));
