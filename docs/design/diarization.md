@@ -254,16 +254,18 @@ DER は Miss（参照にある発話を検出できなかった時間）、False
   **推薦: まずこれをベースラインに使う。** 学術的に確立した参照値との
   比較がしやすい。
 - **[VoxConverse](https://github.com/joonson/voxconverse)**
-  (CC BY 4.0、YouTube由来の"in the wild"音声、開発セット20.3h/216本、
-  テストセット53.7h/310本、話者数1〜20+）: BGM・雑音・話者数のばらつきが
+  (CC BY 4.0、研究目的に限る、動画の著作権は元の持ち主に残る、YouTube由来の"in the wild"音声、
+  開発セット216本（1,218分、約20.3h）、テストセット232本（2,612分、約43.5h）、話者数1〜21）: BGM・雑音・話者数のばらつきが
   大きく、hayamimi が実際に想定する「配信・対談・雑談」的な音響条件に近い。
   AMIより難しく、実運用に近い誤り傾向を見るのに向く。
+  取り方、測る本数、閾値は §22 に在る。
 - 両データセットとも英語中心で日本語コンテンツを含まない。
   DER自体は言語非依存の指標（音声区間と話者境界の一致度）なので技術的な
   妥当性は損なわれないが、**hayamimi の主戦場である日本語コンテンツでの
   実地確認には別途、開発者自身が権利を持つ/許諾を得た日本語多人数音声
   （録音同意の取れた対談等）でのスポットチェックを併用すべき**。
   `testdata/two_speakers.wav`（出所不明）はこの用途にも使わない。
+  日本語の素材（話者 id の付いた読み上げを並べた合成と、同意を得た録音の形）は §22 に在る。
 
 ### 導入コスト
 
@@ -274,6 +276,7 @@ DER は Miss（参照にある発話を検出できなかった時間）、False
 - VoxConverse: 開発セットの音声+RTTM正解ラベルはGitHubリポジトリと
   音声アーカイブから取得。RTTM形式はpyannote.metrics/simpladerどちらも
   パース可能（RTTMパーサは自作 or `pyannote.database` 経由）。
+  取得と展開の受入は §22 の DM-1、DM-2、DM-4 に在る。
 
 ## 5. 段階的実装計画
 
@@ -3310,6 +3313,354 @@ RTF 0.017〜0.035、seg+embed込みで§16と同オーダー）が、基準1・2
   （前述の通り工数見積もりに留めた）。将来これを試すなら、まず
   `NVIDIA-NeMo/NeMo#15077`の解決状況を確認するところから。
 
+## 22. 話者分けの評価素材（英語の VoxConverse、日本語の合成、手元の音声の棚卸し）
+
+AMI の 5 会議（`testdata/eval_diar/`）だけでは、会議室の 4 人の英語しか測れない。
+話者の数も音の条件も揃いすぎていて、配信や対談に近い条件と日本語での回帰が見えない。
+この節は、その 2 つを測る素材と、素材を安全に取り込む形と、閾値の置き方を決める。
+
+### 22.1 結論
+
+作る物は 4 つである。
+
+1. **英語**：VoxConverse の開発セットの zip（1 本、1,988,647,478 bytes）を取り、名前順の先頭 20 本を `testdata/voxconverse_dev20/` に展開する。
+   `hayamimi-eval der` で DER（collar 0.25 s）と JER（collar 0）を測る。
+2. **日本語の合成**：JVS の `nonpara30` の読み上げを、話者の違う 2〜4 人の分だけ並べて重ねた 12 本（各約 180 s）を `testdata/ja_synth_diar/` に作る。
+   正解の RTTM は並べ方から機械で出す。
+3. **閾値**：今の diarizer で各素材を 3 回測った平均を基準にし、基準 + 2.0 point を超えた run を落とす。
+4. **棚卸しの結果**：手元の日本語の音声に、1 本の中に話者が 2 人以上いて、区間の正解と権利が揃った物は 0 本である。
+   同意を得た録音の形（任意）を 22.3.6 に置く。
+
+作らない物は次のとおりである。
+
+- YouTube の動画を取ること、取る手順と script。
+- VoxConverse のテストセットの zip（4,272,764,397 bytes）。回帰を見るのは開発セットの一部で足りる。
+- Common Voice の取り込み（理由は 22.4）。
+- 素材の公開と再配布、git への追加。
+- 画面の変更。
+
+### 22.2 数えた結果
+
+走査はすべて `design/diar-material`（`38712d0` から切った worktree）と、repo 本体の `testdata/`（git の外）で打った。
+
+| 何を | pattern と範囲 | 結果 | 対照 |
+|---|---|---|---|
+| VoxConverse の在り処 | `git grep -n -i voxconverse`（木の全体） | 4 行、すべて本書（§4 の 2 か所、§5 ⑤、出典） | `git grep -c -i rttm` が 13 file で非 0 |
+| FLEURS の日本語の素材 | `testdata/fleurs_bench/ja/manifest.json` を `jq` で読む | 100 行。key は `id`、`ref`、`wav` の 3 つだけ。`id` は 46 種で、同じ `id` が何度も出る | 同じ file の行数 100 が `ls` の wav の数 100 と一致 |
+| 手元の wav | `find testdata -iname '*.wav'` を最上位の dir で分ける | 258 本（22.3.5 の表） | `eval_diar` の 5 本（AMI）が当たる |
+| wav の読み手 | `git grep -n 'WavReader'`（`native/`） | `hayamimi_eval::wav::read_wav`（16 bit mono だけ）と `hayamimi_asr::audio::read_wav`（16 bit、channel を平均し 16 kHz へ線形に変換）。`der_run.rs` は後者を使う | 2 つとも `hound` を呼ぶ |
+| ffmpeg を呼ぶ物 | `git grep -c -i ffmpeg -- native` | 評価の経路（`hayamimi-eval` の `der`、`fetch-set`）には 0。呼ぶのは `hayamimi-relay` の動画の経路だけ | `hayamimi-relay/src/media.rs` が 8 |
+| `der` が読む set の形 | `cli_der.rs` の `Entry` | `manifest.json` の各行の `meeting`、`wav`、`rttm` | `testdata/eval_diar/manifest.json` がこの形 |
+| VoxConverse の RTTM の本数 | GitHub の tree API（`joonson/voxconverse`、master は `24bf60be297701cd7e4ef18550c6d390c1b87365`） | `dev/` 216 本、`test/` 232 本 | 論文 v3 の表 2 が開発 216 本（1,218 分）、テスト 232 本（2,612 分） |
+| 先頭 20 本の長さ | dev の RTTM を名前順に 20 本、最後の区間の終わりを足す | 5,801.9 s（96.7 分）。話者数は 1 人が 2 本、2 人が 3 本、3 人が 6 本、4 人が 3 本、5 人が 4 本、7 人と 8 人が 1 本ずつ | 1 本目 `abjxc` の終わり 64.6 s を手で読んだ値と一致 |
+| `der` 1 回の所要 | `docs/results/r12w0/README.md` の実測 | 3,000 s の音を 236 s（比 0.079） | 同じ file の `diar=` の和 191.1 s が全体より短い |
+| 書き先の空き | `df -h /mnt/c` | 1.4 T 空き | `/` は 689 G 空き |
+
+テストセットの本数は 232 本（2,612 分）である。
+RTTM の本数と論文 v3 の表 2 が独立に同じ値を示すので、§4 もこの値で書く。
+
+### 22.3 方針と理由
+
+#### 22.3.1 英語：VoxConverse の開発セットの先頭 20 本
+
+開発セットの zip だけを取る。
+回帰の検査が要るのは「今の diarizer より悪くなっていないか」であり、配信に近い条件の開発セットの一部で足りるからである。
+
+使うのは、開発セットの RTTM を file 名の順に並べた先頭 20 本である。
+名前は作者が付けた 5 文字の id で、内容と関係が無いので、名前の順は話者数と長さに偏らない（22.2 の内訳で 1〜8 人に散っている）。
+本数を 20 にしたのは、1 回の `der` が約 456 s（5,801.9 s × 0.079）で終わり、3 回の基準取りが 30 分に収まるからである。
+
+20 本は次の固定の一覧で、合わせて 5,801.9 s（各 RTTM の最後の区間の終わりの和）である。
+
+```
+abjxc afjiv ahnss aisvi akthc ampme asxwr atgpi aufkn azisu
+bauzd bdopb bkwns blwmj bravd bspxd bwzyf bxpwa bydui ccokr
+```
+
+一覧の取り方は、clone した `dev/` の `*.rttm` の名前を byte の順に並べ、先頭の 20 本を取ることである。
+難しさ（話者数、重なり、DER の値）で選ばない。
+選ぶと、閾値がその選び方に合わせた値になり、回帰の検知が選んだ側へ偏るからである。
+一覧は固定で、clone の RTTM が増えても減っても入れ替えない。
+
+基準は、このマシンで今の diarizer を走らせた値の再現である。
+論文や challenge の公表値とは比べない。
+公表値は別の system、別の設定、全本数での値で、hayamimi の回帰の検知に使えないからである。
+テストセットの zip は取らない（22.4）。
+
+RTTM は `git clone --depth 1 https://github.com/joonson/voxconverse.git` で取り、clone の `HEAD` の commit を記録する。
+master の commit が `24bf60be297701cd7e4ef18550c6d390c1b87365` から動いていたら、RTTM が変わった可能性があるので、記録を足して基準を取り直す。
+
+license は CC BY 4.0 で、作者は研究目的での download を許している。
+動画の著作権は元の持ち主に残る。
+だから音は手元で解析にだけ使い、git に入れず、再配布しない。
+帰属の書き方は `testdata/eval_diar/README.txt` の形に揃え、`testdata/voxconverse_dev20/README.txt` に Source、License、Redistribution note、各 file の中身、Citation を書く。
+
+#### 22.3.2 DER と JER
+
+DER は今の `der.rs` の式（`simpleder` と同じ、collar 0.25 s、重なりも採点）で測る。
+JER は DIHARD III の評価計画の定義で測る。
+参照話者と仮説話者を、組ごとの `1 − 共通の時間 ÷ 和集合の時間` の和が最小になるように Hungarian で 1 対 1 に組み、参照話者ごとの `(FA + MISS) ÷ 和集合の時間` を平均する。
+組めなかった参照話者は 100 % と数え、組めなかった仮説話者は直接には数えない。
+collar は付けない（DIHARD III も dscore も付けない）。
+
+JER を足すのは、DER が話の長い話者に引っ張られるからである。
+VoxConverse には 1 本に 5〜8 人が出る file があり、短い話者の取り違えは DER ではほとんど動かず、JER では 1 人分として効く。
+
+`der` の出力は、会議ごとの行に `JER=<値>%` を足し、最後に `=== pooled JER over <n> meeting(s): <値>% (collar=0s) ===` の 1 行を足す。
+pooled の値は、全 file の参照話者を 1 つの母集団にした平均である（dscore の global と同じ）。
+
+#### 22.3.3 日本語の合成：JVS の `nonpara30` を並べる
+
+素材は JVS（100 人の話者、話者の id は dir の名前 `jvs001`〜`jvs100`、24 kHz 16 bit の wav）の `nonpara30`（話者ごとに違う 30 文）である。
+JVS の規約は、タグを CC BY-SA 4.0 とし、音声は研究、非商用、個人の利用なら使ってよく、再配布を禁じ、商用の利用は窓口へ連絡するよう求めている。
+hayamimi の評価は手元での非商用の研究の利用として扱う。
+JVS の音声も、それを並べて作った合成の wav（`testdata/ja_synth_diar/` の派生物）も、git に入れず、配らない。
+DER、JER、閾値などの数値は文書と log に残してよい。
+JVS の音声で model を学習も調整もしない（閾値を決めるために測るのは調整に入れない。model の重みと設定を JVS に合わせて動かすことを禁じる）。
+この扱いが成り立つ前提と、窓口へ連絡する場面は 22.8 に置く。
+
+FLEURS の日本語（`testdata/fleurs_bench/ja/`）は使わない。
+repo の manifest の `id` は文の番号で、100 行に 46 種しかなく、同じ文を何度も読んだ行が在る。
+FLEURS の dataset card の field も `id`、`num_samples`、`path`、`audio`、`transcription`、`raw_transcription`、`gender`、`lang_id`、`language`、`lang_group_id` で、話者の id が無い。
+話者の id が無い素材を並べると、同じ人を 2 人と数えた正解ができる可能性を消せない。
+
+合成の手順は次のとおりで、乱数はすべて 1 つの seed（既定 1）から出す。
+
+1. 話者の選び方：12 本の話者数を順に 2、2、2、2、3、3、3、3、4、4、4、4 とし、各本の話者を 100 人から重複なしに引く。
+2. clip の切り方：各 clip を `hayamimi_asr::audio::read_wav` で 16 kHz に変える。10 ms の frame の RMS が、その clip の最大の frame の RMS の 0.03 倍以上を有声とする。最初と最後の有声の frame の外を落とし、0.30 s 以上続く無声で区間を分ける。
+3. 並べ方：最初の話者を引き、次の話者は直前の話者を除いた中から一様に引く。各話者の clip は seed で並べ替えた順に 1 回ずつ使う。
+4. 重ね方：次の clip は確率 0.25 で前の clip の終わりに重ね、重ねる長さは 0.3〜1.0 s から一様に引き、2 つの clip の短い方の半分を上限にする。重ねない時は 0.2〜1.2 s の無音を挟む。同時に鳴る話者は 2 人までにする（重ねる先の clip の始まりは、2 つ前の clip の終わりより後に置く）。
+5. 無音：先頭と末尾に 1.0 s の無音（値 0）を置く。次の clip の終わりが 180.0 s を超える時に並べるのを止める。
+6. 足し方：各 clip に 0.5 を掛けて f32 で足し、16 bit に丸める。2 人までしか重ならないので値は飽和しない。飽和した sample の数を数えて 0 であることを確かめる。
+7. RTTM：手順 2 の区間を並べた位置に置き、`SPEAKER <本の名前> 1 <開始> <長さ> <NA> <NA> <jvsNNN> <NA> <NA>` の行にする（秒は小数 3 桁）。
+8. 置き場：`testdata/ja_synth_diar/` に `jsd01.wav`〜`jsd12.wav`、同じ名前の `.rttm`、`manifest.json`（`der` の 3 つの key に、`n_speakers`、`speakers`、`duration_s`、`overlap_ratio`、`seed` を足す）、`README.txt`（JVS の出所、規約、Citation、作り方と seed）を置く。
+
+乱数は splitmix64 を関数 1 つで持つ。
+`rand` の `StdRng` は、版が変わると列が変わりうると docs に書かれており、同じ seed で同じ bytes を作る約束が守れないからである。
+
+重なりの割合（重なった時間 ÷ 発話の時間）は、set 全体で 0.03〜0.15 に入ることを確かめる。
+VoxConverse の開発セットの平均 3.8 % と、AMI の 5 会議の約 8.2 %（§16）の間を狙った幅である。
+
+この合成は実際の会議より易しい。
+DER と JER の値は、日本語での回帰の検知と動作の確認にだけ使い、実の会議の性能として読まない。
+易しい理由は次の 6 つである。
+
+- 全員がプロの話者で、同じ studio の読み上げである。雑談の言い淀み、相槌、笑いが無い。
+- 話者の間の無音が値 0 で、雑音も残響も無いので、VAD が区間を切りやすい。
+- 同じ studio の録音なので、マイクや部屋の違いという手がかりは無い。代わりに声の違いだけで分けることになり、実の会議とは誤りの出方が違う。
+- 重なりは clip の終わりと始まりの機械的な重ねで、話の途中に割り込む重なりは無い。
+- 1 つの turn が 1 文（2〜8 s）で、短い turn の応酬が無い。
+- 音量が揃っている。
+
+#### 22.3.4 ffmpeg を通さない
+
+VoxConverse の音と JVS の音は wav なので、Rust の側で `hound` で直に読む（`hayamimi_asr::audio::read_wav`）。
+ffmpeg は、手元の版（`7:8.0.1-3ubuntu2`）が VobSub の demuxer（CVE-2026-64830）と TY の demuxer（CVE-2026-65704）で未修正であり、Ubuntu の修正は ESM の `+esm4` にしか無い。
+素材の取り込みは信用できない入力を読む場所なので、その経路に ffmpeg を置かない。
+
+wav の header が RIFF/WAVE の PCM 16 bit でなければ、変換せずに止める。
+止まった時に ffmpeg で変換する経路を足すなら、`-f wav` のように入力の形式を `-i` の前で固定し、形式の推測で demuxer が選ばれないようにする（22.6 の DM-3）。
+
+#### 22.3.5 手元の日本語の音声の棚卸し
+
+`find testdata -iname '*.wav'` の 258 本を最上位の dir で分け、出所を repo の文書で引いた。
+
+| 置き場 | 本数 | 出所 | 1 本の中の話者 | 話者の区間の正解 |
+|---|---|---|---|---|
+| `eval_diar/` | 5 | AMI（英語） | 4 人 | 在る |
+| `eval_real/` | 30 | ReazonSpeech の test（日本語 15、TV 放送）と LibriSpeech（英語 15） | 1 発話 | 無い |
+| `eval_real_yue/`、`eval_real_zhko/` | 12、24 | 広東語、中国語、韓国語 | 1 発話 | 無い |
+| `fleurs_bench/ja/` | 100 | FLEURS の日本語 | 1 発話 | 無い（話者の id も無い） |
+| `r8v_heldout/`、`r8v_heldout2/` | 1、81 | FLEURS をつないだ物と、ReazonSpeech の test 80 発話とそれをつないだ物 | つないだ物は複数 | 無い |
+| 最上位 | 5 | `lat-ja.wav`（FLEURS 8 と ReazonSpeech 15 をつないだ物）、`lat-en.wav`、`lat-multi.wav`（5 言語をつないだ物）、`ja_test.wav`（edge-tts の合成）、`tts_raw.wav`（出所の記録が無い） | つないだ物は複数 | 無い |
+
+つないだ物には複数の話者が入っているが、誰がどこを話したかの記録が無いので、正解にならない。
+ReazonSpeech は TV 放送の音で、権利は放送局に在る。
+`tts_raw.wav` は repo のどの文書にも名前が無く、出所が判らない。
+よって、日本語で、1 本に話者が 2 人以上いて、区間の正解と権利が揃った音は 0 本である。
+
+判定の手順は DM-12 に置く。
+新しい dir が `testdata/` に足されたら、その dir を表へ足すまで DM-12 が落ちる。
+
+#### 22.3.6 同意を得た日本語の録音の形
+
+実の会議に近い日本語は、権利の確かな録音を作るしかない。
+この録音は任意で、必須ではない。
+実装は録音の返事を待たずに 22.3.1〜22.3.9 の範囲で進め、録音が届いた時にだけ受入を足す。
+形は次のとおりである。
+
+- 日本語の会話を 2 本、各 10 分以上、話者は 2〜3 人。
+- 各話者の口元に 1 台ずつ録音機（スマートフォンでよい）を置き、同時に録る。区間の正解を各話者の音から機械で出すためである。
+- 保存は WAV（PCM 16 bit、16 kHz 以上）。m4a などは ffmpeg の変換が要るので避ける。
+- 録り始めに 1 回、手を叩く。各録音機の時刻を揃える印にする。
+- 参加者全員から書面で同意を得る。中身は「hayamimi の話者分けの評価に手元でだけ使い、公開も再配布もしない」こと。
+- 置き場は `testdata/ja_consented/`（git の外）。同意書は repo に入れない。
+
+録音が届いたら、受付が設計の席を出し、各話者の音から RTTM を作る受入を本節に足す。
+動かすのは受付で、届く物は録音と同意である。
+
+#### 22.3.7 zip の取り込み
+
+zip は信用できない入力として扱う。
+展開は `hayamimi-eval fetch-set` に足す Rust の処理で行い、`zip` crate の一括展開（`extract`）は使わない。
+一括展開は CVE-2025-29787（symlink の後の entry が外へ書ける、2.3.0 で修正）の型の穴を持ちうるので、entry を 1 つずつ読み、書く path は entry の名前から作らない。
+Cargo.lock に在る `zip` は 2.4.2 で、修正の版より新しい。
+
+規則は次のとおりである。
+
+1. 書く前に central directory を全部読み、全 entry を検査する。1 つでも外れたら、何も書かずに止まる。
+2. 名前：NUL、`\`、先頭の `/`、drive の文字（`C:`）、`..`、空の成分を含む名前は止める。
+3. 種類：通常の file と dir だけを通す。symlink（外部属性の unix mode が symlink）と暗号化された entry は止める。
+4. 拡張子：VoxConverse は `.wav` 以外の通常の file が在れば止める。JVS は `.wav`、`.txt`、`.lab` 以外が在れば止める。
+5. 本数：VoxConverse は `.wav` の entry がちょうど 216 本（RTTM の本数）で、entry の総数が 256 以下。JVS は総数が 20,000 以下で、取り出す `.wav` が 3,000 本（100 人 × 30）。
+6. 大きさ：1 entry の展開後の申告が 512 MiB 以下、取り出す entry の申告の和が 4 GiB 以下、1 entry の展開後と圧縮後の比が 100 以下。書きながら数えた bytes が申告を超えたら止める。
+7. 取り出す物：VoxConverse は名前が `^(?:[A-Za-z0-9_.-]+/)?([a-z]{5})\.wav$` に合い、id が選んだ 20 本に在る entry だけ。JVS は `^[A-Za-z0-9_.-]+/(jvs[0-9]{3})/nonpara30/wav24kHz16bit/([A-Za-z0-9_]+)\.wav$` に合う entry だけ。
+8. 書く path：pattern の捕獲から組む（`<set>/<id>.wav`、`<dir>/<jvsNNN>/<name>.wav`）。書き先の dir は新しく作った空の dir で、空でなければ止める。`<name>.part` に書いてから rename する。
+9. 書いた wav は header を読み、PCM 16 bit でなければ止める。sample rate と channel 数を manifest に書く。
+
+始める前に `df -B1 --output=avail testdata | tail -1` で空きを測る。
+VoxConverse は 3 GiB（3,221,225,472 bytes）以上、JVS は 6 GiB（6,442,450,944 bytes）以上で始める。
+
+#### 22.3.8 sha256 の記録と照合
+
+作者は zip の sha256 も md5 も出していない。
+最初に取った zip の大きさと sha256 を記録し（TOFU）、2 回目からは照合する。
+置き場は git の中の `docs/results/diar_material/README.md` である。
+`testdata/` は git の外で消えうるので、そこに置くと照合の相手が消える。
+
+記録は URL、大きさ、sha256、取った日、RTTM の commit、set の `manifest.json` の sha256、基準の値と log の名前である。
+展開した各 wav の sha256 は、今の `fetch-set --pin` で `testdata/manifests/<set>.json` に書く。
+
+照合が合わない時は、展開と評価の test を止め、「素材が記録と違う。基準を取り直すか、版を確かめる」と記録の値と今の値の両方を名指して落とす。
+止まるのは評価の test（DM-1、DM-4、DM-6、DM-7、DM-9、DM-10）だけで、製品（hayamimi の実行の経路）は止めない。
+合わないことは、zip が壊れたか、作者が中身を替えたかのどちらかを意味し、記録の基準と比べる意味が無くなるからである。
+新しい値で続けるには、記録を足して基準を 3 回取り直す。
+
+この照合の目的は、更新への追従ではなく、基準と比べる対象が同じ bytes であることを確かめることである。
+`~/skills/global-rules.md` の「外部が更新するものの sha256 や版を動作の gate にしない」は製品の動作の gate の話で、この照合はそれとは別である。
+最初に取った zip が既に改ざんされていれば、TOFU はそれを見抜けない（作者が hash を出していないので、照合の相手が最初の取得しか無い）。
+
+#### 22.3.9 閾値
+
+閾値は論文の値を使わない。
+論文の値は別の system の値で、hayamimi の回帰の検知にならないからである。
+
+各素材（`voxconverse_dev20`、`ja_synth_diar`）で、今の main の diarizer を 3 回走らせる。
+基準は 3 回の「mean DER」の平均と、3 回の「pooled JER」の平均である。
+落ちる条件は、ある run の mean DER が基準 + 2.0 point を超えること、または pooled JER が基準 + 2.0 point を超えることである。
+3 回の幅（最大 − 最小）が 2.0 point 以上なら、run ごとの揺れで閾値が鳴るので、閾値を置かずに評議の席へ返す。
+
+run は `sudo -n nice -n -5` で起こす。
+GPU と load を他の席と取り合い、他の席がこの結果を待つからである。
+
+#### 22.3.10 実装の順
+
+この節の実装は `native/hayamimi-eval/src/lib.rs` に module（`unpack`、`synth_ja`）を足し、`feat/r13-8` も同じ file を書き換える。
+だから実装の席は、R13-8 が main に入った後に、その main から branch を切る。
+R13-8 より先に切ると、同じ file の取り合いで merge の時に衝突するからである。
+
+### 22.4 採らない手段
+
+- **YouTube の動画を取る**：YouTube の規約が download を禁じている。素材に入れず、手順も書かない。
+- **VoxConverse のテストセットも取る**：4,272,764,397 bytes を足しても、回帰の検知は開発セットの 20 本で足りる。テストセットを測る理由ができた時に足す方が、今取って置くより安い。
+- **開発セットの全 216 本を測る**：1 回が 1,218 分の音で、`der` が約 1.6 時間（73,080 s × 0.079）かかり、3 回の基準取りに約 4.8 時間かかる。
+- **Common Voice の日本語を使う**：音が MP3 で、今の repo に MP3 の読み手が無い。読むには ffmpeg を通すか新しい decoder の依存を足すことになり、22.3.4 と両立しない。配布は Mozilla Data Collective の account と規約への同意を要り、全体が 13.95 GB ある。JVS が使えなくなった時の代わりとして残す。
+- **FLEURS の日本語を並べる**：話者の id が無い（22.3.3）。
+- **CSJ、CEJC、ReazonSpeech、J-CHAT**：CSJ と CEJC は全体の download を規約で禁じ、ReazonSpeech は話者の区間が無く、J-CHAT は CC BY-NC 4.0 で再配布できず、RTTM の有無も確かめられていない。
+- **system の `unzip` で展開する**：検査（22.3.7）を展開の前に機械で掛けられない。展開してから調べると、穴は書いた後に見つかる。
+- **zip の sha256 を照合せずに記録だけする**：基準を取った bytes と違う bytes で比べても、回帰か素材の差かを区別できない。
+- **`rand` の `StdRng` で並べる**：版で列が変わりうる（22.3.3）。
+- **素材が無い時に test を skip して緑にする**：測っていない物が通ったように見える。素材の path と作り方を名指して落とす（DM-11）。
+
+### 22.5 構造
+
+```
+VoxConverse                         JVS
+  dev zip ──(DM-1 記録と照合)          zip ──(DM-7 記録と照合)
+     │                                   │
+     ▼                                   ▼
+  展開の検査と取り出し (DM-2, DM-3)    展開の検査と取り出し (DM-2, DM-3)
+     │   + RTTM の clone (DM-4)          │
+     ▼                                   ▼
+  testdata/voxconverse_dev20/          合成 (DM-8, DM-9)
+     │                                   ▼
+     │                                testdata/ja_synth_diar/
+     └──────────────┬────────────────────┘
+                    ▼
+         hayamimi-eval der（DER、JER: DM-5）
+                    ▼
+         3 回で基準、以後は基準 + 2.0 point (DM-6, DM-10)
+```
+
+2 つの素材は取り込みの検査を共有し、`der` の set の形に揃えてから同じ採点と同じ閾値の規則に入る。
+
+### 22.6 受入 ID
+
+`<ev>` は `native/` で build した `target/release/hayamimi-eval` である。
+command は repo の根で打つ。
+
+| ID | 測る物 | command | 期待 | 陽性対照 | 陰性対照 |
+|---|---|---|---|---|---|
+| DM-1 | VoxConverse の zip の記録と照合 | `df -B1 --output=avail testdata \| tail -1`（3,221,225,472 以上）、`mkdir -p testdata/voxconverse`、`curl -fL --proto '=https' -o testdata/voxconverse/voxconverse_dev_wav.zip https://www.robots.ox.ac.uk/~vgg/data/voxconverse/data/voxconverse_dev_wav.zip`、`stat -c %s` と `sha256sum` を `docs/results/diar_material/README.md` に書き、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm1_` | 大きさ 1,988,647,478。test が通る | 記録した zip で通る | 1 byte 替えた fixture の zip で、記録と今の sha256 の両方を名指して落ちる |
+| DM-2 | zip の展開の安全 | `cargo test --release -p hayamimi-eval --lib unpack::` | 全部 通る | 2 つの wav を持つ正しい fixture の zip が展開され、bytes が一致する | `../x.wav`、`/x.wav`、`C:x.wav`、`a\x.wav`、symlink、暗号化、`.exe`、申告 512 MiB 超え、申告より多い bytes、比 100 超え、entry の数の超過の各 fixture で止まり、書き先の dir が空のまま |
+| DM-3 | ffmpeg を通さず、wav の形を確かめる | `git grep -c -i ffmpeg -- native/hayamimi-eval/src/unpack.rs native/hayamimi-eval/src/synth_ja.rs native/hayamimi-eval/tests/dm.rs`、`cargo test --release -p hayamimi-eval --lib unpack::tests::a_wav_that_is_not_pcm16_is_refused` | grep の出力が無く `rc=1`。test が通る | `git grep -c -i ffmpeg -- native/hayamimi-relay/src/media.rs` が 8 | 32 bit float の wav の fixture で止まる。ffmpeg を呼ぶ経路を足すなら、その argv の `-i` の前に `-f` が在ることを確かめる行をこの ID に足す |
+| DM-4 | VoxConverse の 20 本の set | `git clone --depth 1 https://github.com/joonson/voxconverse.git testdata/voxconverse/rttm`、`git -C testdata/voxconverse/rttm rev-parse HEAD` を記録、`<ev> fetch-set --voxconverse testdata/voxconverse/voxconverse_dev_wav.zip --rttm testdata/voxconverse/rttm/dev --pick 20 --set-out testdata/voxconverse_dev20`、`<ev> fetch-set --pin testdata/voxconverse_dev20/manifest.json --out testdata/manifests/voxconverse_dev20.json`、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm4_` | 20 行。名前が dev の RTTM の名前順の先頭 20 本（`abjxc`〜`ccokr`）。各 RTTM が clone の file と同じ bytes。`README.txt` に CC BY 4.0、research purposes、著作権の文、URL、Citation が在る | 正しい set で通る | 19 行の manifest、RTTM を 1 本替えた set、`README.txt` から license の行を消した set で、それぞれ名指して落ちる |
+| DM-5 | JER | `cargo test --release -p hayamimi-eval --lib der::tests::jer_` | 全部 通る | 参照と仮説が同じなら 0 % | 組めない参照話者が 100 % になる。仮説にだけ在る話者は JER を動かさず DER を動かす |
+| DM-6 | 英語の基準と回帰 | `sudo -n nice -n -5 <ev> der --set testdata/voxconverse_dev20 --collar 0.25 --out docs/results/diar_material/vox_dev20_run<n>.log`（n = 1、2、3 で基準、以後は 4 から）、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm6_` | 最新の run の mean DER と pooled JER が、ともに基準 + 2.0 point 以下 | 基準 + 2.0 ちょうどの fixture の log で通る | 基準 + 2.1 の fixture の log で落ちる。幅 2.0 以上の基準の 3 本で「閾値を置けない」と名指して落ちる |
+| DM-7 | JVS の zip の記録と照合 | `df -B1 --output=avail testdata \| tail -1`（6,442,450,944 以上）、zip を `testdata/jvs/jvs_ver1.zip` に置き、`stat -c %s` と `sha256sum` を `docs/results/diar_material/README.md` に書き、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm7_` | test が通る | 記録した zip で通る | 1 byte 替えた fixture の zip で、両方の sha256 を名指して落ちる |
+| DM-8 | 合成の決定性 | `cargo test --release -p hayamimi-eval --lib synth_ja::` | 全部 通る | 同じ seed の 2 回の wav と RTTM が同じ bytes | seed 1 と 2 で bytes が違う。splitmix64 の最初の値が既知の値と違えば落ちる |
+| DM-9 | 合成の正解と音の一致 | `<ev> fetch-set --unpack-jvs testdata/jvs/jvs_ver1.zip --set-out testdata/jvs/nonpara30`、`<ev> fetch-set --synth-ja testdata/jvs/nonpara30 --seed 1 --set-out testdata/ja_synth_diar`、`cargo test --release -p hayamimi-eval --lib synth_ja::`、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm9_` | 12 本。話者数が 2、3、4 の各 4 本。各本 150〜182 s。set の重なりの割合 0.03〜0.15。同時に鳴る話者 2 人以下。飽和 0。RTTM の外の 10 ms の frame の RMS が有声の閾値未満。`README.txt` に JVS の規約と Citation が在る | 区間の判っている fixture の clip（正弦波の断片）で、RTTM の区間が 10 ms 以内で一致する | 3 人が重なる並べ方、飽和する足し方、RTTM を 1 区間ずらした set で、それぞれ名指して落ちる |
+| DM-10 | 日本語の基準と回帰 | `sudo -n nice -n -5 <ev> der --set testdata/ja_synth_diar --collar 0.25 --out docs/results/diar_material/ja_synth_run<n>.log`、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm10_` | DM-6 と同じ規則 | DM-6 と同じ | DM-6 と同じ |
+| DM-11 | 素材が無い時に名指して落ちる | `cargo test --release -p hayamimi-eval --test dm dm11_`、素材の無い checkout で `cargo test --release -p hayamimi-eval --test dm -- --ignored dm4_` | 1 つ目は通る。2 つ目は `FAILED` で、出力に素材の path と作る command が在る | 在る path では helper が `Ok` | 無い path で helper が `Err` を返し、その文に path と command の両方が在る。`ok` で終わったら落ちとする |
+| DM-12 | 手元の音声の棚卸し | `find testdata -iname '*.wav' \| sed 's#^testdata/##' \| awk -F/ '{print (NF>1?$1:"(top)")}' \| sort \| uniq -c`、`cargo test --release -p hayamimi-eval --test dm -- --ignored dm12_` | 全ての組が `docs/design/diarization.md` の 22.3.5 の表に在る | 今の 8 つの組（7 つの dir と最上位）で通る | 表に無い dir を fixture の木に足すと、その名を名指して落ちる |
+| DM-13 | 素材を git に入れない | `git ls-files -- testdata \| wc -l`、`git check-ignore -q testdata/voxconverse_dev20/abjxc.wav; echo rc=$?`、`cargo test --release -p hayamimi-eval --test dm dm13_` | 0。`rc=0`。test が通る | `git check-ignore -q docs/results/diar_material/README.md; echo rc=$?` が `rc=1` | `testdata/` の下の file を index に足した fixture の repo で落ちる |
+
+DM-1、DM-4、DM-6、DM-7、DM-9、DM-10、DM-12 の `--ignored` の test は、素材が無ければ DM-11 の helper で落ちる。
+skip して `ok` を返す形は書かない。
+
+実行の前に確かめる物は次の 4 つである。
+
+- 初めての実行：model の dir（`models/silero_vad.onnx` が在ること）と sherpa の共有 library が要る。初回の `der` は model の読み込みで遅い。
+- 取り合う資源：GPU、`target/` の dir、load、`testdata/` の書き先。他の `der` の run と、他の席の `cargo` が走っていないことを `pgrep -x hayamimi-eval` と `pgrep -x cargo` で確かめてから起こす。
+- 始めてよい条件：`df` の空き（DM-1、DM-7）と、書き先の dir が無いか空であること。
+- 入力を待って止まる command：`sudo -n` は password を訊かずに失敗する。JVS の Google Drive の download が browser の確認を要るなら、その場で止まって受付へ返す。
+
+### 22.7 test の名前
+
+| ID | acceptance test の名前 | 置き場 | 陰性の case |
+|---|---|---|---|
+| DM-1 | `dm1_the_voxconverse_zip_matches_its_record` | `native/hayamimi-eval/tests/dm.rs`（作る） | 1 byte 替えた zip |
+| DM-2 | `unpack::tests::an_unsafe_entry_stops_the_extraction` | `native/hayamimi-eval/src/unpack.rs`（作る） | `..` を含む名前の entry |
+| DM-3 | `unpack::tests::a_wav_that_is_not_pcm16_is_refused` | `native/hayamimi-eval/src/unpack.rs`（作る） | 32 bit float の wav |
+| DM-4 | `dm4_the_voxconverse_dev20_set_is_complete` | `native/hayamimi-eval/tests/dm.rs`（作る） | 19 行の manifest |
+| DM-5 | `der::tests::jer_matches_the_dihard_definition` | `native/hayamimi-eval/src/der.rs`（在る） | 組めない参照話者 |
+| DM-6 | `dm6_voxconverse_dev20_stays_within_two_points_of_the_baseline` | `native/hayamimi-eval/tests/dm.rs`（作る） | 基準 + 2.1 の log |
+| DM-7 | `dm7_the_jvs_zip_matches_its_record` | `native/hayamimi-eval/tests/dm.rs`（作る） | 1 byte 替えた zip |
+| DM-8 | `synth_ja::tests::the_same_seed_makes_the_same_bytes` | `native/hayamimi-eval/src/synth_ja.rs`（作る） | seed 2 |
+| DM-9 | `dm9_the_ja_synth_set_follows_its_arrangement` | `native/hayamimi-eval/tests/dm.rs`（作る） | 3 人が重なる並べ方 |
+| DM-10 | `dm10_ja_synth_stays_within_two_points_of_the_baseline` | `native/hayamimi-eval/tests/dm.rs`（作る） | 基準 + 2.1 の log |
+| DM-11 | `dm11_a_missing_material_names_its_path_and_its_maker` | `native/hayamimi-eval/tests/dm.rs`（作る） | 無い path |
+| DM-12 | `dm12_every_wav_group_in_testdata_is_classified` | `native/hayamimi-eval/tests/dm.rs`（作る） | 表に無い dir |
+| DM-13 | `dm13_no_material_is_tracked_by_git` | `native/hayamimi-eval/tests/dm.rs`（作る） | `testdata/` の file を index に足した repo |
+
+各 ID の下のケース行（`T-DM-<n>-nnn`）は test-designer が本節のこの表の下に書く。
+名前は上の名前を延ばして付ける。
+
+### 22.8 残る穴
+
+| 穴 | 印 | 確かめ方 | 動かす者 |
+|---|---|---|---|
+| VoxConverse の zip の中の並び（dir の名前）と wav の形（rate、channel、bit） | NOT VERIFIED | DM-1 と DM-4 の最初の実行。PCM 16 bit でなければ止まり、本節へ戻る | 実装の席 |
+| JVS の zip を command で取れるか（Google Drive の確認画面） | NOT VERIFIED | 取る時に試す。browser が要るなら受付へ返す | 実装の席、受付 |
+| JVS の zip の中の拡張子が `.wav`、`.txt`、`.lab` だけか | NOT VERIFIED | DM-2 の規則 4 が初回で止まるかを見る | 実装の席 |
+| hayamimi の評価が JVS の「研究、非商用、個人の利用」に入るか | ASSUMPTION | hayamimi を商用にする時、または JVS での評価の結果を宣伝に使う時は、その前に JVS の窓口へ連絡する | 受付、評議の席 |
+| 最初に取った zip が改ざんされていた場合 | 守れない限界 | 作者が hash を出せば、それと照合する | 実装の席 |
+| 同意を得た日本語の録音（任意） | 無い | 届いた時に受入を足す。実装は待たない | 受付 |
+| 3 回の基準の幅が 2.0 point に収まるか | NOT VERIFIED | DM-6、DM-10 の基準取り。収まらなければ評議の席へ返す | 実装の席 |
+| 合成の有声の閾値（最大の frame の 0.03 倍）と無声の区切り（0.30 s）が JVS の clip に合うか | NOT VERIFIED | DM-9 の実物の検査で、RTTM の外の frame の RMS と、手で 3 本を聞いた区間を比べる | 実装の席、検証の席 |
+| VoxConverse の RTTM の版（master が動いたら RTTM も変わる） | 記録するだけ | DM-4 の `rev-parse HEAD` を記録と比べる | 実装の席 |
+| `zip` crate の最新版と advisory | NOT VERIFIED（Cargo.lock は 2.4.2） | 実装の時に crates.io と RustSec を引く | 実装の席 |
+
 ## 出典
 
 - [Speaker Diarization — sherpa-onnx docs](https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/index.html)
@@ -3350,3 +3701,12 @@ RTF 0.017〜0.035、seg+embed込みで§16と同オーダー）が、基準1・2
   Speech Detection: A Speaker-Aware Progressive Approach Using WavLM"
   (arXiv:2505.23207, 2025) — Track F候補(c)、コード・重み未公開の
   WavLMベースOSD専用モデル
+- J. S. Chung, J. Huh, A. Nagrani, T. Afouras, A. Zisserman, "Spot the conversation: speaker diarisation in the wild" (Interspeech 2020, arXiv:2007.01216 v3) の表 2（[ar5iv](https://ar5iv.labs.arxiv.org/html/2007.01216)）：§22、開発 216 本と テスト 232 本の根拠
+- [joonson/voxconverse の README](https://github.com/joonson/voxconverse) と GitHub の tree API（master `24bf60be297701cd7e4ef18550c6d390c1b87365`、`dev/` 216、`test/` 232）：§22、license、zip の URL、RTTM の本数
+- [DIHARD III の評価計画（arXiv:2006.05815）](https://ar5iv.arxiv.org/html/2006.05815) の 4.1 と 4.2 / [nryant/dscore の `scorelib/metrics.py`](https://github.com/nryant/dscore/blob/master/scorelib/metrics.py)：§22、JER の定義と組み方
+- [JVS corpus の頁](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus) / S. Takamichi et al., "JVS corpus: free Japanese multi-speaker voice corpus" (arXiv:1908.06248)：§22、規約、話者の id、wav の形と dir の並び
+- [google/fleurs の dataset card](https://huggingface.co/datasets/google/fleurs)：§22、field に話者の id が無いこと
+- [Mozilla Foundation の README（Hugging Face）](https://huggingface.co/spaces/mozilla-foundation/README/blob/main/README.md) / [Common Voice Scripted Speech 24.0 - Japanese（Mozilla Data Collective）](https://mozilladatacollective.com/datasets/cmj8u3p9x00clnxxbsv97o45e)：§22、Common Voice の配布の形
+- [rand の `StdRng` の docs](https://docs.rs/rand/latest/rand/rngs/struct.StdRng.html)：§22、版を跨いだ列の再現が無いこと
+- [Ubuntu CVE-2026-64830](https://ubuntu.com/security/CVE-2026-64830) / [Ubuntu CVE-2026-65704](https://ubuntu.com/security/CVE-2026-65704)：§22、手元の ffmpeg の未修正
+- [NVD CVE-2025-29787](https://nvd.nist.gov/vuln/detail/CVE-2025-29787)（`zip` crate、2.3.0 で修正）：§22、一括展開を使わない理由
