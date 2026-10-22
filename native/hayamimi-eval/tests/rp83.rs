@@ -26,7 +26,8 @@ use support::machine::{
 };
 use support::rp32::scratch_dir;
 use support::s83::{
-    Ended, FakeIngest, OWN_PIDS, OWN_TICKS, ProcRoot, SERVER_WORDS, Setup, own_args, run, wait_for,
+    Ended, FakeIngest, OWN_PIDS, OWN_TICKS, ProcRoot, SERVER_WORDS, Setup, WINDOW_PORT, own_args,
+    run, wait_for,
 };
 use support::{Failure, REPO, RESULTS, TestResult};
 
@@ -1192,7 +1193,7 @@ fn own_once(
 ) -> Result<Observed, Box<dyn Error>> {
     let setup = Setup::new_own(name, 1)?;
     prepare(&setup.proc_root)?;
-    let named = own_args(pids);
+    let named = own_args(pids, WINDOW_PORT);
     let mut arguments: Vec<&str> = named.iter().map(String::as_str).collect();
     arguments.extend_from_slice(extra);
     let ingest = FakeIngest::start()?;
@@ -1536,7 +1537,7 @@ fn a_stream_without_own_pid_starts_and_writes_rows_without_own_fields() -> TestR
 fn run_while_a_stat_vanishes(test: &str, gone: u32) -> TestResult {
     let setup = Setup::new_own(test, 12)?;
     let ingest = FakeIngest::start()?;
-    let named = own_args(&OWN_PIDS);
+    let named = own_args(&OWN_PIDS, WINDOW_PORT);
     let arguments: Vec<&str> = named.iter().map(String::as_str).collect();
     let child = setup.spawn(ingest.port, 1, &arguments)?;
     let waited = Instant::now();

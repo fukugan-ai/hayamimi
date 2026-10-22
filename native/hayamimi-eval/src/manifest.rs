@@ -382,36 +382,71 @@ pub struct Joined {
     pub samples: usize,
 }
 
+/// The order the clips of the parts follow in a joined recording.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Order {
+    /// All the clips of the first part, then all those of the second, and so on.
+    Blocks,
+    /// One clip from each part in turn; a part that has run out is skipped.
+    Interleaved,
+}
+
+/// The clips of one part, each row marked with the part's language and source.
+fn part_clips(part: &Part) -> Result<Vec<Clip>, EvalError> {
+    let mut found = match part.kind {
+        PartKind::Golden => golden_clips(part)?,
+        PartKind::Manifest => manifest_clips(part)?,
+    };
+    for clip in &mut found {
+        clip.row
+            .insert(String::from("lang"), Value::String(part.lang.clone()));
+        clip.row.insert(
+            String::from("source"),
+            Value::String(String::from(match part.kind {
+                PartKind::Golden => "golden",
+                PartKind::Manifest => "set",
+            })),
+        );
+    }
+    Ok(found)
+}
+
+/// The items of `lists` taking one from each list in turn, the first list
+/// first; a list that has run out is skipped.
+fn round_robin<T>(lists: Vec<Vec<T>>) -> Vec<T> {
+    let total: usize = lists.iter().map(Vec::len).sum();
+    let mut queues: Vec<_> = lists.into_iter().map(Vec::into_iter).collect();
+    let mut merged = Vec::with_capacity(total);
+    while merged.len() < total {
+        for queue in &mut queues {
+            if let Some(item) = queue.next() {
+                merged.push(item);
+            }
+        }
+    }
+    merged
+}
+
 /// Joins the clips of `parts` into one wav with `gap_ms` of silence between
-/// them, and writes a manifest whose rows give each clip's first sample and
-/// the sample just past the end of its speech (see [`speech_end`]). No
-/// silence follows the last clip.
+/// them, in the `order` given, and writes a manifest whose rows give each
+/// clip's first sample and the sample just past the end of its speech (see
+/// [`speech_end`]). No silence follows the last clip.
 pub fn concat(
     parts: &[Part],
     gap_ms: u32,
+    order: Order,
     out_manifest: &Path,
     out_wav: &Path,
 ) -> Result<Joined, EvalError> {
     let gap = gap_ms as usize * SAMPLES_PER_MS;
-    let mut clips = Vec::new();
-    for part in parts {
-        let found = match part.kind {
-            PartKind::Golden => golden_clips(part)?,
-            PartKind::Manifest => manifest_clips(part)?,
-        };
-        for mut clip in found {
-            clip.row
-                .insert(String::from("lang"), Value::String(part.lang.clone()));
-            clip.row.insert(
-                String::from("source"),
-                Value::String(String::from(match part.kind {
-                    PartKind::Golden => "golden",
-                    PartKind::Manifest => "set",
-                })),
-            );
-            clips.push(clip);
-        }
-    }
+    let per_part = parts
+        .iter()
+        .map(part_clips)
+        .collect::<Result<Vec<_>, _>>()?;
+    let clips: Vec<Clip> = match order {
+        Order::Blocks => per_part.into_iter().flatten().collect(),
+        Order::Interleaved => round_robin(per_part),
+    };
     if clips.is_empty() {
         return Err(EvalError::Manifest(String::from("the parts hold no clips")));
     }
@@ -616,7 +651,13 @@ mod tests {
             path: golden,
             lang: String::from("ja"),
         };
-        let joined = concat(&[part], 10, &dir.join("m.json"), &dir.join("lat.wav"))?;
+        let joined = concat(
+            &[part],
+            10,
+            Order::Blocks,
+            &dir.join("m.json"),
+            &dir.join("lat.wav"),
+        )?;
         assert_eq!(
             joined,
             Joined {
@@ -659,7 +700,13 @@ mod tests {
             path: dir.join("pinned.json"),
             lang: String::from("en"),
         };
-        let joined = concat(&[part], 0, &dir.join("m.json"), &dir.join("lat.wav"))?;
+        let joined = concat(
+            &[part],
+            0,
+            Order::Blocks,
+            &dir.join("m.json"),
+            &dir.join("lat.wav"),
+        )?;
         assert_eq!(joined.utterances, 1);
         Ok(())
     }
@@ -675,9 +722,15 @@ mod tests {
             path: golden,
             lang: String::from("ja"),
         };
-        let said = concat(&[part], 0, &dir.join("m.json"), &dir.join("lat.wav"))
-            .err()
-            .map(|e| e.to_string());
+        let said = concat(
+            &[part],
+            0,
+            Order::Blocks,
+            &dir.join("m.json"),
+            &dir.join("lat.wav"),
+        )
+        .err()
+        .map(|e| e.to_string());
         assert!(
             said.as_deref().is_some_and(|t| t.contains("sha256")),
             "{said:?}"
@@ -695,10 +748,24 @@ mod tests {
             lang: String::from("ja"),
         };
         assert!(matches!(
-            concat(&[part], 0, &dir.join("o.json"), &dir.join("o.wav")),
+            concat(
+                &[part],
+                0,
+                Order::Blocks,
+                &dir.join("o.json"),
+                &dir.join("o.wav")
+            ),
             Err(EvalError::Manifest(_))
         ));
         Ok(())
+    }
+
+    #[test]
+    fn round_robin_takes_one_from_each_list_in_turn_and_skips_a_spent_one() {
+        let lists = vec![vec!["a1", "a2", "a3"], vec!["b1"], vec![], vec!["d1", "d2"]];
+        assert_eq!(round_robin(lists), ["a1", "b1", "d1", "a2", "d2", "a3"]);
+        assert!(round_robin::<u8>(Vec::new()).is_empty());
+        assert!(round_robin::<u8>(vec![Vec::new(), Vec::new()]).is_empty());
     }
 
     #[test]

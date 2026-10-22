@@ -229,6 +229,22 @@ impl Sent {
         Sent::new("loopback", seq, of, "en", english_text(seq))
     }
 
+    /// A line of `source` in `lang`; `seq` numbers it and picks its text:
+    /// Japanese for `ja`, English for any other language.
+    pub fn spoken(source: &'static str, seq: usize, of: &'static str, lang: &'static str) -> Sent {
+        let text = if lang == "ja" {
+            japanese_text(seq)
+        } else {
+            english_text(seq)
+        };
+        Sent::new(source, seq, of, lang, text)
+    }
+
+    /// A line of a recording played through the recognizer, in `lang`.
+    pub fn file(seq: usize, of: &'static str, lang: &'static str) -> Sent {
+        Sent::spoken("file", seq, of, lang)
+    }
+
     /// The event as the recognizer sends it: the items of a `final` and the
     /// five the relay needs.
     pub fn event(&self) -> String {

@@ -24,13 +24,19 @@
 //! run's own share from the last `load5`. A run with no `--own-pid` writes none
 //! of these fields.
 //!
+//! `--own-llama-port` names the port the translation server listens on, and
+//! `--own-pid` and `--own-llama-port` need each other: the port has no default,
+//! because a default would let a run that forgot it be checked against a port
+//! it never used. The command line gives the port as the word after `--port`.
+//!
 //! The pids are checked once, before the first row is kept, in the order they
 //! were given and by the first fault found. The check refuses a pid that has no
 //! readable `comm` and `stat`, a `comm` that is not one of the three names, a
-//! `llama-server` that is not started with `--port 18084`, and a set that does
-//! not hold each of the three names exactly once. A refusal is the reason
-//! `own_pid`, asked before `load1`, `load15` and a build, because a wrong
-//! argument does not mend by waiting.
+//! `llama-server` whose command line does not hold the word `--port` exactly
+//! once with the number `--own-llama-port` names, written in decimal, as the
+//! word after it, and a set that does not hold each of the three names exactly
+//! once. A refusal is the reason `own_pid`, asked before `load1`, `load15` and
+//! a build, because a wrong argument does not mend by waiting.
 //!
 //! Where `/proc` stands is an argument, so a test points it at a directory of
 //! its own.
@@ -73,8 +79,6 @@ pub const CLK_TCK: u32 = 100;
 const OWN_COMMS: [&str; 3] = ["hayamimi", "hayamimi-relay", "llama-server"];
 /// Of those, the one whose command line is checked as well.
 const LLAMA_COMM: &str = "llama-server";
-/// The port the window's translation server listens on.
-const LLAMA_PORT: &[u8] = b"18084";
 /// How many fields of `stat` follow the `)` of the name before `utime` (the
 /// state is the first of them, `utime` is field 14 and the state is field 3).
 const FIELDS_BEFORE_UTIME: usize = 11;
@@ -137,6 +141,14 @@ pub struct OwnColumns {
     pub cpu_some_total: Option<u64>,
 }
 
+/// The processes a run names as its own (`--own-pid`) and the port its
+/// translation server listens on (`--own-llama-port`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnRun {
+    pub pids: Vec<u32>,
+    pub llama_port: u16,
+}
+
 /// Why a pid given to `--own-pid` is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnFault {
@@ -144,7 +156,7 @@ pub enum OwnFault {
     Unreadable,
     /// Its `comm` is not one of the three names.
     Comm,
-    /// A `llama-server` that is not started with `--port 18084`.
+    /// A `llama-server` that is not started with the port `--own-llama-port` names.
     Port,
     /// The pids together do not hold each of the three names once.
     Set,
@@ -322,8 +334,9 @@ pub fn own_cpu_ticks(
 }
 
 /// Whether `cmdline` (words each ended by a NUL) holds the word `--port`
-/// exactly once and the word after it is the translation server's port.
-fn cmdline_names_own_port(cmdline: &[u8]) -> bool {
+/// exactly once and the word after it is `port`, the translation server's
+/// port written in decimal.
+fn cmdline_names_own_port(cmdline: &[u8], port: &[u8]) -> bool {
     let body = match cmdline.strip_suffix(&[0]) {
         Some(body) => body,
         None => cmdline,
@@ -336,18 +349,19 @@ fn cmdline_names_own_port(cmdline: &[u8]) -> bool {
     let (Some((at, _)), None) = (flags.next(), flags.next()) else {
         return false;
     };
-    words.get(at + 1).is_some_and(|word| *word == LLAMA_PORT)
+    words.get(at + 1).is_some_and(|word| *word == port)
 }
 
 /// Whether the process in `dir` was started with the translation server's
-/// port. A `cmdline` that cannot be read, or is empty (a zombie's), is not.
-fn serves_own_port(dir: &Path) -> bool {
-    std::fs::read(dir.join("cmdline")).is_ok_and(|bytes| cmdline_names_own_port(&bytes))
+/// port, `port` written in decimal. A `cmdline` that cannot be read, or is
+/// empty (a zombie's), is not.
+fn serves_own_port(dir: &Path, port: &[u8]) -> bool {
+    std::fs::read(dir.join("cmdline")).is_ok_and(|bytes| cmdline_names_own_port(&bytes, port))
 }
 
-/// One pid of `--own-pid`: its name, and for the server its port. The faults
-/// are asked in the order `Unreadable`, `Comm`, `Port`.
-fn check_pid(proc_root: &Path, pid: u32) -> Result<OwnProcess, OwnFault> {
+/// One pid of `--own-pid`: its name, and for the server its port, `port` in
+/// decimal. The faults are asked in the order `Unreadable`, `Comm`, `Port`.
+fn check_pid(proc_root: &Path, pid: u32, port: &[u8]) -> Result<OwnProcess, OwnFault> {
     let dir = proc_root.join(pid.to_string());
     let comm = comm_of(&dir.join("comm")).ok().flatten();
     let (Some(comm), Ok(_)) = (comm, pid_ticks(proc_root, pid)) else {
@@ -359,7 +373,7 @@ fn check_pid(proc_root: &Path, pid: u32) -> Result<OwnProcess, OwnFault> {
     else {
         return Err(OwnFault::Comm);
     };
-    if *name == LLAMA_COMM && !serves_own_port(&dir) {
+    if *name == LLAMA_COMM && !serves_own_port(&dir, port) {
         return Err(OwnFault::Port);
     }
     Ok(OwnProcess {
@@ -368,16 +382,17 @@ fn check_pid(proc_root: &Path, pid: u32) -> Result<OwnProcess, OwnFault> {
     })
 }
 
-/// The processes `pids` name, or the first fault, found pid by pid in the order
+/// The processes `own` names, or the first fault, found pid by pid in the order
 /// given; the fault of the set is asked after every pid has passed. No pid at
 /// all is a run that does not name its processes: an empty set.
-pub fn check_own(proc_root: &Path, pids: &[u32]) -> Result<Vec<OwnProcess>, OwnRefusal> {
-    if pids.is_empty() {
+pub fn check_own(proc_root: &Path, own: Option<&OwnRun>) -> Result<Vec<OwnProcess>, OwnRefusal> {
+    let Some(run) = own.filter(|run| !run.pids.is_empty()) else {
         return Ok(Vec::new());
-    }
-    let mut set = Vec::with_capacity(pids.len());
-    for &pid in pids {
-        let process = check_pid(proc_root, pid).map_err(|fault| OwnRefusal {
+    };
+    let port = run.llama_port.to_string();
+    let mut set = Vec::with_capacity(run.pids.len());
+    for &pid in &run.pids {
+        let process = check_pid(proc_root, pid, port.as_bytes()).map_err(|fault| OwnRefusal {
             fault,
             pid: Some(pid),
         })?;
@@ -663,14 +678,15 @@ fn admit(
 /// Writes the first row to `path` and, when the machine is free, starts the
 /// rows that follow. A busy machine is `EvalError::MachineRefused`, after one
 /// `stream.machine.refused` event; the file then holds that one row.
-/// `own_pids` are the run's own processes (`--own-pid`); none is allowed.
+/// `own` are the run's own processes (`--own-pid`) and the port of its
+/// translation server (`--own-llama-port`); none is allowed.
 pub fn begin(
     proc_root: &Path,
     path: &Path,
     origin: Instant,
-    own_pids: &[u32],
+    own: Option<&OwnRun>,
 ) -> Result<Gate, EvalError> {
-    let checked = check_own(proc_root, own_pids);
+    let checked = check_own(proc_root, own);
     let first = first_row(proc_root, origin, &checked)?;
     let mut file = create_file(path)?;
     write_row(&mut file, path, &first)?;
@@ -880,7 +896,7 @@ mod tests {
     {
         let root = proc_with("m-refused", "2.00 0.50 0.50 1/300 1000\n", &[])?;
         let path = scratch("m-refused.machine.jsonl");
-        let refused = begin(&root, &path, Instant::now(), &[]);
+        let refused = begin(&root, &path, Instant::now(), None);
         assert!(
             matches!(&refused, Err(EvalError::MachineRefused(why)) if why == "load1 2.00"),
             "{:?}",
@@ -894,7 +910,7 @@ mod tests {
     fn a_free_machine_gets_a_first_row_and_a_last_row() -> Result<(), Box<dyn std::error::Error>> {
         let root = proc_with("m-free", "0.50 0.50 0.50 1/300 1000\n", &[])?;
         let path = scratch("m-free.machine.jsonl");
-        let gate = begin(&root, &path, Instant::now(), &[])?;
+        let gate = begin(&root, &path, Instant::now(), None)?;
         assert!(!gate.halt().load(Ordering::Relaxed));
         gate.end()?;
         let text = std::fs::read_to_string(&path)?;
@@ -911,7 +927,7 @@ mod tests {
     fn a_build_in_the_last_row_ends_the_run_as_aborted() -> Result<(), Box<dyn std::error::Error>> {
         let root = proc_with("m-late", "0.50 0.50 0.50 1/300 1000\n", &[])?;
         let path = scratch("m-late.machine.jsonl");
-        let gate = begin(&root, &path, Instant::now(), &[])?;
+        let gate = begin(&root, &path, Instant::now(), None)?;
         let pid = root.join("42");
         std::fs::create_dir_all(&pid)?;
         std::fs::write(pid.join("comm"), "rustc\n")?;
@@ -975,6 +991,17 @@ mod tests {
     }
 
     const SERVER: [&str; 5] = ["llama-server", "-m", "model.gguf", "--port", "18084"];
+    /// The port `SERVER` listens on, as a test run names it and as the command line spells it.
+    const PORT: u16 = 18084;
+    const PORT_WORD: &[u8] = b"18084";
+
+    /// A run that names `pids` and the port of `SERVER`.
+    fn run_of(pids: &[u32]) -> OwnRun {
+        OwnRun {
+            pids: pids.to_vec(),
+            llama_port: PORT,
+        }
+    }
 
     /// The three processes of a run: 1250, 700 and 1801 ticks, 3751 together.
     fn proc_with_own(name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -987,7 +1014,7 @@ mod tests {
     }
 
     fn refused(root: &Path, pids: &[u32]) -> Option<(OwnFault, Option<u32>)> {
-        check_own(root, pids)
+        check_own(root, Some(&run_of(pids)))
             .err()
             .map(|refusal| (refusal.fault, refusal.pid))
     }
@@ -1007,7 +1034,7 @@ mod tests {
 
     #[test]
     fn the_port_is_the_word_after_the_one_port_flag() {
-        assert!(cmdline_names_own_port(&nul_words(&SERVER)));
+        assert!(cmdline_names_own_port(&nul_words(&SERVER), PORT_WORD));
         for words in [
             &["llama-server", "--port=18084"][..],
             &["llama-server", "--port", "8080"],
@@ -1020,18 +1047,33 @@ mod tests {
             &["llama-server", "18084", "--port", "8080"],
             &[],
         ] {
-            assert!(!cmdline_names_own_port(&nul_words(words)), "{words:?}");
+            assert!(
+                !cmdline_names_own_port(&nul_words(words), PORT_WORD),
+                "{words:?}"
+            );
         }
-        assert!(!cmdline_names_own_port(b""));
+        assert!(!cmdline_names_own_port(b"", PORT_WORD));
         // A cmdline whose last word has lost its NUL is still read word by word.
         let unended = [&b"llama-server\0--port\0"[..], b"18084"].concat();
-        assert!(cmdline_names_own_port(&unended));
+        assert!(cmdline_names_own_port(&unended, PORT_WORD));
+    }
+
+    #[test]
+    fn the_word_after_the_port_flag_is_compared_with_the_port_the_run_names() {
+        let on_18083 = nul_words(&["llama-server", "--port", "18083"]);
+        assert!(cmdline_names_own_port(&on_18083, b"18083"));
+        assert!(!cmdline_names_own_port(&on_18083, PORT_WORD));
+        assert!(!cmdline_names_own_port(&nul_words(&SERVER), b"18083"));
+        // The run's port is written in decimal; a spelling with a leading zero is another word.
+        let padded = nul_words(&["llama-server", "--port", "018083"]);
+        assert!(!cmdline_names_own_port(&padded, b"18083"));
+        assert!(cmdline_names_own_port(&padded, b"018083"));
     }
 
     #[test]
     fn a_complete_set_is_admitted_and_its_ticks_are_summed() -> Check {
         let root = proc_with_own("m-own-set")?;
-        let Ok(own) = check_own(&root, &[4242, 4243, 4244]) else {
+        let Ok(own) = check_own(&root, Some(&run_of(&[4242, 4243, 4244]))) else {
             return Err("the complete set was refused".into());
         };
         let comms: Vec<(u32, &str)> = own.iter().map(|p| (p.pid, p.comm.as_str())).collect();
@@ -1044,7 +1086,8 @@ mod tests {
             ]
         );
         assert_eq!(own_cpu_ticks(&root, [4242, 4243, 4244]).ok(), Some(3751));
-        assert_eq!(check_own(&root, &[]).ok(), Some(Vec::new()));
+        assert_eq!(check_own(&root, None).ok(), Some(Vec::new()));
+        assert_eq!(check_own(&root, Some(&run_of(&[]))).ok(), Some(Vec::new()));
         Ok(())
     }
 
@@ -1140,7 +1183,7 @@ mod tests {
     #[test]
     fn only_the_first_row_names_the_processes_and_every_row_counts_them() -> Check {
         let root = proc_with_own("m-own-row")?;
-        let Ok(own) = check_own(&root, &[4242, 4243, 4244]) else {
+        let Ok(own) = check_own(&root, Some(&run_of(&[4242, 4243, 4244]))) else {
             return Err("the set was refused".into());
         };
         let first = serde_json::to_value(Row::read(&root, 0, &own)?.with_header(&own))?;
@@ -1170,7 +1213,7 @@ mod tests {
     #[test]
     fn a_stat_that_vanishes_makes_the_count_null_and_not_an_error() -> Check {
         let root = proc_with_own("m-own-gone")?;
-        let Ok(own) = check_own(&root, &[4242, 4243, 4244]) else {
+        let Ok(own) = check_own(&root, Some(&run_of(&[4242, 4243, 4244]))) else {
             return Err("the set was refused".into());
         };
         std::fs::remove_file(root.join("4244").join("stat"))?;
@@ -1184,14 +1227,16 @@ mod tests {
     fn a_set_that_passes_starts_the_rows_and_a_set_that_fails_refuses_with_one_row() -> Check {
         let root = proc_with_own("m-own-begin")?;
         let path = scratch("m-own-begin.machine.jsonl");
-        begin(&root, &path, Instant::now(), &[4242, 4243, 4244])?.end()?;
+        let named = run_of(&[4242, 4243, 4244]);
+        begin(&root, &path, Instant::now(), Some(&named))?.end()?;
         let text = std::fs::read_to_string(&path)?;
         assert_eq!(text.lines().count(), 2);
         for line in text.lines() {
             assert_eq!(serde_json::from_str::<Value>(line)?["own_cpu_ticks"], 3751);
         }
         add_own(&root, 4246, "sudo", (10, 10))?;
-        let failed = begin(&root, &path, Instant::now(), &[4246, 4242, 4243, 4244]);
+        let with_sudo = run_of(&[4246, 4242, 4243, 4244]);
+        let failed = begin(&root, &path, Instant::now(), Some(&with_sudo));
         assert!(
             matches!(&failed, Err(EvalError::MachineRefused(why)) if why == "own_pid 4246 comm"),
             "{:?}",
