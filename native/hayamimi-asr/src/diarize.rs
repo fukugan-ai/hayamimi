@@ -333,16 +333,18 @@ pub(crate) mod material {
             })
     }
 
+    /// The command that cuts the recording from the AMI meetings of `testdata/eval_diar`.
+    const MAKE: &str = "cd native && cargo run --release -p hayamimi-eval -- two-speakers --eval-diar ../testdata/eval_diar --out ../testdata";
+
     /// The samples of `testdata/two_speakers.wav`, found like the models. The
-    /// recording is not in git: `hayamimi_eval::two_speakers::write_clip` cuts it
-    /// from the AMI meetings of `testdata/eval_diar`.
+    /// recording is not in git; a missing one is an error, never a skip.
     pub(crate) fn recording() -> Result<Vec<f32>, Box<dyn std::error::Error>> {
         let start = env!("CARGO_MANIFEST_DIR");
         let wav = Path::new(start)
             .ancestors()
             .map(|directory| directory.join(RECORDING))
             .find(|wav| wav.is_file())
-            .ok_or_else(|| format!("no {RECORDING} at or above {start}"))?;
+            .ok_or_else(|| format!("no {RECORDING} at or above {start}; make it with: {MAKE}"))?;
         Ok(read_wav(&wav)?)
     }
 }

@@ -54,6 +54,33 @@ pub const KEY_END_S: &str = "end_s";
 /// Manifest key: the SHA-256 of the written wav, as lowercase hex. A record only; nothing compares it.
 pub const KEY_SHA256: &str = "sha256";
 
+/// Manifest key: the licence of the audio and of the reference turns.
+pub const KEY_LICENSE: &str = "license";
+/// Manifest key: where the licence text is.
+pub const KEY_LICENSE_URL: &str = "license_url";
+/// The attribution every manifest carries, as (key, value): the same facts as
+/// the README of `testdata/eval_diar`. The window's seconds are on the meeting's
+/// wav, which starts `start_offset_s` into the recording (see `time_base`).
+const ATTRIBUTION: [(&str, &str); 5] = [
+    (KEY_LICENSE, "AMI Meeting Corpus: CC BY 4.0"),
+    (
+        KEY_LICENSE_URL,
+        "https://groups.inf.ed.ac.uk/ami/corpus/license.shtml",
+    ),
+    (
+        "citation",
+        "Carletta et al., The AMI Meeting Corpus: A Pre-Announcement, MLMI 2005",
+    ),
+    (
+        "rttm_source",
+        "https://github.com/BUTSpeechFIT/AMI-diarization-setup (MIT)",
+    ),
+    (
+        "time_base",
+        "seconds on the meeting's wav in eval_diar; that wav starts start_offset_s (eval_diar/manifest.json) into the recording",
+    ),
+];
+
 /// What the error says when no meeting holds a window.
 const NO_WINDOW: &str = "no window of four turns fits the rule";
 /// What the error says when the directory has no RTTM file.
@@ -254,6 +281,9 @@ fn write_manifest(window: &Window, sha256: &str, path: &Path) -> Result<(), Eval
     );
     row.insert(KEY_END_S.to_owned(), Value::from(seconds(window.end_ms)));
     row.insert(KEY_SHA256.to_owned(), Value::from(sha256));
+    for (key, value) in ATTRIBUTION {
+        row.insert(key.to_owned(), Value::from(value));
+    }
     let mut text =
         serde_json::to_string_pretty(&row).map_err(|error| EvalError::json(path, error))?;
     text.push('\n');
@@ -802,16 +832,16 @@ mod tests {
     }
 
     #[test]
-    fn a_turn_outside_the_window_that_reaches_into_it_rejects_the_window() -> TestResult {
+    fn two_speaker_clip_rejects_a_window_an_outside_turn_reaches_into() -> TestResult {
         let mut rows = F60V.to_vec();
         rows.push(("A", "9.000", "2.000"));
-        finds_none("outside-reaches", &rows)
+        finds_none("t034", &rows)
     }
 
     #[test]
-    fn a_turn_outside_the_window_that_only_touches_it_leaves_the_window() -> TestResult {
+    fn two_speaker_clip_accepts_a_window_an_outside_turn_only_touches() -> TestResult {
         let mut rows = F60V.to_vec();
         rows.push(("C", "27.500", "1.000"));
-        picks("outside-touches", &rows, window(MA, 10_000, 27_500))
+        picks("t035", &rows, window(MA, 10_000, 27_500))
     }
 }
