@@ -21,7 +21,7 @@ Once the speed target is met, quality must match or beat the Python version.
 <!-- Rewrite this section to the current state on each merge; do not append dated sections or progress paragraphs. Progress lives in docs/design/status.ja.md. -->
 ### Current state
 - The 78 Python files are deleted, and the version before the removal can be taken from the tag `archive/python-before-r11` (RP-9 row of the [status table](docs/design/status.md)).
-- 25 Python tests are not yet ported to Rust tests (RP-19 row of the [status table](docs/design/status.md)).
+- All of the Python tests have been ported to Rust tests (RP-19 row of the [status table](docs/design/status.md)).
 - End-to-end checks on played-back recorded audio pass for Japanese to English and for English to Japanese (E2E; build of 2026-10-15; [records](docs/results/e2e/)).
 - A check with a person speaking Japanese into a real microphone is not done yet (NOT VERIFIED; microphone row of the [status table](docs/design/status.md)).
 - The final judgement of the delay has not been run yet (window E4; RP-67 row of the [status table](docs/design/status.md)).

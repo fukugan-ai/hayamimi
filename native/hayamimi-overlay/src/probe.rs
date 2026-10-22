@@ -9,6 +9,7 @@
 //! as one `overlay.layout.measured` event.
 
 use hayamimi_relay::logging::{Level, LogEvent};
+use hayamimi_ui::css::LANES_FONT_JA;
 use hayamimi_ui::model::Model;
 use hayamimi_ui::wire;
 use serde::{Deserialize, Serialize};
@@ -71,8 +72,16 @@ pub struct Face {
 
 /// The script the page runs: it waits for the fonts, measures, and sends the
 /// answer back as an object of `Measure`'s shape. Lengths are CSS px.
+///
+/// `missing_glyphs` counts the sample characters that the family stack of the
+/// upper lane draws exactly as the same stack without `cinecaption` does: the
+/// advance and the ink box of the character (`measureText`) are the same in
+/// both, so `cinecaption` supplied nothing, whether its face holds no glyph for
+/// it or never loaded. `document.fonts.check` is not used: it answers whether
+/// a face is loaded, not whether it holds a glyph.
 pub fn script() -> String {
     let sample = serde_json::Value::from(JAPANESE_SAMPLE);
+    let face = serde_json::Value::from(LANES_FONT_JA);
     format!(
         r#"
 await document.fonts.ready;
@@ -88,9 +97,17 @@ const lanes = ['upper', 'lower'].map((lane) => ({{
   bottom: document.getElementById('lane-' + lane).getBoundingClientRect().bottom,
 }}));
 const fonts = [...document.fonts].map((face) => ({{ family: face.family, status: face.status }}));
+const canvas = document.createElement('canvas').getContext('2d');
+const ink = (stack, ch) => {{
+  canvas.font = '36px ' + stack;
+  const m = canvas.measureText(ch);
+  return [m.width, m.actualBoundingBoxLeft, m.actualBoundingBoxRight, m.actualBoundingBoxAscent, m.actualBoundingBoxDescent].join();
+}};
+const stack = getComputedStyle(document.querySelector('#lane-upper .line')).fontFamily;
+const without = stack.split(',').map((name) => name.trim()).filter((name) => name.replace(/^["']|["']$/g, '') !== {face}).join(', ');
 let missing = 0;
 for (const ch of {sample}) {{
-  if (!document.fonts.check('36px cinecaption', ch)) missing += 1;
+  if (ink(stack, ch) === ink(without, ch)) missing += 1;
 }}
 dioxus.send({{ inner_height: window.innerHeight, rows, lanes, fonts, missing_glyphs: missing }});
 "#
@@ -152,6 +169,15 @@ mod tests {
             assert!(text.contains(key), "{key}");
         }
         assert!(text.contains("金曜日"));
+    }
+
+    #[test]
+    fn the_glyph_count_compares_the_stack_with_and_without_the_face_and_never_asks_fonts_check() {
+        let text = script();
+        assert!(text.contains("measureText"));
+        assert!(text.contains(r#"!== "cinecaption""#));
+        assert!(text.contains("#lane-upper .line"));
+        assert!(!text.contains("fonts.check"));
     }
 
     #[test]

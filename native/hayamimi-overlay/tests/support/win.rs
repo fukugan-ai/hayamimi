@@ -29,23 +29,26 @@ use windows::Win32::Graphics::Gdi::{
     SRCCOPY, SelectObject,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForSystem, GetDpiForWindow,
     SetProcessDpiAwarenessContext,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_0, INPUT_MOUSE, MOUSE_EVENT_FLAGS, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
-    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
+    GetLastInputInfo, INPUT, INPUT_0, INPUT_MOUSE, LASTINPUTINFO, MOUSE_EVENT_FLAGS,
+    MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE,
+    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GWL_EXSTYLE,
-    GWL_STYLE, GetClassNameW, GetClientRect, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HWND_TOPMOST, IsWindowVisible, MSG,
-    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-    SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SetForegroundWindow, SetWindowPos, ShowWindow, TranslateMessage, WINDOW_EX_STYLE, WM_CLOSE,
-    WM_DESTROY, WM_LBUTTONDOWN, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW, WS_SIZEBOX, WS_VISIBLE,
+    BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GA_ROOT,
+    GWL_EXSTYLE, GWL_STYLE, GetAncestor, GetClassNameW, GetClientRect, GetCursorPos,
+    GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindowLongPtrW, GetWindowRect,
+    GetWindowThreadProcessId, HWND_TOPMOST, IsWindowVisible, MSG, PostMessageW, PostQuitMessage,
+    RegisterClassW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+    SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow,
+    TranslateMessage, WINDOW_EX_STYLE, WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN, WNDCLASSW,
+    WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW,
+    WS_SIZEBOX, WS_VISIBLE, WindowFromPoint,
 };
 use windows::core::{BOOL, w};
 
@@ -374,17 +377,238 @@ pub fn normalise(pixel: i32, origin: i32, extent: i32) -> Result<i32, String> {
     i32::try_from(scaled).map_err(|error| error.to_string())
 }
 
-/// Moves the pointer to the physical pixel `(x, y)` and presses and releases the left button.
-pub fn click(x: i32, y: i32) -> Result<(), String> {
-    let across = normalise(x, metric(SM_XVIRTUALSCREEN), metric(SM_CXVIRTUALSCREEN))?;
-    let down = normalise(y, metric(SM_YVIRTUALSCREEN), metric(SM_CYVIRTUALSCREEN))?;
-    let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-    send(&[mouse_input(across, down, place)])?;
-    std::thread::sleep(Duration::from_millis(40));
-    send(&[
-        mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
-        mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
-    ])
+/// The top-level window under the physical pixel `(x, y)`, if there is one.
+/// Hidden and disabled windows are not found (`WindowFromPoint`); a child
+/// window is reported as the top-level window that holds it.
+pub fn window_at(x: i32, y: i32) -> Option<Win> {
+    // SAFETY: takes the point by value and only reads which window is there.
+    let found = unsafe { WindowFromPoint(POINT { x, y }) };
+    if found.is_invalid() {
+        return None;
+    }
+    // SAFETY: `found` was just returned by the OS; a window that has gone since makes the call return NULL.
+    let top = unsafe { GetAncestor(found, GA_ROOT) };
+    (!top.is_invalid()).then(|| Win::from_raw(top))
+}
+
+/// Whether the window `found` under a point is one of `own`. Pure, so that the
+/// decision is tested without a window.
+fn judge_target(found: Option<Win>, own: &[Win]) -> Result<(), String> {
+    match found {
+        Some(top) if own.contains(&top) => Ok(()),
+        Some(top) => Err(format!(
+            "the window there is {top:?} (class {:?}), not one of the test's own windows {own:?}",
+            class_name(top)
+        )),
+        None => Err(format!(
+            "no window is there; the test's own windows are {own:?}"
+        )),
+    }
+}
+
+/// [`judge_target`] for the window `found` under the pixel `(x, y)`, with the
+/// refusal worded as a click that was not sent.
+fn judge_click_target(found: Option<Win>, x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+    judge_target(found, own).map_err(|why| format!("no input was sent to ({x}, {y}): {why}"))
+}
+
+/// Stops with an error unless the window under the physical pixel `(x, y)` is
+/// one of `own`, the test's own windows. Nothing is sent.
+pub fn guard_click(x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+    judge_click_target(window_at(x, y), x, y, own)
+}
+
+/// The least idle time, in seconds, with which the first click may be sent:
+/// the user is away.
+pub const MIN_IDLE_SECS: u32 = 300;
+
+/// What the test itself last did: where the pointer stood after its click, and
+/// the tick of the last input the system saw right after it. A click that finds
+/// the pointer elsewhere, or a later input tick, was preceded by the user.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Trace {
+    pointer: (i32, i32),
+    input_tick: u32,
+}
+
+/// Whether a click may be sent now. Pure, so that each way of stopping is
+/// tested without sending anything. The first click needs the user to have
+/// been away `MIN_IDLE_SECS`; a later one needs the pointer where the test left
+/// it and no input after the test's own (the test's input moves the idle clock
+/// too, so the clock is compared to the tick the test saw, not to zero).
+fn judge_before_click(
+    trace: Option<Trace>,
+    idle_secs: u32,
+    input_tick: u32,
+    cursor: (i32, i32),
+) -> Result<(), String> {
+    let Some(last) = trace else {
+        if idle_secs < MIN_IDLE_SECS {
+            return Err(format!(
+                "no input was sent: the user was active {idle_secs} s ago, less than {MIN_IDLE_SECS} s"
+            ));
+        }
+        return Ok(());
+    };
+    if cursor != last.pointer {
+        return Err(format!(
+            "no input was sent: the pointer is at {cursor:?}, not where the test left it, {:?}",
+            last.pointer
+        ));
+    }
+    if input_tick != last.input_tick {
+        return Err(String::from(
+            "no input was sent: the system saw an input after the test's own",
+        ));
+    }
+    Ok(())
+}
+
+fn cursor_position() -> Result<(i32, i32), String> {
+    let mut at = POINT::default();
+    // SAFETY: `at` is a live POINT that the call fills in.
+    unsafe { GetCursorPos(&mut at) }.map_err(|error| format!("GetCursorPos: {error}"))?;
+    Ok((at.x, at.y))
+}
+
+/// The tick of the last input the system saw, and how many seconds ago that was.
+fn last_input() -> Result<(u32, u32), String> {
+    let size = u32::try_from(size_of::<LASTINPUTINFO>()).map_err(|error| error.to_string())?;
+    let mut info = LASTINPUTINFO {
+        cbSize: size,
+        dwTime: 0,
+    };
+    // SAFETY: `info` is a live LASTINPUTINFO whose `cbSize` is its size.
+    let read = unsafe { GetLastInputInfo(&mut info) };
+    if !read.as_bool() {
+        return Err(String::from("GetLastInputInfo failed"));
+    }
+    // SAFETY: takes no argument and only reads the tick count.
+    let now = unsafe { GetTickCount() };
+    Ok((now.wrapping_sub(info.dwTime) / 1000, info.dwTime))
+}
+
+/// One mouse event as `(dx, dy, flags)`: the fields of a `MOUSEINPUT` that the
+/// test sets.
+pub type MouseStep = (i32, i32, MOUSE_EVENT_FLAGS);
+
+/// Everything `Pointer::click` reads from the OS, and the one thing it writes.
+pub trait Ports {
+    /// Seconds since the last input the system saw, and the tick of that input.
+    fn last_input(&self) -> Result<(u32, u32), String>;
+    fn cursor_position(&self) -> Result<(i32, i32), String>;
+    fn window_at(&self, x: i32, y: i32) -> Option<Win>;
+    /// Sends `steps` as one batch.
+    fn send(&mut self, steps: &[MouseStep]) -> Result<(), String>;
+}
+
+/// The real OS: every call goes to Win32.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Os;
+
+impl Ports for Os {
+    fn last_input(&self) -> Result<(u32, u32), String> {
+        last_input()
+    }
+
+    fn cursor_position(&self) -> Result<(i32, i32), String> {
+        cursor_position()
+    }
+
+    fn window_at(&self, x: i32, y: i32) -> Option<Win> {
+        window_at(x, y)
+    }
+
+    fn send(&mut self, steps: &[MouseStep]) -> Result<(), String> {
+        let inputs: Vec<INPUT> = steps
+            .iter()
+            .map(|&(dx, dy, flags)| mouse_input(dx, dy, flags))
+            .collect();
+        send(&inputs)
+    }
+}
+
+/// The test's one source of mouse input. It stops, sending nothing, when the
+/// user has been active (see `judge_before_click`) or when the window under
+/// the pixel is not one of the test's own.
+pub struct Pointer<P: Ports = Os> {
+    trace: Option<Trace>,
+    ports: P,
+}
+
+impl Default for Pointer<Os> {
+    fn default() -> Pointer<Os> {
+        Pointer::with_ports(Os)
+    }
+}
+
+impl Pointer<Os> {
+    pub fn new() -> Pointer<Os> {
+        Pointer::default()
+    }
+}
+
+impl<P: Ports> Pointer<P> {
+    fn with_ports(ports: P) -> Pointer<P> {
+        Pointer { trace: None, ports }
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let (idle_secs, tick) = self.ports.last_input()?;
+        judge_before_click(self.trace, idle_secs, tick, self.ports.cursor_position()?)
+    }
+
+    /// Moves the pointer to the physical pixel `(x, y)` and presses and
+    /// releases the left button, in one `SendInput`, but only while the user is
+    /// away and the window under that pixel is one of `own`.
+    pub fn click(&mut self, x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+        self.check()?;
+        judge_click_target(self.ports.window_at(x, y), x, y, own)?;
+        let across = normalise(x, metric(SM_XVIRTUALSCREEN), metric(SM_CXVIRTUALSCREEN))?;
+        let down = normalise(y, metric(SM_YVIRTUALSCREEN), metric(SM_CYVIRTUALSCREEN))?;
+        let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        self.ports.send(&[
+            (across, down, place),
+            (0, 0, MOUSEEVENTF_LEFTDOWN),
+            (0, 0, MOUSEEVENTF_LEFTUP),
+        ])?;
+        let (_, input_tick) = self.ports.last_input()?;
+        self.trace = Some(Trace {
+            pointer: self.ports.cursor_position()?,
+            input_tick,
+        });
+        Ok(())
+    }
+}
+
+/// Remembers the window that was in front and puts it back when dropped, also
+/// when the test fails.
+pub struct ForegroundKeeper<F: FnMut(Win)> {
+    original: Option<Win>,
+    restore: F,
+}
+
+impl<F: FnMut(Win)> ForegroundKeeper<F> {
+    pub fn with(original: Option<Win>, restore: F) -> ForegroundKeeper<F> {
+        ForegroundKeeper { original, restore }
+    }
+}
+
+impl<F: FnMut(Win)> Drop for ForegroundKeeper<F> {
+    fn drop(&mut self) {
+        if let Some(original) = self.original {
+            (self.restore)(original);
+        }
+    }
+}
+
+/// The keeper of the real foreground: the window in front now goes back in front when it is dropped.
+pub fn keep_foreground() -> ForegroundKeeper<fn(Win)> {
+    fn put_back(w: Win) {
+        // A refusal leaves the front as it is; a drop cannot report it.
+        let _ = set_foreground(w);
+    }
+    ForegroundKeeper::with(foreground(), put_back)
 }
 
 // ---- a screen grab -----------------------------------------------------
@@ -672,6 +896,96 @@ impl Drop for Naive {
 mod tests {
     use super::*;
 
+    const LEFT: Trace = Trace {
+        pointer: (500, 400),
+        input_tick: 9_000,
+    };
+
+    /// The first click needs the user away for `MIN_IDLE_SECS`, to the second.
+    #[test]
+    fn the_first_click_needs_the_user_to_have_been_away_300_seconds() {
+        assert!(judge_before_click(None, MIN_IDLE_SECS - 1, 1, (0, 0)).is_err());
+        assert!(judge_before_click(None, MIN_IDLE_SECS, 1, (0, 0)).is_ok());
+    }
+
+    /// A later click is not held to the idle clock: the test's own input has reset it.
+    #[test]
+    fn a_later_click_ignores_the_idle_clock_the_tests_own_input_reset() {
+        assert!(judge_before_click(Some(LEFT), 0, LEFT.input_tick, LEFT.pointer).is_ok());
+    }
+
+    #[test]
+    fn a_pointer_that_was_moved_since_the_last_click_stops_the_next_one() {
+        let moved = judge_before_click(Some(LEFT), 0, LEFT.input_tick, (501, 400));
+        let said = moved.err();
+        assert!(
+            said.as_deref().is_some_and(|text| text.contains("pointer")),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    fn an_input_after_the_tests_own_stops_the_next_click() {
+        let later = judge_before_click(Some(LEFT), 0, LEFT.input_tick + 1, LEFT.pointer);
+        let said = later.err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("after the test's own")),
+            "{said:?}"
+        );
+    }
+
+    /// The real reads work: the cursor and the input clock can be read, and the idle time is not absurd.
+    #[test]
+    fn the_cursor_and_the_input_clock_can_be_read() -> Result<(), String> {
+        cursor_position()?;
+        let (idle_secs, _) = last_input()?;
+        assert!(idle_secs < u32::MAX / 2000, "{idle_secs}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_pointer_standing_where_the_test_expects_it_passes_the_real_read() -> Result<(), String> {
+        let here = cursor_position()?;
+        let (idle_secs, tick) = last_input()?;
+        let kept = Trace {
+            pointer: here,
+            input_tick: tick,
+        };
+        let mut other = kept;
+        other.pointer = (here.0 + 50, here.1);
+        assert!(judge_before_click(Some(kept), idle_secs, tick, cursor_position()?).is_ok());
+        assert!(judge_before_click(Some(other), idle_secs, tick, cursor_position()?).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn the_window_that_was_in_front_is_put_back_when_the_keeper_is_dropped() {
+        let mut put_back = Vec::new();
+        {
+            let _keeper = ForegroundKeeper::with(Some(Win(7)), |w| put_back.push(w));
+        }
+        assert_eq!(put_back, [Win(7)]);
+    }
+
+    #[test]
+    fn the_window_that_was_in_front_is_put_back_also_when_the_test_panics() {
+        let mut put_back = Vec::new();
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _keeper = ForegroundKeeper::with(Some(Win(9)), |w| put_back.push(w));
+            panic!("the test failed");
+        }));
+        assert!(ran.is_err());
+        assert_eq!(put_back, [Win(9)]);
+    }
+
+    #[test]
+    fn a_keeper_with_no_window_in_front_puts_nothing_back() {
+        let mut put_back = Vec::new();
+        drop(ForegroundKeeper::with(None, |w| put_back.push(w)));
+        assert!(put_back.is_empty());
+    }
+
     #[test]
     fn the_first_pixel_maps_to_zero_and_the_last_to_the_top_of_the_range() -> Result<(), String> {
         assert_eq!(normalise(0, 0, 3840)?, 0);
@@ -731,6 +1045,120 @@ mod tests {
         };
         assert!(bare.frameless());
         assert!(!framed.frameless());
+    }
+
+    #[test]
+    fn a_window_of_the_test_is_a_target_for_a_click() {
+        assert_eq!(judge_target(Some(Win(5)), &[Win(4), Win(5)]), Ok(()));
+    }
+
+    #[test]
+    fn a_window_the_test_did_not_make_is_refused_and_named() {
+        let said = judge_target(Some(Win(9)), &[Win(5)]).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("Win(9)") && text.contains("not one of")),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    fn no_window_at_the_point_and_an_empty_list_are_both_refused() {
+        assert!(judge_target(None, &[Win(5)]).is_err());
+        assert!(judge_target(Some(Win(5)), &[]).is_err());
+    }
+
+    /// An OS that answers from fields and records what would have been sent.
+    struct FakePorts {
+        idle_secs: u32,
+        input_tick: u32,
+        cursor: (i32, i32),
+        window: Option<Win>,
+        sent: Vec<Vec<MouseStep>>,
+    }
+
+    impl Ports for FakePorts {
+        fn last_input(&self) -> Result<(u32, u32), String> {
+            Ok((self.idle_secs, self.input_tick))
+        }
+
+        fn cursor_position(&self) -> Result<(i32, i32), String> {
+            Ok(self.cursor)
+        }
+
+        fn window_at(&self, _x: i32, _y: i32) -> Option<Win> {
+            self.window
+        }
+
+        fn send(&mut self, steps: &[MouseStep]) -> Result<(), String> {
+            self.sent.push(steps.to_vec());
+            Ok(())
+        }
+    }
+
+    const OWN_WINDOW: Win = Win(0x51);
+    const STRANGER: Win = Win(0x52);
+
+    fn pointer_over(idle_secs: u32, window: Win) -> Pointer<FakePorts> {
+        Pointer::with_ports(FakePorts {
+            idle_secs,
+            input_tick: 9_000,
+            cursor: (700, 300),
+            window: Some(window),
+            sent: Vec::new(),
+        })
+    }
+
+    /// The click was refused with a message holding `needle`, and nothing was sent.
+    fn refused_without_sending(
+        pointer: &mut Pointer<FakePorts>,
+        at: (i32, i32),
+        needle: &str,
+        case: &str,
+    ) {
+        let said = pointer.click(at.0, at.1, &[OWN_WINDOW]).err();
+        assert!(
+            said.as_deref().is_some_and(|text| text.contains(needle)),
+            "{case}: {said:?}"
+        );
+        assert!(
+            pointer.ports.sent.is_empty(),
+            "{case}: {:?}",
+            pointer.ports.sent
+        );
+    }
+
+    /// Both guards stand before the one `SendInput`; the first click sends the
+    /// move, the press and the release together, and a second click after the
+    /// pointer was moved sends nothing. The pixel is the corner of the virtual
+    /// screen, which `normalise` accepts on every machine.
+    #[test]
+    fn ov02_pointer_click_sends_nothing_unless_both_guards_pass() -> Result<(), String> {
+        let corner = (metric(SM_XVIRTUALSCREEN), metric(SM_YVIRTUALSCREEN));
+        let mut active = pointer_over(MIN_IDLE_SECS - 1, OWN_WINDOW);
+        refused_without_sending(&mut active, corner, "was active", "a: user active");
+        let mut stranger = pointer_over(MIN_IDLE_SECS, STRANGER);
+        refused_without_sending(&mut stranger, corner, "not one of", "b: foreign window");
+
+        let mut pointer = pointer_over(MIN_IDLE_SECS, OWN_WINDOW);
+        pointer.click(corner.0, corner.1, &[OWN_WINDOW])?;
+        let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        let wanted = vec![
+            (0, 0, place),
+            (0, 0, MOUSEEVENTF_LEFTDOWN),
+            (0, 0, MOUSEEVENTF_LEFTUP),
+        ];
+        assert_eq!(pointer.ports.sent, [wanted], "c: one batch of three");
+
+        pointer.ports.cursor = (701, 300);
+        let said = pointer.click(corner.0, corner.1, &[OWN_WINDOW]).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("pointer is at")),
+            "d: {said:?}"
+        );
+        assert_eq!(pointer.ports.sent.len(), 1, "d: nothing more was sent");
+        Ok(())
     }
 
     #[test]

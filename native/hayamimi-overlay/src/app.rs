@@ -336,6 +336,11 @@ impl Shell {
         self.probe().map_or(100, |probe| probe.zoom_percent)
     }
 
+    /// How much shorter than the band the window is made; only a probe shrinks it.
+    fn shrink_px(&self) -> u32 {
+        self.probe().map_or(0, |probe| probe.shrink_px)
+    }
+
     fn current(&self) -> OverlayConfig {
         lock(&self.startup.config).current().clone()
     }
@@ -387,10 +392,12 @@ impl Shell {
     fn place(&mut self) -> Result<Target, Failure> {
         let config = self.current();
         let zoom = self.zoom_percent();
+        let shrink = self.shrink_px();
         let target = window::target(
             &self.window,
             &config,
             zoom,
+            shrink,
             &mut self.said_monitors,
             &mut self.startup.sink,
         )?;

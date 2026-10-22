@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use crate::error::EvalError;
 use crate::{
     chrf, cli_der, cli_stages, doc_links, fleurs, log, manifest, record, scorecard, scorecard_run,
-    stream,
+    stream, two_speakers,
 };
 
 #[derive(Parser)]
@@ -52,6 +52,18 @@ enum Command {
     Der(cli_der::DerArgs),
     /// Check that every Markdown link of a repository points at a file that exists.
     DocLinks(DocLinksArgs),
+    /// Cut the two-speaker recording the diarization tests read out of the AMI meetings.
+    TwoSpeakers(TwoSpeakersArgs),
+}
+
+#[derive(Args)]
+struct TwoSpeakersArgs {
+    /// The directory of the AMI RTTM files, each beside the wav of its meeting.
+    #[arg(long)]
+    eval_diar: PathBuf,
+    /// The directory the wav and its manifest are written to.
+    #[arg(long)]
+    out: PathBuf,
 }
 
 #[derive(Args)]
@@ -306,6 +318,7 @@ fn execute(command: Command) -> Result<(), EvalError> {
         Command::R7Report(args) => cli_stages::r7_report(args),
         Command::Der(args) => cli_der::der(args),
         Command::DocLinks(args) => doc_links_command(args),
+        Command::TwoSpeakers(args) => two_speakers_command(&args),
         Command::FleursPairs(args) => fleurs::run(
             &args.targets,
             args.n,
@@ -402,6 +415,20 @@ fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {
     Err(EvalError::Invalid(String::from(
         "fetch-set needs --pin <manifest> or --concat",
     )))
+}
+
+/// Picks the window from the RTTM files and cuts it; nothing is written when no window fits.
+fn two_speakers_command(args: &TwoSpeakersArgs) -> Result<(), EvalError> {
+    let window = two_speakers::pick_window(&args.eval_diar)?;
+    two_speakers::write_clip(&window, &args.eval_diar, &args.out)?;
+    println!(
+        "cut {} {}..{} ms into {}",
+        window.meeting,
+        window.start_ms,
+        window.end_ms,
+        args.out.display()
+    );
+    Ok(())
 }
 
 /// Parses the arguments, runs the sub command and returns the exit code.
@@ -514,5 +541,63 @@ mod tests {
             part: Vec::new(),
         };
         assert!(matches!(fetch_set(args), Err(EvalError::Invalid(_))));
+    }
+
+    /// The command line `hayamimi-eval two-speakers <flags>` as the parser takes it.
+    fn two_speakers_argv(flags: &[(&str, &Path)]) -> Vec<std::ffi::OsString> {
+        let mut argv = vec![
+            std::ffi::OsString::from("hayamimi-eval"),
+            std::ffi::OsString::from("two-speakers"),
+        ];
+        for (flag, path) in flags {
+            argv.push(std::ffi::OsString::from(flag));
+            argv.push(path.as_os_str().to_owned());
+        }
+        argv
+    }
+
+    #[test]
+    fn two_speaker_clip_command_writes_the_files_the_diarization_tests_read()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let source = crate::testutil::scratch("t036-source");
+        let out = crate::testutil::scratch("t036-out");
+        std::fs::create_dir_all(&source)?;
+        let rttm = "SPEAKER mA 1 10.000 5.000 <NA> <NA> A <NA> <NA>\n\
+                    SPEAKER mA 1 16.000 3.000 <NA> <NA> B <NA> <NA>\n\
+                    SPEAKER mA 1 20.000 4.000 <NA> <NA> A <NA> <NA>\n\
+                    SPEAKER mA 1 25.000 2.500 <NA> <NA> A <NA> <NA>\n";
+        std::fs::write(source.join("mA.rttm"), rttm)?;
+        let samples: Vec<i16> = (0..480_000_u32)
+            .map(|i| (i & 0xFFFF) as u16 as i16)
+            .collect();
+        crate::wav::write_wav(&source.join("mA.wav"), crate::wav::SAMPLE_RATE, &samples)?;
+
+        // Without --out the parse is refused, and nothing is written.
+        let refused = Cli::try_parse_from(two_speakers_argv(&[("--eval-diar", &source)]));
+        assert!(matches!(
+            &refused,
+            Err(error) if error.kind() == ErrorKind::MissingRequiredArgument
+                && error.exit_code() == 2
+        ));
+        assert!(!out.exists());
+
+        let argv = two_speakers_argv(&[("--eval-diar", &source), ("--out", &out)]);
+        execute(Cli::try_parse_from(argv)?.command)?;
+        let clip = crate::wav::read_wav(&out.join(two_speakers::CLIP_FILE))?;
+        assert_eq!(clip.sample_rate, 16_000);
+        assert_eq!(clip.samples.len(), 280_000);
+        assert_eq!(clip.samples[0], 28_928);
+        assert_eq!(clip.samples[279_999], -18_753);
+        let manifest = std::fs::read_to_string(out.join(two_speakers::MANIFEST_FILE))?;
+        assert!(manifest.contains("CC BY 4.0"), "{manifest}");
+        assert!(
+            manifest.contains("https://groups.inf.ed.ac.uk/ami/corpus/license.shtml"),
+            "{manifest}"
+        );
+        assert!(manifest.contains("mA"), "{manifest}");
+        assert!(!manifest.contains("CC BY-NC"), "{manifest}");
+        let _ = std::fs::remove_dir_all(&source);
+        let _ = std::fs::remove_dir_all(&out);
+        Ok(())
     }
 }
