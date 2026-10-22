@@ -902,7 +902,11 @@ fn the_ingest_codec_rows_are_placed_in_eval_ws_rs() -> TestResult {
     let owned = ["test_ws_ingest", ".py"].concat();
     let file = owned.as_str();
     assert_eq!(rows_placed_at(&rows, file, "hayamimi-eval/src/ws.rs"), 8);
-    assert_eq!(rows_placed_at(&rows, file, "hayamimi-asr/src/audio.rs"), 8);
+    assert_eq!(rows_placed_at(&rows, file, "hayamimi-asr/src/audio.rs"), 4);
+    assert_eq!(
+        rows_placed_at(&rows, file, "hayamimi/src/capture/convert.rs"),
+        4
+    );
     assert_eq!(rows_placed_at(&rows, file, "hayamimi/src/ingest.rs"), 0);
     let mouths = rows
         .iter()
