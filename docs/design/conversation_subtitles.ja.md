@@ -1163,7 +1163,7 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - `hayamimi-eval` に `fleurs-pairs` と `chrf` を作る（3.5、`rust_port.ja.md`）。
 - `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-11」に替える。
 - hooks の repo に、held-out の directory の名前に当たる Read、Grep、Glob、Bash を止める PreToolUse の gate を作る（3.5）。作るのは hook-engineer の席である。
-- `state.json` の `acceptance` に、10 の IP-1〜IP-7 を足す。
+- `state.json` の `acceptance` に、10 の IP-1〜IP-8 を足す。
 
 ## 10. 対面の場面：1 本のマイクで日英を同時に訳す
 
@@ -1173,11 +1173,12 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 
 ### 10.1 結論
 
-作る物は次の 3 つである。
+作る物は次の 4 つである。
 
-- **`--mode pair`**（`hayamimi`）：発話ごとに言語を判定し、答えを `ja` と `en` の 2 つに絞る。判定が第三の言語を返した時、答えを返さない時、判定の段が無い時も、止めずに `ja` か `en` へ落とす（10.4）。
+- **`--mode pair`**（`hayamimi`）：発話ごとに言語を判定し、答えを `ja` と `en` の 2 つに絞る。判定が第三の言語を返した時、答えを返さない時、判定の段が無い時も、止めずに `ja` か `en` へ落とす（10.4）。`--mode pair` を名指さない run の振る舞いは変えない。
 - **頁が中継の訳も読む口**（`hayamimi-ui`）：`hayamimi` の今の頁が、自分の `/events`（確定文）に加えて、query の `?relay=<url>` で名指した中継の `/events`（訳）を読み、2 つの向きの訳を同じ頁に出す（10.5）。
 - **交互の試しの録音** `lat-dialog`（`hayamimi-eval fetch-set --interleave`）：日英の発話を 1 本ずつ交互につないだ録音と manifest（10.7）。
+- **試しの run が訳の server の port を名指す引数** `--own-llama-port`（`hayamimi-eval stream`）：`--own-pid` で名指した `llama-server` を、18084 の固定でなく、この引数の port で確かめる（10.7.1）。
 
 作らない物は次の 4 つである。
 
@@ -1214,8 +1215,29 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 | S13 | code-switching の認識で、言語の整列の loss は frame ごとの言語判定を frame ごとの正解なしに可能にし、ASRU の組で基準より 8.6% 相対で良くなる | Liu ほか、arXiv 2403.05887、https://arxiv.org/abs/2403.05887 |
 
 S11 は、10.4 の 3 で認識の文の文字を判定の手がかりに使う根拠である。
-S12 は、自然な会話の code-switching では専用の model でも 1 割を超える誤りが残ることを示し、IP-2 の閾値を 0 に置かない理由である。
+S12 は、自然な会話の code-switching では専用の model でも 1 割を超える誤りが残ることを示し、IP-2 の記録に置く仮の線を 0 にしない理由である。
 S13 は frame ごとの判定で、発話の中で言語が替わる形を扱うが、認識器の学習を要するので、この節では採らない。
+
+#### 10.2.1 `e51e8cc` で数え直した物
+
+**最新情報**：clap 4.6.7（`native/Cargo.lock` の版と同じ）の `Arg::requires` は、その引数が在る時だけ名指した引数を要り、欠ければ `ErrorKind::MissingRequiredArgument` で止まる（https://docs.rs/clap/latest/clap/struct.Arg.html#method.requires 、取得 2026-10-22）。
+`URLSearchParams.get` は名前の無い key に `null` を返し、値は `application/x-www-form-urlencoded` の規則で decode される（https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/get と WHATWG URL、取得 2026-10-22）。
+**最新情報**：clap 4.6.7 の `ArgAction::Set` は、同じ引数がもう一度現れると `ArgumentConflict` になり、`Command::args_override_self(true)` を置いた時だけ後の値で上書きする（https://docs.rs/clap/latest/clap/enum.ArgAction.html 、取得 2026-10-22）。
+`u16` の引数は `RangedI64ValueParser` で読まれ、字を `value.parse::<i64>()` で数に読んでから `u16` の範囲を見る（https://docs.rs/clap_builder/latest/src/clap_builder/builder/value_parser.rs.html 、取得 2026-10-22）。
+WHATWG URL の basic URL parser は、入力の前後の C0 制御文字と空白を除いてから読み、scheme の字を小文字に直す（https://url.spec.whatwg.org/ 、取得 2026-10-22）。
+
+数えた日時は 2026-10-22、範囲は main の `e51e8cc` の `native/` の `*.rs`（`target/` を除く）と `docs/` である。
+code は `git show e51e8cc:<path>` で読んだ。
+
+| 数えた物 | pattern | 結果 | 陽性対照 |
+|---|---|---|---|
+| 早い終わりの候補の経路 | `git merge-base --is-ancestor 1e437a8 e51e8cc`、`rg -n 'fn consider\|fn decode_samples' native/hayamimi-asr/src/pipeline.rs` | `rust_port.ja.md` 3.17 の方針 2（候補を確定と同じ経路で解く）は main に在る（rc 0）。候補は `pipeline.rs:839-889` の `consider` が `solve` を呼び、確定と同じ `decode_samples`（`:1128-1150`）が `live: true` の `Request` で `Router::transcribe` を呼ぶ。`--endpoint` も `args.rs:49-50`、`:167-173` に在る | `args.rs` に `endpoint` が 15 件 |
+| 非 live の decode | `rg -n 'live: false' native --type rust`（test を除く） | 製品の code では `hayamimi-asr/src/route/refine.rs:74` の `read_known` の 1 か所だけ。`hayamimi` の清書の判定器 `Given`（`hayamimi/src/refine.rs:297-303`）は、群に付いた確定文の言語をそのまま返す | `transcribe.rs:193` と `:336` が `!request.live` で判定と読み直しを飛ばす |
+| 速報の読み先 | `rg -n '\.partial\(' native --type rust` | `hayamimi` の速報は `Engine::partial`（`pipeline.rs:713-731`）で、session の言語の tier で読み、最初の確定文の前は `Tier::Rz` で読む。呼ぶのは `hayamimi/src/session.rs:416` の 1 か所。言語の手がかりを取る `Router::partial`（`route/draft.rs:20-37`）を呼ぶのは test だけ（`route/tests/partial.rs` 6 件、`lifecycle.rs` 1 件）で、製品の呼び手は 0 件 | 同じ式が `relay.rs:624` の中継の `route.partial` に当たる |
+| 新しい接続へ流し直す物 | `rg -n 'fn subscribe' native/hayamimi/src/server.rs` | `Hub::subscribe`（`server.rs:163`）は保った event（`session_start`、`fallback`）と最後の 200 件の `refine` だけを流し直し、`final` は流し直さない（test `eventhub_replays_refine_events_to_new_subscribers`、`:549`） | 同じ test が `refine` 2 件を数える |
+| 偽の llama-server | `rg -ln 'fake_llama_server' native` | `hayamimi/src/bin/fake_llama_server.rs` の 1 本で、model の名前で振る舞いを分け（`exits.gguf`、`silent.gguf`）、ほかは全部の要求に `{"status":"ok"}` を返す。訳の答えを HTTP で返す物は無い。中継の test の `FakeLlm`（`hayamimi-relay/tests/support/events.rs:346`）は同じ process の中の `Llm` の実装で、中継の binary からは呼べない | `hayamimi/tests/support/llama.rs:18` が `CARGO_BIN_EXE_fake_llama_server` を読む |
+| 訳の server の port の固定 | `rg -c 18084 native --glob '*.rs'`、`rg -n 'LLAMA_PORT' native --type rust` | `hayamimi-eval/src/machine.rs` 12、`tests/rp83.rs` 9、`tests/support/s83.rs` 2、`src/cli.rs` 1、`hayamimi-relay/tests/rp85.rs` 4。`LLAMA_PORT` は `machine.rs:77` の定義と `:339` の比べの 2 か所。`rp85.rs` の 4 件は中継が訳を頼む先で、この直しの読み手でない | `LLAMA_PORT` の 2 件 |
+| 頁の接続の印 | `rg -n 'set_conn' native/hayamimi-ui/src` | `web.rs:40`、`:43` で、`EventStream::open` が開いた流れの `open` と `error` が `Model` の接続の印を書く | 同じ file の `EventSource::new`（`:37`）の 1 件 |
 
 ### 10.3 方針：今の code で足りる所と、足りない所
 
@@ -1232,11 +1254,12 @@ S13 は frame ごとの判定で、発話の中で言語が替わる形を扱う
 切り替えのたびに SenseVoice の読みとの一致を求め、合わなければ直前の言語に留める（`route/sticky.rs:145` の `resolve_dual_confirm`、`route/transcribe.rs:203-206`）。
 対面ではほぼ毎発話が切り替えなので、毎発話に SenseVoice の復号が 1 回足され、合わなかった発話は相手の言語の認識器で読まれる。
 
-**足りない所**は 3 つである。
+**足りない所**は 4 つである。
 
 1. whisper-tiny は 99 言語から 1 つを返し、確率を返さない（10.2）。`zh` や `ko` と答えた行は、中継が訳さずに捨てる（`relay.rs:531`）。止めずに `ja` か `en` へ落とす規則が要る（10.4）。
 2. 訳を画面に出す頁が無い（10.2）。頁が中継の流れも読む口が要る（10.5）。
 3. 交互に話される録音が無く、判定の外れを測れない（10.2）。録音を作る口が要る（10.7）。
+4. `stream --own-pid` は、`--port 18084` で起こした `llama-server` しか run の物として受けない（`machine.rs:77`、`:325-340`）。18084 の外の訳の server で回す対面の run は、`stream.machine.refused`（`own_fault: port`）で 1 byte も送らずに止まる。port を引数で受ける口が要る（10.7.1）。
 
 **`source` の値**は `file` で通す。
 中継の `file` は「1 つの入力の行がどちらの言語でもよい」を既に意味し（`line.rs:53-56`）、動画の SRT（3.13）と対面は同じ規則で足りる。
@@ -1266,19 +1289,64 @@ S13 は frame ごとの判定で、発話の中で言語が替わる形を扱う
 その上で、候補を `ja` と `en` に絞り、次の順に 1 つ目の答えが出た所で決める。
 
 1. whisper-tiny が `ja` か `en` を返した：その言語。
-2. whisper-tiny がほかの言語を返した、答えを返さない、失敗した、判定の段が無い（3.15、`lid.rs:247-263` の `left_out`）：同じ音声を SenseVoice で読み、その言語の印（`lid.rs:125-127` の `sv_lid_tag`）が `ja` か `en` ならその言語。
-3. SenseVoice の印も `ja` と `en` の外か、SenseVoice の model が無い：SenseVoice が読んだ文の文字で決める。仮名と漢字が文字の 3 割を超えれば `ja`、ラテン文字だけなら `en`（`lid.rs:81-93` の `count_scripts` と同じ数え方）。
-4. 文字が 1 つも無い（無音、記号だけ、SenseVoice も無い）：`ja`。
+2. whisper-tiny がほかの言語を返した、空の文字列を返した、失敗した（`Identify::identify` の `Err`）、判定の段が無い（3.15、`lid.rs:248-263` の `left_out`）：同じ音声を SenseVoice で読み（`transcribe.rs:167` の `sv_probe`）、その言語の印（`lid.rs:125` の `sv_lid_tag`）が `ja` か `en` ならその言語。判定の段が無い時に、session の言語（`router.rs:264-269` の `locked_lang`）を答えとして使わない。
+3. SenseVoice の印が `ja` と `en` の外か、印が無い：SenseVoice が読んだ文の文字で決める。数え方は `lid.rs:81-93` の `count_scripts` と同じで、`char::is_alphabetic` の文字を数える。仮名と漢字の数が文字の数の 3 割を超えれば `ja`、3 割以下なら `en` とする。3 割以下の側には、ラテン文字だけの文、Hangul だけの文、Cyrillic だけの文、それらの混ざった文が入る。
+4. 文字が 1 つも無い（無音、記号だけ）か、SenseVoice の model が無い（`DecodeError::Unavailable`）：`ja`。
+5. SenseVoice の復号が失敗した（`DecodeError::Failed`）：`ja`。
+
+3 割ちょうどを `en` に入れるのは、比べを `script_corrected_lang` と同じ `>`（`lid.rs:112`、`:114`）にして、同じ文に 2 つの関数が別の答えを出さないためである。
+3 割以下を全部 `en` に送るのは、線を 1 本にしておくためである。
+Cyrillic の文は英語の認識器（Parakeet v3）が読む 25 言語に入る言語の文で、`ja` の認識器（ReazonSpeech）は仮名と漢字でしか書かない。
+Hangul だけの文はどちらの認識器にも合わないが、この段に来るのは 2 つの判定器がどちらも `ja` と `en` の外を答えた発話だけである（量は 10.12 の H38）。
+SenseVoice の model が無い時は読む文が無いので、3 を飛ばして 4 に入る。
+
+5 を 4 と分けるのは、壊れた model と空の読みを log で見分けるためで、答えは同じ `ja` にする。
+今の `Router::try_decode`（`router.rs:210-226`）は `Failed` を `RouteError::Decode` にして、その発話の読みごと呼び手へ返す。
+pair では、2 と 3 の SenseVoice の呼びだけが `Failed` を受け取って 5 に進み、発話は止まらない。
+`Failed` を `Unavailable` と同じに扱い、その tier を以後呼ばない形は採らない。一度の失敗で、後の発話の落ち先が 2 と 3 を失うからである。
 
 最後の落ち先を `ja` にするのは、whisper-tiny の外れが `ja` に偏るからである（`docs/eval/lid.md` の表 1。clean の 1.0 秒で ja 33%、en 93%）。
 `ja` でも `en` でもない答えは、`en` の音声より `ja` の音声から出やすい。
 
-決めた後の読み直し（`correct_by_script`）も、`ja` と `en` の外へは動かさない。
-`script_corrected_lang` が `zh` や `ko` を返した時は、印を直さずに今の言語のまま残す。
-速報（draft）の言語の手がかり（`route/draft.rs` の `lang_hint`）も、`ja` と `en` の外なら使わず、直前の確定文の言語で読む。
+pair の判定は session の状態を読まない。
+`--mode fast` の粘り（`transcribe.rs:235` の `hold_by_hysteresis`）と SenseVoice の一致の確かめ（`:214` の `confirm_by_probe`）を通さず、上の 1 から 5 の答えをそのまま使う。
+したがって `session.pending` は pair では読みも書きもされない。
+`session.last_lang` は今のとおり live の decode が書く（`transcribe.rs:133-135`）が、pair でそれを読むのは速報の tier の選び（下）だけである。
 
-落ちた発話ごとに、log の event `asr.lang.fallback`（info）を 1 件出す。
-項目は `id`、`step`（`sv_tag`、`script`、`default` のどれか）、`lid`（whisper-tiny の答え。答えが無ければ `null`）である。
+決めた後の読み直し（`correct_by_script`、`transcribe.rs:331-348`）も、`ja` と `en` の外へは動かさない。
+`script_corrected_lang` が `zh` や `ko` を返した時は、印を直さずに今の言語のまま残す。
+`script_corrected_lang` が `ja` を返し、文に仮名が無い時の SenseVoice の裁き（`transcribe.rs:365` の `arbitrate_han_only`）は、pair では呼ばずに `ja` で読み直す。
+裁きの答えのうち `ja` 以外の `zh`、`yue`、`ko` は、どれも 2 つの外だからである。
+
+速報（draft）は変えない。
+`hayamimi` の速報は `Engine::partial`（`pipeline.rs:713-731`）が session の言語の tier で読み、最初の確定文の前は ReazonSpeech で読む。
+pair の session の言語は確定文の言語なので、`ja` か `en` にしかならない。
+言語の手がかりを取る `Router::partial`（`route/draft.rs:20-37`）は製品の code から呼ばれない（10.2.1）ので、pair でも触らない。
+
+非 live の decode にはこの落ち先を当てない。
+製品の非 live の decode は清書の `read_known`（`refine.rs:71-78`）だけで、判定の答えのまま読む（`transcribe.rs:193`）。
+`hayamimi` の清書の判定器 `Given`（`hayamimi/src/refine.rs:297-303`）は確定文の言語を返すので、pair の清書には `ja` か `en` しか来ない。
+
+早い終わりの候補（`rust_port.ja.md` 3.17 の方針 2）には、この落ち先がそのまま当たる。
+候補は確定と同じ `live: true` の `Request` で解かれる（`pipeline.rs:1128-1150`）からである。
+候補を `live: false` で解く形は採らない。
+候補の文はそのまま `final` になるので、確定と別の規則で言語を決めると、候補で確定した行だけが `ja` と `en` の外へ出る。
+
+落ちた発話の印は `final` に載せて運ぶ。
+`Router::transcribe` の戻りの `Transcript`（`transcribe.rs:60-70`）に、落ちた時だけ値を持つ `fallback`（`step` と `lid`）を足し、pipeline の `Solved` と `Final` を通して `hayamimi` へ渡す。
+`hayamimi` は、`final` を出す所で `asr.endpoint.decided`（`log.rs:244` の `endpoint_decided_line`）と並べて、その `final` の `id` を付けた log の event `asr.lang.fallback` を 1 件出す。
+項目は `id`、`step`（`sv_tag`、`script`、`default`、`sv_failed` のどれか）、`lid`（whisper-tiny の答え。空の文字列、`Err`、判定の段が無い時は `null`）の 3 つである。
+`id` は `Final.id` の数で、同じ `final` の `asr.endpoint.decided` の `id`（`log.rs:247`）と等しく、`/events` の `final` の `id` `<source>-<n>` の `n` である（`wire.rs:22`）。
+`Final.id` は `Engine::finalize` が `next_id` から振り（`pipeline.rs:1032-1033`）、`next_id` は `Engine::open` で 1 から始まり（`:559`）、session の reset でも戻らない（`next_id` を書くのはこの 2 か所だけ）。
+`hayamimi` は process ごとに `Engine` を 1 つだけ開く（`run.rs:642` の `open_engine`）。
+したがって 1 つの process の中で `id` は重ならず、`stream --repeat` の repeat は同じ process に流すので、repeat をまたいで `id` は続く。
+`asr.lang.fallback` と `final` の突き合わせは、repeat を区別せずに、同じ process の log と events の中で `id` だけで結ぶ。
+`--mode pair` の run と `--mode fast` の run は別の process で、`id` はそれぞれ 1 から振られるので、2 つの run の記録を混ぜて結ばない。
+step の値と答えの対応は、2 が `sv_tag`、3 が `script`、4 が `default`、5 が `sv_failed` である。
+level は失敗の `sv_failed` だけが `warn` で、ほかは `info` である。
+持っておいた候補が後で `final` になる時（`Plan::Held`、`pipeline.rs:943-958`）は、候補を解いた時の `fallback` をそのまま使う。
+解いて持っただけで `final` にならなかった読みは、event を出さない。
+router の通知（`RouteNotice`、`router.rs:75-81`）に載せる形は採らない。通知は `final` の `id` を持たず、持っただけの候補と確定を見分けられないからである。
 `/events` の wire は変えない（`rust_port.ja.md` の RP-12）。
 どの手でも答えは `ja` か `en` に決まるので、行が訳されずに捨てられることは無い。
 
@@ -1297,9 +1365,38 @@ S13 は frame ごとの判定で、発話の中で言語が替わる形を扱う
 中継の応答は既に `Access-Control-Allow-Origin: *` を持つ（`hub.rs:26`）ので、中継の側は変えない。
 `?relay=` が無い頁は今と同じに動く。
 
+`?relay=` の値は、`hayamimi-ui/src/route.rs` の純関数が query から読む。
+値は `application/x-www-form-urlencoded` の規則で 1 回だけ decode する（`URLSearchParams.get` と同じ読み。10.2.1）。
+decode した値が `http://` か `https://` で始まる時だけ中継の URL とし、空の値、ほかの scheme（`javascript:`、`file:`、`data:` ほか）、key の無い query は、どれも中継なしとして今の頁と同じに動く。
+host は限らない。LAN の端末で頁を開く時は、中継も LAN の address で名指すからである（10.12 の H25、H39）。
+`page_for`（`route.rs:13-19`）の頁の選びと、重ね窓の `?show=` の読みは変えない。
+
+scheme は字のとおりに比べ、大文字と小文字を区別する。
+`HTTP://` や `Https://` で始まる値は、中継なしとして今の頁と同じに動く。
+重ね窓の `?show=` も key と値を字のとおりに比べる（`overlay.rs:28-37`）ので、1 つの頁の query の読みに規則を 2 つ持たないためである。
+browser の URL の parser は scheme を小文字に直す（10.2.1）ので、大文字の値も同じ server に繋がるが、受けるには比べを 1 つ足すことになる。
+頁を開く URL は、この節と案内が書く小文字の形である。
+
+decode した値の前後の空白と制御文字は削らない。
+前に空白の在る値は `http://` で始まらないので、中継なしである。
+後ろに空白の在る値は、字のまま `EventSource` に渡す。browser の URL の parser が前後の C0 制御文字と空白を除いてから読む（10.2.1）。
+頁の側で削る形は採らない。削ると、`?relay=%20http://…` のように前に空白の在る値も中継として受け、受ける綴りが 1 つ増えるからである。後ろの空白は browser が除くので、削らなくても開く先は変わらない。
+
+中継の流れは、頁の接続の印（`Model` の `Conn`、`web.rs:40`、`:43`）を書かない。
+接続の印は自分を配る server の流れのものとして残し、中継が落ちても頁の印は変わらない。
+中継が落ちている間、頁は確定文を出し続け、訳が出ないだけである。
+中継が戻ると、browser の `EventSource` が自分で繋ぎ直し、その後の訳が今のとおり確定文の行に結ばれる。
+中継の `Hub::subscribe`（`hayamimi-relay/src/hub.rs:90-100`）が新しい接続へ流し直すのは効いている `fallback` だけなので、落ちていた間の行には訳が付かない。
+中継の接続の状態を画面に出すかは、designer の席が言語で段を分ける頁の板で決める。
+
 `/dashboard` は行を時刻の順に並べるので、相手の英語とその和訳、自分の日本語とその英訳が、同じ列に交互に並ぶ。
 言語ごとに 2 つの段に分けて向かい合う 2 人が読む形（`/room` のような頁、字形は 3.12）は、designer の席へ渡す。
 この設計が決めるのは中身だけである：段は行の `lang`（原文の言語）で分け、各行は原文と、`settled` の訳と、`held` の印を持つ。
+
+`held` の訳は、`/dashboard` の今の `TrView`（`parts.rs:58-92`）のとおりに描き、頁の側で描き方を変えない。
+描くのは、矢印 `→<lang>`（`tr-arrow`）と、控えた印（`tr-mark`。`ui.tr.held`、英語 `Translation withheld`、日本語 `訳を控えました`）と、`hold_reason` が在る時の理由の語（`tr-reason`、`ui.tr.reason`）である（`parts.rs:73-78`）。
+訳の文（`tr-text`）は描かない。`status` が `held` の event は `TrState::Held` になり（`tr.rs:98-101`）、`Held` の行は文の片を持たない（`tr.rs:114`）ので、event の `text` が何であっても描かれない。
+原文は、訳の行の上の確定文の行が描く。
 LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の R5b の `--serve-host` で届くが、確かめていない（10.12 の H25）。
 
 採らない形は 2 つである。
@@ -1309,7 +1406,7 @@ LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の 
 ### 10.6 採らない手段
 
 - **マイクを 2 本に分ける**：同じ場所の 1 本のマイクという場面の外である。
-- **話者ごとに押すボタン**：判定が落ちた時も 10.4 の順で必ず `ja` か `en` に決まる。ボタンは画面の状態を 1 つ増やす。IP-2 が落ちた時に、ボタンを足すか判定器を替えるかを評議の席が決める（10.12 の Q5）。
+- **話者ごとに押すボタン**：判定が落ちた時も 10.4 の順で必ず `ja` か `en` に決まる。ボタンは画面の状態を 1 つ増やす。IP-2 の記録が置き直した線を超えた時に、ボタンを足すか判定器を替えるかを評議の席が決める（10.12 の Q5）。
 - **`--mode balanced` のまま使う**：10.3。毎発話に SenseVoice の復号が足され、合わない発話は直前の言語で読まれる。
 - **中継で言語を判定し直す**：認識器は判定の後に選ばれるので、取り違えた言語で読んだ文は中継では直せない。
 - **毎発話を `ja` と `en` の 2 つの認識器で読み、良い方を採る**：毎発話の復号が 2 回になり、`L` に ja 135 ms か en 300 ms（p50）が足される。
@@ -1322,6 +1419,9 @@ LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の 
 `hayamimi-eval fetch-set --concat` に `--interleave` を足す。
 `--interleave` は、各 `--part` から 1 本ずつ順に取り、part の clip が尽きたらその part を飛ばす。
 `--interleave` が無ければ、今のとおり part の順に塊でつなぐ。
+`--interleave` は `--concat` を要る（clap の `requires`。`cli.rs:184-188` の `--concat` が `--wav-out` と `--part` を要るのと同じ形）。
+`--concat` の無い `--interleave` は、何も読まずに clap の使い方の誤り（`ErrorKind::MissingRequiredArgument`、exit code 2）で止まる。
+`--pin` と並べた時に黙って無視する形は採らない。打った者が交互につないだつもりの manifest が、ただの pin の写しになるからである。
 
 作る command は次のとおりである（`--interleave` は今の code に無く、IP-S1 で足す）。
 
@@ -1337,6 +1437,38 @@ LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の 
 間の 800 ms は、`--min-silence` の 0.30 秒より長く、`lat-ja` の 1500 ms より短い会話の間合いとして置いた。
 置き場は `lat-multi` と同じ `testdata/`（git の外）で、manifest は `testdata/manifests/` である。
 clip は放送の音声で、部屋で 2 人が話した音声ではなく、1 秒より短い返事を含まない（10.12 の H20、H23）。
+1 秒より短い返事の録音 `lat-short` は、IP-S1 の実装の席が同じ `--interleave` で作る（10.12 の H20）。
+
+#### 10.7.1 試しの run の訳の server の port（`stream --own-llama-port`）
+
+`stream --own-pid` は、run の 3 つの process（`hayamimi`、中継、訳の `llama-server`）の CPU の時間を、load の門から引くために名指す（`rust_port.ja.md` 3.21 の 3）。
+名指した `llama-server` は、`/proc/<pid>/cmdline` の語 `--port` がちょうど 1 つ在り、その次の語が `machine.rs:77` の `LLAMA_PORT`（18084）と等しい時だけ受けられる（`machine.rs:325-340`）。
+対面の run は 18084 の外（たとえば 18083）の server に訳を頼むので、run の物である server が `own_fault: port` で拒まれる。
+
+port は `stream` の引数 `--own-llama-port <port>` で受ける。
+比べは今のまま、語 `--port` がちょうど 1 つ在り、その次の語がこの引数の値を 10 進で書いた字と完全に等しい時だけ通す。
+`--port=<port>` の 1 語の形、`--port` が 2 つ在る形、`--port` が最後の語の形、値の前後に字の付いた語は、今のとおり `port` で拒む。
+`--own-llama-port` と `--own-pid` は互いを要る（clap の `requires` を両方に置く）。
+`--own-pid` が 1 つでも在るのに `--own-llama-port` が無い時と、`--own-pid` が無いのに `--own-llama-port` が在る時は、clap の使い方の誤り（exit code 2）で、`stream.machine.refused` も machine の記録も書かずに止まる。
+`--own-pid` も `--own-llama-port` も無い `stream` は今のまま動く。
+窓（`rust_port.ja.md` 3.19 の「窓の訳の server」）の run は、`--own-llama-port 18084` を渡す。
+
+値の型は、`stream` のほかの port の引数（`--port`、`--ingest-port`、`--relay-port`。`cli.rs:113-124`）と同じ `u16` にする。
+clap は `u16` の字を `i64` に読んでから `u16` の範囲を見る（10.2.1）ので、次のように決まる。
+
+- `65536`、負の数（`--own-llama-port -1` と `--own-llama-port=-1`）、数でない字（`abc`）、空の値は、clap の使い方の誤り（exit code 2。`Cli::parse`、`cli.rs:436`）で、`stream.machine.refused` も machine の記録も書かずに止まる。
+- `0` は値として受け、cmdline の `--port` の次の語が `0` の時だけ通す。訳の server の unit は 0 の port で起こさないので、0 を名指した run は `port` で拒まれる。0 を引数の読みで止める範囲は置かず、ほかの port の引数と同じ型に揃える。
+- 先頭に 0 のある引数（`--own-llama-port 018083`）は 18083 と読む。cmdline と比べる字は、値を 10 進で書いた `18083` で、引数の綴りではない。cmdline の語が `018083` の server は、`18083` を名指しても通らない。
+- 引数を 2 回渡す形（`--own-llama-port 18083 --own-llama-port 18084`）は、clap の `ArgAction::Set` の既定どおり `ArgumentConflict` の使い方の誤り（exit code 2）で止まる。`hayamimi-eval` の command は `args_override_self` を置かない（`cli.rs` に 0 件）。後の値を黙って採る形は採らない。2 つの値のどちらで確かめたかが、記録から分からなくなるからである。
+
+18084 を既定の値にする形は採らない。
+この port は load の門の確かめの一部で、既定を持つと、渡し忘れた run が黙って 18084 と比べられるからである。
+渡し忘れは引数の読みで止まる形にする（`rust_guide_for_agents.md` の 6 の、設定と安全の門の値には `DEFAULT:` の既定を置かない規則）。
+port の値を `llama-server` の listen の socket から引く形は、3.21 の採らない手段と同じ理由（`--proc-root` の fixture に net と fd を組む手間）で採らない。
+`--port=<port>` を受ける形も、3.21 と同じ理由（その形を生む起こし方が無く、受ける綴りが増えるほど別の app の server を通す）で採らない。
+
+`hayamimi-eval/src/machine.rs` の `//!`（`:18-33`）と `OwnFault::Port` の doc（`:147`）、`cli.rs` の `--own-pid` の説明（`:133-139`）、`docs/results/e2e/README.md` の `--own-pid` の 2 行（`:20-21`）は、「`--port 18084`」を「`--own-llama-port` で名指した port」に書き替える。
+書き替えるのは IP-8 を実装する IP-S1 の席で、code と同じ commit にする。
 
 ### 10.8 構造
 
@@ -1364,55 +1496,90 @@ clip は放送の音声で、部屋で 2 人が話した音声ではなく、1 �
 `cargo test` は `native/` で打つ。
 p95 は nearest-rank（6 の頭）とする。
 
+完成の合否に置くのは、動くことを測る物である。
+IP-1、IP-3、IP-5、IP-6、IP-8 の期待値と、IP-2 の記録の完全さがそれに当たる。
+IP-2 の取り違えの数と、IP-4、IP-7 は、記録だけで完成の合否に置かない。
+記録の行は、数え方（10.9.2）と仮の線（10.9.1）を残し、線を超えた時は超えたと記録の file に書いて、test は落とさない。
+記録の数を出す道具（数える式、結ぶ式、線と比べる式）が既知の入力を正しく数えることは、合否に置く。各行の陽性対照と陰性対照の列はその道具を測る。
+
 | ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
 |---|---|---|---|---|---|
-| IP-1 | 1 つの入力の行を、行の `lang` で両方の向きに訳す（中継だけ。GPU も model も要らない） | `cargo test --release -p hayamimi-relay --test ip01` | 偽の llama-server と偽の `/events` に、`source: file` の `final` を ja、en の交互に 10 行、300 ms の間で流すと、10 行の `id` のすべてに `settled: true` の `translation` が 1 件ずつ在る。ja の行の訳は `lang: en`、en の行の訳は `lang: ja`。`translate.line.skipped` は 0 件 | 同じ test が `settled: true` の 10 件を数える | 同じ 10 行を `source: mic` で流すと、en の 5 行が `translate.line.skipped`（`reason: language`）になり、訳は 5 件 |
-| IP-2 | 交互の録音の各発話が、自分の言語で読まれる | `<hy> --input ws --mode pair --source file --serve 8833` と `<relay> live --events http://127.0.0.1:8833/events --serve 8835` を起こし、`<ev> stream --wav testdata/lat-dialog.wav --repeat 3 --relay-port 8835 --out ip02_pair.jsonl`、`cargo test --release -p hayamimi --test ip02 -- --ignored` | 発話を単位に数える（3 回の繰り返しは独立でないので、母数は 30 発話）。3 回のうち 2 回以上で `final` の `lang` が manifest の `lang` と違う発話を「取り違えた発話」とし、その数が 30 発話中 2 以下（仮の値。10.9.1 で置き直す）。`lang` が `ja` でも `en` でもない `final` が 0。原文の言語と同じ言語の `translation` が 0。`asr.lang.fallback` の数を `step` ごとに、取り違えの数を向き（ja を en と読んだ、en を ja と読んだ）ごとに記録する | 同じ test が manifest の 30 行の `lang` が 29 回切り替わることを数える。`--mode fast` の run を同じ式で数えて記録する（合否に使わない） | `--lang ja` で起こした run では en の 15 発話が取り違えになり、2 を超えて落ちる |
-| IP-3 | 判定が外れても `ja` か `en` へ落ち、止まらない | `cargo test --release -p hayamimi-asr --test ip03` | `Policy::pair()` の router に偽の判定器と偽の SenseVoice を渡す。判定器が `zh`、`ko`、空、`Err` のどれを返しても、選ばれる言語は、SenseVoice の印が `en` なら `en`（`step: sv_tag`）、印が `zh` で文がラテン文字なら `en`、印が `zh` で文に仮名があれば `ja`（どちらも `step: script`）、文が無ければ `ja`（`step: default`）。判定の段が無い router でも同じ | 判定器が `ja` か `en` を返すと SenseVoice を 1 回も呼ばず、その言語になる | 同じ偽の判定器で `Policy::fast()` は `zh` へ移る |
-| IP-4 | 言語判定が `L` に足す時間 | IP-2 の run と、同じ 30 clip を含む `lat-ja` を `--lang ja`、`lat-en` を `--lang en` で起こして `<ev> stream --repeat 3 --relay-port 8835` で流した run を、同じ機械で続けて取り、`cargo test --release -p hayamimi-eval --test ip04 -- --ignored` | clip を `sha256` で結び、clip ごとの `L_asr` の中央値の差（`pair` − `--lang`）の p50 が 150 ms 以下、p95 が 300 ms 以下（どちらも仮の値。判定だけの費用が負荷の下で p50 93〜94 ms なので、p50 の線はそれに読み直し 1 回の一部と余白を足した物で、10.9.1 で置き直す）。`asr.utterance.timed` の `lid_ms`（`hayamimi/src/log.rs:222`）の p50 と p95、`L` と `L_tr` の p50 と p95 を記録する | 同じ `--lang` の run を 2 回取り、同じ式で差が出る | 差が 400 ms の合成の標本で、test の `check_delta` が `Err` |
-| IP-5 | 1 枚の頁に両方の向きの訳が出る | `<hy> --input ws --mode pair --source file --serve <port>` と `<relay> live --events http://127.0.0.1:<port>/events --serve <relay port>`（偽の llama-server）を起こし、`lat-dialog` の最初の 4 発話（ja、en、ja、en）を流し、`chrome-headless-shell --dump-dom 'http://127.0.0.1:<port>/dashboard?relay=http://127.0.0.1:<relay port>/events'`、`cargo test --release -p hayamimi --test ip05 -- --ignored` | dump に 4 行の確定文が在り、各行の下に訳が 1 つずつ在る。ja の行の訳は偽の llama-server の英語の答え、en の行の訳は日本語の答え | 中継の `/events` を直に読むと `settled: true` の訳が 4 件 | `?relay=` を付けない同じ頁では、訳が 0 件 |
-| IP-6 | 録音が交互につながる | `cargo test --release -p hayamimi-eval --test ip06` | ja 3 本と en 3 本の試しの part を `--interleave` でつなぐと、manifest の `lang` が ja、en、ja、en、ja、en の順で、`start_sample` が増え続け、隣の clip の間が `--gap-ms` の sample 数である。ja 3 本と en 2 本では ja、en、ja、en、ja | 行の数が 6 | `--interleave` を付けないと ja、ja、ja、en、en、en になり、test の `check_alternates` が `Err` |
-| IP-7 | 1 秒未満の返事も自分の言語で読まれる | IP-2 と同じ起こし方で、`<ev> stream --wav testdata/lat-short.wav --repeat 3 --relay-port 8835 --out ip07_pair.jsonl`（`lat-short` は 10.12 の H20 の作り方で作る 20 発話。今は無い）、`cargo test --release -p hayamimi --test ip07 -- --ignored` | IP-2 と同じ数え方で、取り違えた発話が 20 発話中 6 以下（仮の値。`lid.md` の表 2 で SenseVoice の ja の正解率が clean の 0.5 秒で 53%、1.0 秒で 67% なので、IP-2 の線より緩く別に置く。10.9.1 で置き直す）。`ja` でも `en` でもない `final` が 0 | 同じ test が manifest の 20 行の長さがすべて 1 秒未満であることを数える | `--lang ja` の run で en の 10 発話が取り違えになり、6 を超えて落ちる |
+| IP-1 | 1 つの入力の行を、行の `lang` で両方の向きに訳す（中継だけ。GPU も model も要らない） | `cargo test --release -p hayamimi-relay --test ip01` | 偽の訳の答え手（`hayamimi-relay/tests/support/events.rs` の `FakeLlm`）と偽の `/events` に、`source: file` の `final` を ja、en の交互に 10 行、300 ms の間で流すと、10 行の `id` のすべてに `settled: true` の `translation` が 1 件ずつ在る。ja の行の訳は `lang: en`、en の行の訳は `lang: ja`。`translate.line.skipped` は 0 件 | 同じ test が `settled: true` の 10 件を数える | 同じ 10 行を `source: mic` で流すと、en の 5 行が `translate.line.skipped`（`reason: language`）になり、訳は 5 件 |
+| IP-2 | 交互の録音の run が欠けなく記録される（合否）。各発話が自分の言語で読まれるか（記録） | `<hy> --input ws --mode pair --source file --serve 8833` と `<relay> live --events http://127.0.0.1:8833/events --llm http://127.0.0.1:<訳の server の port> --serve 8835` を起こし、`<ev> stream --wav testdata/lat-dialog.wav --repeat 3 --relay-port 8835 --own-pid <hayamimi の pid> --own-pid <中継の pid> --own-pid <訳の server の pid> --own-llama-port <訳の server の port> --out ip02_pair.jsonl`。続けて `<hy>` を `--mode fast` で起こし直し、同じ形で `ip02_fast.jsonl` を取る。`cargo test --release -p hayamimi --test ip02 -- --ignored` | 合否：`lat-dialog` の run が欠けなく 1 本記録される（`stream.machine.refused` なし）。欠けないとは、`ip02_pair.jsonl` が 90 行（repeat 1〜3 と発話 1〜30 が 1 回ずつ）で、同じ名前の `.events.jsonl`、`.summary.json`、`.machine.jsonl` が在り、`final` が 1 件以上在ることである。記録だけ。完成の合否に置かない：取り違えた発話の数（10.9.2 の数え方。母数は 30 発話。仮の線は 2 以下で、10.9.1 で置き直す）を向きごとに、`lang` が `ja` でも `en` でもない `final` の数（pair では 0 のはずで、1 以上は IP-3 の落ちとして調べる）、原文の言語と同じ言語の `translation` の数（同じく 0 のはず）、`asr.lang.fallback` の数を `step` ごとに、`finals` が 2 以上の発話の数、final の無い repeat の数を、pair と fast の 2 本について記録の file に書く | 合成の 3 repeat × 4 発話の記録で、完全さを見る関数が `Ok` で 12 を返す。同じ test が manifest の 30 行の `lang` の切り替えを 29 と数える | 1 行を抜いた記録と 0 行の記録で、完全さを見る関数が `Err` で欠けた repeat と発話を名指す。全 `final` が `ja` の合成の記録（`--lang ja` の run の形）で、数える関数が en の 15 発話を取り違えと数える |
+| IP-3 | 判定が外れても `ja` か `en` へ落ち、止まらない | `cargo test --release -p hayamimi-asr --test ip03` | `Policy::pair()` の router に偽の判定器と偽の SenseVoice を渡す。判定器が `zh`、`ko`、空、`Err` のどれを返しても、選ばれる言語と `Transcript` の `fallback` の `step` は次のとおりで、router は `Err` を返さない。SenseVoice の印が `en` なら `en`（`sv_tag`）。印が `zh` で文がラテン文字なら `en`、文に仮名があれば `ja`（どちらも `script`）。仮名と漢字がちょうど 3 割の文は `en`（`script`）。文が無ければ `ja`（`default`）。SenseVoice の復号が `DecodeError::Failed` なら `ja`（`sv_failed`）。判定の段が無い router でも同じ | 判定器が `ja` か `en` を返すと SenseVoice を 1 回も呼ばず、その言語になり、`fallback` は無い | 同じ偽の判定器で `Policy::fast()` は `zh` へ移る |
+| IP-4 | 言語判定が `L` に足す時間（記録） | IP-2 の run と、同じ 30 clip を含む `lat-ja` を `--lang ja`、`lat-en` を `--lang en` で起こして `<ev> stream --repeat 3 --relay-port 8835`（`--own-pid` と `--own-llama-port` は IP-2 と同じ形）で流した run を、同じ機械で続けて取り、`cargo test --release -p hayamimi-eval --test ip04 -- --ignored` | 記録だけ。完成の合否に置かない：clip を `sha256` で結び、結べた clip の数（30 が期待）と、clip ごとの `L_asr` の中央値の差（`pair` − `--lang`）の p50 と p95 を記録する。仮の線は p50 が 150 ms 以下、p95 が 300 ms 以下で（判定だけの費用が負荷の下で p50 93〜94 ms なので、p50 の線はそれに読み直し 1 回の一部と余白を足した物）、10.9.1 で置き直す。線を超えたら「線の外」と書く。`asr.utterance.timed` の `lid_ms`（`hayamimi/src/log.rs:222`）の p50 と p95、`L` と `L_tr` の p50 と p95 も記録する。結べた clip が 0 の時は `Err` | 手で出した合成の標本で、差の式が clip ごとの 3 repeat の中央値の差を返す。同じ `--lang` の run を 2 回取り、同じ式で差が出る | 差が 400 ms の合成の標本で、線と比べる `check_delta` が `Err` を返し、記録の関数がそれを「線の外」と書く。共通の clip が 0 の記録で `Err` |
+| IP-5 | 1 枚の頁に両方の向きの訳が出る | `<hy> --input ws --mode pair --source file --serve <port>`（IP-S3 の前は `--mode fast`。10.11 の IP-S2）、偽の訳の server `fake_llama_server -m translates.gguf --port <llm port>`、`<relay> live --events http://127.0.0.1:<port>/events --llm http://127.0.0.1:<llm port> --serve <relay port>` を起こす。`chrome-headless-shell --dump-dom 'http://127.0.0.1:<port>/dashboard?relay=http://127.0.0.1:<relay port>/events'` の頁を先に開き（`final` は新しい接続へ流し直されない。10.2.1）、`lat-dialog` の最初の 4 発話（ja、en、ja、en）を流し、中継の `/events` で 4 件目の settled な訳を見てから dump を取る。`cargo test --release -p hayamimi --test ip05 -- --ignored` | dump に 4 行の確定文が在り、各行の下に訳が 1 つずつ在る。訳の `status` が `ok` でも `held` でも 1 つと数える。ja の行の訳の矢印は `→en`、en の行の訳は `→ja`。`ok` の訳の文は偽の server の答え（英語へは英語の固定文、日本語へは日本語の固定文） | 中継の `/events` を直に読むと `settled: true` の訳が 4 件 | `?relay=` を付けない同じ頁と、`?relay=javascript:x` の頁では、訳が 0 件 |
+| IP-6 | 録音が交互につながる | `cargo test --release -p hayamimi-eval --test ip06` | ja 3 本と en 3 本の試しの part を `--interleave` でつなぐと、manifest の `lang` が ja、en、ja、en、ja、en の順で、`start_sample` が増え続け、隣の clip の間が `--gap-ms` の sample 数である。ja 3 本と en 2 本では ja、en、ja、en、ja | 行の数が 6 | `--interleave` を付けないと ja、ja、ja、en、en、en になり、test の `check_alternates` が `Err`。`--concat` の無い `--interleave` は exit code 2 で、manifest も wav も書かれない |
+| IP-7 | 1 秒未満の返事も自分の言語で読まれるか（記録） | IP-2 と同じ起こし方で、`<ev> stream --wav testdata/lat-short.wav --repeat 3 --relay-port 8835 --own-pid <3 つ> --own-llama-port <訳の server の port> --out ip07_pair.jsonl`（`lat-short` は 10.12 の H20 の作り方で作る 20 発話。今は無い）、`cargo test --release -p hayamimi --test ip07 -- --ignored` | 記録だけ。完成の合否に置かない：10.9.2 の数え方で、取り違えた発話の数を向きごとに記録する。仮の線は 20 発話中 6 以下で（`lid.md` の表 2 で SenseVoice の ja の正解率が clean の 0.5 秒で 53%、1.0 秒で 67% なので、IP-2 の線より緩く別に置く）、10.9.1 で置き直す。`ja` でも `en` でもない `final` の数も記録する | 同じ test が manifest の 20 行の長さがすべて 1 秒未満であることを数える | 全 `final` が `ja` の合成の記録で、数える関数が en の 10 発話を取り違えと数える |
+| IP-8 | `stream --own-pid` が、`--own-llama-port` で名指した port の `llama-server` を run の物として受ける | `cargo test --release -p hayamimi-eval --test ip08` | `--proc-root` の fixture に comm が `hayamimi`、`hayamimi-relay`、`llama-server` の 3 つの pid を置き、`llama-server` の cmdline を `llama-server`、`-m`、`model.gguf`、`--port`、`18083` の 5 語にして、`stream` を `--own-pid` 3 つと `--own-llama-port 18083` で起こすと、`stream.machine.refused` が 0 件で、machine の記録の最初の行の `own` が 3 つの pid を渡した順に持つ | 同じ fixture の cmdline を `18084` にし、`--own-llama-port 18084` で起こすと同じく受けられる（窓の形） | cmdline が `--port 8080` の server を `--own-llama-port 18083` で名指すと、`stream.machine.refused` が 1 件（`reason` が `own_pid`、`own_fault` が `port`）、送った byte が 0、exit code が 2。`--own-pid` 3 つで `--own-llama-port` が無いと、clap の使い方の誤りで exit code 2、machine の記録は書かれない |
 
 #### 10.9.1 仮の値の置き直し
 
 IP-2、IP-4、IP-7 の数値は、`gpu_stages.md` と `lid.md` からの見積りで置いた仮の値である。
-置き直しは `rust_port.ja.md` 3.17 の RP-66 の 1050 ms と同じ形で行う。
+置き直しは記録の線を動かすだけで、完成の合否を動かさない。
+したがって置き直しは完成の後に行い、IP-S3 の受入の run は置き直しを待たない。
+置き直しの形は `rust_port.ja.md` 3.17 の RP-66 の 1050 ms と同じである。
 
-1. IP-S1 で、同じ `lat-dialog` と `lat-short` を 3 つの形で流す。`--mode fast` の run と、oracle の run と、IP-2 の陰性対照の `--lang ja` の run である。oracle の run は `--lang ja` と `--lang en` の 2 本を流し、clip ごとに manifest の `lang` と同じ `--lang` の側を採る（発話ごとに言語を固定した run と同じ音声、同じ時間の並びになる）。
+1. IP-S3 の受入が通った後に、同じ `lat-dialog` と `lat-short` を 3 つの形で流す。`--mode fast` の run と、oracle の run と、IP-2 の陰性対照の形の `--lang ja` の run である。`--mode fast` の run は、IP-S3 の IP-2 の run で取った `ip02_fast.jsonl` を使ってよい。oracle の run は `--lang ja` と `--lang en` の 2 本を流し、clip ごとに manifest の `lang` と同じ `--lang` の側を採る（発話ごとに言語を固定した run と同じ音声、同じ時間の並びになる）。
 2. 同じ手番で、H19 の取り違えの向き（ja を en、en を ja、第三の言語）と、`lat-short` の取り違えを、`--mode fast` の run で数える。
-3. 式で置き直す。`m` を `--mode fast` の取り違えた発話の数とし、IP-2 の線は `min(2, m)`、IP-7 の線は `min(6, m_short)` とする（pair は fast より悪くならない）。`m` が線より大きい時は、線を `m` にせず評議の席へ出す。IP-4 の線は、`d50` と `d95` を `--mode fast` と oracle の差の p50 と p95、`w50` と `w95` を oracle の 2 回の run の差の p50 と p95 として、p50 の線を `d50 + w50`、p95 の線を `d95 + w95` とする。
+3. 式で置き直す。`m` を `--mode fast` の取り違えた発話の数とし、IP-2 の線は `min(2, m)`、IP-7 の線は `min(6, m_short)` とする（pair は fast より悪くならない）。`m` が線より大きい時は、線を `m` にせず評議の席へ出す。IP-4 の線は、`d50` と `d95` を `--mode fast` と oracle の差（clip ごとの中央値の差、`fast` − oracle）の p50 と p95、`w50` と `w95` を oracle の 2 回の run の clip ごとの中央値の差の絶対値の p50 と p95 として、p50 の線を `d50 + w50`、p95 の線を `d95 + w95` とする。`w` を絶対値で取るのは、`w` が同じ形の run の揺れの幅で、揺れはどちらの向きにも線を越えさせるからである。符号つきで取ると、揺れの中央値は 0 の近くに出て、負にもなり、線が狭まる。
 4. 置き直す席は、`m`、`m_short`、`d50`、`d95`、`w50`、`w95` と新しい値と理由を `docs/results/in-person/probe.md` に書き、同じ commit で 10.9 の IP-2、IP-4、IP-7 の行の値を書き換える。
-5. 各 ID の T の行の境界の値は、その commit の後に test-designer の席が新しい値で書き直し、`ip02.rs`、`ip04.rs`、`ip07.rs` の限度の値は 10.9 の行と同じにする。書き直すまで IP-S3 の受入の run は打たない。
+5. 各 ID の T の行の境界の値は、その commit の後に test-designer の席が新しい値で書き直し、`ip02.rs`、`ip04.rs`、`ip07.rs` の線の値は 10.9 の行と同じにする。
+
+#### 10.9.2 取り違えの数え方（IP-2、IP-7）
+
+発話を単位に数え、母数は manifest の発話の数（`lat-dialog` は 30、`lat-short` は 20）とする。
+3 回の繰り返しは同じ音声で独立でないので、繰り返しを母数に足さない。
+
+1. **final の割り当て**：各 `final` を、`hayamimi-eval` の `latency::build_samples` と同じ規則で 1 つの発話に割り当てる（その発話が始まった後に着いた `final` は、始まった最新の発話の物）。
+2. **repeat ごとの判定**：その repeat で発話に割り当てた `final` のどれか 1 つでも `lang` が manifest の `lang` と違えば、その repeat は「取り違え」とする。1 つの発話が 2 つ以上の `final` に割れても、全部が manifest の `lang` なら取り違えではなく、`finals` が 2 以上の発話として別に数える。
+3. **final の無い repeat**：取り違えにも正しいにも数えず、「final なし」として別に数える。3 repeat とも final の無い発話は、判定なしの発話として一覧に名指す。
+4. **取り違えた発話**：3 repeat のうち 2 以上が「取り違え」の発話とする。
+5. **向き**：manifest が ja で `final` が en なら `ja_as_en`、manifest が en で `final` が ja なら `en_as_ja`、`final` の `lang` が ja でも en でもなければ `other` とする。
+
+割れた発話の 1 つの `final` でも違えば取り違えとするのは、違う言語で読まれた部分が逆の向きの訳になって相手に届くからである。
+割れの分だけ正しいと数える形は採らない。行の半分が誤った向きに訳されても、数の上では見えなくなるからである。
+final の無い repeat を正しいと数えない理由は、無いことが正しく読まれたことではないからである。
 
 ### 10.10 test の名前
 
-各 ID の下の case 行（`T-IP-<n>-nnn`）は test-designer が、この節の下に書く。
+各 ID の下の case 行（`T-IP-<n>-nnn`）は test-designer が、`rust_port_tests.ja.md` の 4.86 に書く。
+受入 test は各 ID に 1 本で、置き場の列の最初の file に置く。
+case 行の一部は、crate の外の test から届かない物を測るので、列に並べた crate の中の `mod tests` に置く。
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
 | IP-1 | `ip01_one_source_is_translated_both_ways_by_line_language` | `native/hayamimi-relay/tests/ip01.rs` | `source: mic` の en の行 |
-| IP-2 | `ip02_each_dialog_utterance_is_read_in_its_own_language` | `native/hayamimi/tests/ip02.rs` | `--lang ja` の run |
-| IP-3 | `ip03_an_unsure_identifier_falls_to_ja_or_en` | `native/hayamimi-asr/tests/ip03.rs` | `Policy::fast()` が `zh` へ移る |
+| IP-2 | `ip02_each_dialog_utterance_is_read_in_its_own_language` | `native/hayamimi/tests/ip02.rs` | 1 行を抜いた記録 |
+| IP-3 | `ip03_an_unsure_identifier_falls_to_ja_or_en` | `native/hayamimi-asr/tests/ip03.rs`。case 行は ip03.rs に加えて、`native/hayamimi-asr/src/route/tests/pair.rs`（作る。`mod pair;` を同じ directory の `mod.rs` に足す。`session.pending` が `pub(super)` なので crate の中に置く）、`native/hayamimi-asr/src/pipeline.rs` の `mod tests`（下の段落）、`native/hayamimi/src/args.rs` の `mod tests`、`native/hayamimi/src/log.rs` の `mod tests` | `Policy::fast()` が `zh` へ移る |
 | IP-4 | `ip04_language_choice_adds_little_to_the_wait` | `native/hayamimi-eval/tests/ip04.rs` | 差 400 ms の合成の標本 |
-| IP-5 | `ip05_one_page_shows_both_directions` | `native/hayamimi/tests/ip05.rs` | `?relay=` の無い頁 |
+| IP-5 | `ip05_one_page_shows_both_directions` | `native/hayamimi/tests/ip05.rs`。`?relay=` の読みの case 行は `native/hayamimi-ui/src/route.rs` の `mod tests` | `?relay=` の無い頁 |
 | IP-6 | `ip06_interleaved_join_alternates_languages` | `native/hayamimi-eval/tests/ip06.rs` | `--interleave` の無い join |
-| IP-7 | `ip07_short_replies_are_read_in_their_own_language` | `native/hayamimi/tests/ip07.rs` | `--lang ja` の run |
+| IP-7 | `ip07_short_replies_are_read_in_their_own_language` | `native/hayamimi/tests/ip07.rs` | 全 `final` が `ja` の合成の記録 |
+| IP-8 | `ip08_the_own_llama_server_is_checked_on_the_port_the_run_names` | `native/hayamimi-eval/tests/ip08.rs` | `--port 8080` の server、`--own-llama-port` の欠け |
+
+持った候補が後で `final` になる時（`Plan::Held`、`pipeline.rs:943-958`）に、候補を解いた時の `fallback` が `Final` に載ること（10.4）は、crate の外の test から測れない。
+`Solved`（`pipeline.rs:187`）は crate の中の型で、`Engine` の route は実物の `Router<Recognizers, Lid>` を持つ（`:202-203`）ので、偽の判定器で `Engine` を組めないからである。
+そこで IP-3 の case 行の 1 つを `pipeline.rs` の `mod tests` に置き、2 つの部品を測る。
+1 つめは、`fallback` を持つ `Solved` を `endpoint::State<Solved>`（`endpoint.rs:221`）に `hold` した後、`plan_with_gap` が返す `Plan::Held` の `solved` が同じ `fallback` を持つことである。
+2 つめは、`Solved` から `Final` を作る所が `fallback` を写し、`fallback` の無い `Solved` からは `fallback` の無い `Final` ができることである。
+`Final` を作る所は今の `finalize`（`pipeline.rs:1023-1055`）の中に在り、route が無いと `None` を返す（`:1031`）。IP-S3 は、`Solved` の項目を `Final` へ写す所を、route を要らない関数に分ける。
 
 ### 10.11 slice（実装の順）
 
 | slice | 中身 | 受入 | 戻し方 |
 |---|---|---|---|
 | IP-S0 | 今の code だけで、今日試す起動の形（下の command）。code も文書の外の file も変えない | 手で試すだけで、合否に使わない | `--lang ja` の起動に戻す |
-| IP-S1 | `fetch-set --interleave`（`hayamimi-eval/src/cli.rs` の `FetchSetArgs` と `manifest.rs` の `concat`）と `lat-dialog` を作る。test-designer の席が `lat-short` を作る（H20）。IP-1 の test を今の code に対して作る。10.9.1 の 1〜5 で、`--mode fast` と oracle の run を流し、H19 の向きと `lat-short` を数え、IP-2、IP-4、IP-7 の値を置き直す | IP-6、IP-1。10.9.1 の `probe.md` | commit を revert |
-| IP-S2 | 頁が `?relay=` の流れも読む（`hayamimi-ui/src/web.rs` と `app.rs`）。言語で段を分ける頁の板を designer の席へ同時に出す。IP-S1 と別の crate なので並べて出せる | IP-5 | commit を revert |
-| IP-S3 | `rust_port.ja.md` の R8v（3.17）が main へ merge された後に始める。最初の手番で、IP-3 の偽の SenseVoice を入れる口を確かめる（下の 1）。続けて `--mode pair`（`router.rs` の `Policy::pair`、`route/transcribe.rs` の `resolve_language` と `correct_by_script`、`route/draft.rs` の手がかり、`args.rs` の `mode_of` と `policy`、`strings.*.toml` の 4 行、log の `asr.lang.fallback`）。同じ commit で、`hayamimi-relay/src/line.rs:53-56` の doc comment と 3.3 の表の `source` の行に、`file` は対面の 1 本のマイクの行も含むと書く | IP-3、IP-2、IP-4、IP-7。IP-1 も通し直し、陰性対照（`mic` の en の行が `translate.line.skipped`）は残す | commit を revert。`--mode fast` に戻せば IP-S0 の形 |
+| IP-S1 | `fetch-set --interleave`（`hayamimi-eval/src/cli.rs` の `FetchSetArgs` に `--concat` を要る flag を足し、`manifest.rs` の `concat` に交互の順を足す）と `lat-dialog` を作る。同じ席が `lat-short` を作る（H20）。IP-1 の test を今の code に対して作る。`stream --own-llama-port`（`cli.rs` の `stream` の引数、`stream.rs` の `Options`、`machine.rs` の `LLAMA_PORT` を引数の値に替える）を作り、10.7.1 の 4 か所の文を同じ commit で書き替える。触る crate は `hayamimi-eval` と、`hayamimi-relay` の test だけ | 合否：IP-6、IP-1、IP-8 | commit を revert |
+| IP-S2 | 頁が `?relay=` の流れも読む（`hayamimi-ui/src/route.rs` の読む関数、`web.rs` と `app.rs`。中継の流れは接続の印を書かない。10.5）。IP-5 の偽の訳の server を作る（下の 4）。言語で段を分ける頁の板を designer の席へ同時に出す。IP-S1 と別の crate なので並べて出せ、IP-S3 より先に入ってよい | 合否：IP-5。IP-S3 が main に無い間は `--mode fast` で打ち、先に 4 つの `final` の `lang` が ja、en、ja、en であることを確かめる。違えば IP-5 の判定を出さず、`?relay=` の読みと dump を数える道具の case 行を通して入り、IP-5 の判定は IP-S3 の打ち直しで出す。IP-S3 が先に入っていれば `--mode pair` で打つ | commit を revert |
+| IP-S3 | 今の main の上で始める（下の 2）。`--mode pair`（`router.rs` の `Policy::pair`、`route/transcribe.rs` の `resolve_language`、`correct_by_script` と `Transcript` の `fallback`、`pipeline.rs` の `Solved` と `Final` と、`Solved` を `Final` へ写す関数（10.10）、`args.rs` の `mode_of` と `policy`、`strings.*.toml` の 4 行、`log.rs` の `asr.lang.fallback`）。`route/draft.rs` は触らない（10.4）。`Final` の literal を作る 5 か所（`hayamimi/src/log.rs:543`、`session.rs:527`、`wire.rs:165`、`tests/r8a_relay.rs:65`、`tests/rp12.rs:159`）は field を 1 つ足す。同じ commit で、`hayamimi-relay/src/line.rs:53-56` の doc comment と 3.3 の表の `source` の行に、`file` は対面の 1 本のマイクの行も含むと書く | 合否：IP-3、IP-2（記録の完全さ）、IP-1 の通し直し（陰性対照の `mic` の en の行が `translate.line.skipped` は残す）、IP-S2 が先に入っていれば IP-5 の `--mode pair` での打ち直し。記録：IP-2 の取り違えの数、IP-4、IP-7 | commit を revert。`--mode fast` に戻せば IP-S0 の形 |
 
-IP-S3 の条件は次の 3 つである。
+slice の条件は次の 4 つである。
 
-1. **偽の SenseVoice の口**：IP-3 は判定器と SenseVoice の両方を偽にする。判定器は `lid.rs:46` の `Identify` で、SenseVoice は `route/backend.rs:28` の `Decode` の `Tier::Sv` で入る（`route/transcribe.rs:118` の `Router<D: Decode, L: Identify>`）。最初の手番で、`native/hayamimi-asr/tests/` の外の test から `Router`、`Decode`、`Identify` に届くかを確かめる。届かなければ、IP-3 の test を crate の中の `src/route/tests/` に置き、10.10 の IP-3 の置き場を同じ commit で書き換える。
-2. **R8v の後**：R8v の方針 2 は、早い終わりの候補を確定と同じ経路で解く（`rust_port.ja.md` 3.17）。その経路に pair の判定が入るので、候補ごとに判定（と 10.4 の 2、3 の SenseVoice の復号）が足される恐れがある。`args.rs` も R8v（`--endpoint`）と IP-S3（`--mode pair`）の両方が触る。したがって IP-S3 は R8v の merge の後に、R8v の入った main から始める。
-3. **候補で言語の状態を動かさない**：候補を解いても、解き直しても、session の言語（`route/transcribe.rs:133-135` で書き、`:196` で読む `session.last_lang`）と、粘りの待ち（`session.pending`）を動かさない。動かすのは `final` として出した読みだけである。IP-S3 の test-designer の席は、候補を解いた後に `last_lang` が変わらないことを IP-3 の case 行に足す。
+1. **偽の SenseVoice の口**：IP-3 は判定器と SenseVoice の両方を偽にする。判定器は `lid.rs:46` の `Identify` で、SenseVoice は `route/backend.rs:28` の `Decode` の `Tier::Sv` で入る（`route/transcribe.rs:118` の `Router<D: Decode, L: Identify>`）。`Router`、`Decode`、`Identify` は `pub` で、crate の外の test の `native/hayamimi-asr/tests/lid_dual.rs` が既に使っている（`:13-15` の `use`、`:118` の `Router::new`）ので、IP-3 の受入 test は `tests/ip03.rs` に置ける。`session.pending` は `pub(super)`（`router.rs:84-89`）なので、それを読む case 行だけを `src/route/tests/pair.rs` に置く（10.10）。
+2. **今の main の上で始める**：`rust_port.ja.md` 3.17 の方針 2（早い終わりの候補を確定と同じ経路で解く）と `--endpoint` は、既に main に在る（10.2.1）。pair の判定は候補にも当たる（10.4）。候補ごとに判定が 1 回足されるのは今の `--mode fast` と同じで、pair が足すのは、判定が 2 つの外を答えた候補の SenseVoice の復号だけである。その量は IP-4 の記録（`asr.lang.fallback` の件数と、その発話の `L_asr`）で数える（H24）。`--mode pair` は flag で名指した時だけ効き、`Args::starting` の既定の `Mode::Balanced`（`args.rs:197`）と `Policy::balanced()`、`fast()`、`single()` は変えない。したがって `--mode pair` を名指さない run（`L` の E2E の run を含む）は今と同じ経路で読み、`L` の標本は変わらない（T-IP-03-021 が測る）。R8v の残りの手番が後から endpoint の code を直す時に、R8v の側が守る条件は 10.12 の H37 に置く。
+3. **候補と session の状態**：pair の判定は session の状態を読まない（10.4）ので、候補を解いた時に `session.last_lang` が書かれても、次の発話の判定は変わらない。`session.pending` は pair では読みも書きもされない。非 live の decode は今のとおり `last_lang` を書かない（`transcribe.rs:133-135`）。IP-3 の `pair.rs` の case 行は、pair の router で live の decode を続けても `pending` が `None` のままであることと、非 live の decode が `last_lang` を動かさないことを測る。
+4. **IP-5 の偽の訳の server**：`hayamimi/src/bin/fake_llama_server.rs` に、model の名前 `translates.gguf` の振る舞いを足す。`POST /v1/chat/completions` の user の文が `into English` を含めば英語の固定の 1 文を、`into Japanese` を含めば日本語の固定の 1 文を、`hayamimi-relay/src/llm.rs` が読む形で返す。丸ごとの答えと、`stream: true` の要求への stream の答えの両方を返す。固定の文は数字、否定、推量の語、固有名を持たない文にする。それでも原文の側の数字や名前で V（`verify.rs`）が訳を止めることがあるので、IP-5 は `held` の訳も 1 つと数える（10.9）。中継の test の `FakeLlm` を使う形は採らない。同じ process の中の `Llm` の実装で、中継の binary から呼べないからである（10.2.1）。
 
 IP-S0 の起動の形は、Windows の今の 3 つの process のうち、process A を次の引数で起こし直し、process B（`--input speaker --lang en`）を止める。
 中継は今のまま `:8833` を購読し続け、process A が起き直した後に繋ぎ直す（`follow.rs` の `Backoff`）。
@@ -1431,10 +1598,10 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 
 ### 10.12 残る穴
 
-番号は 9 の続きである。
+番号は 9 の続きである。H28〜H36 は 11.10 が使うので、この節の続きは H37 から振る。
 
-- **H19** whisper-tiny が `ja` の音声を `en` と答える率（第三の言語でなく、2 つの間の取り違え）は数えていない。`docs/eval/lid.md` は言語ごとの正解率だけを持つ。IP-S1 の `--mode fast` の run で向きを数え（10.9.1 の 2）、IP-S3 の IP-2 の run で `step` と向きを数える（NOT VERIFIED）。
-- **H20** 1 秒より短い返事（「はい」、「Yes.」）が `lat-dialog` に無い。`lid.md` の表 1 は clean の 0.5 秒で ja 20%、en 100% である。作り方は、Windows の Haruka と Zira の声（CS-1、CS-2 と同じ手元の声）で 1 秒未満の返事を言語ごとに 10 本作り、`fetch-set --pin` で manifest に固め、`--interleave` で交互につないだ別の録音 `lat-short`（20 発話）にする。合否は `lat-dialog` と別の線で IP-7 が持つ。作るのは IP-S1 で、持ち主は test-designer の席である。
+- **H19** whisper-tiny が `ja` の音声を `en` と答える率（第三の言語でなく、2 つの間の取り違え）は数えていない。`docs/eval/lid.md` は言語ごとの正解率だけを持つ。IP-S3 の IP-2 の run（pair と fast の 2 本）で `step` と向きを記録し、完成の後の 10.9.1 の 2 で fast の向きを数える（NOT VERIFIED）。
+- **H20** 1 秒より短い返事（「はい」、「Yes.」）が `lat-dialog` に無い。`lid.md` の表 1 は clean の 0.5 秒で ja 20%、en 100% である。作り方は、Windows の Haruka と Zira の声（CS-1、CS-2 と同じ手元の声）で 1 秒未満の返事を言語ごとに 10 本作り、`fetch-set --pin` で manifest に固め、`--interleave` で交互につないだ別の録音 `lat-short`（20 発話）にする。作る席は IP-S1 の実装の席で、`--interleave` を作る席と同じにする。作った席は作り方（声の名前、文、本数）を `docs/results/in-person/lat-short.md` に残す。test-designer の席は、作った物を測る case 行（T-IP-07-002〜007）だけを持つ。IP-7 は記録だけで、完成の合否に置かない。声が日本語と英語の別になっているかは、manifest の `ref` の文字（T-IP-07-006）までしか機械で測れない。
 - **H21** 2 人が同時に話した区間は 1 つの発話になり、1 つの言語で読まれ、もう片方の言葉は崩れる。分ける段は作らない。量は測っていない。
 - **H22** 1 つの入力の行は中継の lane 1 本に並ぶ（`rust_port.ja.md` 3.6 の 5）。会議の 2 本の lane と違い、2 人の行の T が同じ thread に並ぶ。延びは T の 1 回（p50 約 150 ms）までと見込む（ASSUMPTION）。IP-4 の `L_tr` で数える。
 - **H23** 部屋の音響（声が空気を通ってマイクへ入る経路）は IP-2 で測らない。IP-2 は `/ingest` へ digital に送る。`stream --sink loopback` はマイクを通らない。実機のマイクの前で `lat-dialog` を鳴らす run は、CS-23 と同じ前提（入力の装置が在る時）で記録だけにする。
@@ -1443,7 +1610,13 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H26** process A が英語の認識器（Parakeet v3）を読める置き場に持つかは確かめていない。session の最初の英語の発話で認識器を読み込む時間（cold）と、`rust_port.ja.md` の R8q の先読みが main に在るかも確かめていない（NOT VERIFIED）。IP-S0 の最初の英語の発話の `asr.model.loaded` で分かる。
 - **H27** `source: file` の行は、3.12 の OBS の字幕頁（mic の段だけ）にも、Zoom と Teams への送信（3.10）にも出ない。対面と配信を同時に行う場面は、この節の外である。
 - **Q4** 閉じた。`source` は `file` で通し（10.3）、10.4 の最後の落ち先は `ja` とする。
-- **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、10.9.1 の手順で IP-S3 の前に置き直す。置き直した線を `--mode fast` が満たさない時と、IP-S3 の run が置き直した線に落ちた時は、ボタンの補助を足すか、判定器を替えるかを評議の席が決める。
+- **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、記録の線である。仮の値の置き直しは完成の後に 10.9.1 の手順で行い、IP-S3 の受入の run は置き直しを待たない。置き直した線を `--mode fast` が満たさない時と、pair の記録が置き直した線を超えた時は、ボタンの補助を足すか、判定器を替えるかを評議の席が決める。
+- **H37** R8v の残りの手番（`rust_port.ja.md` 8 の R8v の行。RP-66 の run の結果で endpoint の code を直す手）が後から main に入る時、R8v の側は次の 2 つを守る。1 つめは、早い終わりの候補を確定と同じ `Request`（`live: true`、`pipeline.rs:1128-1150` の `decode_samples`）で解き続けることである。候補を別の経路で解くと、pair の落ち先が候補で確定した行に当たらず、`ja` と `en` の外の行が出る。2 つめは、`args.rs` の `--mode` の読み（`mode_of`、`policy`）を変えないことである。どちらかを破る R8v の commit は、R8v の席が同じ commit で IP-3 と IP-2 の記録の完全さを通し直す。もう 1 つ、pair の外の形で起きうる事を記録する。`--mode balanced` で SenseVoice の 5 言語（`sticky.rs:18` の `DUAL_CONFIRM_LANGS`）の外の言語が判定された時は、持っただけの候補の live の decode と、同じ発話の確定の decode が、どちらも `session.pending` の粘りの数を進める（`transcribe.rs:235-256` の `hold_by_hysteresis`）。そのため 1 つの発話で、2 回の判定を要る切り替え（`Policy::balanced` の `lid_switch_confirm` 2）が確かまる場合がある（NOT VERIFIED）。pair は `pending` を使わず、`--mode fast` は 1 回で切り替えるので、どちらにも当たらない。数えるのは R8v の席で、`asr.endpoint.held` の在る発話の `final` の `lang` の切り替えを、`--endpoint silence` の run と比べる。
+- **H38** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ評議の席へ出す。
+- **H39** `?relay=` は `http://` と `https://` の任意の host を受けるので、利用者が開いた URL に別の server の `/events` を名指されると、頁はその server の文を訳の行として描く。文は Dioxus の text として描かれ、script にはならない。頁は自分を配る server の `id` に結べない訳を 5 秒で捨てる（`ORPHAN_HOLD_MS`）ので、名指された server が確定文と同じ `id` の訳を流した時だけ行に付く。host を `127.0.0.1` に限る形は、LAN の端末で開く形（H25）と両立しないので採らない。
+- **H40** IP-5 の偽の訳の server の固定の文が V に止められる率は測っていない。止められた訳も IP-5 は 1 つと数える（10.9）が、`ok` の文の照らしは `ok` の訳の数だけ行われる。4 つとも止められた run では文の照らしが 0 件になる（NOT VERIFIED）。IP-S2 の席が最初の run で `status` の内訳を記録する。
+- **H41** 閉じた。`rust_port.ja.md` は、cmdline の `--port` の次の語を `--own-llama-port` で名指した port と比べ、`--own-pid` を渡す起動に `--own-llama-port`（窓は 18084）を足す形で書く。3.19 の R8x-9 の行（`rust_port.ja.md:1791`）と窓 E3'' の行（`:1792`）、3.21 の 3 の決め 1 の記録（`:2035`）、確かめの表の 3（`:2043`）、`=` の形を受けない理由（`:2047`）、窓 E3'' の手順（`:2073`）、採らない手段（`:2107`）、6 の RP-83 の (9) と両方の対照（`:2420`）、7 の RP-83 の陰性の case（`:2520`）、10 の H141（`:3671`）である。採らない手段の「受ける形を増やさない」は、名指した 1 つの port を `--port <port>` の 2 語で書いた形だけを受ける形として残る。T の RP-83 の `--own-pid` を渡す行は、S83o の引数の `--own-llama-port 18084` を持つ（`rust_port_tests.ja.md` の RP-83 の材料と、T-RP-83-068〜086、088、090）。IP-S1 の実装の席は、`rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足す。
+- **H42** SenseVoice の復号が失敗した発話（10.4 の 5）は `ja` で読まれ、`asr.lang.fallback` の `step: sv_failed`（`warn`）だけが残る。失敗が続く model を止めて知らせる形（`fallback` の event の `in_effect`）は作らない。続く失敗の量は、IP-2 の記録の `sv_failed` の件数で数える（NOT VERIFIED）。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
