@@ -1218,6 +1218,142 @@ fn a_refine_event_is_read_with_the_keys_the_wire_gives_it() -> TestResult {
     Ok(())
 }
 
+// ---- fixed samples, written out ----
+//
+// The rows above build their samples from the constants they judge (`MARKS`,
+// `VALID_MS`) or from a formula. A constant changed together with its fixture
+// would still pass them, so the rows below spell every sentence, wait and rank
+// out.
+
+/// A calm ja run whose only refine event holds `sentence`.
+fn ja_with_sentence(sentence: &str) -> Lengths {
+    Lengths {
+        events: Some(events_text(&[event_line("ja", sentence)])),
+        ..calm(Lang::Ja)
+    }
+}
+
+#[test]
+fn the_comma_and_the_question_mark_each_pass_in_a_sentence_written_out() -> TestResult {
+    // Each sentence holds one of the three marks and neither of the other two.
+    for sentence in ["予算は五百万円です、", "本当ですか？"] {
+        let verdict = ja_verdict(ja_with_sentence(sentence))?;
+        verdict.result()?;
+        let text = verdict.render();
+        assert!(
+            text.contains("E2E-1 (ja): 1 of 1 ja refine events hold a mark"),
+            "{sentence}\n{text}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_sentence_with_none_of_the_three_marks_is_rejected() -> TestResult {
+    let said = rejection(&ja_verdict(ja_with_sentence("予算は五百万円です"))?)?;
+    assert!(
+        said.contains("E2E-1 (ja): 0 of 1 ja refine events hold a mark"),
+        "{said}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_sample_that_waited_119_ms_is_not_valid_and_one_of_120_ms_is() -> TestResult {
+    // Waits of 119, 120 and 121 ms; each decodes for 150 ms and is translated 100 ms
+    // after its final, so `L` is 369, 370 and 371 ms.
+    let samples = vec![
+        sample(1, 119, 150, Some(100)),
+        sample(2, 120, 150, Some(100)),
+        sample(3, 121, 150, Some(100)),
+    ];
+    assert_eq!(translated_l_us(&samples), [370_000, 371_000]);
+    let n = column(&samples)?.map(|found| found.n);
+    assert_eq!(n, Some(2));
+    Ok(())
+}
+
+#[test]
+fn a_run_whose_samples_are_all_under_120_ms_has_no_valid_sample() -> TestResult {
+    let samples = vec![sample(1, 119, 150, Some(100))];
+    assert!(translated_l_us(&samples).is_empty());
+    assert_eq!(column(&samples)?, None);
+    let mut runs = fixture_set(&calm(Lang::Ja), &calm(Lang::En));
+    runs.retain(|run| !(run.arm == Arm::Refine && run.lang == Lang::Ja));
+    runs.push(fixture_run(
+        Arm::Refine,
+        Lang::Ja,
+        samples,
+        calm(Lang::Ja).events,
+    ));
+    let said = rejection(&judge(&runs)?)?;
+    assert!(
+        said.contains("E2E-1 (ja) refine: no valid sample has a translation"),
+        "{said}"
+    );
+    Ok(())
+}
+
+/// The column of valid, translated samples whose `L` are `l_ms`.
+fn column_of_l(l_ms: &[i64]) -> Result<Column, Failure> {
+    column(&samples_of(l_ms))?.ok_or_else(|| String::from("no valid sample has a translation"))
+}
+
+#[test]
+fn the_p95_is_the_nearest_rank_value_and_a_rank_off_by_one_is_not() -> TestResult {
+    // n = 20: the 19th of 20 (190 ms), with 180 ms and 200 ms on either side of it.
+    let twenty = column_of_l(&[
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200,
+    ])?;
+    assert_eq!((twenty.n, twenty.p95_us), (20, 190_000));
+    // n = 21: the 20th of 21 (200 ms), with 190 ms and 210 ms on either side of it.
+    // Rounding 0.95 * 21 down would take the 19th (190 ms).
+    let twenty_one = column_of_l(&[
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200,
+        210,
+    ])?;
+    assert_eq!((twenty_one.n, twenty_one.p95_us), (21, 200_000));
+    Ok(())
+}
+
+#[test]
+fn a_directory_missing_one_runs_samples_names_that_file_alone() -> TestResult {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("rp61-one-run-missing");
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)?;
+    }
+    std::fs::create_dir_all(&dir)?;
+    // Five of the six sample files stand; `python.e2e1.jsonl` is the one that does not.
+    const PRESENT: [&str; 5] = [
+        "refine.e2e1.jsonl",
+        "refine.e2e2.jsonl",
+        "norefine.e2e1.jsonl",
+        "norefine.e2e2.jsonl",
+        "python.e2e2.jsonl",
+    ];
+    for file in PRESENT {
+        std::fs::write(dir.join(file), "")?;
+    }
+    let Err(said) = load_runs(&dir) else {
+        return Err("a directory with a missing sample file was loaded".into());
+    };
+    // The directory is part of the sentence; its spelling is not what is read here.
+    let place = dir.display().to_string();
+    assert!(said.contains(&place), "{said}");
+    let said = said.replace(&place, "");
+    assert!(
+        said.contains("1 of the 6 runs") && said.contains("python.e2e1.jsonl"),
+        "{said}"
+    );
+    for file in PRESENT {
+        assert!(
+            !said.contains(file),
+            "{file} stands, yet it is named: {said}"
+        );
+    }
+    Ok(())
+}
+
 #[test]
 #[ignore = "reads the records in docs/results/rp61/"]
 fn rp61_live_refine_does_not_delay_the_subtitle() -> TestResult {
