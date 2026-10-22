@@ -1294,7 +1294,7 @@ code は `git show e51e8cc:<path>` で読んだ。
 3 割ちょうどを `en` に入れるのは、比べを `script_corrected_lang` と同じ `>`（`lid.rs:112`、`:114`）にして、同じ文に 2 つの関数が別の答えを出さないためである。
 3 割以下を全部 `en` に送るのは、線を 1 本にしておくためである。
 Cyrillic の文は英語の認識器（Parakeet v3）が読む 25 言語に入る言語の文で、`ja` の認識器（ReazonSpeech）は仮名と漢字でしか書かない。
-Hangul だけの文はどちらの認識器にも合わないが、この段に来るのは 2 つの判定器がどちらも `ja` と `en` の外を答えた発話だけである（量は 10.12 の H29）。
+Hangul だけの文はどちらの認識器にも合わないが、この段に来るのは 2 つの判定器がどちらも `ja` と `en` の外を答えた発話だけである（量は 10.12 の H38）。
 SenseVoice の model が無い時は読む文が無いので、3 を飛ばして 4 に入る。
 
 5 を 4 と分けるのは、壊れた model と空の読みを log で見分けるためで、答えは同じ `ja` にする。
@@ -1359,7 +1359,7 @@ router の通知（`RouteNotice`、`router.rs:75-81`）に載せる形は採ら�
 `?relay=` の値は、`hayamimi-ui/src/route.rs` の純関数が query から読む。
 値は `application/x-www-form-urlencoded` の規則で 1 回だけ decode する（`URLSearchParams.get` と同じ読み。10.2.1）。
 decode した値が `http://` か `https://` で始まる時だけ中継の URL とし、空の値、ほかの scheme（`javascript:`、`file:`、`data:` ほか）、key の無い query は、どれも中継なしとして今の頁と同じに動く。
-host は限らない。LAN の端末で頁を開く時は、中継も LAN の address で名指すからである（10.12 の H25、H30）。
+host は限らない。LAN の端末で頁を開く時は、中継も LAN の address で名指すからである（10.12 の H25、H39）。
 `page_for`（`route.rs:13-19`）の頁の選びと、重ね窓の `?show=` の読みは変えない。
 
 中継の流れは、頁の接続の印（`Model` の `Conn`、`web.rs:40`、`:43`）を書かない。
@@ -1537,7 +1537,7 @@ case 行の一部は、crate の外の test から届かない物を測るので
 slice の条件は次の 4 つである。
 
 1. **偽の SenseVoice の口**：IP-3 は判定器と SenseVoice の両方を偽にする。判定器は `lid.rs:46` の `Identify` で、SenseVoice は `route/backend.rs:28` の `Decode` の `Tier::Sv` で入る（`route/transcribe.rs:118` の `Router<D: Decode, L: Identify>`）。`Router`、`Decode`、`Identify` は `pub` で、crate の外の test の `native/hayamimi-asr/tests/lid_dual.rs` が既に使っている（`:13-15` の `use`、`:118` の `Router::new`）ので、IP-3 の受入 test は `tests/ip03.rs` に置ける。`session.pending` は `pub(super)`（`router.rs:84-89`）なので、それを読む case 行だけを `src/route/tests/pair.rs` に置く（10.10）。
-2. **今の main の上で始める**：`rust_port.ja.md` 3.17 の方針 2（早い終わりの候補を確定と同じ経路で解く）と `--endpoint` は、既に main に在る（10.2.1）。pair の判定は候補にも当たる（10.4）。候補ごとに判定が 1 回足されるのは今の `--mode fast` と同じで、pair が足すのは、判定が 2 つの外を答えた候補の SenseVoice の復号だけである。その量は IP-4 の記録（`asr.lang.fallback` の件数と、その発話の `L_asr`）で数える（H24）。`--mode pair` は flag で名指した時だけ効き、`Args::starting` の既定の `Mode::Balanced`（`args.rs:197`）と `Policy::balanced()`、`fast()`、`single()` は変えない。したがって `--mode pair` を名指さない run（`L` の E2E の run を含む）は今と同じ経路で読み、`L` の標本は変わらない（T-IP-03-021 が測る）。R8v の残りの手番が後から endpoint の code を直す時に、R8v の側が守る条件は 10.12 の H28 に置く。
+2. **今の main の上で始める**：`rust_port.ja.md` 3.17 の方針 2（早い終わりの候補を確定と同じ経路で解く）と `--endpoint` は、既に main に在る（10.2.1）。pair の判定は候補にも当たる（10.4）。候補ごとに判定が 1 回足されるのは今の `--mode fast` と同じで、pair が足すのは、判定が 2 つの外を答えた候補の SenseVoice の復号だけである。その量は IP-4 の記録（`asr.lang.fallback` の件数と、その発話の `L_asr`）で数える（H24）。`--mode pair` は flag で名指した時だけ効き、`Args::starting` の既定の `Mode::Balanced`（`args.rs:197`）と `Policy::balanced()`、`fast()`、`single()` は変えない。したがって `--mode pair` を名指さない run（`L` の E2E の run を含む）は今と同じ経路で読み、`L` の標本は変わらない（T-IP-03-021 が測る）。R8v の残りの手番が後から endpoint の code を直す時に、R8v の側が守る条件は 10.12 の H37 に置く。
 3. **候補と session の状態**：pair の判定は session の状態を読まない（10.4）ので、候補を解いた時に `session.last_lang` が書かれても、次の発話の判定は変わらない。`session.pending` は pair では読みも書きもされない。非 live の decode は今のとおり `last_lang` を書かない（`transcribe.rs:133-135`）。IP-3 の `pair.rs` の case 行は、pair の router で live の decode を続けても `pending` が `None` のままであることと、非 live の decode が `last_lang` を動かさないことを測る。
 4. **IP-5 の偽の訳の server**：`hayamimi/src/bin/fake_llama_server.rs` に、model の名前 `translates.gguf` の振る舞いを足す。`POST /v1/chat/completions` の user の文が `into English` を含めば英語の固定の 1 文を、`into Japanese` を含めば日本語の固定の 1 文を、`hayamimi-relay/src/llm.rs` が読む形で返す。丸ごとの答えと、`stream: true` の要求への stream の答えの両方を返す。固定の文は数字、否定、推量の語、固有名を持たない文にする。それでも原文の側の数字や名前で V（`verify.rs`）が訳を止めることがあるので、IP-5 は `held` の訳も 1 つと数える（10.9）。中継の test の `FakeLlm` を使う形は採らない。同じ process の中の `Llm` の実装で、中継の binary から呼べないからである（10.2.1）。
 
@@ -1558,7 +1558,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 
 ### 10.12 残る穴
 
-番号は 9 の続きである。
+番号は 9 の続きである。H28〜H36 は 11.10 が使うので、この節の続きは H37 から振る。
 
 - **H19** whisper-tiny が `ja` の音声を `en` と答える率（第三の言語でなく、2 つの間の取り違え）は数えていない。`docs/eval/lid.md` は言語ごとの正解率だけを持つ。IP-S3 の IP-2 の run（pair と fast の 2 本）で `step` と向きを記録し、完成の後の 10.9.1 の 2 で fast の向きを数える（NOT VERIFIED）。
 - **H20** 1 秒より短い返事（「はい」、「Yes.」）が `lat-dialog` に無い。`lid.md` の表 1 は clean の 0.5 秒で ja 20%、en 100% である。作り方は、Windows の Haruka と Zira の声（CS-1、CS-2 と同じ手元の声）で 1 秒未満の返事を言語ごとに 10 本作り、`fetch-set --pin` で manifest に固め、`--interleave` で交互につないだ別の録音 `lat-short`（20 発話）にする。作る席は IP-S1 の実装の席で、`--interleave` を作る席と同じにする。作った席は作り方（声の名前、文、本数）を `docs/results/in-person/lat-short.md` に残す。test-designer の席は、作った物を測る case 行（T-IP-07-002〜007）だけを持つ。IP-7 は記録だけで、完成の合否に置かない。声が日本語と英語の別になっているかは、manifest の `ref` の文字（T-IP-07-006）までしか機械で測れない。
@@ -1571,12 +1571,12 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H27** `source: file` の行は、3.12 の OBS の字幕頁（mic の段だけ）にも、Zoom と Teams への送信（3.10）にも出ない。対面と配信を同時に行う場面は、この節の外である。
 - **Q4** 閉じた。`source` は `file` で通し（10.3）、10.4 の最後の落ち先は `ja` とする。
 - **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、記録の線である。仮の値の置き直しは完成の後に 10.9.1 の手順で行い、IP-S3 の受入の run は置き直しを待たない。置き直した線を `--mode fast` が満たさない時と、pair の記録が置き直した線を超えた時は、ボタンの補助を足すか、判定器を替えるかを評議の席が決める。
-- **H28** R8v の残りの手番（`rust_port.ja.md` 8 の R8v の行。RP-66 の run の結果で endpoint の code を直す手）が後から main に入る時、R8v の側は次の 2 つを守る。1 つめは、早い終わりの候補を確定と同じ `Request`（`live: true`、`pipeline.rs:1128-1150` の `decode_samples`）で解き続けることである。候補を別の経路で解くと、pair の落ち先が候補で確定した行に当たらず、`ja` と `en` の外の行が出る。2 つめは、`args.rs` の `--mode` の読み（`mode_of`、`policy`）を変えないことである。どちらかを破る R8v の commit は、R8v の席が同じ commit で IP-3 と IP-2 の記録の完全さを通し直す。もう 1 つ、pair の外の形で起きうる事を記録する。`--mode balanced` で SenseVoice の 5 言語（`sticky.rs:18` の `DUAL_CONFIRM_LANGS`）の外の言語が判定された時は、持っただけの候補の live の decode と、同じ発話の確定の decode が、どちらも `session.pending` の粘りの数を進める（`transcribe.rs:235-256` の `hold_by_hysteresis`）。そのため 1 つの発話で、2 回の判定を要る切り替え（`Policy::balanced` の `lid_switch_confirm` 2）が確かまる場合がある（NOT VERIFIED）。pair は `pending` を使わず、`--mode fast` は 1 回で切り替えるので、どちらにも当たらない。数えるのは R8v の席で、`asr.endpoint.held` の在る発話の `final` の `lang` の切り替えを、`--endpoint silence` の run と比べる。
-- **H29** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ評議の席へ出す。
-- **H30** `?relay=` は `http://` と `https://` の任意の host を受けるので、利用者が開いた URL に別の server の `/events` を名指されると、頁はその server の文を訳の行として描く。文は Dioxus の text として描かれ、script にはならない。頁は自分を配る server の `id` に結べない訳を 5 秒で捨てる（`ORPHAN_HOLD_MS`）ので、名指された server が確定文と同じ `id` の訳を流した時だけ行に付く。host を `127.0.0.1` に限る形は、LAN の端末で開く形（H25）と両立しないので採らない。
-- **H31** IP-5 の偽の訳の server の固定の文が V に止められる率は測っていない。止められた訳も IP-5 は 1 つと数える（10.9）が、`ok` の文の照らしは `ok` の訳の数だけ行われる。4 つとも止められた run では文の照らしが 0 件になる（NOT VERIFIED）。IP-S2 の席が最初の run で `status` の内訳を記録する。
-- **H32** `rust_port.ja.md` 3.21 の 3 の決め 1（`--port` の次の語が `18084`）と、その下の採らない手段、8 の R8x-9 と窓 E3'' の行、6 の RP-83 の行の `--own-pid` の起動の形は、10.7.1 の `--own-llama-port` と食い違う。直すのは `rust_port.ja.md` を持つ設計の席で、IP-S1 の commit より前にする。`rust_port_tests.ja.md` の RP-83 の case 行のうち `--own-pid` を渡す行（S83o を使う T-RP-83-056〜090）は、`--own-llama-port 18084` を足す形に test-designer の席が直す。どちらも直るまで、IP-S1 の実装の席は `rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足して、RP-83 の今の test を通し続ける。
-- **H33** SenseVoice の復号が失敗した発話（10.4 の 5）は `ja` で読まれ、`asr.lang.fallback` の `step: sv_failed`（`warn`）だけが残る。失敗が続く model を止めて知らせる形（`fallback` の event の `in_effect`）は作らない。続く失敗の量は、IP-2 の記録の `sv_failed` の件数で数える（NOT VERIFIED）。
+- **H37** R8v の残りの手番（`rust_port.ja.md` 8 の R8v の行。RP-66 の run の結果で endpoint の code を直す手）が後から main に入る時、R8v の側は次の 2 つを守る。1 つめは、早い終わりの候補を確定と同じ `Request`（`live: true`、`pipeline.rs:1128-1150` の `decode_samples`）で解き続けることである。候補を別の経路で解くと、pair の落ち先が候補で確定した行に当たらず、`ja` と `en` の外の行が出る。2 つめは、`args.rs` の `--mode` の読み（`mode_of`、`policy`）を変えないことである。どちらかを破る R8v の commit は、R8v の席が同じ commit で IP-3 と IP-2 の記録の完全さを通し直す。もう 1 つ、pair の外の形で起きうる事を記録する。`--mode balanced` で SenseVoice の 5 言語（`sticky.rs:18` の `DUAL_CONFIRM_LANGS`）の外の言語が判定された時は、持っただけの候補の live の decode と、同じ発話の確定の decode が、どちらも `session.pending` の粘りの数を進める（`transcribe.rs:235-256` の `hold_by_hysteresis`）。そのため 1 つの発話で、2 回の判定を要る切り替え（`Policy::balanced` の `lid_switch_confirm` 2）が確かまる場合がある（NOT VERIFIED）。pair は `pending` を使わず、`--mode fast` は 1 回で切り替えるので、どちらにも当たらない。数えるのは R8v の席で、`asr.endpoint.held` の在る発話の `final` の `lang` の切り替えを、`--endpoint silence` の run と比べる。
+- **H38** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ評議の席へ出す。
+- **H39** `?relay=` は `http://` と `https://` の任意の host を受けるので、利用者が開いた URL に別の server の `/events` を名指されると、頁はその server の文を訳の行として描く。文は Dioxus の text として描かれ、script にはならない。頁は自分を配る server の `id` に結べない訳を 5 秒で捨てる（`ORPHAN_HOLD_MS`）ので、名指された server が確定文と同じ `id` の訳を流した時だけ行に付く。host を `127.0.0.1` に限る形は、LAN の端末で開く形（H25）と両立しないので採らない。
+- **H40** IP-5 の偽の訳の server の固定の文が V に止められる率は測っていない。止められた訳も IP-5 は 1 つと数える（10.9）が、`ok` の文の照らしは `ok` の訳の数だけ行われる。4 つとも止められた run では文の照らしが 0 件になる（NOT VERIFIED）。IP-S2 の席が最初の run で `status` の内訳を記録する。
+- **H41** `rust_port.ja.md` 3.21 の 3 の決め 1（`--port` の次の語が `18084`）と、その下の採らない手段、8 の R8x-9 と窓 E3'' の行、6 の RP-83 の行の `--own-pid` の起動の形は、10.7.1 の `--own-llama-port` と食い違う。直すのは `rust_port.ja.md` を持つ設計の席で、IP-S1 の commit より前にする。`rust_port_tests.ja.md` の RP-83 の case 行のうち `--own-pid` を渡す行（S83o を使う T-RP-83-056〜090）は、`--own-llama-port 18084` を足す形に test-designer の席が直す。どちらも直るまで、IP-S1 の実装の席は `rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足して、RP-83 の今の test を通し続ける。
+- **H42** SenseVoice の復号が失敗した発話（10.4 の 5）は `ja` で読まれ、`asr.lang.fallback` の `step: sv_failed`（`warn`）だけが残る。失敗が続く model を止めて知らせる形（`fallback` の event の `in_effect`）は作らない。続く失敗の量は、IP-2 の記録の `sv_failed` の件数で数える（NOT VERIFIED）。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
