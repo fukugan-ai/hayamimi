@@ -406,11 +406,16 @@ fn judge_target(found: Option<Win>, own: &[Win]) -> Result<(), String> {
     }
 }
 
+/// [`judge_target`] for the window `found` under the pixel `(x, y)`, with the
+/// refusal worded as a click that was not sent.
+fn judge_click_target(found: Option<Win>, x: i32, y: i32, own: &[Win]) -> Result<(), String> {
+    judge_target(found, own).map_err(|why| format!("no input was sent to ({x}, {y}): {why}"))
+}
+
 /// Stops with an error unless the window under the physical pixel `(x, y)` is
 /// one of `own`, the test's own windows. Nothing is sent.
 pub fn guard_click(x: i32, y: i32, own: &[Win]) -> Result<(), String> {
-    judge_target(window_at(x, y), own)
-        .map_err(|why| format!("no input was sent to ({x}, {y}): {why}"))
+    judge_click_target(window_at(x, y), x, y, own)
 }
 
 /// The least idle time, in seconds, with which the first click may be sent:
@@ -483,22 +488,74 @@ fn last_input() -> Result<(u32, u32), String> {
     Ok((now.wrapping_sub(info.dwTime) / 1000, info.dwTime))
 }
 
+/// One mouse event as `(dx, dy, flags)`: the fields of a `MOUSEINPUT` that the
+/// test sets.
+pub type MouseStep = (i32, i32, MOUSE_EVENT_FLAGS);
+
+/// Everything `Pointer::click` reads from the OS, and the one thing it writes.
+pub trait Ports {
+    /// Seconds since the last input the system saw, and the tick of that input.
+    fn last_input(&self) -> Result<(u32, u32), String>;
+    fn cursor_position(&self) -> Result<(i32, i32), String>;
+    fn window_at(&self, x: i32, y: i32) -> Option<Win>;
+    /// Sends `steps` as one batch.
+    fn send(&mut self, steps: &[MouseStep]) -> Result<(), String>;
+}
+
+/// The real OS: every call goes to Win32.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Os;
+
+impl Ports for Os {
+    fn last_input(&self) -> Result<(u32, u32), String> {
+        last_input()
+    }
+
+    fn cursor_position(&self) -> Result<(i32, i32), String> {
+        cursor_position()
+    }
+
+    fn window_at(&self, x: i32, y: i32) -> Option<Win> {
+        window_at(x, y)
+    }
+
+    fn send(&mut self, steps: &[MouseStep]) -> Result<(), String> {
+        let inputs: Vec<INPUT> = steps
+            .iter()
+            .map(|&(dx, dy, flags)| mouse_input(dx, dy, flags))
+            .collect();
+        send(&inputs)
+    }
+}
+
 /// The test's one source of mouse input. It stops, sending nothing, when the
 /// user has been active (see `judge_before_click`) or when the window under
 /// the pixel is not one of the test's own.
-#[derive(Default)]
-pub struct Pointer {
+pub struct Pointer<P: Ports = Os> {
     trace: Option<Trace>,
+    ports: P,
 }
 
-impl Pointer {
-    pub fn new() -> Pointer {
+impl Default for Pointer<Os> {
+    fn default() -> Pointer<Os> {
+        Pointer::with_ports(Os)
+    }
+}
+
+impl Pointer<Os> {
+    pub fn new() -> Pointer<Os> {
         Pointer::default()
+    }
+}
+
+impl<P: Ports> Pointer<P> {
+    fn with_ports(ports: P) -> Pointer<P> {
+        Pointer { trace: None, ports }
     }
 
     fn check(&self) -> Result<(), String> {
-        let (idle_secs, tick) = last_input()?;
-        judge_before_click(self.trace, idle_secs, tick, cursor_position()?)
+        let (idle_secs, tick) = self.ports.last_input()?;
+        judge_before_click(self.trace, idle_secs, tick, self.ports.cursor_position()?)
     }
 
     /// Moves the pointer to the physical pixel `(x, y)` and presses and
@@ -506,18 +563,18 @@ impl Pointer {
     /// away and the window under that pixel is one of `own`.
     pub fn click(&mut self, x: i32, y: i32, own: &[Win]) -> Result<(), String> {
         self.check()?;
-        guard_click(x, y, own)?;
+        judge_click_target(self.ports.window_at(x, y), x, y, own)?;
         let across = normalise(x, metric(SM_XVIRTUALSCREEN), metric(SM_CXVIRTUALSCREEN))?;
         let down = normalise(y, metric(SM_YVIRTUALSCREEN), metric(SM_CYVIRTUALSCREEN))?;
         let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-        send(&[
-            mouse_input(across, down, place),
-            mouse_input(0, 0, MOUSEEVENTF_LEFTDOWN),
-            mouse_input(0, 0, MOUSEEVENTF_LEFTUP),
+        self.ports.send(&[
+            (across, down, place),
+            (0, 0, MOUSEEVENTF_LEFTDOWN),
+            (0, 0, MOUSEEVENTF_LEFTUP),
         ])?;
-        let (_, input_tick) = last_input()?;
+        let (_, input_tick) = self.ports.last_input()?;
         self.trace = Some(Trace {
-            pointer: cursor_position()?,
+            pointer: self.ports.cursor_position()?,
             input_tick,
         });
         Ok(())
@@ -1009,6 +1066,99 @@ mod tests {
     fn no_window_at_the_point_and_an_empty_list_are_both_refused() {
         assert!(judge_target(None, &[Win(5)]).is_err());
         assert!(judge_target(Some(Win(5)), &[]).is_err());
+    }
+
+    /// An OS that answers from fields and records what would have been sent.
+    struct FakePorts {
+        idle_secs: u32,
+        input_tick: u32,
+        cursor: (i32, i32),
+        window: Option<Win>,
+        sent: Vec<Vec<MouseStep>>,
+    }
+
+    impl Ports for FakePorts {
+        fn last_input(&self) -> Result<(u32, u32), String> {
+            Ok((self.idle_secs, self.input_tick))
+        }
+
+        fn cursor_position(&self) -> Result<(i32, i32), String> {
+            Ok(self.cursor)
+        }
+
+        fn window_at(&self, _x: i32, _y: i32) -> Option<Win> {
+            self.window
+        }
+
+        fn send(&mut self, steps: &[MouseStep]) -> Result<(), String> {
+            self.sent.push(steps.to_vec());
+            Ok(())
+        }
+    }
+
+    const OWN_WINDOW: Win = Win(0x51);
+    const STRANGER: Win = Win(0x52);
+
+    fn pointer_over(idle_secs: u32, window: Win) -> Pointer<FakePorts> {
+        Pointer::with_ports(FakePorts {
+            idle_secs,
+            input_tick: 9_000,
+            cursor: (700, 300),
+            window: Some(window),
+            sent: Vec::new(),
+        })
+    }
+
+    /// The click was refused with a message holding `needle`, and nothing was sent.
+    fn refused_without_sending(
+        pointer: &mut Pointer<FakePorts>,
+        at: (i32, i32),
+        needle: &str,
+        case: &str,
+    ) {
+        let said = pointer.click(at.0, at.1, &[OWN_WINDOW]).err();
+        assert!(
+            said.as_deref().is_some_and(|text| text.contains(needle)),
+            "{case}: {said:?}"
+        );
+        assert!(
+            pointer.ports.sent.is_empty(),
+            "{case}: {:?}",
+            pointer.ports.sent
+        );
+    }
+
+    /// Both guards stand before the one `SendInput`; the first click sends the
+    /// move, the press and the release together, and a second click after the
+    /// pointer was moved sends nothing. The pixel is the corner of the virtual
+    /// screen, which `normalise` accepts on every machine.
+    #[test]
+    fn ov02_pointer_click_sends_nothing_unless_both_guards_pass() -> Result<(), String> {
+        let corner = (metric(SM_XVIRTUALSCREEN), metric(SM_YVIRTUALSCREEN));
+        let mut active = pointer_over(MIN_IDLE_SECS - 1, OWN_WINDOW);
+        refused_without_sending(&mut active, corner, "was active", "a: user active");
+        let mut stranger = pointer_over(MIN_IDLE_SECS, STRANGER);
+        refused_without_sending(&mut stranger, corner, "not one of", "b: foreign window");
+
+        let mut pointer = pointer_over(MIN_IDLE_SECS, OWN_WINDOW);
+        pointer.click(corner.0, corner.1, &[OWN_WINDOW])?;
+        let place = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        let wanted = vec![
+            (0, 0, place),
+            (0, 0, MOUSEEVENTF_LEFTDOWN),
+            (0, 0, MOUSEEVENTF_LEFTUP),
+        ];
+        assert_eq!(pointer.ports.sent, [wanted], "c: one batch of three");
+
+        pointer.ports.cursor = (701, 300);
+        let said = pointer.click(corner.0, corner.1, &[OWN_WINDOW]).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("pointer is at")),
+            "d: {said:?}"
+        );
+        assert_eq!(pointer.ports.sent.len(), 1, "d: nothing more was sent");
+        Ok(())
     }
 
     #[test]
