@@ -213,6 +213,53 @@ fn wsl_wav_run_passes_the_same_check() -> TestResult {
     Ok(())
 }
 
+/// How long the run gets to load its models before the recording is played.
+#[cfg(windows)]
+const MODELS_LOADED: std::time::Duration = std::time::Duration::from_secs(30);
+/// How long the run gets to finish the last utterance after the recording ends.
+#[cfg(windows)]
+const UTTERANCE_ENDED: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Plays `wav` on the default output device, which the loopback source
+/// captures, then ends the run.
+#[cfg(windows)]
+fn play_into_loopback(child: &mut std::process::Child, wav: &str) -> Result<(), Failure> {
+    std::thread::sleep(MODELS_LOADED);
+    let script = format!("(New-Object System.Media.SoundPlayer '{wav}').PlaySync()");
+    let played = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .status()
+        .map_err(|error| format!("cannot play {wav}: {error}"))?;
+    if !played.success() {
+        return Err(format!("playing {wav} ended with {played}"));
+    }
+    std::thread::sleep(UTTERANCE_ENDED);
+    child.kill().map_err(|error| error.to_string())
+}
+
+/// T-RP-10-007: the subtitles of English speech played through the loopback
+/// arrive on `/events`. The recording is played on the default output device,
+/// so it is heard and it reaches the server of this run.
+#[cfg(windows)]
+#[test]
+#[ignore = "plays an English recording on the default output device and runs the hayamimi binary"]
+fn windows_loopback_reaches_events() -> TestResult {
+    let found = support::path_text(&support::find_above("testdata/lat-en.wav")?)?;
+    // The player does not take the extended-length prefix of a canonical path.
+    let wav = found.trim_start_matches(r"\\?\");
+    let models = support::path_text(&support::models_dir()?)?;
+    let port = support::free_port()?;
+    let served = support::serve_driven(
+        support::BINARY,
+        &["--input", "speaker", "--models", &models],
+        (port, vec![port]),
+        (Some("C.UTF-8"), &[]),
+        |child| play_into_loopback(child, wav),
+    )?;
+    check_event_stream(&served.wire)?;
+    Ok(())
+}
+
 /// The language condition is the only one the real run leaves out.
 #[test]
 fn leaving_the_language_unchecked_still_wants_ready_partial_and_final() {

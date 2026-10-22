@@ -246,6 +246,50 @@ mod tests {
     }
 
     #[test]
+    fn wait_for_speaker_drains_packet_enqueued_as_done_becomes_true() {
+        let clock = Clock::start();
+        let target = clock.now_ns();
+        // The source delivers its last window and is done before the combiner looks.
+        let (tx, rx) = mpsc::channel();
+        assert!(tx.send(packet(target, 0.4)).is_ok());
+        drop(tx);
+        let mut aligner = Aligner::default();
+        collect_speaker(&mut aligner, &rx, target, clock);
+        assert_eq!(
+            aligner.take_closest(target).map(|p| p.samples[0]),
+            Some(0.4)
+        );
+        // A source that is done with nothing left ends the wait without a window.
+        let (tx, rx) = mpsc::channel::<Packet>();
+        drop(tx);
+        collect_speaker(&mut aligner, &rx, clock.now_ns(), clock);
+        assert!(aligner.take_closest(target).is_none());
+    }
+
+    #[test]
+    fn mix_waits_for_a_closer_packet_instead_of_consuming_older_candidate()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let rig = rig()?;
+        rig.alive.set(SourceKind::Mic, true);
+        rig.alive.set(SourceKind::Speaker, true);
+        // Two seconds into the run: not due yet, so the combiner may still wait.
+        let target = 2_000_000_000;
+        rig.speaker.send(packet(target - 20_000_000, 0.2))?;
+        rig.mic.send(packet(target, 0.1))?;
+        assert!(rig.out.recv_timeout(Duration::from_millis(150)).is_err());
+        rig.speaker.send(packet(target, 0.4))?;
+        let AudioItem::Window(samples) = rig.out.recv_timeout(WAIT)? else {
+            return Err("the item was not a window".into());
+        };
+        assert!(
+            samples.iter().all(|sample| (sample - 0.5).abs() < 1e-6),
+            "{samples:?}"
+        );
+        rig.finish();
+        Ok(())
+    }
+
+    #[test]
     fn with_no_working_source_nothing_passes_and_the_thread_still_stops()
     -> Result<(), Box<dyn std::error::Error>> {
         let rig = rig()?;
