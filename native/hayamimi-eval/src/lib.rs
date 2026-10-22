@@ -53,6 +53,7 @@ pub mod stage_table;
 pub mod stages;
 pub mod stream;
 pub mod translate_call;
+pub mod two_speakers;
 pub mod vram;
 pub mod wav;
 pub mod ws;
