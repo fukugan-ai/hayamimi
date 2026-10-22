@@ -16,6 +16,7 @@ use wasapi::{
 };
 
 use super::align::Packet;
+use super::com_scope::ComScope;
 use super::convert::le_f32;
 use super::{CaptureError, Clock, Control, Feeder, Running, SourceKind, name_matches};
 
@@ -42,7 +43,9 @@ fn device_error(error: impl std::fmt::Display) -> CaptureError {
     CaptureError::Device(error.to_string())
 }
 
-/// COM is initialised for the thread around the whole capture.
+/// COM is initialised for the thread around the whole capture. A thread that
+/// already lives in another apartment mode keeps it; any other failure of the
+/// initialisation names the source and the value (see `com_scope`).
 fn run(
     kind: SourceKind,
     wanted: Option<&str>,
@@ -50,10 +53,8 @@ fn run(
     out: Sender<Packet>,
     control: &mut Control,
 ) -> Result<(), CaptureError> {
-    initialize_mta().ok().map_err(device_error)?;
-    let result = capture(kind, wanted, clock, out, control);
-    deinitialize();
-    result
+    let _com = ComScope::enter(initialize_mta().0, kind.name(), deinitialize)?;
+    capture(kind, wanted, clock, out, control)
 }
 
 /// The device of `kind` whose name holds `wanted`, or the system's default.
@@ -170,4 +171,59 @@ fn pump(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wasapi::initialize_sta;
+
+    type Check = Result<(), Box<dyn std::error::Error>>;
+
+    /// Runs `body` on a thread that has not touched COM and returns its result.
+    fn on_a_new_thread<T: Send + 'static>(
+        body: impl FnOnce() -> Result<T, CaptureError> + Send + 'static,
+    ) -> Result<T, Box<dyn std::error::Error>> {
+        let thread = std::thread::spawn(body);
+        Ok(thread.join().map_err(|_| "the COM thread panicked")??)
+    }
+
+    #[test]
+    fn windows_com_scope_leaves_a_real_thread_uninitialized_after_the_scope() -> Check {
+        let second = on_a_new_thread(|| {
+            drop(ComScope::enter(
+                initialize_mta().0,
+                "mic-probe",
+                deinitialize,
+            )?);
+            let second = initialize_mta().0;
+            // The second call is paired too.
+            let _pair = ComScope::enter(second, "mic-probe", deinitialize)?;
+            Ok(second)
+        })?;
+        // S_OK: the first scope paired its call. An unpaired call leaves S_FALSE.
+        assert_eq!(second, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn windows_com_scope_keeps_an_existing_sta_apartment_of_a_real_thread() -> Check {
+        let (first, again) = on_a_new_thread(|| {
+            let first = initialize_sta().0;
+            let _sta = ComScope::enter(first, "mic-probe", deinitialize)?;
+            // The scope asks for the MTA on a thread that is an STA: it stays an STA.
+            drop(ComScope::enter(
+                initialize_mta().0,
+                "mic-probe",
+                deinitialize,
+            )?);
+            let again = initialize_sta().0;
+            let _pair = ComScope::enter(again, "mic-probe", deinitialize)?;
+            Ok((first, again))
+        })?;
+        assert_eq!(first, 0);
+        // S_FALSE: the STA is still initialised. A cleanup run on it gives S_OK.
+        assert_eq!(again, 1);
+        Ok(())
+    }
 }

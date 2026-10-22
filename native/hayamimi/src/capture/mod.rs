@@ -12,6 +12,9 @@ pub mod combine;
 pub mod convert;
 pub mod supervise;
 
+// Only the Windows capture holds a scope; the rule it applies runs everywhere.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod com_scope;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -26,6 +29,7 @@ use other as platform;
 #[cfg(windows)]
 use windows as platform;
 
+use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
@@ -72,7 +76,27 @@ pub enum CaptureError {
     NoDevice,
     /// The device is there and did not open or stopped.
     Device(String),
+    /// COM could not be initialised for the thread of this endpoint; `hresult`
+    /// is the value `CoInitializeEx` returned.
+    ComInit { endpoint: String, hresult: i32 },
 }
+
+impl fmt::Display for CaptureError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CaptureError::Unsupported => f.write_str("this platform cannot capture this audio"),
+            CaptureError::NoDevice => f.write_str("no matching audio device"),
+            CaptureError::Device(reason) => f.write_str(reason),
+            CaptureError::ComInit { endpoint, hresult } => write!(
+                f,
+                "COM initialisation failed on the {endpoint} endpoint: HRESULT 0x{:08X}",
+                hresult.cast_unsigned()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CaptureError {}
 
 /// The run's time zero, so that windows of different sources can be compared.
 #[derive(Debug, Clone, Copy)]
@@ -257,6 +281,97 @@ mod tests {
         assert!(name_matches("USB Microphone (Blue)", Some("blue")));
         assert!(name_matches("USB Microphone (Blue)", None));
         assert!(!name_matches("USB Microphone (Blue)", Some("realtek")));
+    }
+
+    #[test]
+    fn microphone_device_selection_uses_input_only_case_insensitive_match() {
+        // The microphone side lists the input devices only (cpal's input
+        // devices, WASAPI's capture direction), so the choice is a
+        // case-insensitive match of a part of the name over that list.
+        let inputs = ["USB microphone", "Other mic"];
+        let pick = |wanted: Option<&str>| inputs.iter().position(|name| name_matches(name, wanted));
+        assert_eq!(pick(Some("usb")), Some(0));
+        assert_eq!(pick(Some("OTHER")), Some(1));
+        assert_eq!(pick(None), Some(0));
+        // An output device is not in the list, so its name finds nothing.
+        assert_eq!(pick(Some("USB output")), None);
+        assert_eq!(pick(Some("missing")), None);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn speaker_capture_rejects_non_windows_before_import_or_com() {
+        let (out, packets) = mpsc::channel();
+        let result = open(SourceKind::Speaker, None, Clock::start(), out);
+        assert!(matches!(result, Err(CaptureError::Unsupported)));
+        // No thread was started, so no window was ever sent.
+        assert!(packets.try_recv().is_err());
+    }
+
+    #[test]
+    fn mic_timestamp_is_taken_in_the_capture_callback() -> Result<(), Box<dyn std::error::Error>> {
+        let (out, packets) = mpsc::channel();
+        let clock = Clock::start();
+        let mut feeder = Feeder::new(16_000, 1, clock, out);
+        let before = clock.now_ns();
+        // The callback runs on the thread of the device.
+        let callback = std::thread::spawn(move || feeder.push(&[0.25_f32; WINDOW]));
+        assert!(callback.join().map_err(|_| "the callback panicked")?);
+        let after = clock.now_ns();
+        // The reader comes late; the stamp does not move with it.
+        std::thread::sleep(Duration::from_millis(60));
+        let packet = packets.try_recv()?;
+        assert!(
+            (before..=after).contains(&packet.end_ns),
+            "{} is not in {before}..={after}",
+            packet.end_ns
+        );
+        assert!(
+            packet
+                .samples
+                .iter()
+                .all(|sample| (sample - 0.25).abs() < 1e-6)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn capture_timestamps_keep_audio_spacing_when_backend_returns_a_burst() {
+        let (out, packets) = mpsc::channel();
+        let clock = Clock::start();
+        // The run must be older than the two windows stamped before "now".
+        std::thread::sleep(Duration::from_millis(80));
+        let mut feeder = Feeder::new(16_000, 1, clock, out);
+        // A burst: three windows in one delivery.
+        assert!(feeder.push(&[0.0_f32; WINDOW * 3]));
+        let burst: Vec<u64> = packets.try_iter().map(|packet| packet.end_ns).collect();
+        assert_eq!(burst.len(), 3);
+        assert_eq!(burst[1], burst[0] + WINDOW_NS);
+        assert_eq!(burst[2], burst[1] + WINDOW_NS);
+        // A delivery after a real pause is stamped when it happened, not packed behind the burst.
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(feeder.push(&[0.0_f32; WINDOW]));
+        let later: Vec<u64> = packets.try_iter().map(|packet| packet.end_ns).collect();
+        assert_eq!(later.len(), 1);
+        assert!(later[0] >= burst[2] + 100_000_000, "{later:?} {burst:?}");
+    }
+
+    #[test]
+    fn mic_chunks_notices_stop_event_without_audio() -> Result<(), CaptureError> {
+        // A device that opens and never delivers a buffer: dropping the source
+        // sets the stop flag, which the thread sees at its next poll, so the
+        // drop is bounded by the poll and does not wait for audio.
+        let running = spawn_source("test", |control| {
+            control.opened("fake mic");
+            control.hold();
+            Ok(())
+        })?;
+        std::thread::sleep(Duration::from_millis(50));
+        let started = Instant::now();
+        drop(running);
+        let took = started.elapsed();
+        assert!(took < Duration::from_secs(1), "the drop took {took:?}");
+        Ok(())
     }
 
     #[test]
