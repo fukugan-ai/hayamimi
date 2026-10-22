@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(pick(Some("missing")), None);
     }
 
-    #[cfg(not(windows))]
+    #[cfg_attr(windows, ignore = "asserts the non-Windows Unsupported path")]
     #[test]
     fn speaker_capture_rejects_non_windows_before_import_or_com() {
         let (out, packets) = mpsc::channel();
