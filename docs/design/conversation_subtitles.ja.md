@@ -1163,7 +1163,7 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 - `hayamimi-eval` に `fleurs-pairs` と `chrf` を作る（3.5、`rust_port.ja.md`）。
 - `state.json` の `acceptance` を「CS-1〜CS-30（CS-4 は CS-4a と CS-4b）、CX-1〜CX-11」に替える。
 - hooks の repo に、held-out の directory の名前に当たる Read、Grep、Glob、Bash を止める PreToolUse の gate を作る（3.5）。作るのは hook-engineer の席である。
-- `state.json` の `acceptance` に、10 の IP-1〜IP-7 を足す。
+- `state.json` の `acceptance` に、10 の IP-1〜IP-8 を足す。
 
 ## 10. 対面の場面：1 本のマイクで日英を同時に訳す
 
@@ -1222,6 +1222,9 @@ S13 は frame ごとの判定で、発話の中で言語が替わる形を扱う
 
 **最新情報**：clap 4.6.7（`native/Cargo.lock` の版と同じ）の `Arg::requires` は、その引数が在る時だけ名指した引数を要り、欠ければ `ErrorKind::MissingRequiredArgument` で止まる（https://docs.rs/clap/latest/clap/struct.Arg.html#method.requires 、取得 2026-10-22）。
 `URLSearchParams.get` は名前の無い key に `null` を返し、値は `application/x-www-form-urlencoded` の規則で decode される（https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/get と WHATWG URL、取得 2026-10-22）。
+**最新情報**：clap 4.6.7 の `ArgAction::Set` は、同じ引数がもう一度現れると `ArgumentConflict` になり、`Command::args_override_self(true)` を置いた時だけ後の値で上書きする（https://docs.rs/clap/latest/clap/enum.ArgAction.html 、取得 2026-10-22）。
+`u16` の引数は `RangedI64ValueParser` で読まれ、字を `value.parse::<i64>()` で数に読んでから `u16` の範囲を見る（https://docs.rs/clap_builder/latest/src/clap_builder/builder/value_parser.rs.html 、取得 2026-10-22）。
+WHATWG URL の basic URL parser は、入力の前後の C0 制御文字と空白を除いてから読み、scheme の字を小文字に直す（https://url.spec.whatwg.org/ 、取得 2026-10-22）。
 
 数えた日時は 2026-10-22、範囲は main の `e51e8cc` の `native/` の `*.rs`（`target/` を除く）と `docs/` である。
 code は `git show e51e8cc:<path>` で読んだ。
@@ -1333,6 +1336,12 @@ pair の session の言語は確定文の言語なので、`ja` か `en` にし�
 `Router::transcribe` の戻りの `Transcript`（`transcribe.rs:60-70`）に、落ちた時だけ値を持つ `fallback`（`step` と `lid`）を足し、pipeline の `Solved` と `Final` を通して `hayamimi` へ渡す。
 `hayamimi` は、`final` を出す所で `asr.endpoint.decided`（`log.rs:244` の `endpoint_decided_line`）と並べて、その `final` の `id` を付けた log の event `asr.lang.fallback` を 1 件出す。
 項目は `id`、`step`（`sv_tag`、`script`、`default`、`sv_failed` のどれか）、`lid`（whisper-tiny の答え。空の文字列、`Err`、判定の段が無い時は `null`）の 3 つである。
+`id` は `Final.id` の数で、同じ `final` の `asr.endpoint.decided` の `id`（`log.rs:247`）と等しく、`/events` の `final` の `id` `<source>-<n>` の `n` である（`wire.rs:22`）。
+`Final.id` は `Engine::finalize` が `next_id` から振り（`pipeline.rs:1032-1033`）、`next_id` は `Engine::open` で 1 から始まり（`:559`）、session の reset でも戻らない（`next_id` を書くのはこの 2 か所だけ）。
+`hayamimi` は process ごとに `Engine` を 1 つだけ開く（`run.rs:642` の `open_engine`）。
+したがって 1 つの process の中で `id` は重ならず、`stream --repeat` の repeat は同じ process に流すので、repeat をまたいで `id` は続く。
+`asr.lang.fallback` と `final` の突き合わせは、repeat を区別せずに、同じ process の log と events の中で `id` だけで結ぶ。
+`--mode pair` の run と `--mode fast` の run は別の process で、`id` はそれぞれ 1 から振られるので、2 つの run の記録を混ぜて結ばない。
 step の値と答えの対応は、2 が `sv_tag`、3 が `script`、4 が `default`、5 が `sv_failed` である。
 level は失敗の `sv_failed` だけが `warn` で、ほかは `info` である。
 持っておいた候補が後で `final` になる時（`Plan::Held`、`pipeline.rs:943-958`）は、候補を解いた時の `fallback` をそのまま使う。
@@ -1362,6 +1371,17 @@ decode した値が `http://` か `https://` で始まる時だけ中継の URL 
 host は限らない。LAN の端末で頁を開く時は、中継も LAN の address で名指すからである（10.12 の H25、H39）。
 `page_for`（`route.rs:13-19`）の頁の選びと、重ね窓の `?show=` の読みは変えない。
 
+scheme は字のとおりに比べ、大文字と小文字を区別する。
+`HTTP://` や `Https://` で始まる値は、中継なしとして今の頁と同じに動く。
+重ね窓の `?show=` も key と値を字のとおりに比べる（`overlay.rs:28-37`）ので、1 つの頁の query の読みに規則を 2 つ持たないためである。
+browser の URL の parser は scheme を小文字に直す（10.2.1）ので、大文字の値も同じ server に繋がるが、受けるには比べを 1 つ足すことになる。
+頁を開く URL は、この節と案内が書く小文字の形である。
+
+decode した値の前後の空白と制御文字は削らない。
+前に空白の在る値は `http://` で始まらないので、中継なしである。
+後ろに空白の在る値は、字のまま `EventSource` に渡す。browser の URL の parser が前後の C0 制御文字と空白を除いてから読む（10.2.1）。
+頁の側で削る形は採らない。削ると、`?relay=%20http://…` のように前に空白の在る値も中継として受け、受ける綴りが 1 つ増えるからである。後ろの空白は browser が除くので、削らなくても開く先は変わらない。
+
 中継の流れは、頁の接続の印（`Model` の `Conn`、`web.rs:40`、`:43`）を書かない。
 接続の印は自分を配る server の流れのものとして残し、中継が落ちても頁の印は変わらない。
 中継が落ちている間、頁は確定文を出し続け、訳が出ないだけである。
@@ -1372,6 +1392,11 @@ host は限らない。LAN の端末で頁を開く時は、中継も LAN の ad
 `/dashboard` は行を時刻の順に並べるので、相手の英語とその和訳、自分の日本語とその英訳が、同じ列に交互に並ぶ。
 言語ごとに 2 つの段に分けて向かい合う 2 人が読む形（`/room` のような頁、字形は 3.12）は、designer の席へ渡す。
 この設計が決めるのは中身だけである：段は行の `lang`（原文の言語）で分け、各行は原文と、`settled` の訳と、`held` の印を持つ。
+
+`held` の訳は、`/dashboard` の今の `TrView`（`parts.rs:58-92`）のとおりに描き、頁の側で描き方を変えない。
+描くのは、矢印 `→<lang>`（`tr-arrow`）と、控えた印（`tr-mark`。`ui.tr.held`、英語 `Translation withheld`、日本語 `訳を控えました`）と、`hold_reason` が在る時の理由の語（`tr-reason`、`ui.tr.reason`）である（`parts.rs:73-78`）。
+訳の文（`tr-text`）は描かない。`status` が `held` の event は `TrState::Held` になり（`tr.rs:98-101`）、`Held` の行は文の片を持たない（`tr.rs:114`）ので、event の `text` が何であっても描かれない。
+原文は、訳の行の上の確定文の行が描く。
 LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の R5b の `--serve-host` で届くが、確かめていない（10.12 の H25）。
 
 採らない形は 2 つである。
@@ -1427,6 +1452,14 @@ port は `stream` の引数 `--own-llama-port <port>` で受ける。
 `--own-pid` が 1 つでも在るのに `--own-llama-port` が無い時と、`--own-pid` が無いのに `--own-llama-port` が在る時は、clap の使い方の誤り（exit code 2）で、`stream.machine.refused` も machine の記録も書かずに止まる。
 `--own-pid` も `--own-llama-port` も無い `stream` は今のまま動く。
 窓（`rust_port.ja.md` 3.19 の「窓の訳の server」）の run は、`--own-llama-port 18084` を渡す。
+
+値の型は、`stream` のほかの port の引数（`--port`、`--ingest-port`、`--relay-port`。`cli.rs:113-124`）と同じ `u16` にする。
+clap は `u16` の字を `i64` に読んでから `u16` の範囲を見る（10.2.1）ので、次のように決まる。
+
+- `65536`、負の数（`--own-llama-port -1` と `--own-llama-port=-1`）、数でない字（`abc`）、空の値は、clap の使い方の誤り（exit code 2。`Cli::parse`、`cli.rs:436`）で、`stream.machine.refused` も machine の記録も書かずに止まる。
+- `0` は値として受け、cmdline の `--port` の次の語が `0` の時だけ通す。訳の server の unit は 0 の port で起こさないので、0 を名指した run は `port` で拒まれる。0 を引数の読みで止める範囲は置かず、ほかの port の引数と同じ型に揃える。
+- 先頭に 0 のある引数（`--own-llama-port 018083`）は 18083 と読む。cmdline と比べる字は、値を 10 進で書いた `18083` で、引数の綴りではない。cmdline の語が `018083` の server は、`18083` を名指しても通らない。
+- 引数を 2 回渡す形（`--own-llama-port 18083 --own-llama-port 18084`）は、clap の `ArgAction::Set` の既定どおり `ArgumentConflict` の使い方の誤り（exit code 2）で止まる。`hayamimi-eval` の command は `args_override_self` を置かない（`cli.rs` に 0 件）。後の値を黙って採る形は採らない。2 つの値のどちらで確かめたかが、記録から分からなくなるからである。
 
 18084 を既定の値にする形は採らない。
 この port は load の門の確かめの一部で、既定を持つと、渡し忘れた run が黙って 18084 と比べられるからである。
@@ -1518,12 +1551,19 @@ case 行の一部は、crate の外の test から届かない物を測るので
 |---|---|---|---|
 | IP-1 | `ip01_one_source_is_translated_both_ways_by_line_language` | `native/hayamimi-relay/tests/ip01.rs` | `source: mic` の en の行 |
 | IP-2 | `ip02_each_dialog_utterance_is_read_in_its_own_language` | `native/hayamimi/tests/ip02.rs` | 1 行を抜いた記録 |
-| IP-3 | `ip03_an_unsure_identifier_falls_to_ja_or_en` | `native/hayamimi-asr/tests/ip03.rs`。case 行は ip03.rs に加えて、`native/hayamimi-asr/src/route/tests/pair.rs`（作る。`mod pair;` を同じ directory の `mod.rs` に足す。`session.pending` が `pub(super)` なので crate の中に置く）、`native/hayamimi/src/args.rs` の `mod tests`、`native/hayamimi/src/log.rs` の `mod tests` | `Policy::fast()` が `zh` へ移る |
+| IP-3 | `ip03_an_unsure_identifier_falls_to_ja_or_en` | `native/hayamimi-asr/tests/ip03.rs`。case 行は ip03.rs に加えて、`native/hayamimi-asr/src/route/tests/pair.rs`（作る。`mod pair;` を同じ directory の `mod.rs` に足す。`session.pending` が `pub(super)` なので crate の中に置く）、`native/hayamimi-asr/src/pipeline.rs` の `mod tests`（下の段落）、`native/hayamimi/src/args.rs` の `mod tests`、`native/hayamimi/src/log.rs` の `mod tests` | `Policy::fast()` が `zh` へ移る |
 | IP-4 | `ip04_language_choice_adds_little_to_the_wait` | `native/hayamimi-eval/tests/ip04.rs` | 差 400 ms の合成の標本 |
 | IP-5 | `ip05_one_page_shows_both_directions` | `native/hayamimi/tests/ip05.rs`。`?relay=` の読みの case 行は `native/hayamimi-ui/src/route.rs` の `mod tests` | `?relay=` の無い頁 |
 | IP-6 | `ip06_interleaved_join_alternates_languages` | `native/hayamimi-eval/tests/ip06.rs` | `--interleave` の無い join |
 | IP-7 | `ip07_short_replies_are_read_in_their_own_language` | `native/hayamimi/tests/ip07.rs` | 全 `final` が `ja` の合成の記録 |
 | IP-8 | `ip08_the_own_llama_server_is_checked_on_the_port_the_run_names` | `native/hayamimi-eval/tests/ip08.rs` | `--port 8080` の server、`--own-llama-port` の欠け |
+
+持った候補が後で `final` になる時（`Plan::Held`、`pipeline.rs:943-958`）に、候補を解いた時の `fallback` が `Final` に載ること（10.4）は、crate の外の test から測れない。
+`Solved`（`pipeline.rs:187`）は crate の中の型で、`Engine` の route は実物の `Router<Recognizers, Lid>` を持つ（`:202-203`）ので、偽の判定器で `Engine` を組めないからである。
+そこで IP-3 の case 行の 1 つを `pipeline.rs` の `mod tests` に置き、2 つの部品を測る。
+1 つめは、`fallback` を持つ `Solved` を `endpoint::State<Solved>`（`endpoint.rs:221`）に `hold` した後、`plan_with_gap` が返す `Plan::Held` の `solved` が同じ `fallback` を持つことである。
+2 つめは、`Solved` から `Final` を作る所が `fallback` を写し、`fallback` の無い `Solved` からは `fallback` の無い `Final` ができることである。
+`Final` を作る所は今の `finalize`（`pipeline.rs:1023-1055`）の中に在り、route が無いと `None` を返す（`:1031`）。IP-S3 は、`Solved` の項目を `Final` へ写す所を、route を要らない関数に分ける。
 
 ### 10.11 slice（実装の順）
 
@@ -1532,7 +1572,7 @@ case 行の一部は、crate の外の test から届かない物を測るので
 | IP-S0 | 今の code だけで、今日試す起動の形（下の command）。code も文書の外の file も変えない | 手で試すだけで、合否に使わない | `--lang ja` の起動に戻す |
 | IP-S1 | `fetch-set --interleave`（`hayamimi-eval/src/cli.rs` の `FetchSetArgs` に `--concat` を要る flag を足し、`manifest.rs` の `concat` に交互の順を足す）と `lat-dialog` を作る。同じ席が `lat-short` を作る（H20）。IP-1 の test を今の code に対して作る。`stream --own-llama-port`（`cli.rs` の `stream` の引数、`stream.rs` の `Options`、`machine.rs` の `LLAMA_PORT` を引数の値に替える）を作り、10.7.1 の 4 か所の文を同じ commit で書き替える。触る crate は `hayamimi-eval` と、`hayamimi-relay` の test だけ | 合否：IP-6、IP-1、IP-8 | commit を revert |
 | IP-S2 | 頁が `?relay=` の流れも読む（`hayamimi-ui/src/route.rs` の読む関数、`web.rs` と `app.rs`。中継の流れは接続の印を書かない。10.5）。IP-5 の偽の訳の server を作る（下の 4）。言語で段を分ける頁の板を designer の席へ同時に出す。IP-S1 と別の crate なので並べて出せ、IP-S3 より先に入ってよい | 合否：IP-5。IP-S3 が main に無い間は `--mode fast` で打ち、先に 4 つの `final` の `lang` が ja、en、ja、en であることを確かめる。違えば IP-5 の判定を出さず、`?relay=` の読みと dump を数える道具の case 行を通して入り、IP-5 の判定は IP-S3 の打ち直しで出す。IP-S3 が先に入っていれば `--mode pair` で打つ | commit を revert |
-| IP-S3 | 今の main の上で始める（下の 2）。`--mode pair`（`router.rs` の `Policy::pair`、`route/transcribe.rs` の `resolve_language`、`correct_by_script` と `Transcript` の `fallback`、`pipeline.rs` の `Solved` と `Final`、`args.rs` の `mode_of` と `policy`、`strings.*.toml` の 4 行、`log.rs` の `asr.lang.fallback`）。`route/draft.rs` は触らない（10.4）。`Final` の literal を作る 5 か所（`hayamimi/src/log.rs:543`、`session.rs:527`、`wire.rs:165`、`tests/r8a_relay.rs:65`、`tests/rp12.rs:159`）は field を 1 つ足す。同じ commit で、`hayamimi-relay/src/line.rs:53-56` の doc comment と 3.3 の表の `source` の行に、`file` は対面の 1 本のマイクの行も含むと書く | 合否：IP-3、IP-2（記録の完全さ）、IP-1 の通し直し（陰性対照の `mic` の en の行が `translate.line.skipped` は残す）、IP-S2 が先に入っていれば IP-5 の `--mode pair` での打ち直し。記録：IP-2 の取り違えの数、IP-4、IP-7 | commit を revert。`--mode fast` に戻せば IP-S0 の形 |
+| IP-S3 | 今の main の上で始める（下の 2）。`--mode pair`（`router.rs` の `Policy::pair`、`route/transcribe.rs` の `resolve_language`、`correct_by_script` と `Transcript` の `fallback`、`pipeline.rs` の `Solved` と `Final` と、`Solved` を `Final` へ写す関数（10.10）、`args.rs` の `mode_of` と `policy`、`strings.*.toml` の 4 行、`log.rs` の `asr.lang.fallback`）。`route/draft.rs` は触らない（10.4）。`Final` の literal を作る 5 か所（`hayamimi/src/log.rs:543`、`session.rs:527`、`wire.rs:165`、`tests/r8a_relay.rs:65`、`tests/rp12.rs:159`）は field を 1 つ足す。同じ commit で、`hayamimi-relay/src/line.rs:53-56` の doc comment と 3.3 の表の `source` の行に、`file` は対面の 1 本のマイクの行も含むと書く | 合否：IP-3、IP-2（記録の完全さ）、IP-1 の通し直し（陰性対照の `mic` の en の行が `translate.line.skipped` は残す）、IP-S2 が先に入っていれば IP-5 の `--mode pair` での打ち直し。記録：IP-2 の取り違えの数、IP-4、IP-7 | commit を revert。`--mode fast` に戻せば IP-S0 の形 |
 
 slice の条件は次の 4 つである。
 
@@ -1575,7 +1615,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H38** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ評議の席へ出す。
 - **H39** `?relay=` は `http://` と `https://` の任意の host を受けるので、利用者が開いた URL に別の server の `/events` を名指されると、頁はその server の文を訳の行として描く。文は Dioxus の text として描かれ、script にはならない。頁は自分を配る server の `id` に結べない訳を 5 秒で捨てる（`ORPHAN_HOLD_MS`）ので、名指された server が確定文と同じ `id` の訳を流した時だけ行に付く。host を `127.0.0.1` に限る形は、LAN の端末で開く形（H25）と両立しないので採らない。
 - **H40** IP-5 の偽の訳の server の固定の文が V に止められる率は測っていない。止められた訳も IP-5 は 1 つと数える（10.9）が、`ok` の文の照らしは `ok` の訳の数だけ行われる。4 つとも止められた run では文の照らしが 0 件になる（NOT VERIFIED）。IP-S2 の席が最初の run で `status` の内訳を記録する。
-- **H41** `rust_port.ja.md` 3.21 の 3 の決め 1（`--port` の次の語が `18084`）と、その下の採らない手段、8 の R8x-9 と窓 E3'' の行、6 の RP-83 の行の `--own-pid` の起動の形は、10.7.1 の `--own-llama-port` と食い違う。直すのは `rust_port.ja.md` を持つ設計の席で、IP-S1 の commit より前にする。`rust_port_tests.ja.md` の RP-83 の case 行のうち `--own-pid` を渡す行（S83o を使う T-RP-83-056〜090）は、`--own-llama-port 18084` を足す形に test-designer の席が直す。どちらも直るまで、IP-S1 の実装の席は `rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足して、RP-83 の今の test を通し続ける。
+- **H41** 閉じた。`rust_port.ja.md` は、cmdline の `--port` の次の語を `--own-llama-port` で名指した port と比べ、`--own-pid` を渡す起動に `--own-llama-port`（窓は 18084）を足す形で書く。3.19 の R8x-9 の行（`rust_port.ja.md:1791`）と窓 E3'' の行（`:1792`）、3.21 の 3 の決め 1 の記録（`:2035`）、確かめの表の 3（`:2043`）、`=` の形を受けない理由（`:2047`）、窓 E3'' の手順（`:2073`）、採らない手段（`:2107`）、6 の RP-83 の (9) と両方の対照（`:2420`）、7 の RP-83 の陰性の case（`:2520`）、10 の H141（`:3671`）である。採らない手段の「受ける形を増やさない」は、名指した 1 つの port を `--port <port>` の 2 語で書いた形だけを受ける形として残る。T の RP-83 の `--own-pid` を渡す行は、S83o の引数の `--own-llama-port 18084` を持つ（`rust_port_tests.ja.md` の RP-83 の材料と、T-RP-83-068〜086、088、090）。IP-S1 の実装の席は、`rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足す。
 - **H42** SenseVoice の復号が失敗した発話（10.4 の 5）は `ja` で読まれ、`asr.lang.fallback` の `step: sv_failed`（`warn`）だけが残る。失敗が続く model を止めて知らせる形（`fallback` の event の `in_effect`）は作らない。続く失敗の量は、IP-2 の記録の `sv_failed` の件数で数える（NOT VERIFIED）。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
