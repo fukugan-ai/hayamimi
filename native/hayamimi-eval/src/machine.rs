@@ -1222,6 +1222,7 @@ mod tests {
     }
 
     /// The `utime` plus `stime` of the calling thread, as its own `stat` shows it now.
+    #[cfg(target_os = "linux")]
     fn this_thread_ticks() -> Result<u64, String> {
         let text = std::fs::read_to_string("/proc/thread-self/stat").map_err(|e| e.to_string())?;
         ticks_of_stat(&text).map_err(|e| e.to_string())
@@ -1229,6 +1230,7 @@ mod tests {
 
     /// Runs until the thread has used one clock tick, then returns the ticks it
     /// has used, read just before it ends, and its thread id.
+    #[cfg(target_os = "linux")]
     fn spin_one_tick() -> Result<(u64, String), String> {
         while this_thread_ticks()? < 1 {
             std::hint::spin_loop();
@@ -1245,6 +1247,7 @@ mod tests {
 
     /// Waits until the ended thread `tid` is gone from the task list, so that
     /// its time is in the process total and not also in a live thread's file.
+    #[cfg(target_os = "linux")]
     fn wait_until_unlisted(tid: &str) -> Check {
         let entry = Path::new("/proc/self/task").join(tid);
         for _ in 0..500 {
@@ -1257,6 +1260,7 @@ mod tests {
     }
 
     /// The ticks of the threads that are alive: the sum of `task/*/stat`.
+    #[cfg(target_os = "linux")]
     fn live_thread_ticks() -> Result<u64, Box<dyn std::error::Error>> {
         let mut total = 0_u64;
         for entry in std::fs::read_dir("/proc/self/task")? {
@@ -1274,6 +1278,8 @@ mod tests {
     /// reader, so that a reader which summed the live threads would miss the
     /// ended thread's ticks and fail. The thread spins until it has used a
     /// tick: with 0 ticks the comparison would be `0 >= 0` and prove nothing.
+    /// Linux only: the per-thread files under `/proc` exist nowhere else.
+    #[cfg(target_os = "linux")]
     #[test]
     fn the_process_stat_counts_the_ticks_of_its_ended_threads() -> Check {
         let worker = std::thread::spawn(spin_one_tick);

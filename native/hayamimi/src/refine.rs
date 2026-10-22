@@ -1804,6 +1804,7 @@ mod tests {
     }
 
     /// Resident set size in KiB, from `/proc/self/status`.
+    #[cfg(target_os = "linux")]
     fn rss_kib() -> Result<u64, Box<dyn std::error::Error>> {
         let status = std::fs::read_to_string("/proc/self/status")?;
         let line = status
@@ -1815,6 +1816,7 @@ mod tests {
 
     /// The first `models/` at or above this crate that holds the VAD model;
     /// model files are not in git, so a worktree reads the main checkout's.
+    #[cfg(target_os = "linux")]
     fn models_dir() -> Result<std::path::PathBuf, String> {
         let start = env!("CARGO_MANIFEST_DIR");
         Path::new(start)
@@ -1826,6 +1828,7 @@ mod tests {
 
     /// Run with `--ignored --nocapture`: RSS before and after the refine
     /// router is made (no model is loaded until the first group).
+    #[cfg(target_os = "linux")]
     #[test]
     #[ignore = "measures; needs the models directory"]
     fn measure_rss_before_and_after_the_refine_router_is_made() -> Check {
@@ -1840,6 +1843,7 @@ mod tests {
     /// Run with `--ignored --nocapture` and `CUDA_VISIBLE_DEVICES=-1`: the
     /// time of `Router::refine` on a 25 s group, five runs after a first one
     /// that loads the models.
+    #[cfg(target_os = "linux")]
     #[test]
     #[ignore = "measures; needs the models directory and the golden clips"]
     fn measure_refine_of_a_25_second_group_on_the_cpu() -> Check {
