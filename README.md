@@ -198,6 +198,8 @@ Audio capture covers the microphone on Windows and Linux, and speaker loopback o
 On a machine with no capture path, such as macOS, use `--input ws` (`/ingest`) or a wav file.
 A real-device run of the Linux microphone has not been checked here (NOT VERIFIED: run `hayamimi --input mic` on a Linux machine and watch the subtitles).
 
+The translation server for languages outside Japanese and English (port 18081) is started on llama.cpp v0.7.0 (build 11669) with `-np 1 -c 768 -ngl 99 -cram 0` ([`hayamimi-llama-other.service`](native/hayamimi-relay/units/hayamimi-llama-other.service)). The trial translation server for Japanese and English (port 18083) is started with `-ngl 99 -c 4096 -np 4 -cram 0` ([`hayamimi-llama-pair.service`](native/hayamimi-relay/units/hayamimi-llama-pair.service)). GPU memory rose from its level before the start by 4263 MiB on 18081 and 3281 MiB on 18083 (one measurement on 2026-10-22, taken just after `/health` answered). That is 238 MiB and 678 MiB less than with the previous argument (`-c 8192`), and the 43 and 41 translated sentences that were measured came out the same as before. `-fa on` and KV cache quantization are not used: on 18083 they changed the translation and made it slower.
+
 ## Quickstart
 
 Build the executable, fetch the models, then run.

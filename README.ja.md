@@ -190,6 +190,8 @@ Rust版の`hayamimi`は、`native/`のCargo workspaceでbuildします。GPU版�
 macOSなど取り込みの経路が無い機械では、`--input ws`（`/ingest`）かwavファイルを使います。
 Linuxのマイクを実機で通した確認は、この文書では取っていません（NOT VERIFIED：確かめ方は、Linuxの実機で`hayamimi --input mic`を動かして字幕を見ることです）。
 
+日英の外の言語の訳のserver（port 18081）は、llama.cpp v0.7.0（build 11669）で`-np 1 -c 768 -ngl 99 -cram 0`を付けて起こします（[`hayamimi-llama-other.service`](native/hayamimi-relay/units/hayamimi-llama-other.service)）。日英の訳の試験用のserver（port 18083）は`-ngl 99 -c 4096 -np 4 -cram 0`で起こします（[`hayamimi-llama-pair.service`](native/hayamimi-relay/units/hayamimi-llama-pair.service)）。GPUのmemoryは、起動前からの増え分で、18081が4263 MiB、18083が3281 MiBでした（2026-10-22の1回の測定で、`/health`が返った直後の値）。前の引数（`-c 8192`）より、それぞれ238 MiBと678 MiB少なく、測った43行と41行の訳の文は前と同じでした。`-fa on`とKV cacheの量子化は、18083で訳が変わり遅くなったので使いません。
+
 ## クイックスタート
 
 実行物を作り、モデルを取り、動かす順です。
