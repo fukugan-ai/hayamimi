@@ -120,6 +120,19 @@ pub fn script_corrected_lang<'a>(tagged: &'a str, text: &str) -> &'a str {
     tagged
 }
 
+/// The one of `ja` and `en` a text is written in, by its letters alone: `ja`
+/// when kana and kanji are more than three tenths of them, `en` otherwise
+/// (Latin, Hangul and Cyrillic included). `None` when the text has no letter.
+/// The threshold and the comparison are those of [`script_corrected_lang`].
+pub fn pair_script_lang(text: &str) -> Option<&'static str> {
+    let scripts = count_scripts(text);
+    if scripts.letters == 0 {
+        return None;
+    }
+    let cjk = scripts.cjk as f64 / scripts.letters as f64;
+    Some(if cjk > 0.3 { "ja" } else { "en" })
+}
+
 /// The bare code ("ja", "en", "zh", "ko", "yue") inside SenseVoice's raw
 /// language tag, or none when no code of the five appears in it.
 pub fn sv_lid_tag(sv_tag: &str) -> Option<&'static str> {
@@ -344,6 +357,20 @@ mod tests {
     fn has_kana() {
         assert!(super::has_kana("漢字とかなの文"));
         assert!(!super::has_kana("值得在这座迷人村庄"));
+    }
+
+    #[test]
+    fn a_text_is_ja_above_three_tenths_kana_and_kanji_and_en_at_or_below() {
+        assert_eq!(pair_script_lang("日本語だabcdef"), Some("ja"));
+        assert_eq!(pair_script_lang("日本語abcdefg"), Some("en"));
+        assert_eq!(pair_script_lang("Hello there"), Some("en"));
+        assert_eq!(pair_script_lang("안녕하세요"), Some("en"));
+    }
+
+    #[test]
+    fn a_text_with_no_letter_has_no_pair_language() {
+        assert_eq!(pair_script_lang(""), None);
+        assert_eq!(pair_script_lang("。、！ 123"), None);
     }
 
     #[test]

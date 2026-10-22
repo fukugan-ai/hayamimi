@@ -53,7 +53,9 @@ impl Source {
     /// Whether speech in `lang` from this source is translated: the
     /// microphone is Japanese and is translated to English, the loopback is
     /// English and is translated to Japanese, and a file is translated
-    /// whichever of the two it is.
+    /// whichever of the two it is. The lines of one microphone shared by two
+    /// people in a face-to-face talk (`--mode pair`) are `file` lines too, for
+    /// the same reason: either language may come from that one input.
     pub fn translates(self, lang: Lang) -> bool {
         match self {
             Source::Mic => lang == Lang::Ja,

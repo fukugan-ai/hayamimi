@@ -169,6 +169,7 @@ mod tests {
                 plan: None,
                 held_gap_ms: None,
             },
+            fallback: None,
         }
     }
 

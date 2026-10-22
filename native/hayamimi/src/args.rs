@@ -27,6 +27,9 @@ pub enum Mode {
     Balanced,
     /// Identify the language, and switch at the first detection.
     Fast,
+    /// Identify the language of every utterance and read it as Japanese or
+    /// English, whatever the identifier says.
+    Pair,
     /// Read everything in one language.
     Single,
 }
@@ -153,11 +156,12 @@ fn address_of(rest: &mut Rest<'_>) -> Result<IpAddr, ArgError> {
         .map_err(|_| ArgError::BadAddress)
 }
 
-/// `--mode`: one of the three ways of choosing a language.
+/// `--mode`: one of the four ways of choosing a language.
 fn mode_of(text: &str) -> Result<Mode, ArgError> {
     match text {
         "balanced" => Ok(Mode::Balanced),
         "fast" => Ok(Mode::Fast),
+        "pair" => Ok(Mode::Pair),
         "single" => Ok(Mode::Single),
         _ => Err(ArgError::ModeUnsupported),
     }
@@ -189,6 +193,7 @@ impl Args {
             (None, Mode::Single) => Policy::single(DEFAULT_SINGLE_LANG),
             (None, Mode::Balanced) => Policy::balanced(),
             (None, Mode::Fast) => Policy::fast(),
+            (None, Mode::Pair) => Policy::pair(),
         }
     }
 
@@ -467,6 +472,80 @@ mod tests {
             parse(&args(&["--wav", "a", "--lang", "xx"])),
             Err(ArgError::LangUnsupported)
         );
+    }
+
+    fn policy_of(list: &[&str]) -> Result<Policy, ArgError> {
+        run(list).map(|parsed| parsed.policy())
+    }
+
+    /// T-IP-03-019
+    #[test]
+    fn a_run_with_mode_pair_uses_the_pair_policy() -> Result<(), ArgError> {
+        assert_eq!(
+            policy_of(&["--wav", "a", "--mode", "pair"])?,
+            Policy::pair()
+        );
+        Ok(())
+    }
+
+    /// T-IP-03-020
+    #[test]
+    fn a_lang_wins_over_mode_pair() -> Result<(), ArgError> {
+        assert_eq!(
+            policy_of(&["--wav", "a", "--mode", "pair", "--lang", "ja"])?,
+            Policy::single("ja")
+        );
+        Ok(())
+    }
+
+    /// T-IP-03-021
+    #[test]
+    fn a_run_without_mode_keeps_the_balanced_default_and_fast_and_single_are_unchanged()
+    -> Result<(), ArgError> {
+        assert_eq!(policy_of(&["--wav", "a"])?, Policy::balanced());
+        assert_eq!(
+            policy_of(&["--wav", "a", "--mode", "fast"])?,
+            Policy::fast()
+        );
+        assert_eq!(
+            policy_of(&["--wav", "a", "--mode", "single"])?,
+            Policy::single("ja")
+        );
+        Ok(())
+    }
+
+    /// T-IP-03-022
+    #[test]
+    fn a_mode_name_outside_the_four_is_refused() {
+        for name in ["paired", "Pair"] {
+            assert_eq!(
+                parse(&args(&["--wav", "a", "--mode", name])),
+                Err(ArgError::ModeUnsupported),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--mode"])),
+            Err(ArgError::MissingValue)
+        );
+    }
+
+    /// T-IP-03-023
+    #[test]
+    fn both_usage_texts_name_the_pair_mode_beside_the_three_old_ones() {
+        let mut named = 0;
+        for text in [crate::strings::EN, crate::strings::JA] {
+            let lines = text.lines().filter(|line| {
+                line.contains("--mode <mode>") || line.trim_start().starts_with("mode_unsupported")
+            });
+            for line in lines {
+                named += 1;
+                for word in ["pair", "balanced", "fast", "single"] {
+                    assert!(line.contains(word), "`{word}` is not in: {line}");
+                }
+            }
+        }
+        assert_eq!(named, 4);
     }
 
     #[test]

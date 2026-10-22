@@ -29,6 +29,9 @@ pub struct Policy {
     pub second_opinion: bool,
     /// Mutual error rate at or below which the second opinion is adopted.
     pub agree_threshold: f64,
+    /// A live segment is read as `ja` or `en`, whatever the identifier says;
+    /// the session's language is not consulted.
+    pub pair: bool,
 }
 
 impl Policy {
@@ -42,6 +45,7 @@ impl Policy {
             en_tier: EnTier::V3,
             second_opinion: false,
             agree_threshold: SECOND_OPINION_THRESHOLD,
+            pair: false,
         }
     }
 
@@ -52,6 +56,16 @@ impl Policy {
             lid_switch_confirm: 1,
             min_switch_s: 0.0,
             ..Policy::balanced()
+        }
+    }
+
+    /// For two people taking turns in Japanese and English: every segment
+    /// follows its own detection, and a detection that is not `ja` or `en`
+    /// falls to one of the two instead of reaching a third language.
+    pub fn pair() -> Policy {
+        Policy {
+            pair: true,
+            ..Policy::fast()
         }
     }
 

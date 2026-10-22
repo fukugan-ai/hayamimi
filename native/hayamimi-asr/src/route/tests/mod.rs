@@ -4,6 +4,7 @@
 
 mod dual;
 mod lifecycle;
+mod pair;
 mod partial;
 mod refine;
 mod routing;

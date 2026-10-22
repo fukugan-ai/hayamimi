@@ -346,6 +346,9 @@ impl<E: Hearing> Session<'_, E> {
             state.stats.add_final(done);
             log::print(&log::utterance_timed_line(self.strings, done));
             log::print(&log::endpoint_decided_line(self.strings, done));
+            if let Some(line) = log::lang_fallback_line(self.strings, done) {
+                log::print(&line);
+            }
             if done.punct_error.is_some() {
                 log::print(&log::punct_failed_line(self.strings, done));
             }
@@ -531,6 +534,7 @@ mod tests {
                 plan: None,
                 held_gap_ms: None,
             },
+            fallback: None,
         }
     }
 

@@ -14,6 +14,7 @@ use crate::lid::{Identify, has_kana, script_corrected_lang, sv_lid_tag};
 
 use super::RouteError;
 use super::backend::{Decode, DecodeError, Decoded};
+use super::pair::LangFallback;
 use super::router::{Router, millis};
 use super::second::choose_second_opinion;
 use super::sticky::{
@@ -23,7 +24,7 @@ use super::tiers::Tier;
 
 /// An early detection is trusted for a segment shorter than this; a longer one
 /// gives the full window a chance to overrule a guess made from its first seconds.
-const KNOWN_LANG_MAX_S: f64 = 4.0;
+pub(super) const KNOWN_LANG_MAX_S: f64 = 4.0;
 
 /// One segment to read.
 #[derive(Debug, Clone, Copy)]
@@ -67,15 +68,20 @@ pub struct Transcript {
     pub decode_ms: f64,
     /// The time of SenseVoice's confirmation probe.
     pub probe_ms: f64,
+    /// Set in `--mode pair`, when the identifier did not name `ja` or `en`
+    /// and the language was chosen another way; `None` otherwise.
+    pub fallback: Option<LangFallback>,
 }
 
 /// The language chosen for a segment, and what the choice forbids.
-struct Chosen {
-    lang: String,
+pub(super) struct Chosen {
+    pub(super) lang: String,
     /// The generalist must not be asked when the specialist comes back empty.
-    suppress_fallback: bool,
+    pub(super) suppress_fallback: bool,
     /// The segment opens a session and is too short to say what its language is.
-    suppress_seed: bool,
+    pub(super) suppress_seed: bool,
+    /// How a `--mode pair` choice came about when the identifier did not name `ja` or `en`.
+    pub(super) fallback: Option<LangFallback>,
 }
 
 /// SenseVoice's reading of one segment, made at most once and used by every
@@ -119,9 +125,8 @@ impl<D: Decode, L: Identify> Router<D, L> {
     /// Reads one segment.
     pub fn transcribe(&mut self, request: &Request<'_>) -> Result<Transcript, RouteError> {
         self.check_open()?;
-        let (guess, lid_ms) = self.first_guess(request)?;
         let mut probe = Probe::default();
-        let chosen = self.resolve_language(&guess, request, &mut probe)?;
+        let (chosen, lid_ms) = self.choose_language(request, &mut probe)?;
         // A load before this point is not the decode's: drop it from the count.
         self.decoder.take_load_ms();
         let started = Instant::now();
@@ -142,7 +147,24 @@ impl<D: Decode, L: Identify> Router<D, L> {
             lid_ms,
             decode_ms,
             probe_ms: probe.ms,
+            fallback: chosen.fallback,
         })
+    }
+
+    /// The language of the segment and the identifier's time. A live segment
+    /// of a `--mode pair` route is chosen by the pair rule; every other one is
+    /// guessed first and then held or switched.
+    fn choose_language(
+        &mut self,
+        request: &Request<'_>,
+        probe: &mut Probe,
+    ) -> Result<(Chosen, f64), RouteError> {
+        if self.pairs(request) {
+            return self.choose_pair(request, probe);
+        }
+        let (guess, lid_ms) = self.first_guess(request)?;
+        let chosen = self.resolve_language(&guess, request, probe)?;
+        Ok((chosen, lid_ms))
     }
 
     /// The first language to try: the forced one, an early detection for a
@@ -189,6 +211,7 @@ impl<D: Decode, L: Identify> Router<D, L> {
             lang: guess.to_owned(),
             suppress_fallback: false,
             suppress_seed: false,
+            fallback: None,
         };
         if self.policy.forced_lang.is_some() || !request.live {
             return Ok(chosen);
@@ -341,13 +364,16 @@ impl<D: Decode, L: Identify> Router<D, L> {
             return Ok(());
         }
         let corrected = corrected.to_owned();
+        if self.policy.pair {
+            return self.correct_within_pair(read, &corrected, request.samples);
+        }
         if corrected == "ja" && !has_kana(&read.text) && !self.is_unavailable(Tier::Sv) {
             return self.arbitrate_han_only(read, request.samples);
         }
         self.read_again_as(read, &corrected, request.samples)
     }
 
-    fn read_again_as(
+    pub(super) fn read_again_as(
         &mut self,
         read: &mut Standing,
         lang: &str,
