@@ -7,8 +7,8 @@ use clap::{Args, Parser, Subcommand};
 
 use crate::error::EvalError;
 use crate::{
-    chrf, cli_der, cli_stages, doc_links, fleurs, log, manifest, record, scorecard, scorecard_run,
-    stream, two_speakers,
+    chrf, cli_der, cli_stages, doc_links, fleurs, log, machine, manifest, record, scorecard,
+    scorecard_run, stream, two_speakers,
 };
 
 #[derive(Parser)]
@@ -132,11 +132,23 @@ struct StreamArgs {
     #[arg(long, default_value = "/proc")]
     proc_root: PathBuf,
     /// The pid of one of the run's own processes (`hayamimi`, its relay, the
-    /// translation `llama-server` on port 18084); give it once for each. The
-    /// machine record then keeps their CPU time, and the run is refused when
-    /// the three are not exactly these.
-    #[arg(long = "own-pid")]
+    /// translation `llama-server`); give it once for each. The machine record
+    /// then keeps their CPU time, and the run is refused when the three are
+    /// not exactly these or the `llama-server` is not started with the port
+    /// `--own-llama-port` names.
+    #[arg(long = "own-pid", requires = "own_llama_port")]
     own_pid: Vec<u32>,
+    /// The port the translation `llama-server` of the run listens on. Its
+    /// `/proc/<pid>/cmdline` must hold the word `--port` once, followed by
+    /// this number written in decimal. There is no default; it goes with
+    /// `--own-pid`. A negative number is read as a value so that the parser
+    /// refuses it by naming this option.
+    #[arg(
+        long = "own-llama-port",
+        requires = "own_pid",
+        allow_negative_numbers = true
+    )]
+    own_llama_port: Option<u16>,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -186,6 +198,9 @@ struct FetchSetArgs {
     /// Join the --part clips into --wav-out and write --out.
     #[arg(long, requires = "wav_out", requires = "part")]
     concat: bool,
+    /// With --concat: take one clip from each --part in turn, not all of the first part and then the next.
+    #[arg(long, requires = "concat")]
+    interleave: bool,
     /// The manifest written.
     #[arg(long)]
     out: PathBuf,
@@ -284,7 +299,10 @@ fn execute(command: Command) -> Result<(), EvalError> {
                 gap_ms: args.gap_ms,
                 drain_s: args.drain_s,
                 proc_root: args.proc_root,
-                own_pids: args.own_pid,
+                own: args.own_llama_port.map(|llama_port| machine::OwnRun {
+                    pids: args.own_pid,
+                    llama_port,
+                }),
             })
             .map(|_| ())
         }
@@ -405,7 +423,12 @@ fn fetch_set(args: FetchSetArgs) -> Result<(), EvalError> {
             .iter()
             .map(|spec| manifest::parse_part(spec))
             .collect::<Result<Vec<_>, _>>()?;
-        let joined = manifest::concat(&parts, args.gap_ms, &args.out, &wav_out)?;
+        let order = if args.interleave {
+            manifest::Order::Interleaved
+        } else {
+            manifest::Order::Blocks
+        };
+        let joined = manifest::concat(&parts, args.gap_ms, order, &args.out, &wav_out)?;
         println!(
             "joined {} utterances, {} samples",
             joined.utterances, joined.samples
@@ -535,6 +558,7 @@ mod tests {
         let args = FetchSetArgs {
             pin: None,
             concat: false,
+            interleave: false,
             out: PathBuf::from("x.json"),
             wav_out: None,
             gap_ms: 0,

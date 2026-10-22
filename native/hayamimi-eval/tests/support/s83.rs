@@ -130,6 +130,9 @@ impl ProcRoot {
     }
 }
 
+/// The port of the window's translation server, which S83o names.
+pub const WINDOW_PORT: u16 = 18084;
+
 /// The words the translation server of a run is started with (S83o).
 pub const SERVER_WORDS: [&str; 5] = ["llama-server", "-m", "model.gguf", "--port", "18084"];
 
@@ -350,10 +353,18 @@ impl Setup {
 }
 
 /// `--own-pid <pid>` for each pid, in the order given.
-pub fn own_args(pids: &[u32]) -> Vec<String> {
+pub fn own_pid_args(pids: &[u32]) -> Vec<String> {
     pids.iter()
         .flat_map(|pid| [String::from("--own-pid"), pid.to_string()])
         .collect()
+}
+
+/// `--own-pid <pid>` for each pid, in the order given, and the port the
+/// run's translation server listens on as `--own-llama-port`.
+pub fn own_args(pids: &[u32], llama_port: u16) -> Vec<String> {
+    let mut args = own_pid_args(pids);
+    args.extend([String::from("--own-llama-port"), llama_port.to_string()]);
+    args
 }
 
 /// What a finished process left.
