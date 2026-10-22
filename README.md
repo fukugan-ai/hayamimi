@@ -30,6 +30,7 @@ Once the speed target is met, quality must match or beat the Python version.
 - A measurement puts the CPU ahead of the GPU, but the machine load during that measurement is high, so the value is unverified (NOT VERIFIED).
 - The translation server used in the E2E windows loads all layers on the GPU (`-ngl 99`; [unit file](native/hayamimi-relay/units/hayamimi-llama-e2e.service)).
 - In the production command, the refine pass (re-reading each group of utterances) runs by default, and `--no-refine` stops it. When the refine pass cannot run, the screen and the log say so, and the run continues without it.
+- The in-person mode, which translates both directions (Japanese to English and English to Japanese) at the same time from one microphone, has reached only the design and the test-case rows (acceptance IP-1 to IP-8); the implementation is not in (section 10 of the [design](docs/design/conversation_subtitles.ja.md), Japanese only). With the current code unchanged, a trial run produced translations in both directions (one run on 2026-10-22, synthesized speech from a self-written script; there is no automatic record yet, and this is unverified: NOT VERIFIED).
 - The delays in the table below are values from a build made before the refine pass was connected, and the values with the refine pass are measured in window E4 (RP-61 row of the [status table](docs/design/status.md)).
 
 | Language | p95 | 1600 ms line | 1200 ms target |
