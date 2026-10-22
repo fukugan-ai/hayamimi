@@ -35,9 +35,14 @@ const SECOND_AT: Rect = Rect {
     bottom: 500,
 };
 
-/// Shows `window`, asks for the front, and checks that it got it.
-fn bring_forward(window: Win, what: &str) -> Result<(), String> {
+/// Shows `window`, clicks it (a click the test sends on its own window gives
+/// it the right to take the front), asks for the front, and checks that it got it.
+fn bring_forward(pointer: &mut win::Pointer, window: Win, what: &str) -> Result<(), String> {
     win::show(window);
+    // A window a background process shows can land behind the user's window; the click must find it.
+    win::make_topmost(window)?;
+    let (centre_x, centre_y) = win::window_rect(window)?.center();
+    pointer.click(centre_x, centre_y, &[window])?;
     win::set_foreground(window);
     sleep_ms(200);
     let front = win::foreground();
@@ -54,16 +59,19 @@ fn bring_forward(window: Win, what: &str) -> Result<(), String> {
 #[ignore = "opens windows; run it when nobody is using the screen"]
 fn ov05_opening_the_overlay_keeps_the_foreground() -> TestResult {
     win::per_monitor_aware()?;
+    // Dropped last: the window that was in front goes back in front, also when the test fails.
+    let _front = win::keep_foreground();
+    let mut pointer = win::Pointer::new();
     let first = Naive::open(FIRST_AT)?;
 
     // Positive control: before the overlay starts, the plain window is in front.
-    bring_forward(first.win(), "the first plain window")?;
+    bring_forward(&mut pointer, first.win(), "the first plain window")?;
 
     // Negative control: a second plain window shown the same way takes the front.
     let second = Naive::open(SECOND_AT)?;
-    bring_forward(second.win(), "the second plain window")?;
+    bring_forward(&mut pointer, second.win(), "the second plain window")?;
     drop(second);
-    bring_forward(first.win(), "the first plain window, again")?;
+    bring_forward(&mut pointer, first.win(), "the first plain window, again")?;
 
     let dir = scratch()?;
     let mut overlay = Overlay::launch(
@@ -73,11 +81,13 @@ fn ov05_opening_the_overlay_keeps_the_foreground() -> TestResult {
     overlay.wait_opened()?;
     sleep_ms(READ_AFTER_MS);
     let after = win::foreground();
+    let class = after.and_then(win::class_name);
+    let overlay_window = overlay.window()?;
     overlay.close()?;
     assert_eq!(
         after,
         Some(first.win()),
-        "the front window changed while the overlay started; it is {after:?}"
+        "the front window changed while the overlay started; it is {after:?} (class {class:?}; the overlay is {overlay_window:?})"
     );
     Ok(())
 }

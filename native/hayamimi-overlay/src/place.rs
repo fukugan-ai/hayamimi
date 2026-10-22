@@ -85,6 +85,18 @@ pub fn band(
     })
 }
 
+/// `rect` made `px` CSS px shorter with its bottom edge kept, never below zero
+/// high. The probe's negative control uses it to make a window too small for
+/// the rows it holds.
+pub fn shrunk(rect: LogicalRect, px: u32) -> LogicalRect {
+    let height = (rect.height - f64::from(px)).max(0.0);
+    LogicalRect {
+        y: rect.y + (rect.height - height),
+        height,
+        ..rect
+    }
+}
+
 /// The rectangle in physical px that a logical one occupies at `scale`, with
 /// each edge rounded to the nearest px.
 pub fn to_physical(rect: LogicalRect, scale: f64) -> PhysicalRect {
@@ -287,6 +299,36 @@ mod tests {
         assert!((a.width - b.width).abs() < 1e-9);
         assert!((a.height - b.height).abs() < 1e-9);
         Ok(())
+    }
+
+    #[test]
+    fn a_shrink_cuts_the_height_and_keeps_the_bottom_edge() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let band = band(WORK_3840, 1.5, &defaults()?).map_err(|e| format!("{e:?}"))?;
+        let cut = shrunk(band, 12);
+        assert!((cut.height - (band.height - 12.0)).abs() < 1e-9, "{cut:?}");
+        assert!((cut.y + cut.height - (band.y + band.height)).abs() < 1e-9);
+        assert_eq!((cut.x, cut.width), (band.x, band.width));
+        Ok(())
+    }
+
+    #[test]
+    fn a_shrink_of_zero_leaves_the_band_as_it_is() -> Result<(), Box<dyn std::error::Error>> {
+        let band = band(WORK_3840, 1.5, &defaults()?).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(shrunk(band, 0), band);
+        Ok(())
+    }
+
+    #[test]
+    fn a_shrink_larger_than_the_band_leaves_a_window_of_no_height() {
+        let band = LogicalRect {
+            x: 10.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let cut = shrunk(band, 500);
+        assert_eq!((cut.height, cut.y), (0.0, 120.0));
     }
 
     #[test]

@@ -11,11 +11,21 @@
 //! - the rows of the upper lane (`loopback-`, Japanese) start their
 //!   `font-family` with cinecaption, those of the lower lane (`mic-`, English)
 //!   with UDEV Gothic 35;
-//! - no `overlay.font.missing` is written. The number of probe characters that
-//!   cinecaption lacks (`missing_glyphs`) is printed.
+//! - no `overlay.font.missing` is written, and `missing_glyphs`, the number of
+//!   probe characters that cinecaption has no glyph for, is 0 (the sample is
+//!   Japanese only, so this is the negative control of the count).
 //!
 //! Negative control: the same run with the cinecaption path broken writes one
 //! `overlay.font.missing`, and the cinecaption face has status `error`.
+//!
+//! Positive control of `missing_glyphs` (design H28): the same run with the
+//! cinecaption face made from a font that has no Japanese glyph (Arial, which
+//! ships with Windows). The face is `loaded` and no `overlay.font.missing` is
+//! written, yet `missing_glyphs` must be at least 1; a count that asks whether
+//! a face is loaded, and not whether it holds the glyph, answers 0 here. The
+//! broken-path run is not a positive control: a machine that has cinecaption
+//! installed still draws the glyphs from the installed font, so the count of
+//! that run says nothing about the face.
 //!
 //! Opens windows: run it with `--ignored` when nobody is using the screen.
 
@@ -38,7 +48,10 @@ const CINECAPTION_MEMBER: &str = "cinecaption2.28/cinecaption2.28.ttf";
 const UDEV_ZIP: &str = "UDEVGothic_v2.2.0.zip";
 const UDEV_REGULAR: &str = "UDEVGothic_v2.2.0/UDEVGothic35-Regular.ttf";
 const UDEV_BOLD: &str = "UDEVGothic_v2.2.0/UDEVGothic35-Bold.ttf";
+/// A font of Windows that has no Japanese glyph: the face of the positive control of `missing_glyphs`.
+const NO_JAPANESE_FONT: &str = r"C:\Windows\Fonts\arial.ttf";
 
+#[derive(Clone)]
 struct Fonts {
     cinecaption: PathBuf,
     regular: PathBuf,
@@ -191,6 +204,33 @@ fn check_with_the_files(run: &Run) -> Result<(), String> {
         "CS-12: {} probe characters are not in cinecaption (missing_glyphs)",
         measured.missing_glyphs
     );
+    if measured.missing_glyphs != 0 {
+        return Err(format!(
+            "{} of the Japanese probe characters have no glyph in cinecaption",
+            measured.missing_glyphs
+        ));
+    }
+    Ok(())
+}
+
+/// A face that is `loaded` but holds no Japanese glyph must be counted: the count asks the glyphs, not the face.
+fn check_with_a_face_without_the_glyphs(run: &Run) -> Result<(), String> {
+    let measured = &run.measured;
+    if !face_is(measured, "cinecaption", "loaded") {
+        return Err(format!(
+            "the positive control needs a loaded face, and cinecaption is not one: {:?}",
+            measured.fonts
+        ));
+    }
+    eprintln!(
+        "CS-12: {} probe characters are not in the stand-in for cinecaption (missing_glyphs)",
+        measured.missing_glyphs
+    );
+    if measured.missing_glyphs == 0 {
+        return Err(String::from(
+            "the measure does not work: cinecaption is a font with no Japanese glyph, yet missing_glyphs is 0",
+        ));
+    }
     Ok(())
 }
 
@@ -229,9 +269,20 @@ fn cs12_japanese_in_cinecaption_english_in_udev_gothic() -> TestResult {
             .path()
             .join("no-such-folder")
             .join("cinecaption2.28.ttf"),
-        ..fonts
+        ..fonts.clone()
     };
     let without = probe_with(dir.path(), "broken", &broken)?;
     check_with_a_broken_path(&without)?;
+
+    let stand_in = PathBuf::from(NO_JAPANESE_FONT);
+    if !stand_in.is_file() {
+        return Err(format!("{NO_JAPANESE_FONT} is not on this machine; the positive control of missing_glyphs needs it").into());
+    }
+    let glyphless = Fonts {
+        cinecaption: stand_in,
+        ..fonts
+    };
+    let stood_in = probe_with(dir.path(), "glyphless", &glyphless)?;
+    check_with_a_face_without_the_glyphs(&stood_in)?;
     Ok(())
 }
