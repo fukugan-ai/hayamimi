@@ -304,8 +304,53 @@ pub fn remap_group(
         .collect()
 }
 
+/// What the tests that open the real models and read the two-speaker recording share.
+#[cfg(test)]
+pub(crate) mod material {
+    use std::path::{Path, PathBuf};
+
+    use crate::audio::read_wav;
+    use crate::embedder;
+
+    use super::segmentation_path;
+
+    /// The recording, relative to the directory that holds `testdata/`.
+    const RECORDING: &str = "testdata/two_speakers.wav";
+
+    /// The first `models/` at or above this crate that holds both the segmentation
+    /// and the embedding model. Model files are not in git, so a worktree reads
+    /// the main checkout's.
+    pub(crate) fn models_dir() -> Result<PathBuf, String> {
+        let start = env!("CARGO_MANIFEST_DIR");
+        Path::new(start)
+            .ancestors()
+            .map(|directory| directory.join("models"))
+            .find(|models| {
+                segmentation_path(models).is_file() && embedder::model_path(models).is_file()
+            })
+            .ok_or_else(|| {
+                format!("no models/ with the segmentation and embedding models at or above {start}")
+            })
+    }
+
+    /// The samples of `testdata/two_speakers.wav`, found like the models. The
+    /// recording is not in git: `hayamimi_eval::two_speakers::write_clip` cuts it
+    /// from the AMI meetings of `testdata/eval_diar`.
+    pub(crate) fn recording() -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+        let start = env!("CARGO_MANIFEST_DIR");
+        let wav = Path::new(start)
+            .ancestors()
+            .map(|directory| directory.join(RECORDING))
+            .find(|wav| wav.is_file())
+            .ok_or_else(|| format!("no {RECORDING} at or above {start}"))?;
+        Ok(read_wav(&wav)?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     fn turn(local: i32, start: f32, end: f32) -> Turn {
@@ -490,5 +535,50 @@ mod tests {
     fn no_clusters_make_no_labels() {
         let mut centroids = two_speakers();
         assert!(remap_group(&mut centroids, &[], "S1", RemapOptions::default()).is_empty());
+    }
+
+    type Check = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn group_diarizer_missing_model_raises_filenotfound() {
+        let models = Path::new("no-such-models");
+        let said = GroupDiarizer::open(models, DiarizeSettings::default()).err();
+        // The error names the segmentation model that was looked for.
+        assert!(
+            matches!(&said, Some(AsrError::MissingModel(path)) if *path == segmentation_path(models)),
+            "{said:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "opens the segmentation and embedding models"]
+    fn group_diarizer_short_buffer_returns_empty() -> Check {
+        crate::check_library()?;
+        let mut diarizer =
+            GroupDiarizer::open(&material::models_dir()?, DiarizeSettings::default())?;
+        // 0.1 s of silence is under the half second that can hold speech.
+        let samples = vec![0.0_f32; diarizer.sample_rate / 10];
+        assert!(diarizer.process(&samples, None)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "opens the real models and reads testdata/two_speakers.wav, which is not in git"]
+    fn group_diarizer_finds_multiple_speakers_on_two_speaker_audio() -> Check {
+        crate::check_library()?;
+        let samples = material::recording()?;
+        let mut diarizer =
+            GroupDiarizer::open(&material::models_dir()?, DiarizeSettings::default())?;
+        let turns = diarizer.process(&samples, None)?;
+        assert!(turns.len() >= 2, "{turns:?}");
+        let speakers: BTreeSet<i32> = turns.iter().map(|turn| turn.local).collect();
+        // The recording is of two distinct speakers.
+        assert!(speakers.len() >= 2, "{speakers:?}");
+        assert!(
+            turns.windows(2).all(|pair| pair[0].start <= pair[1].start),
+            "{turns:?}"
+        );
+        assert!(turns.iter().all(|turn| turn.end > turn.start), "{turns:?}");
+        Ok(())
     }
 }

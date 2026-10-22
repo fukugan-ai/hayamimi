@@ -491,6 +491,8 @@ impl Centroids {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     fn unit(v: &[f32]) -> Vec<f32> {
@@ -963,5 +965,74 @@ mod tests {
         let mut c = labeler(0.45);
         assert_eq!(c.label(&[0.0, 0.0], Source::Fast), "S1");
         assert_eq!(c.label(&[0.0, 0.0], Source::Fast), "S2");
+    }
+
+    type Check = Result<(), Box<dyn std::error::Error>>;
+
+    /// One embedding for each turn of the two-speaker recording that is long
+    /// enough to be worth one, in time order.
+    fn recording_embeddings() -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
+        use crate::diarize::{DiarizeSettings, GroupDiarizer, long_enough, material, sample_turns};
+        use crate::embedder::Embedder;
+
+        crate::check_library()?;
+        let models = material::models_dir()?;
+        let samples = material::recording()?;
+        let mut diarizer = GroupDiarizer::open(&models, DiarizeSettings::default())?;
+        let turns = long_enough(&diarizer.process(&samples, None)?);
+        let embedder = Embedder::open(&models)?;
+        let mut embeddings = Vec::new();
+        for turn in sample_turns(&turns, samples.len()) {
+            embeddings.push(embedder.embed(&samples[turn.start..turn.end])?);
+        }
+        Ok(embeddings)
+    }
+
+    #[test]
+    #[ignore = "opens the real models and reads testdata/two_speakers.wav, which is not in git"]
+    fn fast_path_default_finds_both_real_speakers() -> Check {
+        let mut centroids = Centroids::default();
+        let labels: BTreeSet<String> = recording_embeddings()?
+            .iter()
+            .map(|embedding| centroids.label(embedding, Source::Fast))
+            .collect();
+        assert!(labels.len() >= 2, "{labels:?}");
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "opens the real models and reads testdata/two_speakers.wav, which is not in git"]
+    fn provisional_display_does_not_reproduce_section_9s_swallowing_bug() -> Check {
+        let mut centroids = Centroids::default();
+        let mut canonical = BTreeSet::new();
+        let mut shown = BTreeSet::new();
+        for embedding in recording_embeddings()? {
+            let label = centroids.label(&embedding, Source::Fast);
+            shown.insert(centroids.display_label(&label));
+            canonical.insert(label);
+        }
+        // The assignment is untouched by the display rule.
+        assert!(canonical.len() >= 2, "{canonical:?}");
+        // The rare speaker stays a label of their own, marked `?` while provisional.
+        assert!(shown.len() >= 2, "{shown:?}");
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "opens the real models and reads testdata/two_speakers.wav, which is not in git"]
+    fn hysteresis_can_swallow_a_rare_real_speaker() -> Check {
+        let mut centroids = Centroids::new(Config {
+            hysteresis_enabled: true,
+            ..Config::default()
+        });
+        let labels: BTreeSet<String> = recording_embeddings()?
+            .iter()
+            .map(|embedding| centroids.label(embedding, Source::Fast))
+            .collect();
+        // The second speaker has one turn, so never reaches the hits that confirm
+        // them and is shown under the first speaker's label: the known under-count
+        // that keeps hysteresis off by default.
+        assert_eq!(labels.len(), 1, "{labels:?}");
+        Ok(())
     }
 }
