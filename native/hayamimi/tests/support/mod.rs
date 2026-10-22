@@ -12,6 +12,8 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+pub mod dialog;
+pub mod dialog_run;
 pub mod llama;
 
 /// What a `check_*` function returns for a wrong input: a message that

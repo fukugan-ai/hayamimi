@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::pipeline::PunctWarmup;
+use hayamimi_asr::route::FallbackStep;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
 use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
 use hayamimi_relay::logging::{Level, LogEvent};
@@ -36,6 +37,7 @@ pub const MODEL_LOADED: &str = "asr.model.loaded";
 pub const MODEL_EVICTED: &str = "asr.model.evicted";
 pub const MEMORY_UNREADABLE: &str = "gpu.memory.unreadable";
 pub const LANG_UNKNOWN: &str = "asr.lang.unknown";
+pub const LANG_FALLBACK: &str = "asr.lang.fallback";
 pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
 pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
@@ -255,6 +257,33 @@ pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
         fields.push(("held_gap_ms", Value::from(gap)));
     }
     event_line(strings, Level::Info, ENDPOINT_DECIDED, "asr", None, &fields)
+}
+
+/// `asr.lang.fallback`: the language of one utterance was not the identifier's
+/// answer (`--mode pair`). `id` is the `final`'s, `step` is the answer that chose
+/// the language (`sv_tag`, `script`, `default`, `sv_failed`) and `lid` is what the
+/// identifier answered, or null when it answered nothing. `None` for a `final`
+/// that did not fall back. A failed SenseVoice reading (`sv_failed`) is a warning.
+pub fn lang_fallback_line(strings: &Strings, done: &Final) -> Option<String> {
+    let fallback = done.fallback.as_ref()?;
+    let level = if fallback.step == FallbackStep::SvFailed {
+        Level::Warn
+    } else {
+        Level::Info
+    };
+    let lid = fallback.lid.as_deref().map_or(Value::Null, Value::from);
+    Some(event_line(
+        strings,
+        level,
+        LANG_FALLBACK,
+        "asr",
+        None,
+        &[
+            ("id", Value::from(done.id)),
+            ("step", Value::from(fallback.step.name())),
+            ("lid", lid),
+        ],
+    ))
 }
 
 /// `asr.endpoint.held`: an early notice read a sentence from `hold.span_ms`
@@ -501,6 +530,7 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_asr::route::LangFallback;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
 
@@ -547,6 +577,7 @@ mod tests {
                 plan: None,
                 held_gap_ms: None,
             },
+            fallback: None,
         }
     }
 
@@ -717,6 +748,7 @@ mod tests {
                 MODEL_EVICTED,
                 MEMORY_UNREADABLE,
                 LANG_UNKNOWN,
+                LANG_FALLBACK,
                 WARMUP_DECODED,
                 WARMUP_FAILED,
                 SERVER_LAN_OPENED,
@@ -1015,6 +1047,101 @@ mod tests {
                 );
             }
         }
+        Ok(())
+    }
+
+    fn fell_back(id: u64, step: FallbackStep, lid: Option<&str>) -> Final {
+        let mut done = finished();
+        done.id = id;
+        done.fallback = Some(LangFallback {
+            step,
+            lid: lid.map(str::to_owned),
+        });
+        done
+    }
+
+    /// T-IP-03-024
+    #[test]
+    fn a_language_fallback_event_has_the_fields_the_design_names()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let cases = [
+            (fell_back(7, FallbackStep::SvTag, Some("zh")), "info"),
+            (fell_back(7, FallbackStep::Default, None), "info"),
+            (fell_back(7, FallbackStep::SvFailed, Some("zh")), "warn"),
+        ];
+        for lang in [Lang::En, Lang::Ja] {
+            let table = Strings::embedded(lang)?;
+            assert!(table.messages.contains_key(LANG_FALLBACK), "{lang:?}");
+        }
+        for (done, level) in cases {
+            let Some(line) = lang_fallback_line(&strings()?, &done) else {
+                return Err("a final that fell back made no line".into());
+            };
+            let event = parsed(&line)?;
+            assert_eq!(event["event"], "asr.lang.fallback");
+            assert_eq!(event["component"], "asr");
+            assert_eq!(event["level"], level);
+            let Some(mark) = &done.fallback else {
+                return Err("the final lost its mark".into());
+            };
+            assert_eq!(event["id"], 7);
+            assert_eq!(event["step"], mark.step.name());
+            assert_eq!(
+                event["lid"],
+                mark.lid.as_deref().map_or(Value::Null, Value::from)
+            );
+            let Some(fields) = event.as_object() else {
+                return Err("an event line is not an object".into());
+            };
+            let mut extra: Vec<&str> = fields
+                .keys()
+                .map(String::as_str)
+                .filter(|key| !ENVELOPE.contains(key))
+                .collect();
+            extra.sort_unstable();
+            assert_eq!(extra, ["id", "lid", "step"]);
+        }
+        let steps = [
+            FallbackStep::SvTag,
+            FallbackStep::Script,
+            FallbackStep::Default,
+            FallbackStep::SvFailed,
+        ];
+        assert_eq!(
+            steps.map(FallbackStep::name),
+            ["sv_tag", "script", "default", "sv_failed"]
+        );
+        Ok(())
+    }
+
+    /// T-IP-03-035
+    #[test]
+    fn a_final_that_fell_back_makes_one_language_fallback_line_with_its_id_and_one_that_did_not_makes_none()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let strings = strings()?;
+        let kept = fell_back(7, FallbackStep::SvTag, Some("zh"));
+        let line = lang_fallback_line(&strings, &kept);
+        let Some(line) = line else {
+            return Err("the first final made no line".into());
+        };
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.lang.fallback");
+        assert_eq!(event["id"], 7);
+        assert_eq!(event["step"], "sv_tag");
+        assert_eq!(event["lid"], "zh");
+
+        let mut plain = finished();
+        plain.id = 8;
+        assert_eq!(lang_fallback_line(&strings, &plain), None);
+
+        let failed = fell_back(9, FallbackStep::SvFailed, None);
+        let Some(line) = lang_fallback_line(&strings, &failed) else {
+            return Err("the failed final made no line".into());
+        };
+        let event = parsed(&line)?;
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["id"], 9);
+        assert!(event["lid"].is_null());
         Ok(())
     }
 

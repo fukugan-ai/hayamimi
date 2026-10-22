@@ -29,6 +29,7 @@
 "asr.model.loaded" = "認識器を読み込みました"
 "asr.model.evicted" = "上限を守るため、最も使われていない認識器を手放しました"
 "asr.lang.unknown" = "SenseVoice の結果の言語の tag を読めないので、言語は不明として扱います"
+"asr.lang.fallback" = "言語の判定が日本語か英語を答えなかったので、発話を 2 つのどちらかで読みました"
 "asr.warmup.decoded" = "最初の発話の前に、認識器が 10 秒の無音を 1 回読みました（句読点の段が在れば、その model も文を 1 回読みました）"
 "asr.warmup.failed" = "起動時の読み（復号か句読点）に失敗しましたが、その読みなしで続けます"
 "gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
@@ -66,7 +67,7 @@ options:
   --ws-host <address>  /ingest が待つ address（既定は 127.0.0.1）
   --source <name>      字幕に書く source。mic、loopback、file のどれか（既定は入力のもの）
   --no-partial         発話の途中の速報を出さない
-  --mode <mode>        balanced（既定）、fast、single。発話ごとの言語の決め方
+  --mode <mode>        balanced（既定）、fast、pair、single。発話ごとの言語の決め方（pair は発話ごとに日本語か英語で読む）
   --lang <code>        この言語で全部読み、言語判定をしない（ja、en、zh、ko、yue など）
   --models <dir>       model の directory を置いた directory（既定は models）
   --min-silence <sec>  発話の終わりにする無音の秒数（既定は 0.30）
@@ -84,7 +85,7 @@ usage_hint = "使える option は --help で見られます。"
 unknown_option = "知らない option です。"
 missing_value = "option に値がありません。"
 bad_number = "option には正の数が要ります。"
-mode_unsupported = "--mode は balanced、fast、single のどれかです。"
+mode_unsupported = "--mode は balanced、fast、pair、single のどれかです。"
 endpoint_unsupported = "--endpoint は early、silence のどちらかです。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"

@@ -29,6 +29,7 @@
 "asr.model.loaded" = "A recognizer was loaded"
 "asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
 "asr.lang.unknown" = "The language tag of a SenseVoice result could not be read; the language is unknown"
+"asr.lang.fallback" = "The language identifier did not name Japanese or English; the utterance was read as one of the two"
 "asr.warmup.decoded" = "The recognizer read ten seconds of silence once, and the punctuation model one sentence when it is on, before the first utterance"
 "asr.warmup.failed" = "A start-up read (the decode or the punctuation) failed; the run goes on without it"
 "gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"
@@ -66,7 +67,7 @@ options:
   --ws-host <address>  address /ingest listens on (default 127.0.0.1)
   --source <name>      source named in the subtitles: mic, loopback or file (default: that of the input)
   --no-partial         do not show drafts of the utterance in progress
-  --mode <mode>        balanced (default), fast, or single: how the language of each utterance is chosen
+  --mode <mode>        balanced (default), fast, pair, or single: how the language of each utterance is chosen (pair reads each as Japanese or English)
   --lang <code>        read everything in this language and identify none (ja, en, zh, ko, yue, ...)
   --models <dir>       directory that holds the model directories (default models)
   --min-silence <sec>  silence that ends an utterance (default 0.30)
@@ -84,7 +85,7 @@ usage_hint = "Run with --help for the options."
 unknown_option = "Unknown option."
 missing_value = "An option is missing its value."
 bad_number = "An option needs a positive number."
-mode_unsupported = "--mode is one of balanced, fast, single."
+mode_unsupported = "--mode is one of balanced, fast, pair, single."
 endpoint_unsupported = "--endpoint is one of early, silence."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."

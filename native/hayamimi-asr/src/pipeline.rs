@@ -23,7 +23,7 @@ use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
 use crate::route::{
-    Decode, Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier,
+    Decode, LangFallback, Policy, Request, RouteError, RouteNotice, Router, Tier, requested_tier,
 };
 use crate::speaker::Centroids;
 use crate::speaker_stage::{Mark, SpeakerStage};
@@ -180,6 +180,9 @@ pub struct Final {
     pub speaker_audio: Vec<f32>,
     /// The rule that ended the utterance.
     pub endpoint: Decision,
+    /// Set in `--mode pair` when the identifier did not name `ja` or `en` and
+    /// the language was chosen another way; `None` otherwise.
+    pub fallback: Option<LangFallback>,
 }
 
 /// What reading a stretch of audio made: the text and where the time went.
@@ -196,6 +199,7 @@ struct Solved {
     punct_ms: f64,
     punct_error: Option<String>,
     l_dec_ms: f64,
+    fallback: Option<LangFallback>,
 }
 
 /// The detector and the recognizers, which only work together.
@@ -1015,6 +1019,7 @@ impl Engine {
             punct_ms,
             punct_error,
             l_dec_ms: millis(started),
+            fallback: decoded.fallback,
         }))
     }
 
@@ -1031,27 +1036,15 @@ impl Engine {
         let vad_ms = std::mem::take(&mut self.route.as_mut()?.vad_ms);
         let id = self.next_id;
         self.next_id += 1;
-        Some(Final {
+        Some(final_of(
+            solved,
             id,
-            text: solved.text,
-            lang: solved.lang,
-            tier: solved.tier,
-            audio_seconds: solved.seconds,
-            t0_s,
-            t1_s,
-            end_wall_ms: ended_wall_ms,
-            timings: Timings {
-                vad_ms,
-                lid_ms: solved.lid_ms,
-                decode_ms: solved.decode_ms,
-                punct_ms: solved.punct_ms,
-                itn_ms: solved.itn_ms,
-                l_dec_ms: solved.l_dec_ms,
-            },
-            punct_error: solved.punct_error,
+            vad_ms,
+            (t0_s, t1_s),
             speaker_audio,
+            ended_wall_ms,
             endpoint,
-        })
+        ))
     }
 
     /// Whether utterances get a speaker mark: the stage is on and its model opened.
@@ -1103,6 +1096,42 @@ impl Engine {
     }
 }
 
+/// The `final` of a reading: everything the reading carries, the number it is
+/// given, and what the detector knows of where the utterance stood. It needs
+/// no route, so that what a `final` keeps of its reading can be tested alone.
+fn final_of(
+    solved: Solved,
+    id: u64,
+    vad_ms: f64,
+    (t0_s, t1_s): (f64, f64),
+    speaker_audio: Vec<f32>,
+    ended_wall_ms: u64,
+    endpoint: Decision,
+) -> Final {
+    Final {
+        id,
+        text: solved.text,
+        lang: solved.lang,
+        tier: solved.tier,
+        audio_seconds: solved.seconds,
+        t0_s,
+        t1_s,
+        end_wall_ms: ended_wall_ms,
+        timings: Timings {
+            vad_ms,
+            lid_ms: solved.lid_ms,
+            decode_ms: solved.decode_ms,
+            punct_ms: solved.punct_ms,
+            itn_ms: solved.itn_ms,
+            l_dec_ms: solved.l_dec_ms,
+        },
+        punct_error: solved.punct_error,
+        speaker_audio,
+        endpoint,
+        fallback: solved.fallback,
+    }
+}
+
 /// What the recognizer made of one segment.
 struct Decoded {
     text: String,
@@ -1112,6 +1141,7 @@ struct Decoded {
     seconds: f64,
     lid_ms: f64,
     decode_ms: f64,
+    fallback: Option<LangFallback>,
 }
 
 /// The error of the route as the error of the engine.
@@ -1146,6 +1176,7 @@ fn decode_samples(
         seconds,
         lid_ms: transcript.lid_ms + transcript.probe_ms,
         decode_ms: transcript.decode_ms,
+        fallback: transcript.fallback,
     })
 }
 
@@ -1202,7 +1233,7 @@ fn reset_parts<D: Decode, L: Identify>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::route::EnTier;
+    use crate::route::{EnTier, FallbackStep};
     use crate::speaker::Source;
 
     #[test]
@@ -1612,5 +1643,102 @@ mod tests {
         engine.set_punctuate(true);
         assert!(engine.can_punctuate() && engine.stages.punctuate);
         Ok(())
+    }
+
+    /// A reading with nothing set but its mark of a language that fell back.
+    fn solved_with(fallback: Option<LangFallback>) -> Solved {
+        Solved {
+            text: String::from("はい"),
+            lang: String::from("ja"),
+            tier: "rz",
+            seconds: 0.0,
+            lid_ms: 0.0,
+            decode_ms: 0.0,
+            itn_ms: 0.0,
+            punct_ms: 0.0,
+            punct_error: None,
+            l_dec_ms: 0.0,
+            fallback,
+        }
+    }
+
+    /// The two shapes a mark takes: with the identifier's answer, and without one.
+    fn marks() -> [LangFallback; 2] {
+        [
+            LangFallback {
+                step: FallbackStep::SvTag,
+                lid: Some(String::from("zh")),
+            },
+            LangFallback {
+                step: FallbackStep::SvFailed,
+                lid: None,
+            },
+        ]
+    }
+
+    /// The reading the plan hands back after `solved` was held and the segment ended at its range.
+    fn held_then_planned(solved: Solved) -> Result<Solved, Box<dyn std::error::Error>> {
+        let mut state: State<Solved> = State::default();
+        state.hold(solved, 1000, 900);
+        let (plan, gap) = state.plan_with_gap(100, 1000, WINDOW);
+        assert_eq!(gap, Some(0));
+        let Plan::Held(held, start) = plan else {
+            return Err(format!("the plan did not use the kept reading: {plan:?}").into());
+        };
+        assert_eq!(start, 100);
+        Ok(held.solved)
+    }
+
+    /// T-IP-03-036
+    #[test]
+    fn a_held_candidate_returned_by_the_plan_keeps_the_language_fallback_it_was_solved_with()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for mark in marks() {
+            let got = held_then_planned(solved_with(Some(mark.clone())))?;
+            assert_eq!(got.fallback, Some(mark));
+        }
+        Ok(())
+    }
+
+    /// T-IP-03-037
+    #[test]
+    fn a_held_candidate_solved_without_a_language_fallback_is_returned_without_one()
+    -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(held_then_planned(solved_with(None))?.fallback, None);
+        Ok(())
+    }
+
+    fn final_from(solved: Solved) -> Final {
+        let ended = Decision {
+            rule: Rule::Silence,
+            silence_ms: 300,
+            plan: None,
+            held_gap_ms: None,
+        };
+        final_of(
+            solved,
+            7,
+            1.0,
+            (0.5, 2.0),
+            Vec::new(),
+            1_790_000_000_000,
+            ended,
+        )
+    }
+
+    /// T-IP-03-038
+    #[test]
+    fn a_final_made_from_a_solved_reading_carries_its_language_fallback() {
+        for mark in marks() {
+            let done = final_from(solved_with(Some(mark.clone())));
+            assert_eq!(done.fallback, Some(mark));
+            assert_eq!((done.text.as_str(), done.lang.as_str()), ("はい", "ja"));
+        }
+    }
+
+    /// T-IP-03-039
+    #[test]
+    fn a_final_made_from_a_solved_reading_without_a_language_fallback_has_none() {
+        assert_eq!(final_from(solved_with(None)).fallback, None);
     }
 }

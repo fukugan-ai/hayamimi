@@ -14,6 +14,7 @@
 
 mod backend;
 mod draft;
+mod pair;
 mod refine;
 mod router;
 mod second;
@@ -29,6 +30,7 @@ use std::fmt;
 use crate::error::AsrError;
 
 pub use backend::{Decode, DecodeError, Decoded};
+pub use pair::{FallbackStep, LangFallback};
 pub use refine::Refined;
 pub use router::{Policy, RouteNotice, Router};
 pub use second::{SECOND_OPINION_THRESHOLD, choose_second_opinion, hyp_agreement_cer};

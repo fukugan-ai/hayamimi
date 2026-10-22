@@ -69,6 +69,7 @@ fn utterance() -> Final {
             plan: None,
             held_gap_ms: None,
         },
+        fallback: None,
     }
 }
 
