@@ -3510,7 +3510,7 @@ test：IP-1 は `native/hayamimi-relay/tests/ip01.rs`、IP-2 は `native/hayamim
 どれも作る物で、書く席は IP-S1 が ip01.rs、ip06.rs、ip08.rs、IP-S2 が ip05.rs と route.rs、IP-S3 が ip02.rs、ip03.rs、pair.rs、pipeline.rs、args.rs、log.rs、ip04.rs、ip07.rs である（設計 10.11）。
 case の `T-IP-<n>-` の `<n>` が 01 なら ip01.rs、02 なら ip02.rs、04 なら ip04.rs、06 なら ip06.rs、07 なら ip07.rs、08 なら ip08.rs に置く。
 IP-3 は 001 から 015 と 025 から 033 が ip03.rs、017、018、034 が pair.rs、019 から 023 が args.rs、024 と 035 が log.rs、036 から 039 が pipeline.rs に置く（016 は欠番。設計 10.4 が `route/draft.rs` を変えないので、速報の手がかりを pair が使わない行は偽になった）。
-IP-5 は 001 から 006 が ip05.rs、007 から 016 が route.rs に置く。
+IP-5 は 001 から 006 と 017 から 019 が ip05.rs、007 から 016 が route.rs に置く。
 受入 test の名前は `ip01_one_source_is_translated_both_ways_by_line_language`、`ip02_each_dialog_utterance_is_read_in_its_own_language`、`ip03_an_unsure_identifier_falls_to_ja_or_en`、`ip04_language_choice_adds_little_to_the_wait`、`ip05_one_page_shows_both_directions`、`ip06_interleaved_join_alternates_languages`、`ip07_short_replies_are_read_in_their_own_language`、`ip08_the_own_llama_server_is_checked_on_the_port_the_run_names`。
 設計は `conversation_subtitles.ja.md` の 10 節のうち、10.3 から 10.5、10.7、10.7.1、10.9、10.9.1、10.9.2、10.10 から 10.12 である（この節で「設計 10.x」と書く物はこの file の節を指す）。
 
