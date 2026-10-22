@@ -2936,18 +2936,68 @@ R11 の後に、固定の一覧に在る `test_ws_ingest.py` の server 側の h
 材料は作る（R12u1）。
 規則は、`testdata/eval_diar/` の AMI の 5 会議の RTTM を会議の名前の順に読み、話者がちょうど 2 人で重なりが無く、話者の区間が 4 つで、少ない方の話者の区間が 1 つ（2〜4 秒）である最初の窓を切り出すことである（Python の test の docstring が述べる「4 区間のうち 1 つが約 3 秒の 2 人目」の形）。
 窓は、会議ごとに区間を始まりの昇順に並べた列の、連続する 4 区間である。
-窓の始まりは先頭の区間の始まり、終わりは 4 区間の終わりの最大である。
+窓の始まりは先頭の区間の始まり、終わりは 4 区間の終わりの最大である（4 区間に重なりが無いので、最後の区間の終わりと同じ値になる）。
+窓の外の区間が、窓の始まりから終わりまでと 1 ms 以上重なる窓は採らない。接するだけ（重なる時間が 0）なら採る。
+外の区間が入ると、切り出した音声に 4 区間の数えに無い声が乗り、「話者がちょうど 2 人で重なりが無い」が RTTM の 4 行の上でだけ成り立って、音声の上では成り立たなくなるからである。
+この条件を外すと ES2004a の 215.090〜230.100 秒が選ばれ、窓の前の FEE013（212.310〜215.800）が 710 ms、窓の後ろの MEO015（229.090〜236.020）が 1010 ms、窓の中へ入る。
 規則に合う窓が複数あれば、会議の名前の辞書順、始まりの昇順で最初の 1 つを採る。
 長さが 0 以下の区間は、窓を選ぶ前に捨てる（4 区間に数えず、`Err` にもしない）。
 時刻は整数のミリ秒で比べる。5 会議の RTTM の始まりと長さは小数 3 桁なので、ミリ秒の整数にそのまま読める。
 「2〜4 秒」は両端を含む（2000 ms 以上、4000 ms 以下）。
 重なりは、窓の中の 2 区間の重なる時間（時間の積）が 1 ms 以上のときに数え、同じ話者の区間どうしも数える。接するだけ（積が 0）は重なりではない。
-窓の長さと、区間のあいだの無音には上限を置かない。規則に無い値を足すと、実データで選ばれる窓（T-RP-60-027 の IS1008a の 457.220〜491.880 秒）が動くおそれがあるからである。
-上限が要るかは、R13-8 の席が選んだ窓の長さ（ms）を設計の席へ返し、そこで決める。
+窓の長さと、区間のあいだの無音には上限を置かない。
+この規則で選ばれる窓は IS1008a の 457.220〜491.880 秒（34660 ms。16 kHz、16 bit、mono で 554560 sample、wav の file で 1109164 byte）で、上限が無くても材料は小さい。
+34660 ms より短い上限はこの窓を外し、それより長い上限は何も変えないので、上限が効く場面が無い。
+`testdata/eval_diar/` が替わって窓が伸びたら、T-RP-60-027 の sample の数が落ちて知らせる。
 切った会議の名前、窓の始まりと終わり、音声の sha256 を manifest に書き、sha256 は記録だけにする。
 sha256 は、書き出した wav の file の bytes から取る。
 作らずに外す形は採らない。話者の印は transcript の品質に効き、AMI の音声が手元に在るので材料を作る手数は 1 slice に収まるからである。
 規則に合う窓が 5 会議に無ければ、R12u1 の席が窓の条件（区間の数、秒）と見つかった窓の数を設計の席へ返す。
+
+採らない手段：
+
+- 窓の外の条件を外し、設計の窓を ES2004a の 215.090〜230.100 秒へ直す形。上に書いたとおり、その音声には窓の外の 2 区間の声が入る。
+- 窓の長さに上限を置く形。効く場面が無く、規則に値を 1 つ足すだけになる。
+
+#### 材料の作り方と置き場
+
+`testdata/two_speakers.wav` は、`hayamimi-eval` の subcommand `two-speakers` が作る。
+`two-speakers --eval-diar <dir> --out <dir>` は、`--eval-diar` の RTTM から `pick_window` で窓を選び、同じ dir の `<会議>.wav` から `write_clip` で切って、`--out` に `two_speakers.wav` と `two_speakers.json` を書く。
+2 つの引数は既定を持たず、欠けたら引数の誤りで止まる。
+窓が無い、dir が無い、RTTM が壊れている時は、`pick_window` と `write_clip` の `Err` をそのまま出して 0 以外で終わり、何も書かない。
+repo 本体で打つ command は `cd native && cargo run --release -p hayamimi-eval -- two-speakers --eval-diar ../testdata/eval_diar --out ../testdata` である。
+
+置き場は repo 本体の `testdata/` である。
+`testdata/` は `.gitignore` で git の外に在り、wav は git に入れない。
+読む 4 行の `material::recording`（`native/hayamimi-asr/src/diarize.rs`）は crate の dir から親へ `testdata/two_speakers.wav` を引くので、`.claude/worktrees/` の下の worktree からも repo 本体の file が当たる。
+`testdata/eval_diar/` は読むだけで、そこへは書かない。
+
+manifest（`two_speakers.json`）は、会議の名前、窓の始まりと終わり、wav の sha256 に加えて、帰属を持つ。
+帰属は `testdata/eval_diar/README.txt` と同じ中身で、AMI Meeting Corpus が CC BY 4.0 であること、license の URL（`https://groups.inf.ed.ac.uk/ami/corpus/license.shtml`）、corpus の引用（Carletta ほか「The AMI Meeting Corpus: A Pre-Announcement」MLMI 2005）、RTTM の出所（`https://github.com/BUTSpeechFIT/AMI-diarization-setup`、MIT）である。
+窓の秒は `testdata/eval_diar/<会議>.wav` の上の時刻である。
+その wav が会議の何秒目から始まるかは `testdata/eval_diar/manifest.json` の `start_offset_s` が持ち（5 会議とも 60.0 なので、IS1008a の窓は会議の 517.220〜551.880 秒）、manifest にはこの読み方を 1 項目で書く。
+key の綴りは実装の席が決め、定数として 1 か所に持つ。
+
+材料が無い時、読む 4 行は skip で通さず、`Err` で落ちる。
+その文言は、探した file（`testdata/two_speakers.wav`）と探し始めた dir、上の command を名指す。
+4 行は `--ignored` を付けて明示で打つ test なので、製品の「落ちて動く」の決めは当たらず、材料の無い実行を通ったと読ませない。
+
+採らない手段：
+
+- `--ignored` の前段の test で作る形。test が repo 本体の `testdata/` へ書く副作用を持ち、test の順と crate の境（`hayamimi-asr` の test から `hayamimi-eval` の test は呼べない）に懸かる。
+- wav を git に入れる形。`testdata/eval_diar/README.txt` と同じく、AMI の音声を repo から配らない。
+- 置き場を `testdata/eval_diar/` の下にする形。その dir は AMI の 5 会議の写しで、読むだけにする。
+- 材料が無い時に読む 4 行を skip する形。0 件の実行が通った顔をする。
+
+#### T の 4.83 に足す 3 行
+
+行そのものは test-designer が書く。3 つとも名前が `two_speaker_clip` で始まるので、RP-60 の command が拾い、list の数は 36 になる。
+
+| case | 見る物 | 関数の名前 | 在り処 |
+|---|---|---|---|
+| T-RP-60-034 | 窓の外の区間が窓へ 1 ms 以上入る形で、規則に合う窓が無いと名指す `Err` | `two_speaker_clip_rejects_a_window_an_outside_turn_reaches_into` | `native/hayamimi-eval/src/two_speakers.rs` の `mod tests` |
+| T-RP-60-035 | 窓の外の区間が窓の終わりに接するだけの形で、同じ窓を返す | `two_speaker_clip_accepts_a_window_an_outside_turn_only_touches` | 同上 |
+| T-RP-60-036 | `two-speakers` が fixture の dir から `--out` に `two_speakers.wav` と `two_speakers.json` を書き、manifest が帰属を持つ。`--out` の無い引数は parse の誤り | `two_speaker_clip_command_writes_the_files_the_diarization_tests_read` | `native/hayamimi-eval/src/cli.rs` の `mod tests` |
 
 ### Python を消す（R11）の割り方
 
