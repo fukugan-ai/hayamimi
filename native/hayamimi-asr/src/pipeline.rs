@@ -153,6 +153,40 @@ impl EarlyHold {
     }
 }
 
+/// Why a stretch of audio the recognizer read made no `final`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnreadReason {
+    /// The recognizer answered with no text.
+    EmptyDecode,
+    /// The text was gone once inverse text normalisation, punctuation and the
+    /// dictionary had run.
+    EmptyText,
+}
+
+impl UnreadReason {
+    /// The name the log gives the reason.
+    pub fn name(self) -> &'static str {
+        match self {
+            UnreadReason::EmptyDecode => "empty_decode",
+            UnreadReason::EmptyText => "empty_text",
+        }
+    }
+}
+
+/// A segment of the main detector that was read and made no `final`. The
+/// span is in seconds from the start of the audio fed to the engine, the clock
+/// of [`Final::t0_s`] and [`Final::t1_s`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Unread {
+    pub start_s: f64,
+    pub end_s: f64,
+    pub reason: UnreadReason,
+    /// The language the recognizer was asked for.
+    pub lang: String,
+    /// The name of the recognizer that was asked for the language.
+    pub tier: &'static str,
+}
+
 /// One finished utterance.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Final {
@@ -202,6 +236,55 @@ struct Solved {
     fallback: Option<LangFallback>,
 }
 
+/// A reading that came out empty, before the span it covered is known.
+#[derive(Debug, Clone, PartialEq)]
+struct Blank {
+    reason: UnreadReason,
+    lang: String,
+    tier: &'static str,
+}
+
+/// What reading a stretch of audio made.
+#[derive(Debug, Clone, PartialEq)]
+enum Reading {
+    Text(Solved),
+    Blank(Blank),
+}
+
+impl Reading {
+    fn blank(reason: UnreadReason, lang: String, tier: &'static str) -> Reading {
+        Reading::Blank(Blank { reason, lang, tier })
+    }
+
+    /// The text of a candidate of the early path. A candidate that read as
+    /// nothing is a trial before the segment is confirmed, so it leaves no
+    /// trace: the segment is read again when the main detector ends it.
+    fn candidate(self) -> Option<Solved> {
+        match self {
+            Reading::Text(solved) => Some(solved),
+            Reading::Blank(_) => None,
+        }
+    }
+
+    /// The text of a segment that is confirmed. One that read as nothing is
+    /// noted in `unread` with the `span` it covered, in seconds.
+    fn settle(self, (start_s, end_s): (f64, f64), unread: &mut Vec<Unread>) -> Option<Solved> {
+        match self {
+            Reading::Text(solved) => Some(solved),
+            Reading::Blank(blank) => {
+                unread.push(Unread {
+                    start_s,
+                    end_s,
+                    reason: blank.reason,
+                    lang: blank.lang,
+                    tier: blank.tier,
+                });
+                None
+            }
+        }
+    }
+}
+
 /// The detector and the recognizers, which only work together.
 struct Route {
     router: Router<Recognizers, Lid>,
@@ -213,6 +296,8 @@ struct Route {
     early: State<Solved>,
     /// The sentences the early path kept, until they are taken.
     early_holds: Vec<EarlyHold>,
+    /// The segments that read as nothing, until they are taken.
+    unread: Vec<Unread>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -429,6 +514,7 @@ fn open_route(
         draft: DraftClock::new(),
         early: State::default(),
         early_holds: Vec::new(),
+        unread: Vec::new(),
     }))
 }
 
@@ -635,6 +721,18 @@ impl Engine {
             .as_mut()
             .into_iter()
             .flat_map(|route| std::mem::take(&mut route.early_holds))
+            .collect()
+    }
+
+    /// The confirmed segments that read as nothing since the last call, each
+    /// with the span it covered and why it made no `final`. A candidate of the
+    /// early path that read as nothing is not among them. An engine with no
+    /// route has none.
+    pub fn take_unread(&mut self) -> Vec<Unread> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| std::mem::take(&mut route.unread))
             .collect()
     }
 
@@ -859,7 +957,7 @@ impl Engine {
             return Ok(None);
         }
         let span = now.saturating_sub(from);
-        let Some(solved) = self.solve(&samples, span)? else {
+        let Some(solved) = self.solve(&samples, span)?.candidate() else {
             return Ok(None);
         };
         let Some(route) = self.route.as_mut() else {
@@ -964,7 +1062,8 @@ impl Engine {
     }
 
     /// Decodes the whole text of one segment: recognition, retry, ITN,
-    /// punctuation, dictionary. A segment with no speech makes no final.
+    /// punctuation, dictionary. A segment that reads as nothing makes no
+    /// final and is noted for [`Engine::take_unread`].
     fn process(
         &mut self,
         segment: Segment,
@@ -975,10 +1074,14 @@ impl Engine {
             return Ok(None);
         };
         let samples = route.history.with_preroll(segment.start, &segment.samples);
-        let Some(solved) = self.solve(&samples, segment.samples.len())? else {
+        let reading = self.solve(&samples, segment.samples.len())?;
+        let span = span_seconds(&segment);
+        let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
-        let span = span_seconds(&segment);
+        let Some(solved) = reading.settle(span, &mut route.unread) else {
+            return Ok(None);
+        };
         let speaker_audio = if self.speakers.is_some() {
             segment.samples
         } else {
@@ -988,27 +1091,27 @@ impl Engine {
     }
 
     /// Reads `samples`, of which `speech_samples` are speech: recognition,
-    /// retry, ITN, punctuation, dictionary. Audio with no speech gives `None`.
-    fn solve(
-        &mut self,
-        samples: &[f32],
-        speech_samples: usize,
-    ) -> Result<Option<Solved>, AsrError> {
+    /// retry, ITN, punctuation, dictionary. Audio that reads as nothing is a
+    /// blank reading that says where the text went. An engine with no route
+    /// has no recognizer to read with.
+    fn solve(&mut self, samples: &[f32], speech_samples: usize) -> Result<Reading, AsrError> {
         let started = Instant::now();
         let Some(route) = self.route.as_mut() else {
-            return Ok(None);
+            return Err(AsrError::NoRecognizer);
         };
         let decoded = decode_samples(route, samples, speech_samples)?;
         if decoded.text.trim().is_empty() {
-            return Ok(None);
+            let (lang, tier) = (decoded.lang, decoded.tier);
+            return Ok(Reading::blank(UnreadReason::EmptyDecode, lang, tier));
         }
         let (text, itn_ms) = self.normalize(decoded.text, &decoded.lang);
         let ((text, punct_error), punct_ms) = timed(|| self.punctuate(text, &decoded.lang));
         let text = self.replacements.apply(&text);
         if text.trim().is_empty() {
-            return Ok(None);
+            let (lang, tier) = (decoded.lang, decoded.tier);
+            return Ok(Reading::blank(UnreadReason::EmptyText, lang, tier));
         }
-        Ok(Some(Solved {
+        Ok(Reading::Text(Solved {
             text,
             lang: decoded.lang,
             tier: decoded.tier,
@@ -1740,5 +1843,83 @@ mod tests {
     #[test]
     fn a_final_made_from_a_solved_reading_without_a_language_fallback_has_none() {
         assert_eq!(final_from(solved_with(None)).fallback, None);
+    }
+
+    /// A reading that came out empty, in Japanese, by the `rz` tier.
+    fn blank(reason: UnreadReason) -> Reading {
+        Reading::Blank(Blank {
+            reason,
+            lang: String::from("ja"),
+            tier: "rz",
+        })
+    }
+
+    fn unread_with(reason: UnreadReason, (start_s, end_s): (f64, f64)) -> Unread {
+        Unread {
+            start_s,
+            end_s,
+            reason,
+            lang: String::from("ja"),
+            tier: "rz",
+        }
+    }
+
+    /// IP-9: a confirmed segment that read as nothing is noted once, with the
+    /// span it covered, the reason, the language and the tier.
+    #[test]
+    fn ip09_a_confirmed_segment_read_as_nothing_is_noted_with_its_span_reason_language_and_tier() {
+        for reason in [UnreadReason::EmptyDecode, UnreadReason::EmptyText] {
+            let mut unread = Vec::new();
+            assert_eq!(blank(reason).settle((1.5, 2.25), &mut unread), None);
+            assert_eq!(unread, [unread_with(reason, (1.5, 2.25))], "{reason:?}");
+        }
+    }
+
+    /// IP-9, positive control: one empty segment and one that made text give
+    /// one note and one text.
+    #[test]
+    fn ip09_one_empty_and_one_spoken_segment_make_one_note_and_one_text() {
+        let mut unread = Vec::new();
+        let first = blank(UnreadReason::EmptyDecode).settle((0.0, 1.0), &mut unread);
+        let second = Reading::Text(solved_with(None)).settle((2.0, 3.0), &mut unread);
+        assert_eq!((first, second), (None, Some(solved_with(None))));
+        assert_eq!(unread, [unread_with(UnreadReason::EmptyDecode, (0.0, 1.0))]);
+    }
+
+    /// IP-9, negative control: a segment that made a `final` leaves no note.
+    #[test]
+    fn ip09_a_segment_that_made_text_is_kept_and_not_noted() {
+        let mut unread = Vec::new();
+        let kept = Reading::Text(solved_with(None)).settle((0.0, 1.0), &mut unread);
+        assert_eq!(kept, Some(solved_with(None)));
+        assert!(unread.is_empty());
+    }
+
+    /// IP-9, negative control: a candidate of the early path that read as
+    /// nothing is dropped; it takes no list to write into, so it cannot note.
+    #[test]
+    fn ip09_a_candidate_read_as_nothing_gives_no_reading_and_one_with_text_keeps_it() {
+        for reason in [UnreadReason::EmptyDecode, UnreadReason::EmptyText] {
+            assert_eq!(blank(reason).candidate(), None, "{reason:?}");
+        }
+        let text = Reading::Text(solved_with(None)).candidate();
+        assert_eq!(text, Some(solved_with(None)));
+    }
+
+    /// IP-9: the two reasons are written as the log names them.
+    #[test]
+    fn ip09_the_two_reasons_have_the_names_the_log_uses() {
+        assert_eq!(
+            [UnreadReason::EmptyDecode, UnreadReason::EmptyText].map(UnreadReason::name),
+            ["empty_decode", "empty_text"]
+        );
+    }
+
+    /// IP-9: an engine with no route has read nothing, so it has nothing unread.
+    #[test]
+    fn ip09_an_engine_with_no_route_has_no_unread_segments() -> Result<(), AsrError> {
+        let mut engine = Engine::open(Settings::new(PathBuf::from("no-such-models")))?;
+        assert!(engine.take_unread().is_empty());
+        Ok(())
     }
 }

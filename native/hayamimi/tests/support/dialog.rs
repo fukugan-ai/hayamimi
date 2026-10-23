@@ -113,11 +113,32 @@ pub struct Cell {
     pub langs: Vec<String>,
 }
 
-/// The finals of a run as events whose text is their language and a space: the
-/// run's own rule (`build_samples`) then gives each final to its utterance and
-/// puts the languages of an utterance in the order the run placed them.
-fn finals_as_events(events: &[EventLine]) -> Result<Vec<Event>, Failure> {
-    let mut finals = Vec::new();
+/// A `final` as the run placed it: its language and the id the server gave it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Placed {
+    pub lang: String,
+    pub id: Option<String>,
+}
+
+/// The finals one utterance of one repeat was given, in the order the run
+/// placed them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Given {
+    pub repeat: u32,
+    pub utt: u32,
+    pub finals: Vec<Placed>,
+}
+
+/// The finals of a run, and the same finals as events whose text is their
+/// place in that list and a space: the run's own rule (`build_samples`) then
+/// gives each final to its utterance and puts the places of an utterance in
+/// the order the run placed them.
+fn finals_as_events(
+    events: &[EventLine],
+    shift_us: i64,
+) -> Result<(Vec<Event>, Vec<Placed>), Failure> {
+    let mut stand_ins = Vec::new();
+    let mut placed = Vec::new();
     for line in events {
         if text_field(&line.body, "type") != Some("final") {
             continue;
@@ -134,23 +155,38 @@ fn finals_as_events(events: &[EventLine]) -> Result<Vec<Event>, Failure> {
         else {
             return Err(format!("a final at {} us was not read as one", line.t_us));
         };
-        finals.push(Event {
+        stand_ins.push(Event {
             t_us: line.t_us,
             kind: EventKind::Final {
-                text: format!("{lang} "),
+                text: format!("{} ", placed.len()),
                 latency_ms,
-                id,
-                t1_us,
+                id: id.clone(),
+                t1_us: t1_us.map(|t1| t1 + shift_us),
             },
         });
+        placed.push(Placed {
+            lang: lang.to_owned(),
+            id,
+        });
     }
-    Ok(finals)
+    Ok((stand_ins, placed))
 }
 
-/// For each sample of the run, the languages of the finals that were given to it.
-pub fn cells_of(samples_text: &str, events_text: &str) -> Result<Vec<Cell>, Failure> {
-    let samples = samples_of(samples_text)?;
-    let windows: Vec<Window> = samples
+/// When the server's stream clock began, on the tool's clock: the arrival time
+/// of the first `session_start` event, which the server publishes as it starts
+/// to take the audio of the run (`hayamimi/src/ingest.rs`, `session_started`).
+/// A `final`'s `t1_s` counts from then, and a sample's `t_start_us` from the
+/// start of the tool, which waited for the server to be ready.
+pub fn session_start_us(events: &[EventLine]) -> Option<i64> {
+    events
+        .iter()
+        .find(|line| text_field(&line.body, "type") == Some("session_start"))
+        .map(|line| line.t_us)
+}
+
+/// The span of each sample of a run, for `build_samples`.
+fn windows_of(samples: &[Sample]) -> Vec<Window> {
+    samples
         .iter()
         .map(|sample| Window {
             repeat: sample.repeat,
@@ -158,19 +194,59 @@ pub fn cells_of(samples_text: &str, events_text: &str) -> Result<Vec<Cell>, Fail
             t_start_us: sample.t_start_us,
             t_end_us: sample.t_end_us,
         })
-        .collect();
+        .collect()
+}
+
+/// The finals that stand at `places`, the places `build_samples` joined into
+/// the text of one sample.
+fn finals_at(places: &str, placed: &[Placed]) -> Result<Vec<Placed>, Failure> {
+    places
+        .split_whitespace()
+        .map(|place| {
+            place
+                .parse::<usize>()
+                .ok()
+                .and_then(|at| placed.get(at))
+                .cloned()
+                .ok_or_else(|| format!("a sample names the place {place:?}, which is no final"))
+        })
+        .collect()
+}
+
+/// For each sample of the run, the finals that were given to it.
+pub fn given_of(samples_text: &str, events_text: &str) -> Result<Vec<Given>, Failure> {
+    let samples = samples_of(samples_text)?;
     let Some(longest) = samples.iter().map(|sample| sample.utt).max() else {
         return Err(String::from("the record has no line"));
     };
     let references = vec![String::new(); usize::try_from(longest).map_err(|e| e.to_string())?];
-    let finals = finals_as_events(&events_of(events_text)?)?;
-    let built = build_samples(&windows, &references, &finals).map_err(|e| e.to_string())?;
-    Ok(built
+    let lines = events_of(events_text)?;
+    // A record with no `session_start` (a hand-made one) has its server clock
+    // and the tool's clock equal: the sum over no event is 0.
+    let shift_us: i64 = session_start_us(&lines).iter().sum();
+    let (stand_ins, placed) = finals_as_events(&lines, shift_us)?;
+    let built =
+        build_samples(&windows_of(&samples), &references, &stand_ins).map_err(|e| e.to_string())?;
+    built
         .into_iter()
-        .map(|sample| Cell {
-            repeat: sample.repeat,
-            utt: sample.utt,
-            langs: sample.text.split_whitespace().map(str::to_owned).collect(),
+        .map(|sample| {
+            Ok(Given {
+                repeat: sample.repeat,
+                utt: sample.utt,
+                finals: finals_at(&sample.text, &placed)?,
+            })
+        })
+        .collect()
+}
+
+/// For each sample of the run, the languages of the finals that were given to it.
+pub fn cells_of(samples_text: &str, events_text: &str) -> Result<Vec<Cell>, Failure> {
+    Ok(given_of(samples_text, events_text)?
+        .into_iter()
+        .map(|given| Cell {
+            repeat: given.repeat,
+            utt: given.utt,
+            langs: given.finals.into_iter().map(|done| done.lang).collect(),
         })
         .collect())
 }
@@ -364,6 +440,102 @@ pub fn match_fallbacks(log_text: &str, events_text: &str) -> Result<usize, Failu
     Ok(rows.len())
 }
 
+/// The reasons `asr.segment.unread` names, in the order of the design.
+pub const REASONS: [&str; 2] = ["empty_decode", "empty_text"];
+
+/// One `asr.segment.unread` line of a log: why the segment made no `final`,
+/// and where on the stream it ended.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnreadRow {
+    pub end_s: f64,
+    pub reason: String,
+}
+
+/// The `asr.segment.unread` lines of a log. A line that is not JSON, a reason
+/// outside the two the design names, and a span that is not a number are errors.
+pub fn unread_rows(log_text: &str) -> Result<Vec<UnreadRow>, Failure> {
+    let mut rows = Vec::new();
+    for (number, line) in lines_of(log_text) {
+        let value: Value = serde_json::from_str(line)
+            .map_err(|error| format!("log line {number} is not JSON: {error}"))?;
+        if text_field(&value, "event") != Some("asr.segment.unread") {
+            continue;
+        }
+        let reason = text_field(&value, "reason")
+            .ok_or_else(|| format!("log line {number} has no `reason`"))?;
+        if !REASONS.contains(&reason) {
+            return Err(format!("log line {number} names the reason {reason:?}"));
+        }
+        let end_s = value
+            .get("end_s")
+            .and_then(Value::as_f64)
+            .filter(|seconds| seconds.is_finite())
+            .ok_or_else(|| format!("log line {number} has no number `end_s`"))?;
+        rows.push(UnreadRow {
+            end_s,
+            reason: reason.to_owned(),
+        });
+    }
+    Ok(rows)
+}
+
+/// How many unread lines name each of the two reasons, in the order of [`REASONS`].
+pub fn count_by_reason(rows: &[UnreadRow]) -> [usize; 2] {
+    REASONS.map(|reason| rows.iter().filter(|row| row.reason == reason).count())
+}
+
+/// The utterances that were given no final in any repeat, sorted by whether
+/// the detector handed the recognizer a segment in their window.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Silent {
+    /// No segment that read as nothing ended in any repeat's window: the
+    /// detector made no segment, or the recognizer was not given one.
+    pub no_segment: Vec<u32>,
+    /// A segment that read as nothing ended in the window of some repeat.
+    pub read_empty: Vec<u32>,
+}
+
+/// A time on the stream in whole microseconds, the unit of the samples file.
+fn stream_us(seconds: f64) -> i64 {
+    (seconds * 1_000_000.0).round() as i64
+}
+
+/// Sorts the utterances in `undecided` (those with no final in any repeat,
+/// `Tally::undecided`) by their window, which runs from the start of the
+/// sample to the start of the next one (design 10.9.2, 6). A segment belongs
+/// to the window its end falls in, as a `final` does by its `t1_s`.
+pub fn split_undecided(
+    samples_text: &str,
+    undecided: &[u32],
+    unread: &[UnreadRow],
+) -> Result<Silent, Failure> {
+    let samples = samples_of(samples_text)?;
+    let marks: Vec<i64> = unread.iter().map(|row| stream_us(row.end_s)).collect();
+    let ends = samples
+        .iter()
+        .skip(1)
+        .map(|next| next.t_start_us)
+        .chain(std::iter::once(i64::MAX));
+    let windows: Vec<(u32, i64, i64)> = samples
+        .iter()
+        .zip(ends)
+        .map(|(sample, end)| (sample.utt, sample.t_start_us, end))
+        .collect();
+    let mut split = Silent::default();
+    for utt in undecided {
+        let read = windows
+            .iter()
+            .filter(|(own, _, _)| own == utt)
+            .any(|(_, start, end)| marks.iter().any(|mark| (*start..*end).contains(mark)));
+        if read {
+            split.read_empty.push(*utt);
+        } else {
+            split.no_segment.push(*utt);
+        }
+    }
+    Ok(split)
+}
+
 /// Which side of a line a count stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
@@ -496,6 +668,37 @@ fn record_fallbacks(path: &Path, log: &Path, events_text: &str) -> Result<(), Fa
     }
 }
 
+/// Writes what the detector made of the speech that got no final: how often
+/// each reason ended a segment, and the utterances with no final by kind
+/// (design 10.9.2, 6). A log that cannot be read is written down as it is said,
+/// and is not a failure here.
+fn record_unread(
+    path: &Path,
+    log: &Path,
+    samples_text: &str,
+    undecided: &[u32],
+) -> Result<(), Failure> {
+    let read = std::fs::read_to_string(log)
+        .map_err(|error| format!("cannot read the log {}: {error}", log.display()))
+        .and_then(|text| unread_rows(&text));
+    let rows = match read {
+        Ok(rows) => rows,
+        Err(error) => return append_line(path, &format!("asr.segment.unread: {error}")),
+    };
+    for (reason, count) in REASONS.iter().zip(count_by_reason(&rows)) {
+        append_line(path, &format!("asr.segment.unread {reason}: {count}"))?;
+    }
+    let split = split_undecided(samples_text, undecided, &rows)?;
+    append_line(
+        path,
+        &format!("utterances with no segment: {:?}", split.no_segment),
+    )?;
+    append_line(
+        path,
+        &format!("utterances read as nothing: {:?}", split.read_empty),
+    )
+}
+
 /// Reads the files a run left (`out`, its `.events.jsonl` and its `.log`) and
 /// writes the counts of design 10.9 to the record file under `label`.
 pub fn record_dialog_run(
@@ -515,6 +718,8 @@ pub fn record_dialog_run(
         path,
         &format!("translations into their own language: {same}"),
     )?;
-    record_fallbacks(path, &out.with_extension("log"), &events_text)?;
+    let log = out.with_extension("log");
+    record_fallbacks(path, &log, &events_text)?;
+    record_unread(path, &log, &samples, &counted.undecided)?;
     Ok(verdict)
 }

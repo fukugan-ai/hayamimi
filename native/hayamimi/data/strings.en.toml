@@ -30,6 +30,7 @@
 "asr.model.evicted" = "The recognizer used least recently was dropped to stay within the cap"
 "asr.lang.unknown" = "The language tag of a SenseVoice result could not be read; the language is unknown"
 "asr.lang.fallback" = "The language identifier did not name Japanese or English; the utterance was read as one of the two"
+"asr.segment.unread" = "A segment of speech was read and made no text, so no subtitle was sent for it"
 "asr.warmup.decoded" = "The recognizer read ten seconds of silence once, and the punctuation model one sentence when it is on, before the first utterance"
 "asr.warmup.failed" = "A start-up read (the decode or the punctuation) failed; the run goes on without it"
 "gpu.memory.unreadable" = "The memory of the GPU cannot be read, so the run has no memory budget"

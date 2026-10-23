@@ -30,6 +30,7 @@
 "asr.model.evicted" = "上限を守るため、最も使われていない認識器を手放しました"
 "asr.lang.unknown" = "SenseVoice の結果の言語の tag を読めないので、言語は不明として扱います"
 "asr.lang.fallback" = "言語の判定が日本語か英語を答えなかったので、発話を 2 つのどちらかで読みました"
+"asr.segment.unread" = "声の区間を読みましたが文字になりませんでした。この区間の字幕は送っていません"
 "asr.warmup.decoded" = "最初の発話の前に、認識器が 10 秒の無音を 1 回読みました（句読点の段が在れば、その model も文を 1 回読みました）"
 "asr.warmup.failed" = "起動時の読み（復号か句読点）に失敗しましたが、その読みなしで続けます"
 "gpu.memory.unreadable" = "GPU の memory を読めないので、memory の予算なしで続けます"
