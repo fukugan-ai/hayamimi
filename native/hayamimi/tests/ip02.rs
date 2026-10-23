@@ -15,7 +15,7 @@
 mod support;
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use hayamimi_eval::latency::Sample;
 use serde_json::json;
@@ -24,7 +24,7 @@ use support::dialog::{
     count_by_step_in, given_of, langs_of, manifest_rows, match_fallbacks, record_dialog_run,
     record_verdict, same_language_translations, split_undecided, switches, tally, unread_rows,
 };
-use support::dialog_run::run_stack;
+use support::dialog_run::{find_llama, run_stack};
 use support::{TestResult, find_above, read};
 
 /// Utterances of the hand-made record, and their repeats.
@@ -648,5 +648,74 @@ fn the_record_of_a_run_names_the_unread_segments_and_the_two_kinds_of_silent_utt
     let written = read(&record)?;
     assert!(written.contains("asr.segment.unread: cannot read the log"));
     assert!(!written.contains("utterances read as nothing"));
+    Ok(())
+}
+
+/// The command line of a `llama-server` started with `--port <port>`.
+fn server_words(port: &str) -> Vec<&str> {
+    vec!["llama-server", "-m", "model.gguf", "--port", port]
+}
+
+/// A proc root of its own under the scratch directory: each `(pid, words)` is a
+/// `llama-server` with that command line, words ended by a NUL as the kernel
+/// writes them. Nothing is left from an earlier run of the same name.
+fn llama_root(name: &str, servers: &[(u32, Vec<&str>)]) -> Result<PathBuf, Box<dyn Error>> {
+    let root = scratch(name);
+    if root.exists() {
+        std::fs::remove_dir_all(&root)?;
+    }
+    for (pid, words) in servers {
+        let dir = root.join(pid.to_string());
+        std::fs::create_dir_all(&dir)?;
+        std::fs::write(dir.join("comm"), "llama-server\n")?;
+        let cmdline: Vec<u8> = words
+            .iter()
+            .flat_map(|word| word.bytes().chain([0]))
+            .collect();
+        std::fs::write(dir.join("cmdline"), cmdline)?;
+    }
+    Ok(root)
+}
+
+/// What `find_llama` says when it refuses the servers of `root` on port 18084.
+fn refusal_on_18084(root: &Path) -> Result<String, Box<dyn Error>> {
+    match find_llama(root, 18084) {
+        Err(said) => Ok(said),
+        Ok(llama) => Err(format!("llama-server {} was picked", llama.pid).into()),
+    }
+}
+
+/// T-IP-02-019
+#[test]
+fn the_run_picks_the_llama_server_on_its_own_port_beside_another_one() -> TestResult {
+    let other = (4001, server_words("18081"));
+    let own = (4002, server_words("18084"));
+    let beside = llama_root("ip02_llama_beside", &[other, own.clone()])?;
+    let alone = llama_root("ip02_llama_alone", &[own])?;
+    for root in [&beside, &alone] {
+        let llama = find_llama(root, 18084)?;
+        assert_eq!((llama.pid, llama.port), (4002, 18084));
+    }
+    Ok(())
+}
+
+/// T-IP-02-020
+#[test]
+fn a_run_without_exactly_one_llama_server_on_its_own_port_is_refused() -> TestResult {
+    let on_other = llama_root("ip02_llama_other", &[(4001, server_words("18081"))])?;
+    let padded = llama_root("ip02_llama_padded", &[(4001, server_words("018084"))])?;
+    let two_flags = vec!["llama-server", "--port", "8080", "--port", "18084"];
+    let doubled = llama_root("ip02_llama_flags", &[(4001, two_flags)])?;
+    for root in [&on_other, &padded, &doubled] {
+        let said = refusal_on_18084(root)?;
+        assert!(said.contains("18084"), "{said}");
+        assert!(said.contains("hayamimi-llama-e2e.service"), "{said}");
+    }
+    let twice = [(4003, server_words("18084")), (4004, server_words("18084"))];
+    let said = refusal_on_18084(&llama_root("ip02_llama_twice", &twice)?)?;
+    assert!(said.contains("4003") && said.contains("4004"), "{said}");
+    // The same function picks the one server of a root that has exactly one.
+    let one = llama_root("ip02_llama_one", &[(4003, server_words("18084"))])?;
+    assert_eq!(find_llama(&one, 18084)?.pid, 4003);
     Ok(())
 }

@@ -359,6 +359,45 @@ fn serves_own_port(dir: &Path, port: &[u8]) -> bool {
     std::fs::read(dir.join("cmdline")).is_ok_and(|bytes| cmdline_names_own_port(&bytes, port))
 }
 
+/// The pid a `/proc` directory name stands for.
+fn pid_of(name: &OsStr) -> Option<u32> {
+    if !is_pid(name) {
+        return None;
+    }
+    name.to_str()?.parse().ok()
+}
+
+/// Whether the process in `dir` is a `llama-server` started with `port`, written
+/// in decimal, by the same reading as the `--own-pid` check. A `comm` or
+/// `cmdline` that cannot be read is not.
+fn is_llama_on_port(dir: &Path, port: &[u8]) -> bool {
+    comm_of(&dir.join("comm"))
+        .ok()
+        .flatten()
+        .is_some_and(|comm| comm == LLAMA_COMM.as_bytes())
+        && serves_own_port(dir, port)
+}
+
+/// The pids under `proc_root`, smallest first, of the `llama-server` processes
+/// started with `--port <port>`. A process that has ended or whose files cannot
+/// be read is skipped; only a `proc_root` that cannot be listed is an error.
+pub fn llama_server_pids(proc_root: &Path, port: u16) -> Result<Vec<u32>, EvalError> {
+    let entries = std::fs::read_dir(proc_root).map_err(|error| EvalError::io(proc_root, error))?;
+    let word = port.to_string();
+    let mut found = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| EvalError::io(proc_root, error))?;
+        let Some(pid) = pid_of(&entry.file_name()) else {
+            continue;
+        };
+        if is_llama_on_port(&entry.path(), word.as_bytes()) {
+            found.push(pid);
+        }
+    }
+    found.sort_unstable();
+    Ok(found)
+}
+
 /// One pid of `--own-pid`: its name, and for the server its port, `port` in
 /// decimal. The faults are asked in the order `Unreadable`, `Comm`, `Port`.
 fn check_pid(proc_root: &Path, pid: u32, port: &[u8]) -> Result<OwnProcess, OwnFault> {
@@ -1068,6 +1107,29 @@ mod tests {
         let padded = nul_words(&["llama-server", "--port", "018083"]);
         assert!(!cmdline_names_own_port(&padded, b"18083"));
         assert!(cmdline_names_own_port(&padded, b"018083"));
+    }
+
+    #[test]
+    fn only_a_llama_server_naming_the_port_is_listed() -> Check {
+        let comms = [
+            ("4301", "llama-server"),
+            ("4302", "hayamimi"),
+            ("4303", "llama-server"),
+            ("4304", "llama-server"),
+        ];
+        let root = proc_with("m-llama-pids", "0.50 0.50 0.50 1/300 1000\n", &comms)?;
+        add_cmdline(&root, 4301, &SERVER)?;
+        add_cmdline(&root, 4302, &["hayamimi", "--port", "18084"])?;
+        // 4303 has no `cmdline` at all, as a process that ended while it was read.
+        add_cmdline(&root, 4304, &["llama-server", "--port", "18081"])?;
+        assert_eq!(llama_server_pids(&root, PORT)?, [4301]);
+        assert_eq!(llama_server_pids(&root, 18081)?, [4304]);
+        let missing = root.join("no-such-root");
+        assert!(matches!(
+            llama_server_pids(&missing, PORT),
+            Err(EvalError::Io { .. })
+        ));
+        Ok(())
     }
 
     #[test]

@@ -4,15 +4,18 @@
 //!
 //! The stack is the command of design 10.9: `hayamimi` on 8833 (events) and
 //! 8766 (ingest), the relay on 8835. The translation `llama-server` is not
-//! started here; the one that runs on the machine is found by its `--port`.
-//! Every process this module starts is stopped and waited for, whether the run
-//! came out or not.
+//! started here and is never stopped; the run uses the one started with
+//! `--port 18084` (the window's unit), and a server on another port is left
+//! alone. Every process this module starts is stopped and waited for, whether
+//! the run came out or not.
 
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+
+use hayamimi_eval::machine::llama_server_pids;
 
 use super::{BINARY, Failure, collect, models_dir, path_text, spawn_binary};
 
@@ -30,42 +33,30 @@ pub struct Llama {
     pub port: u16,
 }
 
-/// The port that follows `--port` in the words of a command line.
-fn port_of(words: &[&str]) -> Option<u16> {
-    let at = words.iter().position(|word| *word == "--port")?;
-    words.get(at + 1)?.parse().ok()
-}
+/// The port of the translation server the window's unit starts.
+pub const LLAMA_PORT: u16 = 18084;
+/// The user unit that starts that server; the run needs it up before it starts.
+const LLAMA_UNIT: &str = "hayamimi-llama-e2e.service";
 
-/// The one `llama-server` running on this machine. None or several is an
-/// error: the run's three `--own-pid` must name exactly one translation server.
-pub fn find_llama() -> Result<Llama, Failure> {
-    let entries =
-        std::fs::read_dir("/proc").map_err(|error| format!("cannot read /proc: {error}"))?;
-    let mut found = Vec::new();
-    for entry in entries.flatten() {
-        let Some(pid) = entry
-            .file_name()
-            .to_str()
-            .and_then(|name| name.parse::<u32>().ok())
-        else {
-            continue;
-        };
-        let directory = entry.path();
-        let comm = std::fs::read_to_string(directory.join("comm")).ok();
-        if comm.as_deref().map(str::trim) != Some("llama-server") {
-            continue;
-        }
-        let bytes = std::fs::read(directory.join("cmdline"))
-            .map_err(|error| format!("cannot read the command line of {pid}: {error}"))?;
-        let text = String::from_utf8_lossy(&bytes).into_owned();
-        let words: Vec<&str> = text.split('\0').collect();
-        let port = port_of(&words).ok_or_else(|| format!("llama-server {pid} has no --port"))?;
-        found.push(Llama { pid, port });
-    }
-    match found.len() {
-        1 => found.pop().ok_or_else(|| String::from("no llama-server")),
-        0 => Err(String::from("no llama-server is running")),
-        count => Err(format!("{count} llama-server processes are running")),
+/// The `llama-server` of the run: the one process under `proc_root` started
+/// with `--port <port>`, read the way `stream --own-pid` reads it. A server on
+/// another port does not count. None or several on `port` is an error: the
+/// run's three `--own-pid` must name exactly one translation server.
+pub fn find_llama(proc_root: &Path, port: u16) -> Result<Llama, Failure> {
+    let pids = llama_server_pids(proc_root, port).map_err(|error| error.to_string())?;
+    match pids.as_slice() {
+        [pid] => Ok(Llama { pid: *pid, port }),
+        [] => Err(format!(
+            "no llama-server is running with --port {port}; start {LLAMA_UNIT}"
+        )),
+        _ => Err(format!(
+            "{} llama-server processes run with --port {port}: pids {}",
+            pids.len(),
+            pids.iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
     }
 }
 
@@ -213,7 +204,7 @@ fn stream(
 /// the extension `log` (what `hayamimi` printed).
 pub fn run_stack(mode: &str, wav: &Path, repeat: u32, out: &Path) -> Result<(), Failure> {
     require_free_ports()?;
-    let llama = find_llama()?;
+    let llama = find_llama(Path::new("/proc"), LLAMA_PORT)?;
     sibling_binary("hayamimi-relay")?;
     sibling_binary("hayamimi-eval")?;
     let (hayamimi, printed) = start_hayamimi(mode)?;

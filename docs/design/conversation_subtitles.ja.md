@@ -1451,7 +1451,7 @@ IP-2 は、この clip を 10.9.2 の 6 の区間の無い発話として数え�
 
 `stream --own-pid` は、run の 3 つの process（`hayamimi`、中継、訳の `llama-server`）の CPU の時間を、load の門から引くために名指す（`rust_port.ja.md` 3.21 の 3）。
 名指した `llama-server` は、`/proc/<pid>/cmdline` の語 `--port` がちょうど 1 つ在り、その次の語が `machine.rs:77` の `LLAMA_PORT`（18084）と等しい時だけ受けられる（`machine.rs:325-340`）。
-対面の run は 18084 の外（たとえば 18083）の server に訳を頼むので、run の物である server が `own_fault: port` で拒まれる。
+対面の run を 18084 の外（たとえば 18083）の server で回すと、run の物である server が `own_fault: port` で拒まれる。
 
 port は `stream` の引数 `--own-llama-port <port>` で受ける。
 比べは今のまま、語 `--port` がちょうど 1 つ在り、その次の語がこの引数の値を 10 進で書いた字と完全に等しい時だけ通す。
@@ -1477,6 +1477,44 @@ port の値を `llama-server` の listen の socket から引く形は、3.21 �
 
 `hayamimi-eval/src/machine.rs` の `//!`（`:18-33`）と `OwnFault::Port` の doc（`:147`）、`cli.rs` の `--own-pid` の説明（`:133-139`）、`docs/results/e2e/README.md` の `--own-pid` の 2 行（`:20-21`）は、「`--port 18084`」を「`--own-llama-port` で名指した port」に書き替える。
 書き替えるのは IP-8 を実装する IP-S1 の席で、code と同じ commit にする。
+
+#### 10.7.2 実走の test が使う訳の server（`find_llama`）
+
+**最新情報**：llama.cpp の server の README は、`--port` を listen する port（既定 9931、`LLAMA_ARG_PORT`）、`--host` の既定を `127.0.0.1` と書く。`GET /health` は model を読む間 503（`Loading model`）を、読み終えると 200 の `{"status": "ok"}` を返す。pid を書く file の option と、pid を返す endpoint は書かない（https://github.com/ggml-org/llama.cpp/tree/master/tools/server 、取得 2026-10-23）。
+
+T-IP-02-001 と T-IP-07-001 の実走は、`native/hayamimi/tests/support/dialog_run.rs` の `run_stack` が訳の server を `find_llama` で見つけ、その pid を `stream --own-pid` に、port を中継の `--llm` と `stream --own-llama-port` に渡す。
+`find_llama` は、機械の `llama-server` をちょうど 1 つと決めて数で選ぶ。
+組の外の言語の訳の server（18081 の `hayamimi-llama-other.service`）が起きている機械では、run の server と合わせて 2 つになり、run が始まる前に `Err` で止まる。
+
+**方針**：`find_llama` は数でなく port で選ぶ。
+
+1. **選び方**：`find_llama(proc_root: &Path, port: u16)` は、`<proc_root>/<pid>/comm` が `llama-server` で、`cmdline` が語 `--port` をちょうど 1 つ持ち、その次の語が `port` を 10 進で書いた字と等しい process だけを集める。比べは `stream --own-pid` の門と同じ `hayamimi-eval/src/machine.rs` の `cmdline_names_own_port` で行う。そのために machine.rs に `pub fn llama_server_pids(proc_root: &Path, port: u16) -> Result<Vec<u32>, EvalError>` を 1 つ足す。中は今の `is_pid`、`comm_of`、`serves_own_port` を使い、`proc_root` が読めない時だけ `Err` を返す。
+2. **数の扱い**：集めた pid がちょうど 1 つの時だけ `Llama { pid, port }` を返す。0 は `Err` で、port の値と、起こす unit の名前 `hayamimi-llama-e2e.service` を名指す。2 以上も `Err` で、集めた pid を全部名指す。
+3. **数えない物**：ほかの port の server（18081、18083、8080）、語 `--port` の無い server、`comm` か `cmdline` を読めない process は、数えずに飛ばし、`Err` にしない。run の server の `cmdline` が読めない時は 0 件の `Err` になるので、別の server を黙って選ぶことは無い。
+4. **port の値**：`dialog_run.rs` の定数 `LLAMA_PORT: u16 = 18084` とする。窓の unit の port（`rust_port.ja.md` 3.19 の「窓の訳の server」）である。`run_stack` は `find_llama(Path::new("/proc"), LLAMA_PORT)` を呼ぶ。10.9 の IP-2 と IP-7 の行の `<訳の server の port>` は、test で打つ時は 18084 である。
+5. **起こすのは席**：test は訳の server を起こさず、止めない。実走の席が、3.19 の決めの 4 と 5（18084 が空き、GPU の memory、`/health` が `ok`、`/props` と `ExecStart` の記録）で `hayamimi-llama-e2e.service` を起こし、run の後に 3.19 の決めの 7 で止める。3.19 の決めの 4 の 3（18081 を窓の間だけ止める）は、IP-2 と IP-7 の run では打たない。memory が足りない時は run を始めず、読んだ値を添えて評議の席へ出す。
+6. **削る物**：`dialog_run.rs` の `port_of` を消す。`//!` の「the one that runs on the machine is found by its `--port`」と `find_llama` の doc comment は、port 18084 の server を選ぶ文に書き替える。
+
+**理由**は 3 つである。
+1 つめに、port は実走の席が起こした unit と 1 対 1 で決まるので、ほかの server が居ても居なくても、選ぶ process が変わらない。
+2 つめに、test が選んだ pid はそのまま `--own-pid` に渡り、門が同じ `cmdline` を読み直す。今の `port_of` は `018084` を 18084 と読み、`--port` が 2 つ在っても最初の 1 つを読むので、門と読み方が違う。読み方が違うと、test が選んだ server を門が `own_fault: port` で拒み、`hayamimi` が model を読み終えた後（`START_WAIT` は 300 秒）で run が落ちる。同じ関数で比べれば、選べた server は門も通す。
+3 つめに、test に実行時の値を渡す口は、環境変数（`rust_guide_for_agents.md` の環境変数の節で読まない）か file しか無い。18084 は窓の unit の port として既に決まっており、model と引数が窓と同じなので、IP-4 の `L` と `/props` の記録が窓の run と揃う。10.7.1 の「18084 を既定の値にしない」は `stream` の引数の決めで、ここは test が値を明示して渡すので、渡し忘れが黙って通る形にはならない。
+
+**採らない手段**：
+
+- **test が訳の server を自分で起こす**（`hayamimi llama start` か `systemctl --user start`）：3.19 の起こす前の確かめと起こした後の記録を test の中に写すことになり、test が user の systemd の状態を変える。cold の読み込みの時間も test の待ちに入る。
+- **共有の 18081 を止める、`--own-pid` に渡す**：18081 は他の仕事が使っている。`--own-pid` に渡すと、run の CPU の時間に別の仕事の分が混ざり、load の門が引く分を誤る。
+- **2 つ以上の時に新しい pid か大きい port を選ぶ**：どれが run の物かを推して決めるので、外れた時に別の server の CPU の時間を run から引く。
+- **`/health` か `/props` で server を問う**：README は pid を返す項目を書かない。`ss -ltnp` で port から pid を引く形は、10.7.1 と同じ理由（`--proc-root` の fixture に net と fd を組む手間）で採らない。
+- **pid か port を環境変数で渡す**：規約で読まない。
+- **IP-2 の合否の線を弱める**（`stream.machine.refused` を許す、90 行に満たない記録を通す）：線は動かさない。
+
+**実走の前の壊れ方**（T-IP-02-001 と T-IP-07-001）：
+
+- **初めての実行**：18084 の unit の最初の起動は page cache が冷えていて、`/health` が 503 を返す間が長い（3.19 の「走らせる前の壊れ方」）。`ok` を見てから test を打つ。
+- **取り合う資源**：port 8833、8835、8766、18084。GPU の memory（8080、18081、ComfyUI、`hayamimi` の model と同じ GPU）。`/proc/loadavg`。
+- **始めてよい条件と確かめ方**：`ss -ltn` で 8833、8835、8766 が空き、`/health` が `ok`、`tr '\0' ' ' < /proc/<18084 の MainPID>/cmdline` に `--port 18084` が 1 つ在ること。
+- **承認や入力で止まる command**：`sudo -n` は password を訊かずに失敗するので、失敗したら run を打たずに止まる。
 
 ### 10.8 構造
 
@@ -1623,6 +1661,16 @@ case 行の一部は、crate の外の test から届かない物を測るので
 2 つめは、`Solved` から `Final` を作る所が `fallback` を写し、`fallback` の無い `Solved` からは `fallback` の無い `Final` ができることである。
 `Final` を作る所は今の `finalize`（`pipeline.rs:1023-1055`）の中に在り、route が無いと `None` を返す（`:1031`）。IP-S3 は、`Solved` の項目を `Final` へ写す所を、route を要らない関数に分ける。
 
+IP-2 の道具のうち、実走の test が訳の server を選ぶ所（10.7.2）は、次の 3 本で測り、合否に置く。
+どれも `--ignored` なしで通り、port を開かず、`/proc` でなく test が `CARGO_TARGET_TMPDIR` の下に組む proc root の fixture（`<pid>/comm` と NUL 区切りの `<pid>/cmdline`）を読む。
+各本の下の case 行（`T-IP-02-<nnn>`）は test-designer が 4.86 に書く。
+
+| test の名前 | 置き場 | 通る条件 | 陰性の case |
+|---|---|---|---|
+| `the_run_picks_the_llama_server_on_its_own_port_beside_another_one` | `native/hayamimi/tests/ip02.rs` | `comm` が `llama-server` の pid を 2 つ置き、`cmdline` の `--port` の次の語を 18081 と 18084 にすると、`find_llama(<root>, 18084)` が 18084 の pid と port 18084 を返す。18081 の pid を除いた fixture でも同じ pid を返す | 次の行の 4 つの入力 |
+| `a_run_without_exactly_one_llama_server_on_its_own_port_is_refused` | `native/hayamimi/tests/ip02.rs` | 18081 だけの fixture、18084 の語を `018084` と書いた fixture、`--port` を 2 つ持つ fixture、18084 の pid を 2 つ置いた fixture で、`find_llama(<root>, 18084)` が `Err` を返す。0 件の `Err` は `18084` と `hayamimi-llama-e2e.service` を名指し、2 件の `Err` は 2 つの pid を名指す | 前の行の fixture が `Ok` を返すこと（同じ関数の陽性対照） |
+| `only_a_llama_server_naming_the_port_is_listed` | `native/hayamimi-eval/src/machine.rs` の `mod tests`（`proc_with` と `add_cmdline` の fixture） | `llama_server_pids(<root>, 18084)` が、`comm` が `llama-server` で `cmdline` が `--port 18084` の pid だけを返す。`comm` が `hayamimi` で `cmdline` に `--port 18084` を持つ pid と、`cmdline` の無い `llama-server` の pid は返さない | 読めない proc root で `Err` |
+
 ### 10.11 slice（実装の順）
 
 | slice | 中身 | 受入 | 戻し方 |
@@ -1632,6 +1680,7 @@ case 行の一部は、crate の外の test から届かない物を測るので
 | IP-S2 | 頁が `?relay=` の流れも読む（`hayamimi-ui/src/route.rs` の読む関数、`web.rs` と `app.rs`。中継の流れは接続の印を書かない。10.5）。IP-5 の偽の訳の server を作る（下の 4）。言語で段を分ける頁の板を designer の席へ同時に出す。IP-S1 と別の crate なので並べて出せ、IP-S3 より先に入ってよい | 合否：`?relay=` の読みと dump を数える道具の case 行。IP-5 の実走の判定は IP-S4 で出す | commit を revert |
 | IP-S3 | 今の main の上で始める（下の 2）。`--mode pair`（`router.rs` の `Policy::pair`、`route/transcribe.rs` の `resolve_language`、`correct_by_script` と `Transcript` の `fallback`、`pipeline.rs` の `Solved` と `Final` と、`Solved` を `Final` へ写す関数（10.10）、`args.rs` の `mode_of` と `policy`、`strings.*.toml` の 4 行、`log.rs` の `asr.lang.fallback`）。`route/draft.rs` は触らない（10.4）。`Final` の literal を作る 5 か所（`hayamimi/src/log.rs:543`、`session.rs:527`、`wire.rs:165`、`tests/r8a_relay.rs:65`、`tests/rp12.rs:159`）は field を 1 つ足す。同じ commit で、`hayamimi-relay/src/line.rs:53-56` の doc comment と 3.3 の表の `source` の行に、`file` は対面の 1 本のマイクの行も含むと書く | 合否：IP-3、IP-2（記録の完全さ）、IP-1 の通し直し（陰性対照の `mic` の en の行が `translate.line.skipped` は残す）。記録：IP-2 の取り違えの数、IP-4、IP-7 | commit を revert。`--mode fast` に戻せば IP-S0 の形 |
 | IP-S4 | IP-5 を行ごとの判定にする（10.9.3。`ip05.rs` の窓を行 7 から 10 に、件数の比べを `cells_of` の割り当てと 3 つの判定に、`tr` を `row` の中だけ、訳を `of: final` だけで数える形に替える）。`asr.segment.unread` を足す（10.9.4。`pipeline.rs` の `solve` の 2 つの空と、`hayamimi/src/log.rs`）。IP-2 の記録の関数（`support/dialog.rs`）に 10.9.2 の 6 と `asr.segment.unread` の数を足す。触る crate は `hayamimi-asr` と `hayamimi` | 合否：IP-5、IP-9、IP-2 の記録の完全さの通し直し。記録：IP-2 の区間の無い発話と `asr.segment.unread` の数 | commit を revert |
+| IP-S5 | 実走の test が訳の server を port で選ぶ（10.7.2）。`hayamimi-eval/src/machine.rs` に `llama_server_pids` を足す（中は今の `cmdline_names_own_port`、`serves_own_port`、`is_pid`、`comm_of`）。`hayamimi/tests/support/dialog_run.rs` の `find_llama` に `proc_root` と `port` を受けさせ、定数 `LLAMA_PORT`（18084）を足し、`port_of` を消し、`//!` と doc comment を書き替える。`ip02.rs` と `machine.rs` の `mod tests` に 10.10 の 3 本を足す。触る crate は `hayamimi-eval`（src）と `hayamimi`（test だけ）。製品の振る舞いは変えない | 合否：10.10 の 3 本と、`ip08` と `rp83` の通し直し（`machine.rs` を触るため）。その後、書いていない実走の席が 10.7.2 の 5 の手順で 18084 の unit を起こし、18081 を止めずに T-IP-02-001 と T-IP-07-001 を `-- --ignored` で打つ | commit を revert |
 
 slice の条件は次の 4 つである。
 
@@ -1679,6 +1728,8 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H43** VAD が区間を作らない声（silero の確率が 0.5 を超える塊が 0.25 秒に届かない叫びや短い感嘆。`lat-dialog` の行 3 の `ja_02`）は、訳にも log にもならない。閾値を全体で下げる形は採らない（10.9.3）。声と見なす線を動かすかは、別の受入 ID で、`eval_real` の全 clip と `lat-dialog` の切れ目への影響を測ってから決める。量は IP-2 の記録の区間の無い発話（10.9.2 の 6）で数える（NOT VERIFIED。今の数は 10.9.4 の event が無い run から出た物）。
 - **H44** IP-5 の窓（行 7 から 10）は、IP-2 の pair の記録の判定なしの発話と取り違えた発話の一覧から決めた。その一覧のうち取り違えた発話は、手で組んだ式で数えた物で、10.9.2 の関数で数え直していない（NOT VERIFIED）。数え直すのは IP-2 の記録の席で、一覧が変わって窓に掛かれば、同じ commit で 10.9 の IP-5 の行と 10.9.3 の 1 と T-IP-05-001 の行番号を直す。
 - **H45** IP-2 の実走の記録（`docs/results/in-person/ip02.md`。main の外の branch `run/ip2-ip5` に在る）の「記録だけの数」の表は、手で組んだ式で数えた。`.jsonl` の `finals` で数え直すと、pair と fast のどちらも、どの repeat にも `final` の無い発話は行 3 の 1 つ、`final` の無い repeat は 3、`finals` が 2 以上の発話は 8（行 4、11、12、19、22、23、25、30）になる。取り違えた発話、向き、`other` の数は、`record_dialog_run` を残った file に当てて数え直す（NOT VERIFIED）。直すのは IP-2 の記録の席で、その branch を main へ入れる前に、表の値を関数の出力に置き換える。
+- **H46** 18081 を止めずに 18084 の unit と `hayamimi` の model を同じ GPU に載せた時、3.19 の決めの 4 の 2 の線（14,000 MiB）に収まるかは、この文書では測っていない。18084 の server で手で打った IP-2 の run が pair と fast の両方で 90 行、`stream.machine.refused` 0 件だったことは、run の席の申告の転記である（NOT VERIFIED）。IP-S5 の後の実走の席が、起こした後の `nvidia-smi` の値を `.llm-server.txt` に残し、線を超えれば run を始めずに評議の席へ出す。
+- **H47** `find_llama` は `comm` と `cmdline` の port だけで選ぶので、`hayamimi-llama-e2e.service` の外の手で 18084 に起こした別の model の server も選ぶ（ASSUMPTION：18084 を使うのは窓の unit だけ）。model を選びの条件にしない（外の者が更新する file の名を門にしない）。実走の席が 10.7.2 の 5 で残す `/props` の `model_path` と unit の `ExecStart` を照らして見分ける。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
