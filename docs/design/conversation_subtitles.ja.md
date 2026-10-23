@@ -1747,6 +1747,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **質の手**（B3）：拾えない声、final の無い繰り返し、SenseVoice の印への落ち、取り違え、IP-4 の結べない clip、同じ session への 2 回目の run、頁の清書の欄の重なり、頁の Listening の欄に残る速報を、仮説と確かめる test の組で並べる。
 - **別の PC のブラウザから音を送る頁**（B4）：Dioxus の頁 `/send` が、マイクか、tab と画面の音を `/ingest` へ送る。HTTPS、合言葉、LAN の外を断る形で作る。
 - **頁の 3 つの枠**（B6）：`/dashboard` を、既定で上の左に英語（日本語の外の言語）で話された行、上の右に日本語で話された行、下に 2 つにまたがる清書の欄の 3 つに分け、左右を 1 回の操作で入れ替えられ、枠の境目を drag と key で動かせるようにする（10.13.11）。
+- **会話の 2 つの言語の組**（B7）：今の `ja` と `en` の決め打ちを、起動の旗と頁の上の両方で選び直せる 2 つの言語の組にする。認識器、言語の判定、訳の向き、頁の左右と字体の設定は、どれも選んだ組から決まる（10.13.12）。
 
 作らない物は次の 3 つである。
 
@@ -1779,15 +1780,20 @@ jq -s -c '[.[]|select(.t_final_us!=null and .final_latency_ms!=null)
 ```
 
 p50 と p95 は nearest-rank（`ceil(0.5n)` 番目と `ceil(0.95n)` 番目）で取った。
-陽性対照は、同じ式の `n` が IP-4 の記録の `L_asr` の n（78）と一致することである。
+陽性対照は、同じ式の全標本の `n` が IP-4 の記録の `L_asr` の n（78）と一致することである。
+「温まった標本」の行は、10.13.3 の冷えた標本（process の `session_start` の後の、`ja` と `en` のそれぞれで最初の閉じる `final` を持つ発話）を外した値で、BR-1 と BR-3 が数える値はこちらである。
+pair の run では repeat 1 の行 1（ja）と行 2（en）、`--lang` の run では最初に閉じる `final` を持つ 1 件を外した（式は上の式の前に `select((.repeat==1 and (.utt==1 or .utt==2))|not)`、`--lang` の run は `.[1:]` を足した）。
 
-| run | n | 終わりの待ち `d` p50 / p95 | 復号 `L_dec` p50 / p95 | 草稿の訳 `L_tr` p50 / p95 |
-|---|---|---|---|---|
-| `ip02_pair`（pair） | 78 | 445 / 1081 ms | 268 / 483 ms | 233 / 363 ms |
-| `ip04_lang_ja`（`--lang ja`） | 58 | 661 / 1000 ms | 103 / 197 ms | 54 / 440 ms |
-| `ip04_lang_en`（`--lang en`） | 44 | 281 / 693 ms | 245 / 388 ms | 3 / 295 ms |
+| run | 標本 | n | 終わりの待ち `d` p50 / p95 | 復号 `L_dec` p50 / p95 | 草稿の訳 `L_tr` p50 / p95 |
+|---|---|---|---|---|---|
+| `ip02_pair`（pair） | 全標本 | 78 | 445 / 1081 ms | 268 / 483 ms | 233 / 363 ms |
+| `ip02_pair`（pair） | 温まった標本 | 76 | 445 / 1081 ms | 268 / 472 ms | 221 / 363 ms |
+| `ip04_lang_ja`（`--lang ja`） | 全標本 | 58 | 661 / 1000 ms | 103 / 197 ms | 54 / 440 ms |
+| `ip04_lang_ja`（`--lang ja`） | 温まった標本 | 57 | 681 / 1000 ms | 103 / 197 ms | 33 / 412 ms |
+| `ip04_lang_en`（`--lang en`） | 全標本 | 44 | 281 / 693 ms | 245 / 388 ms | 3 / 295 ms |
+| `ip04_lang_en`（`--lang en`） | 温まった標本 | 43 | 281 / 693 ms | 245 / 388 ms | 5 / 295 ms |
 
-同じ pair の run の `L` は p50 1016 ms、p95 1595 ms である（`docs/results/in-person/ip04.md`）。
+同じ pair の run の `L` は、全標本で p50 1016 ms、p95 1595 ms（`docs/results/in-person/ip04.md`）、温まった標本で p50 1015 ms、p95 1593 ms である。
 p95 で最も大きい段は終わりの待ちで、p50 で pair と `--lang` の差が最も大きい段は草稿の訳である。
 `--lang` の run の草稿の訳が短いのは、最後の速報の文が確定文と同じになり、速報の訳をそのまま確定文の訳に使い回すからである（`rust_port.ja.md` 3.1 の `t_tr` の条件と `partial::reuse_match`）。
 pair の run では、速報の `src_lang` と認識器の tier を直前の確定文から取る（3.3、10.4）。
@@ -1830,11 +1836,11 @@ localhost の WebSocket の 1 段は数 ms で、`t_close` を後ろへ寄せる
 
 段は次の 5 つである。
 
-| 段 | 長さ | 今の値 p50 / p95（10.13.2 の pair の run） | 予算 p50 / p95 |
+| 段 | 長さ | 今の値 p50 / p95（10.13.2 の pair の run の温まった標本 76 件） | 予算 p50 / p95 |
 |---|---|---|---|
 | 終わりの待ち | `d = t_close − t_end` | 445 / 1081 ms | 300 / 600 ms |
-| 復号 | `L_dec = t_final − t_close` | 268 / 483 ms | 270 / 480 ms |
-| 草稿の訳 | `L_tr = t_tr − t_final` | 233 / 363 ms | 100 / 300 ms |
+| 復号 | `L_dec = t_final − t_close` | 268 / 472 ms | 270 / 480 ms |
+| 草稿の訳 | `L_tr = t_tr − t_final` | 221 / 363 ms | 100 / 300 ms |
 | 頁 | `L_pg = p_draw − p_arrive`（`t_tr` の訳について） | 測っていない | 50 / 100 ms |
 | 確定の訳 | `L_e = t_settled − t_tr` | git の外の 4 行の記録だけ（263〜1791 ms） | 記録だけ |
 
@@ -1846,7 +1852,7 @@ localhost の WebSocket の 1 段は数 ms で、`t_close` を後ろへ寄せる
 予算の理由は段ごとに 1 つである。
 終わりの待ちの p50 300 ms は `--min-silence` の 0.30 秒の 1 回分で、`--lang en` の run が 281 ms で届いている。
 復号は今の値のまま置く。pair では判定（`lid_ms` p50 91 ms、p95 165 ms。IP-4 の記録）が復号の前に直列に入り、B2 の最初の段はこれを外さないからである。
-草稿の訳の p50 100 ms は、`--lang` の 2 本が使い回しで 54 ms と 3 ms に届いていることから置く。
+草稿の訳の p50 100 ms は、`--lang` の 2 本の温まった標本が使い回しで 33 ms と 5 ms に届いていることから置く。
 主指標の p50 750 ms は、予算の p50 の和 720 ms（300 + 270 + 100 + 50）に余白 30 ms を足した値である。
 p95 は和にならないので、3.1 の RP-67 の線（`L` の p95 1600 ms）より 300 ms 速い 1300 ms を置く。
 
@@ -1854,8 +1860,8 @@ p95 は和にならないので、3.1 の RP-67 の線（`L` の p95 1600 ms）�
 確定の訳の線は、相手へ送る物（3.10）と頁の最後の文の速さとして別に持つ。
 
 **温まる前の発話**の扱いは次のとおりである。
-process が `session_start` を出してから、`ja` と `en` のそれぞれで最初の閉じる `final` を持つ発話を「冷えた標本」とする。
-冷えた標本は p50 と p95 に入れず、別の列に 1 run あたり多くて 2 件を書き、その最大に `L_page` 2500 ms 以下の線を置く。
+process が `session_start` を出してから、閉じる `final` の `lang` ごとに、その言語で最初の閉じる `final` を持つ発話を「冷えた標本」とする（言語の数え方は 10.13.13 の 23）。
+冷えた標本は p50 と p95 に入れず、別の列に 1 run あたり現れた言語の数だけ（pair で `ja` と `en` だけなら 2 件）を書き、その最大に `L_page` 2500 ms 以下の線を置く。
 分けるのは、冷えた標本の遅れの原因（10.13.5 の H49）が温まった後の段と別で、混ぜると p95 が 1 run の 1 件で決まるからである。
 `stream --repeat 3` の 2 回目と 3 回目は同じ process に流すので冷えた標本を持たない。
 
@@ -1870,7 +1876,7 @@ B2 の段を入れても線に届かない時は、届かない段と量を記�
 
 | 順 | 手 | 縮める段と見積り | 戻し方 | 採るか |
 |---|---|---|---|---|
-| 1 | **速報の言語を発話の途中で決める**（pair だけ）。区間の声が 2.0 秒に達した時に、それまでの声を whisper-tiny で 1 回判定し、答えが `ja` か `en` なら、その発話の残りの速報をその言語の tier で読み、速報の訳の `src_lang` もその言語にする。答えが 2 つの外か 2.0 秒に届かない発話は今のまま。確定の側の判定（10.4）は変えずに閉じた区間の全部で 1 回掛ける | 草稿の訳：使い回しが起きれば `--lang` の run と同じく p50 233 → 100 ms 以下。速報の誤った向きの訳が消え、llama-server の slot の取り合いも減る | `--partial-lid off` で今の形 | 最初の段に採る（IP-S7） |
+| 1 | **速報の言語を発話の途中で決める**（pair だけ）。区間の声が 2.0 秒に達した時に、それまでの声を whisper-tiny で 1 回判定し、答えが `ja` か `en` なら、その発話の残りの速報をその言語の tier で読み、速報の訳の `src_lang` もその言語にする。答えが 2 つの外か 2.0 秒に届かない発話は今のまま。確定の側の判定（10.4）は変えずに閉じた区間の全部で 1 回掛ける | 草稿の訳：使い回しが起きれば `--lang` の run と同じく p50 221 → 100 ms 以下（温まった標本）。速報の誤った向きの訳が消え、llama-server の slot の取り合いも減る | `--partial-lid off` で今の形 | 最初の段に採る（IP-S7） |
 | 2 | **確定文の訳を速報の訳の後ろに並べない**。同じ lane で `final` の T か E が待っている間は、その lane の速報の訳を頼まない。`final` が着いた時に、同じ lane の速報の訳の依頼が終わっていなければ、その答えを使わずに捨てる | 草稿の訳と確定の訳の p95（4 slot が重なった 1 件の 1142 ms の型） | `--partial-yield off` で今の形 | 採る（IP-S8） |
 | 3 | **終わりの待ちの内訳を測る**。区間を閉じた時に、受けた sample と VAD に渡した sample の差（遅れ）と、無音の規則（`silence` か `early`）を log に出す | 縮めない。手 4 と 5 を選ぶ材料 | log の 1 行で、戻す物は無い | 採る（IP-S6） |
 | 4 | **VAD の後ろに並ぶ速報の復号を外す**。手 3 で遅れが在れば、速報の復号を VAD に sample を渡す流れから外し、遅れている時は速報の復号を飛ばす | 終わりの待ち。冷えた標本の 2411 ms の型（H49）が当たれば p95 に効く | 前の build に戻す | 手 3 の記録で遅れが p95 100 ms を超えた時に、評議の席が採るかを決める |
@@ -1880,7 +1886,7 @@ B2 の段を入れても線に届かない時は、届かない段と量を記�
 | 8 | 閉じた区間の判定を外し、手 1 の途中の答えをそのまま確定文の言語にする | 復号 p50 で約 90 ms | 前の build に戻す | 採らない。whisper-tiny は短い声で外れが多く（`docs/eval/lid.md` の表 1。clean の 1.0 秒で ja 33%）、取り違えは逆の向きの訳になって相手に届く |
 
 手 1 を最初に採る理由は 3 つである。
-1 つめに、pair と `--lang` の差の中で、仕組みが file:line で説明でき（10.13.2）、縮む量が実測の対（54 ms と 3 ms）で裏づけられた段はこれだけである。
+1 つめに、pair と `--lang` の差の中で、仕組みが file:line で説明でき（10.13.2）、縮む量が実測の対（温まった標本で 33 ms と 5 ms）で裏づけられた段はこれだけである。
 2 つめに、確定文の言語の決め方を変えないので、IP-2 と IP-3 の判定の答えが変わらない。
 3 つめに、話し手が替わった直後に相手の言語の認識器で読んだ速報（`What I'm still got down` のような崩れた文）と、その逆の向きの訳が、頁の Listening の欄と速報の訳から消える。
 
@@ -1965,15 +1971,15 @@ p95 は nearest-rank とする。
 
 | ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
 |---|---|---|---|---|---|
-| BR-1 | 段ごとの遅れの記録（合否は道具の正しさ） | `cargo test --release -p hayamimi-eval --test br01` | 手で組んだ 2 発話の `.jsonl` と `.events.jsonl`（`session_start` を 9 秒の所に置く）から、記録の関数が発話ごとに `d`、`L_dec`、`L_tr`、`L_e` を ms で返し、`ja` と `en` の最初の閉じる `final` を冷えた標本として別の列に分け、温まった標本の p50 と p95 を予算と比べて「線の内」「線の外」を段ごとに書く | 同じ入力で `d + L_dec + L_tr` が 3.1 の `L` と ms まで一致する | 閉じる `final` の無い発話は段の値を持たず、数に入らない。予算を 1 ms 超えた合成の段は「線の外」 |
+| BR-1 | 段ごとの遅れの記録（合否は道具の正しさ） | `cargo test --release -p hayamimi-eval --test br01` | 手で組んだ 3 発話（ja、en、ja）の `.jsonl` と `.events.jsonl`（`session_start` を 9 秒の所に置く）から、記録の関数が発話ごとに `d`、`L_dec`、`L_tr`、`L_e` を ms（10.13.13 の丸め）で返し、`ja` と `en` の最初の閉じる `final`（行 1 と行 2）を冷えた標本として別の列に分け、温まった標本（行 3）の p50 と p95 を予算と比べて「線の内」「線の外」を段ごとに書く | 同じ入力で `d + L_dec + L_tr` が 3.1 の `L` と ms まで一致する | 閉じる `final` の無い発話は段の値を持たず、数に入らない。予算を 1 ms 超えた合成の段は「線の外」。冷えた標本の 2 発話だけの記録では、温まった標本の p50 と p95 を出さず、記録に「温まった標本 0」と書き、判定の関数が `Err` を返す |
 | BR-2 | 頁の段 `L_pg` を頁の時計で測る | `cargo test --release -p hayamimi --test br02 -- --ignored` が、`<hy> --input ws --mode pair --source file --serve <port>`、偽の訳の server（`fake_llama_server -m translates.gguf`）、`<relay> live` を起こし、`chrome-headless-shell` で `/dashboard?relay=…` を開いて DevTools の `Runtime.evaluate` で測りの script を入れ、`lat-dialog` の行 7〜10 を流す | 4 行の `t_tr` の訳のそれぞれに `p_arrive` と `p_draw` が 1 つずつ在り、`L_pg` が 0 以上で、記録に p50 と p95 が書かれる | 測りの script が、同じ頁の `tr` の数（IP-5 の数え方）と同じ数の `p_draw` を持つ | `?relay=` の無い頁では `p_draw` が 0 件で、記録の関数が `Err` を返す |
-| BR-3 | 予算の線（磨き上げの完成の合否） | `cargo test --release -p hayamimi --test br03 -- --ignored` が、10.7.2 の 18084 の本物の訳の server で `lat-dialog` を `--repeat 3` で流し、BR-1 と BR-2 の関数を当てる | 温まった標本で `L_page` の p50 750 ms 以下、p95 1300 ms 以下、`L_settled_page` の p50 1100 ms 以下、p95 1700 ms 以下。冷えた標本の最大が `L_page` 2500 ms 以下。段ごとの予算の内外も記録する | 同じ test の関数が、IP-4 の pair の run（`docs/results/in-person/ip02_pair.jsonl`）から 10.13.2 の表と同じ `d`、`L_dec`、`L_tr` の p50 と p95 を出す | 予算の線を 1 ms 超えた合成の記録で、判定の関数が `Err` を返す |
+| BR-3 | 予算の線（磨き上げの完成の合否） | `cargo test --release -p hayamimi --test br03 -- --ignored` が、10.7.2 の 18084 の本物の訳の server で `lat-dialog` を `--repeat 3` で流し、BR-1 と BR-2 の関数を当てる | 温まった標本で `L_page` の p50 750 ms 以下、p95 1300 ms 以下、`L_settled_page` の p50 1100 ms 以下、p95 1700 ms 以下。冷えた標本の最大が `L_page` 2500 ms 以下。段ごとの予算の内外も記録する | 同じ test の関数が、IP-4 の pair の run（`docs/results/in-person/ip02_pair.jsonl`）から、10.13.2 の表の pair の「温まった標本」の行（n 76）と同じ `d`、`L_dec`、`L_tr` の p50 と p95 を出し、冷えた標本の列に repeat 1 の行 1 と行 2 の 2 件を出す | 予算の線を 1 ms 超えた合成の記録で、判定の関数が `Err` を返す |
 | BR-4 | pair の速報が途中の判定の言語で読まれ、訳される | `cargo test --release -p hayamimi-asr --test br04` と、BR-3 と同じ run の記録 | 偽の判定器が 2.0 秒の時点で `en` を返す区間では、直前の確定文が `ja` でも、2.0 秒より後の速報が `en` の tier で読まれ、速報の訳の `src_lang` が `en` になる。確定文の言語の決め方（10.4）は呼ばれる回数も答えも変わらない。run の記録で、pair の `L_tr` の p50 が 100 ms 以下 | `--partial-lid off` で同じ入力を流すと、2.0 秒より後の速報も `ja` の tier で読まれる（今の形） | 2.0 秒に届かない区間と、判定器が `zh` を返す区間では、速報の tier も `src_lang` も直前の確定文の物のまま。IP-3 の test がそのまま通る |
 | BR-5 | 確定文の訳が速報の訳の後ろに並ばない | `cargo test --release -p hayamimi-relay --test br05` | 偽の訳の答え手（`FakeLlm`）が同時に受けた依頼を数える。同じ lane で `final` の T か E が待っている間に着いた速報の依頼は 0 件。`final` が着いた時に終わっていない速報の訳は、`translation` として出ない | 速報だけを流すと、速報の訳が今のとおり出る | `--partial-yield off` では、`final` の T の待ちの間に速報の依頼が 1 件以上届く |
 | BR-6 | 区間を閉じた時の遅れが log に 1 行残る | `cargo test --release -p hayamimi --lib log::tests::br06` | 区間を閉じるごとに `asr.vad.closed` が 1 件出る。項目は `id`、`lag_ms`（受けた sample と VAD に渡した sample の差を ms にした値）、`rule`（`silence` か `early` か `max_speech`）の 3 つで、level は `info` | 合成の区間 1 つで 1 件 | `final` にならなかった区間（10.9.4）にも 1 件出し、`id` は `null` |
 | BR-7 | E の n-gram の下書きの効き（記録） | `cargo test --release -p hayamimi-relay --test br07 -- --ignored` が、`--spec-type ngram-simple` の有無で起こした 2 本の 18084 に調整用の 40 行（3.5）を温度 0 で通す | 記録だけ：E の段の p50 と p95 を 2 本で並べ、確定の文が 40 行で一致した数を書く | 同じ旗の無い server を 2 回通すと、確定の文が 40 行とも一致する | 記録の関数が、文が 1 行違う合成の組で「一致 39」と書く |
 | BR-8 | 短い声と叫びが区間になるか（記録） | `cargo test --release -p hayamimi-asr --test br08 -- --ignored` が、`MIN_SPEECH_SECONDS` 0.25、0.15、0.10 と閾値 0.5、0.4 の組で、`eval_real` の全 clip、`lat-dialog`、`lat-short` を VAD に通す | 記録だけ：組ごとに、区間の数、区間の無い発話の一覧、隣の発話を飲んだ区間の数を書く | 今の組（0.25、0.5）で `lat-dialog` の行 3 と `lat-short` の行 1、5、7、14 が区間の無い発話に入る | 1 発話を 2 つの区間に分けた合成の音声で、飲み込みの数が 0 |
-| BR-9 | IP-7 の final の無い繰り返しと `sv_tag` の内訳（記録） | `cargo test --release -p hayamimi --test br09 -- --ignored` が、IP-7 の残った file（`docs/results/in-person/ip07_pair.*`）に記録の関数を当てる | 記録だけ：final の無い繰り返しを、区間が無い、空に読んだ、窓の外に割り当たった、の 3 つに分けて数え、和が 16。`sv_tag` の 14 件の発話ごとの `L_asr` と、同じ発話の `lid` の答えを書く | 3 つの和が `repeats with no final` の値と一致する | 和が合わない合成の記録で `Err` |
+| BR-9 | IP-7 の final の無い繰り返しと `sv_tag` の内訳（記録） | `cargo test --release -p hayamimi --test br09 -- --ignored` が、IP-7 の残った file（`docs/results/in-person/ip07_pair.*`）に記録の関数を当てる | 記録だけ：final の無い繰り返しを、窓の外に割り当たった、空に読んだ、区間が無い、の 3 つに、10.13.13 の 21 の順で分けて数え、和が 16。`sv_tag` の 14 件の発話ごとの `L_asr` と、同じ発話の `lid` の答えを書く | 3 つの和が `repeats with no final` の値と一致する | 和が合わない合成の記録で `Err` |
 | BR-10 | 取り違えた発話を、2 つの判定器の答えつきで名指す（記録） | `cargo test --release -p hayamimi --test br10 -- --ignored` が、IP-2 と IP-7 の残った file に当てる | 記録だけ：取り違えた発話ごとに、manifest の `lang`、whisper-tiny の答え、SenseVoice の印（在れば）、10.4 の `step`、声の長さを書く | IP-2 の fast と IP-7 の pair で、記録の取り違えの数（1 と 1）と同じ数の行が出る | 取り違えの無い合成の記録で 0 行 |
 | BR-11 | IP-4 の結べない clip に理由が付く | `cargo test --release -p hayamimi-eval --test br11` | 手で組んだ記録で、閉じる `final` を持たない clip を `no_final`（`finals` 0）と `closed_before_end`（`finals` 1 以上で、最後の `final` が `t_end` より前）に分けて名指す。IP-4 の pair の run に当てると、行 3 が `no_final`、行 9、19、21 が `closed_before_end` | 30 clip のうち結べた 26 と名指した 4 の和が 30 | 理由の無い clip が 1 つでも残る記録で `Err` |
 | BR-12 | IP-4 の線の外の clip の道を名指す（記録） | `cargo test --release -p hayamimi-eval --test br12 -- --ignored` が IP-4 の 3 本の run と log に当てる | 記録だけ：差の大きい順に clip を並べ、各 clip に `asr.lang.fallback` の `step`、`correct_by_script` の読み直しの有無、`lid_ms` を付ける | 差の p95 が IP-4 の記録と同じ 381 ms で出る | 道の印を持たない合成の clip は「印なし」と書かれる |
@@ -1984,7 +1990,7 @@ p95 は nearest-rank とする。
 | BR-17 | `/send` は TLS でだけ配られる | `cargo test --release -p hayamimi --test br17` | `--send-page` と cert と鍵を渡すと `https` の `GET /send` が 200。`--send-page` が無いと `/send` は 404。cert か鍵の file が無いと起動が止まり、exit code が 0 でない | 同じ test が `https` の `GET /dashboard` も 200 と読む | `--send-page` に cert を渡さない起動は止まり、平文の listener を開かない |
 | BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
 
-完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 である。
+完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 と BR-32〜BR-34 と、10.13.12 の BR-26〜BR-31 である。
 BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 は記録だけで、その数を出す道具が既知の入力を正しく数えることだけを合否に置く。
 BR-3 は B2 の段を全部 入れた後に合否を出す。
 
@@ -2028,13 +2034,17 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S9 | E の n-gram の下書きの記録。旗は run の 18084 だけに当て、18081 は触らない。続けて BR-3 の合否を出す | 合否：BR-3。記録：BR-7 | 18084 を旗なしで起こし直す |
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
 | IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
-| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ（10.13.11。`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、IP-5 の通し直し | 前の build に戻す。commit を revert |
+| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ、明るい表示と暗い表示の switch（10.13.11。`css.rs` の `TOKENS` を 2 つの組に分ける、表示を読む純関数、`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、BR-32、BR-33、BR-34、IP-5 の通し直し | 前の build に戻す。commit を revert |
 | IP-S13 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
+| IP-S14 | 会話の 2 つの言語の組を選べるようにする、言語の側の土台（10.13.12。`hayamimi` の `--pair`、`langs` の event と `/langs`、`/config` の `pair`。`hayamimi-asr` の `Policy::pair` の候補と 10.4 の落ち先の一般化。中継の `Lang` の一般化、`Source::translates`、訳の model の言語の表と `/langs`） | 合否：BR-26、BR-27、BR-28、BR-29、IP-1、IP-2（記録の完全さ）、IP-3 の通し直し | `--pair` を付けない起動は今と同じ（`en,ja`）。commit を revert |
+| IP-S15 | 頁が言語の組に従う（10.13.12。頁の言語を選ぶ口、B6 の側と字体と大きさの設定を言語の code の鍵へ移す、組を変えた所の区切りの行） | 合否：BR-30、BR-31、BR-19〜BR-25 の通し直し | 前の build に戻す。commit を revert |
 
 IP-S6 を最初に置くのは、段ごとの値が無いと、IP-S7 と IP-S8 の効き目を前後の差で言えないからである。
 IP-S10 と IP-S11 は IP-S7 と別の crate か test だけを触るので、IP-S6 の後に並べて出してよい。
 IP-S12 は IP-S10 と同じ `hayamimi-ui` を触るので、IP-S10 の後に 1 本ずつ出す。
 IP-S13 は安全の境界を変えるので、判定を得るまで始めない。
+IP-S14 は `hayamimi-asr`、`hayamimi`、`hayamimi-relay` の 3 つを触り、IP-S7 と IP-S8 と同じ所（速報の言語、lane）を動かすので、IP-S8 の後に出す。
+IP-S15 は IP-S12 の画面の上に載るので、IP-S12 と IP-S14 の後に出す。
 
 #### 10.13.10 残る穴
 
@@ -2050,11 +2060,11 @@ IP-S13 は安全の境界を変えるので、判定を得るまで始めない�
 - **H55** llama-server は client が接続を切った時に依頼を止めるかを README に書かない。手 2 の「終わっていない速報の訳を捨てる」は、答えを使わないだけで、server の slot は答えを作り終えるまで埋まる前提で書いた（ASSUMPTION）。BR-5 の偽の答え手は同時の依頼の数を数えるので、本物の server の slot の埋まりは BR-3 の llama-server の log で数える。
 - **H56** 18084 の llama-server の log は Flash Attention を切って動くと書く。`-fa on` が CAT-Translate-3.3b の Q8_0 で効くか、効いた時に prompt の読みと 1 token の生成が縮むかは確かめていない（NOT VERIFIED）。BR-7 と同じ run の形で、旗の組を 1 つずつ記録に足す。
 - **H57** Q-h（清書の欄の重なり）の 2 つの道（同じ `id` の清書が 2 回届く道と、繋ぎ直しの流し直しの道）のどちらが今回の 8 件を作ったかは、頁の event の記録が無く特定していない。BR-14 の実走で、頁に届いた清書の `id` と話者を記録する。
-- **H58** Q-g の 2 つの直し（道具が起点を置き直す形と、`hayamimi` が接続ごとに `session_start` を出す形）は、`final` の `t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）に掛かる。`hayamimi` の側を直す形は、3.3 の表と `rust_port.ja.md` の RP-12 の consumer を数えてから評議の席が決める。
+- **H58** Q-g の直しは 10.13.13 の 10 で、`ready` に `stream_s` を足して接続の時を起点にする形に決めた。`t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）は変えない。`ready` の frame を読む consumer（`hayamimi-eval` の `stream`、スマホと ESP32 の client）が知らない key を捨てるかは、`ready` を読む所を数えて確かめていない（NOT VERIFIED）。IP-S6 の実装の席が `rg -n '"ready"' native mobile` で数え、捨てない consumer が在れば評議の席へ出す。
 - **H59** 10.13.11 の行の配置は、相手の行と自分の行が左右に分かれて互い違いに並ぶ形で、片側の行が続くと反対の側に空きが出る。空きの量と読みやすさは、designer の席の板と、IP-S12 の後に人が開いた頁で確かめる（NOT VERIFIED）。
-- **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きと字体の設定を持つ。
+- **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きと字体の設定を持つ。1 つにそろえる口は作らない。
 - **H61** 字体の file の path を `hayamimi` に渡す口は、今は重ね窓の設定（3.12）にしか無く、`hayamimi` の頁の server が同じ file を読む設定の形は IP-S12 の実装の席が 3.12 の設定 file に揃えて決める。`/fonts/<id>` で LAN の端末へ配ることが cinecaption の配布条件（無料、改造禁止、再配布自由。S6 の転記）と UDEV Gothic の OFL 1.1 に収まるかは、原文の条件を読んで確かめていない（NOT VERIFIED）。収まらないと分かれば、その字体を一覧の `/fonts` から外し、端末に入っている時だけ名前で使う。
-- **H62** `yu-gothic`、`meiryo`、`yu-mincho` は Windows の字体で、電話や mac の端末には無いことが多い。その端末では並びの次の字体で描かれ、選んだ字体と違う字体が出る（BR-24 は computed の `font-family` の宣言を測り、実際に描いた字体は測らない）。描いた字体を測る形（DevTools の `CSS.getPlatformFontsForNode`）を BR-24 の case 行に足すかは test-designer の席が決める。1 つにそろえる口は作らない。
+- **H62** `yu-gothic`、`meiryo`、`yu-mincho` は Windows の字体で、電話や mac の端末には無いことが多い。その端末では並びの次の字体で描かれ、選んだ字体と違う字体が出る（BR-24 は computed の `font-family` の宣言を測り、実際に描いた字体は測らない）。描いた字体を測る形（DevTools の `CSS.getPlatformFontsForNode`）を BR-24 の case 行に足すかは test-designer の席が決める。
 
 #### 10.13.11 B6 頁の 3 つの枠と境目
 
@@ -2140,6 +2150,30 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 - 頁全体を拡大する（ブラウザの zoom と同じ形）：枠の境目の最小の大きさ（px）と食い違い、見出しまで大きくなる。
 - 両方の側に 1 つの設定：3.12 が日本語と英語で別の字体を使う形と揃わない。
 
+**明るい表示と暗い表示**（B8）：頁の上の 1 つの toggle switch で、明るい表示（通常）と暗い表示を切り替える。
+今の頁の色は暗い表示の 1 組だけで、`css.rs` の `TOKENS`（`:13-23`）の `:root` の変数に在る。
+対象は `TOKENS` を持つ `/dashboard` と `/transcript` で、OBS の字幕頁（`/`、背景は透明。`css.rs` の `BASE`）と重ね窓（`hayamimi-overlay`、11）は対象の外とする。
+どちらも映像や別の app の上に重ねる面で、背景を持たないからである。
+
+| 決め事 | 内容 |
+|---|---|
+| 色の持ち方 | 色はすべて token（`:root` の変数）で持つ。今の `:root` の組を暗い表示の組とし、`html` 要素の `data-theme` が `dark` の時に効く。明るい表示の組は `data-theme` が `light` の時に効く。規則の側（`.row-text` ほか）は token の名だけを読み、色の値を直に書かない |
+| 2 つの組の主な token | 暗い表示：`--ink` `#0d0f13`、`--ink-2` `#14171d`、`--paper` `#ece5d8`、`--paper-dim` `#b0a898`、`--paper-faint` `#8a8473`（今の値）。明るい表示：`--ink` `#f7f4ee`、`--ink-2` `#ece7dd`、`--paper` `#1a1c21`、`--paper-dim` `#4a4d55`、`--paper-faint` `#62656d`。`--line`、`--line-soft`、言語の色（`--c-ja` ほか）、`--shu` の明るい表示の値は designer の席が板で決め、下のコントラストの線を守る |
+| コントラスト | 字幕の 4 つの文字（10.13.11 の字体の段の 4 つ）の computed の文字の色と、その要素の背景の色の比が、どちらの表示でも WCAG 2 の AA の 4.5 : 1 以上。上の値の比は、暗い表示で `--paper` と `--ink` が 15.31、`--paper-dim` と `--ink` が 8.13、`--paper-dim` と `--ink-2` が 7.61、明るい表示で `--paper` と `--ink` が 15.53、`--paper-dim` と `--ink` が 7.70、`--paper-dim` と `--ink-2` が 6.86、`--paper-faint` と `--ink-2` が 4.73（相対輝度の式で計算した） |
+| 既定 | 覚えた値が無い時は、端末の `prefers-color-scheme` に従う。`matchMedia("(prefers-color-scheme: light)")` が真なら明るい表示、そうでなければ暗い表示（今と同じ）。覚えた値が無い間は、端末の設定が変わった時（`change` の event）にも従う |
+| switch | 1 つの要素で、`role="switch"`、`aria-checked`（暗い表示の時に `true`）、`tabindex="0"`、`aria-label`（`strings.*.toml` の文言）を持つ。click でも、focus を置いて Enter か Space でも 1 回で切り替わる。置き場は上の列の上の操作の並び（入れ替えの button、字体の口と同じ所）で、狭い画面でも隠さない |
+| 覚える | 切り替えた時に、`localStorage` の key `hayamimi.dashboard.theme` に `"light"` か `"dark"` を書く。頁を開いた時に読む |
+| 読めない時 | key が無い、`"light"` と `"dark"` の外の値、`localStorage` が使えない（例外を投げる）時は、既定（端末の設定に従う）で描き、覚えた値は書き換えない |
+
+既定を端末の設定に従う形にするのは、端末を暗い表示にしている人の今の見え方を変えず、明るい表示にしている人には最初から明るい表示を出すためである。
+通常（明るい表示）を固定の既定にする形は採らない。今、暗い表示で使っている人の頁が、更新した日に急に明るくなるからである。
+
+**採らない手段**（表示の色）：
+
+- 端末の設定だけに従い、switch を置かない：頁ごとに選べない。
+- 字幕の文字だけの色を変える：見出しと枠の線が背景と合わなくなる。
+- 重ね窓と OBS の字幕頁にも当てる：上の理由。
+
 **採らない手段**：
 
 - 表示する文の言語で左右に分ける：上の理由。
@@ -2160,6 +2194,9 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-23 | 左右を 1 回の操作で入れ替え、各側の幅を保ち、向きを覚える | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br23` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き（窓 1280 × 800） | 縦の線を drag して左の列を 30 にした後、入れ替えの button を click すると、`ja` のどの `row` も縦の線の左に、`en` のどの `row` も右に移り、左の列の割合が 70（± 1）、英語の側の幅が入れ替えの前と ± 2 px で等しく、`aria-pressed` が `true`。button に focus を置いて Enter を 1 回押すと元の向きと割合（30）に戻り、Space を 1 回押すと再び入れ替わる。入れ替えた後に頁を読み直すと、入れ替えた向きのまま描かれる。向きを読む純関数は `"left":"ja"` を日本語の側が左と読み、`left` の無い値、`"left":"zh"`、`"left":1` を英語の側が左と読み、同じ値の割合はそのまま使う | 入れ替えを 2 回すると、向き、割合、各 `row` の側が、押す前と同じになる | `localStorage` の `left` を `"zh"` に書き換えて読み直すと、左が英語の側で描かれ、`localStorage` の値は書き換わらない。600 × 900 の窓では入れ替えの button が見えない |
 | BR-24 | 選んだ字体が、その側の字幕の文字の computed の `font-family` に出て、外へ要求を出さず、読めない値は既定に戻る | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br24` と `cargo test --release -p hayamimi --test br24 -- --ignored`（窓 1280 × 800。`hayamimi` に cinecaption と UDEV Gothic 35 の file の path を渡す） | 日本語の側の字体の `select` に focus を置き、矢印の key と Enter で `udev-gothic` を選ぶと、`ja` のどの `row` の `row-text` と `tr-text` も、`getComputedStyle` の `fontFamily` の先頭が `"UDEV Gothic 35"` になり、`en` の `row` の `fontFamily` は `default` の並びのまま。頁を読み直しても同じ。DevTools の `Network` で数えた頁の要求の host は、どれも頁の host と同じ。字体を読む純関数は、一覧の 6 つの id をその並びに、それ以外を `default` に読む | `default` に戻すと、`ja` の `row` の `fontFamily` が `css.rs:20` の `--font-sans` の並びと同じになる | `localStorage` の `ja.font` を `"x; color: red"` と `"Comic Sans MS"` に書き換えて読み直すと、`ja` の `row` は `default` の並びで描かれ、`ja.scale` の読めた値は使われ、`localStorage` の値は書き換わらない |
 | BR-25 | 選んだ大きさが、その側の字幕の文字の computed の `font-size` に出て、80% と 200% の線を越えない | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br25` と `cargo test --release -p hayamimi --test br24 -- --ignored` の続き | 英語の側の上げる button を Enter で 1 回押すと、`en` の `row` の `row-text` の `fontSize` が `17.6px`（16 px の 110%）になり、`ja` の `row` は `16px` のまま。続けて 9 回押すと `32px`（200%）で、上げる button が `disabled` になり、もう 1 回押しても `32px`。下げる button を 12 回押すと `12.8px`（80%）で止まる。Listening の欄の文が英字だけの時、その `strip-text` は英語の側の倍率で `24px` × 倍率になる。既定へ戻す button で `16px` に戻る。倍率を読む純関数は 80〜200 の 10 の倍数をその値に、`75`、`250`、`105`、`"a"` を 100 に読む | 頁を読み直すと、選んだ倍率のまま描かれる | `localStorage` の `en.scale` を `250` に書き換えて読み直すと、`en` の `row` は `16px` で描かれ、`en.font` の読めた値は使われる |
+| BR-32 | switch で明るい表示と暗い表示が切り替わり、computed の色が token の組どおりになる | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br32` と `cargo test --release -p hayamimi --test br32 -- --ignored`（窓 1280 × 800。DevTools の `Emulation.setEmulatedMedia` で `prefers-color-scheme` を `dark` にして開く） | 開いた頁の `html` の `data-theme` が `dark`、switch の `aria-checked` が `true`、`.dash` の computed の `backgroundColor` が `rgb(13, 15, 19)`、`row-text` の `color` が `rgb(236, 229, 216)`。switch を click すると `data-theme` が `light`、`aria-checked` が `false`、`backgroundColor` が `rgb(247, 244, 238)`、`row-text` の `color` が `rgb(26, 28, 33)`、`tr-text` の `color` が `rgb(74, 77, 85)`。focus を置いて Enter で暗い表示に戻り、Space で再び明るい表示になる。`/transcript` の頁でも同じ組の色になる | 同じ頁で switch を 2 回押すと、色と `aria-checked` が押す前と同じ | OBS の字幕頁（`/`）は、どちらの表示を選んだ後も `body` の `backgroundColor` が `rgba(0, 0, 0, 0)` のまま |
+| BR-33 | 選んだ表示を覚え、覚えた値が無いか読めない時は端末の設定に従う | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br33` と `cargo test --release -p hayamimi --test br32 -- --ignored` の続き | 明るい表示を選んで頁を読み直すと、`prefers-color-scheme` が `dark` でも明るい表示で描かれる。表示を読む純関数は `"light"` と `"dark"` をその値に、key の無い値、`"blue"`、`""`、`1` を「端末に従う」に読む。覚えた値が無い頁で `prefers-color-scheme` を `light` に変えると、読み直さずに明るい表示に変わる | `prefers-color-scheme` が `light` の端末で、覚えた値の無い頁が明るい表示で開く | `localStorage` の値を `"blue"` に書き換えて読み直すと、`prefers-color-scheme` が `dark` なら暗い表示で描かれ、`localStorage` の値は `"blue"` のまま。`localStorage` が例外を投げる頁でも端末の設定で描かれ、頁が止まらない |
+| BR-34 | 字幕の文字のコントラストが、どちらの表示でも AA 以上 | `cargo test --release -p hayamimi --test br32 -- --ignored` の続き | 2 つの表示のそれぞれで、`row-text`、`tr-text`、`refine-text`、`strip-text` の computed の `color` と、その要素から上へ辿って最初に透明でない `backgroundColor` の比を相対輝度の式で計算し、どれも 4.5 以上 | 比を計算する純関数が、`#ece5d8` と `#0d0f13` を 15.31（± 0.01）と返す | 比が 4.5 を割る合成の色の組（`#777777` と `#888888`）で、判定の関数が `Err` を返す |
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
@@ -2170,9 +2207,165 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-23 | `br23_one_swap_flips_the_sides_keeps_each_side_width_and_is_remembered` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | `"left":"zh"` の覚えた値、狭い窓 |
 | BR-24 | `br24_the_chosen_font_reaches_the_computed_font_family_of_its_side_and_an_unknown_one_falls_back` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 一覧の外の id を書いた `localStorage` |
 | BR-25 | `br25_the_chosen_size_reaches_the_computed_font_size_within_its_bounds` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 200% で押す上げる button、`scale` 250 の覚えた値 |
+| BR-32 | `br32_the_theme_switch_turns_the_computed_colours_into_the_other_token_set` | `native/hayamimi/tests/br32.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | OBS の字幕頁の背景 |
+| BR-33 | `br33_the_theme_is_remembered_and_an_unreadable_one_follows_the_device` | `native/hayamimi/tests/br32.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | `"blue"` の覚えた値、例外を投げる `localStorage` |
+| BR-34 | `br34_subtitle_text_keeps_aa_contrast_in_both_themes` | `native/hayamimi/tests/br32.rs` | 比が 4.5 を割る合成の色の組 |
 
 case 行（`T-BR-19-nnn` ほか）は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4.87 に書く。
 実装の順は 10.13.9 の IP-S12 である。
+
+#### 10.13.12 B7 会話の 2 つの言語の組
+
+対面のモードは、2 つの言語を `ja` と `en` に決め打ちしている。
+同じ場所で話す 2 人の言語が `zh` と `ja`、`en` と `ko` のように替わると、今は認識器も判定も訳の向きも頁も合わない。
+そこで、会話の 2 つの言語を 1 つの**言語の組**（`pair`。違う 2 つの ISO 639-1 の code の並び）として持ち、起動の時にも動いている途中でも選び直せるようにする。
+
+**数えた結果**：数えた日時は 2026-10-23、範囲は `c4c746b` の `native/` の `*.rs` のうち、`target*`、`tests/`、`examples/`、`src/bin/` を除き、各 file の最初の `#[cfg(test)]` より前の行である。
+pattern は `"(ja|en)"` と `Lang::(Ja|En)` の 2 本で、1 つの行に両方が在っても 1 と数えた。
+
+```
+rg -l '"(ja|en)"|Lang::(Ja|En)\b' --type rust --glob '!target*' --glob '!**/tests/**' --glob '!**/examples/**' --glob '!**/bin/**' native \
+  | while read f; do awk -v F="$f" '/^#\[cfg\(test\)\]/{stop=1} !stop && /"(ja|en)"|Lang::(Ja|En)([^a-zA-Z]|$)/{n++} END{if(n>0) print n, F}' "$f"; done
+```
+
+結果は 42 file の 135 行である。
+陽性対照は `hayamimi-relay/src/lang.rs` の 9 行（`enum Lang` の `Ja` と `En` の 2 つだけを持つ `other`、`code`、`from_code`。`:8-38`）で、同じ範囲の `"zh"` は `mod tests` を含めて 75 件ある。
+135 行を、組を選べるようにする時に何をするかで 4 つに分ける。
+
+| 分け | 在り処（file:line） | する事 |
+|---|---|---|
+| 組を決め打ちしている所（直す） | `hayamimi-relay/src/lang.rs:8-38`（`Lang` が `Ja` と `En` だけで、`other` が 2 つの間を行き来する）、`hayamimi-relay/src/line.rs:61-62`（`Source::translates` の mic は `ja`、loopback は `en`）、`hayamimi-relay/src/relay.rs:98`（`--translate` の外の言語を `ja` の行にだけ足す）、`hayamimi-relay/src/partial.rs:207`、`:517-519`（速報の言語と使い回しの比べ）、`hayamimi-asr/src/route/pair.rs:120`、`:135-136`、`:162`、`:171`、`:177`（pair の候補と、落ち先の `ja`）、`hayamimi-asr/src/route/transcribe.rs:370`、`:406-407`、`:451`、`hayamimi-asr/src/route/draft.rs:32`、`:50`、`hayamimi-asr/src/pipeline.rs:475-476`（英語の認識器を読むかの判断）、`hayamimi-ui/src/lanes.rs:95-96`（重ね窓の段の訳の向き）、`:242-243` と `hayamimi-ui/src/css.rs:96-98`、`:118-119`（言語ごとの字体の class）、`hayamimi-relay/src/warmup.rs:52`、`:59`（温めの依頼の向き） | 組の 2 つの言語から決める |
+| 言語ごとの表（残す） | `hayamimi-asr/src/route/tiers.rs`（`RZ_LANGS` ほか。言語から認識器を引く表）、`hayamimi-asr/src/itn.rs`、`hayamimi-asr/src/endpoint.rs:346-347`、`:459`、`:469`（文の終わりの見分けの言語ごとの規則）、`hayamimi-asr/src/pipeline.rs:33`（句読点の段の言語）、`hayamimi-relay/src/verify.rs`、`pipeline.rs:273-274`、`:342`、`:347`（照合の印の表と E の指示文と直訳の型の表）、`units.rs`、`annotate.rs`、`numbers.rs`、`hayamimi-asr/src/lid.rs`（文字の数え方） | 表の無い言語は、表の無い時の今の振る舞い（3.4 の「ja と en の外の言語は T と V だけ」、換算を添えない）のまま |
+| 画面と log の言葉の言語（別の事） | `hayamimi/src/strings.rs`、`hayamimi-relay/src/strings.rs`、`hayamimi-ui/src/strings.rs`、`lang.rs` の `from_locale_tag`、`relay.rs:765` | 触らない。会話の言語でなく、画面の文言の言語である |
+| 試しと記録の道具 | `hayamimi-eval/src/*`、`hayamimi-relay/src/eval.rs`、`vprobe.rs`、`video.rs`、`hayamimi-overlay/src/probe.rs`、`hayamimi/src/args.rs:38`、`routes.rs:145`、`api.rs:260`、`config_dump.rs` | この節では触らない。`args.rs:38` は `--mode single` の既定、`api.rs:260` は `/config` の ITN の言語の確かめで、組と別の値である |
+
+**組の持ち主**：組の持ち主は `hayamimi` の 1 つだけとする。
+`hayamimi` は今の組を、保った event `langs`（`{"type":"langs","pair":[<a>,<b>]}`）として `/events` に流し、新しい接続へ `session_start` と `fallback` と同じく流し直す（`server.rs` の `Hub::subscribe`）。
+中継と頁は、この event から組を読み、自分では組を持たない。
+`langs` は今の consumer（10.2 の表。知らない type は捨てる）を壊さない新しい type で、`final` と `refine` の項目は変えない（`rust_port.ja.md` の RP-12）。
+持ち主を 1 つにするのは、中継と頁が別々に組を持つと、片方だけが変わった間に、認識した言語と訳の向きと頁の左右が食い違うからである。
+
+**選べる言語**：選べる組は、手元の認識器と訳の model が持つ言語から決める。
+
+1. **認識の側**：言語 `x` は、`tiers.rs` の表で `x` を読む認識器が決まり（`is_routable`）、その認識器の model の file が `--models` の置き場に在る時に選べる。`hayamimi` は起動の時にこの一覧を作り、`GET /langs` で返す。
+2. **訳の側**：組 `(a, b)` は、中継の訳の server のどれかが `a` と `b` の両方を持つ時に選べる。中継は起動の時に `--llm` と `--llm-other` の server の `/props` の `model_path` の file 名を読み、repo の表 `native/hayamimi-relay/data/llm_langs.toml`（model の file 名から言語の一覧を引く表。作る）で言語を引き、`GET /langs` で組の一覧を返す。`--llm` の server は、3.7 のとおり `ja` と `en` を訳す server として起こす約束なので、表に名が在ればその言語の組を、表に名が無ければ `en,ja` の組だけを持つものとし、表に無い時は warn を 1 行出す。`--llm-other` の server は、表に名が在る時だけ表の言語を持ち、表に無ければ組を 1 つも持たないものとし、warn を 1 行出す。
+3. **頁**：頁は 2 つの `/langs` を読み、両方に在る組だけを選ぶ口に並べる。
+
+model の名を動作の門にしない規則（`global-rules.md`）とは食い違わない。
+表は「この model はこの言語を訳せる」という記録で、表に無い model でも server は動き、`ja` と `en` の今の組は `--llm` の約束で表を引かずに使えるからである（CAT-Translate の file 名が表に無い時も、`--llm` の server が在れば `en,ja` は選べる）。
+
+**選ぶ口**：起動の旗と頁の上の両方で選ぶ。
+
+- 起動の旗は `hayamimi --mode pair --pair <a>,<b>` とする。`--pair` が無ければ `en,ja`（今の対面のモードと同じ組）。並びの順は頁の既定の左右で、`<a>` が左である（10.13.11 の「英語の側が左」は、この既定の組の形である）。`<a>` と `<b>` が同じ、認識の側の一覧に無い、code の形でない時は、起動を止めて理由を出す。
+- 動いている途中は、頁の選ぶ口が `POST /config` に `{"pair":[<a>,<b>]}` を送る。`hayamimi` は、相手の address が loopback の時だけこれを受ける。`/config` は認証が無く（`rust_port.ja.md` の R5b）、LAN で開いた頁から会話の言語を変えられると、別の端末の 1 人の操作で全員の字幕の向きが変わるからである。LAN で開いた頁では選ぶ口を出さず、今の組を言語の印で示すだけにする。
+- 中継が組を訳せない時（訳の側の一覧に無い組の `langs` を読んだ時）は、中継が `{"type":"fallback","stage":"translate","reason":"unsupported_pair"}` を出し、その組の行を `translate.line.skipped`（`reason: language`）にする。原文の行は今のとおり頁に出る。
+
+**覚え方**：組は会話の性質で、頁を見る人ごとの物ではないので、`localStorage` に置かない。
+起動の時は旗（無ければ既定の `en,ja`）を採り、頁で変えた組は、その process が終わるまで効く。
+したがって `localStorage` と起動の旗が組で食い違う場面は作らない。
+頁を見る人ごとの物（10.13.11 の左右の向き、境目の比、字体と大きさ）は、今のとおり `localStorage` に置き、鍵を言語の code にする。
+
+- 左右の向きの `left` は言語の code（`"en"`、`"ja"`、`"zh"` ほか）で持つ。覚えた `left` が今の組に在ればその言語を左に、無ければ組の並びの既定（`<a>` が左）で描く。
+- 字体と大きさは `{"<code>":{"font":"<id>","scale":<n>}}` の形にし、今の組の 2 つの言語の鍵だけを読む。鍵が無い言語は既定で描く。組を替えて戻した時は、前に選んだ字体と大きさが戻る。
+- 10.13.11 の「英語の側」「日本語の側」は、組の 2 つの言語のそれぞれの側と読み替える。行は、確定文の `lang` が組のどちらかならその言語の側、どちらでもなければ組の `<a>` の側に置く。
+
+**途中で組を変えた時に、もう出ている行**：
+
+1. もう出ている行は消さず、訳し直さず、着いた時の側に置いたままにする。行の側は着いた時に決めて行に持たせ、後から動かさない。
+2. 組を変えた所に、2 つの列にまたがる区切りの行を 1 つ入れ、新しい組を書く（文言は `strings.*.toml`）。
+3. 新しい組は、変えた後に VAD が始めた最初の区間から効く。変えた時に開いていた区間は、前の組で読み、前の組で訳す。区間の途中で認識器を替えると、1 つの発話の前半と後半が別の言語で読まれるからである。
+4. `hayamimi` は新しい組の認識器を先に読み（`Router::prefetch`、`rust_port.ja.md` の R8q）、読み終えてから `langs` を流す。読めない時は組を変えず、前の組のまま `langs.change.failed` を error で 1 行出し、`POST /config` は失敗を返す。
+5. 中継は `langs` を受けた時に、速報の使い回しの控え（`partial.rs` の追う速報）を捨てる。前の組で頼んだ訳の答えは、今のとおり `id` の行に付ける。
+
+**言語の判定と落ち先の一般化**：10.4 の 1 から 5 の `ja` と `en` を、組の 2 つの言語 `a` と `b` に読み替える。
+
+- 1 と 2：whisper-tiny と SenseVoice の答えが `a` か `b` ならその言語。SenseVoice の印は `DUAL_CONFIRM_LANGS`（`sticky.rs:18`）の 5 つの言語しか持たないので、組の言語が 5 つの外の時は 2 を飛ばして 3 へ進む。
+- 3：文の字で決める。言語ごとの字の組（`ja` は仮名と漢字、`zh` と `yue` は漢字、`ko` は Hangul、ラテン文字の言語はラテン文字ほか）を表に持ち、組の 2 つの言語の字の組が違う時だけ、今の 3 割の線で決める。2 つが同じ字の組（`en` と `es` など）の時は 3 を飛ばす。
+- 4 と 5：最後の落ち先は、組の 2 つのうち、whisper-tiny の外れが偏る側とする。2 つとも `lid.md` の表 1 の clean の 1.0 秒の行（`docs/eval/lid.md:17`。ja 33%、en 93%、zh 8%、ko 33%、yue 0%）に在れば正解率の低い方、同じ値なら `<a>`、表に無い言語が在れば `<a>` とする。`en,ja` では今のとおり `ja` になり、`zh,ja` では `zh` になる。
+
+**訳の向き**：中継は、行の `lang` が組の一方なら他方へ訳す。
+`Lang` は 2 つの値の型から、組の 2 つの code を持つ形にし、`other` は組から引く。
+`Source::translates` の `file` は「組のどちらの言語でもよい」を意味し、`mic` と `loopback` の決め打ち（3.1 の会議の場面）は、会議の場面の今の規則として残す。
+E と照合の印の表と換算の表が在るのは `ja` と `en` だけなので、それ以外の言語への訳は 3.4 のとおり T と V だけを通す。
+
+**採らない手段**：
+
+- 組を中継と頁にも別々に持たせる：上の食い違いの理由。
+- 組を `localStorage` に置く：会話の性質で、端末ごとに違う組を持つと、同じ会話の字幕が端末ごとに違う向きで訳される。
+- 区間の途中で認識器を替える：上の 3 の理由。
+- 組を変えた時に、もう出ている行を新しい組で訳し直す：訳し直しは llama-server の slot を取り合い、今の行の訳を遅らせる（10.13.4 の手 2）。
+- 3 つ以上の言語を同時に選べる形：言語の判定の候補が増えるほど外れが増え（10.2 の S12）、頁の左右の 2 つの枠に収まらない。
+- LAN で開いた頁から組を変える：上の `/config` の理由。
+
+| ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
+|---|---|---|---|---|---|
+| BR-26 | 選べる言語と組の一覧が、手元の model から決まる | `cargo test --release -p hayamimi --test br26` と `cargo test --release -p hayamimi-relay --test br26` | `--models` の fixture に `ja` と `en` と `zh` の認識器の file だけを置くと、`hayamimi` の `GET /langs` が `ja`、`en`、`zh` を返し、`ko` を返さない。偽の訳の server の `/props` の `model_path` を表の 2 つの model の名にすると、中継の `GET /langs` が表の言語の組だけを返す | 表に CAT-Translate の名を置くと `en,ja` の組が返る | `--llm-other` の server の model が表に無いと、その server の組が 0 で、warn が 1 行出る。`--llm` の server の model が表に無いと、組は `en,ja` の 1 つだけで、warn が 1 行出る。`--pair ko,ja` は起動が止まり、exit code が 0 でない |
+| BR-27 | 起動の旗の組で、判定、落ち先、訳の向きが決まる | `cargo test --release -p hayamimi-asr --test br27` と `cargo test --release -p hayamimi-relay --test br27` | `Policy::pair` を組 `zh,ja` で作り、偽の判定器が `zh`、`ja`、`en`、`ko`、空、`Err` を返すと、選ばれる言語はどれも `zh` か `ja` で、落ち先の `step` は 10.13.12 の一般化のとおり。中継に組 `zh,ja` の `langs` と `zh` の `final` を流すと `lang: ja` の訳が、`ja` の `final` では `lang: zh` の訳が出る | 組 `en,ja` で作った `Policy::pair` が、IP-3 の test の答えとすべて同じ | 組 `en,es` で、字の組が同じ 2 つの言語には 3 の字の段を掛けない。`en` の `final` を組 `zh,ja` の中継へ流すと、`translate.line.skipped`（`reason: language`）になる |
+| BR-28 | 動いている途中で組を変えると、次の区間から新しい組で読まれ、もう出ている行は動かない | `cargo test --release -p hayamimi --test br28 -- --ignored` | `en,ja` で 2 発話を流した後に `POST /config` で `zh,ja` に変えると、`langs` が 1 件流れ、その後に始まった区間の `final` の `lang` は `zh` か `ja` で、変える前の 2 件の `final` と訳は流し直されず、`id` も変わらない。変えた時に開いていた区間の `final` は前の組の言語 | `langs` の event の前に `asr.model.loaded`（新しい組の認識器）が出る | 認識器の file の無い組へ変えると、`POST /config` が失敗を返し、`langs.change.failed` が 1 件、組は変わらず、`langs` は流れない |
+| BR-29 | 組を変える口は、loopback の頁からだけ受ける | `cargo test --release -p hayamimi --test br29` | loopback の address からの `POST /config` の `pair` は受けられ、loopback でない address からの同じ要求は 403 で、組は変わらない | 同じ要求の `pair` 以外の項目は今のとおり受けられる | 同じ 2 つの言語の組（`["ja","ja"]`）と、一覧に無い言語は 400 |
+| BR-30 | 頁の左右と字体の設定が組に従う（画面） | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br30` と `cargo test --release -p hayamimi --test br30 -- --ignored`（窓 1280 × 800） | 組 `zh,ja` の `langs` を流した頁で、`zh` の `row` が左、`ja` の `row` が右に在り、選ぶ口の言語の名が `zh` と `ja` になる。`localStorage` の `left` が `"en"` の時は、組に `en` が無いので、組の並びの既定で `zh` が左。`zh` の字体を選ぶと `zh` の `row` の computed の `font-family` に出て、`{"ja":…}` の設定は `ja` の `row` に効く | `en,ja` の頁が BR-19〜BR-25 をそのまま通る | 組に無い言語の鍵（`"ko"`）の字体の設定は、どの `row` にも効かない |
+| BR-31 | 組を変えた所に区切りの行が入り、前の行は着いた時の側に残る（画面） | `cargo test --release -p hayamimi --test br30 -- --ignored` の続き | `en,ja` で `en` と `ja` の 2 行が出た後に `zh,ja` に変えると、2 つの列にまたがる区切りの行が 1 つ入り、前の `en` の行は左のまま、`ja` の行は右のまま。区切りの後の `zh` の行は左。区切りの行の文に新しい組の 2 つの言語の名が在る | 組を変えない頁には区切りの行が 0 | LAN の address で開いた頁には言語を選ぶ口が無い |
+
+| ID | 受入 test の名前 | 置き場 | 陰性の case |
+|---|---|---|---|
+| BR-26 | `br26_the_choosable_languages_come_from_the_models_on_this_machine` | `native/hayamimi/tests/br26.rs`。中継の case 行は `native/hayamimi-relay/tests/br26.rs` | 表に無い model、`--pair ko,ja` |
+| BR-27 | `br27_the_pair_on_the_command_line_decides_identification_fallback_and_direction` | `native/hayamimi-asr/tests/br27.rs`。中継の case 行は `native/hayamimi-relay/tests/br27.rs` | 字の組が同じ 2 つの言語、組の外の `final` |
+| BR-28 | `br28_a_pair_changed_mid_run_reads_the_next_segment_and_leaves_earlier_lines` | `native/hayamimi/tests/br28.rs` | 認識器の file の無い組 |
+| BR-29 | `br29_only_a_loopback_page_may_change_the_pair` | `native/hayamimi/tests/br29.rs` | 同じ 2 つの言語の組 |
+| BR-30 | `br30_the_page_sides_and_text_settings_follow_the_pair` | `native/hayamimi/tests/br30.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 組に無い言語の鍵の設定 |
+| BR-31 | `br31_a_pair_change_draws_a_divider_and_keeps_earlier_lines_where_they_arrived` | `native/hayamimi/tests/br30.rs` | LAN で開いた頁 |
+
+case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4.87 に書く。
+実装の順は 10.13.9 の IP-S14（言語の側の土台）と IP-S15（頁）である。
+
+残る穴は次のとおりである（番号は 10.13.10 の続き）。
+
+- **H63** `llm_langs.toml` の表の中身（CAT-Translate-3.3b、TranslateGemma-4B-it の各 model が訳せる言語）は、model の配布元の頁から写して作る。写した言語のすべてで訳の質を測ってはいない（NOT VERIFIED）。表に載せた組の訳の質は、3.5 の held-out のような組ごとの評価の文が無い言語では記録だけになる。
+- **H64** 10.13.12 の落ち先の「正解率の低い方」は、`lid.md` の表 1 の言語（今の表の言語）の外では決まらず、`<a>` に落ちる。`zh` と `ko` のような組で whisper-tiny の外れがどちらに偏るかは測っていない（NOT VERIFIED）。IP-2 と同じ形の交互の録音をその組で作るのは、その組を使う時の実装の席の仕事とする。
+- **H65** 10.13.4 の手 1（速報の言語を途中で決める）と 10.13.2 の使い回しの比べ（`partial.rs:207` の `japanese` の真偽）は、`ja` と `en` の 2 つを前に作られている。IP-S14 で組の 2 つの言語へ読み替える時に、`reuse_match` の比べが漢字だけの `zh` と、ラテン文字の言語の組で同じに働くかは確かめていない（NOT VERIFIED）。BR-27 の case 行に足すかは test-designer の席が決める。
+- **H67** 頁の色は WASM が読み込まれてから `data-theme` を書くので、覚えた表示と端末の設定が違う時、読み込みの間に一瞬だけ端末の設定の色で描かれうる（NOT VERIFIED）。`index` の html に、`localStorage` を読んで `data-theme` を書く数行を先に置く形で消せるかを、IP-S12 の実装の席が測って記録する。Listening の欄が静まった時の印は 10.13.13 の 13 で決め、BR-34 に入れる。
+- **H68** `zh,ja` の字の段（10.13.13 の 9）は、仮名を 1 字も持たない日本語の文（漢字だけの短い返事や固有名だけの文）を `zh` へ送る。量は測っていない（NOT VERIFIED）。`zh,ja` の組を使う時の実装の席が、交互の録音で数える。
+- **H66** 重ね窓（11）の段は `mic-` と `loopback-` の行だけを出し、3.1 の会議の場面の `ja` と `en` の規則に従う。重ね窓を組に従わせる形は、この節の外である。
+
+#### 10.13.13 BR の受入の細かな決め
+
+10.13.7、10.13.11、10.13.12 の受入の期待値が読み分かれないよう、次の 27 個を決める。
+
+1. **ms への丸め**：時刻と長さは整数の µs で持ち、ms は µs を 1000 で割って負の向きへ切り捨てた整数（floor）とする。負の `L_tr`（−400 µs）は −1 ms である。p50 と p95 は µs の値の nearest-rank で取ってから ms へ切り捨てる。切り捨ては順序を保つので、ms へ切り捨ててから順位を取っても同じ値になる（10.13.2 の表はこの形で数えた）。頁の時計の `performance.now()`（ms の小数）は、1000 を掛けて切り捨てた µs にしてから同じ式に掛ける。予算と比べる時は、ms の値が線以下なら「線の内」とする。
+   `final` の `latency_ms`（ms の小数）は、1000 を掛けて切り捨てた µs を `L_dec` の µs とし、`t_close` の µs を `t_final` の µs からその値を引いて置く。
+   恒等式 `d + L_dec + L_tr = L` は µs の値で取り、µs で完全に一致することを確かめる（3 つの段の µs は、同じ 4 つの時刻の差から出るので、和は `t_tr − t_end` の µs に等しい）。
+   段ごとの ms は µs から別々に切り捨てるので、ms の和と `L` の ms は 2 ms まで食い違いうる。記録の ms の表は段ごとの切り捨ての値のまま書き、和を合わせるための足し引きをしない。
+2. **温まった標本が 0 件の時**（BR-1、BR-3）：温まった標本の p50 と p95 を出さず、記録に「温まった標本 0」と書き、判定の関数は `Err` を返す。合否の行（BR-3）は落ちる。冷えた標本だけで線の内と読むと、線を測らずに通すからである。
+3. **BR-11 で欠けたのが `--lang` の run の側の時**：clip の理由は `missing_in_lang_run` とし、どちらの run（`--lang ja` か `--lang en`）で欠けたかと、その run の側の理由（`no_final` か `closed_before_end`。同じ分け方を `--lang` の run の標本に当てる）を並べて書く。pair の run の側の理由と同じ欄に書かない。どちらの run の音で起きたかが、手を選ぶ材料だからである。
+   1 つの clip の中で、repeat ごとに欠けた理由が違う時（repeat 1 は `no_final`、repeat 2 と 3 は `closed_before_end` など）は、clip の理由を `mixed` とし、repeat の番号と理由の組を repeat の順にすべて並べる（`mixed: 1 no_final, 2 closed_before_end, 3 closed_before_end`）。3 つの repeat が同じ理由なら、その理由を 1 つだけ書く。clip が結べないのは、その run のどの repeat にも `L_asr` が無い時だけ（`ip04.rs` の `medians_by_clip` が 1 つでも `L_asr` の在る repeat の中央値を取るため）で、理由の数え上げは clip を 1 つと数え、`no_final`、`closed_before_end`、`mixed`、`missing_in_lang_run`、`missing_in_both`（14）の和が結べない clip の数と等しい。`missing_in_lang_run` の側の理由も、同じ形で repeat ごとに並べる。
+4. **BR-14 で置き換えた行の位置**：同じ `id` の清書が後から届いたら、前の行の位置（並びの中の順番）のまま中身を置き換える。話者は後の物を、訳は前後の両方を引き継ぎ、同じ言語の訳が 2 つ在れば後の物を採る。並びの最後へ動かさない。読んでいる人の目の前の行が、後ろへ跳ぶからである。scroll の位置も変えない。
+5. **BR-15 で `final` が次の速報より遅れて着いた時**：`final` は着いた時に Listening の欄を必ず空にする。次の発話の速報が先に着いていた時は、その速報も消え、次の速報（今の run の間隔で約 0.5 秒後）で欄に戻る。どの速報がどの `final` に覆われたかを頁で見分ける項目が wire に無く（速報は `id` を持たない。3.3）、見分けを足すと wire が変わるからである。case 行は、遅れた `final` の後に欄が空になり、次の速報で文が出ることを測る。
+6. **address の判定**（BR-16、BR-29）：IPv4 を包んだ IPv6 の address（`::ffff:a.b.c.d`）は、包んだ IPv4 の address に直してから判定する。loopback は `127.0.0.0/8` と `::1`。LAN は `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`、`fc00::/7`、`fe80::/10`。`0.0.0.0`、`::`、multicast、broadcast、これらの外の address はどれも断る。`::ffff:127.0.0.1` からの `POST /config` は loopback として受ける。
+7. **組の順序**（BR-29、BR-30、BR-31）：組 `[a, b]` の順序は頁の既定の左右を意味し、`["ja","en"]` と `["en","ja"]` は同じ 2 つの言語の別の順序として、どちらも受ける。順序だけを変えた `POST /config` は `langs` を 1 件流すが、言語の集まりが変わらないので頁は区切りの行を入れず、`localStorage` に覚えた `left` を書き換えない。
+8. **2 本目の client**（BR-16）：音を送っている client が在る間に届いた 2 本目の `/ingest` の接続は、TLS の listener でも localhost の 8766 でも、`ready` を返さずに閉じ（WebSocket の close code 1013）、`ingest.client.refused`（`reason: busy`）を 1 行出す。1 本目の接続と送っている音は止めない。今の `ingest.rs` の `busy`（`:43`、`:72-75`）と同じ 1 本の制限で、断った印を足すだけである。
+9. **`zh,ja` の組の字の段と落ち先**：`zh` と `ja` はどちらも漢字を使うので、10.13.12 の 3 割の線を使わず、SenseVoice が読んだ文に仮名が 1 字でも在れば `ja`、無ければ `zh` とする。中国語の文は仮名を持たず、日本語の文の多くは仮名を持つからである（漢字だけの日本語の文は H68）。最後の落ち先は 10.13.12 の規則で `zh`（`lid.md:17` の clean の 1.0 秒で zh 8%、ja 33%）。
+10. **BR-13 の起点**（H58）：2 回目の接続の起点は、最初の `final` でなく、接続の時（`ingest.client.connected` の時）に置く。`hayamimi` は `/ingest` の `ready` の frame に、その時の流れの時計の位置 `stream_s`（秒）を足し、道具は `ready` を受けた時刻から `stream_s` を引いた値を、その接続の `final` の `t1_s` を道具の時計へ寄せる量にする。`ready` に `stream_s` が無い記録（今の記録）は、今のとおり `session_start` を受けた時刻で寄せる。最初の `final` を起点にする形は採らない。その `final` がどの発話の物かを決めるのが、この起点で直したい割り当てそのもので、起点が割り当ての答えに頼る循環になるからである。`ready` に項目を 1 つ足すのは、`rust_port.ja.md` の RP-12 の「key と値の型を変えない」の範囲で、足した key を知らない consumer はそれを読まない（10.2 の表）。
+11. **BR-34 で背景や文字が半透明の時のコントラスト**：要素の文字の色の alpha に、その要素と祖先の computed の `opacity` をすべて掛けた値を文字の実の alpha とする。背景は、要素から祖先へ辿り、`backgroundColor` の alpha が 1 の最初の要素の色を土台にし、その上に、土台より内側の要素の半透明の背景を外側から順に alpha で重ねた色とする（source-over の合成。色は sRGB の 0〜255 の値のまま重ねる）。文字の色はその背景の上に実の alpha で重ね、重ねた文字の色と背景の色の比を相対輝度の式で取る。alpha が 1 の背景を持つ祖先が 1 つも無い時だけ、判定の関数は `Err` を返す（土台の色を頁の外の既定の白に頼ることになるからである）。Listening の欄が静まった時の `opacity: .5`（H67）も、この式で測る。
+12. **画面の要素の名前**：区切りの行は `div` の class `pair-divider` で、`data-pair` に新しい組を `<a>,<b>` の形で持つ（境目の `role="separator"` と分けるため、`role` は付けない）。組を選ぶ口は class `pair-picker` の欄で、中に `select` の `#pair-a` と `#pair-b` と、決める `button` の `#pair-apply` を持つ。cinecaption の CSS の family 名は `cinecaption`（`css.rs:96` の `LANES_FONT_JA` と同じ）、UDEV Gothic 35 は `UDEV Gothic 35`（`:98`）とし、`/fonts/<id>` の `@font-face` もこの名で宣言する。
+13. **Listening の欄が静まった時の印**（BR-34、IP-S12）：今の style（`css.rs:155` の `opacity: .5` と `--paper-dim`）は、合成した比が暗い表示で 2.86、明るい表示で 2.37 で、AA の 4.5 を割る。線は緩めず、静まった印を `opacity` でなく次の 3 つで出す。
+   - 文字の色：新しい token `--paper-quiet` を足し、`.strip.quiet` の `.strip-text`、`.tr`、`.tr-text` の色をこの token にし、`opacity` は 1 のままにする。値は暗い表示で `#8a8473`、明るい表示で `#62656d`（どちらも今の `--paper-faint` と同じ値）。欄の背景は `--ink-2`（`css.rs:150`）で、比は暗い表示で `#8a8473` と `#14171d` が 4.81、明るい表示で `#62656d` と `#ece7dd` が 4.73（相対輝度の式で計算した）で、どちらも 4.5 以上である。
+   - 文字の太さ：`.strip.quiet .strip-text` の `font-weight` を 600 から 400 にする。
+   - 印の語：欄の見出し（`strip-label`）の後ろに、静まったことを示す語（`strings.*.toml` の文言。たとえば「静か」）を出す。色だけに頼らず、色の見分けにくい人にも状態が読めるようにするためである。
+   caret の点滅は今のとおり止める。designer の席が板で別の値を選ぶ時も、`--ink-2` との比が 4.5 以上の値に限る。
+14. **BR-11 で pair の run と `--lang` の run の両方で欠けた clip**：理由を `missing_in_both` とし、pair の run の側の理由と、`--lang` の run の側の理由（どちらの run かと、repeat ごとの理由。3 の形）を並べて書く。数え上げは、pair の run の側だけで欠けた clip（`no_final`、`closed_before_end`、`mixed`）、`--lang` の run の側だけで欠けた clip（`missing_in_lang_run`）、両方で欠けた clip（`missing_in_both`）の 3 つに 1 回ずつ数え、和が結べない clip の数と等しい。両方で欠けた clip を片方の理由に寄せない。音そのもの（区間が作られない声など）が原因の時は両方で欠け、片方の run の設定が原因の時は片方で欠けるので、見分けが手を選ぶ材料になるからである。
+15. **BR-22 ほかで `localStorage` に書けない時**：`setItem` が例外を投げた時（quota の超え、private の窓、使えない storage）は、選んだ値をその頁の memory の中でだけ効かせ、画面はその値で描き続ける。頁を読み直すと、読める覚えた値か既定で描かれる。書けなかったことは、browser の console に `warn` を key ごとに頁を開いた間で 1 回だけ出し、画面に誤りの文は出さず、書き直しを繰り返さない。境目の比（BR-22）、向き（BR-23）、字体と大きさ（BR-24、BR-25）、表示の色（BR-33）の 4 つの key で同じ扱いにする。
+16. **BR-15 の「欄が空」**：model の `strip_text` が空の文字列で、かつ DOM の `strip-text` の文字列が、頁の言語の「待ち」の文言（`keys::WAITING`。`dashboard.rs:94-104` が `strip_text` の空の時に出す）と等しく、覆われた速報の文の字を 1 つも含まないことを指す。DOM の文字列が 0 字であることは求めない。
+17. **BR-27 で組の片方だけが SenseVoice の 5 つの言語の外の時**（`en,es` ほか）：10.4 の 2（SenseVoice の印の段）を組ごと飛ばし、3 の字の段へ進む。SenseVoice は 5 つの外の言語の声にも 5 つのどれかの印を付けるので、印が組の内側の言語（`en`）を指しても、外側の言語（`es`）の声の読み違いと見分けられないからである。
+18. **BR-21 と BR-22 の割合と最小の px**：`cols` と `rows` は 0〜100 の整数で覚え、`aria-valuenow` も同じ整数とする。drag の量から出した割合は、最も近い整数へ丸めてから使う（.5 は大きい方へ）。整数の割合は、覚える値と `aria-valuenow` のためだけの物で、描く大きさは px で決める。描く時は、覚えた割合から出した px（`全体 × 割合 / 100`）を、片方の枠の px を `[最小, 全体 − 他方の最小]` の範囲に収めて描く（左右なら左の列、上下なら上の列の px を収め、他方は残りの px）。全体が 2 つの最小の和以上なら、この範囲は空でないので、整数の割合では両方を満たせない幅（横の線で全体が 280 px から 280 px より少し上の時など）でも、両方の最小を同時に満たして描ける。その時の `aria-valuenow` は描いた px の割合を最も近い整数へ丸めた値とし、覚えた値は書き換えない。全体が 2 つの最小の和より小さい時は、10.13.11 の表のとおり既定の比で描く。drag と key で動かした結果を覚える時は、収めた後の px の割合を最も近い整数へ丸めて書く。DOM で測る幅と高さは、最小の px から 0.5 px 小さい値までを許す（描画の端数の丸め）。drag の 200 px の広がりの許しは、今の ± 2 px のままとする。
+19. **BR-8 の「重なる」**：区間と発話は、どちらも標本の位置の半開区間 `[start, end)` として比べ、共通の標本が 1 つでも在れば重なるとする。端が接するだけ（片方の `end` が他方の `start` と等しい）は重ならない。「隣の発話を飲んだ区間」は、2 つ以上の発話と重なる区間である。
+20. **BR-4 の 2.0 秒の判定を打つ時**：判定は VAD に窓（`audio.rs:12` の `WINDOW`、512 標本）を渡す単位で見て、区間の声の標本の数が初めて 32000 以上になった窓を渡した直後に 1 回打つ。判定に渡す声は、その時までに区間が持つ標本のすべて（32000 から 32511 の間）で、32000 標本ちょうどに切らない。窓の途中で切ると、速報の復号と同じ所で回す形（10.13.4）から外れるからである。
+21. **BR-9 の「窓の外に割り当たった」**：final の無い repeat の発話について、次の順に最初に当たった物を理由にする。(a) その発話の manifest の声の範囲 `[t_start, t_end)` と、道具の時計へ寄せた `[t0_s, t1_s)` が重なる `final` が在り、その `final` が `build_samples` で別の発話に割り当たっている：「窓の外に割り当たった」。(b) 同じ範囲に重なる `asr.segment.unread` が在る：「空に読んだ」。(c) 同じ範囲に重なる `final` も `asr.segment.unread` も無い：「区間が無い」。final の無い repeat は、その発話の窓に割り当たった `final` を 1 つも持たないので、範囲に重なる `final` が在れば必ず別の発話に割り当たっており、(a)、(b)、(c) のどれかに必ず当たる。したがって 4 つめの理由は置かない。3 つの和は、記録の関数が別に数える `repeats with no final` の値（IP-7 で 16）と等しく、和が合わない時は分け方の道具の誤りとして `Err` とする。
+22. **BR-12 で並べる clip**：結べた clip を全部、差の大きい順に並べる。IP-4 の p95 の線（300 ms）を超える差の clip には `over` の印を付け、道の印（`step`、読み直し、`lid_ms`）は全部の clip に付ける。線の内の clip と比べないと、線の外の clip だけに多い道かが分からないからである。
+23. **温まる前の標本の言語**（10.13.3、BR-1、BR-3）：言語は manifest の `lang` でなく、閉じる `final` の `lang` で見る。冷えるのは認識器の tier で、その発話を読んだ tier は `final` の `lang` で決まるからである。`ja` と `en` の外の言語（pair の外の mode、落ちた発話）も含め、`session_start` の後に初めて現れた `final` の `lang` ごとに、最初の閉じる `final` を持つ発話を冷えた標本とする。冷えた標本の列は、1 run あたり現れた言語の数だけ持つ。
+24. **BR-29 の順**：認可を先に、検証を後に見る。loopback でない address からの `POST /config` は、本文の中身によらず 403 で、本文を読まない。loopback からの要求で、本文が JSON でない、`pair` が配列でない、要素の数が 2 でない、要素が文字列でない、code の形（小文字の 2 字か 3 字）でない、2 つが同じ、認識の側の一覧に無い、のどれかなら 400 で、組は変わらない。
+25. **BR-26 の `--pair` の要素の数**：`,` で分けた要素がちょうど 2 つの時だけ受ける。1 つ（`--pair ja`）、3 つ以上（`--pair en,ja,zh`）、空の要素（`--pair en,`、`--pair ,ja`）、空白を含む要素（`--pair "en, ja"`）は、どれも起動を止め、理由を出し、exit code を 0 でなくする。code の字は変えずに比べ、空白を削らない。
+26. **BR-25 の 0 字の文**：Listening の欄の文に字が 1 つも無い時（「待ち」の文言を出している時を含む）は、10.13.11 の仮名と漢字の 3 割の線を使わず、組の `<a>` の側（`--pair` の 1 つめの言語の側）の字体と倍率で描く。字の数が 0 の時は割合が決まらないからである。
+27. **BR-14 で 500 行の上限に達している時**：同じ `id` の清書による置き換えは、行の数を変えないので、古い行を押し出さない。置き換える前の行が既に上限で押し出されている（`dropped_refines` に数えられた）時は、後から届いた清書を新しい行として末尾に足し、今のとおり最も古い行を 1 つ押し出す。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
