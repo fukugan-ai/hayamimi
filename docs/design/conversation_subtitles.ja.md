@@ -2322,13 +2322,13 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 - **H63** `llm_langs.toml` の表の中身（CAT-Translate-3.3b、TranslateGemma-4B-it の各 model が訳せる言語）は、model の配布元の頁から写して作る。写した言語のすべてで訳の質を測ってはいない（NOT VERIFIED）。表に載せた組の訳の質は、3.5 の held-out のような組ごとの評価の文が無い言語では記録だけになる。
 - **H64** 10.13.12 の落ち先の「正解率の低い方」は、`lid.md` の表 1 の言語（今の表の言語）の外では決まらず、`<a>` に落ちる。`zh` と `ko` のような組で whisper-tiny の外れがどちらに偏るかは測っていない（NOT VERIFIED）。IP-2 と同じ形の交互の録音をその組で作るのは、その組を使う時の実装の席の仕事とする。
 - **H65** 10.13.4 の手 1（速報の言語を途中で決める）と 10.13.2 の使い回しの比べ（`partial.rs:207` の `japanese` の真偽）は、`ja` と `en` の 2 つを前に作られている。IP-S14 で組の 2 つの言語へ読み替える時に、`reuse_match` の比べが漢字だけの `zh` と、ラテン文字の言語の組で同じに働くかは確かめていない（NOT VERIFIED）。BR-27 の case 行に足すかは test-designer の席が決める。
-- **H67** 頁の色は WASM が読み込まれてから `data-theme` を書くので、覚えた表示と端末の設定が違う時、読み込みの間に一瞬だけ端末の設定の色で描かれうる（NOT VERIFIED）。`index` の html に、`localStorage` を読んで `data-theme` を書く数行を先に置く形で消せるかを、IP-S12 の実装の席が測って記録する。Listening の欄が静まった時の `opacity: .5`（`css.rs:155`）は、BR-34 のコントラストの線を割りうる。静まった欄を BR-34 に入れるかは designer の席の板で決め、入れるなら test-designer の席が case 行に足す。
+- **H67** 頁の色は WASM が読み込まれてから `data-theme` を書くので、覚えた表示と端末の設定が違う時、読み込みの間に一瞬だけ端末の設定の色で描かれうる（NOT VERIFIED）。`index` の html に、`localStorage` を読んで `data-theme` を書く数行を先に置く形で消せるかを、IP-S12 の実装の席が測って記録する。Listening の欄が静まった時の印は 10.13.13 の 13 で決め、BR-34 に入れる。
 - **H68** `zh,ja` の字の段（10.13.13 の 9）は、仮名を 1 字も持たない日本語の文（漢字だけの短い返事や固有名だけの文）を `zh` へ送る。量は測っていない（NOT VERIFIED）。`zh,ja` の組を使う時の実装の席が、交互の録音で数える。
 - **H66** 重ね窓（11）の段は `mic-` と `loopback-` の行だけを出し、3.1 の会議の場面の `ja` と `en` の規則に従う。重ね窓を組に従わせる形は、この節の外である。
 
 #### 10.13.13 BR の受入の細かな決め
 
-10.13.7、10.13.11、10.13.12 の受入の期待値が読み分かれないよう、次の 12 個を決める。
+10.13.7、10.13.11、10.13.12 の受入の期待値が読み分かれないよう、次の 15 個を決める。
 
 1. **ms への丸め**：時刻と長さは整数の µs で持ち、ms は µs を 1000 で割って負の向きへ切り捨てた整数（floor）とする。負の `L_tr`（−400 µs）は −1 ms である。p50 と p95 は µs の値の nearest-rank で取ってから ms へ切り捨てる。切り捨ては順序を保つので、ms へ切り捨ててから順位を取っても同じ値になる（10.13.2 の表はこの形で数えた）。頁の時計の `performance.now()`（ms の小数）は、1000 を掛けて切り捨てた µs にしてから同じ式に掛ける。予算と比べる時は、ms の値が線以下なら「線の内」とする。
    `final` の `latency_ms`（ms の小数）は、1000 を掛けて切り捨てた µs を `L_dec` の µs とし、`t_close` の µs を `t_final` の µs からその値を引いて置く。
@@ -2336,7 +2336,7 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
    段ごとの ms は µs から別々に切り捨てるので、ms の和と `L` の ms は 2 ms まで食い違いうる。記録の ms の表は段ごとの切り捨ての値のまま書き、和を合わせるための足し引きをしない。
 2. **温まった標本が 0 件の時**（BR-1、BR-3）：温まった標本の p50 と p95 を出さず、記録に「温まった標本 0」と書き、判定の関数は `Err` を返す。合否の行（BR-3）は落ちる。冷えた標本だけで線の内と読むと、線を測らずに通すからである。
 3. **BR-11 で欠けたのが `--lang` の run の側の時**：clip の理由は `missing_in_lang_run` とし、どちらの run（`--lang ja` か `--lang en`）で欠けたかと、その run の側の理由（`no_final` か `closed_before_end`。同じ分け方を `--lang` の run の標本に当てる）を並べて書く。pair の run の側の理由と同じ欄に書かない。どちらの run の音で起きたかが、手を選ぶ材料だからである。
-   1 つの clip の中で、repeat ごとに欠けた理由が違う時（repeat 1 は `no_final`、repeat 2 と 3 は `closed_before_end` など）は、clip の理由を `mixed` とし、repeat の番号と理由の組を repeat の順にすべて並べる（`mixed: 1 no_final, 2 closed_before_end, 3 closed_before_end`）。3 つの repeat が同じ理由なら、その理由を 1 つだけ書く。clip が結べないのは、その run のどの repeat にも `L_asr` が無い時だけ（`ip04.rs` の `medians_by_clip` が 1 つでも `L_asr` の在る repeat の中央値を取るため）で、理由の数え上げは clip を 1 つと数え、`no_final`、`closed_before_end`、`mixed`、`missing_in_lang_run` の和が結べない clip の数と等しい。`missing_in_lang_run` の側の理由も、同じ形で repeat ごとに並べる。
+   1 つの clip の中で、repeat ごとに欠けた理由が違う時（repeat 1 は `no_final`、repeat 2 と 3 は `closed_before_end` など）は、clip の理由を `mixed` とし、repeat の番号と理由の組を repeat の順にすべて並べる（`mixed: 1 no_final, 2 closed_before_end, 3 closed_before_end`）。3 つの repeat が同じ理由なら、その理由を 1 つだけ書く。clip が結べないのは、その run のどの repeat にも `L_asr` が無い時だけ（`ip04.rs` の `medians_by_clip` が 1 つでも `L_asr` の在る repeat の中央値を取るため）で、理由の数え上げは clip を 1 つと数え、`no_final`、`closed_before_end`、`mixed`、`missing_in_lang_run`、`missing_in_both`（14）の和が結べない clip の数と等しい。`missing_in_lang_run` の側の理由も、同じ形で repeat ごとに並べる。
 4. **BR-14 で置き換えた行の位置**：同じ `id` の清書が後から届いたら、前の行の位置（並びの中の順番）のまま中身を置き換える。話者は後の物を、訳は前後の両方を引き継ぎ、同じ言語の訳が 2 つ在れば後の物を採る。並びの最後へ動かさない。読んでいる人の目の前の行が、後ろへ跳ぶからである。scroll の位置も変えない。
 5. **BR-15 で `final` が次の速報より遅れて着いた時**：`final` は着いた時に Listening の欄を必ず空にする。次の発話の速報が先に着いていた時は、その速報も消え、次の速報（今の run の間隔で約 0.5 秒後）で欄に戻る。どの速報がどの `final` に覆われたかを頁で見分ける項目が wire に無く（速報は `id` を持たない。3.3）、見分けを足すと wire が変わるからである。case 行は、遅れた `final` の後に欄が空になり、次の速報で文が出ることを測る。
 6. **address の判定**（BR-16、BR-29）：IPv4 を包んだ IPv6 の address（`::ffff:a.b.c.d`）は、包んだ IPv4 の address に直してから判定する。loopback は `127.0.0.0/8` と `::1`。LAN は `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`、`fc00::/7`、`fe80::/10`。`0.0.0.0`、`::`、multicast、broadcast、これらの外の address はどれも断る。`::ffff:127.0.0.1` からの `POST /config` は loopback として受ける。
@@ -2346,6 +2346,13 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 10. **BR-13 の起点**（H58）：2 回目の接続の起点は、最初の `final` でなく、接続の時（`ingest.client.connected` の時）に置く。`hayamimi` は `/ingest` の `ready` の frame に、その時の流れの時計の位置 `stream_s`（秒）を足し、道具は `ready` を受けた時刻から `stream_s` を引いた値を、その接続の `final` の `t1_s` を道具の時計へ寄せる量にする。`ready` に `stream_s` が無い記録（今の記録）は、今のとおり `session_start` を受けた時刻で寄せる。最初の `final` を起点にする形は採らない。その `final` がどの発話の物かを決めるのが、この起点で直したい割り当てそのもので、起点が割り当ての答えに頼る循環になるからである。`ready` に項目を 1 つ足すのは、`rust_port.ja.md` の RP-12 の「key と値の型を変えない」の範囲で、足した key を知らない consumer はそれを読まない（10.2 の表）。
 11. **BR-34 で背景や文字が半透明の時のコントラスト**：要素の文字の色の alpha に、その要素と祖先の computed の `opacity` をすべて掛けた値を文字の実の alpha とする。背景は、要素から祖先へ辿り、`backgroundColor` の alpha が 1 の最初の要素の色を土台にし、その上に、土台より内側の要素の半透明の背景を外側から順に alpha で重ねた色とする（source-over の合成。色は sRGB の 0〜255 の値のまま重ねる）。文字の色はその背景の上に実の alpha で重ね、重ねた文字の色と背景の色の比を相対輝度の式で取る。alpha が 1 の背景を持つ祖先が 1 つも無い時だけ、判定の関数は `Err` を返す（土台の色を頁の外の既定の白に頼ることになるからである）。Listening の欄が静まった時の `opacity: .5`（H67）も、この式で測る。
 12. **画面の要素の名前**：区切りの行は `div` の class `pair-divider` で、`data-pair` に新しい組を `<a>,<b>` の形で持つ（境目の `role="separator"` と分けるため、`role` は付けない）。組を選ぶ口は class `pair-picker` の欄で、中に `select` の `#pair-a` と `#pair-b` と、決める `button` の `#pair-apply` を持つ。cinecaption の CSS の family 名は `cinecaption`（`css.rs:96` の `LANES_FONT_JA` と同じ）、UDEV Gothic 35 は `UDEV Gothic 35`（`:98`）とし、`/fonts/<id>` の `@font-face` もこの名で宣言する。
+13. **Listening の欄が静まった時の印**（BR-34、IP-S12）：今の style（`css.rs:155` の `opacity: .5` と `--paper-dim`）は、合成した比が暗い表示で 2.86、明るい表示で 2.37 で、AA の 4.5 を割る。線は緩めず、静まった印を `opacity` でなく次の 3 つで出す。
+   - 文字の色：新しい token `--paper-quiet` を足し、`.strip.quiet` の `.strip-text`、`.tr`、`.tr-text` の色をこの token にし、`opacity` は 1 のままにする。値は暗い表示で `#8a8473`、明るい表示で `#62656d`（どちらも今の `--paper-faint` と同じ値）。欄の背景は `--ink-2`（`css.rs:150`）で、比は暗い表示で `#8a8473` と `#14171d` が 4.81、明るい表示で `#62656d` と `#ece7dd` が 4.73（相対輝度の式で計算した）で、どちらも 4.5 以上である。
+   - 文字の太さ：`.strip.quiet .strip-text` の `font-weight` を 600 から 400 にする。
+   - 印の語：欄の見出し（`strip-label`）の後ろに、静まったことを示す語（`strings.*.toml` の文言。たとえば「静か」）を出す。色だけに頼らず、色の見分けにくい人にも状態が読めるようにするためである。
+   caret の点滅は今のとおり止める。designer の席が板で別の値を選ぶ時も、`--ink-2` との比が 4.5 以上の値に限る。
+14. **BR-11 で pair の run と `--lang` の run の両方で欠けた clip**：理由を `missing_in_both` とし、pair の run の側の理由と、`--lang` の run の側の理由（どちらの run かと、repeat ごとの理由。3 の形）を並べて書く。数え上げは、pair の run の側だけで欠けた clip（`no_final`、`closed_before_end`、`mixed`）、`--lang` の run の側だけで欠けた clip（`missing_in_lang_run`）、両方で欠けた clip（`missing_in_both`）の 3 つに 1 回ずつ数え、和が結べない clip の数と等しい。両方で欠けた clip を片方の理由に寄せない。音そのもの（区間が作られない声など）が原因の時は両方で欠け、片方の run の設定が原因の時は片方で欠けるので、見分けが手を選ぶ材料になるからである。
+15. **BR-22 ほかで `localStorage` に書けない時**：`setItem` が例外を投げた時（quota の超え、private の窓、使えない storage）は、選んだ値をその頁の memory の中でだけ効かせ、画面はその値で描き続ける。頁を読み直すと、読める覚えた値か既定で描かれる。書けなかったことは、browser の console に `warn` を key ごとに頁を開いた間で 1 回だけ出し、画面に誤りの文は出さず、書き直しを繰り返さない。境目の比（BR-22）、向き（BR-23）、字体と大きさ（BR-24、BR-25）、表示の色（BR-33）の 4 つの key で同じ扱いにする。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
