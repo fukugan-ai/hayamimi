@@ -2,16 +2,24 @@
 //!
 //! The real run (T-IP-05-001 to 004) starts `hayamimi` on a websocket input,
 //! the relay, a stand-in translation server and `chrome-headless-shell`, opens
-//! the dashboard with `?relay=` before the first line is played, plays the
-//! first four utterances of `lat-dialog` (ja, en, ja, en) and reads the html of
-//! the page over the DevTools protocol once the relay has settled the fourth
-//! translation. It is run once and the four rows judge what it saw. They are
-//! `#[ignore]`d because they need the models, `testdata/` (not in git), the
-//! page bundle next to the `hayamimi` binary and a browser.
+//! the dashboard with `?relay=` before the first line is played, plays rows 7
+//! to 10 of `lat-dialog` (ja, en, ja, en) and reads the html of the page over
+//! the DevTools protocol once the relay has settled a translation for every
+//! `final` of the run. It is run once and the four rows judge what it saw, one
+//! manifest row (one utterance) at a time (design 10.9.3). They are `#[ignore]`d
+//! because they need the models, `testdata/` (not in git), the page bundle next
+//! to the `hayamimi` binary and a browser.
+//!
+//! An utterance may be read as several `final`s, so no count of `final`s or of
+//! translations is fixed. The page does not write the id of a line into its
+//! html, so the `row` of a `final` is found by its place: the page draws the
+//! `final`s in the order the stream received them, and a row is taken for the
+//! `final` only when its text and language badge are the `final`'s too.
 //!
 //! The rows 005, 006 and 017 to 019 test the tools that read a dump of the
-//! page, on html written by hand. The rows 007 to 016 read the `?relay=` of an
-//! address and are in `hayamimi-ui/src/route.rs`. The record of the run is
+//! page, on html written by hand, and so do the tests of the row judgement
+//! that follow them. The rows 007 to 016 read the `?relay=` of an address and
+//! are in `hayamimi-ui/src/route.rs`. The record of the run is
 //! `docs/results/in-person/ip05.md`.
 
 mod support;
@@ -24,10 +32,10 @@ use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use hayamimi_eval::manifest::{read_rows, write_rows};
+use hayamimi_eval::manifest::{Row as ManifestRow, read_rows, write_rows};
 use hayamimi_eval::wav::{SAMPLE_RATE, read_wav, write_wav};
 use serde_json::Value;
-use support::dialog::append_line;
+use support::dialog::{Given, Placed, append_line, events_of, given_of, langs_of};
 use support::dialog_run::sibling_binary;
 use support::{BINARY, Failure, TestResult, data_events, find_above, models_dir, path_text};
 
@@ -41,7 +49,12 @@ const RECORD: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../docs/results/in-person/ip05.md"
 );
+/// The utterances the run plays: four rows of `lat-dialog`, ja, en, ja, en.
 const UTTERANCES: usize = 4;
+/// The first of those rows, counted from 1: the first four rows whose
+/// utterance is read in its language and has a segment in the IP-2 record
+/// (design 10.9.3, 1). Whoever moves the IP-2 record moves this number.
+const FIRST_ROW: usize = 7;
 /// How long the stack is given to open its ports: the models are read first.
 const START_WAIT: Duration = Duration::from_secs(300);
 /// How long a browser is given to start and to draw the page.
@@ -215,11 +228,13 @@ struct Tr {
 #[derive(Debug)]
 struct Row {
     badge: Option<String>,
+    text: Option<String>,
     trs: Vec<Tr>,
 }
 
 /// The rows of a dumped dashboard, and how many `tr` elements the page holds
-/// anywhere.
+/// anywhere. Only the `tr` inside a row are judged: the refined paragraphs
+/// hold some outside any row.
 #[derive(Debug)]
 struct Dump {
     rows: Vec<Row>,
@@ -263,6 +278,7 @@ fn row_at(found: &[Element], at: usize) -> Row {
         .collect();
     Row {
         badge: text_of(found, at, "lang-badge"),
+        text: text_of(found, at, "row-text"),
         trs,
     }
 }
@@ -289,8 +305,8 @@ fn read_dump(html: &str) -> Result<Dump, Failure> {
     Ok(Dump { rows, trs_total })
 }
 
-/// The dump has `rows` rows and `per_row` translations in each, and none
-/// outside a row.
+/// The dump has `rows` rows and `per_row` translations inside each of them.
+/// A `tr` outside a row is not counted.
 fn check_shape(dump: &Dump, rows: usize, per_row: usize) -> Result<(), Failure> {
     if dump.rows.len() != rows {
         return Err(format!("{} rows, not {rows}", dump.rows.len()));
@@ -299,13 +315,6 @@ fn check_shape(dump: &Dump, rows: usize, per_row: usize) -> Result<(), Failure> 
         if row.trs.len() != per_row {
             return Err(format!("row {at} has {} tr, not {per_row}", row.trs.len()));
         }
-    }
-    if dump.trs_total != rows * per_row {
-        return Err(format!(
-            "the page has {} tr elements, {} of them in rows",
-            dump.trs_total,
-            rows * per_row
-        ));
     }
     Ok(())
 }
@@ -437,22 +446,8 @@ fn held_marks() -> Result<Vec<String>, Failure> {
 
 // ---- the events a run produced --------------------------------------------
 
-fn of_type<'a>(events: &'a [Value], kind: &str) -> Vec<&'a Value> {
-    events
-        .iter()
-        .filter(|event| event.get("type").and_then(Value::as_str) == Some(kind))
-        .collect()
-}
-
 fn is_settled(event: &Value) -> bool {
     event.get("settled").and_then(Value::as_bool) == Some(true)
-}
-
-fn settled_translations(events: &[Value]) -> Vec<&Value> {
-    of_type(events, "translation")
-        .into_iter()
-        .filter(|event| is_settled(event))
-        .collect()
 }
 
 fn text_field<'a>(event: &'a Value, key: &str) -> Result<&'a str, Failure> {
@@ -474,51 +469,202 @@ fn status_of(translation: &Value) -> Result<Status, Failure> {
     }
 }
 
-/// The finals are four lines that alternate ja, en, ja, en.
-fn check_finals_alternate(finals: &[&Value]) -> Result<(), Failure> {
-    let langs = finals
+/// The language a line in `lang` is translated into.
+fn opposite(lang: &str) -> Result<&'static str, Failure> {
+    match lang {
+        "ja" => Ok("en"),
+        "en" => Ok("ja"),
+        other => Err(format!(
+            "`{other}` is neither ja nor en: it has no opposite"
+        )),
+    }
+}
+
+/// One `final` the stream received, as the page draws it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Seen {
+    id: String,
+    lang: String,
+    text: String,
+}
+
+/// The `final`s of the events file of a run, in the order they were received.
+fn finals_seen(events_text: &str) -> Result<Vec<Seen>, Failure> {
+    events_of(events_text)?
         .iter()
-        .map(|event| text_field(event, "lang"))
-        .collect::<Result<Vec<_>, _>>()?;
-    if langs == ["ja", "en", "ja", "en"] {
-        Ok(())
+        .filter(|line| line.body.get("type").and_then(Value::as_str) == Some("final"))
+        .map(|line| {
+            Ok(Seen {
+                id: text_field(&line.body, "id")?.to_owned(),
+                lang: text_field(&line.body, "lang")?.to_owned(),
+                text: text_field(&line.body, "text")?.to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// For each row, the last `final` it was given in the language of its
+/// manifest row (design 10.9.3, 2 (a)); its id is the one the translation is
+/// looked for by. A row with none means the identifier missed and not the
+/// page: every such row is named, with the languages it was given, and the run
+/// is not judged.
+fn last_own_finals<'a>(langs: &[String], given: &'a [Given]) -> Result<Vec<&'a Placed>, Failure> {
+    if langs.len() != given.len() {
+        return Err(format!(
+            "the manifest has {} rows and the run {} utterances",
+            langs.len(),
+            given.len()
+        ));
+    }
+    let mut last = Vec::new();
+    let mut lacking = Vec::new();
+    for (at, (want, own)) in langs.iter().zip(given).enumerate() {
+        match own.finals.iter().rev().find(|done| done.lang == *want) {
+            Some(done) => last.push(done),
+            None => {
+                let heard: Vec<&str> = own.finals.iter().map(|done| done.lang.as_str()).collect();
+                lacking.push(format!(
+                    "row {} ({want}) was given {heard:?}",
+                    FIRST_ROW + at
+                ));
+            }
+        }
+    }
+    if lacking.is_empty() {
+        Ok(last)
     } else {
         Err(format!(
-            "the finals are {langs:?}, not ja, en, ja, en: IP-5 is not judged"
+            "no final in the language of its row: {}: IP-5 is not judged",
+            lacking.join("; ")
         ))
     }
 }
 
-/// The settled translations in the order of their lines (`file-1` first).
-fn in_line_order<'a>(translations: &[&'a Value]) -> Result<Vec<&'a Value>, Failure> {
-    let mut ordered = translations.to_vec();
-    for event in &ordered {
-        text_field(event, "id")?;
-    }
-    ordered.sort_by_key(|event| event["id"].as_str());
-    Ok(ordered)
+/// The last settled `of: final` translation the relay published for line `id`.
+/// A translation of a refined paragraph (`of: refine`) is not one.
+fn translation_of<'a>(relay: &'a [Value], id: &str) -> Option<&'a Value> {
+    relay.iter().rev().find(|event| {
+        event.get("type").and_then(Value::as_str) == Some("translation")
+            && event.get("of").and_then(Value::as_str) == Some("final")
+            && is_settled(event)
+            && event.get("id").and_then(Value::as_str) == Some(id)
+    })
 }
 
-/// The settled translations are four, for the lines `file-1` to `file-4`, into
-/// en, ja, en, ja.
-fn check_settled(translations: &[&Value]) -> Result<(), Failure> {
-    let mut seen = Vec::new();
-    for event in translations {
-        seen.push((text_field(event, "id")?, text_field(event, "lang")?));
-    }
-    let expected = [
-        ("file-1", "en"),
-        ("file-2", "ja"),
-        ("file-3", "en"),
-        ("file-4", "ja"),
-    ];
-    if seen == expected {
+/// Manifest row `row` has a settled translation for its last `final` in its
+/// own language `want`, into the opposite language (design 10.9.3, 2 (b)).
+fn check_translated(row: usize, want: &str, id: &str, relay: &[Value]) -> Result<(), Failure> {
+    let target = opposite(want)?;
+    let Some(found) = translation_of(relay, id) else {
+        return Err(format!(
+            "row {row}: the relay published no settled `of: final` translation for {id}"
+        ));
+    };
+    let lang = text_field(found, "lang")?;
+    if lang == target {
         Ok(())
     } else {
         Err(format!(
-            "the settled translations are {seen:?}, not {expected:?}"
+            "row {row}: the translation of {id} is into `{lang}`, not `{target}`"
         ))
     }
+}
+
+/// Every row has a settled translation for its last `final` in its language.
+fn check_rows_translated(
+    langs: &[String],
+    last: &[&Placed],
+    relay: &[Value],
+) -> Result<(), Failure> {
+    for (at, (want, done)) in langs.iter().zip(last).enumerate() {
+        let row = FIRST_ROW + at;
+        let id = done
+            .id
+            .as_deref()
+            .ok_or_else(|| format!("row {row}: its last final has no id"))?;
+        check_translated(row, want, id, relay)?;
+    }
+    Ok(())
+}
+
+/// The ids of the `final`s that the relay has published no settled
+/// `of: final` translation for yet.
+fn missing_translations<'a>(relay: &[Value], finals: &'a [Seen]) -> Vec<&'a str> {
+    finals
+        .iter()
+        .filter(|done| translation_of(relay, &done.id).is_none())
+        .map(|done| done.id.as_str())
+        .collect()
+}
+
+/// The page draws a `row` for each `final` the stream received, in the order
+/// it received them. A row is taken for a `final` when its text and its
+/// language badge are the `final`'s, and it holds exactly one `tr`
+/// (design 10.9.3, 2 (c)).
+fn check_page_rows(dump: &Dump, finals: &[Seen]) -> Result<(), Failure> {
+    if dump.rows.len() != finals.len() {
+        return Err(format!(
+            "the page has {} rows for {} finals",
+            dump.rows.len(),
+            finals.len()
+        ));
+    }
+    for (row, done) in dump.rows.iter().zip(finals) {
+        let same_line = row.badge.as_deref() == Some(done.lang.as_str())
+            && row.text.as_deref().map(str::trim) == Some(done.text.trim());
+        if !same_line {
+            return Err(format!(
+                "the row at the place of {} is {:?} {:?}, not {:?} {:?}",
+                done.id, row.badge, row.text, done.lang, done.text
+            ));
+        }
+        if row.trs.len() != 1 {
+            return Err(format!(
+                "the row of {} has {} tr, not 1",
+                done.id,
+                row.trs.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The arrow of each `tr` points away from the badge of its row
+/// (design 10.9.3, 5).
+fn check_arrows_oppose_badges(dump: &Dump) -> Result<(), Failure> {
+    for (at, row) in dump.rows.iter().enumerate() {
+        let badge = row
+            .badge
+            .as_deref()
+            .ok_or_else(|| format!("row {at} has no language badge"))?;
+        let want = format!("→{}", opposite(badge)?);
+        for tr in &row.trs {
+            if tr.arrow.as_deref() != Some(want.as_str()) {
+                return Err(format!(
+                    "row {at}: the badge is {badge}, the arrow {:?}, not {want}",
+                    tr.arrow
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The status and the target language of the settled translation of each
+/// `final`, in the order of the rows of the page.
+fn lines_for<'a>(finals: &[Seen], relay: &'a [Value]) -> Result<Vec<(Status, &'a str)>, Failure> {
+    finals
+        .iter()
+        .map(|done| {
+            let found = translation_of(relay, &done.id).ok_or_else(|| {
+                format!(
+                    "the relay published no settled `of: final` translation for {}",
+                    done.id
+                )
+            })?;
+            Ok((status_of(found)?, text_field(found, "lang")?))
+        })
+        .collect()
 }
 
 // ---- the stack and the pages ----------------------------------------------
@@ -747,6 +893,11 @@ impl Events {
         })
     }
 
+    /// The events received so far.
+    fn events(&self) -> Vec<Value> {
+        data_events(&String::from_utf8_lossy(&self.received))
+    }
+
     /// Reads until `done` holds of the events so far, or `within` passes.
     fn read_until(
         &mut self,
@@ -756,7 +907,7 @@ impl Events {
         let deadline = Instant::now() + within;
         let mut chunk = [0_u8; 8192];
         loop {
-            let events = data_events(&String::from_utf8_lossy(&self.received));
+            let events = self.events();
             if done(&events) {
                 return Ok(events);
             }
@@ -777,51 +928,105 @@ impl Events {
     }
 }
 
-/// The first four utterances of `lat-dialog`: a wav cut at the end of the
-/// fourth, and its four-row manifest.
+/// The samples of a row of the manifest at `key`.
+fn sample_of(row: &ManifestRow, key: &str) -> Result<usize, Failure> {
+    let at = row
+        .get(key)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("a row has no integer `{key}`"))?;
+    usize::try_from(at).map_err(|error| error.to_string())
+}
+
+/// `row` with its samples counted from sample `from` of the recording.
+fn rebased(row: &ManifestRow, from: usize) -> Result<ManifestRow, Failure> {
+    let mut moved = row.clone();
+    for key in ["start_sample", "end_sample"] {
+        let at = sample_of(row, key)?
+            .checked_sub(from)
+            .ok_or_else(|| format!("`{key}` of a row lies before the cut"))?;
+        moved.insert(String::from(key), Value::from(at));
+    }
+    Ok(moved)
+}
+
+/// The part of `lat-dialog` the run plays: the samples from the end of the row
+/// before the window to the end of its last row, and the rows of the window
+/// with their samples counted from the start of the cut (design 10.9.3, 1).
+#[derive(Debug)]
+struct Cut {
+    from: usize,
+    to: usize,
+    rows: Vec<ManifestRow>,
+}
+
+fn cut_of(rows: &[ManifestRow]) -> Result<Cut, Failure> {
+    let first = FIRST_ROW - 1;
+    let last = first + UTTERANCES;
+    let window = rows
+        .get(first..last)
+        .ok_or_else(|| format!("lat-dialog has fewer than {last} utterances"))?;
+    let langs = langs_of(window)?;
+    if langs != ["ja", "en", "ja", "en"] {
+        return Err(format!(
+            "rows {FIRST_ROW} to {last} of lat-dialog are {langs:?}, not ja, en, ja, en"
+        ));
+    }
+    let before = rows
+        .get(first - 1)
+        .ok_or("the window has no row before it")?;
+    let tail = window.last().ok_or("the window has no row")?;
+    let from = sample_of(before, "end_sample")?;
+    Ok(Cut {
+        from,
+        to: sample_of(tail, "end_sample")?,
+        rows: window
+            .iter()
+            .map(|row| rebased(row, from))
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+/// The window of `lat-dialog` as a wav and its four-row manifest, and the
+/// language of each row.
 struct Clip {
     wav: PathBuf,
     manifest: PathBuf,
+    langs: Vec<String>,
 }
 
-fn first_four_utterances(work: &Path) -> Result<Clip, Failure> {
+fn dialog_window(work: &Path) -> Result<Clip, Failure> {
     let rows = read_rows(&find_above("testdata/manifests/lat-dialog.json")?)
         .map_err(|error| error.to_string())?;
-    let first = rows
-        .get(..UTTERANCES)
-        .ok_or("lat-dialog has fewer than four utterances")?;
-    let end = first
-        .last()
-        .and_then(|row| row.get("end_sample"))
-        .and_then(Value::as_u64)
-        .ok_or("the fourth row has no end_sample")?;
-    let end = usize::try_from(end).map_err(|error| error.to_string())?;
+    let cut = cut_of(&rows)?;
     let whole =
         read_wav(&find_above("testdata/lat-dialog.wav")?).map_err(|error| error.to_string())?;
     let samples = whole
         .samples
-        .get(..end)
+        .get(cut.from..cut.to)
         .ok_or("lat-dialog.wav is shorter than its manifest")?;
     let clip = Clip {
-        wav: work.join("first-four.wav"),
-        manifest: work.join("first-four.json"),
+        wav: work.join("window.wav"),
+        manifest: work.join("window.json"),
+        langs: langs_of(&cut.rows)?,
     };
     write_wav(&clip.wav, SAMPLE_RATE, samples).map_err(|error| error.to_string())?;
-    write_rows(&clip.manifest, first).map_err(|error| error.to_string())?;
+    write_rows(&clip.manifest, &cut.rows).map_err(|error| error.to_string())?;
     Ok(clip)
 }
 
-/// Plays the clip into `/ingest` with `hayamimi-eval stream`.
-fn play(tools: &Tools, clip: &Clip, ingest: u16, work: &Path) -> Result<(), Failure> {
+/// Plays the clip into `/ingest` with `hayamimi-eval stream`; returns the
+/// samples file of the run, which has its events file beside it.
+fn play(tools: &Tools, clip: &Clip, ingest: u16, work: &Path) -> Result<PathBuf, Failure> {
+    let out = work.join("played.jsonl");
     let status = Command::new(&tools.eval)
         .args(["stream", "--wav", &path_text(&clip.wav)?])
         .args(["--manifest", &path_text(&clip.manifest)?])
         .args(["--repeat", "1", "--port", &ingest.to_string()])
-        .args(["--out", &path_text(&work.join("played.jsonl"))?])
+        .args(["--out", &path_text(&out)?])
         .status()
         .map_err(|error| format!("cannot run hayamimi-eval stream: {error}"))?;
     if status.success() {
-        Ok(())
+        Ok(out)
     } else {
         Err(format!("hayamimi-eval stream ended with {status}"))
     }
@@ -1090,9 +1295,12 @@ fn is_drawn(html: &str) -> bool {
     read_dump(html).is_ok()
 }
 
-/// Whether the dashboard shows a translation under each of its confirmed lines.
-fn shows_all_translations(html: &str) -> bool {
-    read_dump(html).is_ok_and(|dump| dump.trs_total >= UTTERANCES)
+/// Whether the dashboard has `rows` confirmed lines and a translation inside
+/// each of them.
+fn shows_a_translation_in_each_of(rows: usize, html: &str) -> bool {
+    read_dump(html).is_ok_and(|dump| {
+        dump.rows.len() == rows && dump.rows.iter().all(|row| !row.trs.is_empty())
+    })
 }
 
 /// Three dashboards opened before the first line: with the relay, with none,
@@ -1135,11 +1343,12 @@ impl Pages {
     }
 
     /// The html of the three pages: with the relay once it shows a translation
-    /// under every line, then the others a little later.
-    fn dumps(mut self) -> Result<[String; 3], Failure> {
+    /// inside each of `rows` lines, then the others a little later.
+    fn dumps(mut self, rows: usize) -> Result<[String; 3], Failure> {
         // What the page shows by then is judged, whether or not it is all there.
-        self.with_relay
-            .html_when(TRANSLATE_WAIT, shows_all_translations)?;
+        self.with_relay.html_when(TRANSLATE_WAIT, |html| {
+            shows_a_translation_in_each_of(rows, html)
+        })?;
         std::thread::sleep(SHOW_GRACE);
         Ok([
             self.with_relay.devtools.html()?,
@@ -1151,8 +1360,14 @@ impl Pages {
 
 /// What the run saw.
 struct Observed {
-    finals: Vec<Value>,
-    translations: Vec<Value>,
+    /// The language of each manifest row of the window.
+    langs: Vec<String>,
+    /// The `final`s each row was given, by the rule of `build_samples`.
+    given: Vec<Given>,
+    /// Every `final` the stream received, in that order.
+    finals: Vec<Seen>,
+    /// Every event the relay's `/events` published after the pages were drawn.
+    relay: Vec<Value>,
     with_relay: String,
     without_relay: String,
     bad_relay: String,
@@ -1164,31 +1379,72 @@ fn scratch() -> Result<PathBuf, Failure> {
     Ok(work)
 }
 
+/// Writes the finals each row of the window was given to the record, with the
+/// id of the last one in its language.
+fn record_rows(langs: &[String], given: &[Given], last: &[&Placed]) -> Result<(), Failure> {
+    for (at, ((want, own), done)) in langs.iter().zip(given).zip(last).enumerate() {
+        let heard: Vec<String> = own
+            .finals
+            .iter()
+            .map(|placed| format!("{} {:?}", placed.lang, placed.id))
+            .collect();
+        append_line(
+            Path::new(RECORD),
+            &format!(
+                "row {} ({want}): finals {heard:?}, last in its language {:?}",
+                FIRST_ROW + at,
+                done.id
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+/// The finals each row was given and the finals the stream received, read
+/// from the files `stream --out` left.
+fn read_run(played: &Path) -> Result<(Vec<Given>, Vec<Seen>), Failure> {
+    let samples = support::read(played)?;
+    let events = support::read(&played.with_extension("events.jsonl"))?;
+    Ok((given_of(&samples, &events)?, finals_seen(&events)?))
+}
+
+/// Waits until the relay has settled a translation of every `final`; the ones
+/// still missing when the wait ends are named.
+fn wait_for_translations(relay: &mut Events, finals: &[Seen]) -> Result<Vec<Value>, Failure> {
+    relay
+        .read_until(TRANSLATE_WAIT, |events| {
+            missing_translations(events, finals).is_empty()
+        })
+        .map_err(|error| {
+            let missing = missing_translations(&relay.events(), finals);
+            format!("{error}; no settled `of: final` translation came for {missing:?}")
+        })
+}
+
 fn run_dialog_page() -> Result<Observed, Failure> {
     let tools = Tools::find()?;
     let work = scratch()?;
     std::fs::write(RECORD, "# IP-5 record\n").map_err(|error| format!("{RECORD}: {error}"))?;
-    let clip = first_four_utterances(&work)?;
+    let clip = dialog_window(&work)?;
     let ports = free_ports()?;
     let _stack = Stack::start(&tools, &ports, &work)?;
-    let mut own = Events::open(ports.events)?;
     let mut relay = Events::open(ports.relay)?;
     let mut pages = Pages::open(&tools, &ports, &work)?;
     pages.wait_until_drawn()?;
-    play(&tools, &clip, ports.ingest, &work)?;
-    let finals = own.read_until(TRANSLATE_WAIT, |seen| {
-        of_type(seen, "final").len() >= UTTERANCES
+    let played = play(&tools, &clip, ports.ingest, &work)?;
+    let (given, finals) = read_run(&played)?;
+    let last = last_own_finals(&clip.langs, &given).inspect_err(|said| {
+        // The record names the rows; the error itself is returned either way.
+        let _ = append_line(Path::new(RECORD), said);
     })?;
-    let translations = relay.read_until(TRANSLATE_WAIT, |seen| {
-        settled_translations(seen).len() >= UTTERANCES
-    })?;
-    let [with_relay, without_relay, bad_relay] = pages.dumps()?;
+    record_rows(&clip.langs, &given, &last)?;
+    let events = wait_for_translations(&mut relay, &finals)?;
+    let [with_relay, without_relay, bad_relay] = pages.dumps(finals.len())?;
     Ok(Observed {
-        finals: of_type(&finals, "final").into_iter().cloned().collect(),
-        translations: settled_translations(&translations)
-            .into_iter()
-            .cloned()
-            .collect(),
+        langs: clip.langs,
+        given,
+        finals,
+        relay: events,
         with_relay,
         without_relay,
         bad_relay,
@@ -1214,7 +1470,7 @@ fn record_judgement(judgement: &Judgement) -> Result<(), Failure> {
     append_line(
         record,
         &format!(
-            "status of the four translations: ok {}, held {}",
+            "status of the translations on the page: ok {}, held {}",
             judgement.ok, judgement.held
         ),
     )?;
@@ -1234,23 +1490,15 @@ fn record_judgement(judgement: &Judgement) -> Result<(), Failure> {
     )
 }
 
-/// The status and the target language of each settled translation, in the
-/// order of the lines.
-fn lines_of<'a>(ordered: &[&'a Value]) -> Result<Vec<(Status, &'a str)>, Failure> {
-    ordered
-        .iter()
-        .map(|event| Ok((status_of(event)?, text_field(event, "lang")?)))
-        .collect()
-}
-
-/// T-IP-05-001
+/// T-IP-05-001: each row was given a `final` in its own language (the run
+/// stops before this when one was not), and the page draws a `row` for every
+/// `final` with exactly one `tr` inside it.
 #[test]
 #[ignore = "starts the hayamimi binary, the relay, a stand-in translation server and chrome-headless-shell"]
 fn ip05_one_page_shows_both_directions() -> TestResult {
-    let seen = observed()?;
-    check_finals_alternate(&of_type(&seen.finals, "final"))?;
-    let dump = read_dump(&seen.with_relay)?;
-    check_shape(&dump, UTTERANCES, 1)?;
+    let run = observed()?;
+    last_own_finals(&run.langs, &run.given)?;
+    check_page_rows(&read_dump(&run.with_relay)?, &run.finals)?;
     Ok(())
 }
 
@@ -1258,40 +1506,44 @@ fn ip05_one_page_shows_both_directions() -> TestResult {
 #[test]
 #[ignore = "starts the hayamimi binary, the relay, a stand-in translation server and chrome-headless-shell"]
 fn each_direction_shows_its_arrow_and_the_translation_the_server_made() -> TestResult {
-    let seen = observed()?;
-    let ordered = in_line_order(&settled_translations(&seen.translations))?;
+    let run = observed()?;
     let marks = held_marks()?;
     let words = Words {
         english: ENGLISH,
         japanese: JAPANESE,
         held_marks: &marks,
     };
-    let dump = read_dump(&seen.with_relay)?;
-    let judgement = judge(&dump, &lines_of(&ordered)?, &words)?;
+    let dump = read_dump(&run.with_relay)?;
+    check_page_rows(&dump, &run.finals)?;
+    check_arrows_oppose_badges(&dump)?;
+    let judgement = judge(&dump, &lines_for(&run.finals, &run.relay)?, &words)?;
     record_judgement(&judgement)?;
-    let badges: Vec<_> = dump.rows.iter().map(|row| row.badge.as_deref()).collect();
-    assert_eq!(badges, [Some("ja"), Some("en"), Some("ja"), Some("en")]);
     Ok(())
 }
 
-/// T-IP-05-003
+/// T-IP-05-003: the pages without a relay draw the same rows, with no `tr`
+/// inside any of them.
 #[test]
 #[ignore = "starts the hayamimi binary, the relay, a stand-in translation server and chrome-headless-shell"]
 fn a_page_without_relay_in_its_address_shows_no_translation() -> TestResult {
-    let seen = observed()?;
-    for html in [&seen.without_relay, &seen.bad_relay] {
-        check_shape(&read_dump(html)?, UTTERANCES, 0)?;
+    let run = observed()?;
+    let rows = read_dump(&run.with_relay)?.rows.len();
+    assert!(rows >= 1, "the page with the relay drew no row");
+    for html in [&run.without_relay, &run.bad_relay] {
+        check_shape(&read_dump(html)?, rows, 0)?;
     }
     Ok(())
 }
 
-/// T-IP-05-004
+/// T-IP-05-004: the relay's own `/events`, read apart from the page, holds a
+/// settled `of: final` translation into the opposite language for the last
+/// `final` in the language of each row.
 #[test]
 #[ignore = "starts the hayamimi binary, the relay, a stand-in translation server and chrome-headless-shell"]
 fn the_relay_publishes_four_settled_translations_for_the_four_lines() -> TestResult {
-    let seen = observed()?;
-    let ordered = in_line_order(&settled_translations(&seen.translations))?;
-    check_settled(&ordered)?;
+    let run = observed()?;
+    let last = last_own_finals(&run.langs, &run.given)?;
+    check_rows_translated(&run.langs, &last, &run.relay)?;
     Ok(())
 }
 
@@ -1488,4 +1740,335 @@ fn a_judgement_with_no_row_to_judge_is_not_issued_and_the_counts_are_recorded() 
         }
     );
     Ok(())
+}
+
+// ---- the judgement of one manifest row (design 10.9.3) --------------------
+
+fn placed(lang: &str, id: &str) -> Placed {
+    Placed {
+        lang: lang.to_owned(),
+        id: Some(id.to_owned()),
+    }
+}
+
+fn given_for(utt: u32, finals: Vec<Placed>) -> Given {
+    Given {
+        repeat: 1,
+        utt,
+        finals,
+    }
+}
+
+fn langs4() -> Vec<String> {
+    ["ja", "en", "ja", "en"].map(String::from).to_vec()
+}
+
+fn seen(id: &str, lang: &str, text: &str) -> Seen {
+    Seen {
+        id: id.to_owned(),
+        lang: lang.to_owned(),
+        text: text.to_owned(),
+    }
+}
+
+/// A translation event of line `id` into `lang`.
+fn translation(id: &str, lang: &str, of: &str, settled: bool) -> Value {
+    serde_json::json!({
+        "type": "translation", "id": id, "of": of, "settled": settled,
+        "lang": lang, "text": "t", "status": "ok"
+    })
+}
+
+/// One row of a dumped page: the badge, the text and one `tr` for each arrow.
+fn drawn(text: &str, badge: &str, arrows: &[&str]) -> String {
+    let trs: String = arrows
+        .iter()
+        .map(|lang| {
+            format!(r#"<div class="tr lang-{lang}"><span class="tr-arrow">→{lang}</span></div>"#)
+        })
+        .collect();
+    format!(
+        r#"<div class="row"><span class="lang-badge {badge}">{badge}</span><div class="row-text">{text}</div>{trs}</div>"#
+    )
+}
+
+fn dump_of(rows: &[String]) -> Result<Dump, Failure> {
+    let rows: Vec<&str> = rows.iter().map(String::as_str).collect();
+    read_dump(&page(&rows))
+}
+
+/// The row a language is translated from is opposed by the other language of
+/// the pair; a third language has none.
+#[test]
+fn the_language_opposite_to_ja_is_en_and_the_other_way_round_and_no_other_has_one() -> TestResult {
+    assert_eq!((opposite("ja")?, opposite("en")?), ("en", "ja"));
+    let said = opposite("zh");
+    assert!(
+        matches!(&said, Err(message) if message.contains("zh")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// An utterance split into several `final`s is judged by the last of them
+/// that is in the language of its manifest row (10.9.3, 2 (b)).
+#[test]
+fn a_row_split_into_several_finals_is_judged_by_its_last_final_in_its_own_language() -> TestResult {
+    let given = [
+        given_for(
+            1,
+            vec![
+                placed("ja", "file-1"),
+                placed("en", "file-2"),
+                placed("ja", "file-3"),
+            ],
+        ),
+        given_for(2, vec![placed("en", "file-4")]),
+        given_for(3, vec![placed("ja", "file-5")]),
+        given_for(4, vec![placed("en", "file-6"), placed("ja", "file-7")]),
+    ];
+    let last = last_own_finals(&langs4(), &given)?;
+    let ids: Vec<Option<&str>> = last.iter().map(|done| done.id.as_deref()).collect();
+    assert_eq!(
+        ids,
+        [
+            Some("file-3"),
+            Some("file-4"),
+            Some("file-5"),
+            Some("file-6")
+        ]
+    );
+    Ok(())
+}
+
+/// A row with no `final` in its language means the identifier missed, not the
+/// page: nothing is judged, and every such row is named with what it was given.
+#[test]
+fn a_run_with_a_row_that_has_no_final_in_its_language_is_not_judged_and_every_such_row_is_named()
+-> TestResult {
+    let given = [
+        given_for(1, vec![placed("ja", "file-1")]),
+        given_for(2, vec![placed("ja", "file-2")]),
+        given_for(3, vec![]),
+        given_for(4, vec![placed("en", "file-3")]),
+    ];
+    let said = last_own_finals(&langs4(), &given);
+    assert!(
+        matches!(&said, Err(message) if message.contains("row 8 (en)")
+            && message.contains("row 9 (ja)")
+            && !message.contains("row 7")
+            && message.contains("not judged")),
+        "{said:?}"
+    );
+    let short = last_own_finals(&langs4(), &given[..3]);
+    assert!(short.is_err(), "{short:?}");
+    Ok(())
+}
+
+/// Only a settled translation of the `final` itself counts, into the language
+/// opposite to the row's (10.9.3, 2 (b) and 4).
+#[test]
+fn a_row_is_translated_only_by_a_settled_of_final_translation_into_the_opposite_language()
+-> TestResult {
+    let ok = [translation("file-1", "en", "final", true)];
+    check_translated(7, "ja", "file-1", &ok)?;
+    let refined_only = [translation("file-1", "en", "refine", true)];
+    let unsettled = [translation("file-1", "en", "final", false)];
+    let wrong_way = [translation("file-1", "ja", "final", true)];
+    let other_line = [translation("file-2", "en", "final", true)];
+    for (events, why) in [
+        (&refined_only, "refine"),
+        (&unsettled, "unsettled"),
+        (&wrong_way, "wrong way"),
+        (&other_line, "other line"),
+    ] {
+        let said = check_translated(7, "ja", "file-1", events);
+        assert!(
+            matches!(&said, Err(message) if message.contains("row 7")),
+            "{why}: {said:?}"
+        );
+    }
+    let refined_later = [
+        translation("file-1", "en", "final", true),
+        translation("file-1", "en", "refine", true),
+    ];
+    check_translated(7, "ja", "file-1", &refined_later)?;
+    Ok(())
+}
+
+/// The finals with no settled translation yet are the ones the run still waits
+/// for, and are named when the wait ends.
+#[test]
+fn the_finals_with_no_settled_translation_are_named() {
+    let finals = [seen("file-1", "ja", "a"), seen("file-2", "en", "b")];
+    let relay = [translation("file-1", "en", "final", true)];
+    assert_eq!(missing_translations(&relay, &finals), ["file-2"]);
+    assert!(missing_translations(&[], &finals).len() == 2);
+    let both = [relay[0].clone(), translation("file-2", "ja", "final", true)];
+    assert!(missing_translations(&both, &finals).is_empty());
+}
+
+/// The page draws a `row` for each `final` in the order they came; a row is
+/// taken for a `final` only when its text and badge are the `final`'s, and it
+/// holds exactly one `tr` (10.9.3, 2 (c)).
+#[test]
+fn each_final_has_the_row_of_its_place_with_its_text_and_badge_and_exactly_one_tr() -> TestResult {
+    let finals = [seen("file-1", "ja", "あ"), seen("file-2", "en", "b")];
+    let good = [drawn("あ", "ja", &["en"]), drawn("b", "en", &["ja"])];
+    check_page_rows(&dump_of(&good)?, &finals)?;
+    let cases = [
+        (
+            vec![drawn("あ", "ja", &["en"])],
+            "1 rows for 2 finals",
+            "fewer rows",
+        ),
+        (
+            vec![drawn("あ", "ja", &["en"]), drawn("c", "en", &["ja"])],
+            "file-2",
+            "other text",
+        ),
+        (
+            vec![drawn("あ", "ja", &["en"]), drawn("b", "ja", &["en"])],
+            "file-2",
+            "other badge",
+        ),
+        (
+            vec![drawn("あ", "ja", &["en", "en"]), drawn("b", "en", &["ja"])],
+            "file-1",
+            "two tr",
+        ),
+        (
+            vec![drawn("あ", "ja", &[]), drawn("b", "en", &["ja"])],
+            "file-1",
+            "no tr",
+        ),
+    ];
+    for (rows, named, why) in cases {
+        let said = check_page_rows(&dump_of(&rows)?, &finals);
+        assert!(
+            matches!(&said, Err(message) if message.contains(named)),
+            "{why}: {said:?}"
+        );
+    }
+    Ok(())
+}
+
+/// The arrow of a `tr` points away from the badge of its row (10.9.3, 5).
+#[test]
+fn an_arrow_that_does_not_point_away_from_the_badge_of_its_row_fails() -> TestResult {
+    check_arrows_oppose_badges(&dump_of(&[
+        drawn("a", "ja", &["en"]),
+        drawn("b", "en", &["ja"]),
+    ])?)?;
+    for rows in [[drawn("a", "ja", &["ja"])], [drawn("a", "en", &["en"])]] {
+        let said = check_arrows_oppose_badges(&dump_of(&rows)?);
+        assert!(
+            matches!(&said, Err(message) if message.contains("row 0")),
+            "{said:?}"
+        );
+    }
+    Ok(())
+}
+
+/// A `tr` outside every row (a refined paragraph) is not counted, and a page
+/// without the relay has rows with none inside (10.9.3, 4).
+#[test]
+fn a_tr_outside_every_row_is_not_counted() -> TestResult {
+    let html = format!(
+        r#"<div class="dash">{}<div class="refine"><div class="tr lang-en"><span class="tr-arrow">→en</span></div></div></div>"#,
+        drawn("a", "ja", &[])
+    );
+    let dump = read_dump(&html)?;
+    assert_eq!((dump.rows.len(), dump.trs_total), (1, 1));
+    check_shape(&dump, 1, 0)?;
+    let said = check_shape(&dump_of(&[drawn("a", "ja", &["en"])])?, 1, 0);
+    assert!(said.is_err(), "{said:?}");
+    Ok(())
+}
+
+/// The `final`s of an events file, in the order they came, with their id,
+/// language and text; other events are not read.
+#[test]
+fn the_finals_of_an_events_file_are_read_in_the_order_they_came() -> TestResult {
+    let line =
+        |t_us: i64, event: Value| serde_json::json!({ "t_us": t_us, "event": event }).to_string();
+    let text = [
+        line(1, serde_json::json!({"type": "partial", "text": "x"})),
+        line(
+            2,
+            serde_json::json!({"type": "final", "id": "file-2", "lang": "en", "text": "b"}),
+        ),
+        line(
+            3,
+            serde_json::json!({"type": "translation", "id": "file-2"}),
+        ),
+        line(
+            4,
+            serde_json::json!({"type": "final", "id": "file-3", "lang": "ja", "text": "あ"}),
+        ),
+    ]
+    .join("\n");
+    assert_eq!(
+        finals_seen(&text)?,
+        [seen("file-2", "en", "b"), seen("file-3", "ja", "あ")]
+    );
+    let no_id = line(
+        1,
+        serde_json::json!({"type": "final", "lang": "en", "text": "b"}),
+    );
+    let said = finals_seen(&no_id);
+    assert!(
+        matches!(&said, Err(message) if message.contains("id")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// A row of `lat-dialog` with its language and its place in the recording.
+fn manifest_row(lang: &str, start: u64, end: u64) -> ManifestRow {
+    let mut row = ManifestRow::new();
+    row.insert(String::from("lang"), Value::from(lang));
+    row.insert(String::from("start_sample"), Value::from(start));
+    row.insert(String::from("end_sample"), Value::from(end));
+    row
+}
+
+/// Ten rows that alternate ja, en, from sample 1000, each 100 long and 50 apart.
+fn ten_rows() -> Vec<ManifestRow> {
+    (0..10_u64)
+        .map(|at| {
+            let start = 1000 + at * 150;
+            manifest_row(if at % 2 == 0 { "ja" } else { "en" }, start, start + 100)
+        })
+        .collect()
+}
+
+/// The cut runs from the end of row 6 to the end of row 10, and the four rows
+/// of the window are counted from the start of the cut.
+#[test]
+fn the_cut_runs_from_the_end_of_row_six_to_the_end_of_row_ten_and_the_rows_start_from_it()
+-> TestResult {
+    let rows = ten_rows();
+    let cut = cut_of(&rows)?;
+    let from = 1000 + 5 * 150 + 100;
+    assert_eq!((cut.from, cut.to), (from, 1000 + 9 * 150 + 100));
+    let first = cut.rows.first().ok_or("no row")?;
+    assert_eq!(first.get("start_sample"), Some(&Value::from(50_u64)));
+    assert_eq!(first.get("end_sample"), Some(&Value::from(150_u64)));
+    assert_eq!(langs_of(&cut.rows)?, langs4());
+    Ok(())
+}
+
+/// A manifest too short for the window, and one whose window does not begin
+/// with ja and alternate, are refused.
+#[test]
+fn a_manifest_that_is_too_short_or_does_not_alternate_in_the_window_is_refused() {
+    assert!(cut_of(&ten_rows()[..9]).is_err());
+    let mut blocks = ten_rows();
+    blocks[7] = manifest_row("ja", 2000, 2100);
+    let said = cut_of(&blocks);
+    assert!(
+        matches!(&said, Err(message) if message.contains("ja, en, ja, en")),
+        "{said:?}"
+    );
 }

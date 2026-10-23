@@ -20,9 +20,9 @@ use std::path::PathBuf;
 use hayamimi_eval::latency::Sample;
 use serde_json::json;
 use support::dialog::{
-    Cell, Tally, Verdict, cells_of, check_complete, count_by_step, count_by_step_in, langs_of,
-    manifest_rows, match_fallbacks, record_dialog_run, record_verdict, same_language_translations,
-    switches, tally,
+    Cell, Silent, Tally, Verdict, cells_of, check_complete, count_by_reason, count_by_step,
+    count_by_step_in, given_of, langs_of, manifest_rows, match_fallbacks, record_dialog_run,
+    record_verdict, same_language_translations, split_undecided, switches, tally, unread_rows,
 };
 use support::dialog_run::run_stack;
 use support::{TestResult, find_above, read};
@@ -467,5 +467,186 @@ fn records_of_two_runs_mixed_together_are_refused_and_one_run_is_matched() -> Te
     );
     let (log, events) = run_of_six(&[3, 5]);
     assert_eq!(match_fallbacks(&log, &events)?, 2);
+    Ok(())
+}
+
+/// An `asr.segment.unread` line that ends at `end_s` on the stream.
+fn unread_line(end_s: f64, reason: &str) -> String {
+    json!({
+        "event": "asr.segment.unread", "level": "info", "start_s": end_s - 1.0,
+        "end_s": end_s, "reason": reason, "lang": "ja", "tier": "rz"
+    })
+    .to_string()
+}
+
+/// A run in which every utterance but those in `silent` was read right.
+fn right_but(silent: &'static [u32]) -> impl Fn(u32, u32) -> Vec<&'static str> {
+    move |repeat, utt| {
+        if silent.contains(&utt) {
+            vec![]
+        } else {
+            right_in(repeat, utt)
+        }
+    }
+}
+
+/// How the utterances that got no final in a run (those in `silent`) are
+/// sorted when `unread` lines ended at `ends`, in seconds on the stream.
+fn split_for(silent: &'static [u32], ends: &[f64]) -> Result<Silent, Box<dyn Error>> {
+    let counted = counted(&events_text(right_but(silent)))?;
+    let log = ends
+        .iter()
+        .map(|end_s| unread_line(*end_s, "empty_decode"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(split_undecided(
+        &samples_text()?,
+        &counted.undecided,
+        &unread_rows(&log)?,
+    )?)
+}
+
+/// IP-2 (design 10.9.2, 6): an utterance with no final in any repeat is
+/// "read as nothing" when a segment that read as nothing ended in its window
+/// in some repeat, and has "no segment" when none did in any repeat.
+#[test]
+fn an_utterance_with_no_final_has_a_segment_only_when_one_ended_in_its_window() -> TestResult {
+    // Utterance 4 of repeat 1 starts at 30 s and its window ends at 40 s.
+    let inside = split_for(&[4], &[33.0])?;
+    assert_eq!((inside.no_segment, inside.read_empty), (vec![], vec![4]));
+    let nowhere = split_for(&[4], &[23.0, 47.0])?;
+    assert_eq!((nowhere.no_segment, nowhere.read_empty), (vec![4], vec![]));
+    let none_at_all = split_for(&[4], &[])?;
+    assert_eq!(none_at_all.no_segment, vec![4]);
+    // Repeat 3 starts utterance 4 at 110 s, and the last window has no end.
+    let in_a_later_repeat = split_for(&[4], &[112.0, 500.0])?;
+    assert_eq!(in_a_later_repeat.read_empty, vec![4]);
+    Ok(())
+}
+
+/// The window is closed at its start and open at the next start.
+#[test]
+fn a_segment_ending_where_the_next_utterance_starts_belongs_to_the_next_one() -> TestResult {
+    let at_start = split_for(&[4], &[30.0])?;
+    assert_eq!(at_start.read_empty, vec![4]);
+    let at_next_start = split_for(&[4], &[40.0])?;
+    assert_eq!(at_next_start.no_segment, vec![4]);
+    Ok(())
+}
+
+/// Two utterances with no final are sorted one by one.
+#[test]
+fn utterances_with_no_final_are_sorted_into_the_two_kinds_one_by_one() -> TestResult {
+    let got = split_for(&[3, 4], &[15.0, 31.0])?;
+    assert_eq!((got.no_segment, got.read_empty), (vec![3], vec![4]));
+    // An utterance that has a final is in neither list, whatever ended in its window.
+    let got = split_for(&[4], &[3.0, 13.0])?;
+    assert_eq!((got.no_segment, got.read_empty), (vec![4], vec![]));
+    Ok(())
+}
+
+/// IP-2: the lines of `asr.segment.unread` are counted by reason, other
+/// events are not read, and a reason outside the two or a span that is not a
+/// number is an error.
+#[test]
+fn unread_segments_are_counted_by_reason_and_an_odd_line_is_an_error() -> TestResult {
+    let log = [
+        unread_line(3.0, "empty_decode"),
+        unread_line(4.0, "empty_text"),
+        unread_line(5.0, "empty_decode"),
+        fallback_line(1, "sv_tag", "info"),
+    ]
+    .join("\n");
+    assert_eq!(count_by_reason(&unread_rows(&log)?), [2, 1]);
+    assert_eq!(count_by_reason(&unread_rows("")?), [0, 0]);
+    let said = unread_rows(&unread_line(3.0, "guessed"));
+    assert!(
+        matches!(&said, Err(message) if message.contains("guessed")),
+        "{said:?}"
+    );
+    let no_end = json!({ "event": "asr.segment.unread", "reason": "empty_text" }).to_string();
+    let said = unread_rows(&no_end);
+    assert!(
+        matches!(&said, Err(message) if message.contains("end_s")),
+        "{said:?}"
+    );
+    Ok(())
+}
+
+/// IP-2 and IP-5: a final is kept with the id the server gave it, in the
+/// order the run placed the finals of an utterance, and `cells_of` reads the
+/// languages of the same placement.
+#[test]
+fn the_finals_of_an_utterance_keep_their_ids_in_placement_order() -> TestResult {
+    let split = |repeat: u32, utt: u32| {
+        if utt == 1 {
+            vec!["ja", "en"]
+        } else {
+            right_in(repeat, utt)
+        }
+    };
+    let events = events_text(split);
+    let given = given_of(&samples_text()?, &events)?;
+    let first = given.first().ok_or("no utterance was given")?;
+    let placed: Vec<(&str, Option<&str>)> = first
+        .finals
+        .iter()
+        .map(|done| (done.lang.as_str(), done.id.as_deref()))
+        .collect();
+    assert_eq!(
+        (first.repeat, first.utt, placed),
+        (1, 1, vec![("ja", Some("file-1")), ("en", Some("file-2"))])
+    );
+    let cells = cells_of(&samples_text()?, &events)?;
+    assert_eq!(cells.len(), given.len());
+    let langs: Vec<&str> = cells
+        .first()
+        .ok_or("no cell")?
+        .langs
+        .iter()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(langs, ["ja", "en"]);
+    Ok(())
+}
+
+/// The record of a run names the counts by reason and both kinds of
+/// utterance with no final; a log that cannot be read is written down as it
+/// is said and does not stop the record.
+#[test]
+fn the_record_of_a_run_names_the_unread_segments_and_the_two_kinds_of_silent_utterance()
+-> TestResult {
+    let out = scratch("ip02_unread.jsonl");
+    std::fs::write(&out, samples_text()?)?;
+    std::fs::write(
+        out.with_extension("events.jsonl"),
+        events_text(right_but(&[3, 4])),
+    )?;
+    std::fs::write(
+        out.with_extension("log"),
+        [
+            unread_line(31.0, "empty_decode"),
+            unread_line(32.5, "empty_text"),
+        ]
+        .join("\n"),
+    )?;
+    let record = scratch("ip02_unread.md");
+    std::fs::write(&record, "")?;
+    record_dialog_run(&record, "unread", &out, &langs4(), LINE)?;
+    let written = read(&record)?;
+    for line in [
+        "asr.segment.unread empty_decode: 1",
+        "asr.segment.unread empty_text: 1",
+        "utterances with no segment: [3]",
+        "utterances read as nothing: [4]",
+    ] {
+        assert!(written.contains(line), "`{line}` is not in: {written}");
+    }
+    std::fs::remove_file(out.with_extension("log"))?;
+    std::fs::write(&record, "")?;
+    record_dialog_run(&record, "no log", &out, &langs4(), LINE)?;
+    let written = read(&record)?;
+    assert!(written.contains("asr.segment.unread: cannot read the log"));
+    assert!(!written.contains("utterances read as nothing"));
     Ok(())
 }

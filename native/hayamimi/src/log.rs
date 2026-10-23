@@ -6,7 +6,7 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use hayamimi_asr::pipeline::PunctWarmup;
+use hayamimi_asr::pipeline::{PunctWarmup, Unread};
 use hayamimi_asr::route::FallbackStep;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
 use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
@@ -38,6 +38,7 @@ pub const MODEL_EVICTED: &str = "asr.model.evicted";
 pub const MEMORY_UNREADABLE: &str = "gpu.memory.unreadable";
 pub const LANG_UNKNOWN: &str = "asr.lang.unknown";
 pub const LANG_FALLBACK: &str = "asr.lang.fallback";
+pub const SEGMENT_UNREAD: &str = "asr.segment.unread";
 pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
 pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
@@ -49,6 +50,11 @@ pub const SERVER_LAN_OPENED: &str = "server.lan.opened";
 
 /// A time in milliseconds to three decimals.
 fn millis(value: f64) -> Value {
+    Value::from((value * 1000.0).round() / 1000.0)
+}
+
+/// A time in seconds to three decimals.
+fn seconds(value: f64) -> Value {
     Value::from((value * 1000.0).round() / 1000.0)
 }
 
@@ -284,6 +290,30 @@ pub fn lang_fallback_line(strings: &Strings, done: &Final) -> Option<String> {
             ("lid", lid),
         ],
     ))
+}
+
+/// `asr.segment.unread`: a segment of the main detector was read and made no
+/// `final`. `start_s` and `end_s` are the span on the stream, the clock of a
+/// `final`'s `t0_s` and `t1_s`; `reason` is `empty_decode` (the recognizer
+/// answered with no text) or `empty_text` (the text was gone after ITN,
+/// punctuation and the dictionary); `lang` and `tier` are what the recognizer
+/// was asked for. The text is not written. It is `info`: an answer of no text
+/// is common on near-silence.
+pub fn segment_unread_line(strings: &Strings, unread: &Unread) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        SEGMENT_UNREAD,
+        "asr",
+        None,
+        &[
+            ("start_s", seconds(unread.start_s)),
+            ("end_s", seconds(unread.end_s)),
+            ("reason", Value::from(unread.reason.name())),
+            ("lang", Value::from(unread.lang.as_str())),
+            ("tier", Value::from(unread.tier)),
+        ],
+    )
 }
 
 /// `asr.endpoint.held`: an early notice read a sentence from `hold.span_ms`
@@ -530,6 +560,7 @@ mod tests {
     use crate::notice;
     use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
+    use hayamimi_asr::pipeline::UnreadReason;
     use hayamimi_asr::route::LangFallback;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
@@ -1142,6 +1173,55 @@ mod tests {
         assert_eq!(event["level"], "warn");
         assert_eq!(event["id"], 9);
         assert!(event["lid"].is_null());
+        Ok(())
+    }
+
+    fn unread_for(reason: UnreadReason) -> Unread {
+        Unread {
+            start_s: 12.3456,
+            end_s: 13.5,
+            reason,
+            lang: String::from("en"),
+            tier: "pz",
+        }
+    }
+
+    /// IP-9: a segment that read as nothing leaves one `info` line with the
+    /// five fields of the design, the span in stream seconds, and no text.
+    #[test]
+    fn ip09_a_segment_read_as_nothing_leaves_one_log_line() -> Result<(), Box<dyn std::error::Error>>
+    {
+        for lang in [Lang::En, Lang::Ja] {
+            let table = Strings::embedded(lang)?;
+            assert!(table.messages.contains_key(SEGMENT_UNREAD), "{lang:?}");
+        }
+        for (reason, name) in [
+            (UnreadReason::EmptyDecode, "empty_decode"),
+            (UnreadReason::EmptyText, "empty_text"),
+        ] {
+            let line = segment_unread_line(&strings()?, &unread_for(reason));
+            assert!(!line.contains('\n'));
+            let event = parsed(&line)?;
+            assert_eq!(event["event"], "asr.segment.unread");
+            assert_eq!(event["component"], "asr");
+            assert_eq!(event["level"], "info");
+            assert!(event["error_code"].is_null());
+            assert_eq!(event["start_s"], 12.346);
+            assert_eq!(event["end_s"], 13.5);
+            assert_eq!(event["reason"], name);
+            assert_eq!(event["lang"], "en");
+            assert_eq!(event["tier"], "pz");
+            let Some(fields) = event.as_object() else {
+                return Err("an event line is not an object".into());
+            };
+            let mut extra: Vec<&str> = fields
+                .keys()
+                .map(String::as_str)
+                .filter(|key| !ENVELOPE.contains(key))
+                .collect();
+            extra.sort_unstable();
+            assert_eq!(extra, ["end_s", "lang", "reason", "start_s", "tier"]);
+        }
         Ok(())
     }
 
