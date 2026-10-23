@@ -3735,13 +3735,13 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 - `?relay=` の scheme の大文字小文字、decode した値の前後の空白、`held` の訳の描き方（印と理由を出し、訳の文を出さない）：10.5（T-IP-05-002、012、014、017 から 019）。
 - `--own-llama-port` の型と範囲（`0`、`65535`、`65536`、負の数、空の値、先頭に 0 のある引数、引数の重複）：10.7.1（T-IP-08-013、015 から 022）。
 
-### 4.87 BR-1〜BR-31（対面のモードの磨き上げ）
+### 4.87 BR-1〜BR-35（対面のモードの磨き上げ）
 
 **最新情報**：Chrome DevTools Protocol の CSS domain は、`CSS.getPlatformFontsForNode` が node の子の文字を描いた platform font の使用状況（`familyName`、`postScriptName`、`isCustomFont`、`glyphCount`）を返すと書く（https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json 、取得 2026-10-23）。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
-case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 31 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 7 つである。
+case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 35 まである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 8 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 
@@ -3751,6 +3751,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-19、BR-21、BR-22、BR-23、BR-24、BR-25、BR-30 の純関数の行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。
 - BR-22 と BR-23 の実走の行は `native/hayamimi/tests/br21.rs`、BR-25 の実走の行は `native/hayamimi/tests/br24.rs`、BR-31 の実走の行は `native/hayamimi/tests/br30.rs`。
 - BR-26 と BR-27 の中継の行は `native/hayamimi-relay/tests/br26.rs` と `br27.rs`。
+- T-BR-35-004 は `native/hayamimi/src/routes.rs` の `mod tests`。
 
 どれも作る物である。
 行の関数の名前は、受入 test の名前（設計の表）を 001 の行に置き、ほかの行は 1 行 1 本の文にした。
@@ -3790,9 +3791,8 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 **合否と記録**：
 
-- 合否に置く行は、設計 10.13.7 の合否の ID（BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17）と、BR-19 から BR-31 の全行である（BR-26 から BR-31 の合否の置き方は設計 10.13.12 の slice の表が決める）。
+- 合否に置く行は、設計 10.13.7 の合否の ID（BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17、BR-35）と、BR-19 から BR-34 の全行である（BR-26 から BR-31 の合否の置き方は設計 10.13.12 の slice の表が決める）。
 - BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 の実走の数は記録だけで、行の合否は、数える関数が既知の入力を正しく数えることだけに置く。実走の行は数を記録の file に書き、線の外でも落とさない。
-- BR-16、BR-17、BR-18 の行は、評議の席の判定（設計 10.13.10 の H52）の後に有効である。判定の前は実装に着手せず、行は `#[ignore]` ではなく書かない。
 
 **材料**：
 
@@ -4032,58 +4032,80 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-15-006 | 実走：005 の run の最後の `final` の直前（最後の速報の後） | 速報の後で `final` の前 | 速報が出る | `.strip-text` の text が最後の速報の text と等しい（005 が読む欄が、速報の間は文を出すことを見る陽性対照） | 陽性 | `the_strip_of_the_page_shows_the_partial_before_its_final` |
 | T-BR-15-007 | 純関数：発話 1 の速報 `こん` を `apply`、発話 2 の速報 `次` を `apply`、続けて発話 1 の `final`（遅れて着いた物）を `apply`。続けて発話 2 の速報 `次の` を `apply` | `final` が次の速報より遅れる | `final` は着いた時に必ず空にする | 遅れた `final` の後で `strip_text` が空（`次` も消える）、次の速報の後で `次の`（specified：設計 10.13.13 の 5。どの速報がどの `final` に覆われたかは見分けない） | 境界 | `a_late_final_empties_the_strip_and_the_next_partial_fills_it_again` |
 
-**B4（別の PC のブラウザから音を送る頁）の行：BR-16、BR-17、BR-18 は、評議の席の判定（H52）の後に有効である。**
+**B4（別の PC のブラウザから音を送る頁）の行：BR-16、BR-17、BR-18、BR-35**
 
-**BR-16（LAN の `/ingest` の 3 つの断り。`native/hayamimi/tests/br16.rs`）**
+B4 は TLS も証明書も持たない。送る側の browser の flag（`unsafely-treat-insecure-origin-as-secure`）が 1 つの http の origin を secure context として扱い、頁 `/send` と `/ingest` は `--send-page` を付けた `--serve` の listener（http）に同居する。
 
-H52 の判定の後に有効。
+**B4 の行の共通の材料**：
 
-材料：TLS の listener の証明書と鍵は、test の fixture として `native/hayamimi/tests/fixtures/tls/` に置く自己署名の組（`localhost` と `127.0.0.1` の SAN）で、実装の席が `openssl req -x509` で作る。client は fixture の証明書だけを信頼する。合言葉は localhost の `/dashboard` の html から読む。address の判定は、相手の address を受けて「受ける」か `address` で断るかを返す純関数に直接渡す。
+- 起こし方：`--send-page --serve 0 --serve-host 0.0.0.0`。`--ws-host` は既定の loopback のまま。LAN の address は、test が UDP の socket の local address で引く（RP-40 と同じ）。引いた address が受ける範囲（10.13.13 の 6 の LAN）の外なら、skip でなく `Err` を返す。
+- 相手の address：LAN の address を相手にする接続は、client の socket を LAN の address に bind して `<LAN の address>:<port>` へ繋ぐ。loopback の相手は `127.0.0.1:<port>` へ繋ぐ。
+- 合言葉：loopback の相手が `Host: 127.0.0.1:<port>` で `GET /send-link` を打ち、返った URL の `#t=` の後ろを読む。
+- 頁の自分の origin：`/ingest` の upgrade 要求の `Host` に `http://` を付けた物（`http://<LAN の address>:<port>`）。
+- 「断られた」：upgrade の応答が 101 でないか、`ready` より前に close の frame を受けること。断りの `reason` は `ingest.client.refused` の行で読む。
+- WebSocket の client は test が書く（`Origin` と最初の frame を行ごとに決める）。最初の frame の既定は `{"token":"<合言葉>"}` の text の frame。
+- 合言葉を照らす前の接続が席を握らないこと（C2）は、`Lease::take` が呼ばれた回数でなく、外から見える `ready` と `busy` で測る。
+
+**BR-16（`--send-page` の `/ingest` の断りと、合言葉を照らす前の接続が席を握らないこと。`native/hayamimi/tests/br16.rs`）**
+
+address の判定は、相手の address を受けて「受ける」か `address` で断るかを返す純関数に直接渡す。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-16-001 | 受入：TLS の listener の `/ingest` へ、(a) 合言葉の無い接続、(b) 違う合言葉の接続、(c) 自分と別の `Origin` の接続 | 3 つの断り | 1 接続に 1 行 | 3 本とも閉じられ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の全行に合言葉の文字が無い（specified：BR-16） | 陽性 | `br16_a_lan_ingest_without_the_token_or_from_another_origin_is_refused` |
+| T-BR-16-001 | 受入：`--serve` の listener の `/ingest` へ、(a) 最初の frame に `token` の無い接続、(b) 違う合言葉の接続、(c) 自分と別の `Origin`（`http://other.example`）の接続 | 3 つの断り | 1 接続に 1 行 | 3 本とも断られ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の全行に合言葉の文字が無い（specified：BR-16） | 陽性 | `br16_a_lan_ingest_without_the_token_or_from_another_origin_is_refused` |
 | T-BR-16-002 | 正しい合言葉と自分の origin の接続 | 受ける側 | `ready` | `ready` を受ける（specified：BR-16 の陽性対照） | 陽性 | `a_connection_with_the_token_and_its_own_origin_gets_ready` |
-| T-BR-16-003 | localhost の `/ingest`（port は OS に選ばせる）へ合言葉なしで接続 | localhost は今のまま | `ready` | `ready` を受け、`ingest.client.refused` が 0 件（specified：BR-16 の陰性対照。設計 10.13.6） | 陰性 | `the_localhost_ingest_still_needs_no_token` |
+| T-BR-16-003 | 同じ run の localhost の 8766 の `/ingest`（`--ws-port` は OS に選ばせる）へ合言葉なしで接続 | localhost は今のまま | `ready` | `ready` を受け、`ingest.client.refused` が 0 件（specified：BR-16 の陰性対照。設計 10.13.6） | 陰性 | `the_localhost_ingest_still_needs_no_token` |
 | T-BR-16-004 | 純関数に 10.0.0.0 、10.255.255.255、9.255.255.255、11.0.0.0、172.15.255.255、172.16.0.0、172.31.255.255、172.32.0.0、192.167.255.255、192.168.0.0、192.168.255.255、192.169.0.0 | RFC 1918 の 3 範囲の両端の内と外 | 範囲の端 | 10.0.0.0、10.255.255.255、172.16.0.0、172.31.255.255、192.168.0.0、192.168.255.255 を受け、残りの 6 つを `address` で断る（specified：設計 10.13.6） | 境界 | `the_three_private_ranges_are_accepted_on_both_edges_and_refused_just_outside` |
 | T-BR-16-005 | 純関数に 169.253.255.255、169.254.0.0、169.254.255.255、169.255.0.0、126.255.255.255、127.0.0.0、127.255.255.255、128.0.0.0 | link-local と loopback の両端 | 範囲の端 | 169.254.0.0、169.254.255.255、127.0.0.0、127.255.255.255 を受け、残りの 4 つを断る | 境界 | `link_local_and_loopback_ranges_are_accepted_on_both_edges_and_refused_just_outside` |
 | T-BR-16-006 | 純関数に `fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fc00::`、`fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fe00::`、`fe7f::`、`fe80::`、`febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fec0::`、`::1`、`::` | IPv6 の ULA、link-local、loopback の両端 | 範囲の端 | `fc00::`、`fdff:…`、`fe80::`、`febf:…`、`::1` を受け、残りの 5 つを断る | 境界 | `the_ipv6_unique_local_and_link_local_ranges_are_accepted_on_both_edges` |
 | T-BR-16-007 | 純関数に 8.8.8.8、100.64.0.1、0.0.0.0、224.0.0.1、255.255.255.255、`2001:4860:4860::8888` | LAN の外のうち、公開、共有 address 空間、特殊 | どれも断る | 6 つとも `address` で断る（specified：設計 10.13.6「ほかは reason: address で断る」。陽性対照は 004 から 006 の受ける側） | 陰性 | `public_and_special_addresses_are_refused_with_reason_address` |
 | T-BR-16-008 | 純関数に `::ffff:192.168.1.5`、`::ffff:8.8.8.8` | IPv4 を包んだ IPv6 | 中の IPv4 で決める | 前者を受け、後者を `address` で断る（specified：設計 10.13.13 の 6「包んだ IPv4 の address に直してから判定する」） | 境界 | `an_ipv4_address_wrapped_in_ipv6_is_judged_by_the_address_inside` |
-| T-BR-16-009 | `Origin` が (a) 無い、(b) `null`、(c) 自分と port だけ違う、(d) scheme が `http`、(e) host が違う、(f) 自分と同じ | origin の同値類 | 完全に同じ時だけ | (a) から (e) は閉じられ `reason` が `origin`、(f) だけ `ready`（specified：設計 10.13.6「頁の自分の origin と同じ時だけ受け」） | 境界 | `only_the_exact_own_origin_is_accepted` |
+| T-BR-16-009 | 自分の origin が `http://<LAN の address>:<port>` の時、`Origin` が (a) 無い、(b) `null`、(c) port だけ違う、(d) scheme だけ `https`、(e) host だけ `localhost`、(f) 自分と同じ | origin の同値類 | 完全に同じ時だけ | (a) から (e) は断られ `reason` が `origin`、(f) だけ `ready`（specified：設計 10.13.6「頁の自分の origin と同じ時だけ受け」。derived：自分の origin は `Host` から組む：下の穴） | 境界 | `only_the_exact_own_origin_is_accepted` |
 | T-BR-16-010 | 最初の JSON の frame の `token` が (a) 無い、(b) 空文字、(c) 同じ長さの違う値、(d) 正しい値の先頭 1 文字を欠いた値、(e) 正しい値の末尾に 1 文字足した値 | 合言葉の同値類 | 完全一致だけ | 5 本とも閉じられ `reason` が `token`（specified：BR-16。各 1 行） | 境界 | `any_token_other_than_the_exact_one_is_refused` |
 | T-BR-16-011 | 正しい合言葉を URL の query にだけ置き、最初の frame に `token` を置かない接続 | query の合言葉 | 採らない手段 | 閉じられ、`reason` が `token`（specified：設計 10.13.6「合言葉を URL の query に置く」を採らない物とする） | 陰性 | `a_token_in_the_query_string_is_not_accepted` |
-| T-BR-16-012 | 001 の run の log の全行で、正しい合言葉の文字列を探す。陽性対照として、localhost の `/dashboard` の html で同じ文字列を探す | log に合言葉が出ない | 0 件 | log は 0 件、html は 1 件以上（specified：BR-16「log の行に合言葉の文字が無い」。0 件は非 0 の対照が付いて初めて読む） | 陰性 | `the_token_never_reaches_the_log` |
-| T-BR-16-013 | 断られた接続に、断られた後で音声の frame を送る | 断った後 | 受けない | `ready` は届かず、`final` が 0 件（specified：BR-16「どれも閉じられ」） | 陰性 | `a_refused_connection_gets_no_ready_and_no_final` |
-| T-BR-16-014 | 正しい合言葉と自分の origin の 1 本目が音を送っている間に、同じ条件の 2 本目を TLS の listener へ接続する | 2 本目の client | 1013 で閉じる | 2 本目は `ready` を受けず WebSocket の close code 1013 で閉じられ、`ingest.client.refused` が `reason: busy` で 1 行出る。1 本目は閉じられず、その音の `final` が届く（specified：設計 10.13.13 の 8） | 陰性 | `a_second_client_while_one_is_sending_is_closed_with_1013_and_busy` |
-| T-BR-16-015 | 同じ入れ方を localhost の `/ingest`（port は OS に選ばせる）で | localhost も同じ 1 本の制限 | 1013 で閉じる | 014 と同じ（`reason: busy`、close code 1013、1 本目は止まらない）（specified：設計 10.13.13 の 8「TLS の listener でも localhost の 8766 でも」） | 陰性 | `a_second_localhost_client_is_closed_with_1013_and_busy` |
+| T-BR-16-012 | 001 から 011 の run の stderr と log の全行、`GET /events` を開いたままにして受けた全 event、断りの close の frame の reason の文字で、正しい合言葉の文字列を探す。陽性対照として、`GET /send-link` の応答の body で同じ文字列を探す | 合言葉が出ない所 | 0 件 | stderr、log、`/events`、close の reason は 0 件、`/send-link` の body は 1 件（specified：設計 10.13.6「合言葉は `/events`、log、error の文、中継のどれにも出さない」と BR-16。0 件は非 0 の対照が付いて初めて読む。中継は test が起こさないので測らない：下の穴） | 陰性 | `the_token_never_reaches_the_log` |
+| T-BR-16-013 | 違う合言葉で断られた接続に、断られた後で音声の frame（16 kHz、mono、`pcm_s16le` の 100 ms）を送る | 断った後 | 受けない | `ready` は届かず、frame の送信は失敗するか無視され、`ingest.client.connected` が 0 行（specified：BR-16「どれも閉じられ」。陽性対照は 002 の `ready` と、正しい合言葉の接続で `ingest.client.connected` が 1 行出ること） | 陰性 | `a_refused_connection_gets_no_ready_and_no_final` |
+| T-BR-16-014 | 正しい合言葉と自分の origin の 1 本目が音を送っている間に、同じ条件の 2 本目を `--serve` の listener の `/ingest` へ接続する | 2 本目の client | 1013 で閉じる | 2 本目は `ready` を受けず WebSocket の close code 1013 で閉じられ、`ingest.client.refused` が `reason: busy` で 1 行出る。1 本目は閉じられず（close の frame を受けず）、2 本目が閉じられた後の音の frame の送信が成功する（specified：設計 10.13.13 の 8。`final` は model を要るのでこの行は読まない） | 陰性 | `a_second_client_while_one_is_sending_is_closed_with_1013_and_busy` |
+| T-BR-16-015 | 同じ入れ方を localhost の `/ingest`（port は OS に選ばせる）で | localhost も同じ 1 本の制限 | 1013 で閉じる | 014 と同じ（`reason: busy`、close code 1013、1 本目は止まらない）（specified：設計 10.13.13 の 8「`--send-page` で足した `/ingest` でも localhost の 8766 でも」） | 陰性 | `a_second_localhost_client_is_closed_with_1013_and_busy` |
+| T-BR-16-016 | 受入：`--serve` の listener の `/ingest` へ、upgrade の後に何も送らない接続 A を開いたままにし、A の upgrade の 1 秒後に、正しい合言葉と自分の origin の接続 B を送る | 合言葉を照らす前の接続と席 | B は A を待たない | B が `ready` を受け、`busy` で断られない。A は upgrade から 3 秒以内（計り方の許容は 1 秒で、4 秒以内）に close code 1008 で閉じられ、`ingest.client.refused` が `reason: token` で 1 行出る。B の `ready` は A が閉じられる前に届く（specified：設計 10.13.6 の C2「合言葉を、音の席を取る前に照らす」。陽性対照は 002 の B 単独の `ready`） | 陰性 | `br16_a_silent_connection_does_not_hold_the_seat` |
+| T-BR-16-017 | 最初の frame（正しい合言葉）を upgrade の (a) 2.0 秒後、(b) 4.0 秒後に送る | 3 秒の期限の両側 | 3 秒 | (a) は `ready`、(b) は送る前に A と同じく close code 1008 で閉じられ（`reason: token`）、frame を送っても `ready` は届かない。3.0 秒ちょうどは測らない（時計の揺れで通と落ちが入れ替わるため）（specified：設計 10.13.6 の C2「upgrade から 3 秒以内」） | 境界 | `the_first_frame_must_arrive_within_three_seconds` |
+| T-BR-16-018 | 最初の text の frame を、正しい合言葉の JSON の後ろに空白を足して、(a) ちょうど 4096 byte、(b) 4097 byte にして送る | 4096 byte の両側 | 4096 byte 以下 | (a) は `ready`、(b) は close code 1008 で閉じられ `reason: token`（specified：設計 10.13.6 の C2「4096 byte 以下の text の frame」。derived：JSON の後ろの空白は読み取りで無視される） | 境界 | `the_first_frame_of_4096_bytes_is_accepted_and_of_4097_is_refused` |
+| T-BR-16-019 | 最初の frame を、正しい合言葉の JSON の中身を持つ binary の frame にして送る | text でない最初の frame | text だけ | close code 1008 で閉じられ `reason: token`（specified：設計 10.13.6 の C2「text の frame でなければならず」。陽性対照は 018 の (a)） | 陰性 | `a_binary_first_frame_is_refused` |
+| T-BR-16-020 | 合言葉を照らす前の接続（upgrade の後に何も送らない）を 8 本開き、続けて 9 本目の upgrade を送る | 8 本の両側 | 同時に 8 本 | 8 本とも 101 を受け、9 本目は 101 を受けない（upgrade の前に断る）。9 本目の応答の status は問わない（設計が決めていない：下の穴）（specified：設計 10.13.6 の C2「照らす前の接続は同時に 8 本まで」） | 境界 | `the_ninth_unchecked_connection_is_refused_before_the_upgrade` |
+| T-BR-16-021 | 020 の 8 本が期限（3 秒）で閉じられた後に、正しい合言葉と自分の origin の接続を送る | 枠が戻る | 8 本の枠が空く | `ready` を受ける（`busy` でなく、upgrade も断られない）（specified：設計 10.13.6 の C2。020 の 9 本目の断りが「枠が戻らない実装」でなく「同時の上限」であることの対照） | 陽性 | `the_unchecked_connection_slots_return_after_the_deadline` |
+| T-BR-16-022 | 1 本目（正しい合言葉）が音を送っている間に、2 本目が (a) 違う合言葉、(b) 正しい合言葉で、どちらも自分の origin | 照らす順 | 合言葉が先、席が後 | (a) は `reason: token`（`busy` でない）、(b) は `reason: busy` と close code 1013。どちらでも 1 本目は閉じられない（specified：設計 10.13.6 の C2「照らし終えた接続だけが席を取りに行き、席が埋まっていれば今のとおり `busy`」。(b) が (a) の対照） | 境界 | `the_token_is_checked_before_the_seat_is_asked_for` |
+| T-BR-16-023 | 違う合言葉で断られた接続の直後に、正しい合言葉と自分の origin の接続を送る | 断りの後の席 | 席は空いたまま | `ready` を受ける（`busy` でない）。断られた接続が席を取っていない（specified：設計 10.13.6 の C2「席を取らずに閉じる」。陽性対照は 002） | 陰性 | `a_refused_connection_leaves_the_seat_free` |
 
-**BR-17（`/send` は TLS でだけ配られる。`native/hayamimi/tests/br17.rs`）**
+**BR-17（`/send` と `/send-link` の出し方と、起動の組み合わせの止め。`native/hayamimi/tests/br17.rs`）**
 
-H52 の判定の後に有効。
-
-材料：fixture は BR-16 と同じ。cert と鍵が対にならない組（別の鍵）も 1 つ置く。「起動が止まる」は、`hayamimi` を起こした process が 10 秒以内に 0 でない exit code で終わり、起動してから終わるまでの間、`--serve` の port への TCP 接続を 50 ms ごとに試して 1 度も成功しないことで測る。
+材料：共通の材料（BR-16 の前）に従う。「起動が止まる」は、`hayamimi` を起こした process が 10 秒以内に 0 でない exit code で終わり、起動してから終わるまでの間、`--serve` の port（test が空きを引いて渡す）への TCP 接続を 50 ms ごとに試して 1 度も成功しないことで測る。「起動する」は、10 秒以内に `GET /dashboard` が 200 になり、process がまだ生きていることで測る。`/send-link` の応答の URL は `http://` で始まり、`:<port>/send#t=` を含み、`#t=` の後ろが合言葉である。URL の host の部分は設計が決めていないので読まない（下の穴）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-17-001 | 受入：`--send-page --tls-cert <pem> --tls-key <pem>` を渡して起こし、`https` の `GET /send`。続けて `--send-page` 無しで起こし、`GET /send` | 配る、配らない | 200 と 404 | 前者が 200 で content type が html。後者が 404。cert か鍵の file が無い起動が止まる（specified：BR-17） | 陽性 | `br17_the_send_page_is_served_only_over_tls` |
-| T-BR-17-002 | 001 の前者の `https` の `GET /dashboard` | 同じ listener | 200 | 200（specified：BR-17 の陽性対照） | 陽性 | `the_tls_listener_also_serves_the_dashboard` |
-| T-BR-17-003 | `--send-page` を付け、cert を渡さずに起こす | cert が無い | 止まる | 起動が止まり、平文の listener が一度も開かない（specified：BR-17 の陰性対照） | 陰性 | `send_page_without_a_certificate_stops_before_any_listener_opens` |
-| T-BR-17-004 | `--tls-cert` の path が存在しない file | cert の file が無い | 止まる | 起動が止まる。stderr か log に理由が出る | 境界 | `a_missing_certificate_file_stops_the_start` |
-| T-BR-17-005 | `--tls-key` の path が存在しない file | 鍵の file が無い | 止まる | 起動が止まる | 境界 | `a_missing_key_file_stops_the_start` |
-| T-BR-17-006 | `--tls-cert` が PEM でない text の file | cert の中身が壊れている | 止まる | 起動が止まる | 境界 | `a_certificate_file_that_is_not_pem_stops_the_start` |
-| T-BR-17-007 | 対にならない cert と鍵 | 鍵が cert の物でない | 止まる | 起動が止まり、平文の listener が開かない | 境界、陰性 | `a_key_that_does_not_belong_to_the_certificate_stops_the_start` |
-| T-BR-17-008 | 001 の前者の port へ、TLS を使わずに `GET /send HTTP/1.1` を送る | 平文での取得 | 配らない | 応答に `/send` の頁の html の目印（`<html` と頁の title）が含まれない（TLS の handshake の失敗か接続の切断）（specified：BR-17「TLS でだけ」。陽性対照は 001 の `https` の取得でその目印が在ること） | 陰性 | `the_send_page_is_not_served_in_plain_text_on_the_tls_port` |
+| T-BR-17-001 | 受入：(a) `--send-page` を付けて起こし、`GET /send` と、loopback の相手の `Host: 127.0.0.1:<port>` の `GET /send-link`。(b) `--send-page` 無しで起こし、同じ 2 つ | 配る、配らない | 200 と 404 | (a) の `/send` が 200 で content type が html、body に `<html` と `<title` が在る。`/send-link` が 200 で、body が `http://` の URL。(b) は 2 つとも 404（specified：BR-17） | 陽性 | `br17_the_send_page_and_the_send_link_are_served_only_with_the_flag` |
+| T-BR-17-002 | 001 の (a) の `GET /dashboard` | 同じ listener | 200 | 200（specified：BR-17 の陽性対照） | 陽性 | `the_send_page_run_still_serves_the_dashboard` |
+| T-BR-17-003 | `--send-page` 無しで起こした `--serve` の listener の `/ingest` へ、WebSocket の upgrade を送る | `/ingest` を足さない側 | 足さない | 101 を受けず、404（specified：設計 10.13.6「`--send-page` を付けた時だけ、`/send` の頁と `/ingest` を足す」。陽性対照は BR-16 の 002 が `--send-page` の run で `ready` を受けること） | 陰性 | `the_serve_listener_has_no_ingest_without_the_send_page_flag` |
+| T-BR-17-004 | loopback の相手が `GET /send-link` を `Host` が (a) `127.0.0.1:<port>`、(b) `[::1]:<port>`、(c) `localhost:<port>` で打つ | loopback の名前の 3 つ | 3 つとも受ける | 3 本とも 200 で、body が `http://` の URL（specified：設計 10.13.6 の C3。(b) は `[::1]` を名乗るだけで、接続は `127.0.0.1` へ張る） | 陽性 | `the_send_link_answers_the_three_loopback_host_names` |
+| T-BR-17-005 | loopback の相手が `GET /send-link` を `Host` が (a) `attacker.example`、(b) `127.0.0.1.attacker.example:<port>`、(c) `localhost.attacker.example:<port>`、(d) `[::1].attacker.example:<port>` で打つ | loopback の名前に似た外の名前 | 名前が完全に loopback の名前の時だけ | 4 本とも 404（specified：BR-17 の陰性対照と設計 10.13.6 の C3。陽性対照は 004） | 陰性 | `a_foreign_host_name_gets_no_send_link_even_from_loopback` |
+| T-BR-17-006 | LAN の address の相手（LAN の address に bind した client）が `GET /send-link` を `Host` が (a) `127.0.0.1:<port>`、(b) `<LAN の address>:<port>` で打つ | loopback でない相手 | 受けない | 2 本とも 404（specified：BR-17 の陰性対照。陽性対照は 004） | 陰性 | `a_send_link_request_from_a_lan_address_is_not_answered` |
+| T-BR-17-007 | 004 の (a) の応答と、005 の (a) の 404 の応答の頭 | 応答の頭 | 付ける、付けない | 200 の応答に `Cache-Control: no-store` が在り、200 と 404 のどちらにも `access-control-allow-origin` が無い。`Origin: http://attacker.example` を付けて打っても同じ（specified：設計 10.13.6 の C3） | 境界 | `the_send_link_carries_no_store_and_no_cors_header` |
+| T-BR-17-008 | `GET /send-link` を同じ run で 2 回、別の run（再起動）で 1 回 | 合言葉の寿命 | 起動ごと | 同じ run の 2 回は同じ合言葉、別の run は違う合言葉。合言葉は URL に安全な字（英数字と `-`、`_`）だけで、128 bit を表せる長さ（base64url なら 22 字以上、16 進なら 32 字以上）以上（specified：設計 10.13.6「起動ごとに 128 bit の乱数の合言葉」。derived：長さの式。字の符号化は設計が決めていない：下の穴） | 境界 | `the_token_is_fixed_in_a_run_and_new_in_the_next` |
+| T-BR-17-009 | `--send-page` に `--ws-host` が (a) `0.0.0.0`、(b) 引いた LAN の address、(c) `::` を重ねて起こす | loopback でない `--ws-host` | 止まる | 3 本とも起動が止まり、`--serve` の listener も開かない。stderr に `--send-page` と `--ws-host` の両方の語が出る（specified：BR-17 と設計 10.13.6 の C5。derived：「理由を出す」を、両方の旗の名が出ることで測る） | 陰性 | `send_page_with_a_non_loopback_ws_host_stops_before_any_listener_opens` |
+| T-BR-17-010 | `--send-page` に `--ws-host` が (a) `127.0.0.1`、(b) `::1`、(c) 無し（既定）を重ねて起こす | loopback の `--ws-host` | 起動する | 3 本とも起動する（specified：設計 10.13.6 の C5「loopback でない時」だけ止める。009 の対照） | 陽性 | `send_page_with_a_loopback_ws_host_starts` |
+| T-BR-17-011 | `--send-page` を付けずに `--ws-host 0.0.0.0` を付けて起こす | C5 は `--send-page` の時だけ | 今のまま | 起動する（specified：設計 10.13.6 の C5「`--send-page` に、loopback でない `--ws-host` が重なった時」。009 の対照） | 境界 | `a_non_loopback_ws_host_without_the_send_page_flag_still_starts` |
+| T-BR-17-012 | `--send-page --tls-cert x.pem --tls-key y.pem` で起こす | 作らない旗 | 旗が無い | 起動が止まり、exit code が 0 でなく、stderr に知らない引数の旨が出る（specified：設計 10.13.6「TLS の listener、`--tls-cert`、`--tls-key` は作らない」。陽性対照は 001 の (a)） | 陰性 | `the_tls_flags_are_not_accepted` |
 
 **BR-18（別のブラウザの頁から音が届く。記録。`native/hayamimi/tests/br18.rs`）**
 
-H52 の判定の後に有効。
+材料：`hayamimi` は共通の材料の起こし方に、model と `--input ws` を足して起こす。ブラウザの `Origin` は、開いた頁の origin（`http://<LAN の address>:<port>`）である。偽の音の device の旗は `--use-fake-device-for-media-stream`、`--use-fake-ui-for-media-stream`、`--use-file-for-fake-audio-capture`（`lat-dialog` の行 7 の wav）。登録する旗は `--unsafely-treat-insecure-origin-as-secure=http://<LAN の address>:<port>`。旗が `chrome-headless-shell` で効かない時（設計 10.13.10 の H54）は、落とさず「旗が効かない」と記録に書き、手の試しに回す。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-18-001 | 受入、実走：`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7 の wav。起動の旗は `--use-fake-device-for-media-stream`、`--use-fake-ui-for-media-stream`、`--use-file-for-fake-audio-capture`）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 偽の device の音が届く | 記録だけ | `final` が 1 件以上届き、その `lang` が `ja`。記録に `window.isSecureContext` の値を書く。旗が `chrome-headless-shell` で効かない時は、落とさず「旗が効かない」と記録に書き、手の試しに回す（specified：BR-18。設計 10.13.10 の H52、H54） | 陽性 | `br18_a_browser_page_sends_its_microphone_to_ingest` |
-| T-BR-18-002 | 同じ wav を `hayamimi-eval stream` で `/ingest` へ送る | 頁を通らない経路 | `final` が出る | `final` が 1 件以上（specified：BR-18 の陽性対照。001 の 0 件が「頁が送れなかった」のでなく「`hayamimi` が読めなかった」のでないことを分ける） | 陽性 | `the_same_audio_sent_by_the_stream_tool_gives_a_final` |
-| T-BR-18-003 | 合言葉を消した URL（`/send`）で開いて「マイク」を押す | 合言葉が無い | 届かない | `final` が 0 件で、`ingest.client.refused` が 1 件（`reason` が `token`）（specified：BR-18 の陰性対照） | 陰性 | `the_page_without_the_token_gets_refused_and_no_final_follows` |
+| T-BR-18-001 | 受入、実走：偽の音の device と登録の旗を渡した `chrome-headless-shell` で `http://<LAN の address>:<port>/send#t=<合言葉>` を開き、「マイク」を押す | 偽の device の音が届く | 記録だけ | `final` が 1 件以上届き、その `lang` が `ja`。頁を開いた後の `location.hash` が空で、`location.href` に合言葉の文字が無い（`history.replaceState`）。`getDisplayMedia` の道は測らない（specified：BR-18。設計 10.13.6 の頁の中身。`isSecureContext` の記録は P0 が持つ） | 陽性 | `br18_a_browser_page_sends_its_microphone_to_ingest` |
+| T-BR-18-002 | 同じ wav を `hayamimi-eval stream` で localhost の 8766 の `/ingest` へ送る | 頁を通らない経路 | `final` が出る | `final` が 1 件以上（specified：BR-18 の陽性対照。001 の 0 件が「頁が送れなかった」のでなく「`hayamimi` が読めなかった」のでないことを分ける） | 陽性 | `the_same_audio_sent_by_the_stream_tool_gives_a_final` |
+| T-BR-18-003 | 合言葉を消した URL（`/send`）で開いて「マイク」を押す | 合言葉が無い | 届かない | `final` が 0 件で、`ingest.client.refused` が 1 件（`reason` が `token`）（specified：BR-18 の陰性対照。001 の `final` が対照） | 陰性 | `the_page_without_the_token_gets_refused_and_no_final_follows` |
+| T-BR-18-004 | 登録の旗を渡さない同じ `chrome-headless-shell` で、001 と同じ URL を開いて「マイク」を押す | 旗の有無 | 旗が無ければ secure context でない | `final` が 0 件。頁の `isSecureContext` が false で `navigator.mediaDevices` が無いことを記録に書く（derived：設計 10.13.6「secure context」と P0-2。001 の `final` が対照。旗が効かない時は 001 と同じく「旗が効かない」と記録に書き、この行も同じ扱い） | 陰性 | `the_page_without_the_flag_cannot_take_the_microphone` |
+| T-BR-18-005 | 001 の run の `Network.requestWillBeSent` が見た全要求の URL | 合言葉を URL に載せない | 0 件 | 全 URL（WebSocket の `ws://<LAN の address>:<port>/ingest` を含む）に合言葉の文字が無い。陽性対照として、001 を開いた URL の文字列に合言葉が 1 件在る（specified：設計 10.13.6「合言葉を URL の query に置く」を採らない物とする。fragment はブラウザが送らない） | 陰性 | `the_token_never_appears_in_a_request_url_of_the_page` |
 
 **頁の 3 つの枠と字体の行（BR-19 から BR-25）の共通**：窓は `Emulation.setDeviceMetricsOverride` で幅と高さを置き、`localStorage` は頁を開く前に `Page.addScriptToEvaluateOnNewDocument` で置く（空の頁は何も置かない）。「純関数」の行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` に置き、ブラウザを動かさない。「境目の割合」は縦の線では左の列の割合、横の線では上の列の割合である。左の列の幅は縦の線の `left` から `.main` の `left` を引いた値、右の列の幅は `.main` の `right` から縦の線の `right` を引いた値、清書の欄の高さは `#refined` を含む `section` の高さで測る。
 
@@ -4358,12 +4380,28 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-34-012 | 実走：同じ 2 つの表示で、静まった状態と静まっていない状態の `.strip-text` の `fontWeight` と、`.strip` の見出し（`.strip-label`）を含む行の text を比べる | 静まった印は色だけでない | 太さ 400、印の語 | 静まった状態の `.strip-text` の `fontWeight` が `400`、静まっていない状態は `600`。静まった状態の見出しの行の text に、静まっていない状態に無い語が増え、その語が `strings.en.toml` か `strings.ja.toml` の値の 1 つと等しい（specified：設計 10.13.13 の 13「文字の太さ 400」と「印の語」。語の key は設計が決めず、toml の値との一致で測る） | 陽性、陰性 | `the_quiet_strip_is_marked_by_weight_and_a_word_and_not_by_colour_alone` |
 | T-BR-34-013 | 純関数：比の関数に (`#8a8473`, `#14171d`) と (`#62656d`, `#ece7dd`) | `--paper-quiet` と欄の背景 | 4.5 以上 | 4.81 と 4.73（± 0.01）で、どちらも判定の関数が `Ok`（specified：設計 10.13.13 の 13。陰性対照は 005 の近い灰色） | 陽性 | `the_quiet_token_pairs_pass_the_aa_line` |
 
+**BR-35（制御の口を LAN に開かない。`native/hayamimi/tests/br35.rs`、純関数は `native/hayamimi/src/routes.rs` の `mod tests`）**
+
+材料：`--serve-host 0.0.0.0` で起こし（port は OS に選ばせる）、LAN の address は test が UDP の socket の local address で引く（RP-40 と同じ。loopback の外の address が引けない時は `Err`）。相手の address は client の socket の bind で決める（LAN の相手は LAN の address に bind して `<LAN の address>:<port>` へ、loopback の相手は `127.0.0.1:<port>` へ）。制御の口の 5 つは `POST /config`、`GET /config`、`POST /reset`、`POST /replacements`、`POST /itn_overrides`（受入）に、`GET /replacements`、`GET /itn_overrides`（設計 10.13.6「POST だけでなく GET も同じ」）を足した 7 つである。POST の body は loopback の相手が打って 200 になる物（実装の席が `api.rs` の受け付ける形から作る fixture）で、403 が body の不備による 400 と混ざらないようにする。「状態が変わらない」は、loopback の相手の `GET /config`、`GET /replacements`、`GET /itn_overrides` の応答の body が、LAN の相手の打った後も打つ前と同じであることで測る。`/events` の頭は、応答の頭を大文字小文字を区別せずに探す。model は要らない。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-35-001 | 受入：LAN の相手から `POST /config`、`GET /config`、`POST /reset`、`POST /replacements`、`POST /itn_overrides`。打つ前後に loopback の相手が 3 つの GET で状態を読む | 制御の口 × LAN の相手 | 403 | 5 本とも status が 403（400 でも 503 でもない）。3 つの GET の body が前後で同じ（specified：BR-35。設計 10.13.6 の C6） | 陰性 | `br35_the_control_ports_refuse_a_lan_peer_and_leave_the_state_alone` |
+| T-BR-35-002 | LAN の相手から `GET /replacements`、`GET /itn_overrides` | 読む口 | 403 | 2 本とも 403 で、body に設定の中身（loopback の相手が読んだ body の文字列）が含まれない。loopback の相手の同じ 2 本は 200（specified：設計 10.13.6「`GET /config` は設定を読ませる」。003 の loopback の相手が対照） | 陰性 | `a_lan_peer_cannot_read_the_replacements_or_the_overrides` |
+| T-BR-35-003 | loopback の相手から 7 つの口を、001 と同じ body で打つ。続けて 3 つの GET で読む | loopback の相手 | 今のとおり受ける | `POST /config`、`POST /replacements`、`POST /itn_overrides` は 200 で、続く GET が打った内容を返す。`POST /reset` の status は、この変更の前の server と同じ（200、または session が終わっている時の 503）で、403 でない。`GET` の 3 本は 200（specified：BR-35 の陽性対照） | 陽性 | `a_loopback_peer_still_uses_every_control_port` |
+| T-BR-35-004 | 純関数：相手が loopback かを返す関数に `127.0.0.1`、`127.0.0.0`、`127.255.255.255`、`::1`、`::ffff:127.0.0.1`、`126.255.255.255`、`128.0.0.0`、`192.168.1.5`、`::ffff:192.168.1.5`、`::`、`fe80::1`、`0.0.0.0` | loopback の範囲の両端と外 | `127.0.0.0/8` と `::1` | 前の 5 つが真、残りの 7 つが偽（specified：設計 10.13.13 の 6「loopback は `127.0.0.0/8` と `::1`」「`::ffff:127.0.0.1` からの `POST /config` は loopback として受ける」） | 境界 | `the_loopback_judgement_covers_the_whole_127_range_and_the_wrapped_form` |
+| T-BR-35-005 | `GET /events` を LAN の相手と loopback の相手がそれぞれ開く（`--serve-host 0.0.0.0`） | `/events` の頭 | 頭が無い | 2 本とも 200 で content type が `text/event-stream`、`access-control-allow-origin` の頭が無い（specified：BR-35。設計 10.13.6「`--serve-host` が loopback の外の時は `/events` の応答から `access-control-allow-origin` を外す」） | 陰性 | `the_events_reply_has_no_cors_header_when_the_serve_host_is_not_loopback` |
+| T-BR-35-006 | `--serve-host` を省く（既定の `127.0.0.1`）で起こし、`GET /events` と 7 つの口を loopback の相手が打つ | 既定の組 | 今のまま | `/events` が `access-control-allow-origin: *` を持ち、7 つの口は 003 と同じに受けられる（specified：BR-35 の陰性対照。設計 10.13.6「loopback の時は今と何も変えない」） | 陽性 | `with_the_default_serve_host_nothing_changes` |
+| T-BR-35-007 | `--serve-host` が (a) `127.0.0.2`、(b) `::1` の run | loopback の別の書き方 | loopback の時は変えない | 2 本とも `/events` が `access-control-allow-origin: *` を持つ（`127.0.0.1` に繋いだ時の振る舞いと同じ。(b) は IPv6 の loopback に繋げない機械では `Err`）（specified：設計 10.13.13 の 6 の loopback の範囲。006 の対照） | 境界 | `any_loopback_serve_host_keeps_the_cors_header` |
+| T-BR-35-008 | LAN の相手から `GET /`、`GET /dashboard`、`GET /transcript`、`GET /ui/` 下の頁が読む file 1 つ | 制御の口の外 | 今のとおり | 4 本とも 200（specified：設計 10.13.6「頁の振る舞いは変わらない」。001 の 403 が制御の口に限られることの対照。RP-40 と同じ） | 陽性 | `the_pages_and_files_are_still_served_to_a_lan_peer` |
+| T-BR-35-009 | LAN の相手が `POST /config` を、`Host: localhost`、`X-Forwarded-For: 127.0.0.1`、`Origin: http://127.0.0.1:<port>` を付けて打つ | 名乗りの偽り | 相手の address だけで決める | 403 で、`GET /config` の body が前後で同じ（specified：設計 10.13.6「相手の address が loopback の時だけ受け」。003 の loopback の相手が対照） | 陰性 | `a_lan_peer_cannot_pass_as_loopback_by_headers` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
 - 速くする手の 1 と 2：10.13.4（T-BR-04、T-BR-05）。log の 1 行：10.13.4 の手 3（T-BR-06）。n-gram の記録：手 5（T-BR-07）。
 - 質の手 Q-a から Q-i：10.13.5（T-BR-08 から T-BR-15）。
-- 別の PC のブラウザから音を送る頁：10.13.6（T-BR-16 から T-BR-18。H52 の判定の後に有効）。
+- 別の PC のブラウザから音を送る頁：10.13.6（T-BR-16 から T-BR-18）。制御の口を LAN に開かない C6：10.13.6 の末尾（T-BR-35）。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。
@@ -4373,6 +4411,9 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 合言葉を定数時間で比べること（BR-16）：時間の差は test で安定して測れない。コードの読みで確かめる者は perfectionist-reviewer。
 - Teams の tab と画面の共有の音（`getDisplayMedia`、BR-18、H53）：自動では測れない。人が手で試して記録に書く（screen-test-engineer ではなく利用者の手）。
 - 窓の firewall の規則（設計 10.13.6）：test の外。手順書を書く席と利用者が測る。
+- 送る側の Chrome と Edge に flag の項目が在るか、登録した origin の頁から同じ origin の `ws` が繋がるか（P0-1、P0-4）：送る側の PC の前の利用者が `docs/results/in-person/p0.md` に記録する。T-BR-18-001 と T-BR-18-004 は `chrome-headless-shell` の中だけを測る。
+- LAN の外の address からの実接続（BR-16）：test の機械には LAN の外の address が無い。純関数の T-BR-16-004 から 008 が判定を決める。
+- 合言葉が中継へ出ないこと（設計 10.13.6）：BR-16 の test は中継を起こさない。`hayamimi` の code に合言葉を中継へ送る経路が無いことを、perfectionist-reviewer が読みで確かめる。
 - 画面の見た目（線の太さ、つまみの形、色の細部、行の左右の寄せ方の細部、H59 の空きの読みやすさ）：designer の板と、IP-S12 の後に人が開いた頁。
 - Windows の 3 つの字体（`yu-gothic`、`meiryo`、`yu-mincho`）が端末で描かれる字体：機械で決まるので記録だけ（T-BR-24-014）。
 - 頁の読み込みの間の一瞬の色（H67 の 1 つめ）：実装の席が測って記録する。
