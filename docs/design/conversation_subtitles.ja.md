@@ -1983,7 +1983,7 @@ p95 は nearest-rank とする。
 | BR-17 | `/send` は TLS でだけ配られる | `cargo test --release -p hayamimi --test br17` | `--send-page` と cert と鍵を渡すと `https` の `GET /send` が 200。`--send-page` が無いと `/send` は 404。cert か鍵の file が無いと起動が止まり、exit code が 0 でない | 同じ test が `https` の `GET /dashboard` も 200 と読む | `--send-page` に cert を渡さない起動は止まり、平文の listener を開かない |
 | BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
 
-完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-23 である。
+完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 である。
 BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 は記録だけで、その数を出す道具が既知の入力を正しく数えることだけを合否に置く。
 BR-3 は B2 の段を全部 入れた後に合否を出す。
 
@@ -2027,7 +2027,7 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S9 | E の n-gram の下書きの記録。旗は run の 18084 だけに当て、18081 は触らない。続けて BR-3 の合否を出す | 合否：BR-3。記録：BR-7 | 18084 を旗なしで起こし直す |
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
 | IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
-| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え（10.13.11。`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、`strings.*.toml` の境目と button の文言）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、IP-5 の通し直し | 前の build に戻す。commit を revert |
+| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ（10.13.11。`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、IP-5 の通し直し | 前の build に戻す。commit を revert |
 | IP-S13 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
 
 IP-S6 を最初に置くのは、段ごとの値が無いと、IP-S7 と IP-S8 の効き目を前後の差で言えないからである。
@@ -2051,7 +2051,9 @@ IP-S13 は安全の境界を変えるので、判定を得るまで始めない�
 - **H57** Q-h（清書の欄の重なり）の 2 つの道（同じ `id` の清書が 2 回届く道と、繋ぎ直しの流し直しの道）のどちらが今回の 8 件を作ったかは、頁の event の記録が無く特定していない。BR-14 の実走で、頁に届いた清書の `id` と話者を記録する。
 - **H58** Q-g の 2 つの直し（道具が起点を置き直す形と、`hayamimi` が接続ごとに `session_start` を出す形）は、`final` の `t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）に掛かる。`hayamimi` の側を直す形は、3.3 の表と `rust_port.ja.md` の RP-12 の consumer を数えてから評議の席が決める。
 - **H59** 10.13.11 の行の配置は、相手の行と自分の行が左右に分かれて互い違いに並ぶ形で、片側の行が続くと反対の側に空きが出る。空きの量と読みやすさは、designer の席の板と、IP-S12 の後に人が開いた頁で確かめる（NOT VERIFIED）。
-- **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きを持つ。1 つにそろえる口は作らない。
+- **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きと字体の設定を持つ。
+- **H61** 字体の file の path を `hayamimi` に渡す口は、今は重ね窓の設定（3.12）にしか無く、`hayamimi` の頁の server が同じ file を読む設定の形は IP-S12 の実装の席が 3.12 の設定 file に揃えて決める。`/fonts/<id>` で LAN の端末へ配ることが cinecaption の配布条件（無料、改造禁止、再配布自由。S6 の転記）と UDEV Gothic の OFL 1.1 に収まるかは、原文の条件を読んで確かめていない（NOT VERIFIED）。収まらないと分かれば、その字体を一覧の `/fonts` から外し、端末に入っている時だけ名前で使う。
+- **H62** `yu-gothic`、`meiryo`、`yu-mincho` は Windows の字体で、電話や mac の端末には無いことが多い。その端末では並びの次の字体で描かれ、選んだ字体と違う字体が出る（BR-24 は computed の `font-family` の宣言を測り、実際に描いた字体は測らない）。描いた字体を測る形（DevTools の `CSS.getPlatformFontsForNode`）を BR-24 の case 行に足すかは test-designer の席が決める。1 つにそろえる口は作らない。
 
 #### 10.13.11 B6 頁の 3 つの枠と境目
 
@@ -2108,6 +2110,35 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 見た目（線の太さ、つまみの形、色、行の左右の寄せ方の細部）は designer の席が Figma の板から起こす。
 この節が決めるのは置き場、境目の振る舞い、受入までである。
 
+**字幕の字体と大きさ**：頁の上で、字幕の文字の字体と大きさを選べるようにする。
+字幕の文字とは、確定文の行の原文（`row-text`）と訳（`tr-text`）、清書の段落（`refine-text`）、Listening の欄の文（`strip-text`）の 4 つである。
+見出し、言語の印、話者の印、遅れの数字、footer は今の字体と大きさのまま変えない。
+
+| 決め事 | 内容 |
+|---|---|
+| 選べる字体 | 次の 6 つの決まった一覧から選ぶ。`default`（今の頁の `--font-sans`、`css.rs:20`）、`cinecaption`、`udev-gothic`（UDEV Gothic 35）、`yu-gothic`（Yu Gothic UI）、`meiryo`（Meiryo）、`yu-mincho`（Yu Mincho）。どれも日本語の字と英字の両方を持つ字体で、CSS の `font-family` は字体の名の後に Yu Gothic UI、Meiryo と generic family（`sans-serif` か `serif`）を続けた並びにする。並びは code の表に固定し、名前の文字列を利用者の入力や `localStorage` から組まない |
+| 字体の file の出どころ | 外の CDN から引かない。`cinecaption` と `udev-gothic` は、3.12 と同じく利用者の設定 file に書いた path の file を、`hayamimi` が自分の頁の origin の `/fonts/<id>` で配り、`@font-face` で読む。file が無い時は `/fonts/<id>` が 404 を返し、並びの次の字体で描く。`yu-gothic`、`meiryo`、`yu-mincho` は頁を開いた端末に入っている字体を名前で使い、無ければ並びの次で描く |
+| 大きさ | 要件として作る。大きさは 4 つの文字の今の大きさ（`row-text` 16 px、`tr-text` は行の文と同じ、`refine-text` 16 px、`strip-text` 24 px。`css.rs:60`、`:153`、`:169`）に掛ける倍率で選ぶ。倍率は 80% から 200% まで 10% 刻みで、既定は 100%。computed の `font-size` は、どの文字でも 12.8 px（16 px の 80%）以上、48 px（24 px の 200%）以下になる |
+| 側ごとに選ぶ | 字体と倍率は、英語の側と日本語の側で別々に選ぶ。英語の側の設定は英語の側の行の塊（原文と、その下の和訳）に、日本語の側の設定は日本語の側の行の塊（原文と英訳）に掛かる。清書の段落は、その段落の `lang` の側の設定で描く。Listening の欄は、欄の文の字のうち仮名と漢字が 3 割を超えれば日本語の側、3 割以下なら英語の側の設定で描く（数え方は 10.4 の 3 と同じ） |
+| 既定 | 両方の側で `default`、100% |
+| 覚える | 選んだ物を `localStorage` の key `hayamimi.dashboard.text` に `{"en":{"font":"<id>","scale":<80〜200>},"ja":{"font":"<id>","scale":<80〜200>}}` の形で書き、頁を開いた時に読む |
+| 読めない時 | key が無い、JSON として読めない、`localStorage` が使えない時は、両方の側を既定で描く。項目ごとに見て、`font` が一覧の 6 つの id の外なら、その側の字体だけを `default` に、`scale` が数でない、10 の倍数でない、80〜200 の外なら、その側の倍率だけを 100% にし、読めた項目は使う。覚えた値は書き換えず、画面に誤りの文は出さない |
+| 選ぶ口 | 上の列の上（入れ替えの button の並び）に、側ごとに字体の `select` と、倍率を下げる button、上げる button、既定へ戻す button を置く。どれも native の `select` と `button` なので、Tab で focus を移し、矢印の key と Enter、Space で選べる。各口は `aria-label`（`strings.*.toml` の文言）を持ち、倍率の今の値を `aria-live` の文で読み上げる。80% で下げる button、200% で上げる button は `disabled` になる |
+| 狭い画面 | 860 px 以下では、選ぶ口を 1 つの開閉する欄にまとめる。側ごとの設定は 1 列にまとめた後も各行の `lang` の側の物で描く |
+
+外の CDN から引かない理由は 2 つである。
+1 つめに、LAN だけで動かす頁（10.13.6、10.5）は外への経路が無い場面でも描けなければならず、CDN の字体は届かない時に並びの次へ落ちるだけで、選んだ字体が出ないからである。
+2 つめに、外の字体の server へ頁を開くたびに要求が出ると、どの端末がいつ頁を開いたかが外へ出て、外の file を自分の頁の描画に読み込むことになるからである。
+字体の名前を決まった一覧の id で持つのは、`localStorage` の文字列をそのまま CSS に入れると、書き換えられた値が `font-family` の外の宣言を頁に差し込めるからである。
+
+**採らない手段**（字体と大きさ）：
+
+- 外の CDN（Google Fonts ほか）の字体：上の理由。
+- 端末に入っている字体を全部 並べる（Local Font Access API）：許可の画面が出て、対応するブラウザが限られ、一覧が端末ごとに変わる。
+- 字体の名前を利用者が自由に打つ：上の差し込みの理由。
+- 頁全体を拡大する（ブラウザの zoom と同じ形）：枠の境目の最小の大きさ（px）と食い違い、見出しまで大きくなる。
+- 両方の側に 1 つの設定：3.12 が日本語と英語で別の字体を使う形と揃わない。
+
 **採らない手段**：
 
 - 表示する文の言語で左右に分ける：上の理由。
@@ -2126,6 +2157,8 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-21 | 境目を drag と key で動かすと枠の大きさが変わり、最小より小さくならない | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br21` と `cargo test --release -p hayamimi --test br21 -- --ignored`（窓 1280 × 800） | 縦の線を DevTools の `Input.dispatchMouseEvent` で右へ 200 px drag すると、左の列の幅が 200 px ± 2 px 広がり、`aria-valuenow` が増える。縦の線に focus を置いて右の矢印を 1 回押すと 2 ポイント、Shift と右の矢印で 10 ポイント増える。縦の線を右へ 2000 px drag すると右の列の幅が 240 px 以上で止まり、横の線を下へ 2000 px drag すると清書の欄の高さが 120 px 以上で止まる。End の key でも同じ線で止まる。割合を詰める純関数が、最小を割る値を最小へ寄せて返す | drag の前後で `aria-valuenow` と列の幅の比が一致する | 左へ 2000 px drag しても左の列の幅が 240 px 以上で、Home の key でも同じ |
 | BR-22 | 動かした比を覚え、読めない時は既定の比に戻す | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br22` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き | 境目を動かして頁を読み直すと、2 つの割合が動かした値のまま描かれる。比を読む純関数は、`{"cols":30,"rows":70}` を 30 と 70 と読み、key が無い、`not json`、`{"cols":"a"}`、`{"cols":120,"rows":70}` を、どれも既定の 50 と 65 にする。実走で `localStorage` の値を `not json` に書き換えて読み直すと、左右の列の幅が等しく（± 2 px）、`localStorage` の値は `not json` のまま | 正しい値を書いて読み直すと、その値で描かれる | `localStorage` を使えなくした頁（`Storage.prototype.getItem` が例外を投げるように差し替えた頁）でも既定の比で描かれ、頁が止まらない |
 | BR-23 | 左右を 1 回の操作で入れ替え、各側の幅を保ち、向きを覚える | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br23` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き（窓 1280 × 800） | 縦の線を drag して左の列を 30 にした後、入れ替えの button を click すると、`ja` のどの `row` も縦の線の左に、`en` のどの `row` も右に移り、左の列の割合が 70（± 1）、英語の側の幅が入れ替えの前と ± 2 px で等しく、`aria-pressed` が `true`。button に focus を置いて Enter を 1 回押すと元の向きと割合（30）に戻り、Space を 1 回押すと再び入れ替わる。入れ替えた後に頁を読み直すと、入れ替えた向きのまま描かれる。向きを読む純関数は `"left":"ja"` を日本語の側が左と読み、`left` の無い値、`"left":"zh"`、`"left":1` を英語の側が左と読み、同じ値の割合はそのまま使う | 入れ替えを 2 回すると、向き、割合、各 `row` の側が、押す前と同じになる | `localStorage` の `left` を `"zh"` に書き換えて読み直すと、左が英語の側で描かれ、`localStorage` の値は書き換わらない。600 × 900 の窓では入れ替えの button が見えない |
+| BR-24 | 選んだ字体が、その側の字幕の文字の computed の `font-family` に出て、外へ要求を出さず、読めない値は既定に戻る | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br24` と `cargo test --release -p hayamimi --test br24 -- --ignored`（窓 1280 × 800。`hayamimi` に cinecaption と UDEV Gothic 35 の file の path を渡す） | 日本語の側の字体の `select` に focus を置き、矢印の key と Enter で `udev-gothic` を選ぶと、`ja` のどの `row` の `row-text` と `tr-text` も、`getComputedStyle` の `fontFamily` の先頭が `"UDEV Gothic 35"` になり、`en` の `row` の `fontFamily` は `default` の並びのまま。頁を読み直しても同じ。DevTools の `Network` で数えた頁の要求の host は、どれも頁の host と同じ。字体を読む純関数は、一覧の 6 つの id をその並びに、それ以外を `default` に読む | `default` に戻すと、`ja` の `row` の `fontFamily` が `css.rs:20` の `--font-sans` の並びと同じになる | `localStorage` の `ja.font` を `"x; color: red"` と `"Comic Sans MS"` に書き換えて読み直すと、`ja` の `row` は `default` の並びで描かれ、`ja.scale` の読めた値は使われ、`localStorage` の値は書き換わらない |
+| BR-25 | 選んだ大きさが、その側の字幕の文字の computed の `font-size` に出て、80% と 200% の線を越えない | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br25` と `cargo test --release -p hayamimi --test br24 -- --ignored` の続き | 英語の側の上げる button を Enter で 1 回押すと、`en` の `row` の `row-text` の `fontSize` が `17.6px`（16 px の 110%）になり、`ja` の `row` は `16px` のまま。続けて 9 回押すと `32px`（200%）で、上げる button が `disabled` になり、もう 1 回押しても `32px`。下げる button を 12 回押すと `12.8px`（80%）で止まる。Listening の欄の文が英字だけの時、その `strip-text` は英語の側の倍率で `24px` × 倍率になる。既定へ戻す button で `16px` に戻る。倍率を読む純関数は 80〜200 の 10 の倍数をその値に、`75`、`250`、`105`、`"a"` を 100 に読む | 頁を読み直すと、選んだ倍率のまま描かれる | `localStorage` の `en.scale` を `250` に書き換えて読み直すと、`en` の `row` は `16px` で描かれ、`en.font` の読めた値は使われる |
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
@@ -2134,6 +2167,8 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-21 | `br21_dragging_or_keying_a_divider_resizes_the_panes_but_not_below_their_minimum` | `native/hayamimi/tests/br21.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 左へ 2000 px の drag、Home の key |
 | BR-22 | `br22_the_split_is_remembered_and_an_unreadable_one_falls_back_to_the_default` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | 例外を投げる `localStorage` |
 | BR-23 | `br23_one_swap_flips_the_sides_keeps_each_side_width_and_is_remembered` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | `"left":"zh"` の覚えた値、狭い窓 |
+| BR-24 | `br24_the_chosen_font_reaches_the_computed_font_family_of_its_side_and_an_unknown_one_falls_back` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 一覧の外の id を書いた `localStorage` |
+| BR-25 | `br25_the_chosen_size_reaches_the_computed_font_size_within_its_bounds` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 200% で押す上げる button、`scale` 250 の覚えた値 |
 
 case 行（`T-BR-19-nnn` ほか）は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4.87 に書く。
 実装の順は 10.13.9 の IP-S12 である。
