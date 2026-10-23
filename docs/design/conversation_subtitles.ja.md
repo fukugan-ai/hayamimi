@@ -1984,7 +1984,7 @@ p95 は nearest-rank とする。
 | BR-17 | `/send` は TLS でだけ配られる | `cargo test --release -p hayamimi --test br17` | `--send-page` と cert と鍵を渡すと `https` の `GET /send` が 200。`--send-page` が無いと `/send` は 404。cert か鍵の file が無いと起動が止まり、exit code が 0 でない | 同じ test が `https` の `GET /dashboard` も 200 と読む | `--send-page` に cert を渡さない起動は止まり、平文の listener を開かない |
 | BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
 
-完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 と、10.13.12 の BR-26〜BR-31 である。
+完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 と BR-32〜BR-34 と、10.13.12 の BR-26〜BR-31 である。
 BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 は記録だけで、その数を出す道具が既知の入力を正しく数えることだけを合否に置く。
 BR-3 は B2 の段を全部 入れた後に合否を出す。
 
@@ -2028,7 +2028,7 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S9 | E の n-gram の下書きの記録。旗は run の 18084 だけに当て、18081 は触らない。続けて BR-3 の合否を出す | 合否：BR-3。記録：BR-7 | 18084 を旗なしで起こし直す |
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
 | IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
-| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ（10.13.11。`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、IP-5 の通し直し | 前の build に戻す。commit を revert |
+| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ、明るい表示と暗い表示の switch（10.13.11。`css.rs` の `TOKENS` を 2 つの組に分ける、表示を読む純関数、`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、BR-32、BR-33、BR-34、IP-5 の通し直し | 前の build に戻す。commit を revert |
 | IP-S13 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
 | IP-S14 | 会話の 2 つの言語の組を選べるようにする、言語の側の土台（10.13.12。`hayamimi` の `--pair`、`langs` の event と `/langs`、`/config` の `pair`。`hayamimi-asr` の `Policy::pair` の候補と 10.4 の落ち先の一般化。中継の `Lang` の一般化、`Source::translates`、訳の model の言語の表と `/langs`） | 合否：BR-26、BR-27、BR-28、BR-29、IP-1、IP-2（記録の完全さ）、IP-3 の通し直し | `--pair` を付けない起動は今と同じ（`en,ja`）。commit を revert |
 | IP-S15 | 頁が言語の組に従う（10.13.12。頁の言語を選ぶ口、B6 の側と字体と大きさの設定を言語の code の鍵へ移す、組を変えた所の区切りの行） | 合否：BR-30、BR-31、BR-19〜BR-25 の通し直し | 前の build に戻す。commit を revert |
@@ -2144,6 +2144,30 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 - 頁全体を拡大する（ブラウザの zoom と同じ形）：枠の境目の最小の大きさ（px）と食い違い、見出しまで大きくなる。
 - 両方の側に 1 つの設定：3.12 が日本語と英語で別の字体を使う形と揃わない。
 
+**明るい表示と暗い表示**（B8）：頁の上の 1 つの toggle switch で、明るい表示（通常）と暗い表示を切り替える。
+今の頁の色は暗い表示の 1 組だけで、`css.rs` の `TOKENS`（`:13-23`）の `:root` の変数に在る。
+対象は `TOKENS` を持つ `/dashboard` と `/transcript` で、OBS の字幕頁（`/`、背景は透明。`css.rs` の `BASE`）と重ね窓（`hayamimi-overlay`、11）は対象の外とする。
+どちらも映像や別の app の上に重ねる面で、背景を持たないからである。
+
+| 決め事 | 内容 |
+|---|---|
+| 色の持ち方 | 色はすべて token（`:root` の変数）で持つ。今の `:root` の組を暗い表示の組とし、`html` 要素の `data-theme` が `dark` の時に効く。明るい表示の組は `data-theme` が `light` の時に効く。規則の側（`.row-text` ほか）は token の名だけを読み、色の値を直に書かない |
+| 2 つの組の主な token | 暗い表示：`--ink` `#0d0f13`、`--ink-2` `#14171d`、`--paper` `#ece5d8`、`--paper-dim` `#b0a898`、`--paper-faint` `#8a8473`（今の値）。明るい表示：`--ink` `#f7f4ee`、`--ink-2` `#ece7dd`、`--paper` `#1a1c21`、`--paper-dim` `#4a4d55`、`--paper-faint` `#62656d`。`--line`、`--line-soft`、言語の色（`--c-ja` ほか）、`--shu` の明るい表示の値は designer の席が板で決め、下のコントラストの線を守る |
+| コントラスト | 字幕の 4 つの文字（10.13.11 の字体の段の 4 つ）の computed の文字の色と、その要素の背景の色の比が、どちらの表示でも WCAG 2 の AA の 4.5 : 1 以上。上の値の比は、暗い表示で `--paper` と `--ink` が 15.31、`--paper-dim` と `--ink` が 8.13、`--paper-dim` と `--ink-2` が 7.61、明るい表示で `--paper` と `--ink` が 15.53、`--paper-dim` と `--ink` が 7.70、`--paper-dim` と `--ink-2` が 6.86、`--paper-faint` と `--ink-2` が 4.73（相対輝度の式で計算した） |
+| 既定 | 覚えた値が無い時は、端末の `prefers-color-scheme` に従う。`matchMedia("(prefers-color-scheme: light)")` が真なら明るい表示、そうでなければ暗い表示（今と同じ）。覚えた値が無い間は、端末の設定が変わった時（`change` の event）にも従う |
+| switch | 1 つの要素で、`role="switch"`、`aria-checked`（暗い表示の時に `true`）、`tabindex="0"`、`aria-label`（`strings.*.toml` の文言）を持つ。click でも、focus を置いて Enter か Space でも 1 回で切り替わる。置き場は上の列の上の操作の並び（入れ替えの button、字体の口と同じ所）で、狭い画面でも隠さない |
+| 覚える | 切り替えた時に、`localStorage` の key `hayamimi.dashboard.theme` に `"light"` か `"dark"` を書く。頁を開いた時に読む |
+| 読めない時 | key が無い、`"light"` と `"dark"` の外の値、`localStorage` が使えない（例外を投げる）時は、既定（端末の設定に従う）で描き、覚えた値は書き換えない |
+
+既定を端末の設定に従う形にするのは、端末を暗い表示にしている人の今の見え方を変えず、明るい表示にしている人には最初から明るい表示を出すためである。
+通常（明るい表示）を固定の既定にする形は採らない。今、暗い表示で使っている人の頁が、更新した日に急に明るくなるからである。
+
+**採らない手段**（表示の色）：
+
+- 端末の設定だけに従い、switch を置かない：頁ごとに選べない。
+- 字幕の文字だけの色を変える：見出しと枠の線が背景と合わなくなる。
+- 重ね窓と OBS の字幕頁にも当てる：上の理由。
+
 **採らない手段**：
 
 - 表示する文の言語で左右に分ける：上の理由。
@@ -2164,6 +2188,9 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-23 | 左右を 1 回の操作で入れ替え、各側の幅を保ち、向きを覚える | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br23` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き（窓 1280 × 800） | 縦の線を drag して左の列を 30 にした後、入れ替えの button を click すると、`ja` のどの `row` も縦の線の左に、`en` のどの `row` も右に移り、左の列の割合が 70（± 1）、英語の側の幅が入れ替えの前と ± 2 px で等しく、`aria-pressed` が `true`。button に focus を置いて Enter を 1 回押すと元の向きと割合（30）に戻り、Space を 1 回押すと再び入れ替わる。入れ替えた後に頁を読み直すと、入れ替えた向きのまま描かれる。向きを読む純関数は `"left":"ja"` を日本語の側が左と読み、`left` の無い値、`"left":"zh"`、`"left":1` を英語の側が左と読み、同じ値の割合はそのまま使う | 入れ替えを 2 回すると、向き、割合、各 `row` の側が、押す前と同じになる | `localStorage` の `left` を `"zh"` に書き換えて読み直すと、左が英語の側で描かれ、`localStorage` の値は書き換わらない。600 × 900 の窓では入れ替えの button が見えない |
 | BR-24 | 選んだ字体が、その側の字幕の文字の computed の `font-family` に出て、外へ要求を出さず、読めない値は既定に戻る | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br24` と `cargo test --release -p hayamimi --test br24 -- --ignored`（窓 1280 × 800。`hayamimi` に cinecaption と UDEV Gothic 35 の file の path を渡す） | 日本語の側の字体の `select` に focus を置き、矢印の key と Enter で `udev-gothic` を選ぶと、`ja` のどの `row` の `row-text` と `tr-text` も、`getComputedStyle` の `fontFamily` の先頭が `"UDEV Gothic 35"` になり、`en` の `row` の `fontFamily` は `default` の並びのまま。頁を読み直しても同じ。DevTools の `Network` で数えた頁の要求の host は、どれも頁の host と同じ。字体を読む純関数は、一覧の 6 つの id をその並びに、それ以外を `default` に読む | `default` に戻すと、`ja` の `row` の `fontFamily` が `css.rs:20` の `--font-sans` の並びと同じになる | `localStorage` の `ja.font` を `"x; color: red"` と `"Comic Sans MS"` に書き換えて読み直すと、`ja` の `row` は `default` の並びで描かれ、`ja.scale` の読めた値は使われ、`localStorage` の値は書き換わらない |
 | BR-25 | 選んだ大きさが、その側の字幕の文字の computed の `font-size` に出て、80% と 200% の線を越えない | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br25` と `cargo test --release -p hayamimi --test br24 -- --ignored` の続き | 英語の側の上げる button を Enter で 1 回押すと、`en` の `row` の `row-text` の `fontSize` が `17.6px`（16 px の 110%）になり、`ja` の `row` は `16px` のまま。続けて 9 回押すと `32px`（200%）で、上げる button が `disabled` になり、もう 1 回押しても `32px`。下げる button を 12 回押すと `12.8px`（80%）で止まる。Listening の欄の文が英字だけの時、その `strip-text` は英語の側の倍率で `24px` × 倍率になる。既定へ戻す button で `16px` に戻る。倍率を読む純関数は 80〜200 の 10 の倍数をその値に、`75`、`250`、`105`、`"a"` を 100 に読む | 頁を読み直すと、選んだ倍率のまま描かれる | `localStorage` の `en.scale` を `250` に書き換えて読み直すと、`en` の `row` は `16px` で描かれ、`en.font` の読めた値は使われる |
+| BR-32 | switch で明るい表示と暗い表示が切り替わり、computed の色が token の組どおりになる | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br32` と `cargo test --release -p hayamimi --test br32 -- --ignored`（窓 1280 × 800。DevTools の `Emulation.setEmulatedMedia` で `prefers-color-scheme` を `dark` にして開く） | 開いた頁の `html` の `data-theme` が `dark`、switch の `aria-checked` が `true`、`.dash` の computed の `backgroundColor` が `rgb(13, 15, 19)`、`row-text` の `color` が `rgb(236, 229, 216)`。switch を click すると `data-theme` が `light`、`aria-checked` が `false`、`backgroundColor` が `rgb(247, 244, 238)`、`row-text` の `color` が `rgb(26, 28, 33)`、`tr-text` の `color` が `rgb(74, 77, 85)`。focus を置いて Enter で暗い表示に戻り、Space で再び明るい表示になる。`/transcript` の頁でも同じ組の色になる | 同じ頁で switch を 2 回押すと、色と `aria-checked` が押す前と同じ | OBS の字幕頁（`/`）は、どちらの表示を選んだ後も `body` の `backgroundColor` が `rgba(0, 0, 0, 0)` のまま |
+| BR-33 | 選んだ表示を覚え、覚えた値が無いか読めない時は端末の設定に従う | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br33` と `cargo test --release -p hayamimi --test br32 -- --ignored` の続き | 明るい表示を選んで頁を読み直すと、`prefers-color-scheme` が `dark` でも明るい表示で描かれる。表示を読む純関数は `"light"` と `"dark"` をその値に、key の無い値、`"blue"`、`""`、`1` を「端末に従う」に読む。覚えた値が無い頁で `prefers-color-scheme` を `light` に変えると、読み直さずに明るい表示に変わる | `prefers-color-scheme` が `light` の端末で、覚えた値の無い頁が明るい表示で開く | `localStorage` の値を `"blue"` に書き換えて読み直すと、`prefers-color-scheme` が `dark` なら暗い表示で描かれ、`localStorage` の値は `"blue"` のまま。`localStorage` が例外を投げる頁でも端末の設定で描かれ、頁が止まらない |
+| BR-34 | 字幕の文字のコントラストが、どちらの表示でも AA 以上 | `cargo test --release -p hayamimi --test br32 -- --ignored` の続き | 2 つの表示のそれぞれで、`row-text`、`tr-text`、`refine-text`、`strip-text` の computed の `color` と、その要素から上へ辿って最初に透明でない `backgroundColor` の比を相対輝度の式で計算し、どれも 4.5 以上 | 比を計算する純関数が、`#ece5d8` と `#0d0f13` を 15.31（± 0.01）と返す | 比が 4.5 を割る合成の色の組（`#777777` と `#888888`）で、判定の関数が `Err` を返す |
 
 | ID | 受入 test の名前 | 置き場 | 陰性の case |
 |---|---|---|---|
@@ -2174,6 +2201,9 @@ scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄�
 | BR-23 | `br23_one_swap_flips_the_sides_keeps_each_side_width_and_is_remembered` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | `"left":"zh"` の覚えた値、狭い窓 |
 | BR-24 | `br24_the_chosen_font_reaches_the_computed_font_family_of_its_side_and_an_unknown_one_falls_back` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 一覧の外の id を書いた `localStorage` |
 | BR-25 | `br25_the_chosen_size_reaches_the_computed_font_size_within_its_bounds` | `native/hayamimi/tests/br24.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 200% で押す上げる button、`scale` 250 の覚えた値 |
+| BR-32 | `br32_the_theme_switch_turns_the_computed_colours_into_the_other_token_set` | `native/hayamimi/tests/br32.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | OBS の字幕頁の背景 |
+| BR-33 | `br33_the_theme_is_remembered_and_an_unreadable_one_follows_the_device` | `native/hayamimi/tests/br32.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | `"blue"` の覚えた値、例外を投げる `localStorage` |
+| BR-34 | `br34_subtitle_text_keeps_aa_contrast_in_both_themes` | `native/hayamimi/tests/br32.rs` | 比が 4.5 を割る合成の色の組 |
 
 case 行（`T-BR-19-nnn` ほか）は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4.87 に書く。
 実装の順は 10.13.9 の IP-S12 である。
@@ -2287,6 +2317,7 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 - **H63** `llm_langs.toml` の表の中身（CAT-Translate-3.3b、TranslateGemma-4B-it の各 model が訳せる言語）は、model の配布元の頁から写して作る。写した言語のすべてで訳の質を測ってはいない（NOT VERIFIED）。表に載せた組の訳の質は、3.5 の held-out のような組ごとの評価の文が無い言語では記録だけになる。
 - **H64** 10.13.12 の落ち先の「正解率の低い方」は、`lid.md` の表 1 の言語（今の表の言語）の外では決まらず、`<a>` に落ちる。`zh` と `ko` のような組で whisper-tiny の外れがどちらに偏るかは測っていない（NOT VERIFIED）。IP-2 と同じ形の交互の録音をその組で作るのは、その組を使う時の実装の席の仕事とする。
 - **H65** 10.13.4 の手 1（速報の言語を途中で決める）と 10.13.2 の使い回しの比べ（`partial.rs:207` の `japanese` の真偽）は、`ja` と `en` の 2 つを前に作られている。IP-S14 で組の 2 つの言語へ読み替える時に、`reuse_match` の比べが漢字だけの `zh` と、ラテン文字の言語の組で同じに働くかは確かめていない（NOT VERIFIED）。BR-27 の case 行に足すかは test-designer の席が決める。
+- **H67** 頁の色は WASM が読み込まれてから `data-theme` を書くので、覚えた表示と端末の設定が違う時、読み込みの間に一瞬だけ端末の設定の色で描かれうる（NOT VERIFIED）。`index` の html に、`localStorage` を読んで `data-theme` を書く数行を先に置く形で消せるかを、IP-S12 の実装の席が測って記録する。Listening の欄が静まった時の `opacity: .5`（`css.rs:155`）は、BR-34 のコントラストの線を割りうる。静まった欄を BR-34 に入れるかは designer の席の板で決め、入れるなら test-designer の席が case 行に足す。
 - **H66** 重ね窓（11）の段は `mic-` と `loopback-` の行だけを出し、3.1 の会議の場面の `ja` と `en` の規則に従う。重ね窓を組に従わせる形は、この節の外である。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
