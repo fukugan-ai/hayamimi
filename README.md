@@ -1,4 +1,4 @@
-# hayamimi (早耳)
+# Realtime Translator
 
 ## About this repository
 
@@ -54,15 +54,15 @@ cloud API, under 2GB RAM.
 
 日本語版 README は [README.ja.md](README.ja.md) にあります。
 
-"早耳" (hayamimi) is Japanese for "quick ear" -- someone who picks up on
-things fast. That's the design goal: partial subtitles appear while you're
+The command, crate and repository names stay `hayamimi` (早耳), Japanese for
+"quick ear" -- someone who picks up on things fast. That's the design goal: partial subtitles appear while you're
 still talking, and a finalized line lands roughly **100ms after you stop**.
 
 ## Why
 
 Most CPU-only real-time transcription setups fall back to a single
-general-purpose model (Whisper) and accept its accuracy ceiling. hayamimi
-instead routes each utterance to whichever specialist model is best for its
+general-purpose model (Whisper) and accept its accuracy ceiling. Realtime
+Translator instead routes each utterance to whichever specialist model is best for its
 language, all running as quantized (INT8) ONNX models via
 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) -- no PyTorch, no CUDA.
 
@@ -71,7 +71,7 @@ gets **3.8% CER** (remeasured 2026-09-01 with the head-dropout fix and CJK
 number normalization in the pipeline), vs `whisper-large-v3-turbo`'s 13.8%
 on the same clips, while running at 10-50x realtime on a 6-core desktop CPU.
 A full comparison against Whisper variants, cloud STT APIs, and other local
-models -- including the languages where hayamimi loses -- is in
+models -- including the languages where Realtime Translator loses -- is in
 `docs/results/comparison.md`.
 
 ## Features
@@ -120,7 +120,7 @@ models -- including the languages where hayamimi loses -- is in
 
 `--input ws` runs a WebSocket ingest endpoint instead of reading the local
 microphone, so a phone or a stackchan-class ESP32 board can stream mic audio
-over the LAN and get it transcribed through hayamimi's normal pipeline:
+over the LAN and get it transcribed through Realtime Translator's normal pipeline:
 
 ```bash
 hayamimi --input ws --serve
@@ -496,15 +496,15 @@ Headline numbers from that log:
   at startup rather than instantly.
 - **`--hotwords` currently has no effect on the ja (ReazonSpeech) tier.**
   ReazonSpeech's `tokens.txt` is byte-level BPE, incompatible with the
-  `modeling_unit=cjkchar` encoding hayamimi uses for hotwords, so every
+  `modeling_unit=cjkchar` encoding Realtime Translator uses for hotwords, so every
   hotword fails to encode (sherpa-onnx only reports this as stderr warnings
-  and still exits 0 -- see GitHub issue #1). hayamimi now prints a startup
+  and still exits 0 -- see GitHub issue #1). Realtime Translator now prints a startup
   warning telling you how many hotwords failed to encode; use `--replace`
   for ja proper nouns instead. A real fix needs either a matching
   `bpe.model` for the ReazonSpeech release (not currently shipped) or a
   from-scratch byte-BPE hotword encoder -- tracked as future work.
 - **Two overlapping speakers are not separated**, even after the refine
-  pass -- pyannote segmentation-3.0 can flag overlap regions, but hayamimi
+  pass -- pyannote segmentation-3.0 can flag overlap regions, but Realtime Translator
   doesn't do overlap-aware transcription (whichever speaker's turn is
   processed first wins). What the refine pass *does* do now: instead of
   a plain majority vote across a group's live-pass labels, each finalized
@@ -516,7 +516,7 @@ Headline numbers from that log:
   Measured on 5 AMI meetings (50 min total, CC BY 4.0, collar 0.25s; see
   `docs/design/diarization.md` section 8), this cut mean DER from 25.7%
   (live-pass-only labeling) to 13.9%. Reference speaker count is 4 per
-  meeting; hayamimi's hypothesis still overestimates it (4-8 speakers),
+  meeting; Realtime Translator's hypothesis still overestimates it (4-8 speakers),
   so `--speakers` should be read as good-enough turn labeling, not a
   reliable speaker-count source. To keep that overcount from flooding the
   screen with one-off labels, a speaker's first appearance shows as
@@ -531,7 +531,7 @@ Headline numbers from that log:
   for anything numeric or financial).
 - **Multi-sentence speech can still lose its leading sentence(s).** The
   offline recognizers sometimes collapse a buffer holding several utterances
-  into a single decode. hayamimi watches for the symptom -- a transcript far
+  into a single decode. Realtime Translator watches for the symptom -- a transcript far
   shorter than the speech it is supposed to cover -- and retries that buffer
   split at its internal silences (at least 0.35s), keeping the retry only
   when it actually recovers text. Two classes escape this: sentences spoken
@@ -563,12 +563,12 @@ license (`THIRD_PARTY_NOTICES.md` has the full table).
 (`mojicast-fugumt-ja-en-ct2`, used by `--translate en`) is
 **CC BY-SA 4.0 (share-alike)**. If you redistribute that model's weights,
 you must keep attribution and license any redistribution under CC BY-SA 4.0
-too. This does not affect hayamimi's own code license, and does not affect
+too. This does not affect Realtime Translator's own code license, and does not affect
 any other `--translate` target (M2M-100, MIT).
 
 ## Credits
 
-hayamimi exists on top of, and would not exist without:
+Realtime Translator exists on top of, and would not exist without:
 
 - [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) -- the ONNX
   Runtime inference engine every model here runs through.

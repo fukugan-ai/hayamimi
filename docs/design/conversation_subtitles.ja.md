@@ -1353,6 +1353,7 @@ router の通知（`RouteNotice`、`router.rs:75-81`）に載せる形は採ら�
 ### 10.5 2 つの訳を出す頁
 
 出す場所は、`hayamimi` の今の頁（`/dashboard`、Dioxus web の `hayamimi-ui`）とする。
+頁の左上と tab の題名に出す製品の名前は「Realtime Translator」の 1 つの文字で、`hayamimi` は command と crate と repository の名前として残す。
 
 - 重ね窓（`hayamimi-overlay`、11）は、会議の app の上に重ねる窓で、段は `mic-` と `loopback-` の行だけを出し、`file-` の行を出さない。対面には重ねる app が無い。
 - OBS の字幕頁は、遠くの相手へ届ける経路である（3.10）。対面には送り先が無い。

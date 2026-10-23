@@ -417,3 +417,28 @@ fn rp12_an_early_translation_is_replaced_in_the_same_row_by_the_decided_one() ->
     assert_eq!(late, second);
     Ok(())
 }
+
+const PRODUCT_NAME: &str = "Realtime Translator";
+
+#[test]
+fn the_dashboard_header_names_the_product_in_one_text_in_both_locales() {
+    for locale in [Locale::Ja, Locale::En] {
+        let html = render(&Model::default(), Page::Dashboard, locale);
+        let name = format!("<div class=\"logotype\">{PRODUCT_NAME}</div>");
+        assert_eq!(count_in(&html, &name), 1, "{locale:?}: {html}");
+        // The old two-part mark and its romanisation are gone from the header.
+        for gone in ["hayamimi", "早", "耳", "class=\"romaji\""] {
+            assert!(!html.contains(gone), "{locale:?} still has {gone}: {html}");
+        }
+    }
+}
+
+#[test]
+fn the_tab_title_of_the_shell_page_is_the_product_name() {
+    const SHELL: &str = include_str!("../web/index.html");
+    assert_eq!(
+        count_in(SHELL, &format!("<title>{PRODUCT_NAME}</title>")),
+        1
+    );
+    assert_eq!(count_in(SHELL, "<title>"), 1);
+}
