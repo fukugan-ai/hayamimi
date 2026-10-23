@@ -1,0 +1,62 @@
+{
+  "samples": 45,
+  "with_final": 44,
+  "with_translation": 44,
+  "untranslated": 1,
+  "finals_total": 62,
+  "late_final_suspects": null,
+  "l": {
+    "n": 44,
+    "p50_ms": 723,
+    "p95_ms": 1113
+  },
+  "l_asr": {
+    "n": 44,
+    "p50_ms": 564,
+    "p95_ms": 957
+  },
+  "l_tr": {
+    "n": 44,
+    "p50_ms": 3,
+    "p95_ms": 295
+  },
+  "l_tr_negative": 0,
+  "final_latency_mean_ms": 238.91764143181825,
+  "per_utt_median_l_ms": [
+    587,
+    317,
+    794,
+    770,
+    474,
+    302,
+    943,
+    892,
+    759,
+    874,
+    577,
+    896,
+    422,
+    954,
+    384
+  ],
+  "per_utt_median_l_asr_ms": [
+    586,
+    316,
+    689,
+    489,
+    473,
+    301,
+    942,
+    598,
+    493,
+    872,
+    553,
+    697,
+    421,
+    948,
+    275
+  ],
+  "cer_dist": 3451,
+  "cer_denom": 3501,
+  "cer_micros": 985718
+}
