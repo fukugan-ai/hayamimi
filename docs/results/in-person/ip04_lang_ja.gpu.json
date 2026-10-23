@@ -1,0 +1,10 @@
+{
+  "before": {
+    "utilization_pct": 0,
+    "memory_mib": 12605
+  },
+  "after": {
+    "utilization_pct": 0,
+    "memory_mib": 12607
+  }
+}
