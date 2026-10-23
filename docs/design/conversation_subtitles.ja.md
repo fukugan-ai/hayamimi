@@ -2328,11 +2328,15 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 
 #### 10.13.13 BR の受入の細かな決め
 
-10.13.7、10.13.11、10.13.12 の受入の期待値が読み分かれないよう、次の 11 個を決める。
+10.13.7、10.13.11、10.13.12 の受入の期待値が読み分かれないよう、次の 12 個を決める。
 
 1. **ms への丸め**：時刻と長さは整数の µs で持ち、ms は µs を 1000 で割って負の向きへ切り捨てた整数（floor）とする。負の `L_tr`（−400 µs）は −1 ms である。p50 と p95 は µs の値の nearest-rank で取ってから ms へ切り捨てる。切り捨ては順序を保つので、ms へ切り捨ててから順位を取っても同じ値になる（10.13.2 の表はこの形で数えた）。頁の時計の `performance.now()`（ms の小数）は、1000 を掛けて切り捨てた µs にしてから同じ式に掛ける。予算と比べる時は、ms の値が線以下なら「線の内」とする。
+   `final` の `latency_ms`（ms の小数）は、1000 を掛けて切り捨てた µs を `L_dec` の µs とし、`t_close` の µs を `t_final` の µs からその値を引いて置く。
+   恒等式 `d + L_dec + L_tr = L` は µs の値で取り、µs で完全に一致することを確かめる（3 つの段の µs は、同じ 4 つの時刻の差から出るので、和は `t_tr − t_end` の µs に等しい）。
+   段ごとの ms は µs から別々に切り捨てるので、ms の和と `L` の ms は 2 ms まで食い違いうる。記録の ms の表は段ごとの切り捨ての値のまま書き、和を合わせるための足し引きをしない。
 2. **温まった標本が 0 件の時**（BR-1、BR-3）：温まった標本の p50 と p95 を出さず、記録に「温まった標本 0」と書き、判定の関数は `Err` を返す。合否の行（BR-3）は落ちる。冷えた標本だけで線の内と読むと、線を測らずに通すからである。
 3. **BR-11 で欠けたのが `--lang` の run の側の時**：clip の理由は `missing_in_lang_run` とし、どちらの run（`--lang ja` か `--lang en`）で欠けたかと、その run の側の理由（`no_final` か `closed_before_end`。同じ分け方を `--lang` の run の標本に当てる）を並べて書く。pair の run の側の理由と同じ欄に書かない。どちらの run の音で起きたかが、手を選ぶ材料だからである。
+   1 つの clip の中で、repeat ごとに欠けた理由が違う時（repeat 1 は `no_final`、repeat 2 と 3 は `closed_before_end` など）は、clip の理由を `mixed` とし、repeat の番号と理由の組を repeat の順にすべて並べる（`mixed: 1 no_final, 2 closed_before_end, 3 closed_before_end`）。3 つの repeat が同じ理由なら、その理由を 1 つだけ書く。clip が結べないのは、その run のどの repeat にも `L_asr` が無い時だけ（`ip04.rs` の `medians_by_clip` が 1 つでも `L_asr` の在る repeat の中央値を取るため）で、理由の数え上げは clip を 1 つと数え、`no_final`、`closed_before_end`、`mixed`、`missing_in_lang_run` の和が結べない clip の数と等しい。`missing_in_lang_run` の側の理由も、同じ形で repeat ごとに並べる。
 4. **BR-14 で置き換えた行の位置**：同じ `id` の清書が後から届いたら、前の行の位置（並びの中の順番）のまま中身を置き換える。話者は後の物を、訳は前後の両方を引き継ぎ、同じ言語の訳が 2 つ在れば後の物を採る。並びの最後へ動かさない。読んでいる人の目の前の行が、後ろへ跳ぶからである。scroll の位置も変えない。
 5. **BR-15 で `final` が次の速報より遅れて着いた時**：`final` は着いた時に Listening の欄を必ず空にする。次の発話の速報が先に着いていた時は、その速報も消え、次の速報（今の run の間隔で約 0.5 秒後）で欄に戻る。どの速報がどの `final` に覆われたかを頁で見分ける項目が wire に無く（速報は `id` を持たない。3.3）、見分けを足すと wire が変わるからである。case 行は、遅れた `final` の後に欄が空になり、次の速報で文が出ることを測る。
 6. **address の判定**（BR-16、BR-29）：IPv4 を包んだ IPv6 の address（`::ffff:a.b.c.d`）は、包んだ IPv4 の address に直してから判定する。loopback は `127.0.0.0/8` と `::1`。LAN は `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`、`fc00::/7`、`fe80::/10`。`0.0.0.0`、`::`、multicast、broadcast、これらの外の address はどれも断る。`::ffff:127.0.0.1` からの `POST /config` は loopback として受ける。
@@ -2340,7 +2344,8 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 8. **2 本目の client**（BR-16）：音を送っている client が在る間に届いた 2 本目の `/ingest` の接続は、TLS の listener でも localhost の 8766 でも、`ready` を返さずに閉じ（WebSocket の close code 1013）、`ingest.client.refused`（`reason: busy`）を 1 行出す。1 本目の接続と送っている音は止めない。今の `ingest.rs` の `busy`（`:43`、`:72-75`）と同じ 1 本の制限で、断った印を足すだけである。
 9. **`zh,ja` の組の字の段と落ち先**：`zh` と `ja` はどちらも漢字を使うので、10.13.12 の 3 割の線を使わず、SenseVoice が読んだ文に仮名が 1 字でも在れば `ja`、無ければ `zh` とする。中国語の文は仮名を持たず、日本語の文の多くは仮名を持つからである（漢字だけの日本語の文は H68）。最後の落ち先は 10.13.12 の規則で `zh`（`lid.md:17` の clean の 1.0 秒で zh 8%、ja 33%）。
 10. **BR-13 の起点**（H58）：2 回目の接続の起点は、最初の `final` でなく、接続の時（`ingest.client.connected` の時）に置く。`hayamimi` は `/ingest` の `ready` の frame に、その時の流れの時計の位置 `stream_s`（秒）を足し、道具は `ready` を受けた時刻から `stream_s` を引いた値を、その接続の `final` の `t1_s` を道具の時計へ寄せる量にする。`ready` に `stream_s` が無い記録（今の記録）は、今のとおり `session_start` を受けた時刻で寄せる。最初の `final` を起点にする形は採らない。その `final` がどの発話の物かを決めるのが、この起点で直したい割り当てそのもので、起点が割り当ての答えに頼る循環になるからである。`ready` に項目を 1 つ足すのは、`rust_port.ja.md` の RP-12 の「key と値の型を変えない」の範囲で、足した key を知らない consumer はそれを読まない（10.2 の表）。
-11. **画面の要素の名前**：区切りの行は `div` の class `pair-divider` で、`data-pair` に新しい組を `<a>,<b>` の形で持つ（境目の `role="separator"` と分けるため、`role` は付けない）。組を選ぶ口は class `pair-picker` の欄で、中に `select` の `#pair-a` と `#pair-b` と、決める `button` の `#pair-apply` を持つ。cinecaption の CSS の family 名は `cinecaption`（`css.rs:96` の `LANES_FONT_JA` と同じ）、UDEV Gothic 35 は `UDEV Gothic 35`（`:98`）とし、`/fonts/<id>` の `@font-face` もこの名で宣言する。
+11. **BR-34 で背景や文字が半透明の時のコントラスト**：要素の文字の色の alpha に、その要素と祖先の computed の `opacity` をすべて掛けた値を文字の実の alpha とする。背景は、要素から祖先へ辿り、`backgroundColor` の alpha が 1 の最初の要素の色を土台にし、その上に、土台より内側の要素の半透明の背景を外側から順に alpha で重ねた色とする（source-over の合成。色は sRGB の 0〜255 の値のまま重ねる）。文字の色はその背景の上に実の alpha で重ね、重ねた文字の色と背景の色の比を相対輝度の式で取る。alpha が 1 の背景を持つ祖先が 1 つも無い時だけ、判定の関数は `Err` を返す（土台の色を頁の外の既定の白に頼ることになるからである）。Listening の欄が静まった時の `opacity: .5`（H67）も、この式で測る。
+12. **画面の要素の名前**：区切りの行は `div` の class `pair-divider` で、`data-pair` に新しい組を `<a>,<b>` の形で持つ（境目の `role="separator"` と分けるため、`role` は付けない）。組を選ぶ口は class `pair-picker` の欄で、中に `select` の `#pair-a` と `#pair-b` と、決める `button` の `#pair-apply` を持つ。cinecaption の CSS の family 名は `cinecaption`（`css.rs:96` の `LANES_FONT_JA` と同じ）、UDEV Gothic 35 は `UDEV Gothic 35`（`:98`）とし、`/fonts/<id>` の `@font-face` もこの名で宣言する。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
