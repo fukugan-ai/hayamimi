@@ -1,4 +1,4 @@
-//! The root of the bundle: one state, one stream, and the page the address names.
+//! The root of the bundle: one state, its streams, and the page the address names.
 
 use std::rc::Rc;
 
@@ -21,6 +21,7 @@ pub fn App() -> Element {
     use_context_provider(|| -> Words { Rc::new(embedded_words(Locale::detect())) });
     let model = use_signal(Model::default);
     let _stream = use_hook(|| Rc::new(open_stream(model)));
+    let _relay = use_hook(|| Rc::new(open_relay(model)));
     web::use_deadline_timer(model);
     match web::current_page() {
         Page::Overlay(show) => rsx! { OverlayPage { model, show } },
@@ -49,6 +50,20 @@ fn open_stream(model: Signal<Model>) -> Option<EventStream> {
         Ok(stream) => Some(stream),
         Err(error) => {
             web_sys::console::warn_2(&"ui.events.unavailable".into(), &error);
+            None
+        }
+    }
+}
+
+/// Opens the relay stream the address names (`?relay=<url>`), the translations
+/// of the lines of the first stream. A page without one opens nothing; one that
+/// cannot be opened is named on the console and the page shows no translation.
+fn open_relay(model: Signal<Model>) -> Option<EventStream> {
+    let url = web::relay_address()?;
+    match EventStream::open_relay(&url, model) {
+        Ok(stream) => Some(stream),
+        Err(error) => {
+            web_sys::console::warn_2(&"ui.relay.unavailable".into(), &error);
             None
         }
     }

@@ -4,7 +4,9 @@
 //! - `/dashboard` is the page of the person running the subtitles;
 //! - `/transcript` is the refined text for reading.
 //!
-//! All three read the `/events` stream of the server that serves them. `wire`
+//! All three read the `/events` stream of the server that serves them, and a
+//! page opened with `?relay=<url>` reads the `/events` of that relay as well,
+//! for the translations of the lines (`route::relay_url`). `wire`
 //! turns one message into a `UiEvent`, `model` is the state the pages share, and
 //! the page modules only draw it. With the `web` feature the crate also holds
 //! the part that talks to the browser (`app`); without it the pages render to a
