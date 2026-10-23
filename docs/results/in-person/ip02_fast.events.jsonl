@@ -1,0 +1,1037 @@
+{"event":{"sr":16000,"type":"ready"},"t_us":12414738}
+{"event":{"type":"session_start"},"t_us":12443249}
+{"event":{"text":"大橋さんはやっぱり","type":"partial"},"t_us":14217742}
+{"event":{"audio_s":3.016,"decode_ms":105.710525,"end_wall_ms":1792739166277,"id":"file-1","lang":"ja","latency_ms":235.282551,"lid_ms":129.56910599999998,"source":"file","speaker":"","switched":false,"t0_s":1.184,"t1_s":3.2,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":18299930}
+{"event":{"id":"file-1","speaker":"S1?","type":"speaker"},"t_us":18331335}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND","type":"partial"},"t_us":18416306}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-2","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"c8d864b3910911113833dd8723251dd0033a0fb90857998e26f5d9aa614c7d9f","stage":"t","status":"ok","text":"彼は熱にうなされていた。","type":"translation"},"t_us":18575361}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-1","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"t","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":18603800}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING","type":"partial"},"t_us":18777584}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-1","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"e","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":18894967}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-2","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"f377593ffbc83bcda7d98cd73f1c9f35278bd6e6596649adddc9bf59d9b7b79c","stage":"t","status":"ok","text":"彼は熱にうなされた精神状態にあった。","type":"translation"},"t_us":18945789}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT","type":"partial"},"t_us":19281703}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE","type":"partial"},"t_us":19817179}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION","type":"partial"},"t_us":20317712}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO","type":"partial"},"t_us":20872046}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON","type":"partial"},"t_us":21385367}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS","type":"partial"},"t_us":21884851}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE","type":"partial"},"t_us":22412574}
+{"event":{"audio_s":6.728,"decode_ms":343.36370200000005,"end_wall_ms":1792739171048,"id":"file-2","lang":"en","latency_ms":435.385006,"lid_ms":92.017884,"source":"file","speaker":"","switched":true,"t0_s":4.48,"t1_s":10.208,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","tier":"v3","type":"final"},"t_us":23070628}
+{"event":{"id":"file-2","speaker":"S2?","type":"speaker"},"t_us":23138622}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-2","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"afd95ffbb68a79b39cb6f3a30990aa60dd19681d3a5be44bf3f991a1d9eedfa6","stage":"t","status":"ok","text":"彼は、妻の行動が彼の将来全体を脅かすと恐れたため、熱にうなされたような状態にあった。","type":"translation"},"t_us":23319857}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-2","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"afd95ffbb68a79b39cb6f3a30990aa60dd19681d3a5be44bf3f991a1d9eedfa6","stage":"e","status":"ok","text":"彼は、妻の行動が自分の将来全体を脅かすと恐れたため、熱にうなされたような状態にあった。","type":"translation"},"t_us":23571535}
+{"event":{"audio_s":3.016,"end_wall_ms":1792739166277,"id":"file-1","lang":"ja","source":"file","speaker":"S1?","t0_s":1.184,"t1_s":3.2,"text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":25640017}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-1","lang":"en","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"a255757bd3ff51a56c9be7a1c069f1e5d6f57257d4066bbc93ca81dd5d81221a","stage":"e","status":"ok","text":"Was Mr. Ohashi really having a hard time?","type":"translation"},"t_us":26053059}
+{"event":{"audio_s":6.728,"end_wall_ms":1792739171048,"id":"file-2","lang":"en","source":"file","speaker":"S2?","t0_s":4.48,"t1_s":10.208,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","type":"refine"},"t_us":31229894}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-2","lang":"ja","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"afd95ffbb68a79b39cb6f3a30990aa60dd19681d3a5be44bf3f991a1d9eedfa6","stage":"e","status":"ok","text":"彼は、妻の行動が自分の将来全体を脅かすと恐れたため、熱にうなされたような状態にあった。","type":"translation"},"t_us":31898108}
+{"event":{"audio_s":4.246,"decode_ms":234.191588,"end_wall_ms":1792739179756,"id":"file-3","lang":"en","latency_ms":331.152145,"lid_ms":96.957687,"source":"file","speaker":"","switched":false,"t0_s":15.654,"t1_s":18.9,"text":"He would have to pay her the money, which she would now regularly demand, and then the new","tier":"v3","type":"final"},"t_us":32110181}
+{"event":{"id":"file-3","speaker":"S2","type":"speaker"},"t_us":32152857}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-3","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"6c688c69bd23c3d78eaf1ade6029f63e9100106760e66f2cb874764c09260551","stage":"t","status":"ok","text":"彼は彼女にそのお金を支払わなければならず、1ヶ月後には彼女が定期的に要求してくるようになり、そして新しい…","type":"translation"},"t_us":32448644}
+{"event":{"text":"Or there would be trouble.","type":"partial"},"t_us":32614253}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-3","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"6c688c69bd23c3d78eaf1ade6029f63e9100106760e66f2cb874764c09260551","stage":"e","status":"ok","text":"彼は彼女にそのお金を支払わなければならず、彼女は今定期的に要求してくるでしょう、そしてその後新しい","type":"translation"},"t_us":32699745}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-4","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fd1155b6dba277debbd85f78a4e21ee277f3e0b70e32c10febd52f2646d5bf33","stage":"t","status":"ok","text":"さもなければ、問題が生じるでしょう。","type":"translation"},"t_us":32737865}
+{"event":{"audio_s":1.376,"decode_ms":92.724765,"end_wall_ms":1792739180984,"id":"file-4","lang":"en","latency_ms":126.898647,"lid_ms":34.169702,"source":"file","speaker":"","switched":false,"t0_s":19.206,"t1_s":20.276,"text":"Or there would be trouble.","tier":"v3","type":"final"},"t_us":33133934}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-4","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fd1155b6dba277debbd85f78a4e21ee277f3e0b70e32c10febd52f2646d5bf33","stage":"t","status":"ok","text":"さもなければ、問題が生じるでしょう。","type":"translation"},"t_us":33134555}
+{"event":{"id":"file-4","speaker":"S2","type":"speaker"},"t_us":33151690}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-4","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fd1155b6dba277debbd85f78a4e21ee277f3e0b70e32c10febd52f2646d5bf33","stage":"e","status":"ok","text":"または、問題が発生するでしょう。","type":"translation"},"t_us":33318085}
+{"event":{"text":"It did not.","type":"partial"},"t_us":34016583}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-5","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"a0faa27bdc2c111ee15c6b8bdf31673065cc0627d79a06355f5ae61f4c716d74","stage":"t","status":"ok","text":"それはなかった。","type":"translation"},"t_us":34096521}
+{"event":{"text":"It did not matter what he did.","type":"partial"},"t_us":34537641}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-5","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"238d0a100521ca22aa65493e6e7ceb809645bfdc6dc48fdf08616ce40cf2ce39","stage":"t","status":"ok","text":"彼が何をしても問題ではなかった。","type":"translation"},"t_us":34624908}
+{"event":{"audio_s":1.964,"decode_ms":120.310522,"end_wall_ms":1792739182808,"id":"file-5","lang":"en","latency_ms":164.45551,"lid_ms":44.141568,"source":"file","speaker":"","switched":false,"t0_s":20.928,"t1_s":22.24,"text":"It did not matter what he did.","tier":"v3","type":"final"},"t_us":34831103}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-5","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"238d0a100521ca22aa65493e6e7ceb809645bfdc6dc48fdf08616ce40cf2ce39","stage":"t","status":"ok","text":"彼が何をしても問題ではなかった。","type":"translation"},"t_us":34832492}
+{"event":{"id":"file-5","speaker":"S2","type":"speaker"},"t_us":34853585}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-5","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"238d0a100521ca22aa65493e6e7ceb809645bfdc6dc48fdf08616ce40cf2ce39","stage":"e","status":"ok","text":"彼が何をしても問題ではなかった。","type":"translation"},"t_us":34936444}
+{"event":{"text":"Yeah.","type":"partial"},"t_us":36873078}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"85fec70372b092bb42d021a6d1b373081dde8bcf90feb49e0725e285043fb0ad","stage":"t","status":"ok","text":"うん。","type":"translation"},"t_us":36987586}
+{"event":{"text":"Son audio.","type":"partial"},"t_us":37374831}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"4657fe5f97c7dcea69ddaff1a6532e7175da93c567ed147b716211351b19771c","stage":"t","status":"ok","text":"それはオーディオです。","type":"translation"},"t_us":37478817}
+{"event":{"text":"Só conozio, cara.","type":"partial"},"t_us":37917307}
+{"event":{"text":"So on the Jurio,","type":"partial"},"t_us":38424761}
+{"event":{"text":"Sono Yuri o cara.","type":"partial"},"t_us":38962802}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"0ba4df53ac4f0272bc9ee9ee76e40591bfa909b83d894d87b5c6123d35480044","stage":"t","status":"ok","text":"それはユリか？","type":"translation"},"t_us":39035386}
+{"event":{"text":"Sono Giuri","type":"partial"},"t_us":39506344}
+{"event":{"text":"Sono giurio, caro.","type":"partial"},"t_us":40113671}
+{"event":{"text":"Sono Giorgio, caralho Maruta.","type":"partial"},"t_us":40590324}
+{"event":{"text":"Sono giurio, caralho, Maruta.","type":"partial"},"t_us":41104951}
+{"event":{"text":"Sono Giuri.","type":"partial"},"t_us":41632942}
+{"event":{"text":"Sono Giorgio Caralho Maruta.","type":"partial"},"t_us":42192822}
+{"event":{"text":"Sono Jurio Caralho.","type":"partial"},"t_us":42687431}
+{"event":{"text":"Sono Giorgio.","type":"partial"},"t_us":43206956}
+{"event":{"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":44250936}
+{"event":{"audio_s":9.11,"decode_ms":192.501868,"end_wall_ms":1792739192282,"id":"file-6","lang":"ja","latency_ms":285.387495,"lid_ms":92.882267,"source":"file","speaker":"","switched":true,"t0_s":23.462,"t1_s":31.572,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":44590274}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"46606bc0dbb96d439a7605bd78d0f5fa484597f7eaa115ca46c6f60ec11a7254","stage":"t","status":"ok","text":"We built rafts out of logs from that upstream and kept sending them downstream. That’s what we did.","type":"translation"},"t_us":44607275}
+{"event":{"id":"file-6","speaker":"S3?","type":"speaker"},"t_us":44644883}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"46606bc0dbb96d439a7605bd78d0f5fa484597f7eaa115ca46c6f60ec11a7254","stage":"e","status":"ok","text":"We built rafts out of logs from that upstream area and kept sending them downstream. That's what we did.","type":"translation"},"t_us":44939087}
+{"event":{"audio_s":7.586,"end_wall_ms":1792739182808,"id":"file-3","lang":"en","source":"file","speaker":"S2","t0_s":15.654,"t1_s":22.24,"text":"He would have to pay her the money which she would now regularly demand, or there would be trouble. It did not matter what he did,","type":"refine"},"t_us":45082852}
+{"event":{"text":"HURSTWOOD WALKED THE","type":"partial"},"t_us":45746503}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"ac331711de535e2d01fb54571f2e3d54bdcf229137f3e235c9be19d5fcdc4048","stage":"t","status":"ok","text":"HURSTWOODは歩いた","type":"translation"},"t_us":45933458}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-3","lang":"ja","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"453067bc393ce3ae8c02fbb20c911ee8b55f16a0809ff87510ab3ce5b2a2d5b5","stage":"e","status":"ok","text":"彼は、彼女が今定期的に要求する金額を支払わなければならなかった。さもなければ、問題が生じただろう。彼が何をしても、それは重要ではなかった。","type":"translation"},"t_us":45933459}
+{"event":{"text":"HURSTWOOD WALK TO THE FLOOR","type":"partial"},"t_us":46285138}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"8b8ebcfe691fb429e4b97970fed8d3602a235f69fb7f42801d804a981ff8bff4","stage":"t","status":"ok","text":"HURSTWOODウォーク・トゥ・ザ・フロア","type":"translation"},"t_us":46577382}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY","type":"partial"},"t_us":46804082}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"db8ecc3eb0358acec3467c3b59759581dc344ffa9fb596e8ea429d0a117e6957","stage":"t","status":"ok","text":"HURSTWOODは精神的に床を歩いた","type":"translation"},"t_us":46956021}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE","type":"partial"},"t_us":47308926}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"701ce62a6874a1a5ea78473869956f6918e1a6f2ca2ef27569f0fc5d8dba8c18","stage":"t","status":"ok","text":"HURSTWOODは床を歩き回り、1人で整理した。","type":"translation"},"t_us":47514255}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINT","type":"partial"},"t_us":47844302}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fc3a7b3036a72f495f0e7401e78337ff12a769cdaaba6ec8e2c8ae685ec56599","stage":"t","status":"ok","text":"HURSTWOODは床を歩き回り、1つのポイントを精神的に整理した。","type":"translation"},"t_us":48076221}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUAL","type":"partial"},"t_us":48363707}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION","type":"partial"},"t_us":48883813}
+{"event":{"audio_s":4.808,"decode_ms":263.85776699999997,"end_wall_ms":1792739197323,"id":"file-7","lang":"en","latency_ms":360.17261900000005,"lid_ms":96.311142,"source":"file","speaker":"","switched":true,"t0_s":32.736,"t1_s":36.544,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","tier":"v3","type":"final"},"t_us":49345334}
+{"event":{"id":"file-7","speaker":"S2","type":"speaker"},"t_us":49396458}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"5c74ec759a2eb1712943090c840532ecb48335fe89d8db8b64e5e51a1c6a3048","stage":"t","status":"ok","text":"ハーストウッドは床を歩き、心の中で自分の状況の主要なポイントを整理した。","type":"translation"},"t_us":49602770}
+{"event":{"audio_s":9.11,"end_wall_ms":1792739192282,"id":"file-4","lang":"ja","source":"file","speaker":"S3?","t0_s":23.462,"t1_s":31.572,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","type":"refine"},"t_us":49657834}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"5c74ec759a2eb1712943090c840532ecb48335fe89d8db8b64e5e51a1c6a3048","stage":"e","status":"ok","text":"ハーストウッドは床を歩き、心の中で自分の状況の主要なポイントを整理した。","type":"translation"},"t_us":49888973}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-4","lang":"en","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"46606bc0dbb96d439a7605bd78d0f5fa484597f7eaa115ca46c6f60ec11a7254","stage":"e","status":"ok","text":"We built rafts out of logs from that upstream area and kept sending them downstream. That's what we did.","type":"translation"},"t_us":50532350}
+{"event":{"text":"Sign of","type":"partial"},"t_us":51407264}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"4da6d0de2371847dab5bcb86bdd4246a85bc08bb23fb644f71131cac1411e8e5","stage":"t","status":"ok","text":"サイン・オブ","type":"translation"},"t_us":51525855}
+{"event":{"text":"Side of my daughter!","type":"partial"},"t_us":51948870}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"274eaaeb9fbd4218c2ad26f09b1a181a9c09a8ec8b82d029518da47a933a950d","stage":"t","status":"ok","text":"娘の側！","type":"translation"},"t_us":52007298}
+{"event":{"text":"Side of the medical!","type":"partial"},"t_us":52479990}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"a7210df3626ed8319f395a32b4dcdadf033314cda97636e9f28ffeac8cef72aa","stage":"t","status":"ok","text":"医療の側面！","type":"translation"},"t_us":52591039}
+{"event":{"text":"Side of the middle time!","type":"partial"},"t_us":53029115}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"87ffdfab2b8ee61ad035f0416518dce0b6f712b19395b440022fedd40cbd14ff","stage":"t","status":"ok","text":"中間の時間の側面！","type":"translation"},"t_us":53137008}
+{"event":{"text":"Side of the middle time it's the","type":"partial"},"t_us":53554386}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"14a7599be22b3e59552913857bedcd9c32d341669d56f4890793a91367204b9e","stage":"t","status":"ok","text":"中間期の側、1つは…","type":"translation"},"t_us":53712219}
+{"event":{"text":"Sai de metro in it!","type":"partial"},"t_us":54082438}
+{"event":{"text":"Sai de metro, la junta se conoce de hip.","type":"partial"},"t_us":54642788}
+{"event":{"text":"本多選手はこの得意のドルフィンキックで","type":"partial"},"t_us":55003448}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":55532260}
+{"event":{"audio_s":6.08,"decode_ms":182.459315,"end_wall_ms":1792739203558,"id":"file-8","lang":"ja","latency_ms":299.09650500000004,"lid_ms":116.63385,"source":"file","speaker":"","switched":true,"t0_s":37.51,"t1_s":42.836,"text":"百Mのターンを迎える。","tier":"rz","type":"final"},"t_us":55879358}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"78adb34a753468e841c33420dd305972957185beadaca761f4f4add9394e6827","stage":"t","status":"ok","text":"Approaching the 100‑million‑turn mark.","type":"translation"},"t_us":55880005}
+{"event":{"id":"file-8","speaker":"S4?","type":"speaker"},"t_us":55933631}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"en","of":"final","settled":true,"skipped":[{"kind":"length","reason":"unplaced"}],"source":"file","src_lang":"ja","src_sha256":"78adb34a753468e841c33420dd305972957185beadaca761f4f4add9394e6827","stage":"e","status":"ok","text":"Approaching the 100-million-turn mark.","type":"translation"},"t_us":56115616}
+{"event":{"audio_s":4.808,"end_wall_ms":1792739197323,"id":"file-5","lang":"en","source":"file","speaker":"S2","t0_s":32.736,"t1_s":36.544,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","type":"refine"},"t_us":56280147}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-5","lang":"ja","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"5c74ec759a2eb1712943090c840532ecb48335fe89d8db8b64e5e51a1c6a3048","stage":"e","status":"ok","text":"ハーストウッドは床を歩き、心の中で自分の状況の主要なポイントを整理した。","type":"translation"},"t_us":56748187}
+{"event":{"text":"MANY LITTLE WRINK","type":"partial"},"t_us":57491409}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-9","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"1f4d5bd7db493aa467e9ec5538e013f98f74f1af184aa367159f64c7412aa4d5","stage":"t","status":"ok","text":"多くの小さなしわ","type":"translation"},"t_us":57649449}
+{"event":{"text":"MANY LITTLE WRINKLES GATHER","type":"partial"},"t_us":58019903}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-9","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"302e7fc2e9dcec21a21ff7d7ba17c9f1d2f99b81e57a209a02fbd33a55489e17","stage":"t","status":"ok","text":"多くの小さなしわが集まる","type":"translation"},"t_us":58089892}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS","type":"partial"},"t_us":58522566}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE","type":"partial"},"t_us":59072680}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATE","type":"partial"},"t_us":59586504}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS","type":"partial"},"t_us":60091744}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS","type":"partial"},"t_us":60610483}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED","type":"partial"},"t_us":61162045}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED","type":"partial"},"t_us":61658656}
+{"event":{"audio_s":5.768,"decode_ms":306.13092,"end_wall_ms":1792739210045,"id":"file-9","lang":"en","latency_ms":395.1889149999999,"lid_ms":89.054845,"source":"file","speaker":"","switched":true,"t0_s":44.48,"t1_s":49.248,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","tier":"v3","type":"final"},"t_us":62067783}
+{"event":{"id":"file-9","speaker":"S2","type":"speaker"},"t_us":62125425}
+{"event":{"audio_s":6.326,"end_wall_ms":1792739203558,"id":"file-6","lang":"ja","source":"file","speaker":"S4?","t0_s":37.51,"t1_s":42.836,"text":"百Mのターンを迎える。","type":"refine"},"t_us":62308345}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-9","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"aef70c5190e545cc8cebaa21961525914e48859dcc54663628cd7fd9a5a314fe","stage":"t","status":"ok","text":"彼はこれを見つめながら、1つの小さなしわが目の間に集まり、眉が湿っぽくなった。","type":"translation"},"t_us":62330117}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-9","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"aef70c5190e545cc8cebaa21961525914e48859dcc54663628cd7fd9a5a314fe","stage":"e","status":"ok","text":"彼はこれを見つめながら、目のあたりに小さなしわが集まり、眉が湿っぽくなった。","type":"translation"},"t_us":62604794}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-6","lang":"en","of":"refine","settled":true,"skipped":[{"kind":"length","reason":"unplaced"}],"source":"file","src_lang":"ja","src_sha256":"78adb34a753468e841c33420dd305972957185beadaca761f4f4add9394e6827","stage":"e","status":"ok","text":"We are about to reach the 100-million-turn mark.","type":"translation"},"t_us":63005601}
+{"event":{"audio_s":5.768,"end_wall_ms":1792739210045,"id":"file-7","lang":"en","source":"file","speaker":"S2","t0_s":44.48,"t1_s":49.248,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","type":"refine"},"t_us":64163808}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-7","lang":"ja","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"aef70c5190e545cc8cebaa21961525914e48859dcc54663628cd7fd9a5a314fe","stage":"e","status":"ok","text":"彼はこれを見つめながら、小さなしわが目の間に集まり、眉が湿っぽくなった。","type":"translation"},"t_us":64722492}
+{"event":{"text":"What","type":"partial"},"t_us":64997563}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"f8cf83a76a98df2dd4799b4d0d4f6ffc9af9a3a72d8648f94ca7cdea4b52fde7","stage":"t","status":"ok","text":"何","type":"translation"},"t_us":65079177}
+{"event":{"text":"What they're must have","type":"partial"},"t_us":65513933}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"035263c8a595c01828c69ddf69026d62ee530c27886222141632ee39529a6a08","stage":"t","status":"ok","text":"彼らが持つべきもの","type":"translation"},"t_us":65574340}
+{"event":{"text":"What they're must have","type":"partial"},"t_us":66068271}
+{"event":{"text":"What they're must got down","type":"partial"},"t_us":66575605}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"95d0e3aa691b21c5ed8cb07b62de0aee007439d89566df2747c2477647783d38","stage":"t","status":"ok","text":"彼らが理解しなければならないこと","type":"translation"},"t_us":66679491}
+{"event":{"text":"What I'm strict out","type":"partial"},"t_us":67101821}
+{"event":{"text":"What the most","type":"partial"},"t_us":67655117}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":68193755}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":68570927}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":69080648}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":69611446}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":70136212}
+{"event":{"audio_s":7.08,"decode_ms":178.812194,"end_wall_ms":1792739218652,"id":"file-10","lang":"ja","latency_ms":262.212542,"lid_ms":83.396968,"source":"file","speaker":"","switched":true,"t0_s":51.904,"t1_s":57.984,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":70674564}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"1eefe859ef92f83dc20184ba88e286e97313c49fc4dca2c7bbdab1062134a2a0","stage":"t","status":"ok","text":"But Mr. Suruga, who is 91 years old, is gradually turning into a powerful runner.","type":"translation"},"t_us":70675315}
+{"event":{"id":"file-10","speaker":"S5?","type":"speaker"},"t_us":70738048}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"1eefe859ef92f83dc20184ba88e286e97313c49fc4dca2c7bbdab1062134a2a0","stage":"e","status":"ok","text":"But Mr. Surugawa, who is 91 years old, is gradually turning into a powerful runner.","type":"translation"},"t_us":71030142}
+{"event":{"text":"さあ","type":"partial"},"t_us":71150524}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"0ac4412c242353f52f86b5b32503a6e450bfa5a99c61a5b4f9fb98a1b604f24d","stage":"t","status":"ok","text":"Now.","type":"translation"},"t_us":71259721}
+{"event":{"audio_s":7.08,"end_wall_ms":1792739218652,"id":"file-8","lang":"ja","source":"file","speaker":"S5?","t0_s":51.904,"t1_s":57.984,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","type":"refine"},"t_us":72637439}
+{"event":{"text":"HE COULD ARRANGE THIS","type":"partial"},"t_us":73056311}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"30c8096a9dff21a433a74970d765699c2c3ca19e4acde268d7a245a2c6e4f8a7","stage":"t","status":"ok","text":"彼はこれを手配できた","type":"translation"},"t_us":73162806}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-8","lang":"en","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"1eefe859ef92f83dc20184ba88e286e97313c49fc4dca2c7bbdab1062134a2a0","stage":"e","status":"ok","text":"But Mr. Surugawa is 91 years old. His running is becoming more powerful.","type":"translation"},"t_us":73259479}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACT","type":"partial"},"t_us":73569535}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"adac0eb4045c8bedbe14d02d0d72b48e1f708c916e492ae39201c065fb6d05ba","stage":"t","status":"ok","text":"彼はそれを満たすように手配できた","type":"translation"},"t_us":73724800}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY","type":"partial"},"t_us":74106112}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"00e639b3879a36eaa9c70d66560e9a36d47e57e965aec37bb684258ef5a0b1a7","stage":"t","status":"ok","text":"彼はそれを満足いくように手配できた。","type":"translation"},"t_us":74238651}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORY FOR CARRIE","type":"partial"},"t_us":74610605}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD","type":"partial"},"t_us":75141504}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT","type":"partial"},"t_us":75651808}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY","type":"partial"},"t_us":76176916}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY","type":"partial"},"t_us":76735368}
+{"event":{"audio_s":5.32,"decode_ms":316.077743,"end_wall_ms":1792739225171,"id":"file-11","lang":"en","latency_ms":409.676603,"lid_ms":93.5958,"source":"file","speaker":"","switched":true,"t0_s":60.032,"t1_s":64.352,"text":"He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.","tier":"v3","type":"final"},"t_us":77194449}
+{"event":{"id":"file-11","speaker":"S2","type":"speaker"},"t_us":77255255}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"a0920dddf01c7da22bb157b1a92e73465c16d772eb252adf341cd5f62ab8f962","stage":"t","status":"ok","text":"彼はそれをうまく調整できるだろう。キャリーは、必要なら喜んで待つだろう。","type":"translation"},"t_us":77451155}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-11","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"a0920dddf01c7da22bb157b1a92e73465c16d772eb252adf341cd5f62ab8f962","stage":"t","status":"ok","text":"彼はそれをうまく調整できるだろう。キャリーは、必要なら喜んで待つだろう。","type":"translation"},"t_us":77664445}
+{"event":{"text":"Она седа дживо.","type":"partial"},"t_us":78698326}
+{"event":{"text":"On a si de J Warry Most.","type":"partial"},"t_us":79226751}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-12","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"df21eb491558d87ae44725f5679df8ce30c2c9440357c858fceffc6893e9929d","stage":"t","status":"ok","text":"オン・ア・シー・デ・J・ウォーリー・モス。","type":"translation"},"t_us":79510175}
+{"event":{"text":"On a side most.","type":"partial"},"t_us":79734556}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-12","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"3800732717d5e0092271bf85a8814c09baff7d8e875b76add606f121faf26b94","stage":"t","status":"ok","text":"サイドで。","type":"translation"},"t_us":79801295}
+{"event":{"audio_s":3.208,"decode_ms":80.754411,"end_wall_ms":1792739228417,"id":"file-12","lang":"ja","latency_ms":157.591786,"lid_ms":76.83443500000001,"source":"file","speaker":"","switched":true,"t0_s":65.6,"t1_s":67.808,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":80439591}
+{"event":{"id":"file-12","speaker":"S6?","type":"speaker"},"t_us":80469597}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-12","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"t","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":80562243}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-12","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"bd8c1a85b48b0e737c91babc7e5e1185e4d03ec2eb6c5ce8e901d91590f5d152","stage":"e","status":"ok","text":"There was quite a bit, though.","type":"translation"},"t_us":80677432}
+{"event":{"audio_s":5.32,"end_wall_ms":1792739225171,"id":"file-9","lang":"en","source":"file","speaker":"S2","t0_s":60.032,"t1_s":64.352,"text":"He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.","type":"refine"},"t_us":80817502}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-9","lang":"ja","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"a0920dddf01c7da22bb157b1a92e73465c16d772eb252adf341cd5f62ab8f962","stage":"t","status":"ok","text":"彼はそれをうまく調整できるだろう。キャリーは、必要なら喜んで待つだろう。","type":"translation"},"t_us":81285965}
+{"event":{"text":"住民による","type":"partial"},"t_us":81864193}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-13","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"7258bd578a8a04583eeaaf4eb0f805fb141ebf286248d73ffbc4f4138235b423","stage":"t","status":"ok","text":"by the residents","type":"translation"},"t_us":82052324}
+{"event":{"text":"住民によると","type":"partial"},"t_us":82449323}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-13","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"8260e590e2330e3cb3342f3b4e93a41bef9400251a591d1e5e2d64c34514f7d7","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":82586220}
+{"event":{"audio_s":1.94,"decode_ms":57.707728,"end_wall_ms":1792739230451,"id":"file-13","lang":"ja","latency_ms":121.847274,"lid_ms":64.136476,"source":"file","speaker":"","switched":false,"t0_s":68.55,"t1_s":69.74799999999999,"text":"住民によると。","tier":"rz","type":"final"},"t_us":82595848}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-13","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"t","status":"ok","text":"According to the residents.","type":"translation"},"t_us":82596895}
+{"event":{"id":"file-13","speaker":"S7?","type":"speaker"},"t_us":82617213}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-13","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"ee954e4451346dde6a7cf6e558ab65a3bb50c819d5eae845ef459d98d6ff92d0","stage":"e","status":"ok","text":"According to the residents.","type":"translation"},"t_us":82722998}
+{"event":{"text":"過去にも二","type":"partial"},"t_us":83952866}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"a4efa2af9a1b20e84ff082288a0db89ae908fe2ecb6e2c90e9046c4ab5b2ae40","stage":"t","status":"ok","text":"Also in the past, two.","type":"translation"},"t_us":84103067}
+{"event":{"text":"過去にも似たよ","type":"partial"},"t_us":84477759}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"696325489f960fdf07a30a6784227e613fbda5edb08a3ad6b792a8a1f7e8f991","stage":"t","status":"ok","text":"It’s similar to the past as well.","type":"translation"},"t_us":84605643}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":85000872}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"57576a1c9ea4f558a92453d2f1c494777b0394ca2083558ff37010c08e0bef20","stage":"t","status":"ok","text":"Similar visits in the past.","type":"translation"},"t_us":85098076}
+{"event":{"text":"過去にも似たような訪問があったと","type":"partial"},"t_us":85550927}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"b9df77d80ce5628a1cd57246e3bfb80dca9f081c70d3539cb84e2db420729ec4","stage":"t","status":"ok","text":"There have been similar visits in the past.","type":"translation"},"t_us":85704241}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":86049624}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"78eb00bedd3cfcb44b8fffb9b29ee546fab08090fdfab1b1b3a654b5726aaac0","stage":"t","status":"ok","text":"It is said that there have been similar visits in the past.","type":"translation"},"t_us":86208312}
+{"event":{"audio_s":3.976,"decode_ms":88.39003199999999,"end_wall_ms":1792739234493,"id":"file-14","lang":"ja","latency_ms":162.93858,"lid_ms":74.545588,"source":"file","speaker":"","switched":false,"t0_s":70.944,"t1_s":73.92,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":86515292}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"t","status":"ok","text":"It is said that there have been similar visits in the past.","type":"translation"},"t_us":86516414}
+{"event":{"id":"file-14","speaker":"S7","type":"speaker"},"t_us":86562444}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-14","lang":"en","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"6db599a8b405e9d2362ece19e5255aef814713f584e4aee9471bedc57f19f96a","stage":"e","status":"ok","text":"It is said that there have been similar visits in the past.","type":"translation"},"t_us":86710983}
+{"event":{"text":"HE WOULD SEE HER THING","type":"partial"},"t_us":88120718}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-15","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fe04db26b456480f1269c8575aeb2e48fe981351f803117d47ef37490113092c","stage":"t","status":"ok","text":"彼は彼女のことを見るだろう","type":"translation"},"t_us":88374385}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT","type":"partial"},"t_us":88638177}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-15","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"abd41ddbda4840bafa8259619157a8ab85e8cc885c4885f87b990d3fe83b140b","stage":"t","status":"ok","text":"彼は物事がどのように展開するかを見るだろう","type":"translation"},"t_us":88744035}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW","type":"partial"},"t_us":89166653}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-15","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"5b2863f12cdd795fb8b9f4b4d8e271cfed4573336ba1512d29875fc3e8246e25","stage":"t","status":"ok","text":"彼は物事が明日どうなるかを見るだろう","type":"translation"},"t_us":89331174}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE","type":"partial"},"t_us":89699257}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER","type":"partial"},"t_us":90214461}
+{"event":{"audio_s":3.912,"decode_ms":209.492876,"end_wall_ms":1792739238714,"id":"file-15","lang":"en","latency_ms":283.77086499999996,"lid_ms":74.274249,"source":"file","speaker":"","switched":true,"t0_s":75.104,"t1_s":78.016,"text":"He would see how things turned out tomorrow, and then he would talk to her.","tier":"v3","type":"final"},"t_us":90736544}
+{"event":{"id":"file-15","speaker":"S2","type":"speaker"},"t_us":90789840}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-15","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"2f6c3bac30314601051f50710047d6c4b8e10f9c29998f09be476f50fc7ceb53","stage":"t","status":"ok","text":"彼は明日、物事がどのようになるかを見て、それから彼女と話すだろう。","type":"translation"},"t_us":90927874}
+{"event":{"audio_s":9.32,"end_wall_ms":1792739234493,"id":"file-10","lang":"ja","source":"file","speaker":"S7","t0_s":65.6,"t1_s":73.92,"text":"ずいぶんあり住民によると過去にも似たような訪問があったといいます。","type":"refine"},"t_us":91029570}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-15","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"2f6c3bac30314601051f50710047d6c4b8e10f9c29998f09be476f50fc7ceb53","stage":"e","status":"ok","text":"彼は明日、物事がどのようになるかを見て、それから彼女と話すだろう。","type":"translation"},"t_us":91158705}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-10","lang":"en","of":"refine","settled":true,"skipped":[],"source":"file","src_lang":"ja","src_sha256":"0863cde70d84f992e06775f0608ac2f59be4225608378fe9a3533e327ed5f015","stage":"e","status":"ok","text":"According to the residents, there were similar visits in the past as well.","type":"translation"},"t_us":91625033}
+{"event":{"text":"They were going to meet as usual.","type":"partial"},"t_us":91773510}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-16","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fc00c313205a2e25faa51ee2a28ec9255b878cd6747a5b953cb4cf089cae3376","stage":"t","status":"ok","text":"彼らはいつものように会う予定だった。","type":"translation"},"t_us":91891305}
+{"event":{"text":"They were going to meet as usual.","type":"partial"},"t_us":92344290}
+{"event":{"audio_s":1.856,"decode_ms":133.777398,"end_wall_ms":1792739240520,"id":"file-16","lang":"en","latency_ms":196.577662,"lid_ms":62.796584,"source":"file","speaker":"","switched":false,"t0_s":78.016,"t1_s":79.872,"text":"They were going to meet as usual.","tier":"v3","type":"final"},"t_us":92542967}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-16","lang":"ja","of":"final","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fc00c313205a2e25faa51ee2a28ec9255b878cd6747a5b953cb4cf089cae3376","stage":"t","status":"ok","text":"彼らはいつものように会う予定だった。","type":"translation"},"t_us":92544368}
+{"event":{"id":"file-16","speaker":"S2","type":"speaker"},"t_us":92575864}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-16","lang":"ja","of":"final","settled":true,"skipped":[],"source":"file","src_lang":"en","src_sha256":"fc00c313205a2e25faa51ee2a28ec9255b878cd6747a5b953cb4cf089cae3376","stage":"e","status":"ok","text":"彼らはいつものように会う予定だった。","type":"translation"},"t_us":92676738}
+{"event":{"text":"She got it.","type":"partial"},"t_us":94468780}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-17","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"804d1f7dab89fd7cae8165be8c1890d6164a305d3fa033c139b5df3d788fb2ba","stage":"t","status":"ok","text":"彼女はそれを理解した。","type":"translation"},"t_us":94630609}
+{"event":{"text":"She's got it, chill this.","type":"partial"},"t_us":94958875}
+{"event":{"annotations":[],"hold_reason":null,"id":"file-17","lang":"ja","of":"partial","settled":false,"skipped":[],"source":"file","src_lang":"en","src_sha256":"60d5c844443a57f8167b5bfd5c2842e6c31978cd6036cfa8f29bf6f768d11497","stage":"t","status":"ok","text":"彼女はそれを持ってる、1つ落ち着いて。","type":"translation"},"t_us":95068250}
+{"event":{"text":"Chikari Chikidi look at this.","type":"partial"},"t_us":95502649}
+{"event":{"text":"That's what it's me.","type":"partial"},"t_us":96041917}
+{"event":{"audio_s":3.734,"decode_ms":212.495022,"end_wall_ms":1792739249548,"id":"file-17","lang":"zh","latency_ms":297.816634,"lid_ms":85.318992,"source":"file","speaker":"","switched":true,"t0_s":81.062,"t1_s":83.79599999999999,"text":"c o t t t k i t t o o o t i s","tier":"pz","type":"final"},"t_us":101868222}
+{"event":{"id":"file-17","speaker":"S8?","type":"speaker"},"t_us":101897976}
+{"event":{"text":"f s o m e e r e s o n h e f l l t t s i f s o m p i n g m i k c o m m t t w a i n n w a a s r e l y","type":"partial"},"t_us":102027560}
+{"event":{"text":"f r o m m e r e s o n n e f e l t t i i f s o m t i n g m i k c o m m t a w w a y i n n w a a s e e e i v e t w n t","type":"partial"},"t_us":102494093}
+{"event":{"audio_s":5.768,"end_wall_ms":1792739240520,"id":"file-11","lang":"en","source":"file","speaker":"S2","t0_s":75.104,"t1_s":79.872,"text":"He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.","type":"refine"},"t_us":102553389}
+{"event":{"text":"f r o m m e r e e o n n e f e l t t i i f s o m p i i n m i k c o o m t a t w a y a n n w a a s r e e i v e d w n n a l t h e o m e l e","type":"partial"},"t_us":102973555}
+{"event":{"text":"f r o m m e r e e o n n e f e l t t i s f s u m t i i n m i k c o o m t a t w a a a n n w a s s r e l i v e t w n n t l h h e o m e l i e s i t v i n","type":"partial"},"t_us":103490753}
+{"event":{"text":"f r r m m e e e e s o n e f e l t t i s i f s u m t i n g m i k c o m e t t w a a i n n w a a s s e l i v e t w n n t l t h h o m v l o i s s a t a n n c a n d i d","type":"partial"},"t_us":104047723}
+{"event":{"text":"f r r m m e e r e s o n h f f l l t h s i f s o m t i n g m i k c o m e t t w a a a n n w a a s s e l i v e t w n t t l t h h o m v l i e s h h t a n n s a n d d d n t h i n k i s","type":"partial"},"t_us":104566697}
+{"event":{"text":"f r r m m e e e e e n n e f e l t t i s i f s u m t i n g m i k c o m e a t w a i a n d w a s s r e l i v e w w n t l l t h e o m e l i e s h a t t n s s a n d d d n n t i n k s i s b i i i s s n o","type":"partial"},"t_us":105067684}
+{"event":{"text":"f r r m m e e r e s o n e f f l l t i s i f s o m t i n g m i c c o m e t t w a a a n d w a a s r e l i v e w w n t l t h h e o m e l o e s s a v t a n s a n d d i d n t t i n s i s s b i i i s s n o o i e","type":"partial"},"t_us":105594949}
+{"event":{"audio_s":7.624,"decode_ms":410.29976,"end_wall_ms":1792739254165,"id":"file-18","lang":"en","latency_ms":497.953873,"lid_ms":87.650863,"source":"file","speaker":"","switched":true,"t0_s":86.624,"t1_s":93.248,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","tier":"v3","type":"final"},"t_us":106188387}
+{"event":{"id":"file-18","speaker":"S2","type":"speaker"},"t_us":106249202}
+{"event":{"text":"Hi, Kiss.","type":"partial"},"t_us":107305569}
+{"event":{"audio_s":3.734,"end_wall_ms":1792739249548,"id":"file-12","lang":"zh","source":"file","speaker":"S8?","t0_s":81.062,"t1_s":83.796,"text":"c o t t t k i t t o o o t i s","type":"refine"},"t_us":107367326}
+{"event":{"text":"Hi.","type":"partial"},"t_us":107781783}
+{"event":{"text":"Hi, Sakisano Talk Young","type":"partial"},"t_us":108309391}
+{"event":{"text":"Hi, Sakisano Tokyo Kaziwa.","type":"partial"},"t_us":108828508}
+{"event":{"text":"Hi, Sakisano Tokyo Kaziwa Nassau is.","type":"partial"},"t_us":109462712}
+{"event":{"text":"Hi, Saki Sotyoke Nassau, né?","type":"partial"},"t_us":109907872}
+{"event":{"text":"Hi, Sakanot.","type":"partial"},"t_us":110439378}
+{"event":{"text":"Hi, Sakanot.","type":"partial"},"t_us":110988925}
+{"event":{"text":"Hi, Tokyo Kaziwa Nasso, never mind.","type":"partial"},"t_us":111710283}
+{"event":{"text":"Hi, I'm not going","type":"partial"},"t_us":112113608}
+{"event":{"audio_s":6.752,"decode_ms":138.29959300000002,"end_wall_ms":1792739260840,"id":"file-19","lang":"ja","latency_ms":242.152625,"lid_ms":103.849943,"source":"file","speaker":"","switched":true,"t0_s":93.894,"t1_s":100.052,"text":"けさの東京風はなさそうですけれどもね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":113104575}
+{"event":{"id":"file-19","speaker":"S9?","type":"speaker"},"t_us":113158906}
+{"event":{"text":"WHILE THE DANGER HAD","type":"partial"},"t_us":114915200}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSEN","type":"partial"},"t_us":115442776}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD","type":"partial"},"t_us":115943304}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET","type":"partial"},"t_us":116467386}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIAL","type":"partial"},"t_us":116982780}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED","type":"partial"},"t_us":117531810}
+{"event":{"audio_s":7.624,"end_wall_ms":1792739254165,"id":"file-13","lang":"en","source":"file","speaker":"S2","t0_s":86.624,"t1_s":93.248,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","type":"refine"},"t_us":117610560}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM","type":"partial"},"t_us":118025392}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS","type":"partial"},"t_us":118573271}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOODNESS","type":"partial"},"t_us":119075337}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOOD NEWS","type":"partial"},"t_us":119575497}
+{"event":{"audio_s":6.28,"decode_ms":336.473374,"end_wall_ms":1792739268060,"id":"file-20","lang":"en","latency_ms":476.196307,"lid_ms":139.71927300000002,"source":"file","speaker":"","switched":true,"t0_s":101.888,"t1_s":107.168,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","tier":"v3","type":"final"},"t_us":120082278}
+{"event":{"id":"file-20","speaker":"S2","type":"speaker"},"t_us":120139769}
+{"event":{"audio_s":7.158,"end_wall_ms":1792739260840,"id":"file-14","lang":"ja","source":"file","speaker":"S9?","t0_s":93.894,"t1_s":100.052,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":120299805}
+{"event":{"audio_s":6.28,"end_wall_ms":1792739268060,"id":"file-15","lang":"en","source":"file","speaker":"S2","t0_s":101.888,"t1_s":107.168,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","type":"refine"},"t_us":122220752}
+{"event":{"text":"Sostemor.","type":"partial"},"t_us":124813933}
+{"event":{"text":"Sot.","type":"partial"},"t_us":125269056}
+{"event":{"text":"So ste musst du.","type":"partial"},"t_us":125941467}
+{"event":{"text":"Suste muestina.","type":"partial"},"t_us":126350329}
+{"event":{"text":"Ste moi, se","type":"partial"},"t_us":126880145}
+{"event":{"text":"Sus te muestro que arimas.","type":"partial"},"t_us":127389256}
+{"event":{"audio_s":4.552,"decode_ms":113.996969,"end_wall_ms":1792739275860,"id":"file-21","lang":"ja","latency_ms":242.043144,"lid_ms":128.04227600000002,"source":"file","speaker":"","switched":true,"t0_s":111.648,"t1_s":115.2,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":127882329}
+{"event":{"id":"file-21","speaker":"S10?","type":"speaker"},"t_us":127914654}
+{"event":{"text":"さあ","type":"partial"},"t_us":128296294}
+{"event":{"text":"SO LITTLE","type":"partial"},"t_us":128825061}
+{"event":{"text":"SO LITTLE DID HE CONSENT","type":"partial"},"t_us":129328479}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRU","type":"partial"},"t_us":129861414}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT","type":"partial"},"t_us":130393835}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUN","type":"partial"},"t_us":130907213}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUH THAT IT NEVER ONCE OCCURRED TO","type":"partial"},"t_us":131442046}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUH THAT IT NEVER ONCE OCCURRED TO HIM TO WORK","type":"partial"},"t_us":131933587}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUH THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS","type":"partial"},"t_us":132449013}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUH THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINDING OUT","type":"partial"},"t_us":133016600}
+{"event":{"text":"So little did he consider Dre that it never once occurred to him to worry about his finding out.","type":"partial"},"t_us":133868593}
+{"event":{"audio_s":5.684,"decode_ms":242.326262,"end_wall_ms":1792739281850,"id":"file-22","lang":"en","latency_ms":352.83119899999997,"lid_ms":110.502037,"source":"file","speaker":"","switched":true,"t0_s":115.2,"t1_s":120.884,"text":"So little did he consider Drua that it never once occurred to him to worry about his finding out.","tier":"v3","type":"final"},"t_us":134225515}
+{"event":{"id":"file-22","speaker":"S2","type":"speaker"},"t_us":134286955}
+{"event":{"audio_s":4.552,"end_wall_ms":1792739275860,"id":"file-16","lang":"ja","source":"file","speaker":"S10?","t0_s":111.648,"t1_s":115.2,"text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":134410633}
+{"event":{"audio_s":6.684,"end_wall_ms":1792739281850,"id":"file-17","lang":"en","source":"file","speaker":"S2","t0_s":115.2,"t1_s":120.884,"text":"So little did he consider Drew to him to worry about his finding out","type":"refine"},"t_us":135865058}
+{"event":{"text":"Sur y a.","type":"partial"},"t_us":137764271}
+{"event":{"text":"Surya está mononosa.","type":"partial"},"t_us":138265354}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":138694426}
+{"event":{"audio_s":2.376,"decode_ms":90.154833,"end_wall_ms":1792739286722,"id":"file-23","lang":"ja","latency_ms":0.0,"lid_ms":96.181652,"source":"file","speaker":"","switched":true,"t0_s":124.358,"t1_s":126.004,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":138744480}
+{"event":{"id":"file-23","speaker":"S11?","type":"speaker"},"t_us":138764338}
+{"event":{"text":"十万人","type":"partial"},"t_us":139765716}
+{"event":{"text":"十万人以上の数","type":"partial"},"t_us":140250454}
+{"event":{"text":"十万人以上の戦死者","type":"partial"},"t_us":140768977}
+{"event":{"text":"十万人以上の戦死者を出した","type":"partial"},"t_us":141286975}
+{"event":{"audio_s":3.308,"decode_ms":109.401741,"end_wall_ms":1792739289990,"id":"file-24","lang":"ja","latency_ms":267.934137,"lid_ms":158.52944599999998,"source":"file","speaker":"","switched":false,"t0_s":126.72,"t1_s":129.312,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":142012348}
+{"event":{"id":"file-24","speaker":"S11","type":"speaker"},"t_us":142049268}
+{"event":{"audio_s":5.954,"end_wall_ms":1792739289990,"id":"file-18","lang":"ja","source":"file","speaker":"S11","t0_s":124.358,"t1_s":129.312,"text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":143931978}
+{"event":{"text":"HE GREW RESTLESS","type":"partial"},"t_us":144834973}
+{"event":{"text":"HE GREW RESTLESS AS HE ROOM","type":"partial"},"t_us":145340167}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED","type":"partial"},"t_us":145867801}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN","type":"partial"},"t_us":146383018}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT","type":"partial"},"t_us":146927439}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT","type":"partial"},"t_us":147420057}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS NOTHING","type":"partial"},"t_us":147960975}
+{"event":{"audio_s":5.032,"decode_ms":298.83836900000006,"end_wall_ms":1792739296691,"id":"file-25","lang":"en","latency_ms":434.427147,"lid_ms":135.58551799999998,"source":"file","speaker":"","switched":true,"t0_s":131.808,"t1_s":135.84,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","tier":"v3","type":"final"},"t_us":148714422}
+{"event":{"id":"file-25","speaker":"S2","type":"speaker"},"t_us":148764128}
+{"event":{"text":"It are","type":"partial"},"t_us":149864869}
+{"event":{"text":"Dario central","type":"partial"},"t_us":150341283}
+{"event":{"audio_s":2.58,"decode_ms":68.73726,"end_wall_ms":1792739299122,"id":"file-26","lang":"ja","latency_ms":119.168146,"lid_ms":50.428156,"source":"file","speaker":"","switched":true,"t0_s":136.454,"t1_s":138.42000000000002,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":151263482}
+{"event":{"id":"file-26","speaker":"S12?","type":"speaker"},"t_us":151292035}
+{"event":{"audio_s":5.032,"end_wall_ms":1792739296691,"id":"file-19","lang":"en","source":"file","speaker":"S2","t0_s":131.808,"t1_s":135.84,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","type":"refine"},"t_us":151614073}
+{"event":{"audio_s":2.966,"end_wall_ms":1792739299122,"id":"file-20","lang":"ja","source":"file","speaker":"S12?","t0_s":136.454,"t1_s":138.42,"text":"左寄りセンターレフト。","type":"refine"},"t_us":152985422}
+{"event":{"text":"HE WOULD GET ONE TO","type":"partial"},"t_us":154460228}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT","type":"partial"},"t_us":155010386}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY","type":"partial"},"t_us":155505344}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON","type":"partial"},"t_us":156017859}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK","type":"partial"},"t_us":156603015}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK WHEN HE GOT BACK","type":"partial"},"t_us":157060763}
+{"event":{"audio_s":4.392,"decode_ms":258.961997,"end_wall_ms":1792739305639,"id":"file-27","lang":"en","latency_ms":385.48684,"lid_ms":126.52106299999998,"source":"file","speaker":"","switched":true,"t0_s":141.44,"t1_s":144.832,"text":"He would get one today. It would probably be on his desk when he got back.","tier":"v3","type":"final"},"t_us":157661880}
+{"event":{"id":"file-27","speaker":"S2","type":"speaker"},"t_us":157719653}
+{"event":{"text":"He would look for it at once.","type":"partial"},"t_us":159238471}
+{"event":{"audio_s":1.888,"decode_ms":110.495699,"end_wall_ms":1792739307407,"id":"file-28","lang":"en","latency_ms":190.22714,"lid_ms":79.728591,"source":"file","speaker":"","switched":false,"t0_s":144.832,"t1_s":146.72,"text":"He would look for it at once.","tier":"v3","type":"final"},"t_us":159429592}
+{"event":{"id":"file-28","speaker":"S2","type":"speaker"},"t_us":159457804}
+{"event":{"audio_s":6.28,"end_wall_ms":1792739307407,"id":"file-21","lang":"en","source":"file","speaker":"S2","t0_s":141.44,"t1_s":146.72,"text":"He would get one to day. It would probably be on his desk when he got back. He would look for it at once.","type":"refine"},"t_us":161754286}
+{"event":{"audio_s":1.256,"decode_ms":71.144328,"end_wall_ms":1792739310204,"id":"file-29","lang":"ja","latency_ms":0.0,"lid_ms":64.203915,"source":"file","speaker":"","switched":true,"t0_s":148.966,"t1_s":149.492,"text":"言ったろう。","tier":"rz","type":"final"},"t_us":162225986}
+{"event":{"id":"file-29","speaker":"S13?","type":"speaker"},"t_us":162245151}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":163104362}
+{"event":{"text":"ヒーローよりもてめえよ","type":"partial"},"t_us":163609072}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":164155562}
+{"event":{"audio_s":2.188,"decode_ms":89.133047,"end_wall_ms":1792739312305,"id":"file-30","lang":"ja","latency_ms":171.706883,"lid_ms":82.57002700000001,"source":"file","speaker":"","switched":false,"t0_s":150.08,"t1_s":151.68,"text":"ヒーローよりもてめェを信じる。","tier":"rz","type":"final"},"t_us":164327966}
+{"event":{"id":"file-30","speaker":"S13","type":"speaker"},"t_us":164350460}
+{"event":{"text":"AFTER A TIME","type":"partial"},"t_us":166177220}
+{"event":{"text":"AFTER A TIME HE GAVE UP","type":"partial"},"t_us":166699351}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARY","type":"partial"},"t_us":167204146}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED","type":"partial"},"t_us":167757559}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADACE","type":"partial"},"t_us":168261572}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADISON CAR","type":"partial"},"t_us":168800039}
+{"event":{"audio_s":4.392,"decode_ms":263.948263,"end_wall_ms":1792739317342,"id":"file-31","lang":"en","latency_ms":392.980747,"lid_ms":129.02917399999998,"source":"file","speaker":"","switched":true,"t0_s":153.152,"t1_s":156.544,"text":"After a time he gave up waiting and drearily headed for the Madison car.","tier":"v3","type":"final"},"t_us":169364886}
+{"event":{"id":"file-31","speaker":"S2","type":"speaker"},"t_us":169412800}
+{"event":{"audio_s":3.714,"end_wall_ms":1792739312305,"id":"file-22","lang":"ja","source":"file","speaker":"S13","t0_s":148.966,"t1_s":151.68,"text":"言ったろ。ヒーローよりもてめぇを信じる。","type":"refine"},"t_us":169511486}
+{"event":{"audio_s":4.392,"end_wall_ms":1792739317342,"id":"file-23","lang":"en","source":"file","speaker":"S2","t0_s":153.152,"t1_s":156.544,"text":"After a time he gave up waiting and drearily headed for the Madison car.","type":"refine"},"t_us":171343902}
+{"event":{"text":"Cucoufeni.","type":"partial"},"t_us":171724555}
+{"event":{"text":"Кукуфы не поники?","type":"partial"},"t_us":172256509}
+{"event":{"text":"Kukufé nieponin ničetti mosta.","type":"partial"},"t_us":172790046}
+{"event":{"audio_s":2.888,"decode_ms":98.833081,"end_wall_ms":1792739321124,"id":"file-32","lang":"ja","latency_ms":204.709645,"lid_ms":105.873014,"source":"file","speaker":"","switched":true,"t0_s":158.624,"t1_s":160.512,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":173146443}
+{"event":{"id":"file-32","speaker":"S14?","type":"speaker"},"t_us":173169423}
+{"event":{"text":"の","type":"partial"},"t_us":173663082}
+{"event":{"text":"ネットの見すぎ","type":"partial"},"t_us":174204788}
+{"event":{"text":"ネットの見すぎを感じ","type":"partial"},"t_us":174740757}
+{"event":{"text":"ネットの見すぎを感じ使う","type":"partial"},"t_us":175235925}
+{"event":{"text":"ネットの見すぎを感じ使うのを嫌","type":"partial"},"t_us":175804338}
+{"event":{"audio_s":3.04,"decode_ms":94.026632,"end_wall_ms":1792739324174,"id":"file-33","lang":"ja","latency_ms":211.533625,"lid_ms":117.503574,"source":"file","speaker":"","switched":false,"t0_s":160.512,"t1_s":163.552,"text":"ネットの見すぎを感じ、使うのをやっぱい。","tier":"rz","type":"final"},"t_us":176197118}
+{"event":{"id":"file-33","speaker":"S14","type":"speaker"},"t_us":176246471}
+{"event":{"text":"HE WENT IN AND","type":"partial"},"t_us":177629326}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS","type":"partial"},"t_us":178192184}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT","type":"partial"},"t_us":178665503}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING","type":"partial"},"t_us":179181433}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING FROM CARRION","type":"partial"},"t_us":179724365}
+{"event":{"text":"He went in and examined his letters, but there was nothing from Carey.","type":"partial"},"t_us":180551281}
+{"event":{"audio_s":3.84,"decode_ms":161.616038,"end_wall_ms":1792739328530,"id":"file-34","lang":"en","latency_ms":258.944583,"lid_ms":97.325856,"source":"file","speaker":"","switched":true,"t0_s":164.326,"t1_s":167.476,"text":"He went in and examined his letters, but there was nothing from Carey,","tier":"v3","type":"final"},"t_us":180811342}
+{"event":{"id":"file-34","speaker":"S2","type":"speaker"},"t_us":180853058}
+{"event":{"audio_s":5.928,"end_wall_ms":1792739324174,"id":"file-24","lang":"ja","source":"file","speaker":"S14","t0_s":158.624,"t1_s":163.552,"text":"高校生200人に聞きました。 ネットの見すぎを感じ、使うのをやっぱい。","type":"refine"},"t_us":181006371}
+{"event":{"text":"Salami, spin o...","type":"partial"},"t_us":182553952}
+{"event":{"text":"Salami, spinowy do roman.","type":"partial"},"t_us":182997594}
+{"event":{"text":"Sarami, spiniowy do Roma, na mikaz...","type":"partial"},"t_us":183545348}
+{"event":{"text":"Sarani, spin o doroman, amica di ottoty collevaté.","type":"partial"},"t_us":184051732}
+{"event":{"text":"Sarani, spin o doroman, mikotykolowa terata de...","type":"partial"},"t_us":184623797}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":185265572}
+{"event":{"audio_s":4.47,"decode_ms":113.367542,"end_wall_ms":1792739333275,"id":"file-35","lang":"ja","latency_ms":219.327946,"lid_ms":105.957024,"source":"file","speaker":"","switched":true,"t0_s":169.094,"t1_s":172.564,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":185517377}
+{"event":{"id":"file-35","speaker":"S15?","type":"speaker"},"t_us":185558564}
+{"event":{"audio_s":4.15,"end_wall_ms":1792739328530,"id":"file-25","lang":"en","source":"file","speaker":"S2","t0_s":164.326,"t1_s":167.476,"text":"He went in and examined his letters, but there was nothing from Cerry.","type":"refine"},"t_us":185874893}
+{"event":{"text":"AT ONE THIRTY HE","type":"partial"},"t_us":186782344}
+{"event":{"text":"AT ONE THIRTY HE WENT TO REF","type":"partial"},"t_us":187310324}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LI","type":"partial"},"t_us":187819102}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LUNCH AND WHEN","type":"partial"},"t_us":188373118}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED","type":"partial"},"t_us":188859288}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER","type":"partial"},"t_us":189433286}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING","type":"partial"},"t_us":189912041}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING FOR HIM","type":"partial"},"t_us":190420445}
+{"event":{"audio_s":5.44,"decode_ms":286.549414,"end_wall_ms":1792739338824,"id":"file-36","lang":"en","latency_ms":399.107859,"lid_ms":112.555626,"source":"file","speaker":"","switched":true,"t0_s":173.478,"t1_s":178.00400000000002,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","tier":"v3","type":"final"},"t_us":191245446}
+{"event":{"id":"file-36","speaker":"S2","type":"speaker"},"t_us":191300922}
+{"event":{"audio_s":4.47,"end_wall_ms":1792739333275,"id":"file-26","lang":"ja","source":"file","speaker":"S15?","t0_s":169.094,"t1_s":172.564,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","type":"refine"},"t_us":191430479}
+{"event":{"text":"Mogisae Banissa.","type":"partial"},"t_us":192946774}
+{"event":{"text":"Mugisaibani San Casta.","type":"partial"},"t_us":193438387}
+{"event":{"text":"Mugisae Bani San Casta, Taiga K.","type":"partial"},"t_us":193972281}
+{"event":{"text":"Mogisai Bani San Casta Daika Kwich.","type":"partial"},"t_us":194498581}
+{"event":{"text":"Mugisaiba ni sancashta, taiga que se nojon","type":"partial"},"t_us":195061553}
+{"event":{"text":"Mugisayba ni sancasta, taiga que chene se no junetobay.","type":"partial"},"t_us":195578466}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":195991835}
+{"event":{"audio_s":4.822,"decode_ms":99.321989,"end_wall_ms":1792739344060,"id":"file-37","lang":"ja","latency_ms":182.288491,"lid_ms":82.96355199999999,"source":"file","speaker":"","switched":true,"t0_s":179.526,"t1_s":183.348,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":196264780}
+{"event":{"id":"file-37","speaker":"S16?","type":"speaker"},"t_us":196308116}
+{"event":{"audio_s":5.526,"end_wall_ms":1792739338824,"id":"file-27","lang":"en","source":"file","speaker":"S2","t0_s":173.478,"t1_s":178.004,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","type":"refine"},"t_us":196656294}
+{"event":{"text":"HIS FIRST IMPULSE","type":"partial"},"t_us":198312771}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE","type":"partial"},"t_us":198813101}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FOUR","type":"partial"},"t_us":199449395}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FORWARDS IN REAL","type":"partial"},"t_us":199850488}
+{"event":{"audio_s":3.56,"decode_ms":297.62885500000004,"end_wall_ms":1792739348685,"id":"file-38","lang":"en","latency_ms":442.025602,"lid_ms":144.393437,"source":"file","speaker":"","switched":true,"t0_s":185.28,"t1_s":187.84,"text":"His first impulse was to write but four words in reply.","tier":"v3","type":"final"},"t_us":200708461}
+{"event":{"id":"file-38","speaker":"S2","type":"speaker"},"t_us":200741712}
+{"event":{"audio_s":4.822,"end_wall_ms":1792739344060,"id":"file-28","lang":"ja","source":"file","speaker":"S16?","t0_s":179.526,"t1_s":183.348,"text":"模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":200887811}
+{"event":{"text":"Go to the devil.","type":"partial"},"t_us":201224588}
+{"event":{"audio_s":1.184,"decode_ms":115.236317,"end_wall_ms":1792739349607,"id":"file-39","lang":"en","latency_ms":163.891381,"lid_ms":48.651884,"source":"file","speaker":"","switched":false,"t0_s":187.84,"t1_s":189.024,"text":"Go to the devil.","tier":"v3","type":"final"},"t_us":201631004}
+{"event":{"id":"file-39","speaker":"S2","type":"speaker"},"t_us":201652648}
+{"event":{"audio_s":4.744,"end_wall_ms":1792739349607,"id":"file-29","lang":"en","source":"file","speaker":"S2","t0_s":185.28,"t1_s":189.024,"text":"His first impulse was to write but four words in reply Go to the Devil.","type":"refine"},"t_us":203841958}
+{"event":{"text":"Porra, são é a","type":"partial"},"t_us":204974602}
+{"event":{"text":"Oah samo ja pari tai en diskan.","type":"partial"},"t_us":206524402}
+{"event":{"audio_s":3.208,"decode_ms":81.86289799999999,"end_wall_ms":1792739354712,"id":"file-40","lang":"ja","latency_ms":208.147604,"lid_ms":126.281086,"source":"file","speaker":"","switched":true,"t0_s":191.84,"t1_s":194.048,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":206745791}
+{"event":{"id":"file-40","speaker":"S1","type":"speaker"},"t_us":206767103}
+{"event":{"text":"HE WAS IN A FEVER","type":"partial"},"t_us":208167823}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF","type":"partial"},"t_us":208666616}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND","type":"partial"},"t_us":209230040}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE","type":"partial"},"t_us":209706233}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS","type":"partial"},"t_us":210224066}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S","type":"partial"},"t_us":210839943}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION","type":"partial"},"t_us":211277866}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST","type":"partial"},"t_us":211820803}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS","type":"partial"},"t_us":212314590}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE","type":"partial"},"t_us":212833892}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE","type":"partial"},"t_us":213362613}
+{"event":{"audio_s":6.956,"decode_ms":385.7727809999999,"end_wall_ms":1792739362057,"id":"file-41","lang":"en","latency_ms":517.88357,"lid_ms":132.106909,"source":"file","speaker":"","switched":true,"t0_s":195.136,"t1_s":201.12,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","tier":"v3","type":"final"},"t_us":214080101}
+{"event":{"id":"file-41","speaker":"S2","type":"speaker"},"t_us":214143698}
+{"event":{"audio_s":3.208,"end_wall_ms":1792739354712,"id":"file-30","lang":"ja","source":"file","speaker":"S1","t0_s":191.84,"t1_s":194.048,"text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":214226894}
+{"event":{"audio_s":6.984,"end_wall_ms":1792739362057,"id":"file-31","lang":"en","source":"file","speaker":"S2","t0_s":195.136,"t1_s":201.12,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","type":"refine"},"t_us":218451345}
+{"event":{"text":"He would have to pay her the money, which she would now regularly demand,","type":"partial"},"t_us":222420544}
+{"event":{"audio_s":5.448,"decode_ms":279.274444,"end_wall_ms":1792739371882,"id":"file-42","lang":"en","latency_ms":390.892225,"lid_ms":111.614541,"source":"file","speaker":"","switched":false,"t0_s":206.624,"t1_s":211.072,"text":"He would have to pay her the money, which she would now regularly demand, or there would be trouble.","tier":"v3","type":"final"},"t_us":223904860}
+{"event":{"id":"file-42","speaker":"S2","type":"speaker"},"t_us":223961260}
+{"event":{"text":"It did not matter.","type":"partial"},"t_us":224496362}
+{"event":{"text":"It did not matter what he did.","type":"partial"},"t_us":224955231}
+{"event":{"text":"It did not matter what he did.","type":"partial"},"t_us":225471365}
+{"event":{"audio_s":2.144,"decode_ms":127.415412,"end_wall_ms":1792739373845,"id":"file-43","lang":"en","latency_ms":214.204425,"lid_ms":86.785863,"source":"file","speaker":"","switched":false,"t0_s":211.072,"t1_s":213.216,"text":"It did not matter what he did.","tier":"v3","type":"final"},"t_us":225868177}
+{"event":{"id":"file-43","speaker":"S2","type":"speaker"},"t_us":225895894}
+{"event":{"text":"Só conozco.","type":"partial"},"t_us":227992883}
+{"event":{"text":"Só conozco, cara.","type":"partial"},"t_us":228376542}
+{"event":{"text":"So on the Jurio, kind of.","type":"partial"},"t_us":228909032}
+{"event":{"text":"Só conozco, cara.","type":"partial"},"t_us":229414523}
+{"event":{"text":"Só conozio, caralho.","type":"partial"},"t_us":230077183}
+{"event":{"text":"Só conozio, caralho.","type":"partial"},"t_us":230543638}
+{"event":{"text":"Só conozio, caralho.","type":"partial"},"t_us":231014863}
+{"event":{"text":"Só conozio, caralho.","type":"partial"},"t_us":231740123}
+{"event":{"text":"So on the gior, you can.","type":"partial"},"t_us":232125276}
+{"event":{"text":"So on the Jurio can be a lot of you can.","type":"partial"},"t_us":232608566}
+{"event":{"text":"So on the Jurio can be a lot of the.","type":"partial"},"t_us":233229865}
+{"event":{"text":"So on the Jurio Caralho.","type":"partial"},"t_us":233698253}
+{"event":{"text":"So on the Jurio can't.","type":"partial"},"t_us":234274323}
+{"event":{"text":"丸太を組んでいかだにしてどんどん流したんです","type":"partial"},"t_us":235243617}
+{"event":{"audio_s":8.886,"decode_ms":184.356116,"end_wall_ms":1792739383223,"id":"file-44","lang":"ja","latency_ms":291.550484,"lid_ms":107.191478,"source":"file","speaker":"","switched":true,"t0_s":214.47,"t1_s":222.356,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。","tier":"rz","type":"final"},"t_us":235536865}
+{"event":{"id":"file-44","speaker":"S3","type":"speaker"},"t_us":235591963}
+{"event":{"audio_s":7.592,"end_wall_ms":1792739373845,"id":"file-32","lang":"en","source":"file","speaker":"S2","t0_s":206.624,"t1_s":213.216,"text":"He would have to pay her the money which she would now regularly demand, or there would be trouble. It did not matter what he did.","type":"refine"},"t_us":236039600}
+{"event":{"text":"HURSTWOOD WALKED","type":"partial"},"t_us":236415934}
+{"event":{"text":"HURSTWOOD WALK TO THE FLOOR","type":"partial"},"t_us":236944164}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY","type":"partial"},"t_us":237448400}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE","type":"partial"},"t_us":237985228}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINT","type":"partial"},"t_us":238484308}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUAL","type":"partial"},"t_us":239023187}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION","type":"partial"},"t_us":239541333}
+{"event":{"audio_s":4.712,"decode_ms":268.151706,"end_wall_ms":1792739387928,"id":"file-45","lang":"en","latency_ms":407.059018,"lid_ms":138.904202,"source":"file","speaker":"","switched":true,"t0_s":223.392,"t1_s":227.104,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","tier":"v3","type":"final"},"t_us":239950589}
+{"event":{"id":"file-45","speaker":"S2","type":"speaker"},"t_us":239996243}
+{"event":{"audio_s":8.886,"end_wall_ms":1792739383223,"id":"file-33","lang":"ja","source":"file","speaker":"S3","t0_s":214.47,"t1_s":222.356,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。","type":"refine"},"t_us":240221928}
+{"event":{"text":"Side of","type":"partial"},"t_us":242080805}
+{"event":{"text":"Side of the medal","type":"partial"},"t_us":242605738}
+{"event":{"text":"Side of the middle!","type":"partial"},"t_us":243136152}
+{"event":{"text":"Side of the network","type":"partial"},"t_us":243665952}
+{"event":{"text":"Side of the network!","type":"partial"},"t_us":244202708}
+{"event":{"text":"Sijlaus allemaal geen voorbieg.","type":"partial"},"t_us":244722270}
+{"event":{"text":"Sai de network!","type":"partial"},"t_us":245290589}
+{"event":{"text":"本多選手は得意のドルフィンキックで","type":"partial"},"t_us":245703453}
+{"event":{"text":"百M のターンを迎える","type":"partial"},"t_us":246130793}
+{"event":{"audio_s":6.08,"decode_ms":170.41676600000002,"end_wall_ms":1792739394109,"id":"file-46","lang":"ja","latency_ms":285.94203600000003,"lid_ms":115.52223,"source":"file","speaker":"","switched":true,"t0_s":228.166,"t1_s":233.396,"text":"本多選手は得意のドルフィン。","tier":"rz","type":"final"},"t_us":246417969}
+{"event":{"id":"file-46","speaker":"S4","type":"speaker"},"t_us":246464796}
+{"event":{"audio_s":4.712,"end_wall_ms":1792739387928,"id":"file-34","lang":"en","source":"file","speaker":"S2","t0_s":223.392,"t1_s":227.104,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","type":"refine"},"t_us":246742284}
+{"event":{"text":"MANY LITTLE WRINKLES","type":"partial"},"t_us":248198124}
+{"event":{"text":"MANY LITTLE WRINKLES GATHER","type":"partial"},"t_us":248712096}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS","type":"partial"},"t_us":249235177}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE","type":"partial"},"t_us":249744416}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATE","type":"partial"},"t_us":250262981}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS","type":"partial"},"t_us":250794317}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS","type":"partial"},"t_us":251312740}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED","type":"partial"},"t_us":251834281}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED","type":"partial"},"t_us":252357012}
+{"event":{"audio_s":5.736,"decode_ms":296.119619,"end_wall_ms":1792739400808,"id":"file-47","lang":"en","latency_ms":471.49443,"lid_ms":175.371411,"source":"file","speaker":"","switched":true,"t0_s":235.168,"t1_s":239.904,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","tier":"v3","type":"final"},"t_us":252830617}
+{"event":{"id":"file-47","speaker":"S2","type":"speaker"},"t_us":252882576}
+{"event":{"audio_s":6.23,"end_wall_ms":1792739394109,"id":"file-35","lang":"ja","source":"file","speaker":"S4","t0_s":228.166,"t1_s":233.396,"text":"百Mのターンを迎える。","type":"refine"},"t_us":253068619}
+{"event":{"text":"Up with","type":"partial"},"t_us":254861169}
+{"event":{"text":"بط","type":"partial"},"t_us":255414191}
+{"event":{"text":"بطدم","type":"partial"},"t_us":256019752}
+{"event":{"text":"ب어مة","type":"partial"},"t_us":256562597}
+{"event":{"text":"부자もす","type":"partial"},"t_us":257102562}
+{"event":{"text":"자","type":"partial"},"t_us":257726415}
+{"event":{"text":"부자가","type":"partial"},"t_us":258275300}
+{"event":{"text":"부어もす가","type":"partial"},"t_us":258893285}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":259305349}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":259703613}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わった","type":"partial"},"t_us":260215685}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":260718308}
+{"event":{"audio_s":7.944,"decode_ms":177.05883,"end_wall_ms":1792739409362,"id":"file-48","lang":"ja","latency_ms":305.537487,"lid_ms":128.476037,"source":"file","speaker":"","switched":true,"t0_s":241.696,"t1_s":248.64,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":261384974}
+{"event":{"id":"file-48","speaker":"S5","type":"speaker"},"t_us":261452223}
+{"event":{"audio_s":5.736,"end_wall_ms":1792739400808,"id":"file-36","lang":"en","source":"file","speaker":"S2","t0_s":235.168,"t1_s":239.904,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","type":"refine"},"t_us":261813938}
+{"event":{"text":"さあ","type":"partial"},"t_us":261840603}
+{"event":{"audio_s":7.944,"end_wall_ms":1792739409362,"id":"file-37","lang":"ja","source":"file","speaker":"S5","t0_s":241.696,"t1_s":248.64,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","type":"refine"},"t_us":263298357}
+{"event":{"text":"HE COULD ARRANGE THIS","type":"partial"},"t_us":263708219}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACT","type":"partial"},"t_us":264209618}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY","type":"partial"},"t_us":264779533}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE","type":"partial"},"t_us":265274598}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD","type":"partial"},"t_us":265792275}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT","type":"partial"},"t_us":266311206}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY","type":"partial"},"t_us":266831852}
+{"event":{"audio_s":5.128,"decode_ms":346.39582,"end_wall_ms":1792739415702,"id":"file-49","lang":"en","latency_ms":474.024083,"lid_ms":127.624813,"source":"file","speaker":"","switched":true,"t0_s":250.688,"t1_s":254.816,"text":"He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.","tier":"v3","type":"final"},"t_us":267725335}
+{"event":{"id":"file-49","speaker":"S2","type":"speaker"},"t_us":267776859}
+{"event":{"text":"On a sur la djup.","type":"partial"},"t_us":269410967}
+{"event":{"text":"An azi de dö most.","type":"partial"},"t_us":269880398}
+{"event":{"text":"On a side most.","type":"partial"},"t_us":270393000}
+{"event":{"audio_s":3.208,"decode_ms":88.079929,"end_wall_ms":1792739419120,"id":"file-50","lang":"ja","latency_ms":198.701318,"lid_ms":110.618129,"source":"file","speaker":"","switched":true,"t0_s":256.256,"t1_s":258.464,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":271142145}
+{"event":{"id":"file-50","speaker":"S6","type":"speaker"},"t_us":271169181}
+{"event":{"audio_s":5.128,"end_wall_ms":1792739415702,"id":"file-38","lang":"en","source":"file","speaker":"S2","t0_s":250.688,"t1_s":254.816,"text":"He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.","type":"refine"},"t_us":271488469}
+{"event":{"text":"住民による","type":"partial"},"t_us":272521313}
+{"event":{"text":"住民によると","type":"partial"},"t_us":273130058}
+{"event":{"audio_s":1.94,"decode_ms":47.27079899999999,"end_wall_ms":1792739421118,"id":"file-51","lang":"ja","latency_ms":97.074199,"lid_ms":49.80049,"source":"file","speaker":"","switched":false,"t0_s":259.206,"t1_s":260.404,"text":"住民によると。","tier":"rz","type":"final"},"t_us":273238084}
+{"event":{"id":"file-51","speaker":"S7","type":"speaker"},"t_us":273258553}
+{"event":{"text":"過去にも宮","type":"partial"},"t_us":274620037}
+{"event":{"text":"過去にも似たような","type":"partial"},"t_us":275119347}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":275685890}
+{"event":{"text":"過去にも似たような訪問があったと","type":"partial"},"t_us":276186744}
+{"event":{"text":"過去にも似たような訪問があったといいます","type":"partial"},"t_us":276689628}
+{"event":{"audio_s":4.008,"decode_ms":138.12813,"end_wall_ms":1792739425271,"id":"file-52","lang":"ja","latency_ms":254.803575,"lid_ms":116.671656,"source":"file","speaker":"","switched":false,"t0_s":261.6,"t1_s":264.608,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":277294081}
+{"event":{"id":"file-52","speaker":"S7","type":"speaker"},"t_us":277334664}
+{"event":{"text":"HE WOULD SEE HOW","type":"partial"},"t_us":278803719}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT","type":"partial"},"t_us":279311508}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW","type":"partial"},"t_us":279854927}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE","type":"partial"},"t_us":280345523}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER","type":"partial"},"t_us":280842140}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER","type":"partial"},"t_us":281439438}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO","type":"partial"},"t_us":281921441}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS YOU","type":"partial"},"t_us":282413765}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS USUAL","type":"partial"},"t_us":283000396}
+{"event":{"audio_s":5.704,"decode_ms":331.191115,"end_wall_ms":1792739431461,"id":"file-53","lang":"en","latency_ms":481.827442,"lid_ms":150.632858,"source":"file","speaker":"","switched":true,"t0_s":265.76,"t1_s":270.464,"text":"He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.","tier":"v3","type":"final"},"t_us":283483355}
+{"event":{"id":"file-53","speaker":"S2","type":"speaker"},"t_us":283545851}
+{"event":{"audio_s":9.352,"end_wall_ms":1792739425271,"id":"file-39","lang":"ja","source":"file","speaker":"S7","t0_s":256.256,"t1_s":264.608,"text":"ずいぶんあり住民によると過去にも似たような訪問があったといいます。","type":"refine"},"t_us":283763457}
+{"event":{"text":"She got it chill.","type":"partial"},"t_us":285141185}
+{"event":{"text":"Got it, chicken, look at this.","type":"partial"},"t_us":285656274}
+{"event":{"text":"Chicago got this.","type":"partial"},"t_us":286171578}
+{"event":{"audio_s":3.734,"decode_ms":226.55654400000003,"end_wall_ms":1792739439215,"id":"file-54","lang":"zh","latency_ms":346.910464,"lid_ms":120.35143,"source":"file","speaker":"","switched":true,"t0_s":271.75,"t1_s":274.484,"text":"s o o o t t t o k e t e o o o n t i s s o h i s n y","tier":"pz","type":"final"},"t_us":291584809}
+{"event":{"id":"file-54","speaker":"S8","type":"speaker"},"t_us":291619044}
+{"event":{"text":"f r o m m e r e e o n n h f f l l t i s f f s u m t i n g m i k c o m","type":"partial"},"t_us":291730833}
+{"event":{"audio_s":5.704,"end_wall_ms":1792739431461,"id":"file-40","lang":"en","source":"file","speaker":"S2","t0_s":265.76,"t1_s":270.464,"text":"He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.","type":"refine"},"t_us":292098652}
+{"event":{"text":"f r u m m e r e s o n n e f e l t t i s f f o m m i i n m i c k c o m e t w a e","type":"partial"},"t_us":292114961}
+{"event":{"text":"f r o m m e r e s o n n e f e l t t i s f s o m t i i g m i k c o o m e t w a a i n d h a s e e e l y","type":"partial"},"t_us":292723662}
+{"event":{"text":"f r u m m e r e s o n n e f e l t t i i f s u m t i n g m i k c o m m t a w w a a a n w a a s e e e i v e e o a n l","type":"partial"},"t_us":293157311}
+{"event":{"text":"f r s m m e r r e o n n e f e l t t i s f f u m m i i n m i k c c o m t a t w a y a n d w a s s e e i v e t w a n t l t h h o m v l l o","type":"partial"},"t_us":293753127}
+{"event":{"text":"f r r m m e e r e s n n h f f l l t i s i f s u m t i n g i c k c o m e a t w a a a n d w a s s e l i v e t w i n t l t h h o m v e l e e s i t t i n","type":"partial"},"t_us":294225598}
+{"event":{"text":"f r r m m e e r e s o n h f f l l t i s i f s u m t i n g m i c c o m e t t w a a i n d w a a s e e e e e e o a n t l t h h h o m e l i e s h t t i n s a a n d d","type":"partial"},"t_us":294809484}
+{"event":{"text":"f r r m m e e r e s n n h f f l l t i s i f s u m t i n g m i c c o m e t t w a a a n n w a a s e e e e e e o a n t t t h h h o m e l i e s h t t i n s a a n d i n n t i n k s i s","type":"partial"},"t_us":295253981}
+{"event":{"text":"f r r m m m e r e s o n n e f e l t i s i f s u m t i n g m i c c o m e t w a a a a n n w a a s e e l i v e w w n n t l t h e o m e l o e s h i t i n s c a n d d d t n t i n k s s s b i i i s s n o","type":"partial"},"t_us":295772016}
+{"event":{"audio_s":7.368,"decode_ms":452.78776,"end_wall_ms":1792739444693,"id":"file-55","lang":"en","latency_ms":639.779507,"lid_ms":186.988647,"source":"file","speaker":"","switched":true,"t0_s":277.28,"t1_s":283.648,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","tier":"v3","type":"final"},"t_us":296715772}
+{"event":{"id":"file-55","speaker":"S2","type":"speaker"},"t_us":296789730}
+{"event":{"audio_s":3.734,"end_wall_ms":1792739439215,"id":"file-41","lang":"zh","source":"file","speaker":"S8","t0_s":271.75,"t1_s":274.484,"text":"s o o o t t t o k e t e o o o n t i s s o h i s n y","type":"refine"},"t_us":296936151}
+{"event":{"text":"Hi.","type":"partial"},"t_us":298013227}
+{"event":{"text":"Hi.","type":"partial"},"t_us":298453854}
+{"event":{"text":"Hi, Sanot.","type":"partial"},"t_us":298969921}
+{"event":{"text":"Hej, sa kiesano","type":"partial"},"t_us":299511066}
+{"event":{"text":"Hi, Saki Sanotyo Kazoo Nassau des.","type":"partial"},"t_us":300085923}
+{"event":{"text":"Hi, Santo Kazoo na Sasso, né?","type":"partial"},"t_us":300580183}
+{"event":{"text":"Hi, Sano Tokyo Kazuana Sask,","type":"partial"},"t_us":301132424}
+{"event":{"text":"Hi, Santo, né?","type":"partial"},"t_us":301635572}
+{"event":{"text":"Hi, Sano Tokyo Kazil Nassau, never","type":"partial"},"t_us":302209691}
+{"event":{"text":"Hi, so Kaziva,","type":"partial"},"t_us":302750600}
+{"event":{"text":"Hi, Nassau, Kondo Sam.","type":"partial"},"t_us":303290876}
+{"event":{"audio_s":6.912,"decode_ms":144.530232,"end_wall_ms":1792739451565,"id":"file-56","lang":"ja","latency_ms":246.712384,"lid_ms":102.179593,"source":"file","speaker":"","switched":true,"t0_s":284.55,"t1_s":290.708,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":303834670}
+{"event":{"id":"file-56","speaker":"S9","type":"speaker"},"t_us":303891229}
+{"event":{"text":"WHILE THE DANGER HAD","type":"partial"},"t_us":305612047}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSON","type":"partial"},"t_us":306131687}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT","type":"partial"},"t_us":306625588}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET","type":"partial"},"t_us":307152822}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIAL","type":"partial"},"t_us":307698298}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED","type":"partial"},"t_us":308196347}
+{"event":{"audio_s":7.368,"end_wall_ms":1792739444693,"id":"file-42","lang":"en","source":"file","speaker":"S2","t0_s":277.28,"t1_s":283.648,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","type":"refine"},"t_us":308305548}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM","type":"partial"},"t_us":308705239}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS","type":"partial"},"t_us":309299405}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOODNESS","type":"partial"},"t_us":309763447}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOOD NEWS","type":"partial"},"t_us":310257544}
+{"event":{"audio_s":6.248,"decode_ms":293.7922300000001,"end_wall_ms":1792739458666,"id":"file-57","lang":"en","latency_ms":429.929243,"lid_ms":136.133963,"source":"file","speaker":"","switched":true,"t0_s":292.576,"t1_s":297.824,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","tier":"v3","type":"final"},"t_us":310689278}
+{"event":{"id":"file-57","speaker":"S2","type":"speaker"},"t_us":310757429}
+{"event":{"audio_s":7.158,"end_wall_ms":1792739451565,"id":"file-43","lang":"ja","source":"file","speaker":"S9","t0_s":284.55,"t1_s":290.708,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":310915818}
+{"event":{"audio_s":6.248,"end_wall_ms":1792739458666,"id":"file-44","lang":"en","source":"file","speaker":"S2","t0_s":292.576,"t1_s":297.824,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","type":"refine"},"t_us":312750742}
+{"event":{"text":"Sostemor.","type":"partial"},"t_us":315442134}
+{"event":{"text":"S.","type":"partial"},"t_us":315924257}
+{"event":{"text":"Stimmus dazu.","type":"partial"},"t_us":316462277}
+{"event":{"text":"Suste mu estudience.","type":"partial"},"t_us":317003464}
+{"event":{"text":"Ste moi, se","type":"partial"},"t_us":317517269}
+{"event":{"text":"Sus te mueps, arimas.","type":"partial"},"t_us":318106960}
+{"event":{"audio_s":4.328,"decode_ms":107.454331,"end_wall_ms":1792739466338,"id":"file-58","lang":"ja","latency_ms":248.637919,"lid_ms":141.180918,"source":"file","speaker":"","switched":true,"t0_s":302.304,"t1_s":305.632,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":318360688}
+{"event":{"id":"file-58","speaker":"S10","type":"speaker"},"t_us":318401219}
+{"event":{"text":"SO LITTLE DID","type":"partial"},"t_us":319696661}
+{"event":{"text":"SO LITTLE DID HE CONSIDER","type":"partial"},"t_us":320226868}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRU","type":"partial"},"t_us":320751611}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT","type":"partial"},"t_us":321292409}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE","type":"partial"},"t_us":321788372}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM","type":"partial"},"t_us":322290392}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY","type":"partial"},"t_us":322882666}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINAL","type":"partial"},"t_us":323355169}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINDING OUT","type":"partial"},"t_us":323928498}
+{"event":{"audio_s":5.484,"decode_ms":334.275977,"end_wall_ms":1792739472400,"id":"file-59","lang":"en","latency_ms":493.283612,"lid_ms":159.00445499999998,"source":"file","speaker":"","switched":true,"t0_s":306.688,"t1_s":311.488,"text":"So little did he consider Dre that it never once occurred to him to worry about his finding out.","tier":"v3","type":"final"},"t_us":324423093}
+{"event":{"id":"file-59","speaker":"S2","type":"speaker"},"t_us":324482556}
+{"event":{"audio_s":4.328,"end_wall_ms":1792739466338,"id":"file-45","lang":"ja","source":"file","speaker":"S10","t0_s":302.304,"t1_s":305.632,"text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":324601229}
+{"event":{"audio_s":5.8,"end_wall_ms":1792739472400,"id":"file-46","lang":"en","source":"file","speaker":"S2","t0_s":306.688,"t1_s":311.488,"text":"So little did he consider Dre that it never once occurred to him to worry about his finding out,","type":"refine"},"t_us":326370567}
+{"event":{"text":"Sure, I think.","type":"partial"},"t_us":328440317}
+{"event":{"text":"Surya está mononosa.","type":"partial"},"t_us":328929772}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":329347305}
+{"event":{"audio_s":2.71,"decode_ms":63.120559,"end_wall_ms":1792739477429,"id":"file-60","lang":"ja","latency_ms":125.839851,"lid_ms":62.716172,"source":"file","speaker":"","switched":true,"t0_s":315.014,"t1_s":316.724,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":329577512}
+{"event":{"id":"file-60","speaker":"S11","type":"speaker"},"t_us":329600652}
+{"event":{"text":"十万人以上","type":"partial"},"t_us":330428168}
+{"event":{"text":"十万人以上の","type":"partial"},"t_us":330933757}
+{"event":{"text":"十万人以上の戦死者","type":"partial"},"t_us":331468494}
+{"event":{"text":"十万人以上の戦死者を出した","type":"partial"},"t_us":331990712}
+{"event":{"audio_s":3.276,"decode_ms":89.031688,"end_wall_ms":1792739480585,"id":"file-61","lang":"ja","latency_ms":176.739507,"lid_ms":87.704739,"source":"file","speaker":"","switched":false,"t0_s":317.408,"t1_s":320.0,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":332608397}
+{"event":{"id":"file-61","speaker":"S11","type":"speaker"},"t_us":332640300}
+{"event":{"audio_s":5.986,"end_wall_ms":1792739480585,"id":"file-47","lang":"ja","source":"file","speaker":"S11","t0_s":315.014,"t1_s":320.0,"text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":334657623}
+{"event":{"text":"HE GREW RESTLESS","type":"partial"},"t_us":335530808}
+{"event":{"text":"HE GREW RESTLESS AS HE ROOM","type":"partial"},"t_us":336034887}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED","type":"partial"},"t_us":336560827}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN","type":"partial"},"t_us":337109988}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT","type":"partial"},"t_us":337598754}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS","type":"partial"},"t_us":338109690}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS NOTHING","type":"partial"},"t_us":338647944}
+{"event":{"audio_s":4.872,"decode_ms":287.208253,"end_wall_ms":1792739487198,"id":"file-62","lang":"en","latency_ms":414.530144,"lid_ms":127.318611,"source":"file","speaker":"","switched":true,"t0_s":322.496,"t1_s":326.368,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","tier":"v3","type":"final"},"t_us":339221205}
+{"event":{"id":"file-62","speaker":"S2","type":"speaker"},"t_us":339268203}
+{"event":{"text":"Davi S","type":"partial"},"t_us":340607847}
+{"event":{"text":"Davi sent a left hand","type":"partial"},"t_us":341029940}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":341445139}
+{"event":{"audio_s":2.312,"decode_ms":91.794351,"end_wall_ms":1792739489429,"id":"file-63","lang":"ja","latency_ms":0.0,"lid_ms":80.816975,"source":"file","speaker":"","switched":true,"t0_s":327.11,"t1_s":328.724,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":341451385}
+{"event":{"id":"file-63","speaker":"S12","type":"speaker"},"t_us":341475231}
+{"event":{"audio_s":4.872,"end_wall_ms":1792739487198,"id":"file-48","lang":"en","source":"file","speaker":"S2","t0_s":322.496,"t1_s":326.368,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","type":"refine"},"t_us":341762830}
+{"event":{"audio_s":2.614,"end_wall_ms":1792739489429,"id":"file-49","lang":"ja","source":"file","speaker":"S12","t0_s":327.11,"t1_s":328.724,"text":"左寄りセンターレフト。","type":"refine"},"t_us":343321955}
+{"event":{"text":"HE WOULD GET ONE TO","type":"partial"},"t_us":345142889}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT","type":"partial"},"t_us":345630386}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY","type":"partial"},"t_us":346148963}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON","type":"partial"},"t_us":346674742}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK","type":"partial"},"t_us":347197812}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK WHEN HE GOT BACK","type":"partial"},"t_us":347710566}
+{"event":{"audio_s":4.52,"decode_ms":337.14974199999995,"end_wall_ms":1792739496507,"id":"file-64","lang":"en","latency_ms":486.208356,"lid_ms":149.055385,"source":"file","speaker":"","switched":true,"t0_s":332.096,"t1_s":335.616,"text":"He would get one to day. It would probably be on his desk when he got back.","tier":"v3","type":"final"},"t_us":348529522}
+{"event":{"id":"file-64","speaker":"S2","type":"speaker"},"t_us":348574598}
+{"event":{"text":"He would look for it at once.","type":"partial"},"t_us":349555802}
+{"event":{"audio_s":1.76,"decode_ms":96.785923,"end_wall_ms":1792739497932,"id":"file-65","lang":"en","latency_ms":151.520509,"lid_ms":54.731566,"source":"file","speaker":"","switched":false,"t0_s":335.616,"t1_s":337.376,"text":"He would look for it at once.","tier":"v3","type":"final"},"t_us":349954544}
+{"event":{"id":"file-65","speaker":"S2","type":"speaker"},"t_us":349978314}
+{"event":{"audio_s":6.28,"end_wall_ms":1792739497932,"id":"file-50","lang":"en","source":"file","speaker":"S2","t0_s":332.096,"t1_s":337.376,"text":"He would get one to day. It would probably be on his desk when he got back. He would look for it at once.","type":"refine"},"t_us":352375536}
+{"event":{"text":"言ったろう","type":"partial"},"t_us":352816870}
+{"event":{"audio_s":1.512,"decode_ms":102.768382,"end_wall_ms":1792739500850,"id":"file-66","lang":"ja","latency_ms":0.0,"lid_ms":72.840478,"source":"file","speaker":"","switched":true,"t0_s":339.366,"t1_s":340.148,"text":"言ったろう。","tier":"rz","type":"final"},"t_us":352872573}
+{"event":{"id":"file-66","speaker":"S13","type":"speaker"},"t_us":352892149}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":353752568}
+{"event":{"text":"ヒーローよりもてめえよ","type":"partial"},"t_us":354279021}
+{"event":{"text":"ヒーローよりもてめェを信じる","type":"partial"},"t_us":354785384}
+{"event":{"audio_s":2.348,"decode_ms":83.129669,"end_wall_ms":1792739503089,"id":"file-67","lang":"ja","latency_ms":172.422606,"lid_ms":89.290197,"source":"file","speaker":"","switched":false,"t0_s":340.736,"t1_s":342.496,"text":"ヒーローよりもてめぇを信じる。","tier":"rz","type":"final"},"t_us":355111163}
+{"event":{"id":"file-67","speaker":"S13","type":"speaker"},"t_us":355131474}
+{"event":{"text":"AFTER A TIME","type":"partial"},"t_us":356821998}
+{"event":{"text":"AFTER A TIME HE GAVE UP A","type":"partial"},"t_us":357341322}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARY","type":"partial"},"t_us":357887861}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED","type":"partial"},"t_us":358390204}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADACE","type":"partial"},"t_us":358969185}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADISON CAR","type":"partial"},"t_us":359421419}
+{"event":{"audio_s":4.424,"decode_ms":263.714174,"end_wall_ms":1792739508023,"id":"file-68","lang":"en","latency_ms":387.10972,"lid_ms":123.392126,"source":"file","speaker":"","switched":true,"t0_s":343.808,"t1_s":347.232,"text":"After a time he gave up waiting and drearily headed for the Madison car.","tier":"v3","type":"final"},"t_us":360045999}
+{"event":{"id":"file-68","speaker":"S2","type":"speaker"},"t_us":360093709}
+{"event":{"audio_s":4.13,"end_wall_ms":1792739503089,"id":"file-51","lang":"ja","source":"file","speaker":"S13","t0_s":339.366,"t1_s":342.496,"text":"言ったろ。ヒーローよりもテメェを信じる。","type":"refine"},"t_us":360220649}
+{"event":{"audio_s":4.424,"end_wall_ms":1792739508023,"id":"file-52","lang":"en","source":"file","speaker":"S2","t0_s":343.808,"t1_s":347.232,"text":"After a time he gave up waiting and drearily headed for the Madison car.","type":"refine"},"t_us":362021715}
+{"event":{"text":"Kukufén.","type":"partial"},"t_us":362379985}
+{"event":{"text":"Kukuf je nie, nikt...","type":"partial"},"t_us":362908354}
+{"event":{"text":"Kuków nieponinicky most.","type":"partial"},"t_us":363451626}
+{"event":{"audio_s":2.92,"decode_ms":100.712838,"end_wall_ms":1792739511817,"id":"file-69","lang":"ja","latency_ms":210.900775,"lid_ms":110.184907,"source":"file","speaker":"","switched":true,"t0_s":349.28,"t1_s":351.2,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":363839830}
+{"event":{"id":"file-69","speaker":"S14","type":"speaker"},"t_us":363863396}
+{"event":{"text":"の","type":"partial"},"t_us":364338888}
+{"event":{"text":"ネットの見すぎ","type":"partial"},"t_us":364844106}
+{"event":{"text":"ネットの見すぎを感じ","type":"partial"},"t_us":365373892}
+{"event":{"text":"ネットの見すぎを感じ使う","type":"partial"},"t_us":365891738}
+{"event":{"text":"ネットの見すぎを感じ使うのをや","type":"partial"},"t_us":366456815}
+{"event":{"audio_s":2.976,"decode_ms":89.426117,"end_wall_ms":1792739514765,"id":"file-70","lang":"ja","latency_ms":175.952958,"lid_ms":86.523821,"source":"file","speaker":"","switched":false,"t0_s":351.2,"t1_s":354.176,"text":"ネットの見すぎを感じ使うのをやった。","tier":"rz","type":"final"},"t_us":366787271}
+{"event":{"id":"file-70","speaker":"S14","type":"speaker"},"t_us":366825486}
+{"event":{"text":"HE WENT IN AND","type":"partial"},"t_us":368312404}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS","type":"partial"},"t_us":368804216}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT","type":"partial"},"t_us":369356739}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING","type":"partial"},"t_us":369835581}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING FROM CARE","type":"partial"},"t_us":370355336}
+{"event":{"text":"He went in and examined his letters, but there was nothing from Carey.","type":"partial"},"t_us":371177804}
+{"event":{"audio_s":3.884,"decode_ms":204.099797,"end_wall_ms":1792739519158,"id":"file-71","lang":"en","latency_ms":0.0,"lid_ms":106.416794,"source":"file","speaker":"","switched":true,"t0_s":354.982,"t1_s":358.196,"text":"He went in and examined his letters, but there was nothing from Carey,","tier":"v3","type":"final"},"t_us":371190738}
+{"event":{"id":"file-71","speaker":"S2","type":"speaker"},"t_us":371219201}
+{"event":{"audio_s":5.896,"end_wall_ms":1792739514765,"id":"file-53","lang":"ja","source":"file","speaker":"S14","t0_s":349.28,"t1_s":354.176,"text":"高校生200人に聞きました。 ネットの見すぎを感じ使うのをやった。","type":"refine"},"t_us":371383978}
+{"event":{"text":"Salonic, spin o.","type":"partial"},"t_us":373146154}
+{"event":{"text":"Saloni, spiniowy do roman.","type":"partial"},"t_us":373665628}
+{"event":{"text":"Sarani, spiniowy do roman na mikazyota.","type":"partial"},"t_us":374191740}
+{"event":{"text":"Sarani, spin o doroman, la mia cazilti que levant","type":"partial"},"t_us":374744936}
+{"event":{"text":"Sarani, spin o doroman, na mi ka de ott leva teraz a dedu.","type":"partial"},"t_us":375251249}
+{"event":{"text":"Pinhow doroman, la micro tá tipo de la terza de luxe.","type":"partial"},"t_us":375796587}
+{"event":{"audio_s":4.534,"decode_ms":102.395555,"end_wall_ms":1792739524043,"id":"file-72","lang":"ja","latency_ms":204.670786,"lid_ms":102.272441,"source":"file","speaker":"","switched":true,"t0_s":359.75,"t1_s":363.284,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":376269818}
+{"event":{"id":"file-72","speaker":"S15","type":"speaker"},"t_us":376308717}
+{"event":{"audio_s":4.214,"end_wall_ms":1792739519158,"id":"file-54","lang":"en","source":"file","speaker":"S2","t0_s":354.982,"t1_s":358.196,"text":"He went in and examined his letters, but there was nothing from Carey.","type":"refine"},"t_us":376588081}
+{"event":{"text":"AT ONE THIRTY HE","type":"partial"},"t_us":377471675}
+{"event":{"text":"AT ONE THIRTY HE WENT TO REF","type":"partial"},"t_us":377992507}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LOVE","type":"partial"},"t_us":378505729}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LUNCH AND WHEN","type":"partial"},"t_us":379029006}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED","type":"partial"},"t_us":379547106}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER","type":"partial"},"t_us":380070609}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING","type":"partial"},"t_us":380577972}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING FOR HIM","type":"partial"},"t_us":381132776}
+{"event":{"audio_s":5.376,"decode_ms":287.57575699999995,"end_wall_ms":1792739529560,"id":"file-73","lang":"en","latency_ms":397.446005,"lid_ms":109.867248,"source":"file","speaker":"","switched":true,"t0_s":364.166,"t1_s":368.66,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","tier":"v3","type":"final"},"t_us":381980361}
+{"event":{"id":"file-73","speaker":"S2","type":"speaker"},"t_us":382034625}
+{"event":{"audio_s":4.534,"end_wall_ms":1792739524043,"id":"file-55","lang":"ja","source":"file","speaker":"S15","t0_s":359.75,"t1_s":363.284,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","type":"refine"},"t_us":382152543}
+{"event":{"text":"Mogisa ni sangue.","type":"partial"},"t_us":383597924}
+{"event":{"text":"Mogisaeba ni sanka.","type":"partial"},"t_us":384124593}
+{"event":{"text":"Mugisaiba ni sancasta que","type":"partial"},"t_us":384647805}
+{"event":{"text":"Mogisaai Bani San Casta Daika Kichnesi.","type":"partial"},"t_us":385199914}
+{"event":{"text":"Mugisaibani San Casta Daika.","type":"partial"},"t_us":385721876}
+{"event":{"text":"Mugisayba ni sancasta que se nota.","type":"partial"},"t_us":386247911}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":386664167}
+{"event":{"audio_s":4.822,"decode_ms":97.887723,"end_wall_ms":1792739534747,"id":"file-74","lang":"ja","latency_ms":199.212312,"lid_ms":101.321989,"source":"file","speaker":"","switched":true,"t0_s":370.214,"t1_s":374.036,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":386968537}
+{"event":{"id":"file-74","speaker":"S16","type":"speaker"},"t_us":387005979}
+{"event":{"audio_s":5.494,"end_wall_ms":1792739529560,"id":"file-56","lang":"en","source":"file","speaker":"S2","t0_s":364.166,"t1_s":368.66,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","type":"refine"},"t_us":387364238}
+{"event":{"text":"HIS FIRST IMPULSE","type":"partial"},"t_us":388987263}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE","type":"partial"},"t_us":389484142}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FOUR","type":"partial"},"t_us":389985270}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FORWARDS AND REPLIED","type":"partial"},"t_us":390529823}
+{"event":{"audio_s":3.56,"decode_ms":250.202956,"end_wall_ms":1792739539267,"id":"file-75","lang":"en","latency_ms":356.232639,"lid_ms":106.026753,"source":"file","speaker":"","switched":true,"t0_s":375.936,"t1_s":378.496,"text":"His first impulse was to write but four words in reply.","tier":"v3","type":"final"},"t_us":391289256}
+{"event":{"id":"file-75","speaker":"S2","type":"speaker"},"t_us":391320316}
+{"event":{"audio_s":4.822,"end_wall_ms":1792739534747,"id":"file-57","lang":"ja","source":"file","speaker":"S16","t0_s":370.214,"t1_s":374.036,"text":"模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":391457986}
+{"event":{"audio_s":1.184,"decode_ms":78.28670500000001,"end_wall_ms":1792739540217,"id":"file-76","lang":"en","latency_ms":126.33553,"lid_ms":48.045715,"source":"file","speaker":"","switched":false,"t0_s":378.496,"t1_s":379.68,"text":"Go to the devil.","tier":"v3","type":"final"},"t_us":392239340}
+{"event":{"id":"file-76","speaker":"S2","type":"speaker"},"t_us":392256949}
+{"event":{"audio_s":4.744,"end_wall_ms":1792739540217,"id":"file-58","lang":"en","source":"file","speaker":"S2","t0_s":375.936,"t1_s":379.68,"text":"His first impulse was to write but four words in reply Go to the Devil.","type":"refine"},"t_us":394511954}
+{"event":{"text":"O ração é","type":"partial"},"t_us":395649885}
+{"event":{"text":"Or pari.","type":"partial"},"t_us":396142679}
+{"event":{"text":"Oah samo ja pari tai en distan.","type":"partial"},"t_us":397192930}
+{"event":{"audio_s":3.176,"decode_ms":80.05882700000001,"end_wall_ms":1792739545373,"id":"file-77","lang":"ja","latency_ms":200.626977,"lid_ms":120.56413,"source":"file","speaker":"","switched":true,"t0_s":382.528,"t1_s":384.704,"text":"大橋さんはやっぱり大変でしたか？","tier":"rz","type":"final"},"t_us":397395832}
+{"event":{"id":"file-77","speaker":"S1","type":"speaker"},"t_us":397422649}
+{"event":{"text":"HE WAS IN A FEVER","type":"partial"},"t_us":398814705}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF","type":"partial"},"t_us":399349391}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND","type":"partial"},"t_us":399846694}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE","type":"partial"},"t_us":400373000}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS","type":"partial"},"t_us":400885404}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S","type":"partial"},"t_us":401406084}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION","type":"partial"},"t_us":401966822}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST","type":"partial"},"t_us":402452080}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS","type":"partial"},"t_us":402980286}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE","type":"partial"},"t_us":403481464}
+{"event":{"text":"HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE","type":"partial"},"t_us":404007088}
+{"event":{"audio_s":6.828,"decode_ms":400.17439,"end_wall_ms":1792739552594,"id":"file-78","lang":"en","latency_ms":527.931367,"lid_ms":127.753287,"source":"file","speaker":"","switched":true,"t0_s":385.792,"t1_s":391.648,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","tier":"v3","type":"final"},"t_us":404617085}
+{"event":{"id":"file-78","speaker":"S2","type":"speaker"},"t_us":404683217}
+{"event":{"audio_s":3.176,"end_wall_ms":1792739545373,"id":"file-59","lang":"ja","source":"file","speaker":"S1","t0_s":382.528,"t1_s":384.704,"text":"大橋さんはやっぱり大変でしたか？","type":"refine"},"t_us":404773169}
+{"event":{"audio_s":6.856,"end_wall_ms":1792739552594,"id":"file-60","lang":"en","source":"file","speaker":"S2","t0_s":385.792,"t1_s":391.648,"text":"He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.","type":"refine"},"t_us":409225732}
+{"event":{"text":"He would have to pay her the money which she would now regularly demand, or there would be trouble.","type":"partial"},"t_us":414432579}
+{"event":{"audio_s":5.512,"decode_ms":316.181723,"end_wall_ms":1792739562869,"id":"file-79","lang":"en","latency_ms":454.602517,"lid_ms":138.417754,"source":"file","speaker":"","switched":false,"t0_s":397.28,"t1_s":401.792,"text":"He would have to pay her the money which she would now regularly demand, or there would be trouble.","tier":"v3","type":"final"},"t_us":414891453}
+{"event":{"id":"file-79","speaker":"S2","type":"speaker"},"t_us":414946995}
+{"event":{"text":"It did not matter what","type":"partial"},"t_us":415409539}
+{"event":{"text":"It did not matter what he did, but","type":"partial"},"t_us":415949072}
+{"event":{"audio_s":2.08,"decode_ms":148.56694199999998,"end_wall_ms":1792739564510,"id":"file-80","lang":"en","latency_ms":232.459316,"lid_ms":83.889834,"source":"file","speaker":"","switched":false,"t0_s":401.792,"t1_s":403.872,"text":"It did not matter what he did.","tier":"v3","type":"final"},"t_us":416533030}
+{"event":{"id":"file-80","speaker":"S2","type":"speaker"},"t_us":416573737}
+{"event":{"text":"Second","type":"partial"},"t_us":418006547}
+{"event":{"text":"Sono giorni","type":"partial"},"t_us":418491078}
+{"event":{"text":"Só conozio, cara.","type":"partial"},"t_us":419028209}
+{"event":{"text":"So we're not Jori,","type":"partial"},"t_us":419580691}
+{"event":{"text":"So when we can.","type":"partial"},"t_us":420074133}
+{"event":{"text":"So when we can.","type":"partial"},"t_us":420605398}
+{"event":{"text":"So on the Jurio,","type":"partial"},"t_us":421213042}
+{"event":{"text":"So when we can.","type":"partial"},"t_us":421693810}
+{"event":{"text":"Sono giorni o cara.","type":"partial"},"t_us":422202391}
+{"event":{"text":"So when we can.","type":"partial"},"t_us":422842604}
+{"event":{"text":"So when we can.","type":"partial"},"t_us":423282859}
+{"event":{"text":"So we're not Jori.","type":"partial"},"t_us":423807457}
+{"event":{"text":"So on the Jurio can be a.","type":"partial"},"t_us":424361051}
+{"event":{"text":"Sono Jurio, Caralho. Tundo Navasan.","type":"partial"},"t_us":424830551}
+{"event":{"text":"上流から丸太を組んでいかだにしてどんどん流したんですこれを","type":"partial"},"t_us":425805488}
+{"event":{"audio_s":9.024,"decode_ms":176.38944,"end_wall_ms":1792739573786,"id":"file-81","lang":"ja","latency_ms":284.788165,"lid_ms":108.395655,"source":"file","speaker":"","switched":true,"t0_s":404.582,"t1_s":412.98,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","tier":"rz","type":"final"},"t_us":426093423}
+{"event":{"id":"file-81","speaker":"S3","type":"speaker"},"t_us":426147991}
+{"event":{"audio_s":7.592,"end_wall_ms":1792739564510,"id":"file-61","lang":"en","source":"file","speaker":"S2","t0_s":397.28,"t1_s":403.872,"text":"He would have to pay her the money, which she would now regularly demand, or there would be trouble. It did not matter what he did.","type":"refine"},"t_us":426607696}
+{"event":{"text":"HURSTWOOD WALKED","type":"partial"},"t_us":427061057}
+{"event":{"text":"HURSTWOOD WALK TO THE FLOOR","type":"partial"},"t_us":427587360}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY","type":"partial"},"t_us":428147576}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE","type":"partial"},"t_us":428623786}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINT","type":"partial"},"t_us":429159047}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS","type":"partial"},"t_us":429661812}
+{"event":{"text":"HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION","type":"partial"},"t_us":430185228}
+{"event":{"audio_s":4.936,"decode_ms":298.115826,"end_wall_ms":1792739578822,"id":"file-82","lang":"en","latency_ms":425.406457,"lid_ms":127.287862,"source":"file","speaker":"","switched":true,"t0_s":414.048,"t1_s":417.984,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","tier":"v3","type":"final"},"t_us":430844412}
+{"event":{"id":"file-82","speaker":"S2","type":"speaker"},"t_us":430892910}
+{"event":{"audio_s":9.398,"end_wall_ms":1792739573786,"id":"file-62","lang":"ja","source":"file","speaker":"S3","t0_s":404.582,"t1_s":412.98,"text":"そこの上流から丸太を組んでいかだにしてどんどん流したんです。これを。","type":"refine"},"t_us":431110122}
+{"event":{"text":"S-","type":"partial"},"t_us":432729745}
+{"event":{"text":"Side of the end.","type":"partial"},"t_us":433239501}
+{"event":{"text":"Side of the end of the day!","type":"partial"},"t_us":433816558}
+{"event":{"text":"Side of the end of the time it's.","type":"partial"},"t_us":434353722}
+{"event":{"text":"Side of the end of the time it's the","type":"partial"},"t_us":434846358}
+{"event":{"text":"Side of the network!","type":"partial"},"t_us":435395162}
+{"event":{"text":"Side is the voorpino de g.","type":"partial"},"t_us":435943464}
+{"event":{"text":"Side is the voorpina door in die.","type":"partial"},"t_us":436432088}
+{"event":{"audio_s":6.056,"decode_ms":165.909292,"end_wall_ms":1792739584862,"id":"file-83","lang":"ja","latency_ms":290.128757,"lid_ms":124.216015,"source":"file","speaker":"","switched":true,"t0_s":419.104,"t1_s":424.16,"text":"百Mのターンを迎える。","tier":"rz","type":"final"},"t_us":436884216}
+{"event":{"id":"file-83","speaker":"S4","type":"speaker"},"t_us":436936542}
+{"event":{"audio_s":4.936,"end_wall_ms":1792739578822,"id":"file-63","lang":"en","source":"file","speaker":"S2","t0_s":414.048,"t1_s":417.984,"text":"Hurstwood walked the floor, mentally arranging the chief points of his situation.","type":"refine"},"t_us":437267362}
+{"event":{"text":"MANY LITTLE WRINK","type":"partial"},"t_us":438848878}
+{"event":{"text":"MANY LITTLE WRINKLES GATHER","type":"partial"},"t_us":439350622}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS","type":"partial"},"t_us":439920157}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE","type":"partial"},"t_us":440417970}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATE","type":"partial"},"t_us":440927324}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS","type":"partial"},"t_us":441454416}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS","type":"partial"},"t_us":441956400}
+{"event":{"text":"MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED","type":"partial"},"t_us":442517217}
+{"event":{"audio_s":5.608,"decode_ms":315.865833,"end_wall_ms":1792739591291,"id":"file-84","lang":"en","latency_ms":446.836112,"lid_ms":130.966919,"source":"file","speaker":"","switched":true,"t0_s":425.824,"t1_s":430.432,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","tier":"v3","type":"final"},"t_us":443313533}
+{"event":{"id":"file-84","speaker":"S2","type":"speaker"},"t_us":443369179}
+{"event":{"audio_s":6.056,"end_wall_ms":1792739584862,"id":"file-64","lang":"ja","source":"file","speaker":"S4","t0_s":419.104,"t1_s":424.16,"text":"百Mのターンを迎える。","type":"refine"},"t_us":443533368}
+{"event":{"audio_s":5.608,"end_wall_ms":1792739591291,"id":"file-65","lang":"en","source":"file","speaker":"S2","t0_s":425.824,"t1_s":430.432,"text":"Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.","type":"refine"},"t_us":445350106}
+{"event":{"text":"What","type":"partial"},"t_us":446458438}
+{"event":{"text":"What they must got down","type":"partial"},"t_us":446886652}
+{"event":{"text":"What they're must got down","type":"partial"},"t_us":447407119}
+{"event":{"text":"Wh they must got down","type":"partial"},"t_us":448040274}
+{"event":{"text":"What I'm still got down Cuju","type":"partial"},"t_us":448480462}
+{"event":{"text":"What I'm still got down Cudu is side","type":"partial"},"t_us":448991513}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":449628767}
+{"event":{"text":"でも駿河さん九十一歳","type":"partial"},"t_us":449963532}
+{"event":{"text":"でも駿河さん九十一歳力強い走り","type":"partial"},"t_us":450489143}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっ","type":"partial"},"t_us":451120678}
+{"event":{"text":"でも駿河さん九十一歳力強い走りに変わっていきます","type":"partial"},"t_us":451541812}
+{"event":{"audio_s":7.048,"decode_ms":149.125788,"end_wall_ms":1792739599981,"id":"file-85","lang":"ja","latency_ms":277.387068,"lid_ms":128.25846,"source":"file","speaker":"","switched":true,"t0_s":433.248,"t1_s":439.296,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","tier":"rz","type":"final"},"t_us":452003590}
+{"event":{"id":"file-85","speaker":"S5","type":"speaker"},"t_us":452058564}
+{"event":{"text":"さあ","type":"partial"},"t_us":452458880}
+{"event":{"audio_s":7.048,"end_wall_ms":1792739599981,"id":"file-66","lang":"ja","source":"file","speaker":"S5","t0_s":433.248,"t1_s":439.296,"text":"でも駿河さん91歳。力強い走りに変わっていきます。","type":"refine"},"t_us":453987041}
+{"event":{"text":"HE COULD ARRANGE THIS","type":"partial"},"t_us":454396160}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACT","type":"partial"},"t_us":454906743}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY","type":"partial"},"t_us":455432833}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORY FOR CARRIE","type":"partial"},"t_us":456031516}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD","type":"partial"},"t_us":456469516}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT","type":"partial"},"t_us":457071985}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY","type":"partial"},"t_us":457512995}
+{"event":{"text":"HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY","type":"partial"},"t_us":458032122}
+{"event":{"audio_s":5.32,"decode_ms":361.109775,"end_wall_ms":1792739606604,"id":"file-86","lang":"en","latency_ms":488.546076,"lid_ms":127.433491,"source":"file","speaker":"","switched":true,"t0_s":441.376,"t1_s":445.696,"text":"He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.","tier":"v3","type":"final"},"t_us":458626642}
+{"event":{"id":"file-86","speaker":"S2","type":"speaker"},"t_us":458681439}
+{"event":{"text":"On a sur...","type":"partial"},"t_us":460035426}
+{"event":{"text":"Anzi de dű most.","type":"partial"},"t_us":460544381}
+{"event":{"text":"Anzi de Juanne.","type":"partial"},"t_us":461052000}
+{"event":{"text":"On a side most.","type":"partial"},"t_us":461612404}
+{"event":{"audio_s":3.24,"decode_ms":105.108509,"end_wall_ms":1792739609810,"id":"file-87","lang":"ja","latency_ms":216.600948,"lid_ms":111.488539,"source":"file","speaker":"","switched":true,"t0_s":446.912,"t1_s":449.152,"text":"ずいぶんありましたけどね。","tier":"rz","type":"final"},"t_us":461832094}
+{"event":{"id":"file-87","speaker":"S6","type":"speaker"},"t_us":461858622}
+{"event":{"audio_s":5.32,"end_wall_ms":1792739606604,"id":"file-67","lang":"en","source":"file","speaker":"S2","t0_s":441.376,"t1_s":445.696,"text":"He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.","type":"refine"},"t_us":462199326}
+{"event":{"text":"住民による","type":"partial"},"t_us":463193861}
+{"event":{"text":"住民によると","type":"partial"},"t_us":463787604}
+{"event":{"audio_s":1.94,"decode_ms":62.575333,"end_wall_ms":1792739611805,"id":"file-88","lang":"ja","latency_ms":116.783504,"lid_ms":54.204971,"source":"file","speaker":"","switched":false,"t0_s":449.862,"t1_s":451.092,"text":"住民によると。","tier":"rz","type":"final"},"t_us":463944552}
+{"event":{"id":"file-88","speaker":"S7","type":"speaker"},"t_us":463962951}
+{"event":{"text":"過去にも","type":"partial"},"t_us":465199641}
+{"event":{"text":"過去にも似たよ","type":"partial"},"t_us":465696715}
+{"event":{"text":"過去にも似たような訪問","type":"partial"},"t_us":466226368}
+{"event":{"text":"過去にも似たような訪問があった","type":"partial"},"t_us":466730641}
+{"event":{"text":"過去にも似たような訪問があったといいま","type":"partial"},"t_us":467253295}
+{"event":{"audio_s":4.104,"decode_ms":127.224905,"end_wall_ms":1792739615981,"id":"file-89","lang":"ja","latency_ms":297.59784299999995,"lid_ms":170.369548,"source":"file","speaker":"","switched":false,"t0_s":452.16,"t1_s":455.264,"text":"過去にも似たような訪問があったといいます。","tier":"rz","type":"final"},"t_us":468004318}
+{"event":{"id":"file-89","speaker":"S7","type":"speaker"},"t_us":468049860}
+{"event":{"text":"HE WOULD SEE HOW","type":"partial"},"t_us":469482575}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT","type":"partial"},"t_us":470000579}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW","type":"partial"},"t_us":470493590}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE","type":"partial"},"t_us":471076539}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER","type":"partial"},"t_us":471540114}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER","type":"partial"},"t_us":472058242}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO","type":"partial"},"t_us":472655209}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS HE","type":"partial"},"t_us":473111602}
+{"event":{"text":"HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS USUAL","type":"partial"},"t_us":473621770}
+{"event":{"audio_s":5.8,"decode_ms":292.74924,"end_wall_ms":1792739622083,"id":"file-90","lang":"en","latency_ms":419.700908,"lid_ms":126.948278,"source":"file","speaker":"","switched":true,"t0_s":456.448,"t1_s":461.248,"text":"He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.","tier":"v3","type":"final"},"t_us":474105850}
+{"event":{"id":"file-90","speaker":"S2","type":"speaker"},"t_us":474160252}
+{"event":{"audio_s":9.352,"end_wall_ms":1792739615981,"id":"file-68","lang":"ja","source":"file","speaker":"S7","t0_s":446.912,"t1_s":455.264,"text":"ずいぶんありましたけどね。 住民によると。 過去にも似たような訪問があったといいます。","type":"refine"},"t_us":474385313}
+{"event":{"text":"She got it.","type":"partial"},"t_us":475799562}
+{"event":{"text":"She got it, Chikidi look of this.","type":"partial"},"t_us":476334581}
+{"event":{"text":"That's what they say.","type":"partial"},"t_us":477913995}
+{"event":{"audio_s":3.67,"decode_ms":310.71923699999957,"end_wall_ms":1792739625892,"id":"file-91","lang":"zh","latency_ms":4637.336667,"lid_ms":124.03709,"source":"file","speaker":"","switched":true,"t0_s":462.406,"t1_s":465.076,"text":"o o a o n t o k e t o o o o n e i s","tier":"pz","type":"final"},"t_us":482552137}
+{"event":{"id":"file-91","speaker":"S8","type":"speaker"},"t_us":482584210}
+{"event":{"text":"f o r s m m e r e s o n h e f l l t i s i f s o m t i n g m i c c o m e t t y","type":"partial"},"t_us":482730477}
+{"event":{"audio_s":5.8,"end_wall_ms":1792739622083,"id":"file-69","lang":"en","source":"file","speaker":"S2","t0_s":456.448,"t1_s":461.248,"text":"He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.","type":"refine"},"t_us":482989350}
+{"event":{"text":"f r r s m m e r i s o n h e f l l t i s f f s u m t i n g m i c c o m e t t w a i n n w a a s","type":"partial"},"t_us":483103906}
+{"event":{"text":"f r r s m m e r i s n n h f f l l t i s i f s m m i i n m i c k c o m e t t w a a i n w a a s e e e a e e a","type":"partial"},"t_us":483690699}
+{"event":{"text":"f r r m m e r r i s o n h f e l l t i s f f s m m i i n m i k k c o m e t t w a a a n d a a s e e e e e d w e n a l t h h a n e","type":"partial"},"t_us":484154512}
+{"event":{"text":"f r r s m m r r e s o n t e f e l t i s i f s u m t i n g m i k c o m e t t w a a a n d w a s s e l i v e d w i n a l t h h o o v e l o e s i t","type":"partial"},"t_us":484725468}
+{"event":{"text":"f r r s m m e r e s o n n e f e l t i s i f s u m t i n g m i k c o m e t t w a a a n d w a s s e l i v e d w n n a l t h h e o v e l i e s i t d i n s a a n","type":"partial"},"t_us":485206692}
+{"event":{"text":"f r r s m m e r e s o n n e f e l t i s i f s u m t i n g m i k c o m e t t w a a a n d w a s s e l e v e t w n n a l t h h h o m e l o p s s i t i n s c a n d i d t n t i i n s","type":"partial"},"t_us":485722660}
+{"event":{"text":"f r r s m m e r e s o n n e f e l t i s i f s u m t i n g m i k c o m e t w w a i a n d w a s s e l e v e t w n n a l t h h o o v e l i e s a i d i n s c a n d i d t n t i i n s s s b i i i s","type":"partial"},"t_us":486226246}
+{"event":{"text":"f r r s m m r r e s o n n e f e l t i s i f s u m t i n m i c k c o m e t w w a a a n d w a s s e l e v e t w n n a l t h h o o v e l o e s s i d i n s c a n d a d t n t t i n s s s s i i i i s n n o i e","type":"partial"},"t_us":486771210}
+{"event":{"audio_s":7.624,"decode_ms":404.367137,"end_wall_ms":1792739635517,"id":"file-92","lang":"en","latency_ms":536.8238789999999,"lid_ms":132.453082,"source":"file","speaker":"","switched":true,"t0_s":467.936,"t1_s":474.56,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","tier":"v3","type":"final"},"t_us":487540160}
+{"event":{"id":"file-92","speaker":"S2","type":"speaker"},"t_us":487610164}
+{"event":{"audio_s":3.67,"end_wall_ms":1792739625892,"id":"file-70","lang":"zh","source":"file","speaker":"S8","t0_s":462.406,"t1_s":465.076,"text":"o o a o n t o k e t o o o o n e i s","type":"refine"},"t_us":487714215}
+{"event":{"text":"Hi.","type":"partial"},"t_us":488729014}
+{"event":{"text":"Hi.","type":"partial"},"t_us":489136513}
+{"event":{"text":"Hi San Otto.","type":"partial"},"t_us":489794972}
+{"event":{"text":"Hej, zakisano Kaziwa nas.","type":"partial"},"t_us":490229934}
+{"event":{"text":"Hi, Sakisano Tokyo Kazoana Sasolis.","type":"partial"},"t_us":490751828}
+{"event":{"text":"Hi, Santo Kaziwa na Sason, né?","type":"partial"},"t_us":491277065}
+{"event":{"text":"Hi, so Kazuana Saskin,","type":"partial"},"t_us":491812215}
+{"event":{"text":"Hi, Santo Kaziwa Nossa, né?","type":"partial"},"t_us":492310194}
+{"event":{"text":"Hi, Sano Tokyo Kaziwa Nasod,","type":"partial"},"t_us":492884974}
+{"event":{"text":"Hi, so Kaziwa Nasa,","type":"partial"},"t_us":493389974}
+{"event":{"text":"けさの東京風はなさそうですけどね体感はどうでしょうか近藤さん","type":"partial"},"t_us":494024748}
+{"event":{"audio_s":6.816,"decode_ms":126.761897,"end_wall_ms":1792739642100,"id":"file-93","lang":"ja","latency_ms":210.974637,"lid_ms":84.20996099999999,"source":"file","speaker":"","switched":true,"t0_s":475.238,"t1_s":481.396,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","tier":"rz","type":"final"},"t_us":494333723}
+{"event":{"id":"file-93","speaker":"S9","type":"speaker"},"t_us":494398282}
+{"event":{"text":"WHILE THE DANGER HAD","type":"partial"},"t_us":496274057}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSEN","type":"partial"},"t_us":496770620}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT","type":"partial"},"t_us":497293760}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET","type":"partial"},"t_us":497826309}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIAL","type":"partial"},"t_us":498342694}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED","type":"partial"},"t_us":498872448}
+{"event":{"audio_s":7.624,"end_wall_ms":1792739635517,"id":"file-71","lang":"en","source":"file","speaker":"S2","t0_s":467.936,"t1_s":474.56,"text":"For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.","type":"refine"},"t_us":498955861}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM","type":"partial"},"t_us":499378242}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS","type":"partial"},"t_us":499899911}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOODNESS","type":"partial"},"t_us":500390115}
+{"event":{"text":"WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALIZED AND WITH HIM NO NEWS WAS GOOD NEWS","type":"partial"},"t_us":500928707}
+{"event":{"audio_s":6.376,"decode_ms":333.61881900000003,"end_wall_ms":1792739649481,"id":"file-94","lang":"en","latency_ms":464.050075,"lid_ms":130.42842599999997,"source":"file","speaker":"","switched":true,"t0_s":483.232,"t1_s":488.608,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","tier":"v3","type":"final"},"t_us":501503554}
+{"event":{"id":"file-94","speaker":"S2","type":"speaker"},"t_us":501564348}
+{"event":{"audio_s":7.158,"end_wall_ms":1792739642100,"id":"file-72","lang":"ja","source":"file","speaker":"S9","t0_s":475.238,"t1_s":481.396,"text":"けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。","type":"refine"},"t_us":501738736}
+{"event":{"audio_s":6.376,"end_wall_ms":1792739649481,"id":"file-73","lang":"en","source":"file","speaker":"S2","t0_s":483.232,"t1_s":488.608,"text":"While the danger had not lessened, it had not as yet materialized, and with him no news was good news.","type":"refine"},"t_us":503547619}
+{"event":{"text":"S.","type":"partial"},"t_us":506136132}
+{"event":{"text":"STUT.","type":"partial"},"t_us":506592498}
+{"event":{"text":"Stimmung dazu.","type":"partial"},"t_us":507106274}
+{"event":{"text":"Suste muchot,","type":"partial"},"t_us":507648154}
+{"event":{"text":"Suste moi, se","type":"partial"},"t_us":508280248}
+{"event":{"text":"Sus te moistotse.","type":"partial"},"t_us":508736671}
+{"event":{"audio_s":4.552,"decode_ms":102.270437,"end_wall_ms":1792739657161,"id":"file-95","lang":"ja","latency_ms":229.838815,"lid_ms":127.565158,"source":"file","speaker":"","switched":true,"t0_s":492.96,"t1_s":496.512,"text":"そしてもう一つ大きな勢力があります。","tier":"rz","type":"final"},"t_us":509183927}
+{"event":{"id":"file-95","speaker":"S10","type":"speaker"},"t_us":509221691}
+{"event":{"text":"SO LITTLE DID","type":"partial"},"t_us":510362869}
+{"event":{"text":"SO LITTLE DID HE CONSIDER","type":"partial"},"t_us":510882500}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUH","type":"partial"},"t_us":511398684}
+{"event":{"text":"SO LITTLE DID HE CONSIDER THAT IT","type":"partial"},"t_us":511922336}
+{"event":{"text":"SO LITTLE DID HE CONSIDER THAT IT NEVER ONCE","type":"partial"},"t_us":512423728}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM","type":"partial"},"t_us":513005708}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY","type":"partial"},"t_us":513492662}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINAL","type":"partial"},"t_us":514008397}
+{"event":{"text":"SO LITTLE DID HE CONSIDER DRUA THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINDING OUT","type":"partial"},"t_us":514529298}
+{"event":{"audio_s":5.452,"decode_ms":302.365948,"end_wall_ms":1792739662957,"id":"file-96","lang":"en","latency_ms":436.140349,"lid_ms":133.771332,"source":"file","speaker":"","switched":true,"t0_s":497.344,"t1_s":502.112,"text":"So little did he consider Drua that it never once occurred to him to worry about his finding out.","tier":"v3","type":"final"},"t_us":514979795}
+{"event":{"id":"file-96","speaker":"S2","type":"speaker"},"t_us":515033235}
+{"event":{"audio_s":4.552,"end_wall_ms":1792739657161,"id":"file-74","lang":"ja","source":"file","speaker":"S10","t0_s":492.96,"t1_s":496.512,"text":"そしてもう一つ大きな勢力があります。","type":"refine"},"t_us":515142773}
+{"event":{"audio_s":5.768,"end_wall_ms":1792739662957,"id":"file-75","lang":"en","source":"file","speaker":"S2","t0_s":497.344,"t1_s":502.112,"text":"So little did he consider Drua that it never once occurred to him to worry about his finding out,","type":"refine"},"t_us":516991714}
+{"event":{"text":"Sur y va.","type":"partial"},"t_us":519151080}
+{"event":{"text":"Surya está mononúdica.","type":"partial"},"t_us":519616864}
+{"event":{"text":"勝利はしたものの","type":"partial"},"t_us":520040795}
+{"event":{"audio_s":2.376,"decode_ms":66.49920900000001,"end_wall_ms":1792739668056,"id":"file-97","lang":"ja","latency_ms":0.0,"lid_ms":91.829369,"source":"file","speaker":"","switched":true,"t0_s":505.702,"t1_s":507.348,"text":"勝利はしたものの？","tier":"rz","type":"final"},"t_us":520078324}
+{"event":{"id":"file-97","speaker":"S11","type":"speaker"},"t_us":520098795}
+{"event":{"text":"十万人以上","type":"partial"},"t_us":521091643}
+{"event":{"text":"十万人以上の生命","type":"partial"},"t_us":521600612}
+{"event":{"text":"十万人以上の戦死者","type":"partial"},"t_us":522103366}
+{"event":{"text":"十万人以上の戦死者を出した","type":"partial"},"t_us":522629748}
+{"event":{"audio_s":3.18,"decode_ms":104.551277,"end_wall_ms":1792739671157,"id":"file-98","lang":"ja","latency_ms":221.482605,"lid_ms":116.928498,"source":"file","speaker":"","switched":false,"t0_s":508.064,"t1_s":510.528,"text":"10万人以上の戦死者を出していた。","tier":"rz","type":"final"},"t_us":523180816}
+{"event":{"id":"file-98","speaker":"S11","type":"speaker"},"t_us":523218780}
+{"event":{"audio_s":5.826,"end_wall_ms":1792739671157,"id":"file-76","lang":"ja","source":"file","speaker":"S11","t0_s":505.702,"t1_s":510.528,"text":"勝利はしたものの10万人以上の戦死者を出していた。","type":"refine"},"t_us":525178320}
+{"event":{"text":"HE GREW RESTLESS","type":"partial"},"t_us":526193881}
+{"event":{"text":"HE GREW RESTLESS AS HE ROOM","type":"partial"},"t_us":526682390}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED","type":"partial"},"t_us":527245454}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN","type":"partial"},"t_us":527736725}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT","type":"partial"},"t_us":528237761}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS","type":"partial"},"t_us":528786438}
+{"event":{"text":"HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS NOTHING","type":"partial"},"t_us":529288223}
+{"event":{"audio_s":4.982,"decode_ms":213.007248,"end_wall_ms":1792739677738,"id":"file-99","lang":"en","latency_ms":325.37291600000003,"lid_ms":112.361748,"source":"file","speaker":"","switched":true,"t0_s":512.87,"t1_s":516.852,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","tier":"v3","type":"final"},"t_us":530085784}
+{"event":{"id":"file-99","speaker":"S2","type":"speaker"},"t_us":530134982}
+{"event":{"text":"Italian cent","type":"partial"},"t_us":531202393}
+{"event":{"text":"Dario Central","type":"partial"},"t_us":531716649}
+{"event":{"text":"左寄りセンターレフト","type":"partial"},"t_us":532175835}
+{"event":{"audio_s":2.784,"decode_ms":74.922247,"end_wall_ms":1792739680356,"id":"file-100","lang":"ja","latency_ms":137.213526,"lid_ms":62.28804,"source":"file","speaker":"","switched":true,"t0_s":517.798,"t1_s":519.636,"text":"左寄りセンターレフト。","tier":"rz","type":"final"},"t_us":532515489}
+{"event":{"id":"file-100","speaker":"S12","type":"speaker"},"t_us":532540414}
+{"event":{"audio_s":4.982,"end_wall_ms":1792739677738,"id":"file-77","lang":"en","source":"file","speaker":"S2","t0_s":512.87,"t1_s":516.852,"text":"He grew restless as he ruminated, and then decided that perhaps it was nothing.","type":"refine"},"t_us":532854075}
+{"event":{"audio_s":2.838,"end_wall_ms":1792739680356,"id":"file-78","lang":"ja","source":"file","speaker":"S12","t0_s":517.798,"t1_s":519.636,"text":"左寄りセンターレフト。","type":"refine"},"t_us":534231054}
+{"event":{"text":"HE WOULD GET ONE TO","type":"partial"},"t_us":535813442}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT","type":"partial"},"t_us":536316241}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY","type":"partial"},"t_us":536841490}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS","type":"partial"},"t_us":537393331}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK","type":"partial"},"t_us":537890485}
+{"event":{"text":"HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK WHEN HE GOT BACK","type":"partial"},"t_us":538462747}
+{"event":{"audio_s":4.488,"decode_ms":265.894232,"end_wall_ms":1792739687078,"id":"file-101","lang":"en","latency_ms":391.186624,"lid_ms":125.289462,"source":"file","speaker":"","switched":true,"t0_s":522.784,"t1_s":526.272,"text":"He would get one today. It would probably be on his desk when he got back.","tier":"v3","type":"final"},"t_us":539101309}
+{"event":{"id":"file-101","speaker":"S2","type":"speaker"},"t_us":539144691}
+{"event":{"text":"He would look for it at once.","type":"partial"},"t_us":540529279}
+{"event":{"audio_s":1.76,"decode_ms":116.252996,"end_wall_ms":1792739688741,"id":"file-102","lang":"en","latency_ms":232.635371,"lid_ms":116.379275,"source":"file","speaker":"","switched":false,"t0_s":526.912,"t1_s":528.032,"text":"He would look for it at once.","tier":"v3","type":"final"},"t_us":540764255}
+{"event":{"id":"file-102","speaker":"S2","type":"speaker"},"t_us":540782248}
+{"event":{"audio_s":6.248,"end_wall_ms":1792739688741,"id":"file-79","lang":"en","source":"file","speaker":"S2","t0_s":522.784,"t1_s":528.032,"text":"He would get one to day. It would probably be on his desk when he got back. He would look for it at once.","type":"refine"},"t_us":543032457}
+{"event":{"audio_s":1.462,"decode_ms":57.800525,"end_wall_ms":1792739691478,"id":"file-103","lang":"ja","latency_ms":114.87302,"lid_ms":57.069545,"source":"file","speaker":"","switched":true,"t0_s":530.31,"t1_s":530.7719999999999,"text":"言ったろう。","tier":"rz","type":"final"},"t_us":543615390}
+{"event":{"id":"file-103","speaker":"S13","type":"speaker"},"t_us":543627616}
+{"event":{"text":"ヒーローよりも","type":"partial"},"t_us":544437401}
+{"event":{"text":"ヒーローよりもてめぇを","type":"partial"},"t_us":544972534}
+{"event":{"text":"ヒーローよりもてめぇを信じる","type":"partial"},"t_us":545477910}
+{"event":{"audio_s":2.348,"decode_ms":62.582854,"end_wall_ms":1792739693653,"id":"file-104","lang":"ja","latency_ms":129.959089,"lid_ms":67.373516,"source":"file","speaker":"","switched":false,"t0_s":531.424,"t1_s":533.12,"text":"ヒーローよりもてめェを信じる。","tier":"rz","type":"final"},"t_us":545675807}
+{"event":{"id":"file-104","speaker":"S13","type":"speaker"},"t_us":545699049}
+{"event":{"text":"AFTER A TIME HE","type":"partial"},"t_us":547507187}
+{"event":{"text":"AFTER A TIME HE GAVE UP A","type":"partial"},"t_us":548031439}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARY","type":"partial"},"t_us":548563062}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED","type":"partial"},"t_us":549071681}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADACE","type":"partial"},"t_us":549642389}
+{"event":{"text":"AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADISON CAR","type":"partial"},"t_us":550106968}
+{"event":{"audio_s":4.392,"decode_ms":256.872487,"end_wall_ms":1792739698685,"id":"file-105","lang":"en","latency_ms":381.614992,"lid_ms":124.739745,"source":"file","speaker":"","switched":true,"t0_s":534.496,"t1_s":537.888,"text":"After a time he gave up waiting and drearily headed for the Madison car.","tier":"v3","type":"final"},"t_us":550707625}
+{"event":{"id":"file-105","speaker":"S2","type":"speaker"},"t_us":550752449}
+{"event":{"audio_s":3.81,"end_wall_ms":1792739693653,"id":"file-80","lang":"ja","source":"file","speaker":"S13","t0_s":530.31,"t1_s":533.12,"text":"言ったろ。ヒーローよりもてめぇを信じる。","type":"refine"},"t_us":550883803}
+{"event":{"audio_s":4.392,"end_wall_ms":1792739698685,"id":"file-81","lang":"en","source":"file","speaker":"S2","t0_s":534.496,"t1_s":537.888,"text":"After a time he gave up waiting and drearily headed for the Madison car.","type":"refine"},"t_us":552683356}
+{"event":{"text":"Kukufę, nie?","type":"partial"},"t_us":553100322}
+{"event":{"text":"Kukuf nieakunni.","type":"partial"},"t_us":553646790}
+{"event":{"text":"Kukufé nie jako nie ničimo.","type":"partial"},"t_us":554163297}
+{"event":{"audio_s":2.824,"decode_ms":94.398871,"end_wall_ms":1792739702432,"id":"file-106","lang":"ja","latency_ms":198.93736,"lid_ms":104.534819,"source":"file","speaker":"","switched":true,"t0_s":540.0,"t1_s":541.824,"text":"高校生200人に聞きました。","tier":"rz","type":"final"},"t_us":554454566}
+{"event":{"id":"file-106","speaker":"S14","type":"speaker"},"t_us":554477682}
+{"event":{"text":"ネットのミス","type":"partial"},"t_us":555393425}
+{"event":{"text":"ネットの見すぎを感じ","type":"partial"},"t_us":555897291}
+{"event":{"text":"ネットの見すぎを感じ月","type":"partial"},"t_us":556426035}
+{"event":{"text":"ネットの見すぎを感じ使うのを","type":"partial"},"t_us":556948150}
+{"event":{"audio_s":3.04,"decode_ms":83.832685,"end_wall_ms":1792739705449,"id":"file-107","lang":"ja","latency_ms":173.951695,"lid_ms":90.1162,"source":"file","speaker":"","switched":false,"t0_s":542.368,"t1_s":544.864,"text":"ネットの見すぎを感じ使うのをやった。","tier":"rz","type":"final"},"t_us":557472053}
+{"event":{"id":"file-107","speaker":"S14","type":"speaker"},"t_us":557504618}
+{"event":{"text":"HE WENT IN AND","type":"partial"},"t_us":558944931}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS","type":"partial"},"t_us":559464794}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT","type":"partial"},"t_us":560013316}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING","type":"partial"},"t_us":560507572}
+{"event":{"text":"HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING FROM CARE","type":"partial"},"t_us":561061422}
+{"event":{"audio_s":3.916,"decode_ms":237.850406,"end_wall_ms":1792739709667,"id":"file-108","lang":"en","latency_ms":351.509315,"lid_ms":113.655219,"source":"file","speaker":"","switched":true,"t0_s":545.92,"t1_s":548.896,"text":"He went in and examined his letters, but there was nothing from Carey.","tier":"v3","type":"final"},"t_us":561689795}
+{"event":{"id":"file-108","speaker":"S2","type":"speaker"},"t_us":561727490}
+{"event":{"audio_s":5.864,"end_wall_ms":1792739705449,"id":"file-82","lang":"ja","source":"file","speaker":"S14","t0_s":540.0,"t1_s":544.864,"text":"高校生200人に聞きました。 ネットの見すぎを感じ使うのをやった。","type":"refine"},"t_us":561909818}
+{"event":{"text":"Saloni, spin o...","type":"partial"},"t_us":563825337}
+{"event":{"text":"Salami, spinowy do Roman.","type":"partial"},"t_us":564314508}
+{"event":{"text":"Salami, spijąwy doroma, na Mika de Tarota.","type":"partial"},"t_us":564886573}
+{"event":{"text":"Sarani, spin o doroman, na mi ka de Totty Korevate.","type":"partial"},"t_us":565388901}
+{"event":{"text":"Sarani, spin o doroman, na mi kayko dewa teraz.","type":"partial"},"t_us":565897347}
+{"event":{"text":"さらにスピンオフドラマ波風よ立ってくれはTELASA で独占配信","type":"partial"},"t_us":566595430}
+{"event":{"audio_s":4.438,"decode_ms":137.120102,"end_wall_ms":1792739714577,"id":"file-109","lang":"ja","latency_ms":237.894983,"lid_ms":100.772211,"source":"file","speaker":"","switched":true,"t0_s":550.406,"t1_s":553.8439999999999,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","tier":"rz","type":"final"},"t_us":566837145}
+{"event":{"id":"file-109","speaker":"S15","type":"speaker"},"t_us":566870117}
+{"event":{"audio_s":3.976,"end_wall_ms":1792739709667,"id":"file-83","lang":"en","source":"file","speaker":"S2","t0_s":545.92,"t1_s":548.896,"text":"He went in and examined his letters, but there was nothing from Carey.","type":"refine"},"t_us":567119360}
+{"event":{"text":"AT ONE THIRTY HE","type":"partial"},"t_us":568138216}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR","type":"partial"},"t_us":568639558}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LOVE","type":"partial"},"t_us":569176463}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNGE AND WHEN","type":"partial"},"t_us":569674369}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED","type":"partial"},"t_us":570215296}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTORS FOR LUNCH AND WHEN HE RETURNED A MESSENGER","type":"partial"},"t_us":570733948}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING","type":"partial"},"t_us":571231647}
+{"event":{"text":"AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING FOR HIM","type":"partial"},"t_us":571794928}
+{"event":{"audio_s":5.224,"decode_ms":329.325389,"end_wall_ms":1792739720252,"id":"file-110","lang":"en","latency_ms":477.7246520000001,"lid_ms":148.396253,"source":"file","speaker":"","switched":true,"t0_s":555.104,"t1_s":559.328,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","tier":"v3","type":"final"},"t_us":572274385}
+{"event":{"id":"file-110","speaker":"S2","type":"speaker"},"t_us":572328178}
+{"event":{"audio_s":4.438,"end_wall_ms":1792739714577,"id":"file-84","lang":"ja","source":"file","speaker":"S15","t0_s":550.406,"t1_s":553.844,"text":"さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。","type":"refine"},"t_us":572450946}
+{"event":{"text":"Mogisaña.","type":"partial"},"t_us":574370972}
+{"event":{"text":"Mugisaiba ni sanka.","type":"partial"},"t_us":574775296}
+{"event":{"text":"Mugisaiba ni sancashtaba.","type":"partial"},"t_us":575307609}
+{"event":{"text":"Mugisaiba ni sanka, tai se.","type":"partial"},"t_us":575832506}
+{"event":{"text":"Mugisaiba ni sankahta, tai ga que se no jun","type":"partial"},"t_us":576377350}
+{"event":{"text":"Mugisaibani San Casta, Taiga Kwichne se no junetobal.","type":"partial"},"t_us":576912793}
+{"event":{"text":"模擬裁判に参加した大学一年生の本音とは","type":"partial"},"t_us":577358236}
+{"event":{"audio_s":4.822,"decode_ms":94.65938300000002,"end_wall_ms":1792739725394,"id":"file-111","lang":"ja","latency_ms":181.902874,"lid_ms":87.240391,"source":"file","speaker":"","switched":true,"t0_s":560.87,"t1_s":564.692,"text":"模擬裁判に参加した大学一年生の本音とは。","tier":"rz","type":"final"},"t_us":577598349}
+{"event":{"id":"file-111","speaker":"S16","type":"speaker"},"t_us":577639744}
+{"event":{"audio_s":5.224,"end_wall_ms":1792739720252,"id":"file-85","lang":"en","source":"file","speaker":"S2","t0_s":555.104,"t1_s":559.328,"text":"At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him.","type":"refine"},"t_us":578013894}
+{"event":{"text":"HIS FIRST IMPULSE","type":"partial"},"t_us":579636451}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE","type":"partial"},"t_us":580127680}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FOUR","type":"partial"},"t_us":580649290}
+{"event":{"text":"HIS FIRST IMPULSE WAS TO WRITE BUT FORWARDS IN REAL","type":"partial"},"t_us":581197838}
+{"event":{"audio_s":3.592,"decode_ms":233.979615,"end_wall_ms":1792739729938,"id":"file-112","lang":"en","latency_ms":341.04470599999996,"lid_ms":107.061811,"source":"file","speaker":"","switched":true,"t0_s":566.592,"t1_s":569.184,"text":"His first impulse was to write but four words in reply.","tier":"v3","type":"final"},"t_us":581961016}
+{"event":{"id":"file-112","speaker":"S2","type":"speaker"},"t_us":581994332}
+{"event":{"audio_s":4.822,"end_wall_ms":1792739725394,"id":"file-86","lang":"ja","source":"file","speaker":"S16","t0_s":560.87,"t1_s":564.692,"text":"模擬裁判に参加した大学一年生の本音とは。","type":"refine"},"t_us":582121601}
+{"event":{"audio_s":1.152,"decode_ms":102.455664,"end_wall_ms":1792739730930,"id":"file-113","lang":"en","latency_ms":172.621209,"lid_ms":70.163085,"source":"file","speaker":"","switched":false,"t0_s":569.184,"t1_s":570.336,"text":"Go to the devil.","tier":"v3","type":"final"},"t_us":582952628}
+{"event":{"id":"file-113","speaker":"S2","type":"speaker"},"t_us":582973535}
