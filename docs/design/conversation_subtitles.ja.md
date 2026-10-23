@@ -1934,10 +1934,19 @@ Edge の `edge://flags` に同じ名の項目が在るかは、Microsoft の頁�
 `hayamimi` は `--send-page` を付けた時だけ、`--serve` の listener（http）に、`/send` の頁と、合言葉で守った `/ingest`（`ws`）を足す。
 `/ingest` を `/send` と同じ listener に置くのは、flag が secure として扱うのは登録した 1 つの origin だけで、別の port の WebSocket（8766）は別の origin になり、secure context の頁から secure でない origin への `ws` の接続を browser が断りうるからである（NOT VERIFIED。P0 の 1 で、登録した origin の頁から同じ origin の `ws` が繋がることを記録する）。
 `--send-page` は、`--serve-host` が loopback の外の時だけ意味を持ち、その時は下の C6（制御の口を loopback だけにする）が必ず効く。
+`--send-page` に loopback の `--serve-host`（既定の `127.0.0.1` を含む）を組み合わせた起動は、LAN の端末が繋げない頁を出すことになるので、起動を止めて理由を出し、exit code を 0 でなくする。
 TLS の listener、`--tls-cert`、`--tls-key`、`rustls` の server の組み立ては作らない。
 
-**合言葉**（C2、C3）：`hayamimi` は起動ごとに 128 bit の乱数の合言葉を作る。
-合言葉を返す口は、`--serve` の listener の `GET /send-link` の 1 つで、相手の address が loopback で、かつ `Host` の頭が loopback の名前（`127.0.0.1`、`[::1]`、`localhost` と port）の時だけ `http://<--serve-host>:<--serve の port>/send#t=<合言葉>` を返し、ほかは 404 を返す。
+**頁の URL と origin**：`/send` の URL の host と port は、中継が LAN の URL を出す時と同じ `hayamimi_relay::lan::lan_url`（`native/hayamimi-relay/src/lan.rs:45`）に、`--serve` の listener が bind した socket の address を渡して決める。
+1 つの address に bind した時はその address、全部の interface（`0.0.0.0`、`::`）に bind した時は、この PC が network へ送り出す address（`lan.rs:33` の `outbound_address`）である。
+`lan_url` が `Unknown`（network への経路が無い）を返す時は、`/send-link` は URL を返さずに 503 を返し、warn を 1 行出す。
+頁の自分の origin は、この URL の scheme（`http`）、host、port から組んだ 1 つの文字列（`http://<host>:<port>`。IPv6 の host は `[` と `]` で包む）とし、flag に登録する origin もこの文字列である。
+`/dashboard` は `/send-link` の URL と並べて、flag に登録する origin の文字列を出す。
+
+**合言葉**（C2、C3）：`hayamimi` は起動ごとに、OS の乱数（`Cargo.lock` に在る `getrandom`）から 16 byte の合言葉を作り、小文字の 16 進の 32 字に書く。
+URL の fragment にそのまま置けて、利用者が写す時に読み違えにくい字だけにするためである。
+照らす時は、字の数が 32 で、どの字も `0`〜`9` と `a`〜`f` である物だけを受け、`Cargo.lock` に在る `subtle` の `ConstantTimeEq` で bytes を比べる。大文字を含む合言葉は違う合言葉として断る。
+合言葉を返す口は、`--serve` の listener の `GET /send-link` の 1 つで、相手の address が loopback で、かつ `Host` の頭が loopback の名前（`127.0.0.1`、`[::1]`、`localhost` と port）の時だけ `<上の URL>/send#t=<合言葉>` を返し、ほかは 404 を返す。
 `Host` も見るのは、loopback の相手でも、DNS の名前を付け替えた頁（DNS rebinding）が `Host` に外の名前を載せて読みに来る形を断つためである。
 応答には `access-control-allow-origin` を付けず、`Cache-Control: no-store` を付ける。
 合言葉は `/events`、log、error の文、中継のどれにも出さない。
@@ -1948,7 +1957,7 @@ fragment に置くのは、server の access の記録と Referer に載らな�
 **合言葉を照らす時**（C2）：`--send-page` で足した `/ingest` は、合言葉を、音の席（`ingest.rs:256-257` の `Lease::take`）を取る前に照らす。
 今の `serve` は upgrade の直後に席を取るので、合言葉を送らずに繋いだままの接続が席を握り、正規の接続を `busy` で断らせる。
 最初の frame は、upgrade から 3 秒以内に届き、4096 byte 以下の text の frame でなければならず、どちらかを外れた接続は席を取らずに閉じる（close code 1008、`ingest.client.refused` の `reason: token`）。
-合言葉を照らす前の接続は同時に 8 本までとし、9 本目は upgrade の前に断る。
+合言葉を照らす前の接続は同時に 8 本までとし、9 本目は upgrade の前に HTTP の 503（`Retry-After: 3`）で断り、`ingest.client.refused`（`reason: pending_full`）を 1 行出す。
 照らし終えた接続だけが席を取りに行き、席が埋まっていれば今のとおり `busy` で断る（10.13.13 の 8）。
 `hayamimi` は合言葉を定数時間で比べる。
 localhost の 8766 の `/ingest` は今のまま合言葉を求めない。`hayamimi-eval stream` と今の client を変えないためである。
@@ -1957,7 +1966,7 @@ localhost の 8766 の `/ingest` は今のまま合言葉を求めない。`haya
 合言葉で守った口を足しても、認証の無い 8766 が LAN に開いていれば、守りが無いのと同じだからである。
 
 **LAN だけに限る**：`--send-page` で足した `/ingest` が受けた接続は、相手の address が loopback、RFC 1918 の 3 つの範囲、link-local、IPv6 の ULA と link-local の時だけ受け、ほかは `reason: address` で断る。
-WebSocket の `Origin` の頭が頁の自分の origin と同じ時だけ受け、ほかは `reason: origin` で断る。
+WebSocket の `Origin` の頭が、上の「頁の URL と origin」で組んだ文字列と字のとおりに等しい時だけ受け、ほかは（頭が無い時も）`reason: origin` で断る。
 LAN の別の頁を開いたブラウザから、その頁の script が `/ingest` に音を流し込む形を断つためである。
 音を送る client は今のとおり同時に 1 本で、2 本目は断る。
 Windows の firewall の受け入れ規則は、利用者が LAN の profile に限って足す（手順は B4 の slice の手順書が書く）。
@@ -2032,10 +2041,10 @@ p95 は nearest-rank とする。
 | BR-13 | 同じ session への 2 回目の run の `final` が、2 回目の窓に割り当たる | `cargo test --release -p hayamimi-eval --test br13` | 1 回目の続きの `t1_s`（30 秒から）を持ち `session_start` の無い 4 発話の合成の記録で、4 件の `final` がそれぞれ自分の窓に割り当たり、`with_final` が 4 | 同じ関数で 1 回目の形（`session_start` が在る記録）が今のとおり割り当たる | 起点を置き直さない今の関数では、4 件が最後の窓に入る（今の不具合を固定する対照） |
 | BR-14 | 同じ `id` の清書が頁で 1 行になる（画面） | `cargo test --release -p hayamimi-ui --lib model::tests::br14` と `cargo test --release -p hayamimi --test br14 -- --ignored`（頁を開いたまま 2 回目の音を流す） | 仮の話者で 1 回、確定の話者でもう 1 回、同じ `id` の清書を `apply` すると、`refines` は 1 行で、話者は後の物、訳は前後どちらに付いた物も残る。実走では清書の欄の行の数が、届いた清書の `id` の数と同じ | 違う `id` の清書 2 件は 2 行 | 繋ぎ直しの流し直しで同じ清書が 2 回届いても 1 行 |
 | BR-15 | `final` が覆った速報が Listening の欄に残らない（画面） | `cargo test --release -p hayamimi-ui --lib model::tests::br15` と、BR-14 と同じ実走 | 速報の後に `final` を `apply` すると、`strip_text` が空になる。`final` の後に着いた次の発話の速報は欄に出る | 速報だけを流すと欄に出る（今の形） | 実走の最後の `final` の後に、頁の Listening の欄の文が空 |
-| BR-16 | `--send-page` の `/ingest` が、合言葉、origin、address で断り、合言葉を照らす前の接続が席を握らない | `cargo test --release -p hayamimi --test br16` | `--send-page` で足した `/ingest` へ、合言葉の無い接続、違う合言葉の接続、別の `Origin` の接続を送ると、どれも閉じられ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の行に合言葉の文字が無い。合言葉を送らずに繋いだままの接続が在る間に、正しい合言葉の接続を送ると、後の接続が `ready` を受け、前の接続は 3 秒の期限で閉じられる。4096 byte を超える最初の frame は閉じられる | 正しい合言葉と自分の origin の接続は `ready` を受ける | localhost の 8766 の `/ingest` は合言葉なしで今のとおり受ける。LAN の外の address を名指した判定の関数が `address` で断る。合言葉を照らす前の接続を 9 本開くと、9 本目が断られる |
-| BR-17 | `/send` と `/send-link` の出し方と、起動の組み合わせの止め | `cargo test --release -p hayamimi --test br17` | `--send-page` を付けると `--serve` の listener の `GET /send` が 200。`--send-page` が無いと `/send` と `/send-link` は 404。`/send-link` は、loopback の相手で `Host` が loopback の名前の時だけ 200 で `http://` の URL を返し、応答に `Cache-Control: no-store` が在り、`access-control-allow-origin` が無い。`--send-page` に loopback でない `--ws-host` を重ねた起動は止まり、exit code が 0 でない | 同じ test が、`--send-page` の起動で `GET /dashboard` が今のとおり 200 と読む | loopback の相手でも `Host: attacker.example` の `/send-link` は 404。loopback でない相手の `/send-link` は 404。`/events` の行に合言葉の文字が無い |
-| BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）と、`--unsafely-treat-insecure-origin-as-secure=http://127.0.0.2:<port>` を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。開いた後の URL に fragment が無い（`history.replaceState`）。`isSecureContext` の記録は P0 が持つ。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
-| BR-35 | `--serve-host` が loopback の外の時、制御の口は loopback の相手だけが使え、`/events` は他の origin に読ませない | `cargo test --release -p hayamimi --test br35` | `--serve-host 0.0.0.0` で起こし、loopback でない address（RP-40 と同じく UDP の socket の local address で引く）から `POST /config`、`GET /config`、`POST /reset`、`POST /replacements`、`POST /itn_overrides` を打つと、どれも 403 で、設定と状態は変わらない。同じ address からの `GET /events` は `text/event-stream` で、`access-control-allow-origin` の頭が無い | loopback の address からの同じ要求は、今のとおり受けられる | `--serve-host 127.0.0.1`（既定）で起こすと、`/events` の応答は今のとおり `access-control-allow-origin: *` を持ち、制御の口の振る舞いは変わらない |
+| BR-16 | `--send-page` の `/ingest` が、合言葉、origin、address で断り、合言葉を照らす前の接続が席を握らない | `cargo test --release -p hayamimi --test br16` | `--send-page` で足した `/ingest` へ、合言葉の無い接続、違う合言葉の接続、別の `Origin` の接続を送ると、どれも閉じられ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の行に合言葉の文字が無い。合言葉を送らずに繋いだままの接続が在る間に、正しい合言葉の接続を送ると、後の接続が `ready` を受け、前の接続は 3 秒の期限で閉じられる。4096 byte を超える最初の frame は閉じられる。大文字に変えた合言葉と 31 字の合言葉は `token` で断られる。`Origin` が頁の origin と host の名前だけ違う接続（address の代わりに `localhost`）は `origin` で断られる | 正しい合言葉と、`/send-link` の URL から組んだ origin の接続は `ready` を受ける | localhost の 8766 の `/ingest` は合言葉なしで今のとおり受ける。LAN の外の address を名指した判定の関数が `address` で断る。合言葉を照らす前の接続を 9 本開くと、9 本目が upgrade の前に HTTP の 503 と `Retry-After: 3` を受け、`ingest.client.refused` が `reason: pending_full` で 1 行出る |
+| BR-17 | `/send` と `/send-link` の出し方と、起動の組み合わせの止め | `cargo test --release -p hayamimi --test br17` | `--send-page` を付けると `--serve` の listener の `GET /send` が 200。`--send-page` が無いと `/send` と `/send-link` は 404。`/send-link` は、loopback の相手で `Host` が loopback の名前の時だけ 200 で `http://` の URL を返し、応答に `Cache-Control: no-store` が在り、`access-control-allow-origin` が無い。`--serve-host 0.0.0.0` の起動で、`/send-link` の URL の host が `hayamimi_relay::lan::lan_url` の返す address と等しく、`0.0.0.0` でも loopback でもなく、合言葉が小文字の 16 進の 32 字。`--send-page` に loopback でない `--ws-host` を重ねた起動と、`--send-page` に loopback の `--serve-host`（既定を含む）を重ねた起動は、どちらも止まり、exit code が 0 でない | 同じ test が、`--send-page` の起動で `GET /dashboard` が今のとおり 200 と読む | loopback の相手でも `Host: attacker.example` の `/send-link` は 404。loopback でない相手の `/send-link` は 404。`/events` の行に合言葉の文字が無い |
+| BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）と、`hayamimi` を `--serve-host 0.0.0.0 --send-page` で起こし、`/send-link` が返す LAN の address の URL を使う。loopback の address は `127.0.0.0/8` が初めから secure context なので flag の効きを示さず、使わない。`--unsafely-treat-insecure-origin-as-secure=http://<その LAN の address>:<port>` を渡してその URL を開き、「マイク」を押す。`/send-link` が 503（経路が無い）の時は「測っていない」と記録する | 記録だけ：`isSecureContext` が true、`final` が 1 件以上届き、その `lang` が `ja`。開いた後の URL に fragment が無い（`history.replaceState`）。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件。同じ LAN の URL を flag 無しで開くと `isSecureContext` が false で、`final` が 0 件 |
+| BR-35 | `--serve-host` が loopback の外の時、制御の口は loopback の相手だけが使え、`/events` は他の origin に読ませない | `cargo test --release -p hayamimi --test br35` | `--serve-host 0.0.0.0` で起こし、loopback でない address（RP-40 と同じく UDP の socket の local address で引く）から `POST /config`、`GET /config`、`POST /reset`、`POST /replacements`、`POST /itn_overrides` を打つと、どれも 403 で、設定と状態は変わらない。同じ address からの `GET /events` は `text/event-stream` で、`access-control-allow-origin` の頭が無い。同じ test が中継の hub（`hayamimi_relay::hub::bind_on` と `serve`）を `0.0.0.0` で起こし、loopback でない address から `GET /events` を打つと、応答は今のとおり `access-control-allow-origin: *` を持つ（C6 は中継に触れない。H69） | loopback の address からの同じ要求は、今のとおり受けられる | `--serve-host 127.0.0.1`（既定）で起こすと、`/events` の応答は今のとおり `access-control-allow-origin: *` を持ち、制御の口の振る舞いは変わらない |
 
 完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17、BR-35 と、10.13.11 の BR-19〜BR-25 と BR-32〜BR-34 と、10.13.12 の BR-26〜BR-31 である。
 BR-16、BR-17、BR-18 の T の case 行（`rust_port_tests.ja.md` の 4.87）は、10.13.6 の flag の形（TLS の listener、`--tls-cert`、`--tls-key` を持たない形、合言葉の照らしを席の前へ、`/send-link`、`--ws-host` との組み合わせの止め）に合わせて test-designer が直す。BR-35 の case 行は test-designer が足す。
