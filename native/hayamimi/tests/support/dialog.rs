@@ -133,7 +133,10 @@ pub struct Given {
 /// place in that list and a space: the run's own rule (`build_samples`) then
 /// gives each final to its utterance and puts the places of an utterance in
 /// the order the run placed them.
-fn finals_as_events(events: &[EventLine]) -> Result<(Vec<Event>, Vec<Placed>), Failure> {
+fn finals_as_events(
+    events: &[EventLine],
+    shift_us: i64,
+) -> Result<(Vec<Event>, Vec<Placed>), Failure> {
     let mut stand_ins = Vec::new();
     let mut placed = Vec::new();
     for line in events {
@@ -158,7 +161,7 @@ fn finals_as_events(events: &[EventLine]) -> Result<(Vec<Event>, Vec<Placed>), F
                 text: format!("{} ", placed.len()),
                 latency_ms,
                 id: id.clone(),
-                t1_us,
+                t1_us: t1_us.map(|t1| t1 + shift_us),
             },
         });
         placed.push(Placed {
@@ -167,6 +170,18 @@ fn finals_as_events(events: &[EventLine]) -> Result<(Vec<Event>, Vec<Placed>), F
         });
     }
     Ok((stand_ins, placed))
+}
+
+/// When the server's stream clock began, on the tool's clock: the arrival time
+/// of the first `session_start` event, which the server publishes as it starts
+/// to take the audio of the run (`hayamimi/src/ingest.rs`, `session_started`).
+/// A `final`'s `t1_s` counts from then, and a sample's `t_start_us` from the
+/// start of the tool, which waited for the server to be ready.
+pub fn session_start_us(events: &[EventLine]) -> Option<i64> {
+    events
+        .iter()
+        .find(|line| text_field(&line.body, "type") == Some("session_start"))
+        .map(|line| line.t_us)
 }
 
 /// The span of each sample of a run, for `build_samples`.
@@ -205,7 +220,11 @@ pub fn given_of(samples_text: &str, events_text: &str) -> Result<Vec<Given>, Fai
         return Err(String::from("the record has no line"));
     };
     let references = vec![String::new(); usize::try_from(longest).map_err(|e| e.to_string())?];
-    let (stand_ins, placed) = finals_as_events(&events_of(events_text)?)?;
+    let lines = events_of(events_text)?;
+    // A record with no `session_start` (a hand-made one) has its server clock
+    // and the tool's clock equal: the sum over no event is 0.
+    let shift_us: i64 = session_start_us(&lines).iter().sum();
+    let (stand_ins, placed) = finals_as_events(&lines, shift_us)?;
     let built =
         build_samples(&windows_of(&samples), &references, &stand_ins).map_err(|e| e.to_string())?;
     built

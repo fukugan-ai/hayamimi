@@ -35,7 +35,9 @@ use std::time::{Duration, Instant};
 use hayamimi_eval::manifest::{Row as ManifestRow, read_rows, write_rows};
 use hayamimi_eval::wav::{SAMPLE_RATE, read_wav, write_wav};
 use serde_json::Value;
-use support::dialog::{Given, Placed, append_line, events_of, given_of, langs_of};
+use support::dialog::{
+    Given, Placed, append_line, events_of, given_of, langs_of, session_start_us,
+};
 use support::dialog_run::sibling_binary;
 use support::{BINARY, Failure, TestResult, data_events, find_above, models_dir, path_text};
 
@@ -1405,6 +1407,8 @@ fn record_rows(langs: &[String], given: &[Given], last: &[&Placed]) -> Result<()
 fn read_run(played: &Path) -> Result<(Vec<Given>, Vec<Seen>), Failure> {
     let samples = support::read(played)?;
     let events = support::read(&played.with_extension("events.jsonl"))?;
+    // Without it the finals cannot be placed: their clock is the server's.
+    session_start_us(&events_of(&events)?).ok_or("the events file has no session_start event")?;
     Ok((given_of(&samples, &events)?, finals_seen(&events)?))
 }
 
@@ -2021,6 +2025,72 @@ fn the_finals_of_an_events_file_are_read_in_the_order_they_came() -> TestResult 
         matches!(&said, Err(message) if message.contains("id")),
         "{said:?}"
     );
+    Ok(())
+}
+
+/// The samples file of two utterances that start 10 s and 16 s after the tool
+/// began.
+fn two_samples() -> Result<String, Failure> {
+    let sample = |utt: u32, start: i64| {
+        serde_json::json!({
+            "repeat": 1, "utt": utt, "t_start_us": start, "t_end_us": start + 4_000_000,
+            "t_partial_us": null, "t_partial_tr_us": null, "t_final_us": null,
+            "t_tr_us": null, "finals": 0, "text": "", "translation": null,
+            "final_latency_ms": null, "cer_dist": 0, "cer_denom": 0
+        })
+        .to_string()
+    };
+    Ok([sample(1, 10_000_000), sample(2, 16_000_000)].join("\n"))
+}
+
+/// An events file whose server clock began `began_us` after the tool's; the
+/// finals end 2 s and 8 s after it began.
+fn events_began(began_us: Option<i64>) -> String {
+    let line = |t_us: i64, event: Value| serde_json::json!({ "t_us": t_us, "event": event });
+    let final_at = |t_us: i64, id: &str, t1_s: f64| {
+        line(
+            t_us,
+            serde_json::json!({"type": "final", "id": id, "lang": "ja", "text": "x", "t1_s": t1_s}),
+        )
+    };
+    let mut lines = Vec::new();
+    if let Some(began) = began_us {
+        lines.push(line(began, serde_json::json!({"type": "session_start"})));
+    }
+    lines.push(final_at(12_500_000, "file-1", 2.0));
+    lines.push(final_at(18_500_000, "file-2", 8.0));
+    lines
+        .iter()
+        .map(Value::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The ids each utterance was given.
+fn ids_given(samples: &str, events: &str) -> Result<Vec<Vec<Option<String>>>, Failure> {
+    Ok(given_of(samples, events)?
+        .into_iter()
+        .map(|given| given.finals.into_iter().map(|done| done.id).collect())
+        .collect())
+}
+
+/// A `final`'s `t1_s` counts from the `session_start` event, the window from
+/// the start of the tool: with the server 9 s into the tool's clock, the
+/// finals at 2 s and 8 s belong to the windows at 10 s and 16 s. Read on one
+/// clock they come before both windows and belong to none.
+#[test]
+fn finals_are_placed_on_the_clock_of_the_windows_by_the_session_start_event() -> TestResult {
+    let samples = two_samples()?;
+    let aligned = ids_given(&samples, &events_began(Some(9_000_000)))?;
+    assert_eq!(
+        aligned,
+        [
+            vec![Some(String::from("file-1"))],
+            vec![Some(String::from("file-2"))]
+        ]
+    );
+    let unaligned = ids_given(&samples, &events_began(None))?;
+    assert_eq!(unaligned, [vec![], vec![]]);
     Ok(())
 }
 
