@@ -55,11 +55,7 @@ fn Header(model: Signal<Model>) -> Element {
     rsx! {
         header { class: "top",
             div { class: "{dot}" }
-            div { class: "logotype",
-                "早"
-                em { "耳" }
-            }
-            div { class: "romaji", "hayamimi" }
+            div { class: "logotype", "Realtime Translator" }
             div { class: "spacer" }
             Chip { label: words.text(keys::CHIP_FINALS).to_owned(), value: state.stats.finals.to_string() }
             Chip { label: words.text(keys::CHIP_LATENCY).to_owned(), value: mean, unit: " ms" }

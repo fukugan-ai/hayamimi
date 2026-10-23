@@ -1,4 +1,4 @@
-# hayamimi (早耳)
+# Realtime Translator
 
 ## このリポジトリについて
 
@@ -55,20 +55,20 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
 
 English README is at [README.md](README.md).
 
-名前の「早耳」は、情報を聞きつけるのが早い人のこと。このツールも耳が早く、
-話している最中から字幕が出て、話し終えると**約100ms**で確定します。
+command、crate、リポジトリの名前は`hayamimi`（早耳）のままです。早耳は、情報を聞きつけるのが早い人のこと。
+このツールも耳が早く、話している最中から字幕が出て、話し終えると**約100ms**で確定します。
 
 ## なぜ作ったか
 
 CPUだけでリアルタイム音声認識をやろうとすると、普通はWhisperのような汎用モデルを1つ選び、
-その精度で我慢することになります。hayamimiは発想を変えて、発話ごとに言語を判定し、
+その精度で我慢することになります。Realtime Translatorは発想を変えて、発話ごとに言語を判定し、
 その言語がいちばん得意なモデルに振り分けます。モデルはすべてINT8量子化のONNX形式で、
 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)の上で動くため、PyTorchもCUDAも要りません。
 
 実際のテレビ放送の日本語音声で測ると、この方式で**CER 3.8%**が出ます（2026-09-01再計測、冒頭欠落修正と数字正規化を含む現行パイプライン。`docs/results/scorecard.md`）。
 同じ音声で`whisper-large-v3-turbo`は13.8%なので、誤りは半分以下。速度は6コアの
 デスクトップCPUで実時間の10〜50倍です。
-Whisper系・クラウドSTT API・他のローカルモデルとの比較（hayamimiが負けている言語も含めて）は
+Whisper系・クラウドSTT API・他のローカルモデルとの比較（Realtime Translatorが負けている言語も含めて）は
 `docs/results/comparison.md`にまとめています。
 
 ## 機能
@@ -114,7 +114,7 @@ Whisper系・クラウドSTT API・他のローカルモデルとの比較（hay
 
 `--input ws`を付けると、ローカルマイクの代わりにWebSocket経由で音声を受け付ける
 モードになります。スマホやESP32ベースのスタックチャンからマイク音声をLAN越しに
-送って、hayamimiの通常パイプラインでそのまま文字起こしできます。
+送って、Realtime Translatorの通常パイプラインでそのまま文字起こしできます。
 
 ```bash
 hayamimi --input ws --serve
@@ -471,7 +471,7 @@ Creative Commons Attribution のlicenseで公開された、YouTubeの会議の�
   連続するまでセッション言語として確定しないため、正当な欧州語セッションも
   起動直後は即決ではなく少し遅れて確定します。
 - **`--hotwords`は現状jaルート（ReazonSpeech）に効きません。** ReazonSpeechの
-  `tokens.txt`はbyte-level BPEで、hayamimiがホットワードのエンコードに使う
+  `tokens.txt`はbyte-level BPEで、Realtime Translatorがホットワードのエンコードに使う
   `modeling_unit=cjkchar`と非互換のため、全ホットワードがエンコードに失敗します
   （sherpa-onnx側はstderr警告のみで終了コード0のまま動くため気づきにくい問題でした
   ―GitHub Issue #1）。現在はhayamimi起動時に失敗数を警告表示するようにしています。
@@ -488,7 +488,7 @@ Creative Commons Attribution のlicenseで公開された、YouTubeの会議の�
   1グループ内で複数回話者が入れ替わっても`[refine/S{n}]`の行ごとに正しく分かれます。
   AMI会議データ（計50分、CC BY 4.0、collar 0.25秒、`docs/design/diarization.md`§8）で
   実測したところ、平均DERはリアルタイムパスのみの25.7%から13.9%まで下がりました。
-  参照話者数は各会議4人ですが、hayamimiの推定はまだ過大（4〜8人）で、`--speakers`は
+  参照話者数は各会議4人ですが、Realtime Translatorの推定はまだ過大（4〜8人）で、`--speakers`は
   「だいたい合っているターン分け」であって正確な話者数のソースとしては使えません。
   この過大表示を画面上で緩和するため、初出の話者は仮表示（`S5?`）で出て、2回目に
   再登場した時点で正式な`S{n}`に確定します。一度きりで終わった話者は`?`付きのまま
@@ -498,7 +498,7 @@ Creative Commons Attribution のlicenseで公開された、YouTubeの会議の�
   実際の失敗例を`docs/design/translate.md`と`docs/design/translate_m2m.md`に載せているので、
   数字が大事な用途では先に見てください。
 - **複数の文をまとめてデコードすると、先頭の文が失われることがあります。** オフライン
-  認識器が複数発話のバッファを1発話に潰してしまう現象です。hayamimiは「話した長さの
+  認識器が複数発話のバッファを1発話に潰してしまう現象です。Realtime Translatorは「話した長さの
   わりに文字数が少なすぎる」という症状を見つけたときだけ、そのバッファを0.35秒以上の
   内部無音で分割して decode し直し、実際に文が戻ったときだけ採用します。逃げ切られる
   のは2種類——分割できる無音がないほど詰めて話された場合（head-dropout調査で見つかった
@@ -521,12 +521,12 @@ Creative Commons Attribution のlicenseで公開された、YouTubeの会議の�
 
 1つだけ注意が必要なモデルがあります。日→英翻訳モデル（`mojicast-fugumt-ja-en-ct2`、
 `--translate en`で使用）は**CC BY-SA 4.0**です。このモデルの重みを再配布するときは
-クレジット表示と同ライセンスでの公開が必要になります。hayamimi本体のコードや、
+クレジット表示と同ライセンスでの公開が必要になります。Realtime Translator本体のコードや、
 `--translate`のそれ以外のターゲットが使うM2M-100（MIT）には影響しません。
 
 ## クレジット
 
-hayamimiは次のプロジェクトの成果を借りて動いています。
+Realtime Translatorは次のプロジェクトの成果を借りて動いています。
 
 - [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx): 全モデルを動かしている推論エンジン。
 - [ReazonSpeech](https://research.reazon.jp/)（Reazon Human Interaction Lab）: 日本語認識の主力モデル。
