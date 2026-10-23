@@ -3969,6 +3969,9 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-11-009 | 道具：pair の run の 1 つの clip で、3 repeat とも最後の `final` が `t_end` より前で、`finals` は 1、2、1 | 理由が同じで `finals` の数だけが違う | 理由を 1 つだけ書く | clip の理由が `closed_before_end` の 1 つだけで、`mixed` でない。同じく 3 repeat とも `finals` 0 の clip は `no_final` の 1 つだけ（specified：設計 10.13.13 の 3「3 つの repeat が同じ理由なら、その理由を 1 つだけ書く」） | 陰性 | `a_clip_with_the_same_reason_in_every_repeat_is_not_mixed` |
 | T-BR-11-010 | 道具：pair の run では閉じ、`--lang ja` の run の 3 repeat が `no_final`、`closed_before_end`、`no_final` の clip | `--lang` の run の側で理由が混ざる | `missing_in_lang_run` の側も同じ形 | 理由が `missing_in_lang_run`、run が `--lang ja`、その run の側の理由が `mixed: 1 no_final, 2 closed_before_end, 3 no_final`（specified：設計 10.13.13 の 3「`missing_in_lang_run` の側の理由も、同じ形で repeat ごとに並べる」） | 境界 | `the_lang_run_side_of_a_missing_clip_lists_its_repeats_the_same_way` |
 | T-BR-11-011 | 道具：7 clip の記録。clip 1 と 2 は両方の run で閉じる。clip 3 は pair の run の全 repeat で `no_final`。clip 4 は全 repeat で `closed_before_end`。clip 5 は pair の run の repeat 1 が `no_final`、2 と 3 が `closed_before_end`。clip 6 は `--lang ja` の run の全 repeat で `no_final`。clip 7 は pair の run の 3 repeat のうち 2 つが `no_final` で 1 つだけ閉じる | 理由の数え上げ | 和が結べない clip の数 | 結べた clip が 3（1、2、7）、`no_final` が 1、`closed_before_end` が 1、`mixed` が 1、`missing_in_lang_run` が 1。この 4 つの理由の和が 4 で、結べない clip の数（7 − 3 = 4）に等しい。どの clip も 1 度だけ数える（specified：設計 10.13.13 の 3「4 つの和が結べない clip の数と等しい」） | property | `the_reasons_add_up_to_the_clips_that_could_not_be_joined` |
+| T-BR-11-012 | 道具：1 つの clip で、pair の run の全 repeat が `no_final`、`--lang ja` の run の全 repeat が `closed_before_end` | 両方の run で欠ける | `missing_in_both` | clip の理由が `missing_in_both`。pair の run の側の理由 `no_final` と、`--lang ja` の run の側の理由 `closed_before_end` が並んで書かれる。`no_final` にも `missing_in_lang_run` にも数えない（specified：設計 10.13.13 の 14「片方の理由に寄せない」） | 陽性 | `a_clip_missing_in_both_runs_is_named_missing_in_both_with_each_side` |
+| T-BR-11-013 | 道具：8 clip の記録。clip 1 と 2 は両方の run で閉じる。clip 3 は pair の run の全 repeat で `no_final`。clip 4 は全 repeat で `closed_before_end`。clip 5 は pair の run で `mixed`。clip 6 は `--lang ja` の run だけ全 repeat で `no_final`。clip 7 は pair の run の 3 repeat のうち 2 つが `no_final` で 1 つだけ閉じる。clip 8 は両方の run の全 repeat で `no_final` | 5 つの理由の数え上げ | 和が結べない clip の数 | 結べた clip が 3（1、2、7）、`no_final`、`closed_before_end`、`mixed`、`missing_in_lang_run`、`missing_in_both` が各 1。5 つの和が 5 で、結べない clip の数（8 − 3 = 5）に等しい。どの clip も 1 度だけ数える（specified：設計 10.13.13 の 3 と 14「5 つの和が結べない clip の数と等しい」） | property | `the_five_reasons_add_up_to_the_clips_that_could_not_be_joined` |
+| T-BR-11-014 | 道具：1 つの clip で、pair の run の repeat が `no_final`、`closed_before_end`、`no_final`、`--lang en` の run の全 repeat が `no_final` | 両方の run、pair の側が `mixed` | 3 の形を両側に使う | 理由が `missing_in_both`。pair の run の側が `mixed: 1 no_final, 2 closed_before_end, 3 no_final`、`--lang en` の run の側が `no_final`（specified：設計 10.13.13 の 14「repeat ごとの理由。3 の形」） | 境界 | `both_sides_of_a_missing_in_both_clip_use_the_per_repeat_form` |
 
 **BR-12（IP-4 の線の外の clip の道。記録。`native/hayamimi-eval/tests/br12.rs`）**
 
@@ -4135,7 +4138,7 @@ H52 の判定の後に有効。
 | T-BR-22-005 | 実走：窓 1280 × 800。縦の線を 200 px drag、横の線を 100 px drag して離し、頁を読み直す | 覚えて読む | 動かした値 | 読み直した頁の `aria-valuenow` が 2 つとも読み直す前と同じ（± 1）で、左の列の幅が読み直す前と ± 2 px（specified：BR-22） | 陽性 | `a_moved_split_is_drawn_again_after_a_reload` |
 | T-BR-22-006 | 実走：`localStorage` の値を `not json` に書いて開く | 読めない値 | 既定、書き換えない | 左右の列の幅が等しく（± 2 px）、上の列と清書の欄が 65 : 35（± 1 ポイント）、`localStorage` の値が `not json` のまま（specified：設計 10.13.11「画面に誤りの文は出さない」。頁の要素の数が正しい値の頁と同じ） | 陰性 | `an_unreadable_stored_split_draws_the_default_and_is_not_rewritten` |
 | T-BR-22-007 | 実走：`Storage.prototype.getItem` が例外を投げるように差し替えた頁 | 使えない `localStorage` | 既定、止まらない | 既定の比で描かれ、`Runtime.exceptionThrown` が 0 件、`.row` が 4 つ（specified：BR-22 の陰性対照） | 陰性 | `a_throwing_local_storage_draws_the_default_and_the_page_keeps_running` |
-| T-BR-22-008 | 実走：`Storage.prototype.setItem` が例外を投げる頁で縦の線を drag する | 書けない | 動くが覚えない | 左の列の幅は drag のとおり広がり、`Runtime.exceptionThrown` が 0 件（derived：「`localStorage` が使えない」は書くほうにも掛かる。設計は書けない時の動きを書かない） | 境界 | `a_split_that_cannot_be_stored_still_resizes_and_raises_nothing` |
+| T-BR-22-008 | 実走：`Storage.prototype.setItem` が例外を投げる頁で縦の線を drag する | 書けない | その頁の memory の中でだけ効く | 2 回の drag とも左の列の幅が drag のとおり広がり、`Runtime.exceptionThrown` が 0 件、頁を読み直すと既定の比（50 と 65）で描かれる。`Runtime.consoleAPICalled` の `warning` のうち key `hayamimi.dashboard.split` を含む物が、2 回の drag を通して 1 件だけ。画面に誤りの文の要素が増えない（specified：設計 10.13.13 の 15。warn の数は、key の文字を含む warning の数で測る） | 境界 | `a_split_that_cannot_be_stored_still_resizes_and_raises_nothing` |
 | T-BR-22-009 | 実走：`{"cols":5,"rows":70}` を書いて 1280 × 800 で開く | 読めたが最小に入らない | 描く時だけ寄せる | 左の列の幅が 240 以上 242 以下で、`localStorage` の値が `{"cols":5,"rows":70}` のまま（specified：設計 10.13.11「描く時だけ最小へ寄せ、覚えた値は書き換えない」） | 境界 | `a_remembered_ratio_below_the_minimum_is_drawn_clamped_and_kept_as_written` |
 | T-BR-22-010 | 実走：縦の線を押して動かしている途中（mouse を離す前）の `localStorage` の値を読み、離した後にもう一度読む | 書く時 | 離した時 | 途中の値は動かす前と同じ文字列、離した後の値は動かした割合を含む（specified：設計 10.13.11「drag…離した時に覚える」） | 境界 | `the_split_is_stored_when_the_pointer_is_released` |
 | T-BR-22-011 | 実走：縦の線に focus を置いて右の矢印を 1 回 | key で動かす | 1 回ごとに覚える | 押した後の `localStorage` の `cols` が押す前より 2 大きい（specified：設計 10.13.11「動かし終えた時」。key は 1 押しが 1 回の動き） | 境界 | `an_arrow_key_press_is_stored_after_each_move` |
@@ -4154,6 +4157,7 @@ H52 の判定の後に有効。
 | T-BR-23-008 | 実走：`left` を `"zh"` に書いた `localStorage` を読み直す | 外の値 | 既定、書き換えない | 英語の側が左で描かれ、`localStorage` の値が変わらない（specified：BR-23 の陰性対照） | 陰性 | `a_remembered_side_of_zh_draws_the_default_and_is_not_rewritten` |
 | T-BR-23-009 | 実走：窓 600 × 900 の入れ替えの button | 狭い画面 | 見えない | 矩形の幅が 0 か `display: none`（specified：BR-23 の陰性対照） | 陰性 | `the_swap_button_is_hidden_on_a_narrow_page` |
 | T-BR-23-010 | 実走：入れ替えた後に `localStorage` を読む | 覚える | `left` と割合 | 値に `"left":"ja"` と `"cols":70` を含む | 陽性 | `the_swapped_side_and_share_are_written` |
+| T-BR-23-011 | 実走：`Storage.prototype.setItem` が例外を投げる頁で、入れ替えを 2 回押す | 向きを書けない | その頁の memory の中でだけ効く | 1 回目で `ja` の `.row` が縦の線の左、`aria-pressed` が `true`、2 回目で元に戻る。`Runtime.exceptionThrown` が 0 件。頁を読み直すと既定の向き（英語の側が左）。key `hayamimi.dashboard.split` を含む `warning` が 2 回の押しを通して 1 件だけ（specified：設計 10.13.13 の 15） | 境界 | `a_swap_that_cannot_be_stored_still_flips_for_this_page_and_warns_once` |
 
 **BR-24（字体。純関数は `dashboard.rs`、実走は `native/hayamimi/tests/br24.rs`）**
 
@@ -4175,6 +4179,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-24-012 | 実走：両方の側で `udev-gothic` を選び、`.lang-badge`、`.lat`、`h2`、`footer` の `fontFamily` を選ぶ前後で比べる | 字幕の外 | 変わらない | 4 つとも前後で同じ（specified：設計 10.13.11「見出し、言語の印、話者の印、遅れの数字、footer は今の字体のまま」） | 陰性 | `the_font_choice_does_not_touch_headings_badges_latencies_or_footer` |
 | T-BR-24-013 | 実走：`ja` の側の字体を選び、清書の段落（`lang` が `ja`）の `.refine-text` と、日本語の速報の `.strip-text` | 4 つの字幕の文字 | 側の設定 | 4 つ（`.row-text`、`.tr-text`、`.refine-text`、`.strip-text`）の `fontFamily` の先頭がすべて選んだ字体（specified：設計 10.13.11） | 陽性 | `all_four_subtitle_texts_of_the_side_take_the_chosen_font` |
 | T-BR-24-014 | 実物：`yu-gothic`、`meiryo`、`yu-mincho` を選び、それぞれの `getPlatformFontsForNode` の `familyName` を記録の file に書く | 端末の字体を名前で使う | 記録だけ | 3 つの `fontFamily` の先頭が宣言どおり。描いた `familyName` は記録だけで、合否に置かない（H62 の決め。落とさない） | 陽性 | `the_painted_family_of_each_device_font_is_recorded_and_not_judged` |
+| T-BR-24-015 | 実走：`Storage.prototype.setItem` が例外を投げる頁で、`ja` の側の字体を `udev-gothic`、続けて `meiryo` にする | 字体を書けない | その頁の memory の中でだけ効く | 選ぶたびに `ja` の `.row-text` の `fontFamily` の先頭が選んだ字体（`"UDEV Gothic 35"`、次に `Meiryo`）になり、`en` は `default` のまま。`Runtime.exceptionThrown` が 0 件。頁を読み直すと `default`。key `hayamimi.dashboard.text` を含む `warning` が 2 回の選びを通して 1 件だけ（specified：設計 10.13.13 の 15） | 境界 | `a_font_that_cannot_be_stored_still_applies_for_this_page_and_warns_once` |
 
 **BR-25（大きさ。純関数は `dashboard.rs`、実走は `native/hayamimi/tests/br24.rs`）**
 
@@ -4191,6 +4196,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-25-009 | 実走：110 % にして頁を読み直す | 覚える | 同じ倍率 | `.row-text` の `fontSize` が `17.6px`（specified：BR-25 の陽性対照） | 陽性 | `a_chosen_scale_is_drawn_again_after_a_reload` |
 | T-BR-25-010 | 実走：`en.scale` を 250 に書いて読み直す（`en.font` は `udev-gothic`） | 範囲の外 | 100 | `en` の `.row-text` が `16px`、`fontFamily` の先頭が `"UDEV Gothic 35"` のまま（specified：BR-25 の陰性対照） | 陰性 | `a_remembered_scale_of_250_draws_one_hundred_and_keeps_the_font` |
 | T-BR-25-011 | 実走：英語の側の倍率を 150 % にする | 側の独立 | `ja` は動かない | `ja` の `.row-text` が `16px` のまま、`.strip-text` は日本語の文なら `24px` | 陰性 | `the_english_scale_does_not_resize_the_japanese_side` |
+| T-BR-25-012 | 実走：`Storage.prototype.setItem` が例外を投げる頁で、英語の側の上げる button を 3 回 | 倍率を書けない | その頁の memory の中でだけ効く | `en` の `.row-text` の `fontSize` が `20.8px`（130 %）になり、`ja` は `16px`。`Runtime.exceptionThrown` が 0 件。頁を読み直すと `16px`。key `hayamimi.dashboard.text` を含む `warning` が 3 回の押しを通して 1 件だけ（specified：設計 10.13.13 の 15） | 境界 | `a_scale_that_cannot_be_stored_still_applies_for_this_page_and_warns_once` |
 
 **言語の組の行（BR-26 から BR-31）の共通**：言語の表の期待値は、test が表の file（`native/hayamimi-relay/data/llm_langs.toml`）を別に読んで組む。`--models` の fixture は、`tiers.rs` の表で言語を読む認識器の file だけを空の file で置いた directory で、置いた言語の一覧は test が決める。`POST /config` の呼び手は loopback の client である。`langs` の event は `/events` の SSE で読み、形は `{"type":"langs","pair":["<a>","<b>"]}`。
 
@@ -4321,7 +4327,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-33-006 | 実走：`localStorage` の値を `"blue"` にして、`prefers-color-scheme` が `dark` の頁を開く | 読めない値 | 端末に従う、書き換えない | `data-theme` が `dark`、`localStorage` の値が `"blue"` のまま（specified：BR-33 の陰性対照） | 陰性 | `an_unreadable_theme_follows_the_device_and_is_not_rewritten` |
 | T-BR-33-007 | 実走：`Storage.prototype.getItem` が例外を投げる頁 | 使えない `localStorage` | 端末に従う、止まらない | 端末の設定で描かれ、`Runtime.exceptionThrown` が 0 件（specified：BR-33 の陰性対照） | 陰性 | `a_throwing_local_storage_follows_the_device_and_the_page_keeps_running` |
 | T-BR-33-008 | 実走：switch を押した直後の `localStorage` | 書く値 | `"light"` か `"dark"` | 明るくした直後は `"light"`、暗くし直した直後は `"dark"`（specified：設計 10.13.11「覚える」） | 陽性 | `the_chosen_theme_is_written_as_light_or_dark` |
-| T-BR-33-009 | 実走：`Storage.prototype.setItem` が例外を投げる頁で switch を押す | 書けない | 切り替わるが覚えない | `data-theme` は切り替わり、`Runtime.exceptionThrown` が 0 件（derived：「`localStorage` が使えない」は書くほうにも掛かる） | 境界 | `a_theme_that_cannot_be_stored_still_switches_and_raises_nothing` |
+| T-BR-33-009 | 実走：`Storage.prototype.setItem` が例外を投げる頁で switch を押す | 書けない | その頁の memory の中でだけ効く | switch を 2 回押して、`data-theme` が押すたびに切り替わり、`Runtime.exceptionThrown` が 0 件、頁を読み直すと端末の設定で描かれる。key `hayamimi.dashboard.theme` を含む `warning` が 2 回の押しを通して 1 件だけ（specified：設計 10.13.13 の 15） | 境界 | `a_theme_that_cannot_be_stored_still_switches_and_raises_nothing` |
 
 **BR-34（字幕の文字のコントラスト。`native/hayamimi/tests/br32.rs`）**
 
@@ -4339,7 +4345,9 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-34-008 | 純関数：文字 `rgba(255,255,255,0.5)`、背景 `#000000`（alpha 1） | 半透明の文字 | 文字の alpha を背景に重ねる | 文字の実の色は (127.5, 127.5, 127.5)、比は 5.28（± 0.01）（derived：`awk` で 5.2808） | 境界 | `a_translucent_text_colour_is_laid_over_the_background` |
 | T-BR-34-009 | 純関数：文字 `#ffffff`（alpha 1）、背景 `#000000`、要素の `opacity` が 0.5 と、要素 0.5 で祖先 0.5 | `opacity` の積 | alpha に掛ける | 前者は文字の実の alpha が 0.5 で比 5.28、後者は 0.25 で比 2.02（± 0.01）（derived：`awk` で 5.2808 と 2.0175。祖先の `opacity` も掛ける） | 境界 | `the_opacity_of_the_element_and_its_ancestors_multiplies_the_text_alpha` |
 | T-BR-34-010 | 純関数：要素と祖先のどの背景も alpha が 1 でない（透明か半透明だけ） | 土台が無い | `Err` | `Err`（頁の外の既定の白に頼らない）。007 の入力から土台の `#000000` を透明にした物がこの入力（specified：設計 10.13.13 の 11。007 が土台の在る陽性対照） | 陰性 | `a_chain_with_no_opaque_background_is_an_error` |
-| T-BR-34-011 | 実走：2 つの表示のそれぞれで、`.strip` に `quiet` が付いた状態（最後の `final` の後）の `.strip-text` を測る | Listening の欄が静まった状態 | 4.5 以上 | 比が 4.5 以上（specified：設計 10.13.13 の 11 と H67「静まった時の `opacity: .5` もこの式で測る」。derived：今の style（`opacity: .5` と `--paper-dim`）の見込みを `awk` で数えると暗い表示で 2.86、明るい表示で 2.37 で、4.5 を割る。この行は今の style では落ちる：設計か style が変わるまで落ちたままで、線は緩めない） | 陰性 | `the_quiet_listening_strip_keeps_aa_contrast_in_both_themes` |
+| T-BR-34-011 | 実走：2 つの表示のそれぞれで、`.strip` に `quiet` が付いた状態（最後の `final` の後）の `.strip-text` を測る | Listening の欄が静まった状態 | 4.5 以上 | `color` が暗い表示で `rgb(138, 132, 115)`、明るい表示で `rgb(98, 101, 109)`（`--paper-quiet`）。`.strip-text` と祖先の computed の `opacity` がすべて 1。背景は `--ink-2` で、比が暗い表示 4.81、明るい表示 4.73（± 0.01）で、どちらも 4.5 以上（specified：設計 10.13.13 の 11 と 13。derived：`awk` で 2026-10-23 に 4.8107 と 4.7315）。この行は、`opacity: .5` と `--paper-dim` の今の style（比 2.86 と 2.37）では落ちる。落ちる間も線は緩めない | 陰性 | `the_quiet_listening_strip_keeps_aa_contrast_in_both_themes` |
+| T-BR-34-012 | 実走：同じ 2 つの表示で、静まった状態と静まっていない状態の `.strip-text` の `fontWeight` と、`.strip` の見出し（`.strip-label`）を含む行の text を比べる | 静まった印は色だけでない | 太さ 400、印の語 | 静まった状態の `.strip-text` の `fontWeight` が `400`、静まっていない状態は `600`。静まった状態の見出しの行の text に、静まっていない状態に無い語が増え、その語が `strings.en.toml` か `strings.ja.toml` の値の 1 つと等しい（specified：設計 10.13.13 の 13「文字の太さ 400」と「印の語」。語の key は設計が決めず、toml の値との一致で測る） | 陽性、陰性 | `the_quiet_strip_is_marked_by_weight_and_a_word_and_not_by_colour_alone` |
+| T-BR-34-013 | 純関数：比の関数に (`#8a8473`, `#14171d`) と (`#62656d`, `#ece7dd`) | `--paper-quiet` と欄の背景 | 4.5 以上 | 4.81 と 4.73（± 0.01）で、どちらも判定の関数が `Ok`（specified：設計 10.13.13 の 13。陰性対照は 005 の近い灰色） | 陽性 | `the_quiet_token_pairs_pass_the_aa_line` |
 
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
@@ -4349,7 +4357,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 別の PC のブラウザから音を送る頁：10.13.6（T-BR-16 から T-BR-18。H52 の判定の後に有効）。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
-- 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。H67 の 2 つめ（静まった欄の `opacity`）は T-BR-34 の前書きのとおり designer の板で決める。
+- 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。
 
 **この節が命令で測れない述語と、測れる者**：
 
