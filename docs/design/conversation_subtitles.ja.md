@@ -1745,7 +1745,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **段ごとの遅れの記録**（B1）：1 つの run の発話ごとに、終わりの待ち、復号、草稿の訳、確定の訳、頁の 5 段を同じ時計の差で記録し、予算と比べる。
 - **速くする手**（B2）：最初の段は、対面のモードで速報の言語を発話の途中で決め、速報の訳を確定文の訳に使い回せるようにする手である。続けて、確定文の訳を速報の訳の後ろに並べない手を入れる。
 - **質の手**（B3）：拾えない声、final の無い繰り返し、SenseVoice の印への落ち、取り違え、IP-4 の結べない clip、同じ session への 2 回目の run、頁の清書の欄の重なり、頁の Listening の欄に残る速報を、仮説と確かめる test の組で並べる。
-- **別の PC のブラウザから音を送る頁**（B4）：Dioxus の頁 `/send` が、マイクか、tab と画面の音を `/ingest` へ送る。HTTPS、合言葉、LAN の外を断る形で作る。
+- **別の PC のブラウザから音を送る頁**（B4）：Dioxus の頁 `/send` が、マイクか、tab と画面の音を `/ingest` へ送る。送る側の browser の flag で 1 つの http の origin を secure context として扱わせ、合言葉と LAN の外を断る形で守る。先に、制御の口を LAN に開かない直し（C6）を入れる。
 - **頁の 3 つの枠**（B6）：`/dashboard` を、既定で上の左に英語（日本語の外の言語）で話された行、上の右に日本語で話された行、下に 2 つにまたがる清書の欄の 3 つに分け、左右を 1 回の操作で入れ替えられ、枠の境目を drag と key で動かせるようにする（10.13.11）。
 - **会話の 2 つの言語の組**（B7）：今の `ja` と `en` の決め打ちを、起動の旗と頁の上の両方で選び直せる 2 つの言語の組にする。認識器、言語の判定、訳の向き、頁の左右と字体の設定は、どれも選んだ組から決まる（10.13.12）。
 
@@ -1923,20 +1923,40 @@ Teams を desktop の app で使う PC では、tab が無いので画面の共�
 `hayamimi` を動かす PC の上の Teams の音は、今のとおり `--input speaker` か `mix`（WASAPI の loopback）で取れるので、この頁は要らない。
 
 **secure context**：LAN の address を `http` で開いた頁では `navigator.mediaDevices` が無く、マイクも画面の音も取れない（10.13.2 の MDN）。
-したがって `/send` は HTTPS でだけ配る。
-`--send-page` を付けた時だけ、`--serve` の listener が TLS で待ち、`/send` の頁と、同じ origin の `/ingest`（`wss`）を持つ。
-証明書と鍵は `--tls-cert <pem>` と `--tls-key <pem>` の file で受け、無ければ起動を止める。
-TLS は `Cargo.lock` に既に在る `rustls` と `tokio-rustls` で組む。
-証明書を起動の時に自分で作る形（自己署名の生成）は、新しい crate を足すので、評議の席が決めるまで作らない（H52）。
+TLS を入れる理由は、通信を暗号にすることではなく、browser が http の LAN の頁にマイクと画面の音を渡さないという 1 点である。
+そこで、TLS も証明書も持たず、送る側の PC の browser にその 1 つの origin だけを secure context として扱わせる形を第一にする。
 
-**合言葉**：`hayamimi` は起動ごとに 128 bit の乱数の合言葉を作り、自分の PC の `/dashboard`（localhost で開いた時だけ）に `https://<LAN の address>:<port>/send#t=<合言葉>` の形の URL を出す。
-頁は URL の fragment（`#` の後ろ）から合言葉を読み、`/ingest` の最初の JSON の frame に `token` として載せる。
-fragment に置くのは、server の access の記録と Referer に載らないからである。
-`hayamimi` は合言葉を定数時間で比べ、無い、違う時は接続を閉じて `ingest.client.refused`（`reason: token`）を 1 行出す。
-合言葉そのものは log にも error の文にも出さない。
+**最新情報**：Chromium の頁「Deprecating Powerful Features on Insecure Origins」は、insecure な origin で powerful な機能（`getUserMedia` を含む）を試す手として、`chrome://flags/#unsafely-treat-insecure-origin-as-secure` と、command line の `--unsafely-treat-insecure-origin-as-secure="http://example.com"` を挙げ、Android と ChromeOS では command line の旗に root か dev mode の端末が要ると書く（https://chromium.org/Home/chromium-security/deprecating-powerful-features-on-insecure-origins 、取得 2026-10-23）。
+同じ働きの enterprise の policy `OverrideSecurityRestrictionsOnInsecureOrigin` の定義は、origin の一覧を secure context として扱わせ、scheme の付いた URL は完全に一致する文字列だけを受け、address bar の「保護されていない通信」の印も消し、一覧を置くことは command line の旗に同じ URL を並べることに当たると書く。対応は chrome 69 以降である（https://chromium.googlesource.com/chromium/src/+/main/components/policy/resources/templates/policy_definitions/Miscellaneous/OverrideSecurityRestrictionsOnInsecureOrigin.yaml 、取得 2026-10-23）。
+Edge の `edge://flags` に同じ名の項目が在るかは、Microsoft の頁で確かめていない（P0 の 4 で画面を記録する）。
+
+**頁の出し方**：送る側の PC の Chrome か Edge の flag（`chrome://flags/#unsafely-treat-insecure-origin-as-secure`、Edge は `edge://flags/` の同じ名の項目）に、`http://<hayamimi を動かす PC の LAN の IP>:<--serve の port>` を 1 つだけ登録する。
+`hayamimi` は `--send-page` を付けた時だけ、`--serve` の listener（http）に、`/send` の頁と、合言葉で守った `/ingest`（`ws`）を足す。
+`/ingest` を `/send` と同じ listener に置くのは、flag が secure として扱うのは登録した 1 つの origin だけで、別の port の WebSocket（8766）は別の origin になり、secure context の頁から secure でない origin への `ws` の接続を browser が断りうるからである（NOT VERIFIED。P0 の 1 で、登録した origin の頁から同じ origin の `ws` が繋がることを記録する）。
+`--send-page` は、`--serve-host` が loopback の外の時だけ意味を持ち、その時は下の C6（制御の口を loopback だけにする）が必ず効く。
+TLS の listener、`--tls-cert`、`--tls-key`、`rustls` の server の組み立ては作らない。
+
+**合言葉**（C2、C3）：`hayamimi` は起動ごとに 128 bit の乱数の合言葉を作る。
+合言葉を返す口は、`--serve` の listener の `GET /send-link` の 1 つで、相手の address が loopback で、かつ `Host` の頭が loopback の名前（`127.0.0.1`、`[::1]`、`localhost` と port）の時だけ `http://<--serve-host>:<--serve の port>/send#t=<合言葉>` を返し、ほかは 404 を返す。
+`Host` も見るのは、loopback の相手でも、DNS の名前を付け替えた頁（DNS rebinding）が `Host` に外の名前を載せて読みに来る形を断つためである。
+応答には `access-control-allow-origin` を付けず、`Cache-Control: no-store` を付ける。
+合言葉は `/events`、log、error の文、中継のどれにも出さない。
+自分の PC の `/dashboard`（localhost で開いた時）が `/send-link` を読んで URL を出す。
+頁 `/send` は URL の fragment（`#` の後ろ）から合言葉を読み、読んだら `history.replaceState` で fragment を URL から消し、`/ingest` の最初の JSON の frame に `token` として載せる。
+fragment に置くのは、server の access の記録と Referer に載らないからで、読んだ後に消すのは、履歴と画面の共有に残さないためである。
+
+**合言葉を照らす時**（C2）：`--send-page` で足した `/ingest` は、合言葉を、音の席（`ingest.rs:256-257` の `Lease::take`）を取る前に照らす。
+今の `serve` は upgrade の直後に席を取るので、合言葉を送らずに繋いだままの接続が席を握り、正規の接続を `busy` で断らせる。
+最初の frame は、upgrade から 3 秒以内に届き、4096 byte 以下の text の frame でなければならず、どちらかを外れた接続は席を取らずに閉じる（close code 1008、`ingest.client.refused` の `reason: token`）。
+合言葉を照らす前の接続は同時に 8 本までとし、9 本目は upgrade の前に断る。
+照らし終えた接続だけが席を取りに行き、席が埋まっていれば今のとおり `busy` で断る（10.13.13 の 8）。
+`hayamimi` は合言葉を定数時間で比べる。
 localhost の 8766 の `/ingest` は今のまま合言葉を求めない。`hayamimi-eval stream` と今の client を変えないためである。
 
-**LAN だけに限る**：TLS の listener で受けた接続は、相手の address が loopback、RFC 1918 の 3 つの範囲、link-local、IPv6 の ULA と link-local の時だけ受け、ほかは `reason: address` で断る。
+**平文の `/ingest` を LAN へ開かない**（C5）：`--send-page` に、loopback でない `--ws-host` が重なった時は、起動を止めて理由を出す。
+合言葉で守った口を足しても、認証の無い 8766 が LAN に開いていれば、守りが無いのと同じだからである。
+
+**LAN だけに限る**：`--send-page` で足した `/ingest` が受けた接続は、相手の address が loopback、RFC 1918 の 3 つの範囲、link-local、IPv6 の ULA と link-local の時だけ受け、ほかは `reason: address` で断る。
 WebSocket の `Origin` の頭が頁の自分の origin と同じ時だけ受け、ほかは `reason: origin` で断る。
 LAN の別の頁を開いたブラウザから、その頁の script が `/ingest` に音を流し込む形を断つためである。
 音を送る client は今のとおり同時に 1 本で、2 本目は断る。
@@ -1953,14 +1973,40 @@ Windows の firewall の受け入れ規則は、利用者が LAN の profile に
 
 **採らない手段**：
 
-- **頁を `http` のまま LAN に出す**：secure context にならず、音を取れない。
-- **別の PC の側で localhost へ port を回す**（`netsh interface portproxy` か SSH の port forward）：`http://localhost` は secure context になるが、別の PC の管理者の権限が要り、LAN の上を音が暗号なしで流れる。
-- **ブラウザの旗で LAN の origin を secure と扱わせる**：別の PC のブラウザの安全の設定を下げ、ブラウザごとに手順が違う。
+- **頁を `http` のまま、flag も登録せずに LAN に出す**：secure context にならず、音を取れない。
+- **TLS の listener と利用者の証明書を第一にする**：暗号は LAN の中のこの用途の理由でなく、証明書を作って送る側の PC の信頼に入れる手間が要る。P0 で flag が無いか効かないと分かった時だけの戻し先にする（H52）。
+- **起動ごとの自己署名の証明書**（`rcgen`）：送る側の PC が信頼できず、警告を押し越える癖が付く。
+- **別の PC の側で localhost へ port を回す**（`netsh interface portproxy` か SSH の port forward）：`http://localhost` は secure context になるが、別の PC の管理者の権限が要る。flag は利用者の権限で 1 つの origin だけに効く。
+- **flag に広い範囲（host の pattern）を登録する**：登録した範囲のどの頁にも powerful な機能を許す。登録するのは `http://<IP>:<port>` の 1 つだけにする。
 - **合言葉を URL の query に置く**：access の記録と Referer に残る。
 - **8766 の `/ingest` をそのまま `0.0.0.0` で開く**：認証が無く（README）、LAN の誰でも音を流し込める。
 
-この節の形は、`/ingest` を LAN へ開き、TLS と合言葉を足すので、安全の境界を変える。
-作る前に評議の席の判定を得る（H52）。
+**作る前の実測 P0**：作る前に、送る側の PC で、flag の効き方と音の取り方を実際に測る。
+`hayamimi` の code を使わない 1 枚の頁（`isSecureContext` を出し、button で `getUserMedia({audio: true})` と `getDisplayMedia({video: true, audio: true})` を呼び、結果と音の track の数を出し、同じ origin の `ws` に 1 回繋ぐ頁）を、配る側の PC から http で配る。
+次の 4 つの行を記録する。
+
+| 行 | 開き方 | 期待 |
+|---|---|---|
+| P0-1 | flag に `http://<LAN の IP>:<port>` を登録した browser で開いた http の頁 | `isSecureContext` が true で、2 つの呼び出しが音の track を 1 つ以上返し、同じ origin の `ws` が繋がる |
+| P0-2 | flag を登録していない browser で開いた同じ http の頁（陰性） | `isSecureContext` が false で、`navigator.mediaDevices` が無い |
+| P0-3 | 配る側の PC の localhost で開いた頁（陽性） | `isSecureContext` が true |
+| P0-4 | 送る側の PC の今の版の Chrome と Edge | flag の項目が在るか。版の番号と、flags の画面の項目の名と説明の文字を記録する |
+
+各行に、`isSecureContext`、2 つの呼び出しの結果（成功か、例外の名前）、音の track の数、`ws` の結果、browser の UA と版を書き、`docs/results/in-person/p0.md` に残す。
+許可の画面と flag の登録は、送る側の PC の前に居る利用者が行う。
+P0-1 が通らない、または P0-4 で flag が無い browser しか無い時だけ、TLS（利用者の file で受ける形、H52）へ戻す。
+P0 は、10.13.7 の BR-18 に置いていた `isSecureContext` の記録の代わりになる（BR-18 の行は P0 を指す）。
+
+**制御の口を LAN に開かない**（C6。B4 より先に入れる）：今でも `--serve-host` を loopback の外にすると、`--serve` の listener の制御の口（`/config`、`/reset`、`/replacements`、`/itn_overrides`。`routes.rs:49-55`）と `/events` が、認証なしで LAN に開く。
+`/events` の応答は `access-control-allow-origin: *` を持つ（`routes.rs:66`、`server.rs:15`）ので、LAN の外の頁からも読める。
+そこで、`--serve-host` が loopback の外の時は、次の 2 つにする。
+
+- 制御の口は、相手の address が loopback の時だけ受け、ほかは 403 を返す。POST だけでなく GET も同じにする（`GET /config` は設定を読ませる）。頁（`hayamimi-ui`）はこれらの口を読まない（`rg -n '"/config"|/replacements|/itn_overrides|/reset' native/hayamimi-ui/src` が 0 件）ので、LAN で開いた頁の振る舞いは変わらない。
+- `hayamimi` の `/events` の応答から `access-control-allow-origin` を外す。LAN で開いた頁は `/events` を自分の origin から読むので、この頭を要らない。中継の `/events` の `access-control-allow-origin: *`（10.5、`hub.rs:26`）は、頁が別の port の中継を読むのに要るので残す（H69）。
+
+`--serve-host` が loopback の時は、今と何も変えない。
+この直しは B4 と別の slice（10.13.9 の IP-S16）で、受入は BR-35 である。
+IP-S16 は今 LAN に開いている口を閉じる直しなので、10.13.9 のほかの slice より先に出し、IP-S13 は IP-S16 の後でなければ始めない。
 
 #### 10.13.7 受入 ID
 
@@ -1986,11 +2032,13 @@ p95 は nearest-rank とする。
 | BR-13 | 同じ session への 2 回目の run の `final` が、2 回目の窓に割り当たる | `cargo test --release -p hayamimi-eval --test br13` | 1 回目の続きの `t1_s`（30 秒から）を持ち `session_start` の無い 4 発話の合成の記録で、4 件の `final` がそれぞれ自分の窓に割り当たり、`with_final` が 4 | 同じ関数で 1 回目の形（`session_start` が在る記録）が今のとおり割り当たる | 起点を置き直さない今の関数では、4 件が最後の窓に入る（今の不具合を固定する対照） |
 | BR-14 | 同じ `id` の清書が頁で 1 行になる（画面） | `cargo test --release -p hayamimi-ui --lib model::tests::br14` と `cargo test --release -p hayamimi --test br14 -- --ignored`（頁を開いたまま 2 回目の音を流す） | 仮の話者で 1 回、確定の話者でもう 1 回、同じ `id` の清書を `apply` すると、`refines` は 1 行で、話者は後の物、訳は前後どちらに付いた物も残る。実走では清書の欄の行の数が、届いた清書の `id` の数と同じ | 違う `id` の清書 2 件は 2 行 | 繋ぎ直しの流し直しで同じ清書が 2 回届いても 1 行 |
 | BR-15 | `final` が覆った速報が Listening の欄に残らない（画面） | `cargo test --release -p hayamimi-ui --lib model::tests::br15` と、BR-14 と同じ実走 | 速報の後に `final` を `apply` すると、`strip_text` が空になる。`final` の後に着いた次の発話の速報は欄に出る | 速報だけを流すと欄に出る（今の形） | 実走の最後の `final` の後に、頁の Listening の欄の文が空 |
-| BR-16 | LAN の `/ingest` が合言葉、origin、address の 3 つで断る | `cargo test --release -p hayamimi --test br16` | TLS の listener の `/ingest` へ、合言葉の無い接続、違う合言葉の接続、別の `Origin` の接続を送ると、どれも閉じられ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の行に合言葉の文字が無い | 正しい合言葉と自分の origin の接続は `ready` を受ける | localhost の 8766 の `/ingest` は合言葉なしで今のとおり受ける。LAN の外の address を名指した判定の関数が `address` で断る |
-| BR-17 | `/send` は TLS でだけ配られる | `cargo test --release -p hayamimi --test br17` | `--send-page` と cert と鍵を渡すと `https` の `GET /send` が 200。`--send-page` が無いと `/send` は 404。cert か鍵の file が無いと起動が止まり、exit code が 0 でない | 同じ test が `https` の `GET /dashboard` も 200 と読む | `--send-page` に cert を渡さない起動は止まり、平文の listener を開かない |
-| BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
+| BR-16 | `--send-page` の `/ingest` が、合言葉、origin、address で断り、合言葉を照らす前の接続が席を握らない | `cargo test --release -p hayamimi --test br16` | `--send-page` で足した `/ingest` へ、合言葉の無い接続、違う合言葉の接続、別の `Origin` の接続を送ると、どれも閉じられ、`ingest.client.refused` が `reason` の `token`、`token`、`origin` で 1 行ずつ出る。log の行に合言葉の文字が無い。合言葉を送らずに繋いだままの接続が在る間に、正しい合言葉の接続を送ると、後の接続が `ready` を受け、前の接続は 3 秒の期限で閉じられる。4096 byte を超える最初の frame は閉じられる | 正しい合言葉と自分の origin の接続は `ready` を受ける | localhost の 8766 の `/ingest` は合言葉なしで今のとおり受ける。LAN の外の address を名指した判定の関数が `address` で断る。合言葉を照らす前の接続を 9 本開くと、9 本目が断られる |
+| BR-17 | `/send` と `/send-link` の出し方と、起動の組み合わせの止め | `cargo test --release -p hayamimi --test br17` | `--send-page` を付けると `--serve` の listener の `GET /send` が 200。`--send-page` が無いと `/send` と `/send-link` は 404。`/send-link` は、loopback の相手で `Host` が loopback の名前の時だけ 200 で `http://` の URL を返し、応答に `Cache-Control: no-store` が在り、`access-control-allow-origin` が無い。`--send-page` に loopback でない `--ws-host` を重ねた起動は止まり、exit code が 0 でない | 同じ test が、`--send-page` の起動で `GET /dashboard` が今のとおり 200 と読む | loopback の相手でも `Host: attacker.example` の `/send-link` は 404。loopback でない相手の `/send-link` は 404。`/events` の行に合言葉の文字が無い |
+| BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）と、`--unsafely-treat-insecure-origin-as-secure=http://127.0.0.2:<port>` を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。開いた後の URL に fragment が無い（`history.replaceState`）。`isSecureContext` の記録は P0 が持つ。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
+| BR-35 | `--serve-host` が loopback の外の時、制御の口は loopback の相手だけが使え、`/events` は他の origin に読ませない | `cargo test --release -p hayamimi --test br35` | `--serve-host 0.0.0.0` で起こし、loopback でない address（RP-40 と同じく UDP の socket の local address で引く）から `POST /config`、`GET /config`、`POST /reset`、`POST /replacements`、`POST /itn_overrides` を打つと、どれも 403 で、設定と状態は変わらない。同じ address からの `GET /events` は `text/event-stream` で、`access-control-allow-origin` の頭が無い | loopback の address からの同じ要求は、今のとおり受けられる | `--serve-host 127.0.0.1`（既定）で起こすと、`/events` の応答は今のとおり `access-control-allow-origin: *` を持ち、制御の口の振る舞いは変わらない |
 
-完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-25 と BR-32〜BR-34 と、10.13.12 の BR-26〜BR-31 である。
+完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17、BR-35 と、10.13.11 の BR-19〜BR-25 と BR-32〜BR-34 と、10.13.12 の BR-26〜BR-31 である。
+BR-16、BR-17、BR-18 の T の case 行（`rust_port_tests.ja.md` の 4.87）は、10.13.6 の flag の形（TLS の listener、`--tls-cert`、`--tls-key` を持たない形、合言葉の照らしを席の前へ、`/send-link`、`--ws-host` との組み合わせの止め）に合わせて test-designer が直す。BR-35 の case 行は test-designer が足す。
 BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 は記録だけで、その数を出す道具が既知の入力を正しく数えることだけを合否に置く。
 BR-3 は B2 の段を全部 入れた後に合否を出す。
 
@@ -2017,7 +2065,8 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | BR-14 | `br14_a_refined_paragraph_sent_again_with_its_id_replaces_the_first` | `native/hayamimi-ui/src/model.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br14.rs` | 繋ぎ直しで流し直された同じ清書 |
 | BR-15 | `br15_the_listening_strip_drops_a_partial_its_final_has_covered` | `native/hayamimi-ui/src/model.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br14.rs` | 最後の `final` の後の欄 |
 | BR-16 | `br16_a_lan_ingest_without_the_token_or_from_another_origin_is_refused` | `native/hayamimi/tests/br16.rs` | localhost の 8766 |
-| BR-17 | `br17_the_send_page_is_served_only_over_tls` | `native/hayamimi/tests/br17.rs` | cert を渡さない起動 |
+| BR-17 | `br17_the_send_page_and_its_link_are_served_only_where_they_should_be` | `native/hayamimi/tests/br17.rs` | `Host` の外れた `/send-link`、loopback でない `--ws-host` との組み合わせ |
+| BR-35 | `br35_a_lan_serve_host_keeps_control_routes_to_loopback_and_events_to_its_origin` | `native/hayamimi/tests/br35.rs` | 既定の `--serve-host` |
 | BR-18 | `br18_a_browser_page_sends_its_microphone_to_ingest` | `native/hayamimi/tests/br18.rs` | 合言葉を消した URL |
 
 #### 10.13.9 slice（実装の順）
@@ -2035,14 +2084,15 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
 | IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
 | IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ、明るい表示と暗い表示の switch（10.13.11。`css.rs` の `TOKENS` を 2 つの組に分ける、表示を読む純関数、`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、BR-32、BR-33、BR-34、IP-5 の通し直し | 前の build に戻す。commit を revert |
-| IP-S13 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
+| IP-S13 | 別の PC のブラウザから音を送る頁（10.13.6。`--send-page`、`--serve` の listener の `/send` と合言葉で守った `/ingest`、`/send-link`、合言葉の照らしを `Lease::take` の前へ、`--ws-host` との組み合わせを止める）。始める条件は 3 つで、IP-S16 が main に在ること、P0 の P0-1 が通ったこと、designer の席の板を得たことである | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
+| IP-S16 | 制御の口を LAN に開かない（10.13.6 の C6。`routes.rs` の制御の口に loopback の相手だけを受ける層、`--serve-host` が loopback の外の時に `/events` の `access-control-allow-origin` を外す）。今 LAN に開いている口を閉じる直しなので、ほかの slice より先に出す | 合否：BR-35、RP-40 の通し直し | 前の build に戻す。commit を revert |
 | IP-S14 | 会話の 2 つの言語の組を選べるようにする、言語の側の土台（10.13.12。`hayamimi` の `--pair`、`langs` の event と `/langs`、`/config` の `pair`。`hayamimi-asr` の `Policy::pair` の候補と 10.4 の落ち先の一般化。中継の `Lang` の一般化、`Source::translates`、訳の model の言語の表と `/langs`） | 合否：BR-26、BR-27、BR-28、BR-29、IP-1、IP-2（記録の完全さ）、IP-3 の通し直し | `--pair` を付けない起動は今と同じ（`en,ja`）。commit を revert |
 | IP-S15 | 頁が言語の組に従う（10.13.12。頁の言語を選ぶ口、B6 の側と字体と大きさの設定を言語の code の鍵へ移す、組を変えた所の区切りの行） | 合否：BR-30、BR-31、BR-19〜BR-25 の通し直し | 前の build に戻す。commit を revert |
 
 IP-S6 を最初に置くのは、段ごとの値が無いと、IP-S7 と IP-S8 の効き目を前後の差で言えないからである。
 IP-S10 と IP-S11 は IP-S7 と別の crate か test だけを触るので、IP-S6 の後に並べて出してよい。
 IP-S12 は IP-S10 と同じ `hayamimi-ui` を触るので、IP-S10 の後に 1 本ずつ出す。
-IP-S13 は安全の境界を変えるので、判定を得るまで始めない。
+IP-S16 は最初に出す。IP-S13 は、IP-S16 が main に入り、P0 が通った後に始める。
 IP-S14 は `hayamimi-asr`、`hayamimi`、`hayamimi-relay` の 3 つを触り、IP-S7 と IP-S8 と同じ所（速報の言語、lane）を動かすので、IP-S8 の後に出す。
 IP-S15 は IP-S12 の画面の上に載るので、IP-S12 と IP-S14 の後に出す。
 
@@ -2054,7 +2104,9 @@ IP-S15 は IP-S12 の画面の上に載るので、IP-S12 と IP-S14 の後に�
 - **H49** 最初の発話の `d` 2411 ms の原因は特定していない。認識器の読み込みと試し読みは先に済んでいる。仮説は、速報の復号が VAD に sample を渡す流れの後ろに直列に並び、温まる前の最初の速報の復号が遅く、VAD への渡しが実時間から遅れることである（`rust_port.ja.md` 3.16 の `on_window` の直列）。BR-6 の `lag_ms` が最初の発話で約 2 秒、後の発話で 0 近くになれば当たる（NOT VERIFIED）。
 - **H50** 手 1 の途中の判定は、速報の復号と同じ所で回すので、手 3 の遅れを延ばしうる。BR-6 の `lag_ms` を IP-S7 の前後で比べる（NOT VERIFIED）。
 - **H51** 手 1 で使い回しが起きるのは、最後の速報の文が確定文と `reuse_match` で一致した時だけである。英語の速報は全部 大文字で句読点が無く、確定文と綴りが違うことがある（`CARRIE` と `Carey`）。`--lang en` の run では `L_tr` の p50 が 3 ms で使い回しが起きているが、pair の英語の行で同じだけ起きるかは測っていない（NOT VERIFIED）。BR-3 の記録の `L_tr` を言語ごとに分けて書く。
-- **H52** B4 は安全の境界を変える（`/ingest` を LAN へ開き、TLS と合言葉を足す）。作る前に評議の席の判定を得る。同じ判定で、証明書を利用者の file で受けるか、起動の時に自己署名を作るか（新しい crate の `rcgen` が要る）を決める。自己署名の証明書の警告を越えて開いた頁が secure context になり、`getUserMedia` と `getDisplayMedia` が使えるかは、MDN に書いてなく、確かめていない（NOT VERIFIED）。BR-18 の run で `window.isSecureContext` を記録する。
+- **H52** B4 の第一の形は、送る側の browser の flag（`unsafely-treat-insecure-origin-as-secure`）に 1 つの http の origin を登録する形である。flag が今の版の Chrome と Edge で効くか、Edge に同じ項目が在るか、登録した origin の頁から同じ origin の `ws` が繋がるかは確かめていない（NOT VERIFIED）。P0 で記録する。P0-1 が通らない、または P0-4 で flag が無い browser しか無い時の戻し先は、利用者の file（`--tls-cert`、`--tls-key`）で証明書を受ける TLS の listener である。その形は、listener に `/send`、その assets、`/ingest` だけを載せて `routes::router`（`routes.rs:42-57`）を載せないこと、`rustls` を `default-features = false` と `ring` の provider（`builder_with_provider`）で組み、`Cargo.lock` の `aws-lc` を 0 件、新しい `[[package]]` を 0 件にすること、PEM を `rustls-pki-types` の `PemObject` で読むこと（`rustls-pemfile` は RUSTSEC-2025-0134、保守の終わり）、鍵の file が private でなければ起動を止めること（`hayamimi_relay::access::is_private`）を条件にする。起動ごとの自己署名（`rcgen`）は、戻し先でも採らない。戻す時は設計のこの行を本文へ移し、BR-17 を TLS の形に書き替える。
+- **H69** 中継の `/events` は `access-control-allow-origin: *` を持ち（`hub.rs:26`）、中継を `--serve-host` で LAN に開くと、LAN の外の頁からも訳を読める。頁が別の port の中継を読むのに要る頭なので、IP-S16 では外さない。外す形（頁の origin だけを返す）は、`?relay=` の host を限らない決め（10.5、H39）と合わせて、別の段で決める。
+- **H70** flag は送る側の browser の安全の設定を 1 つの origin について緩める。その origin の頁は、合言葉を知らない者が開いても、利用者が許可の画面を押せばマイクを取れる（音は合言葉の無い `/ingest` には届かない）。flag の登録は `/send` を使う間だけにし、使い終えたら消す手順を IP-S13 の手順書に書く。
 - **H53** Teams の desktop の app を使う PC で、`getDisplayMedia` の画面の共有に system の音が付くかは、ブラウザと OS で変わり（MDN）、確かめていない。付かない時は、その PC では音を送れないと画面に出す（10.13.6）。
 - **H54** BR-18 の偽の音の device は Chrome の起動の旗で渡す形を想定しており、`chrome-headless-shell` でその旗が効くかは確かめていない（NOT VERIFIED）。効かない時は BR-18 を手の試しの記録にする。
 - **H55** llama-server は client が接続を切った時に依頼を止めるかを README に書かない。手 2 の「終わっていない速報の訳を捨てる」は、答えを使わないだけで、server の slot は答えを作り終えるまで埋まる前提で書いた（ASSUMPTION）。BR-5 の偽の答え手は同時の依頼の数を数えるので、本物の server の slot の埋まりは BR-3 の llama-server の log で数える。
@@ -2342,7 +2394,7 @@ case 行は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4
 5. **BR-15 で `final` が次の速報より遅れて着いた時**：`final` は着いた時に Listening の欄を必ず空にする。次の発話の速報が先に着いていた時は、その速報も消え、次の速報（今の run の間隔で約 0.5 秒後）で欄に戻る。どの速報がどの `final` に覆われたかを頁で見分ける項目が wire に無く（速報は `id` を持たない。3.3）、見分けを足すと wire が変わるからである。case 行は、遅れた `final` の後に欄が空になり、次の速報で文が出ることを測る。
 6. **address の判定**（BR-16、BR-29）：IPv4 を包んだ IPv6 の address（`::ffff:a.b.c.d`）は、包んだ IPv4 の address に直してから判定する。loopback は `127.0.0.0/8` と `::1`。LAN は `10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`、`169.254.0.0/16`、`fc00::/7`、`fe80::/10`。`0.0.0.0`、`::`、multicast、broadcast、これらの外の address はどれも断る。`::ffff:127.0.0.1` からの `POST /config` は loopback として受ける。
 7. **組の順序**（BR-29、BR-30、BR-31）：組 `[a, b]` の順序は頁の既定の左右を意味し、`["ja","en"]` と `["en","ja"]` は同じ 2 つの言語の別の順序として、どちらも受ける。順序だけを変えた `POST /config` は `langs` を 1 件流すが、言語の集まりが変わらないので頁は区切りの行を入れず、`localStorage` に覚えた `left` を書き換えない。
-8. **2 本目の client**（BR-16）：音を送っている client が在る間に届いた 2 本目の `/ingest` の接続は、TLS の listener でも localhost の 8766 でも、`ready` を返さずに閉じ（WebSocket の close code 1013）、`ingest.client.refused`（`reason: busy`）を 1 行出す。1 本目の接続と送っている音は止めない。今の `ingest.rs` の `busy`（`:43`、`:72-75`）と同じ 1 本の制限で、断った印を足すだけである。
+8. **2 本目の client**（BR-16）：音を送っている client が在る間に届いた 2 本目の `/ingest` の接続は、`--send-page` で足した `/ingest` でも localhost の 8766 でも、`ready` を返さずに閉じ（WebSocket の close code 1013）、`ingest.client.refused`（`reason: busy`）を 1 行出す。1 本目の接続と送っている音は止めない。今の `ingest.rs` の `busy`（`:43`、`:72-75`）と同じ 1 本の制限で、断った印を足すだけである。
 9. **`zh,ja` の組の字の段と落ち先**：`zh` と `ja` はどちらも漢字を使うので、10.13.12 の 3 割の線を使わず、SenseVoice が読んだ文に仮名が 1 字でも在れば `ja`、無ければ `zh` とする。中国語の文は仮名を持たず、日本語の文の多くは仮名を持つからである（漢字だけの日本語の文は H68）。最後の落ち先は 10.13.12 の規則で `zh`（`lid.md:17` の clean の 1.0 秒で zh 8%、ja 33%）。
 10. **BR-13 の起点**（H58）：2 回目の接続の起点は、最初の `final` でなく、接続の時（`ingest.client.connected` の時）に置く。`hayamimi` は `/ingest` の `ready` の frame に、その時の流れの時計の位置 `stream_s`（秒）を足し、道具は `ready` を受けた時刻から `stream_s` を引いた値を、その接続の `final` の `t1_s` を道具の時計へ寄せる量にする。`ready` に `stream_s` が無い記録（今の記録）は、今のとおり `session_start` を受けた時刻で寄せる。最初の `final` を起点にする形は採らない。その `final` がどの発話の物かを決めるのが、この起点で直したい割り当てそのもので、起点が割り当ての答えに頼る循環になるからである。`ready` に項目を 1 つ足すのは、`rust_port.ja.md` の RP-12 の「key と値の型を変えない」の範囲で、足した key を知らない consumer はそれを読まない（10.2 の表）。
 11. **BR-34 で背景や文字が半透明の時のコントラスト**：要素の文字の色の alpha に、その要素と祖先の computed の `opacity` をすべて掛けた値を文字の実の alpha とする。背景は、要素から祖先へ辿り、`backgroundColor` の alpha が 1 の最初の要素の色を土台にし、その上に、土台より内側の要素の半透明の背景を外側から順に alpha で重ねた色とする（source-over の合成。色は sRGB の 0〜255 の値のまま重ねる）。文字の色はその背景の上に実の alpha で重ね、重ねた文字の色と背景の色の比を相対輝度の式で取る。alpha が 1 の背景を持つ祖先が 1 つも無い時だけ、判定の関数は `Err` を返す（土台の色を頁の外の既定の白に頼ることになるからである）。Listening の欄が静まった時の `opacity: .5`（H67）も、この式で測る。
