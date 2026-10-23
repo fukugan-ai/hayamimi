@@ -1389,9 +1389,8 @@ decode した値の前後の空白と制御文字は削らない。
 中継の `Hub::subscribe`（`hayamimi-relay/src/hub.rs:90-100`）が新しい接続へ流し直すのは効いている `fallback` だけなので、落ちていた間の行には訳が付かない。
 中継の接続の状態を画面に出すかは、designer の席が言語で段を分ける頁の板で決める。
 
-`/dashboard` は行を時刻の順に並べるので、相手の英語とその和訳、自分の日本語とその英訳が、同じ列に交互に並ぶ。
-言語ごとに 2 つの段に分けて向かい合う 2 人が読む形（`/room` のような頁、字形は 3.12）は、designer の席へ渡す。
-この設計が決めるのは中身だけである：段は行の `lang`（原文の言語）で分け、各行は原文と、`settled` の訳と、`held` の印を持つ。
+`/dashboard` の行の配置（既定で日本語の外の言語の行を左、日本語の行を右、清書を下に 2 つにまたがって置き、左右を入れ替えられる形）は 10.13.11 が決める。
+各行は原文と、`settled` の訳と、`held` の印を持つ。
 
 `held` の訳は、`/dashboard` の今の `TrView`（`parts.rs:58-92`）のとおりに描き、頁の側で描き方を変えない。
 描くのは、矢印 `→<lang>`（`tr-arrow`）と、控えた印（`tr-mark`。`ui.tr.held`、英語 `Translation withheld`、日本語 `訳を控えました`）と、`hold_reason` が在る時の理由の語（`tr-reason`、`ui.tr.reason`）である（`parts.rs:73-78`）。
@@ -1746,6 +1745,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **速くする手**（B2）：最初の段は、対面のモードで速報の言語を発話の途中で決め、速報の訳を確定文の訳に使い回せるようにする手である。続けて、確定文の訳を速報の訳の後ろに並べない手を入れる。
 - **質の手**（B3）：拾えない声、final の無い繰り返し、SenseVoice の印への落ち、取り違え、IP-4 の結べない clip、同じ session への 2 回目の run、頁の清書の欄の重なり、頁の Listening の欄に残る速報を、仮説と確かめる test の組で並べる。
 - **別の PC のブラウザから音を送る頁**（B4）：Dioxus の頁 `/send` が、マイクか、tab と画面の音を `/ingest` へ送る。HTTPS、合言葉、LAN の外を断る形で作る。
+- **頁の 3 つの枠**（B6）：`/dashboard` を、既定で上の左に英語（日本語の外の言語）で話された行、上の右に日本語で話された行、下に 2 つにまたがる清書の欄の 3 つに分け、左右を 1 回の操作で入れ替えられ、枠の境目を drag と key で動かせるようにする（10.13.11）。
 
 作らない物は次の 3 つである。
 
@@ -1983,7 +1983,7 @@ p95 は nearest-rank とする。
 | BR-17 | `/send` は TLS でだけ配られる | `cargo test --release -p hayamimi --test br17` | `--send-page` と cert と鍵を渡すと `https` の `GET /send` が 200。`--send-page` が無いと `/send` は 404。cert か鍵の file が無いと起動が止まり、exit code が 0 でない | 同じ test が `https` の `GET /dashboard` も 200 と読む | `--send-page` に cert を渡さない起動は止まり、平文の listener を開かない |
 | BR-18 | 別のブラウザの頁から音が届き、確定文になる（記録） | `cargo test --release -p hayamimi --test br18 -- --ignored` が、`chrome-headless-shell` に偽の音の device（`lat-dialog` の行 7）を渡して `/send#t=<合言葉>` を開き、「マイク」を押す | 記録だけ：`final` が 1 件以上届き、その `lang` が `ja`。`getDisplayMedia` の道は自動では測らず、Teams の tab の音は手で試して記録に書く | 同じ偽の device を `hayamimi-eval stream` で送ると `final` が出る | 合言葉を消した URL では `final` が 0 件で、`ingest.client.refused` が 1 件 |
 
-完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 である。
+完成の合否に置くのは、BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17 と、10.13.11 の BR-19〜BR-23 である。
 BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 は記録だけで、その数を出す道具が既知の入力を正しく数えることだけを合否に置く。
 BR-3 は B2 の段を全部 入れた後に合否を出す。
 
@@ -2027,11 +2027,13 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S9 | E の n-gram の下書きの記録。旗は run の 18084 だけに当て、18081 は触らない。続けて BR-3 の合否を出す | 合否：BR-3。記録：BR-7 | 18084 を旗なしで起こし直す |
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
 | IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
-| IP-S12 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
+| IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え（10.13.11。`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、`strings.*.toml` の境目と button の文言）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、IP-5 の通し直し | 前の build に戻す。commit を revert |
+| IP-S13 | 別の PC のブラウザから音を送る頁（`/send`、TLS、合言葉、LAN だけ）。評議の席の判定と designer の席の板を得てから始める | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
 
 IP-S6 を最初に置くのは、段ごとの値が無いと、IP-S7 と IP-S8 の効き目を前後の差で言えないからである。
 IP-S10 と IP-S11 は IP-S7 と別の crate か test だけを触るので、IP-S6 の後に並べて出してよい。
-IP-S12 は安全の境界を変えるので、判定を得るまで始めない。
+IP-S12 は IP-S10 と同じ `hayamimi-ui` を触るので、IP-S10 の後に 1 本ずつ出す。
+IP-S13 は安全の境界を変えるので、判定を得るまで始めない。
 
 #### 10.13.10 残る穴
 
@@ -2048,6 +2050,93 @@ IP-S12 は安全の境界を変えるので、判定を得るまで始めない�
 - **H56** 18084 の llama-server の log は Flash Attention を切って動くと書く。`-fa on` が CAT-Translate-3.3b の Q8_0 で効くか、効いた時に prompt の読みと 1 token の生成が縮むかは確かめていない（NOT VERIFIED）。BR-7 と同じ run の形で、旗の組を 1 つずつ記録に足す。
 - **H57** Q-h（清書の欄の重なり）の 2 つの道（同じ `id` の清書が 2 回届く道と、繋ぎ直しの流し直しの道）のどちらが今回の 8 件を作ったかは、頁の event の記録が無く特定していない。BR-14 の実走で、頁に届いた清書の `id` と話者を記録する。
 - **H58** Q-g の 2 つの直し（道具が起点を置き直す形と、`hayamimi` が接続ごとに `session_start` を出す形）は、`final` の `t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）に掛かる。`hayamimi` の側を直す形は、3.3 の表と `rust_port.ja.md` の RP-12 の consumer を数えてから評議の席が決める。
+- **H59** 10.13.11 の行の配置は、相手の行と自分の行が左右に分かれて互い違いに並ぶ形で、片側の行が続くと反対の側に空きが出る。空きの量と読みやすさは、designer の席の板と、IP-S12 の後に人が開いた頁で確かめる（NOT VERIFIED）。
+- **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きを持つ。1 つにそろえる口は作らない。
+
+#### 10.13.11 B6 頁の 3 つの枠と境目
+
+`/dashboard` は今、確定文の欄（行を時刻の順に 1 列で並べる）と清書の欄を左右に並べている（`dashboard.rs` の `DashboardPage`、`css.rs:158` の `grid-template-columns: minmax(0, 7fr) minmax(0, 5fr)`）。
+対面では相手の英語とその和訳、自分の日本語とその英訳が同じ列に交互に入り、どちらが誰の言葉かを毎行の言語の印で読み分けることになる。
+これを 3 つの枠に分ける。
+
+**左右に置く物**：行は、話された言語（確定文の `lang`）で 2 つの側に分ける。
+`lang` が `ja` の行は日本語の側、それ以外（`en` と、pair の外の mode で出る第三の言語）の行は英語の側に置く。
+既定の向きは、英語の側が左、日本語の側が右である。
+各行は今のとおり原文と、その下の訳（`TrView`）を 1 つの塊として持つ。
+したがって既定の向きでは、左の枠に英語の原文とその和訳が、右の枠に日本語の原文とその英訳が並ぶ。
+表示する文の言語で分ける形（片側に日本語の文、もう片側に英語の文）は採らない。
+1 つの発話の原文と訳が左右の別の枠に裂かれ、`id` で結んだ行（10.5、11.3）が 2 つの場所に分かれるからである。
+訳の言語は行の置き場を動かさない（日本語の行に英訳が付いても日本語の側のまま）。
+
+**左右の入れ替え**：上の列の上に、左右を入れ替える button を 1 つ置く。
+1 回押すと、英語の側と日本語の側の左右が逆になり、もう 1 回押すと戻る。
+`button` 要素にするので、pointer の click でも、focus を置いて Enter か Space でも 1 回の操作で入れ替わる。
+button は `aria-label`（`strings.*.toml` の文言）と、今の向きを示す `aria-pressed`（既定の向きで `false`）を持つ。
+入れ替えても、各側の幅は保つ。
+左の列の割合を `c` とすると、入れ替えた後の左の列の割合は `100 − c` で、英語の側は入れ替えの前と同じ幅のまま反対の側へ移る。
+入れ替えた向きは、境目の比と同じ `localStorage` の key に `left` として書く（下の表）。
+
+**行の並べ方**：左右の 2 つの枠は 1 つの列の流れとして持つ。
+行は時刻の順に 1 本の並びのまま、各行を自分の側の列に置き、1 行が 1 段を取る。
+左右を別々に scroll する 2 本の並びにする形は採らない。
+2 本にすると、片方だけが進んだ時に、相手の言葉と自分の返事の前後が見た目で揃わなくなるからである。
+scroll と、最新へ戻る button（`LatestButton`）は今の確定文の欄の物を 1 つ使う。
+
+**清書の欄**：清書の欄は、上の 2 つの列の下に置き、2 つの列にまたがる幅を取る。
+清書の段落は今のとおり時刻の順に並べ、言語の印と訳を持つ。
+
+**Listening の欄**：確定前の読みの欄（`Strip`）は、今のとおり上の 2 つの列の上に、2 つにまたがる幅で 1 本置く。
+速報の言語は発話の途中で決まり（10.13.4 の手 1）、決まる前は直前の確定文の言語なので、言語で左右へ分けると、話の途中で欄が反対の側へ跳ぶからである。
+
+**境目**：境目は 2 つで、左右の列の境目（縦の線）と、上の列と清書の欄の境目（横の線）である。
+どちらも pointer の drag で動かせ、key でも動かせる。
+
+| 決め事 | 内容 |
+|---|---|
+| 境目の要素 | 各境目は `role="separator"`、`tabindex="0"`、`aria-orientation`（縦の線は `vertical`、横の線は `horizontal`）、`aria-valuenow`（左の列か上の列の割合を 0〜100 の整数で）、`aria-valuemin`、`aria-valuemax`、`aria-label`（`strings.*.toml` の文言。言語で切り替える）を持つ |
+| drag | pointer を押した境目に pointer を捕まえ（pointer capture）、動かした量だけ割合を変え、離した時に覚える |
+| key | 境目に focus が在る時、矢印の key で 2 ポイント、Shift と矢印で 10 ポイント動かす。Home と End で最小と最大へ動かす。縦の線は左右の矢印、横の線は上下の矢印で動く |
+| 最小の大きさ | 左右の列はそれぞれ幅 240 px 以上、上の列は高さ 160 px 以上、清書の欄は高さ 120 px 以上。drag も key も、この線より小さくしない。窓が狭まって両方の最小が入らない時は、割合を既定の比へ戻して描く |
+| 既定の比 | 左右 50 : 50、上の列と清書の欄 65 : 35 |
+| 既定の向き | 左が英語の側、右が日本語の側 |
+| 覚える | 動かし終えた時の 2 つの割合と、入れ替えた後の向きを、`localStorage` の key `hayamimi.dashboard.split` に `{"cols":<0〜100>,"rows":<0〜100>,"left":"en"\|"ja"}` の形で書く。`cols` は左の列の割合、`left` は左に置く側である。頁を開いた時に読む |
+| 読めない時 | key が無い、JSON として読めない、数でない、0〜100 の外、`localStorage` が使えない（例外を投げる）のどれでも、既定の比で描き、書き直さない。`left` が無いか `en` と `ja` の外の値なら、向きだけを既定（左が英語）にし、読めた割合は使う。画面に誤りの文は出さない。読めた値も、今の窓で最小の大きさに入らなければ、描く時だけ最小へ寄せ、覚えた値は書き換えない |
+| 狭い画面 | 幅 860 px 以下（今の `css.rs:177` の線）では、左右の列を 1 列にまとめ、行を時刻の順に縦に並べる（言語の印で読み分ける今の形）。縦の線と入れ替えの button は隠し、覚えた割合と向きは捨てずに残す。横の線と清書の欄は残す |
+
+既定の比を置くのは、読めない値で描くと枠が潰れて戻せなくなり、利用者が手で `localStorage` を消すことになるからである。
+狭い画面で 2 列のまま 240 px の最小を守ると、860 px 以下の窓では 2 列が入りきらない窓が出るので、1 列に戻す。
+見た目（線の太さ、つまみの形、色、行の左右の寄せ方の細部）は designer の席が Figma の板から起こす。
+この節が決めるのは置き場、境目の振る舞い、受入までである。
+
+**採らない手段**：
+
+- 表示する文の言語で左右に分ける：上の理由。
+- 左右を別々に scroll する 2 本の並び：上の理由。
+- Listening の欄を言語で左右に分ける：上の理由。
+- 境目の比を server に覚えさせる：頁を開く端末ごとに窓の大きさが違い、1 つの比を共有すると別の端末の枠を潰す。
+- drag だけで動かす：key で動かせないと、pointer を使えない利用者が大きさを変えられない。
+
+**受入 ID**：頁の html は 10.9 の IP-5 と同じく、`chrome-headless-shell` の DevTools の `Runtime.evaluate` で読み、要素の位置は `getBoundingClientRect` で取る。
+実走の行は偽の訳の server（`fake_llama_server -m translates.gguf`）で `lat-dialog` の行 7〜10 を流した頁を測る。
+
+| ID | 測る物 | command | 期待値 | 陽性対照 | 陰性対照 |
+|---|---|---|---|---|---|
+| BR-19 | 広い頁の 3 つの枠の置き場 | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br19` と `cargo test --release -p hayamimi --test br19 -- --ignored`（窓 1280 × 800） | `localStorage` が空の頁で、行の側を決める純関数が `ja` を日本語の側、`en` と `zh` を英語の側と返し、向きを決める純関数が英語の側を左と返す。実走の頁で、`lang-badge` が `en` のどの `row` も、右端が縦の線の左端以下、`ja` のどの `row` も左端が縦の線の右端以上。`row` の並びの順は届いた `final` の順。清書の欄の左端が左の列の左端以下、右端が右の列の右端以上、上端が上の列の下端以上。Listening の欄の上端が上の列の上端以下 | 同じ test が 4 行の `row` を数え、`en` の 2 つが左、`ja` の 2 つが右 | `ja` の行に英訳の `tr` が付いても右に在る。`lang` の値が空の合成の行は左（英語の側） |
+| BR-20 | 狭い頁の並べ替え | `cargo test --release -p hayamimi --test br20 -- --ignored`（窓 600 × 900） | どの `row` も左端が同じで、縦の線の要素が見えない（`getBoundingClientRect` の幅が 0 か `display: none`）。`row` は届いた順に上から並び、清書の欄はその下に在り、横の線は見えている | 同じ頁を 1280 × 800 に広げ直すと BR-19 の置き場に戻る | 600 × 900 で `ja` の行と `en` の行の左端が違えば落ちる |
+| BR-21 | 境目を drag と key で動かすと枠の大きさが変わり、最小より小さくならない | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br21` と `cargo test --release -p hayamimi --test br21 -- --ignored`（窓 1280 × 800） | 縦の線を DevTools の `Input.dispatchMouseEvent` で右へ 200 px drag すると、左の列の幅が 200 px ± 2 px 広がり、`aria-valuenow` が増える。縦の線に focus を置いて右の矢印を 1 回押すと 2 ポイント、Shift と右の矢印で 10 ポイント増える。縦の線を右へ 2000 px drag すると右の列の幅が 240 px 以上で止まり、横の線を下へ 2000 px drag すると清書の欄の高さが 120 px 以上で止まる。End の key でも同じ線で止まる。割合を詰める純関数が、最小を割る値を最小へ寄せて返す | drag の前後で `aria-valuenow` と列の幅の比が一致する | 左へ 2000 px drag しても左の列の幅が 240 px 以上で、Home の key でも同じ |
+| BR-22 | 動かした比を覚え、読めない時は既定の比に戻す | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br22` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き | 境目を動かして頁を読み直すと、2 つの割合が動かした値のまま描かれる。比を読む純関数は、`{"cols":30,"rows":70}` を 30 と 70 と読み、key が無い、`not json`、`{"cols":"a"}`、`{"cols":120,"rows":70}` を、どれも既定の 50 と 65 にする。実走で `localStorage` の値を `not json` に書き換えて読み直すと、左右の列の幅が等しく（± 2 px）、`localStorage` の値は `not json` のまま | 正しい値を書いて読み直すと、その値で描かれる | `localStorage` を使えなくした頁（`Storage.prototype.getItem` が例外を投げるように差し替えた頁）でも既定の比で描かれ、頁が止まらない |
+| BR-23 | 左右を 1 回の操作で入れ替え、各側の幅を保ち、向きを覚える | `cargo test --release -p hayamimi-ui --lib dashboard::tests::br23` と `cargo test --release -p hayamimi --test br21 -- --ignored` の続き（窓 1280 × 800） | 縦の線を drag して左の列を 30 にした後、入れ替えの button を click すると、`ja` のどの `row` も縦の線の左に、`en` のどの `row` も右に移り、左の列の割合が 70（± 1）、英語の側の幅が入れ替えの前と ± 2 px で等しく、`aria-pressed` が `true`。button に focus を置いて Enter を 1 回押すと元の向きと割合（30）に戻り、Space を 1 回押すと再び入れ替わる。入れ替えた後に頁を読み直すと、入れ替えた向きのまま描かれる。向きを読む純関数は `"left":"ja"` を日本語の側が左と読み、`left` の無い値、`"left":"zh"`、`"left":1` を英語の側が左と読み、同じ値の割合はそのまま使う | 入れ替えを 2 回すると、向き、割合、各 `row` の側が、押す前と同じになる | `localStorage` の `left` を `"zh"` に書き換えて読み直すと、左が英語の側で描かれ、`localStorage` の値は書き換わらない。600 × 900 の窓では入れ替えの button が見えない |
+
+| ID | 受入 test の名前 | 置き場 | 陰性の case |
+|---|---|---|---|
+| BR-19 | `br19_by_default_english_lines_sit_left_japanese_lines_right_and_refined_spans_both_below` | `native/hayamimi/tests/br19.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 英訳の付いた `ja` の行 |
+| BR-20 | `br20_a_narrow_page_stacks_the_lines_in_spoken_order_above_refined` | `native/hayamimi/tests/br20.rs` | 600 × 900 で左端の違う行 |
+| BR-21 | `br21_dragging_or_keying_a_divider_resizes_the_panes_but_not_below_their_minimum` | `native/hayamimi/tests/br21.rs`。純関数の case 行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests` | 左へ 2000 px の drag、Home の key |
+| BR-22 | `br22_the_split_is_remembered_and_an_unreadable_one_falls_back_to_the_default` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | 例外を投げる `localStorage` |
+| BR-23 | `br23_one_swap_flips_the_sides_keeps_each_side_width_and_is_remembered` | `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。実走の case 行は `native/hayamimi/tests/br21.rs` | `"left":"zh"` の覚えた値、狭い窓 |
+
+case 行（`T-BR-19-nnn` ほか）は 10.13.8 と同じく test-designer が `rust_port_tests.ja.md` の 4.87 に書く。
+実装の順は 10.13.9 の IP-S12 である。
 
 ## 11. 重ね窓（`hayamimi-overlay`）の作り方
 
