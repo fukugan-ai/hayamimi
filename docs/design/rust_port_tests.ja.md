@@ -3741,7 +3741,9 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
 case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 31 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 6 つである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 7 つである。
+
+- T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 
 - BR-6 の純関数の行は `native/hayamimi/src/log.rs` の `mod tests`、VAD を通す行は `native/hayamimi-asr/src/vad.rs` の `mod tests`。
 - BR-4 の最後の行（T-BR-04-009）は BR-3 の run の記録を読むので `native/hayamimi/tests/br03.rs`。
@@ -3774,7 +3776,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 **数え方**：
 
 - **温まった標本と冷えた標本**：run 全体（`--repeat` をまたぐ）で、`ja` と `en` のそれぞれについて、閉じる `final`（`t_final_us` を持つ）を最初に持つ発話 1 つが冷えた標本である。言語は閉じる `final` の `lang` で決める。ほかの閉じる `final` を持つ発話は温まった標本である。閉じる `final` を持たない発話はどちらでもなく、数えない。
-- **段の値**：`d = t_close − t_end`、`L_dec = final の latency_ms`、`L_tr = t_tr − t_final`、`L_e = t_settled − t_tr`。`t_close = t_final − L_dec`。単位は ms の整数で、case の入力は時刻を 1000 µs の倍数、`latency_ms` を整数で置く。
+- **段の値**：`d = t_close − t_end`、`L_dec = final の latency_ms`、`L_tr = t_tr − t_final`、`L_e = t_settled − t_tr`。`t_close = t_final − L_dec`。時刻と長さは整数の µs で持ち、ms は µs を 1000 で割って負の向きへ切り捨てた整数（floor）とする。p50 と p95 は µs の値の nearest-rank を取ってから ms へ切り捨てる（設計 10.13.13 の 1）。特に断らない case は、入力の時刻を 1000 µs の倍数、`latency_ms` を整数で置く。温まった標本が 0 件の時は、p50 と p95 を出さず、記録に「温まった標本 0」と書き、判定の関数は `Err` を返す（設計 10.13.13 の 2）。
 - **p50 と p95**：nearest-rank で、n 個の p% は小さい方から `(p × n + 99) / 100`（整数の割り算）番目（4.1）。
 - **線の内**：値が線以下。線ちょうどは内、線を 1 ms 超えれば外。
 - **区間の数、隣の発話を飲んだ区間、区間の無い発話**（BR-8）：区間は VAD の区間 1 つ。manifest の発話は `[start_sample, end_sample)` の範囲。区間が 2 つ以上の発話の範囲に 1 標本でも掛かれば、その区間は「隣の発話を飲んだ区間」。1 つの発話の範囲に 1 標本でも掛かる区間が 0 個なら「区間の無い発話」。
@@ -3795,7 +3797,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 **材料**：
 
 - BR-1 の記録の fixture は、test が `env!("CARGO_TARGET_TMPDIR")` の下に作る合成の `.jsonl`（1 行が `Sample`）と `.events.jsonl`（1 行が `{"event":{…},"t_us":<n>}`）である（前例は T-IP-04 の道具の行）。
-- 記録 A（2 発話）：`session_start` を `t_us` 9000000 に置く。発話 1（`ja`）は `t_start_us` 9500000、`t_end_us` 12000000。final は `t_us` 12745000、`latency_ms` 268、`t1_s` 3.0、`id` が `file-1`、`lang` が `ja`。草稿の訳（`of: final`、`settled: false`、`status: ok`、`src_sha256` は final の text の sha256）が `t_us` 12978000、確定の訳（`settled: true`）が 13700000。発話 2（`en`）は `t_start_us` 14000000、`t_end_us` 16000000。final は `t_us` 16300000、`latency_ms` 200、`t1_s` 7.0、`id` が `file-2`。草稿の訳が 16350000、確定の訳が 16900000。
+- 記録 A（3 発話。`ja`、`en`、`ja`）：`session_start` を `t_us` 9000000 に置く。発話 1（`ja`）は `t_start_us` 9500000、`t_end_us` 12000000。final は `t_us` 12745000、`latency_ms` 268、`t1_s` 3.0、`id` が `file-1`、`lang` が `ja`。草稿の訳（`of: final`、`settled: false`、`status: ok`、`src_sha256` は final の text の sha256）が `t_us` 12978000、確定の訳（`settled: true`）が 13700000。発話 2（`en`）は `t_start_us` 14000000、`t_end_us` 16000000。final は `t_us` 16300000、`latency_ms` 200、`t1_s` 7.0、`id` が `file-2`。草稿の訳が 16350000、確定の訳が 16900000。発話 3（`ja`）は `t_start_us` 17000000、`t_end_us` 19000000。final は `t_us` 19550000、`latency_ms` 250、`t1_s` 10.0、`id` が `file-3`。草稿の訳が 19650000、確定の訳が 20150000。
 - 記録 B（7 発話）：発話 1 と 2 は記録 A と同じ。発話 3 から 7 は温まった標本で、`(d, L_dec, L_tr)` を ms で `(250, 200, 50)`、`(280, 250, 60)`、`(300, 270, 100)`、`(450, 300, 150)`、`(600, 480, 300)` とする。各発話は、終わりを T として、final が T + d + L_dec、草稿の訳が final + L_tr、確定の訳が草稿 + 500 ms に着く。`t1_s` は T から 9 を引いた秒。言語は `ja`、`en`、`ja`、`en`、`ja` の順。
 - 予算（設計 10.13.3）：d は 300 と 600、L_dec は 270 と 480、L_tr は 100 と 300、`L_pg` は 50 と 100（p50 と p95 の順）。主指標の線は `L_page` が 750 と 1300、`L_settled_page` が 1100 と 1700、冷えた標本の最大は `L_page` 2500。
 - BR-11、BR-13 の実物は `docs/results/in-person/ip02_pair.jsonl` と `ip02_pair.events.jsonl` である（90 行。`jq` で 2026-10-23 に数えた：`t_final_us` が null の行は 12、そのうち utt 3 は `finals` 0、utt 9 は 1、utt 19 は 2、utt 21 は 1、各 3 repeat）。
@@ -3806,7 +3808,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-01-001 | 受入：記録 A を記録の関数に渡す | 2 発話。どちらも自分の言語で最初の閉じる final を持つ | 段の値が ms まで一致 | 発話 1 は `d` 477、`L_dec` 268、`L_tr` 233、`L_e` 722。発話 2 は `d` 100、`L_dec` 200、`L_tr` 50、`L_e` 550。2 発話とも冷えた標本の列に入る。発話ごとに `d + L_dec + L_tr` が `t_tr − t_end`（3.1 の `L`）に等しい（978 と 350）。温まった標本の列は 0 件で、この行は温まった標本の判定を検査しない（specified：設計 10.13.3 の時刻の表と BR-1。derived：手計算。`session_start` の 9 秒が無いと final が窓の外に置かれ、この値は出ない） | 陽性 | `br01_each_stage_of_the_wait_is_recorded_on_one_clock` |
+| T-BR-01-001 | 受入：記録 A を記録の関数に渡す | 3 発話。発話 1 と 2 は自分の言語で最初の閉じる final を持ち、発話 3 は温まった標本 | 段の値が ms まで一致 | 発話 1 は `d` 477、`L_dec` 268、`L_tr` 233、`L_e` 722。発話 2 は `d` 100、`L_dec` 200、`L_tr` 50、`L_e` 550。発話 3 は `d` 300、`L_dec` 250、`L_tr` 100、`L_e` 500。発話 1 と 2 が冷えた標本の列、発話 3 が温まった標本の列（n は 1）に入る。発話ごとに `d + L_dec + L_tr` が `t_tr − t_end`（3.1 の `L`）に等しい（978、350、650）。温まった標本の p50 と p95 は d が 300 と 300、L_dec が 250 と 250、L_tr が 100 と 100 で、4 つの判定がすべて「線の内」（specified：設計 10.13.3 の時刻の表と BR-1。derived：手計算。`session_start` の 9 秒が無いと final が窓の外に置かれ、この値は出ない） | 陽性 | `br01_each_stage_of_the_wait_is_recorded_on_one_clock` |
 | T-BR-01-002 | 記録 B | 温まった標本 5 件。各段の p50 と p95 が線ちょうど | d 300 と 600、L_dec 270 と 480、L_tr 100 と 300 | 温まった標本の n は 5、冷えた標本は 2 件。d の p50 は 300、p95 は 600、L_dec は 270 と 480、L_tr は 100 と 300。6 つの判定がすべて「線の内」（specified：設計 10.13.3 と本節の数え方。nearest-rank の 3 番目と 5 番目。derived：手計算） | 陽性、境界 | `a_run_whose_stages_stand_on_their_lines_is_written_inside_the_lines` |
 | T-BR-01-003 | 記録 B の発話 5 の d を 301 に替える（温まった標本の d の昇順は 250、280、301、450、600） | d の p50 が線の 1 つ外 | d の p50 300 | d の p50 は 301 で「線の外」、d の p95（600）は「線の内」。ほかの段は「線の内」（derived：手計算。陰性対照：300 と 301 の差を見分ける） | 境界、陰性 | `a_d_p50_of_301_ms_is_outside_its_line_while_p95_stays_inside` |
 | T-BR-01-004 | 記録 B の発話 7 の d を 601 に替える | d の p95 が線の 1 つ外 | d の p95 600 | d の p95 は 601 で「線の外」、p50（300）は「線の内」（derived。003 と対で、p50 と p95 を取り違える実装を落とす） | 境界、陰性 | `a_d_p95_of_601_ms_is_outside_its_line_while_p50_stays_inside` |
@@ -3821,9 +3823,10 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-01-013 | 記録 B の発話 1 から閉じる final を取り（発話 1 は final なし）、発話 3 が `ja` の最初の閉じる final になる | 冷えた標本の選び方 | `ja` で最初の閉じる final | 冷えた標本は発話 2（`en`）と発話 3（`ja`）で、発話 1 はどちらでもない。温まった標本は発話 4 から 7 の 4 件（specified：本節の数え方。設計 10.13.3「最初の閉じる final を持つ発話」） | 境界 | `the_cold_sample_of_a_language_is_the_first_utterance_that_has_a_closing_final` |
 | T-BR-01-014 | 記録 B を `repeat` 1 とし、同じ 7 発話を `repeat` 2 として続ける（`session_start` は 1 回だけ） | 同じ process の 2 回目 | 冷えた標本は run で 2 件まで | 冷えた標本は 2 件（repeat 1 の発話 1 と 2）で、repeat 2 の発話 1 と 2 は温まった標本。温まった標本の n は 5 + 7 = 12（specified：設計 10.13.3「stream --repeat 3 の 2 回目と 3 回目は冷えた標本を持たない」） | 境界 | `a_second_repeat_in_the_same_process_has_no_cold_sample` |
 | T-BR-01-015 | 記録 B の発話 4 の final から `latency_ms` を取る | Python の server の形（`latency_ms` が無い） | `t_close` が置けない | 発話 4 は `d` と `L_dec` を持たず、`L_tr` は持つ。d と L_dec の n は 4、L_tr の n は 5（derived：`t_close = t_final − L_dec` が `L_dec` を要る。0 を埋めない） | 境界 | `a_closing_final_without_latency_ms_has_no_d_and_no_decode_but_keeps_its_translation_wait` |
-| T-BR-01-016 | 記録 A を記録の関数に渡し、温まった標本の判定の欄を読む | 温まった標本が 0 件 | 0 件を成果と読まない | 温まった標本の欄は「標本なし」と書き、「線の内」とも「線の外」とも書かない（implicit：`nearest_rank` は空で `Err`。設計は 0 件の扱いを書かない。残る穴に挙げる） | 陰性 | `a_run_with_no_warm_sample_is_not_written_as_inside_the_lines` |
+| T-BR-01-016 | 記録 A の発話 1 と 2 だけの記録（冷えた標本の 2 発話だけ）を記録の関数に渡す | 温まった標本が 0 件 | 0 件を成果と読まない | 記録に「温まった標本 0」と書き、温まった標本の p50 と p95 を出さず、「線の内」とも「線の外」とも書かない。判定の関数が `Err` を返す。冷えた標本の列には 2 件ある（specified：設計 10.13.13 の 2 と BR-1 の陰性対照。implicit：`nearest_rank` は空で `Err`） | 陰性 | `a_run_with_no_warm_sample_is_not_written_as_inside_the_lines` |
 | T-BR-01-017 | 記録 B の発話 3 の確定の訳を、(a) 無し、(b) `status: held`、(c) `status: ok` で置く | `L_e` の有無 | 記録だけ | (c) は `L_e` 500。(a) と (b) は `L_e` を持たない。`L_e` の p50 と p95 は書かれ、判定の語（線の内、線の外）は付かない（specified：設計 10.13.3「確定の訳：記録だけ」） | 境界 | `the_settle_wait_is_recorded_without_a_verdict_and_needs_an_ok_settled_translation` |
 | T-BR-01-018 | 標本が 0 行の `.jsonl` | 空の記録 | 空は誤り | `Err` で、記録を書かない（implicit：0 件を「全部内」と読まない。001 から 017 が非空の陽性対照） | 陰性 | `a_record_with_no_line_is_an_error` |
+| T-BR-01-019 | 1 発話の記録。`t_end_us` 12000000、final の `t_us` 12745000 と `latency_ms` 268.6、草稿の訳が final の 233000 µs 後。別の発話で、草稿の訳が final の 400 µs 前 | µs が ms の整数に収まらない | floor | 1 発話目は `t_close` が 12476400 なので `d` 476.4 → 476、`L_dec` 268.6 → 268、`L_tr` 233、`L` 978。別の発話の `L_tr` は −1（−0.4 を負の向きへ切り捨て。0 でない）。ms の和 476 + 268 + 233 = 977 は `L` の 978 と 1 ms 違い、µs の和（476400 + 268600 + 233000）は `L` の µs に等しい（specified：設計 10.13.13 の 1。恒等式は µs で取る。設計は恒等式を µs で取るとは書かず、残る穴に挙げる） | 境界 | `stage_values_are_floored_to_milliseconds_and_negative_ones_floor_away_from_zero` |
 
 **BR-2（頁の段 `L_pg`。`native/hayamimi/tests/br02.rs`）**
 
@@ -3843,7 +3846,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-BR-03-001 | 受入、実走：10.7.2 の 18084 の本物の訳の server で `lat-dialog` を `--repeat 3` で流し、BR-1 と BR-2 の関数を当てる。B2 の段を全部入れた後にだけ合否を出す | 温まった標本と冷えた標本 | `L_page` 750 と 1300、`L_settled_page` 1100 と 1700、冷えた最大 2500 | 温まった標本で `L_page` の p50 が 750 以下、p95 が 1300 以下、`L_settled_page` の p50 が 1100 以下、p95 が 1700 以下。冷えた標本の最大が `L_page` 2500 以下。段ごとの予算の内外も記録に書く（specified：BR-3） | 陽性 | `br03_the_wait_from_the_end_of_speech_to_the_page_is_inside_the_budget` |
-| T-BR-03-002 | 実物：`ip02_pair.jsonl` と `ip02_pair.events.jsonl` に BR-1 の関数を当てる | 冷えた標本 2 件（`repeat` 1 の utt 1 と utt 2）を除いた 76 件 | 設計 10.13.2 の表 | 温まった標本の n が 76、d の p50 と p95 が 445 と 1081。L_dec は 268 と 472、L_tr は 221 と 363。冷えた標本が 2 件（derived：別に組んだ `jq` で 2026-10-23 に数えた。設計 10.13.2 の表は冷えた標本を含む 78 件の値で、L_dec の p95 は 483、L_tr の p50 は 233 と書き、本行の値と合わない。報告に挙げる） | 陽性 | `the_warm_stage_percentiles_of_the_pair_record_are_the_hand_counted_ones` |
+| T-BR-03-002 | 実物：`ip02_pair.jsonl` と `ip02_pair.events.jsonl` に BR-1 の関数を当てる | 冷えた標本 2 件（`repeat` 1 の utt 1 と utt 2）を除いた 76 件 | 設計 10.13.2 の pair の「温まった標本」の行 | 温まった標本の n が 76、d の p50 と p95 が 445 と 1081、L_dec が 268 と 472、L_tr が 221 と 363。冷えた標本の列が 2 件で、repeat 1 の utt 1 と utt 2（specified：設計 10.13.2 の表と BR-3 の陽性対照。derived：別に組んだ `jq` でも 2026-10-23 に同じ値を数えた） | 陽性 | `the_warm_stage_percentiles_of_the_pair_record_are_the_hand_counted_ones` |
 | T-BR-03-003 | 道具：温まった標本 20 件がすべて `L_page` 750 ms、冷えた標本 2 件は 1000 ms | p50 が線ちょうど | 750 | 判定の関数が `Ok`（specified：BR-3。p95 750 も線の内） | 境界 | `a_page_wait_p50_of_750_ms_is_on_the_line` |
 | T-BR-03-004 | 003 の 20 件を 751 ms に替える | p50 が 1 つ外 | 750 | `Err` で、「`L_page` の p50 が 751 ms で線 750 ms の外」と言う（specified：BR-3 の陰性対照。1 ms 超えた記録） | 境界、陰性 | `a_page_wait_p50_of_751_ms_is_over_the_line` |
 | T-BR-03-005 | 20 件のうち 18 件が 700 ms、残り 2 件が 1300 ms | p95 が線ちょうど（20 件の p95 は 19 番目） | 1300 | `Ok`（specified：BR-3。nearest-rank） | 境界 | `a_page_wait_p95_of_1300_ms_is_on_the_line` |
@@ -3896,7 +3899,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-BR-06-001 | 受入：合成の区間 1 つ（`id` が `file-3`、受けた標本 48000、VAD に渡した標本 32000、閉じた detector が主、`silence`）から行を作る | 1 区間 | 1 件 | `event` が `asr.vad.closed` の行がちょうど 1 件。`level` が `info`。足された項目が `id`、`lag_ms`、`rule` の 3 つだけで、値が `"file-3"`、1000、`"silence"`（specified：BR-6） | 陽性 | `br06_the_close_of_a_segment_logs_how_far_the_detector_lagged` |
-| T-BR-06-002 | 受けた標本から渡した標本を引いた差が (16, 160, 48000) の 3 区間 | ms への直し | 16 標本 = 1 ms | `lag_ms` が 1、10、3000（derived：16000 Hz。16 の倍数だけを置く。16 の倍数でない差の丸めは設計に無い） | 陽性 | `the_lag_is_the_sample_difference_in_milliseconds_at_16000_hz` |
+| T-BR-06-002 | 受けた標本から渡した標本を引いた差が (16, 160, 48000) の 3 区間 | ms への直し | 16 標本 = 1 ms | `lag_ms` が 1、10、3000。続けて差が 15、17、31 標本の区間は 0、1、1（specified：設計 10.13.13 の 1 の floor。16000 Hz で 1 標本は 62.5 µs） | 陽性 | `the_lag_is_the_sample_difference_in_milliseconds_at_16000_hz` |
 | T-BR-06-003 | 差が 0 標本の区間 | 遅れ 0 | 0 は数 | `lag_ms` の項目が在り、値が数の 0（`null` でも欠けでもない）（specified：BR-6「遅れ」。0 を「項目なし」と読まない） | 境界 | `a_lag_of_zero_is_written_as_the_number_zero` |
 | T-BR-06-004 | 閉じた detector が (主の無音、早い detector、`max_speech` の強制) の 3 区間 | `rule` の 3 つの値 | 3 つ | `rule` が `silence`、`early`、`max_speech`（specified：BR-6） | 陽性 | `the_rule_names_which_detector_or_limit_closed_the_segment` |
 | T-BR-06-005 | `final` にならなかった区間（decode が空）と、`final` になった区間（`file-7`） | 区間が `final` になる、ならない | 区間ごとに 1 件 | どちらも 1 件ずつ出る。前者の `id` は `null`（項目は在る）、後者は `"file-7"`（specified：BR-6 の陰性対照と 10.9.4） | 陰性、境界 | `a_segment_that_made_no_final_is_logged_with_a_null_id` |
@@ -3947,7 +3950,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-10-002 | 実物：`ip02.md` と `ip07.md` の `mixed-up utterances:` の行 | 記録の既存の数 | 一致 | 001 の行数が、それぞれの行の先頭の数（0、1、1）と一致（specified：BR-10 の陽性対照） | 陽性 | `the_named_rows_are_as_many_as_the_mixed_up_utterances_of_the_records` |
 | T-BR-10-003 | 道具：取り違えの無い合成の記録 | 0 件 | 0 行 | 0 行で、「取り違えなし」と書く（specified：BR-10 の陰性対照） | 陰性 | `a_record_without_mix_ups_names_no_utterance` |
 | T-BR-10-004 | 道具：`asr.lang.fallback` の行を持たない取り違えた発話 | 印が無い | 空文字で埋めない | SenseVoice の印と `step` の欄は「なし」と書き、空文字や 0 でない（derived：欠けを既定で埋めない規約。001 の行が印を持つ陽性対照） | 境界 | `a_missing_sensevoice_tag_is_written_as_none` |
-| T-BR-10-005 | 道具：声の長さが 16000 標本と 32000 標本の 2 発話 | 声の長さの単位 | 16 標本 = 1 ms | 1000 ms と 2000 ms（derived：16000 Hz。端数の丸めは設計に無く、1000 の倍数だけを置く） | 陽性 | `the_voice_length_is_written_in_milliseconds` |
+| T-BR-10-005 | 道具：声の長さが 15999、16000、32000 標本の 3 発話 | 声の長さの単位 | 16 標本 = 1 ms | 999 ms、1000 ms、2000 ms（specified：設計 10.13.13 の 1 の floor。15999 標本は 999937.5 µs） | 陽性 | `the_voice_length_is_written_in_milliseconds` |
 
 **BR-11（IP-4 の結べない clip の理由。`native/hayamimi-eval/tests/br11.rs`）**
 
@@ -3961,7 +3964,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-11-004 | 道具：manifest は 5 行だが記録に 4 発話分の行しか無い合成（1 clip の行が全 repeat で欠ける） | 理由を付ける材料が無い clip | 理由が 1 つも残らない記録は誤り | `Err`（理由の無い clip を名指して言う）（specified：BR-11 の陰性対照） | 陰性 | `a_clip_with_no_reason_left_makes_the_record_an_error` |
 | T-BR-11-005 | 道具：最後の `final` の `t_us` が `t_end_us` と等しい発話と、1 µs 前の発話 | `t_end` ちょうど | `>=` で閉じる | 前者は閉じる `final` を持つ（結べる）。後者は `closed_before_end`（derived：`build_samples` の `events[i].t_us >= window.t_end_us`。設計 10.13.2「最後の sample を送る前に着いた」の両側） | 境界 | `a_final_arriving_exactly_at_the_end_closes_the_utterance` |
 | T-BR-11-006 | 道具：1 つの clip で閉じない repeat が 0 個、1 個、2 個、3 個の 4 通り | repeat の欠け | 3 個すべて欠けた時だけ名指す | 0、1、2 個は結べる（残りの repeat の中央値）、3 個は名指される（derived：`medians_by_clip` が欠けた repeat を外す。「IP-4 の線と結び方は変えない」） | 境界 | `a_clip_is_named_only_when_every_repeat_lacks_a_closing_final` |
-| T-BR-11-007 | 道具：pair の run では閉じ、`--lang` の run の全 repeat で `finals` が 0 の clip | 欠けた側が `--lang` の run | 理由を付ける | その clip が名指され、理由は `no_final`（`--lang` の run の `finals` から）で、どちらの run の欠けかが分かる（設計は欠けた run を書かない。残る穴に挙げる） | 境界 | `a_clip_missing_in_the_forced_language_run_is_named_with_its_reason` |
+| T-BR-11-007 | 道具：pair の run では閉じ、`--lang` の run の全 repeat で `finals` が 0 の clip | 欠けた側が `--lang` の run | 理由を付ける | その clip が名指され、理由は `missing_in_lang_run`。どちらの `--lang` の run（`--lang ja` か `--lang en`）で欠けたかと、その run の側の理由 `no_final` が並んで書かれ、pair の run の側の理由の欄には書かれない。同じ入力で `--lang` の run の `finals` が 1 以上なら、run の側の理由は `closed_before_end`（specified：設計 10.13.13 の 3） | 境界 | `a_clip_missing_in_the_forced_language_run_is_named_with_its_reason` |
 
 **BR-12（IP-4 の線の外の clip の道。記録。`native/hayamimi-eval/tests/br12.rs`）**
 
@@ -3975,15 +3978,18 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 **BR-13（同じ session への 2 回目の run の `final`。`native/hayamimi-eval/tests/br13.rs`）**
 
-材料：記録 C は 2 回目の run の合成で、`session_start` が無く `ready` だけが `t_us` 50000 に在る。4 発話の窓は `(t_start_us, t_end_us)` が (1000000, 3000000)、(6000000, 8000000)、(11000000, 13000000)、(16000000, 18000000)、言語は `ja`、`en`、`ja`、`en`。`final` は `id` が `file-1` から `file-4`、`t_us` が `t_end_us + 400000`、`latency_ms` 300、`t1_s` が `t_end_us / 1000000 + 30.854`（33.854、38.854、43.854、48.854）。記録 D は記録 C の `t1_s` から 30.904 を引き、`session_start` を `t_us` 50000 に置いた 1 回目の形である。割り当ては `build_samples` の規則で、記録の関数は `native/hayamimi/tests/support/dialog.rs` の `given_of` と同じ入口（2 つの file の text を受ける）で呼ぶ。
+材料：記録 C は 2 回目の run の合成で、`session_start` が無く、`ready` が `t_us` 50000 に在り、`ready` は `stream_s` 30.904（接続した時の流れの時計の位置）を持つ。道具は `ready` を受けた時刻から `stream_s` を引いた値を、その接続の `t1_s` を道具の時計へ寄せる量にする（設計 10.13.13 の 10）。4 発話の窓は `(t_start_us, t_end_us)` が (1000000, 3000000)、(6000000, 8000000)、(11000000, 13000000)、(16000000, 18000000)、言語は `ja`、`en`、`ja`、`en`。`final` は `id` が `file-1` から `file-4`、`t_us` が `t_end_us + 400000`、`latency_ms` 300、`t1_s` が `t_end_us / 1000000 + 30.854`（33.854、38.854、43.854、48.854）。記録 D は記録 C の `t1_s` から 30.904 を引き、`session_start` を `t_us` 50000 に置き、`ready` から `stream_s` を取った 1 回目の形（今の記録）である。割り当ては `build_samples` の規則で、記録の関数は `native/hayamimi/tests/support/dialog.rs` の `given_of` と同じ入口（2 つの file の text を受ける）で呼ぶ。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-13-001 | 受入：記録 C を、起点を置き直す記録の関数に渡す | `session_start` の無い 2 回目の run | 1 窓に 1 件 | 4 件の `final` が窓 1 から 4 に 1 件ずつ割り当たる（`finals` が 1、1、1、1）。要約の `with_final` が 4（specified：BR-13。起点を最初の `final` に置いても `ingest.client.connected` に置いても、窓の間が 2 秒以上あるので同じ結果になる入力） | 陽性 | `br13_a_second_stream_into_one_session_places_its_finals_on_its_own_windows` |
+| T-BR-13-001 | 受入：記録 C を、起点を置き直す記録の関数に渡す | `session_start` の無い 2 回目の run | 1 窓に 1 件 | 4 件の `final` が窓 1 から 4 に 1 件ずつ割り当たる（`finals` が 1、1、1、1）。要約の `with_final` が 4（specified：BR-13 と設計 10.13.13 の 10。`t1_s` 33.854 は `0.05 − 30.904 + 33.854 = 3.0` 秒に寄り、窓 1 の終わりに等しい） | 陽性 | `br13_a_second_stream_into_one_session_places_its_finals_on_its_own_windows` |
 | T-BR-13-002 | 記録 D を同じ関数に渡す | `session_start` が在る 1 回目の形 | 今のとおり | `finals` が 1、1、1、1。`with_final` が 4（specified：BR-13 の陽性対照） | 陽性 | `a_first_stream_with_a_session_start_is_still_placed_as_before` |
 | T-BR-13-003 | 記録 C を、起点を置き直さない `build_samples` に、`final` の `t1_s` をそのまま置いて渡す | 今の不具合 | 4 件が最後の窓 | `finals` が 0、0、0、4、`with_final` が 1（derived：2026-10-23 の実際の 2 回目の run の記録で、行 4 の `finals` が 4、行 1 から 3 が 0。設計 10.13.5 の Q-g。この対照が通らなくなる日は、`build_samples` 自体を直した日で、その時は設計の席に戻す） | 陰性 | `without_a_new_origin_the_four_finals_fall_on_the_last_window` |
-| T-BR-13-004 | 記録 C の `t1_s` にさらに 30.854 を足し（3 回目の run）、同じ関数に渡す | 前の run が 2 回 | 1 窓に 1 件 | `finals` が 1、1、1、1（property：前の run の数に依らず、起点の置き直しが働く） | property | `a_third_stream_into_one_session_places_its_finals_on_its_own_windows` |
+| T-BR-13-004 | 記録 C の `t1_s` にさらに 30.854 を足し、`stream_s` を 61.758 にして（3 回目の run）、同じ関数に渡す | 前の run が 2 回 | 1 窓に 1 件 | `finals` が 1、1、1、1（property：前の run の数に依らず、`ready` の `stream_s` による寄せが働く） | property | `a_third_stream_into_one_session_places_its_finals_on_its_own_windows` |
 | T-BR-13-005 | 記録 C の参照文を 4 件の `final` の text に等しく置き、要約を出す | 文字の照合 | 完全一致 | `cer_dist` の和が 0。今の不具合の要約（2026-10-23 の実測 `cer_micros` 1641304）の値にならない（pseudo：参照文と `final` の text が同じなので 0 になる） | 陽性 | `the_summary_of_a_second_stream_has_no_character_errors_when_the_texts_agree` |
+| T-BR-13-006 | 記録 C の `ready` から `stream_s` を取り、`session_start` を `t_us` 50000 に置いた記録。もう 1 つは `stream_s` も `session_start` も無い記録 | `stream_s` が無い今の記録 | 今のとおり `session_start` で寄せる | 前者は記録 D と同じ割り当て（`finals` が 1、1、1、1）。後者は寄せる量が 0 で、`finals` が 0、0、0、4（specified：設計 10.13.13 の 10「`stream_s` が無い記録は、今のとおり `session_start` を受けた時刻で寄せる」） | 境界、陰性 | `a_ready_without_stream_s_is_placed_by_the_session_start_as_before` |
+| T-BR-13-007 | 記録 C の発話 1 の `final` を取り除き（行 1 に `final` が無い）、同じ関数に渡す | 最初の `final` が欠ける | 起点は `final` に頼らない | 発話 2 から 4 の `final` が窓 2 から 4 に 1 件ずつ割り当たる（`finals` が 0、1、1、1）。最初の `final` を起点にする実装は、発話 2 の `final` を窓 1 に置いて落ちる（specified：設計 10.13.13 の 10「最初の final を起点にする形は採らない」） | 陰性 | `the_origin_does_not_depend_on_the_first_final_of_the_connection` |
+| T-BR-13-008 | `native/hayamimi/src/ingest.rs` の `mod tests`：`ready` の frame を作る関数に、流れの位置 30904000 µs を渡す | `ready` の項目 | `stream_s` は秒の数 | frame の JSON に `stream_s` が数 30.904 で在り、`type` が `ready`、`sr` が 16000 のまま。流れの位置 0 では `stream_s` が数の 0（欠けでも null でもない）（specified：設計 10.13.13 の 10。足した key は既存の key と型を変えない：`rust_port.ja.md` の RP-12） | 陽性、境界 | `the_ready_frame_carries_the_stream_position_in_seconds` |
 
 **BR-14（同じ `id` の清書が頁で 1 行になる。`native/hayamimi-ui/src/model.rs`、実走は `native/hayamimi/tests/br14.rs`）**
 
@@ -3994,6 +4000,8 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-14-003 | 違う `id`（`r-1`、`r-2`）の清書 2 件 | 別の `id` | 2 行 | `refines` が 2 行（specified：BR-14 の陽性対照） | 陽性 | `refined_paragraphs_of_different_ids_stay_two_rows` |
 | T-BR-14-004 | 同じ内容の清書（`r-1`）を 2 回 `apply` する | 繋ぎ直しの流し直し | 1 行 | `refines` が 1 行（specified：BR-14 の陰性対照） | 陰性 | `the_same_refine_replayed_after_a_reconnect_stays_one_row` |
 | T-BR-14-005 | `r-1`、`r-2`、`r-3` の清書を `apply` し、同じ 3 件をもう一度 `apply` する | 流し直しが複数件 | 3 行 | `refines` が 3 行で、順番が `r-1`、`r-2`、`r-3`（流し直しで並びが入れ替わらない）（specified：設計 10.13.5 の Q-h の 2 つ目の道） | 陰性 | `a_replay_of_several_refines_leaves_the_same_rows` |
+| T-BR-14-011 | `r-1`、`r-2` の清書を `apply` し、`r-1` を text だけ変えてもう一度 `apply` する | 先頭の行の置き換え | 前の行の位置のまま | `refines` の順番が `r-1`（新しい text）、`r-2`。最後へ動かさない。`refine_total()` が 2 のまま（specified：設計 10.13.13 の 4） | 境界 | `a_replaced_row_keeps_its_place_in_the_order` |
+| T-BR-14-012 | `r-1` に、前に付いた訳（`en`、text `tr1`）と後に付いた訳（`en`、text `tr2`）、別の言語の訳（`zh`、text `tz`） | 同じ言語の訳が 2 つ | 後の物 | `r-1` の行の訳が `en` は `tr2`、`zh` は `tz` の 2 つ（specified：設計 10.13.13 の 4「同じ言語の訳が 2 つ在れば後の物」。別の言語の訳は残る） | 境界 | `of_two_translations_in_one_language_the_later_one_stays` |
 | T-BR-14-006 | `id` の無い清書 2 件 | `id` が無い | 置き換えない | `refines` が 2 行（`id` が無ければ結ぶ物が無い）（derived：`id` は `Option`。`on_refine` は `found.id` を引く） | 境界 | `refines_without_an_id_are_never_replaced` |
 | T-BR-14-007 | `r-1` を話者 `S1?` と text `A` で、同じ `id` を text `B` で `apply` する | 本文が変わる | 後の物 | 行の本文が `B`（specified：BR-14「話者は後の物」と同じく、後の清書で置き換える） | 境界 | `the_later_refine_replaces_the_text_as_well` |
 | T-BR-14-008 | 置き換えの前後の `refine_total()` と `dropped_refines` | 置き換えは新しい行でない | 総数が増えない | 置き換えの後の `refine_total()` が前と同じ（1）。末尾へ追う動きを起こさない（derived：頁の `use_follow` が総数の増加で動く） | 境界 | `a_replacement_does_not_grow_the_refined_total` |
@@ -4010,6 +4018,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-15-004 | 速報の無いまま `final` を `apply` | 速報が先に無い | 空のまま | `strip_text` が空で、その他の状態が `final` の分だけ動く（`finals` が 1 行） | 境界 | `a_final_with_no_partial_before_it_leaves_the_strip_empty` |
 | T-BR-15-005 | 実走：頁を開いたまま `lat-dialog` を流し、最後の `final` の後の `.strip` と `.strip-text` を読む。最後の `final` の前に届いた最後の速報の text を `/events` から取る | 実際の流れの最後 | 速報の文が残らない | `.strip-text` の text が、`strings.en.toml` と `strings.ja.toml` の `waiting` の文言と等しく、`.strip` が class `quiet` を持ち、最後の速報の text を含まない。最後の速報の text が空の run は通と読まない（specified：BR-15。空の欄は「待ち」の文言で描かれる：`dashboard.rs` の `Strip`） | 陰性 | `the_strip_of_the_page_shows_waiting_after_the_last_final` |
 | T-BR-15-006 | 実走：005 の run の最後の `final` の直前（最後の速報の後） | 速報の後で `final` の前 | 速報が出る | `.strip-text` の text が最後の速報の text と等しい（005 が読む欄が、速報の間は文を出すことを見る陽性対照） | 陽性 | `the_strip_of_the_page_shows_the_partial_before_its_final` |
+| T-BR-15-007 | 純関数：発話 1 の速報 `こん` を `apply`、発話 2 の速報 `次` を `apply`、続けて発話 1 の `final`（遅れて着いた物）を `apply`。続けて発話 2 の速報 `次の` を `apply` | `final` が次の速報より遅れる | `final` は着いた時に必ず空にする | 遅れた `final` の後で `strip_text` が空（`次` も消える）、次の速報の後で `次の`（specified：設計 10.13.13 の 5。どの速報がどの `final` に覆われたかは見分けない） | 境界 | `a_late_final_empties_the_strip_and_the_next_partial_fills_it_again` |
 
 **B4（別の PC のブラウザから音を送る頁）の行：BR-16、BR-17、BR-18 は、評議の席の判定（H52）の後に有効である。**
 
@@ -4028,12 +4037,14 @@ H52 の判定の後に有効。
 | T-BR-16-005 | 純関数に 169.253.255.255、169.254.0.0、169.254.255.255、169.255.0.0、126.255.255.255、127.0.0.0、127.255.255.255、128.0.0.0 | link-local と loopback の両端 | 範囲の端 | 169.254.0.0、169.254.255.255、127.0.0.0、127.255.255.255 を受け、残りの 4 つを断る | 境界 | `link_local_and_loopback_ranges_are_accepted_on_both_edges_and_refused_just_outside` |
 | T-BR-16-006 | 純関数に `fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fc00::`、`fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fe00::`、`fe7f::`、`fe80::`、`febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff`、`fec0::`、`::1`、`::` | IPv6 の ULA、link-local、loopback の両端 | 範囲の端 | `fc00::`、`fdff:…`、`fe80::`、`febf:…`、`::1` を受け、残りの 5 つを断る | 境界 | `the_ipv6_unique_local_and_link_local_ranges_are_accepted_on_both_edges` |
 | T-BR-16-007 | 純関数に 8.8.8.8、100.64.0.1、0.0.0.0、224.0.0.1、255.255.255.255、`2001:4860:4860::8888` | LAN の外のうち、公開、共有 address 空間、特殊 | どれも断る | 6 つとも `address` で断る（specified：設計 10.13.6「ほかは reason: address で断る」。陽性対照は 004 から 006 の受ける側） | 陰性 | `public_and_special_addresses_are_refused_with_reason_address` |
-| T-BR-16-008 | 純関数に `::ffff:192.168.1.5`、`::ffff:8.8.8.8` | IPv4 を包んだ IPv6 | 中の IPv4 で決める | 前者を受け、後者を断る（設計は書かない。LAN の端末が二重 stack の socket で包まれて見えるため、中の address で決める。残る穴に挙げる） | 境界 | `an_ipv4_address_wrapped_in_ipv6_is_judged_by_the_address_inside` |
+| T-BR-16-008 | 純関数に `::ffff:192.168.1.5`、`::ffff:8.8.8.8` | IPv4 を包んだ IPv6 | 中の IPv4 で決める | 前者を受け、後者を `address` で断る（specified：設計 10.13.13 の 6「包んだ IPv4 の address に直してから判定する」） | 境界 | `an_ipv4_address_wrapped_in_ipv6_is_judged_by_the_address_inside` |
 | T-BR-16-009 | `Origin` が (a) 無い、(b) `null`、(c) 自分と port だけ違う、(d) scheme が `http`、(e) host が違う、(f) 自分と同じ | origin の同値類 | 完全に同じ時だけ | (a) から (e) は閉じられ `reason` が `origin`、(f) だけ `ready`（specified：設計 10.13.6「頁の自分の origin と同じ時だけ受け」） | 境界 | `only_the_exact_own_origin_is_accepted` |
 | T-BR-16-010 | 最初の JSON の frame の `token` が (a) 無い、(b) 空文字、(c) 同じ長さの違う値、(d) 正しい値の先頭 1 文字を欠いた値、(e) 正しい値の末尾に 1 文字足した値 | 合言葉の同値類 | 完全一致だけ | 5 本とも閉じられ `reason` が `token`（specified：BR-16。各 1 行） | 境界 | `any_token_other_than_the_exact_one_is_refused` |
 | T-BR-16-011 | 正しい合言葉を URL の query にだけ置き、最初の frame に `token` を置かない接続 | query の合言葉 | 採らない手段 | 閉じられ、`reason` が `token`（specified：設計 10.13.6「合言葉を URL の query に置く」を採らない物とする） | 陰性 | `a_token_in_the_query_string_is_not_accepted` |
 | T-BR-16-012 | 001 の run の log の全行で、正しい合言葉の文字列を探す。陽性対照として、localhost の `/dashboard` の html で同じ文字列を探す | log に合言葉が出ない | 0 件 | log は 0 件、html は 1 件以上（specified：BR-16「log の行に合言葉の文字が無い」。0 件は非 0 の対照が付いて初めて読む） | 陰性 | `the_token_never_reaches_the_log` |
 | T-BR-16-013 | 断られた接続に、断られた後で音声の frame を送る | 断った後 | 受けない | `ready` は届かず、`final` が 0 件（specified：BR-16「どれも閉じられ」） | 陰性 | `a_refused_connection_gets_no_ready_and_no_final` |
+| T-BR-16-014 | 正しい合言葉と自分の origin の 1 本目が音を送っている間に、同じ条件の 2 本目を TLS の listener へ接続する | 2 本目の client | 1013 で閉じる | 2 本目は `ready` を受けず WebSocket の close code 1013 で閉じられ、`ingest.client.refused` が `reason: busy` で 1 行出る。1 本目は閉じられず、その音の `final` が届く（specified：設計 10.13.13 の 8） | 陰性 | `a_second_client_while_one_is_sending_is_closed_with_1013_and_busy` |
+| T-BR-16-015 | 同じ入れ方を localhost の `/ingest`（port は OS に選ばせる）で | localhost も同じ 1 本の制限 | 1013 で閉じる | 014 と同じ（`reason: busy`、close code 1013、1 本目は止まらない）（specified：設計 10.13.13 の 8「TLS の listener でも localhost の 8766 でも」） | 陰性 | `a_second_localhost_client_is_closed_with_1013_and_busy` |
 
 **BR-17（`/send` は TLS でだけ配られる。`native/hayamimi/tests/br17.rs`）**
 
@@ -4147,7 +4158,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
 | T-BR-24-001 | 受入、実走：窓 1280 × 800、`hayamimi` に cinecaption と UDEV Gothic 35 の file の path を渡す。日本語の側の字体の `select` に focus を置き、矢印の key と Enter で `udev-gothic`。頁を読み直す | 側ごとの字体 | 先頭が `"UDEV Gothic 35"` | `ja` のどの `.row` の `.row-text` と `.tr-text` も `fontFamily` の先頭が `"UDEV Gothic 35"`、`en` の `.row` は `default` の並びのまま。読み直しても同じ。頁が出した要求の host がすべて頁の host と同じ（specified：BR-24） | 陽性 | `br24_the_chosen_font_reaches_the_computed_font_family_of_its_side_and_an_unknown_one_falls_back` |
-| T-BR-24-002 | 純関数：字体を読む関数に 6 つの id（`default`、`cinecaption`、`udev-gothic`、`yu-gothic`、`meiryo`、`yu-mincho`） | 一覧の 6 つ | 先頭の字体の名 | 先頭が `Zen Kaku Gothic New`、`cinecaption` の `@font-face` の family、`UDEV Gothic 35`、`Yu Gothic UI`、`Meiryo`、`Yu Mincho`。`yu-mincho` の並びは末尾が `serif`、ほかは `sans-serif`（specified：設計 10.13.11 の字体の表。`cinecaption` の family の名は設計に無く、残る穴に挙げる） | 陽性 | `each_listed_font_id_reads_as_its_fixed_family_list` |
+| T-BR-24-002 | 純関数：字体を読む関数に 6 つの id（`default`、`cinecaption`、`udev-gothic`、`yu-gothic`、`meiryo`、`yu-mincho`） | 一覧の 6 つ | 先頭の字体の名 | 先頭が `Zen Kaku Gothic New`、`cinecaption`、`UDEV Gothic 35`、`Yu Gothic UI`、`Meiryo`、`Yu Mincho`。`yu-mincho` の並びは末尾が `serif`、ほかは `sans-serif`（specified：設計 10.13.11 の字体の表と 10.13.13 の 11「cinecaption の CSS の family 名は `cinecaption`」） | 陽性 | `each_listed_font_id_reads_as_its_fixed_family_list` |
 | T-BR-24-003 | 純関数：`x; color: red`、`Comic Sans MS`、空文字、`UDEV-GOTHIC`、`udev-gothic `（末尾に空白）、数 1 | 一覧の外 | `default` | どれも `default` の並び（specified：BR-24。大文字小文字と空白を許さない） | 陰性 | `an_id_outside_the_list_reads_as_default` |
 | T-BR-24-004 | 純関数：`;`、`}`、`{`、`url(`、改行、`\`、`/*`、`<`、`"` を含む 20 通りの文字列 | 差し込みの試み | 出力は固定の 6 つの並びのどれか | どの入力でも出力が 6 つの固定の並びのどれかと完全に等しく、入力の文字が出力に現れない（property：設計の「名前の文字列を利用者の入力から組まない」） | property | `no_input_text_ever_reaches_the_family_list` |
 | T-BR-24-005 | 実走：`default` に戻す | 既定へ戻す | `--font-sans` の並び | `ja` の `.row-text` の `fontFamily` が、頁の中に作った `font-family: var(--font-sans)` の probe 要素の `fontFamily` と等しい（specified：BR-24 の陽性対照） | 陽性 | `going_back_to_default_restores_the_font_sans_list` |
@@ -4185,8 +4196,8 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 |---|---|---|---|---|---|---|
 | T-BR-26-001 | 受入：`--models` の fixture に `ja`、`en`、`zh` の認識器の file だけを置いて起こし、`GET /langs`。中継は偽の訳の server の `/props` の `model_path` を表の 2 つの model の名にして起こし、`GET /langs` | 認識の側と訳の側 | 手元の model | `hayamimi` の `/langs` が `ja`、`en`、`zh` を返し、`ko` を返さない。中継の `/langs` が表の言語から作った組だけを返す（oracle は表を別に読んだ組。specified：BR-26） | 陽性 | `br26_the_choosable_languages_come_from_the_models_on_this_machine` |
 | T-BR-26-002 | 中継：表に CAT-Translate の名を置いた偽の server | 表に在る model | 組が返る | `en,ja` の組が返る（specified：BR-26 の陽性対照） | 陽性 | `a_model_in_the_table_gives_its_pairs` |
-| T-BR-26-003 | 中継：表に無い名（`unknown-model.gguf`）の偽の server で、`/langs` を 3 回引く | 表に無い model | その server の組は 0 | その server の組が 0、warn が起動で 1 行だけ（3 回引いても増えない）（specified：BR-26 の陰性対照。設計 10.13.12 は別の段落で「`en,ja` は表を引かずに使える」と書き、004 と食い違う。報告に挙げる） | 陰性 | `a_model_missing_from_the_table_has_no_pairs_and_warns_once` |
-| T-BR-26-004 | 中継：表に無い名だが CAT-Translate の file 名の偽の server | 表に無い CAT-Translate | `en,ja` は選べる | `en,ja` が組の一覧に在る（derived：設計 10.13.12「CAT-Translate の file が表に無い時も `en,ja` は選べる」。003 の `unknown-model.gguf` と別の入力で、食い違いの境を分ける） | 境界 | `en_ja_is_choosable_even_when_the_cat_translate_file_is_not_in_the_table` |
+| T-BR-26-003 | 中継：`--llm-other` の偽の server の `model_path` が表に無い名（`unknown-model.gguf`）。`/langs` を 3 回引く | `--llm-other` の表に無い model | その server の組は 0 | その server の組が 0、warn が起動で 1 行だけ（3 回引いても増えない）（specified：BR-26 の陰性対照と設計 10.13.12 の 2「`--llm-other` の server は、表に名が在る時だけ表の言語を持つ」） | 陰性 | `a_llm_other_model_missing_from_the_table_has_no_pairs_and_warns_once` |
+| T-BR-26-004 | 中継：`--llm` の偽の server の `model_path` が表に無い名（CAT-Translate の file 名を含む）。`/langs` を 3 回引く | `--llm` の表に無い model | `en,ja` の 1 つだけ | 組の一覧がちょうど `en,ja` の 1 つで、warn が起動で 1 行だけ（specified：設計 10.13.12 の 2「`--llm` の server は…表に名が無ければ `en,ja` の組だけ」と BR-26 の陰性対照） | 境界 | `a_llm_model_missing_from_the_table_still_gives_en_ja_and_warns_once` |
 | T-BR-26-005 | `--pair ko,ja` で起こす（fixture は `ja`、`en`、`zh`） | 認識の側の一覧に無い言語 | 起動が止まる | exit code が 0 でなく、理由に `ko` が出て、`--serve` の port が一度も開かない（specified：BR-26 の陰性対照） | 陰性 | `a_pair_with_a_language_that_cannot_be_read_stops_the_start` |
 | T-BR-26-006 | `--pair` が `ja,ja`、`en`、`en,ja,zh`、`eng,jpn`、`e1,ja` | 同じ言語、個数が違う、code の形でない | どれも止まる | 5 つとも exit code が 0 でなく理由が出る（specified：設計 10.13.12「同じ、一覧に無い、code の形でない時は起動を止めて」。個数は derived） | 境界 | `a_malformed_or_repeated_pair_stops_the_start` |
 | T-BR-26-007 | `--models` の fixture に `ja` と `en` の file だけを置く（`zh` の file が無い） | tier は在るが file が無い | 選べない | `/langs` が `zh` を返さない（specified：設計 10.13.12「model の file が置き場に在る時に選べる」） | 境界 | `a_language_whose_model_file_is_absent_is_not_offered` |
@@ -4197,7 +4208,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 
 **BR-27（組が判定と落ち先と訳の向きを決める。`native/hayamimi-asr/tests/br27.rs`、中継は `native/hayamimi-relay/tests/br27.rs`）**
 
-材料：判定は T-IP-03 の偽の形（`Named`、`Models`、`Script`、`FixedLid`）で、組を `Policy::pair` へ渡す引数にする。SenseVoice の偽は印を返す。ここにない落ち先（`zh,ja` の文字の段と、`zh,ja` の最後の落ち先）は、設計が決めていない（残る穴）ので行を置かない。
+材料：判定は T-IP-03 の偽の形（`Named`、`Models`、`Script`、`FixedLid`）で、組を `Policy::pair` へ渡す引数にする。SenseVoice の偽は印を返す。`zh,ja` の文字の段は仮名が 1 字でも在れば `ja`、無ければ `zh`（設計 10.13.13 の 9）で、最後の落ち先は `lid.md:17` の clean の 1.0 秒の行（ja 33 %、en 93 %、zh 8 %、ko 33 %、yue 0 %）の正解率の低い方、同じ値なら `<a>`（設計 10.13.12）である。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -4221,6 +4232,12 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-27-018 | 中継：組 `en,es`。速報の原文が `Hola mundo`、`final` の text が (a) `Hola mundo`、(b) `Hola mundo.`、(c) `hola mundo` | ラテン文字の言語 | `en` と同じく完全一致だけ | (a) は使い回し、(b) と (c) は使い回さない（T の依頼が 1 件）（derived：H65。`en` の比べは `japanese` が偽で、文字どおりの一致だけ） | 境界、陰性 | `a_latin_script_pair_reuses_a_partial_translation_only_on_an_exact_match` |
 | T-BR-27-019 | 中継：組 `ko,en`。速報の原文が `안녕하세요 여러분`、`final` の text が同じ字と空白 | 空白を持つ非ラテン文字の言語 | `en` と同じく完全一致 | 使い回しが起きる。空白を 1 つ減らした `final` では起きない（derived：H65。`ko` は語の間に空白を持つので、空白を外して比べる `ja` の規則ではなく、`en` の規則） | 境界 | `a_ko_final_is_compared_with_its_spaces` |
 | T-BR-27-020 | 中継：速報の訳を追っている最中に、組 `zh,ja` の `langs` を受け、同じ `id` の `final` を流す | 組が変わった時の控え | 控えを捨てる | その `final` の T の依頼が 1 件（使い回さない）。前の組で頼んだ訳の答えは、その `id` の行に付く（specified：設計 10.13.12「組を変えた時に…速報の使い回しの控えを捨てる。前の組で頼んだ訳の答えは今のとおり id の行に付ける」） | 陰性 | `a_pair_change_drops_the_tracked_partial_so_the_final_is_not_reused` |
+| T-BR-27-021 | 組 `zh,ja`。判定器 `ko`、SenseVoice の印 `ko`、文 `こんにちは世界` | 漢字を使う 2 つの言語、文に仮名が在る | 仮名が 1 字でも在れば `ja` | `ja`、`step` が `script`（specified：設計 10.13.13 の 9） | 陽性 | `a_text_with_kana_is_ja_in_a_zh_ja_pair` |
+| T-BR-27-022 | 組 `zh,ja`。021 と同じ設定で文 `你好世界` | 仮名が 0 字 | 無ければ `zh` | `zh`、`step` が `script`（同上。022 と 023 で仮名の 0 字と 1 字の両側を見る） | 境界 | `a_text_without_kana_is_zh_in_a_zh_ja_pair` |
+| T-BR-27-023 | 組 `zh,ja`。021 と同じ設定で文 `你好の世界` | 仮名がちょうど 1 字 | 1 字でも在れば `ja` | `ja`、`step` が `script` | 境界 | `a_single_kana_makes_the_text_ja_in_a_zh_ja_pair` |
+| T-BR-27-024 | 組 `zh,ja`。判定器 `ko`。SenseVoice が (a) `Unavailable`、(b) 復号の失敗、(c) 空の文 | 判定の段が無い、失敗、文が無い | 落ち先は正解率の低い方 | (a) `zh`、`step` が `default`。(b) `zh`、`step` が `sv_failed`。(c) `zh`、`step` が `default`（specified：設計 10.13.12 の 4 と 5 と `lid.md:17` の zh 8 %、ja 33 %） | 境界 | `a_zh_ja_pair_falls_to_zh_where_whisper_tiny_is_less_often_right` |
+| T-BR-27-025 | 組 `ja,zh`（`<a>` が `ja`）。024 の (a) と同じ入力 | 順序を替えた組 | 低い方は順序に依らない | `zh`、`step` が `default`（`<a>` の `ja` でなく、正解率の低い `zh`） | 境界 | `the_fallback_follows_the_lower_accuracy_and_not_the_order_of_the_pair` |
+| T-BR-27-026 | 組 `ko,ja` と `ja,ko`。024 の (a) と同じ入力 | 正解率が同じ（clean 1.0 秒で 33 % と 33 %） | 同じ値なら `<a>` | `ko,ja` は `ko`、`ja,ko` は `ja`、どちらも `step` が `default`（specified：設計 10.13.12「同じ値なら `<a>`」） | 境界 | `equal_accuracy_falls_to_the_first_language_of_the_pair` |
 
 **BR-28（途中で組を変える。`native/hayamimi/tests/br28.rs`）**
 
@@ -4247,32 +4264,34 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-29-002 | loopback でない address から `{"punctuate":false}` | `pair` 以外の項目 | 今のとおり | 2xx（specified：BR-29 の陽性対照） | 陽性 | `a_lan_client_can_still_set_the_other_fields` |
 | T-BR-29-003 | loopback から `{"pair":["ja","ja"]}`、`{"pair":["ja"]}`、`{"pair":["ja","en","zh"]}`、`{"pair":[]}`、`{"pair":["xx","ja"]}`、`{"pair":["JA","en"]}`、`{"pair":"ja,en"}`、`{"pair":[1,2]}`、`{"pair":null}` | 不正な組 | 400 | 9 つとも 400 で組が変わらない（specified：BR-29 の陰性対照。個数、型、形は derived） | 陰性 | `an_invalid_pair_is_a_bad_request_and_changes_nothing` |
 | T-BR-29-004 | loopback でない address から `{"pair":["ja","ja"]}` | 認可と検証の順 | 認可が先 | 400 でなく 403（derived：LAN の相手に検証の詳細を返さない） | 境界 | `a_lan_client_is_refused_before_its_body_is_judged` |
-| T-BR-29-005 | loopback から `["zh","ja"]` の後に `["ja","zh"]` | 順序の違う同じ 2 言語 | どちらも受ける | どちらも 2xx で、`langs` の `pair` がそれぞれ送った順（設計 10.13.12「並びの順は…`<a>` が左」） | 境界 | `the_same_two_languages_in_the_other_order_are_a_different_valid_pair` |
-| T-BR-29-006 | 純関数：相手の address に 126.255.255.255、127.0.0.0、127.255.255.255、128.0.0.0、`::1`、`::`、`::ffff:127.0.0.1`、192.168.1.5、10.0.0.1、0.0.0.0 | loopback の両端と外 | loopback だけ | 127.0.0.0、127.255.255.255、`::1`、`::ffff:127.0.0.1` を受け、残りの 6 つを断る（specified：設計 10.13.12「相手の address が loopback の時だけ」。包んだ IPv4 は中で決める：derived） | 境界 | `only_loopback_peers_may_change_the_pair` |
+| T-BR-29-005 | loopback から `["zh","ja"]` の後に `["ja","zh"]` | 順序の違う同じ 2 言語 | どちらも受ける | どちらも 2xx で、`langs` が 1 件ずつ流れ、`pair` がそれぞれ送った順。順序だけを変えた 2 回目の後も、`hayamimi` の log に組の変更を知らせる行が増えない（specified：設計 10.13.13 の 7。頁の区切りと `left` は BR-31 の 006 が見る） | 境界 | `the_same_two_languages_in_the_other_order_are_a_different_valid_pair` |
+| T-BR-29-006 | 純関数：相手の address に 126.255.255.255、127.0.0.0、127.255.255.255、128.0.0.0、`::1`、`::`、`::ffff:127.0.0.1`、192.168.1.5、10.0.0.1、0.0.0.0 | loopback の両端と外 | loopback だけ | 127.0.0.0、127.255.255.255、`::1`、`::ffff:127.0.0.1` を受け、残りの 6 つを断る（specified：設計 10.13.12「相手の address が loopback の時だけ」と 10.13.13 の 6。`::ffff:127.0.0.1` は loopback として受ける） | 境界 | `only_loopback_peers_may_change_the_pair` |
 
 **BR-30（頁の左右と設定が組に従う。純関数は `dashboard.rs`、実走は `native/hayamimi/tests/br30.rs`）**
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-30-001 | 受入、実走：`--pair zh,ja` で起こし、窓 1280 × 800 の頁に `zh` の行と `ja` の行を流す。`localStorage` の `left` を `"en"` にして別の頁を開く。`zh` の字体を選ぶ | 組の中の言語、覚えた向きが組に無い、設定の鍵 | `<a>` が左 | `zh` の `.row` が縦の線の左、`ja` の `.row` が右。2 つの側の選ぶ口のラベルが `zh` と `ja` の code を含み `en` を含まない。`left` が `"en"` の頁でも `zh` が左。`zh` を選ぶと `zh` の `.row` の `fontFamily` に出る。`{"ja":…}` の設定は `ja` の `.row` に効く（specified：BR-30。ラベルは言語の名か code か設計に無く、code を含むことを測る） | 陽性 | `br30_the_page_sides_and_text_settings_follow_the_pair` |
+| T-BR-30-001 | 受入、実走：`--pair zh,ja` で起こし、窓 1280 × 800 の頁に `zh` の行と `ja` の行を流す。`localStorage` の `left` を `"en"` にして別の頁を開く。`zh` の字体を選ぶ | 組の中の言語、覚えた向きが組に無い、設定の鍵 | `<a>` が左 | `zh` の `.row` が縦の線の左、`ja` の `.row` が右。`#pair-a` の value が `zh`、`#pair-b` の value が `ja`。`left` が `"en"` の頁でも `zh` が左。`zh` を選ぶと `zh` の `.row` の `fontFamily` に出る。`{"ja":…}` の設定は `ja` の `.row` に効く（specified：BR-30。組を選ぶ口は `.pair-picker` の `#pair-a` と `#pair-b` で、その value が `zh` と `ja`：設計 10.13.13 の 11） | 陽性 | `br30_the_page_sides_and_text_settings_follow_the_pair` |
 | T-BR-30-002 | 純関数：行の側を決める関数に、組 `[zh, ja]` で `zh`、`ja`、`en`、`ko`、空 | 組の中、組の外 | 組の外は `<a>` の側 | `zh` は `<a>` の側、`ja` は `<b>` の側、`en`、`ko`、空は `<a>` の側（specified：設計 10.13.12「どちらでもなければ組の `<a>` の側」） | 境界 | `a_line_outside_the_pair_goes_to_the_side_of_the_first_language` |
 | T-BR-30-003 | 純関数：向きを読む関数に、組 `[zh, ja]` で `"left":"ja"`、`"left":"zh"`、`"left":"en"`、`left` 無し | 覚えた向きと組 | 組に在る言語だけ | `ja` は `ja` が左、`zh` は `zh` が左、`en` と無しは `zh` が左（specified：設計 10.13.12「覚えた `left` が今の組に在れば…無ければ組の並びの既定」） | 境界 | `a_remembered_left_that_is_not_in_the_pair_falls_to_the_first_language` |
 | T-BR-30-004 | 純関数：設定を読む関数に、組 `[zh, ja]` で `{"ja":{"font":"udev-gothic","scale":120},"ko":{"font":"meiryo","scale":200}}` | 鍵と組 | 組の鍵だけ | `ja` は (udev-gothic, 120)、`zh` は (default, 100)。`ko` はどこにも出ない（specified：BR-30 の陰性対照） | 陰性 | `only_the_keys_of_the_current_pair_are_read` |
 | T-BR-30-005 | 純関数：同じ保存の値を、組 `[en, ja]`、`[zh, ja]`、`[en, ja]` の順に読む | 組を替えて戻す | 戻る | 3 回目の `en` の設定が 1 回目と等しい。保存の値は 3 回とも読むだけで変わらない（specified：設計 10.13.12「組を替えて戻した時は、前に選んだ字体と大きさが戻る」） | property | `switching_the_pair_away_and_back_restores_the_earlier_text_settings` |
 | T-BR-30-006 | 実走：`en,ja` で起こした頁に BR-19 から BR-25 の述語を打つ | 既定の組 | そのまま通る | BR-19 の 001、BR-21 の 001、BR-23 の 001、BR-24 の 001、BR-25 の 001 の述語が通る（specified：BR-30 の陽性対照） | 陽性 | `the_default_pair_page_still_passes_the_side_and_text_predicates` |
 | T-BR-30-007 | 実走：`localStorage` に `{"ko":{"font":"udev-gothic","scale":200}}` を置いて `zh,ja` の頁を開く | 組に無い鍵 | どこにも効かない | どの `.row-text` も `default` の並びと `16px` | 陰性 | `a_setting_for_a_language_outside_the_pair_changes_no_row` |
+| T-BR-30-008 | 実走：loopback の頁で `#pair-a` の value を `zh`、`#pair-b` を `ja` にして `#pair-apply` を click | 組を選ぶ口 | `POST /config` の `pair` | `/events` に `langs` が `["zh","ja"]` で 1 件流れる。口の選択肢は、頁が読んだ 2 つの `/langs` の両方に在る言語だけ（specified：設計 10.13.12「頁は 2 つの `/langs` を読み、両方に在る組だけ」と 10.13.13 の 11） | 陽性 | `the_pair_picker_sends_the_chosen_pair_to_the_config_endpoint` |
 
 **BR-31（組を変えた所の区切りの行。`native/hayamimi/tests/br30.rs`）**
 
-材料：区切りの行の要素は設計が名を決めていない。case は `#feed` の直下の子のうち、`.row` でも `.empty` でもなく、`DroppedNote` でもない要素を区切りと数える。
+材料：区切りの行は `div.pair-divider` で、`data-pair` に新しい組を `<a>,<b>` の形で持つ。組を選ぶ口は `.pair-picker` の欄で、`#pair-a`、`#pair-b`、`#pair-apply` を持つ（設計 10.13.13 の 11）。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-31-001 | 受入、実走：`en,ja` の頁に `en` と `ja` の 2 行を流した後、loopback の頁から `zh,ja` へ変え、続けて `zh` の行を流す | 変えた所 | 区切り 1 つ | 区切りが 1 つ入り、`.main` の左から右にまたがる（± 2 px）。前の `en` の行は縦の線の左、`ja` の行は右のまま。区切りより後の `zh` の行は左。区切りの text が `zh` と `ja` の code を含む（specified：BR-31） | 陽性 | `br31_a_pair_change_draws_a_divider_and_keeps_earlier_lines_where_they_arrived` |
+| T-BR-31-001 | 受入、実走：`en,ja` の頁に `en` と `ja` の 2 行を流した後、loopback の頁から `zh,ja` へ変え、続けて `zh` の行を流す | 変えた所 | 区切り 1 つ | `.pair-divider` が 1 つ入り、`.main` の左から右にまたがる（± 2 px）。`data-pair` が `zh,ja`。前の `en` の行は縦の線の左、`ja` の行は右のまま。区切りより後の `zh` の行は左。区切りの text が `zh` と `ja` の code を含む（specified：BR-31 と設計 10.13.13 の 11） | 陽性 | `br31_a_pair_change_draws_a_divider_and_keeps_earlier_lines_where_they_arrived` |
 | T-BR-31-002 | 実走：組を変えない頁に 2 行を流す | 変えない | 区切り 0 | 区切りが 0 個（specified：BR-31 の陽性対照） | 陽性 | `a_page_whose_pair_never_changes_has_no_divider` |
 | T-BR-31-003 | 実走：001 の run の前の行の `.tr-text` と `.row-text` の text を、変える前後で比べる | もう出ている行を訳し直さない | 変わらない | 前の行の text が前後で同じ（specified：設計 10.13.12「消さず、訳し直さず」） | 陰性 | `earlier_rows_are_neither_removed_nor_translated_again` |
-| T-BR-31-004 | 実走：loopback でない address で開いた頁（`--serve-host 0.0.0.0`） | LAN の頁 | 言語を選ぶ口が無い | その頁の `select` の数が、loopback の頁より少ない。LAN の頁の `.lang-badge` で今の組が分かる（specified：BR-31 の陰性対照。選ぶ口の要素は設計が名を決めていない：数の差で測る） | 陰性 | `a_page_opened_over_the_lan_has_no_language_picker` |
-| T-BR-31-005 | 実走：001 の run の間、LAN の address で開いた別の頁 | 別の頁にも効く | 組は process の物 | LAN の頁にも区切りが 1 つ出る（derived：設計 10.13.12「組は…process が終わるまで効く」。組の持ち主は `hayamimi` 1 つ） | 陽性 | `the_pair_change_reaches_a_page_opened_from_another_address` |
+| T-BR-31-004 | 実走：loopback でない address で開いた頁（`--serve-host 0.0.0.0`） | LAN の頁 | 言語を選ぶ口が無い | その頁の `.pair-picker` が 0 個（loopback の頁は 1 個）。`#pair-a`、`#pair-b`、`#pair-apply` も 0 個。LAN の頁の `.lang-badge` で今の組が分かる（specified：BR-31 の陰性対照と設計 10.13.13 の 11） | 陰性 | `a_page_opened_over_the_lan_has_no_language_picker` |
+| T-BR-31-005 | 実走：001 の run の間、LAN の address で開いた別の頁 | 別の頁にも効く | 組は process の物 | LAN の頁にも `.pair-divider` が 1 つ出る（derived：設計 10.13.12「組は…process が終わるまで効く」。組の持ち主は `hayamimi` 1 つ） | 陽性 | `the_pair_change_reaches_a_page_opened_from_another_address` |
+| T-BR-31-006 | 実走：`localStorage` の `left` が `"ja"` の頁で、`en,ja` から `ja,en` へ順序だけを変える | 順序だけの変更 | 区切りを入れない、`left` を書き換えない | `langs` が `["ja","en"]` で 1 件流れ、`.pair-divider` が 0 個、`localStorage` の `left` の値が変更の前後で同じ文字列（specified：設計 10.13.13 の 7） | 陰性 | `an_order_only_change_adds_no_divider_and_leaves_the_remembered_side` |
 
 **BR-32（明るい表示と暗い表示。`native/hayamimi/tests/br32.rs`、純関数は `dashboard.rs`）**
 
@@ -4332,6 +4351,8 @@ Listening の欄が静まった時の `opacity: .5`（`css.rs:155`）を、こ�
 - 画面の見た目（線の太さ、つまみの形、色の細部、行の左右の寄せ方の細部、H59 の空きの読みやすさ）：designer の板と、IP-S12 の後に人が開いた頁。
 - Windows の 3 つの字体（`yu-gothic`、`meiryo`、`yu-mincho`）が端末で描かれる字体：機械で決まるので記録だけ（T-BR-24-014）。
 - 頁の読み込みの間の一瞬の色（H67 の 1 つめ）：実装の席が測って記録する。
+- `ready` の frame に足した `stream_s` を、知らない key を捨てない consumer が読んでも壊れないこと（H58）：`rg -n '"ready"' native mobile` で数えるのは IP-S6 の実装の席。T-BR-13-008 は producer の形だけを測る。
+- 仮名を持たない日本語の文が `zh,ja` の組で `zh` へ送られる量（H68）：`zh,ja` を使う時の実装の席が交互の録音で数える。T-BR-27-022 は仮名の無い文を `zh` と読む規則だけを測る。
 - 初回表示の字体 file の配布条件（H61）：原文の条件を読む者が確かめる。
 
 ## 5. RP-19 の対応表
