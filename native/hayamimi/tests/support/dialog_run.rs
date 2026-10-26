@@ -352,16 +352,43 @@ pub fn page_record_of(report: &str) -> Result<PageRecord, Failure> {
     })
 }
 
-/// The measuring script. It reads the two streams the page reads, on
-/// connections of its own: the `final`s of `hayamimi` for the order of the
-/// lines, and the translations of the relay for `p_arrive`, the first shown
-/// translation of a line. `p_draw` is the first time a `row` holds a `tr` that
-/// shows text: a `tr` with only a mark (a withheld translation) is no draw.
-/// A row is told from the others by the order it first appears in. It is put
-/// into the page by the tests and is no part of the product.
-const MEASURING_SCRIPT: &str = r#"(() => {
+/// The first measuring script, put into the page before the page's own code
+/// runs. It wraps `EventSource` so that the streams the page itself opens are
+/// listened to first: the `final`s of `hayamimi` give the order of the lines,
+/// and the translations of the relay give `p_arrive`, the first shown
+/// translation of a line, on the connection the page draws from. A connection
+/// of the script's own would be told of a translation a little after the page
+/// is, and `p_draw` could then come before `p_arrive`. It is put into the page
+/// by the tests and is no part of the product.
+const START_SCRIPT: &str = r#"(() => {
   const state = { finals: [], arrive: {}, draw: [] };
   window.__br = state;
+  const Native = window.EventSource;
+  window.EventSource = class extends Native {
+    constructor(url, init) {
+      super(url, init);
+      const from = this.url;
+      this.addEventListener('message', (message) => {
+        let event;
+        try { event = JSON.parse(message.data); } catch (error) { return; }
+        if (from.includes(':@EVENTS@/') && event.type === 'final') state.finals.push(event.id);
+        const shown = from.includes(':@RELAY@/') && event.type === 'translation'
+          && event.of === 'final' && typeof event.text === 'string' && event.text.length > 0
+          && (event.status === undefined || event.status === 'ok');
+        if (shown && state.arrive[event.id] === undefined) {
+          state.arrive[event.id] = performance.now();
+        }
+      });
+    }
+  };
+})()"#;
+
+/// The second measuring script, put into the page once the dashboard is
+/// drawn. `p_draw` is the first time a `row` holds a `tr` that shows text: a
+/// `tr` with only a mark (a withheld translation) is no draw. A row is told
+/// from the others by the order it first appears in.
+const SWEEP_SCRIPT: &str = r#"(() => {
+  const state = window.__br;
   const ordinals = new WeakMap();
   let next = 0;
   const sweep = () => {
@@ -373,17 +400,6 @@ const MEASURING_SCRIPT: &str = r#"(() => {
     }
   };
   new MutationObserver(sweep).observe(document.body, { childList: true, subtree: true });
-  const read = (url, handle) => {
-    const source = new EventSource(url);
-    source.onmessage = (message) => handle(JSON.parse(message.data));
-  };
-  read('@EVENTS@', (event) => { if (event.type === 'final') state.finals.push(event.id); });
-  read('@RELAY@', (event) => {
-    const shown = event.type === 'translation' && event.of === 'final'
-      && typeof event.text === 'string' && event.text.length > 0
-      && (event.status === undefined || event.status === 'ok');
-    if (shown && state.arrive[event.id] === undefined) state.arrive[event.id] = performance.now();
-  });
   window.__br_done = () => {
     const rows = Array.from(document.querySelectorAll('.row'));
     return rows.length > 0 && rows.length === state.finals.length
@@ -401,11 +417,11 @@ const MEASURING_SCRIPT: &str = r#"(() => {
   return true;
 })()"#;
 
-/// The script with the two streams it reads.
-fn script_for(events: u16, relay: u16) -> String {
-    MEASURING_SCRIPT
-        .replace("@EVENTS@", &format!("http://127.0.0.1:{events}/events"))
-        .replace("@RELAY@", &format!("http://127.0.0.1:{relay}/events"))
+/// The first script with the ports of the two streams the page opens.
+fn start_script_for(events: u16, relay: u16) -> String {
+    START_SCRIPT
+        .replace("@EVENTS@", &events.to_string())
+        .replace("@RELAY@", &relay.to_string())
 }
 
 impl Owned {
@@ -844,7 +860,16 @@ struct Page {
 }
 
 impl Page {
-    fn open(shell: &Path, url: &str, port: u16, work: &Path, name: &str) -> Result<Page, Failure> {
+    /// Opens a blank page, has `start` run before the code of every page it
+    /// loads, and then loads `url`.
+    fn open(
+        shell: &Path,
+        url: &str,
+        start: &str,
+        port: u16,
+        work: &Path,
+        name: &str,
+    ) -> Result<Page, Failure> {
         let debugging = format!("--remote-debugging-port={port}");
         let profile = format!(
             "--user-data-dir={}",
@@ -852,14 +877,20 @@ impl Page {
         );
         let browser = Owned::logged(
             &path_text(shell)?,
-            &["--disable-gpu", &debugging, &profile, url],
+            &["--disable-gpu", &debugging, &profile, "about:blank"],
             &work.join(format!("{name}.log")),
         )?;
         wait_for_port(port, BROWSER_WAIT)?;
         let path = page_socket_path(port)?;
+        let mut devtools = DevTools::connect(port, &path)?;
+        devtools.call(
+            "Page.addScriptToEvaluateOnNewDocument",
+            json!({"source": start}),
+        )?;
+        devtools.call("Page.navigate", json!({"url": url}))?;
         Ok(Page {
             _browser: browser,
-            devtools: DevTools::connect(port, &path)?,
+            devtools,
         })
     }
 
@@ -877,12 +908,12 @@ impl Page {
         }
     }
 
-    /// Waits for the dashboard to be drawn, then puts the measuring script into it.
-    fn install(&mut self, script: &str) -> Result<(), Failure> {
+    /// Waits for the dashboard to be drawn, then puts the second measuring script into it.
+    fn install(&mut self) -> Result<(), Failure> {
         if !self.holds_within(BROWSER_WAIT, "!!document.querySelector('.dash')")? {
             return Err(format!("a page was not drawn within {BROWSER_WAIT:?}"));
         }
-        self.devtools.evaluate(script).map(|_| ())
+        self.devtools.evaluate(SWEEP_SCRIPT).map(|_| ())
     }
 
     /// What the script saw, once every line has a translation drawn or `within` has passed.
@@ -906,9 +937,11 @@ impl Pages {
         let page = format!("http://127.0.0.1:{}/dashboard", ports.events);
         let relay = format!("?relay=http://127.0.0.1:{}/events", ports.relay);
         let [first, second] = ports.browsers;
+        let start = start_script_for(ports.events, ports.relay);
         let with_relay = Page::open(
             &tools.shell,
             &format!("{page}{relay}"),
+            &start,
             first,
             work,
             "with-relay",
@@ -917,6 +950,7 @@ impl Pages {
             Some(Page::open(
                 &tools.shell,
                 &page,
+                &start,
                 second,
                 work,
                 "without-relay",
@@ -930,12 +964,11 @@ impl Pages {
         })
     }
 
-    /// Puts the script into every page, then lets their streams connect.
-    fn install(&mut self, ports: &Ports) -> Result<(), Failure> {
-        let script = script_for(ports.events, ports.relay);
-        self.with_relay.install(&script)?;
+    /// Puts the second script into every page, then lets their streams connect.
+    fn install(&mut self) -> Result<(), Failure> {
+        self.with_relay.install()?;
         if let Some(page) = self.without_relay.as_mut() {
-            page.install(&script)?;
+            page.install()?;
         }
         std::thread::sleep(CONNECT_GRACE);
         Ok(())
@@ -1052,7 +1085,7 @@ pub fn run_paged(
     let ports = free_ports(translator)?;
     let _stack = PagedStack::start(translator, &tools, &ports, work)?;
     let mut pages = Pages::open(&tools, &ports, work, control)?;
-    pages.install(&ports)?;
+    pages.install()?;
     wait_for_quiet_machine()?;
     let played = play_into(&tools, playback, &ports, work)?;
     let (with_relay, without_relay) = pages.records()?;
