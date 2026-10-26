@@ -60,11 +60,23 @@ fn observed() -> Result<&'static PagedRun, Failure> {
 #[ignore = "starts the hayamimi binary, the relay, a stand-in translation server and chrome-headless-shell"]
 fn br02_the_page_stage_is_timed_on_the_page_clock() -> TestResult {
     let run = observed()?;
-    let stamps = &run.with_relay.stamps;
+    let page = &run.with_relay;
+    let stamps = &page.stamps;
+    // A line the relay withholds (row 9 of `lat-dialog` says a number) draws a
+    // mark and no translation: every row is a measured translation or a mark.
+    assert!(!stamps.is_empty(), "the page drew no translation");
+    assert_eq!(
+        stamps.len() + page.marks_in_rows,
+        page.rows,
+        "{} translations and {} marks for {} rows",
+        stamps.len(),
+        page.marks_in_rows,
+        page.rows
+    );
     assert!(
-        stamps.len() >= UTTERANCES,
-        "{} translations for {UTTERANCES} utterances",
-        stamps.len()
+        page.rows >= UTTERANCES,
+        "{} rows for {UTTERANCES} utterances",
+        page.rows
     );
     let waits = page_waits(stamps)?;
     assert_eq!(waits.len(), stamps.len());
@@ -86,11 +98,7 @@ fn the_measuring_script_sees_as_many_draws_as_the_page_has_translation_rows() ->
         .iter()
         .filter(|stamp| stamp.p_draw.is_some())
         .count();
-    assert!(
-        page.trs_in_rows >= UTTERANCES,
-        "{} tr in rows",
-        page.trs_in_rows
-    );
+    assert!(page.trs_in_rows > 0, "{} tr in rows", page.trs_in_rows);
     assert_eq!(draws, page.trs_in_rows, "draws the script saw, tr in rows");
     Ok(())
 }
@@ -105,6 +113,7 @@ fn a_page_without_relay_in_its_address_gives_no_draw_and_an_error() -> TestResul
         .ok_or("the run opened no page without a relay")?;
     assert!(page.rows >= UTTERANCES, "the page drew {} rows", page.rows);
     assert_eq!(page.trs_in_rows, 0);
+    assert_eq!(page.marks_in_rows, 0);
     let draws = page
         .stamps
         .iter()
@@ -217,9 +226,12 @@ fn the_page_stage_does_not_depend_on_the_tool_clock() -> TestResult {
 
 #[test]
 fn a_page_report_is_read_into_stamps_by_the_order_of_the_lines() -> TestResult {
-    let report = r#"{"finals":["file-1","file-2","file-3"],"arrive":{"file-1":10.5,"file-3":30.0},"draw":[12.0,null,33.5],"rows":3,"trs_in_rows":2}"#;
+    let report = r#"{"finals":["file-1","file-2","file-3"],"arrive":{"file-1":10.5,"file-3":30.0},"draw":[12.0,null,33.5],"rows":3,"trs_in_rows":2,"marks_in_rows":1}"#;
     let record = page_record_of(report)?;
-    assert_eq!((record.rows, record.trs_in_rows), (3, 2));
+    assert_eq!(
+        (record.rows, record.trs_in_rows, record.marks_in_rows),
+        (3, 2, 1)
+    );
     let ids: Vec<&str> = record
         .stamps
         .iter()

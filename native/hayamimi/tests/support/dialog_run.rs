@@ -294,8 +294,13 @@ pub struct PageRecord {
     pub stamps: Vec<PageStamp>,
     /// How many `row` elements the page holds.
     pub rows: usize,
-    /// How many `tr` elements are inside a `row`, counted by the page when it was read.
+    /// How many `tr` elements inside a `row` show a translation (hold a
+    /// `tr-text`), counted by the page when it was read.
     pub trs_in_rows: usize,
+    /// How many `tr` elements inside a `row` show a mark and no text: a
+    /// translation the relay withheld (a digit, a name, a negation in the
+    /// source) or could not make.
+    pub marks_in_rows: usize,
 }
 
 /// What a paged run left: the samples file (its `.events.jsonl` beside it) and
@@ -316,6 +321,7 @@ struct Report {
     draw: Vec<Option<f64>>,
     rows: usize,
     trs_in_rows: usize,
+    marks_in_rows: usize,
 }
 
 /// Reads the text the script's `__br_report` returns. A line the page received
@@ -342,13 +348,15 @@ pub fn page_record_of(report: &str) -> Result<PageRecord, Failure> {
         stamps,
         rows: read.rows,
         trs_in_rows: read.trs_in_rows,
+        marks_in_rows: read.marks_in_rows,
     })
 }
 
 /// The measuring script. It reads the two streams the page reads, on
 /// connections of its own: the `final`s of `hayamimi` for the order of the
 /// lines, and the translations of the relay for `p_arrive`, the first shown
-/// translation of a line. `p_draw` is the first time a `row` holds a `tr`.
+/// translation of a line. `p_draw` is the first time a `row` holds a `tr` that
+/// shows text: a `tr` with only a mark (a withheld translation) is no draw.
 /// A row is told from the others by the order it first appears in. It is put
 /// into the page by the tests and is no part of the product.
 const MEASURING_SCRIPT: &str = r#"(() => {
@@ -361,7 +369,7 @@ const MEASURING_SCRIPT: &str = r#"(() => {
     for (const row of document.querySelectorAll('.row')) {
       if (!ordinals.has(row)) ordinals.set(row, next++);
       const at = ordinals.get(row);
-      if (state.draw[at] === undefined && row.querySelector('.tr')) state.draw[at] = now;
+      if (state.draw[at] === undefined && row.querySelector('.tr .tr-text')) state.draw[at] = now;
     }
   };
   new MutationObserver(sweep).observe(document.body, { childList: true, subtree: true });
@@ -386,7 +394,9 @@ const MEASURING_SCRIPT: &str = r#"(() => {
     arrive: state.arrive,
     draw: Array.from(state.draw, (time) => (time === undefined ? null : time)),
     rows: document.querySelectorAll('.row').length,
-    trs_in_rows: document.querySelectorAll('.row .tr').length,
+    trs_in_rows: document.querySelectorAll('.row .tr .tr-text').length,
+    marks_in_rows: Array.from(document.querySelectorAll('.row .tr'))
+      .filter((tr) => !tr.querySelector('.tr-text')).length,
   });
   return true;
 })()"#;
