@@ -883,6 +883,7 @@ impl Page {
         wait_for_port(port, BROWSER_WAIT)?;
         let path = page_socket_path(port)?;
         let mut devtools = DevTools::connect(port, &path)?;
+        devtools.call("Page.enable", json!({}))?;
         devtools.call(
             "Page.addScriptToEvaluateOnNewDocument",
             json!({"source": start}),
