@@ -1515,6 +1515,8 @@ T-IP-02-001 と T-IP-07-001 の実走は、`native/hayamimi/tests/support/dialog
 - **取り合う資源**：port 8833、8835、8766、18084。GPU の memory（8080、18081、ComfyUI、`hayamimi` の model と同じ GPU）。`/proc/loadavg`。
 - **始めてよい条件と確かめ方**：`ss -ltn` で 8833、8835、8766 が空き、`/health` が `ok`、`tr '\0' ' ' < /proc/<18084 の MainPID>/cmdline` に `--port 18084` が 1 つ在ること。
 - **承認や入力で止まる command**：`sudo -n` は password を訊かずに失敗するので、失敗したら run を打たずに止まる。
+- **子の出力**：`hayamimi` と中継は log を stdout に書く。読む者が居ない pipe は、kernel が決める容量（Linux の既定は 64 KiB。この機械の WSL2 の kernel は 700 KB を超え 1.1 MB に届かない所で書き手が止まる）で満ち、書き手の write が止まる。中継は event ごとに 1 行書くので、pipe が満ちた時点から以後の final は訳されず、run は終わるが `with_translation` が少なく残る。`run_stack` は `hayamimi` と中継の stdout と stderr を、走る間に読み切る（`drain_output`）。機械の検査は T-IP-02-022 である。
+- **mode の間の load**：1 本目の run の後は load が高く、2 本目の `stream` の門（load1 2.00、load15 2.50）が `stream.machine.refused` で拒む。`run_stack` は `stream` の前に、load が門の下になり cargo と rustc が居なくなるまで待つ（`wait_for_quiet_machine`。最長 420 秒で、尽きれば落ちる）。
 
 ### 10.8 構造
 

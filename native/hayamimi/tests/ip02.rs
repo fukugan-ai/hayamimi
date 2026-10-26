@@ -719,3 +719,49 @@ fn a_run_without_exactly_one_llama_server_on_its_own_port_is_refused() -> TestRe
     assert_eq!(find_llama(&one, 18084)?.pid, 4003);
     Ok(())
 }
+
+/// A child of the stack that writes more than a pipe holds is read from while it runs.
+#[cfg(unix)]
+mod drained {
+    use std::process::Child;
+    use std::time::{Duration, Instant};
+
+    use crate::support::dialog_run::drain_output;
+    use crate::support::{TestResult, spawn_binary};
+
+    /// Writes 4 000 000 bytes to each of stdout and stderr: several times what a pipe
+    /// holds (64 KiB by default on Linux; a little over 1 MiB on the WSL2 kernel).
+    const WRITES_MUCH: &str = "head -c 4000000 /dev/zero; head -c 4000000 /dev/zero >&2";
+
+    /// Whether `child` ended within `within`.
+    fn ends_within(child: &mut Child, within: Duration) -> Result<bool, std::io::Error> {
+        let deadline = Instant::now() + within;
+        while Instant::now() < deadline {
+            if child.try_wait()?.is_some() {
+                return Ok(true);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        Ok(false)
+    }
+
+    /// T-IP-02-022
+    #[test]
+    fn a_child_whose_output_is_drained_never_stops_on_a_full_pipe() -> TestResult {
+        let mut drained = spawn_binary("sh", &["-c", WRITES_MUCH], None, &[])?;
+        drain_output(&mut drained);
+        assert!(
+            ends_within(&mut drained, Duration::from_secs(20))?,
+            "the drained child did not end"
+        );
+        let mut unread = spawn_binary("sh", &["-c", WRITES_MUCH], None, &[])?;
+        let stopped = !ends_within(&mut unread, Duration::from_secs(2))?;
+        unread.kill()?;
+        unread.wait()?;
+        assert!(
+            stopped,
+            "a child nobody reads from ended, so the test cannot tell a full pipe"
+        );
+        Ok(())
+    }
+}

@@ -163,6 +163,7 @@ fn start_hayamimi(mode: &str) -> Result<(Owned, JoinHandle<String>), Failure> {
     let mut child = spawn_binary(BINARY, &args, None, &[])?;
     let stdout = child.stdout.take().ok_or("no stdout pipe")?;
     let printed = collect(stdout);
+    drain_output(&mut child);
     Ok((Owned(Some(child)), printed))
 }
 
@@ -174,7 +175,24 @@ fn start_relay(llama: &Llama) -> Result<Owned, Failure> {
     let args = [
         "live", "--events", &events, "--llm", &llm, "--serve", &serve,
     ];
-    Ok(Owned(Some(spawn_binary(&binary, &args, None, &[])?)))
+    let mut child = spawn_binary(&binary, &args, None, &[])?;
+    drain_output(&mut child);
+    Ok(Owned(Some(child)))
+}
+
+/// Reads what `child` still has on its stdout and stderr to the end, on threads
+/// of their own, and drops it. A pipe holds a fixed amount (64 KiB by default
+/// on Linux, a little over 1 MiB on the WSL2 kernel); a child that writes more
+/// while nobody reads waits in the write until someone does. The relay is such
+/// a child: it writes a log line for each event it handles, and its
+/// translations stop once the pipe is full.
+pub fn drain_output(child: &mut Child) {
+    if let Some(stdout) = child.stdout.take() {
+        drop(collect(stdout));
+    }
+    if let Some(stderr) = child.stderr.take() {
+        drop(collect(stderr));
+    }
 }
 
 /// `hayamimi-eval stream` over `wav`, `repeat` times, into `out`.
@@ -209,7 +227,9 @@ fn stream(
 
 /// Plays `wav` `repeat` times through a stack whose `hayamimi` runs in `mode`
 /// and leaves `out` (the samples), its `.events.jsonl` sidecar and `out` with
-/// the extension `log` (what `hayamimi` printed).
+/// the extension `log` (what `hayamimi` printed). The stack is started first
+/// and the play waits for a quiet machine, because `stream` refuses a busy one
+/// at once and the models have just been read.
 pub fn run_stack(mode: &str, wav: &Path, repeat: u32, out: &Path) -> Result<(), Failure> {
     require_free_ports()?;
     let llama = find_llama(Path::new("/proc"), LLAMA_PORT)?;
@@ -221,6 +241,7 @@ pub fn run_stack(mode: &str, wav: &Path, repeat: u32, out: &Path) -> Result<(), 
     let relay = start_relay(&llama)?;
     wait_for_port(RELAY_PORT, START_WAIT)?;
     let pids = [hayamimi.child()?.id(), relay.child()?.id(), llama.pid];
+    wait_for_quiet_machine()?;
     let played = stream(wav, repeat, out, pids, &llama);
     drop(relay);
     stop_hayamimi(hayamimi)?;
