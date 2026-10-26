@@ -434,6 +434,23 @@ hayamimi-eval stages --provider cuda --wav lat-ja.wav --models <models> --only c
 
 `--run` を 1、2、3 と重ねたら、上の `stages-report` の `--runs` に `docs/results/r4/win/cluster_c*_idle_*.jsonl` を足して、`gpu_stages.md` を作り直します。
 
+## 確定の訳を速報の訳の後ろに並べない（`--partial-yield`）
+
+`hayamimi-relay live` は、日本語と英語を互いに訳す run で、ある入力源の確定の訳が済むまで、同じ入力源の速報の訳を依頼しません。
+訳の server の slot を、速報の訳が塞いで確定の訳を待たせないためです。
+確定が着いた時に訳している途中の速報の訳は、その確定の文を閉じるだけの物なら使い回し、違う文なら止めます。
+`--partial-yield off` を付けると、確定の訳の最中にも速報の訳を依頼する前の動きへ戻ります。
+`--no-partial-translation` は速報の訳そのものを止める旗で、`--partial-yield` と一緒に付けても、書く順によらず速報の訳を止めます。
+
+依頼しなかった速報は、`translate.partial.skipped`（debug）が 1 行出て、`reason` が `yielded` です。
+
+```bash
+grep '"event":"translate.partial.skipped"' <relay の stdout を残した file> | grep -o '"reason":"[a-z_]*"' | sort | uniq -c
+grep -c '"event":"translate.line.ok"' <relay の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る確定の訳の行も数えて、非 0 の対照を並べます。
+
 ## 話者の分離の DER
 
 `der` は、評価の set（`manifest.json`、wav、RTTM）の会議ごとに DER を採点します。

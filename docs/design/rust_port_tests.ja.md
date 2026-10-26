@@ -3741,9 +3741,10 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
 case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 35 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 9 つである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 10 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
+- BR-5 の `Mailbox` と stream の経路の行（T-BR-05-008 から 018）は `native/hayamimi-relay/src/partial.rs` の `mod tests`、引数の行（020 から 024）は `native/hayamimi-relay/src/cli.rs` の `mod tests`。
 
 - BR-6 の純関数の行は `native/hayamimi/src/log.rs` の `mod tests`、VAD を通す行は `native/hayamimi-asr/src/vad.rs` の `mod tests`。
 - BR-4 の最後の行（T-BR-04-009）は BR-3 の run の記録を読むので `native/hayamimi/tests/br03.rs`。
@@ -3882,17 +3883,36 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 **BR-5（確定文の訳が速報の訳の後ろに並ばない。`native/hayamimi-relay/tests/br05.rs`）**
 
-材料：`FakeLlm` の遅れは `Call`（`stage` と `text`）で決める。確定文の T は 300 ms、E は 400 ms、速報の訳は 100 ms とし、速報の text は発話ごとに違う文字列にして、依頼を text で数える。lane は `Lanes::PerSource`。前例は T-IP-01 の `run_relay` である。
+材料：`FakeLlm` の遅れは `Call`（`stage` と `text`）で決める。確定文の T は 300 ms、E は 400 ms、速報の訳は 100 ms とする（002 の E は 600 ms、003 の速報の訳は 400 ms。遅い機械でも、送る時が待ちの間に入る）。速報の text は 3 つ（`あい`、`あいう`、`あいうえ`）で、どの行の text とも違う。依頼は、遅れの closure の中で（時刻、stage、text）を test の持つ記録へ足して、text で数える（`FakeLlm` 本体は変えない）。速報の event は `{"type":"partial","text":…}` で、source と `id` は stream の直前の `final` から中継が読む。保持は stream を読む thread が `final` を読んだ時に取るので、test は最初の `final` を settle させてから 2 つ目の `final` を送り、速報はその後ろに送る。lane は `Lanes::PerSource`。前例は T-IP-01 の `run_relay` と R8d の `r8d_partial.rs` である。
+
+置き場は、001 から 007 と 019 の中継の行が `native/hayamimi-relay/tests/br05.rs`、008 から 018 の `Mailbox` と stream の経路の行が `native/hayamimi-relay/src/partial.rs` の `mod tests`、020 から 024 の引数の行が `native/hayamimi-relay/src/cli.rs` の `mod tests` である。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-05-001 | 受入：lane `file` に `final` を送り、T の答えが返るまでの間（final の 50、100、150 ms 後）に、次の発話の速報 3 件（text が違う）を同じ lane に送る | 確定文の T が待っている間 | 速報の依頼 0 件 | 3 件の速報の text の依頼が `FakeLlm` に 0 件。`final` の translation は 1 件出る（specified：BR-5。`FakeLlm` が受けた依頼の数） | 陽性 | `br05_a_final_is_not_queued_behind_partial_translations` |
-| T-BR-05-002 | T は 0 ms で返し、E が 400 ms かかる。E の途中（final の 200 ms 後）に速報 1 件を同じ lane に送る | 確定文の E が待っている間 | 速報の依頼 0 件 | その速報の text の依頼が 0 件（specified：BR-5「T か E が待っている間」） | 陽性 | `a_partial_arriving_while_the_settled_translation_is_pending_is_not_requested` |
-| T-BR-05-003 | 速報を送り、その訳が 100 ms かかる間（30 ms 後）に同じ lane の `final` を送る | `final` が着いた時に終わっていない速報の訳 | 捨てる | `final` が着いた後に `of: partial` の translation が 0 件（その答えは使われず、`translation` として出ない）。`final` の translation は 1 件（specified：BR-5。設計 10.13.4 の手 2） | 陰性 | `an_unfinished_partial_translation_is_dropped_when_the_final_arrives` |
+| T-BR-05-001 | 受入：lane `file` に `final` を送り、その T の依頼が `FakeLlm` に着いた後の 50、100、150 ms に、次の発話の速報 3 件（text が違う）を同じ lane に送る | 確定文の T が待っている間 | 速報の依頼 0 件 | 3 件の速報の text の依頼が `FakeLlm` に 0 件。`final` の translation は 1 件出る（specified：BR-5。`FakeLlm` が受けた依頼の数） | 陽性 | `br05_a_final_is_not_queued_behind_partial_translations` |
+| T-BR-05-002 | T は 0 ms で返し、E が 600 ms かかる。E の依頼が着いた 100 ms 後（E の途中）に速報 1 件を同じ lane に送る | 確定文の E が待っている間 | 速報の依頼 0 件 | その速報の text の依頼が 0 件（specified：BR-5「T か E が待っている間」） | 陽性 | `a_partial_arriving_while_the_settled_translation_is_pending_is_not_requested` |
+| T-BR-05-003 | 速報を送り、その訳が 400 ms かかる間（その依頼が着いた 30 ms 後）に同じ lane の `final`（text は速報の text と違う）を送る | `final` が着いた時に終わっていない速報の訳 | 捨てる | `final` が着いた後に `of: partial` の translation が 0 件（その答えは使われず、`translation` として出ない）。`final` の translation は 1 件。同じ text を閉じる `final` が答えを使い回す今の形は、今在る使い回しの test が持つ（specified：BR-5。設計 10.13.4 の手 2） | 陰性 | `an_unfinished_partial_translation_is_dropped_when_the_final_arrives` |
 | T-BR-05-004 | 速報だけを 1 件送る（`final` なし） | 速報の訳が今のとおり出る | 出る | `of: partial` の translation が 1 件（specified：BR-5 の陽性対照） | 陽性 | `a_lone_partial_is_still_translated` |
 | T-BR-05-005 | 001 と同じ入力で、`--partial-yield off` に当たる設定 | 旗を切る | 今の形 | 3 件の速報の text のうち 1 件以上の依頼が、`final` の T の待ちの間に `FakeLlm` に届く（specified：BR-5 の陰性対照） | 陰性 | `with_partial_yield_off_a_partial_is_requested_while_the_final_waits` |
 | T-BR-05-006 | `final` の T と E がすべて済み、確定の translation が出た後（`settled: true` を受けた後）に、次の速報を送る | 待ちが終わった境界 | 譲るのは待つ間だけ | その速報の依頼が 1 件（lane は空いている。以後の速報が止まり続けない）（derived：設計 10.13.4 の手 2「待っている間は」の反対側） | 境界 | `a_partial_after_the_final_is_settled_is_requested_again` |
 | T-BR-05-007 | lane `file` の `final` の T が待つ間に、lane `mic` に速報を 1 件送る | 別の lane | 同じ lane だけ | `mic` の速報の依頼が 1 件（specified：設計 10.13.4 の手 2「同じ lane」） | 陰性、境界 | `a_partial_in_another_lane_is_not_held_by_the_final_of_this_lane` |
+| T-BR-05-008 | 保持を取る `Mailbox`。`mic` の保持を取り、`mic` の text を `post`。続けて `loopback` の text を `post` して `take` | 保持の間 | 捨てる | 1 つ目の `post` が `Yielded`。`take` が返すのは `loopback` の text（`mic` の text は待っていない）（derived：設計 10.13.4 の手 2「溜めずに捨てる」） | 陽性 | `a_text_is_let_go_while_a_final_of_its_source_is_held` |
+| T-BR-05-009 | 008 の `mic` の代わりに `file` の保持を取り、`mic` の text を `post` | 別の source | 同じ source だけ | `Left`（derived：同上） | 陰性 | `the_text_of_another_source_is_not_let_go` |
+| T-BR-05-010 | `mic` の保持を取り、text を `post`（`Yielded`）。保持を返し、同じ text をもう一度 `post` | 保持が解けた境界 | 解ければ受ける | 2 つ目の `post` が `Left` で、`take` がその text を返す。捨てた text は覚えられていない（derived：同上） | 境界 | `a_text_is_left_again_once_the_hold_is_dropped` |
+| T-BR-05-011 | `mic` の保持を 2 つ取り、1 つ返して `post`。もう 1 つ返してもう一度 `post` | 保持の数 | 0 になるまで捨てる | 1 つ返した後は `Yielded`、2 つとも返した後は `Left`（derived：1 つの source に `final` が重なる時） | 境界 | `a_source_is_held_until_every_final_in_its_lane_is_settled` |
+| T-BR-05-012 | 保持を取らない `Mailbox`（`Mailbox::new()`）で `settling` と `post` | 旗を切る | 保持なし | `settling` が `None`、`post` が `Left`（specified：BR-5 の陰性対照の機構） | 陰性 | `a_mailbox_that_does_not_yield_holds_nothing` |
+| T-BR-05-013 | 取っていない保持を返し、続けて `post` | 保持が 0 件 | 0 のまま | `post` が `Left`（derived：数は 0 から下がらない） | 境界 | `giving_back_a_hold_that_was_never_taken_leaves_the_source_free` |
+| T-BR-05-014 | 保持を取る stream の経路。`final`（`mic-1`）を `note_line` し、`partial` で text を送り、保持を返してからもう一度 `partial` で送る | stream が読む順 | 保持の間だけ捨てる | 1 回目は log が 1 件（`translate.partial.skipped`、`reason` が `yielded`）、2 回目は log 0 件で `take` の `id` が `mic-2`（specified：設計 10.13.4 の手 2 の log の 1 行） | 陽性 | `a_final_holds_its_source_and_a_let_go_text_is_logged_as_yielded` |
+| T-BR-05-015 | `refine` を `note_line` | `final` でない行 | 保持なし | `None`（specified：設計 10.13.4 の手 2「保持を持つのは `final` だけ」） | 陰性 | `a_refine_takes_no_hold` |
+| T-BR-05-016 | 保持を取らない `Mailbox` に向く経路で `final` を `note_line` | 旗を切る | 保持なし | `None`（specified：同上） | 陰性 | `a_route_into_a_mailbox_that_does_not_yield_takes_no_hold` |
+| T-BR-05-017 | `Mailbox` の無い経路で `final` を `note_line` | 速報を訳さない run | 保持なし | `None`（derived：`--no-partial-translation` の run は保持を取らない） | 陰性 | `a_route_into_no_mailbox_takes_no_hold` |
+| T-BR-05-018 | 速報を 1 件 `take` して走らせた後、同じ source の次の `final` を `note_line` | `final` が走っている速報を止める今の形 | 止める | `Wanted::still` が偽で、保持は取れる（derived：保持を足しても `final` が着いた時の捨て方は変わらない） | 陽性 | `the_final_still_stops_the_text_in_progress_while_it_holds_its_source` |
+| T-BR-05-019 | 001 と同じ入力で、log を見る | 捨てた text の log | 3 件 | `translate.partial.skipped` が 3 件で、`reason` がすべて `yielded`（specified：設計 10.13.4 の手 2 の log の 1 行） | 陽性 | `the_texts_in_progress_that_are_let_go_are_said_so_in_the_log` |
+| T-BR-05-020 | `live` の引数：何も付けない、`--partial-yield off`、`--partial-yield on` | 既定と旗 | 既定は保持あり | 順に `Yielding`、`On`、`Yielding`。`--no-partial-translation` は `Off`（specified：設計 10.13.4 の手 2 の戻し方） | 陽性 | `the_translation_of_the_text_in_progress_yields_unless_it_is_turned_off` |
+| T-BR-05-021 | `live` の引数が `--partial-yield off` | 旗を切る | 譲らない | `On`（速報の訳は切らず、譲らない）（specified：BR-5 の陰性対照） | 陰性 | `partial_yield_off_translates_the_text_in_progress_without_yielding` |
+| T-BR-05-022 | `--no-partial-translation` と `--partial-yield on`、`off` を、順を替えた 4 通りで並べる | 旗の組 | 訳を切る旗が勝つ | 4 通りとも `Off`（derived：切った訳は譲る相手を持たない） | 境界 | `turning_the_translation_off_wins_over_the_yield_in_either_order` |
+| T-BR-05-023 | `--partial-yield` の値が `maybe`、空、`ON`、`1`、値なし | 不正な値 | 断る | 値があれば `BadPartialYield`、値なしは `MissingValue`（derived：`--partial-lid` の `on`、`off` だけの規則と同じ） | 陰性 | `the_yield_takes_on_or_off_and_nothing_else` |
+| T-BR-05-024 | `BadPartialYield` の鍵を日英の文言表で引く | 断る文 | 両方に在る | 日英とも文言が在る（鍵 `bad_partial_yield`）。今在る test `the_run_refusals_have_text_in_both_locales` の鍵の一覧に足す（specified：observability の共通 schema） | 陽性 | `the_run_refusals_have_text_in_both_locales` |
 
 **BR-6（区間を閉じた時の遅れの log。`native/hayamimi/src/log.rs`、`native/hayamimi-asr/src/vad.rs`）**
 

@@ -37,7 +37,7 @@ use crate::lang::Lang;
 use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
-use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute};
+use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute, Settling};
 use crate::pipeline::{
     Drafted, LineKind, NoObserver, Observer, PartialOutcome, Pipeline, Reuse, Staged, Translation,
 };
@@ -191,6 +191,18 @@ struct Job {
     line: Line,
     src_lang: Lang,
     route: Route,
+    /// The hold the line keeps on its source's text in progress until its
+    /// translation is made; only the live pair's job has one, as only the pair
+    /// shares the server with the text in progress.
+    settling: Option<Settling>,
+}
+
+/// A line of a stream, with the hold its `final` took when the stream said it
+/// came. The hold travels with the line so that it is taken before the text
+/// that follows the `final` on the stream is read.
+struct Arrival {
+    line: Line,
+    settling: Option<Settling>,
 }
 
 fn line_event(level: Level, name: &str, component: &'static str, line: &Line) -> LogEvent {
@@ -352,7 +364,7 @@ fn settle_line<L: Llm>(
     sink: &mut SharedSink,
 ) {
     let Pending {
-        job,
+        mut job,
         now_epoch,
         staged,
     } = pending;
@@ -360,6 +372,9 @@ fn settle_line<L: Llm>(
         Staged::Settled(done) => done,
         Staged::Drafted(drafted) => edit_line(pipeline, parts, &job, now_epoch, drafted, sink),
     };
+    // The server is free of the line once its translation is made, so the text
+    // in progress may be asked for again before the screens are told.
+    drop(job.settling.take());
     publish(&parts.hub, &translation, sink);
     // The subtitle file and the outside destinations carry the live pair
     // only; another language is for the screens.
@@ -552,8 +567,10 @@ impl<L: Llm + 'static> Router<L> {
     }
 
     /// Hands a line to the lane of its source, opening the lane on first use.
-    /// A line in a language the relay does not translate is only noted.
-    fn dispatch(&mut self, line: Line) {
+    /// A line in a language the relay does not translate is only noted, and
+    /// the hold its `final` took on the text in progress is given back.
+    fn dispatch(&mut self, arrival: Arrival) {
+        let Arrival { line, mut settling } = arrival;
         let Some(src_lang) = line.source_language() else {
             self.sink.emit(
                 line_event(Level::Info, "translate.line.skipped", "service", &line)
@@ -566,6 +583,11 @@ impl<L: Llm + 'static> Router<L> {
                 line: line.clone(),
                 src_lang,
                 route,
+                settling: if route == Route::Pair {
+                    settling.take()
+                } else {
+                    None
+                },
             };
             self.hand_over(job);
         }
@@ -599,9 +621,9 @@ impl<L: Llm + 'static> Router<L> {
         self.slots[slot] = Some(lane);
     }
 
-    fn run(mut self, incoming: Receiver<Line>) {
-        for line in incoming {
-            self.dispatch(line);
+    fn run(mut self, incoming: Receiver<Arrival>) {
+        for arrival in incoming {
+            self.dispatch(arrival);
         }
     }
 }
@@ -611,15 +633,15 @@ impl<L: Llm + 'static> Router<L> {
 fn forward(
     data: &str,
     endpoint: usize,
-    lines: &Sender<Line>,
+    lines: &Sender<Arrival>,
     route: &mut StreamRoute,
     sink: &mut dyn LogSink,
 ) {
     match hear(data) {
         Ok(Heard::Line(line)) => {
-            route.note_line(&line);
+            let settling = route.note_line(&line);
             // The router ends only with the process, so a refused line has no one left to tell.
-            let _ = lines.send(line);
+            let _ = lines.send(Arrival { line, settling });
         }
         Ok(Heard::Partial(text)) => route.partial(&text, sink),
         Ok(Heard::Reset) => route.forget(),
@@ -636,7 +658,7 @@ fn forward(
 struct Follower {
     endpoint: usize,
     url: String,
-    lines: Sender<Line>,
+    lines: Sender<Arrival>,
     route: StreamRoute,
     backoff: Backoff,
     running: Arc<AtomicBool>,
@@ -815,7 +837,9 @@ fn open_partials<L: Llm + 'static>(
     if partials == PartialTranslation::Off {
         return Ok(None);
     }
-    let mailbox = Arc::new(Mailbox::new());
+    let mailbox = Arc::new(Mailbox::with_yield(
+        partials == PartialTranslation::Yielding,
+    ));
     spawn_partials(
         Arc::clone(&mailbox),
         hub.clone(),
