@@ -3,16 +3,18 @@
 //! update the shared view and hand the change to the recognition loop; a
 //! route never touches the engine.
 
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::Bytes;
-use axum::extract::{DefaultBodyLimit, FromRef, State};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, FromRef, Request, State};
 use axum::http::StatusCode;
 use axum::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{MethodRouter, get, post};
 use hayamimi_asr::vad::Sensitivity;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -40,12 +42,39 @@ impl FromRef<AppState> for Hub {
 
 /// The routes of the server.
 pub fn router(state: AppState) -> Router {
+    assemble(state, control_routes(), get(server::events))
+}
+
+/// The routes of the server for a listener on `serve_host`. When that is not
+/// a loopback address, the control routes answer a peer on this machine only,
+/// and `/events` carries no `access-control-allow-origin`: a page opened from
+/// the network reads it from its own origin. The routes must be served with
+/// connection info (see [`server::serve`]); a request without a peer address
+/// is refused.
+pub fn router_for(state: AppState, serve_host: IpAddr) -> Router {
+    if is_loopback_address(serve_host) {
+        return router(state);
+    }
+    let guarded = control_routes().layer(middleware::from_fn(loopback_peers_only));
+    assemble(state, guarded, get(server::events_same_origin))
+}
+
+/// The pages, `/events` and the control routes.
+fn assemble(state: AppState, control: Router<AppState>, events: MethodRouter<AppState>) -> Router {
     Router::new()
         .route("/", get(ui::index))
-        .route("/events", get(server::events))
+        .route("/events", events)
         .route("/dashboard", get(ui::index))
         .route("/transcript", get(ui::index))
         .route("/ui/{*path}", get(ui::file))
+        .merge(control)
+        .layer(DefaultBodyLimit::max(api::MAX_BODY))
+        .with_state(state)
+}
+
+/// The routes that read or change the settings of the run.
+fn control_routes() -> Router<AppState> {
+    Router::new()
         .route(
             "/replacements",
             get(get_replacements).post(post_replacements),
@@ -53,8 +82,37 @@ pub fn router(state: AppState) -> Router {
         .route("/itn_overrides", get(get_itn).post(post_itn))
         .route("/config", get(get_config).post(post_config))
         .route("/reset", post(reset))
-        .layer(DefaultBodyLimit::max(api::MAX_BODY))
-        .with_state(state)
+}
+
+/// Whether `ip` is a loopback address: `127.0.0.0/8` and `::1`, with an IPv4
+/// address wrapped in an IPv6 one read as the IPv4 address it wraps.
+pub fn is_loopback_address(ip: IpAddr) -> bool {
+    ip.to_canonical().is_loopback()
+}
+
+/// Lets a request through when its peer is a loopback address, by the peer
+/// address of the connection alone and not by any header. The body of a
+/// refused request is not read.
+async fn loopback_peers_only(request: Request, next: Next) -> Response {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(address)| address.ip());
+    if peer.is_some_and(is_loopback_address) {
+        next.run(request).await
+    } else {
+        refuse_peer()
+    }
+}
+
+/// The 403 for a peer that is not on this machine. It carries no CORS header.
+fn refuse_peer() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        [(CONTENT_TYPE, "application/json; charset=utf-8")],
+        json!({"error": "this route answers a peer on this machine only"}).to_string(),
+    )
+        .into_response()
 }
 
 /// A JSON reply with the headers the existing server sent.
@@ -230,5 +288,35 @@ mod tests {
     fn a_refused_body_is_a_400_carrying_the_reason() {
         let reply = bad_request(&BadRequest(String::from("nope")));
         assert_eq!(reply.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// T-BR-35-004: both ends of `127.0.0.0/8`, `::1`, the wrapped form, and what lies outside.
+    #[test]
+    fn the_loopback_judgement_covers_the_whole_127_range_and_the_wrapped_form()
+    -> Result<(), std::net::AddrParseError> {
+        for text in [
+            "127.0.0.1",
+            "127.0.0.0",
+            "127.255.255.255",
+            "::1",
+            "::ffff:127.0.0.1",
+        ] {
+            assert!(is_loopback_address(text.parse()?), "{text} is loopback");
+        }
+        for text in [
+            "126.255.255.255",
+            "128.0.0.0",
+            "192.168.1.5",
+            "::ffff:192.168.1.5",
+            "::",
+            "fe80::1",
+            "0.0.0.0",
+        ] {
+            assert!(
+                !is_loopback_address(text.parse()?),
+                "{text} is not loopback"
+            );
+        }
+        Ok(())
     }
 }

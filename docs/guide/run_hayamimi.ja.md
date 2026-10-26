@@ -135,7 +135,9 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 
 `hayamimi` の `--serve` と `hayamimi-relay live` の `--serve` は、既定では 127.0.0.1 だけで待ちます。
 `--serve-host` が LAN へ開くのは `--serve` の router（頁、`/events`、`/config`、`/reset` ほか）だけです。
-`/config` と `/reset` は認証なしで設定と状態を変えるので、LAN へ開くのは利用者が選んだ時だけにします。
+`--serve-host` が loopback の外のとき、制御の口（`/config`、`/reset`、`/replacements`、`/itn_overrides`。GET も含む）は、接続の相手の address が loopback の端末だけが使え、LAN の端末には 403 を返します。
+頁と `/events` は LAN の端末にも配ります。`hayamimi` の `/events` は、このとき `access-control-allow-origin` を付けないので、別の origin の頁は読めません（`hayamimi-relay` の `/events` は付けたままです）。
+`--serve-host` が loopback のときは、今までと変わりません。
 `/ingest`（音声の入力）は `--ws-host` で別に決まり、既定は 127.0.0.1 のままです。`--serve-host` を付けても LAN には開きません。
 
 別の端末の browser で頁を開くときは、2 つの process に `--serve-host 0.0.0.0` を付けて起こします。
