@@ -27,7 +27,7 @@ use crate::route::{
 };
 use crate::speaker::Centroids;
 use crate::speaker_stage::{Mark, SpeakerStage};
-use crate::vad::{EARLY_MIN_SILENCE_MS, Segment, Sensitivity, Vad, VadSettings};
+use crate::vad::{EARLY_MIN_SILENCE_MS, Segment, Sensitivity, Vad, VadSettings, main_rule};
 
 /// The language the punctuation model restores marks for.
 const PUNCTUATED_LANGUAGE: &str = "ja";
@@ -187,6 +187,15 @@ pub struct Unread {
     pub tier: &'static str,
 }
 
+/// A stretch of voice the detector closed and the engine read: the number of
+/// the `final` it made, or none when it read as nothing, and the rule that
+/// ended it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClosedSegment {
+    pub id: Option<u64>,
+    pub rule: Rule,
+}
+
 /// One finished utterance.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Final {
@@ -298,6 +307,8 @@ struct Route {
     early_holds: Vec<EarlyHold>,
     /// The segments that read as nothing, until they are taken.
     unread: Vec<Unread>,
+    /// The stretches of voice the detector closed and the engine read, until they are taken.
+    closed: Vec<ClosedSegment>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -515,6 +526,7 @@ fn open_route(
         early: State::default(),
         early_holds: Vec::new(),
         unread: Vec::new(),
+        closed: Vec::new(),
     }))
 }
 
@@ -721,6 +733,18 @@ impl Engine {
             .as_mut()
             .into_iter()
             .flat_map(|route| std::mem::take(&mut route.early_holds))
+            .collect()
+    }
+
+    /// The stretches of voice the detector closed since the last call, in the
+    /// order they were read, each with the rule that ended it: one for every
+    /// `final` and one for every confirmed segment that read as nothing. An
+    /// engine with no route has none.
+    pub fn take_closed(&mut self) -> Vec<ClosedSegment> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| std::mem::take(&mut route.closed))
             .collect()
     }
 
@@ -1080,6 +1104,10 @@ impl Engine {
             return Ok(None);
         };
         let Some(solved) = reading.settle(span, &mut route.unread) else {
+            route.closed.push(ClosedSegment {
+                id: None,
+                rule: decision.rule,
+            });
             return Ok(None);
         };
         let speaker_audio = if self.speakers.is_some() {
@@ -1136,9 +1164,14 @@ impl Engine {
         ended_wall_ms: u64,
         endpoint: Decision,
     ) -> Option<Final> {
-        let vad_ms = std::mem::take(&mut self.route.as_mut()?.vad_ms);
+        let route = self.route.as_mut()?;
+        let vad_ms = std::mem::take(&mut route.vad_ms);
         let id = self.next_id;
         self.next_id += 1;
+        route.closed.push(ClosedSegment {
+            id: Some(id),
+            rule: endpoint.rule,
+        });
         Some(final_of(
             solved,
             id,
@@ -1286,28 +1319,21 @@ fn decode_samples(
 /// Which rule ended `segment`: a flush, the limit on continuous speech
 /// (the detector cuts a segment of about that length), or the silence.
 fn decision_of(segment: &Segment, main: Sensitivity, flushed: bool) -> Decision {
-    let limit = (f64::from(main.max_speech) * f64::from(SAMPLE_RATE)) as usize;
-    if flushed {
-        Decision {
-            rule: Rule::Flush,
-            silence_ms: 0,
-            plan: None,
-            held_gap_ms: None,
-        }
-    } else if segment.samples.len() + 2 * WINDOW >= limit {
-        Decision {
-            rule: Rule::MaxSpeech,
-            silence_ms: 0,
-            plan: None,
-            held_gap_ms: None,
-        }
+    let rule = if flushed {
+        Rule::Flush
     } else {
-        Decision {
-            rule: Rule::Silence,
-            silence_ms: (main.min_silence * 1000.0).round() as u32,
-            plan: None,
-            held_gap_ms: None,
-        }
+        main_rule(segment.samples.len(), main.max_speech)
+    };
+    Decision {
+        rule,
+        // Only the silence rule waited for a silence.
+        silence_ms: if rule == Rule::Silence {
+            (main.min_silence * 1000.0).round() as u32
+        } else {
+            0
+        },
+        plan: None,
+        held_gap_ms: None,
     }
 }
 

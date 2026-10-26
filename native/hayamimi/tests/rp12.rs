@@ -185,7 +185,7 @@ fn rust_samples() -> Vec<Value> {
         }),
         wire::session_summary(11.0, 1, Some(533.0), Some(533.0)),
         wire::session_reset(),
-        wire::ready_event(16_000),
+        wire::ready_event(16_000, 0),
         json!({"type": "fallback", "stage": "capture", "reason": "device_missing", "to": "single"}),
     ]
 }

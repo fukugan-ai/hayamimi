@@ -17,6 +17,7 @@
 "refine.punct.failed" = "Punctuation failed for a refined sentence; the sentence went on without it"
 "refine.fallback.disabled" = "The refine pass, or its punctuation, is not usable; that part is left out and the run goes on"
 "asr.feed.waited" = "A window waited on the queue before its feed started"
+"asr.vad.closed" = "The voice detector closed a segment of speech; lag_ms is how far behind the audio it was, and rule is what ended the segment"
 "speaker.embedding.started" = "The speaker embedding of an utterance started"
 "asr.engine.failed" = "The recognition route failed"
 "asr.partial.failed" = "A draft of the utterance in progress failed and was skipped"

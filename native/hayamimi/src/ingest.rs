@@ -177,7 +177,8 @@ async fn configure(socket: &mut WebSocket, text: &str, state: &IngestState) -> O
     match parse_handshake(text) {
         Ok(declared) => {
             state.hub.session_started().await;
-            if !send_json(socket, &wire::ready_event(SAMPLE_RATE)).await {
+            let ready = wire::ready_event(SAMPLE_RATE, state.audio.stream_us());
+            if !send_json(socket, &ready).await {
                 return None;
             }
             log::print(&log::ingest_connected_line(
@@ -337,6 +338,18 @@ mod tests {
         assert!(parse_handshake(r#"{"channels":64}"#).is_ok());
         assert!(parse_handshake(r#"{"channels":65}"#).is_err());
         assert!(parse_handshake(r#"{"channels":0}"#).is_err());
+    }
+
+    /// T-BR-13-008
+    #[test]
+    fn the_ready_frame_carries_the_stream_position_in_seconds() {
+        let ready = wire::ready_event(SAMPLE_RATE, 30_904_000);
+        assert_eq!(ready["type"], "ready");
+        assert_eq!(ready["sr"], 16_000);
+        assert_eq!(ready["stream_s"].as_f64(), Some(30.904));
+        let start = wire::ready_event(SAMPLE_RATE, 0);
+        assert!(start["stream_s"].is_number(), "{start}");
+        assert_eq!(start["stream_s"].as_f64(), Some(0.0));
     }
 
     #[test]

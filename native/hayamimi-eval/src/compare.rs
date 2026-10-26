@@ -321,6 +321,254 @@ pub fn read_samples(path: &Path) -> Result<Vec<Sample>, EvalError> {
         .collect()
 }
 
+/// Why one repeat of a clip has no `L_asr`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lack {
+    /// No `final` was placed in the utterance.
+    NoFinal,
+    /// A `final` was placed in it, but the last came before the utterance ended.
+    ClosedBeforeEnd,
+}
+
+impl Lack {
+    /// The name the record gives the reason.
+    pub fn name(self) -> &'static str {
+        match self {
+            Lack::NoFinal => "no_final",
+            Lack::ClosedBeforeEnd => "closed_before_end",
+        }
+    }
+}
+
+/// A repeat of a clip: its number, and why it has no `L_asr` (none when it has one).
+type Repeat = (u32, Option<Lack>);
+
+fn repeat_of(sample: &Sample) -> Repeat {
+    let lack = match (sample.l_asr_us(), sample.finals) {
+        (Some(_), _) => None,
+        (None, 0) => Some(Lack::NoFinal),
+        (None, _) => Some(Lack::ClosedBeforeEnd),
+    };
+    (sample.repeat, lack)
+}
+
+/// Why a clip has no `L_asr` in a run: the same reason in every repeat, or the
+/// reason of each repeat when they differ.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SideReason {
+    Same(Lack),
+    Mixed(Vec<(u32, Lack)>),
+}
+
+impl SideReason {
+    /// The reason of a clip none of whose repeats has an `L_asr`; none when one has.
+    fn of(repeats: &[Repeat]) -> Option<SideReason> {
+        let lacks: Vec<(u32, Lack)> = repeats
+            .iter()
+            .map_while(|(number, lack)| lack.map(|lack| (*number, lack)))
+            .collect();
+        if lacks.len() != repeats.len() || lacks.is_empty() {
+            return None;
+        }
+        let first = lacks[0].1;
+        if lacks.iter().all(|(_, lack)| *lack == first) {
+            Some(SideReason::Same(first))
+        } else {
+            Some(SideReason::Mixed(lacks))
+        }
+    }
+
+    /// The name of the reason: the one reason of every repeat, or `mixed`.
+    pub fn name(&self) -> &'static str {
+        match self {
+            SideReason::Same(lack) => lack.name(),
+            SideReason::Mixed(_) => "mixed",
+        }
+    }
+
+    /// The reason as the record writes it.
+    pub fn text(&self) -> String {
+        match self {
+            SideReason::Same(lack) => lack.name().to_owned(),
+            SideReason::Mixed(each) => {
+                let listed: Vec<String> = each
+                    .iter()
+                    .map(|(number, lack)| format!("{number} {}", lack.name()))
+                    .collect();
+                format!("mixed: {}", listed.join(", "))
+            }
+        }
+    }
+}
+
+/// Why a clip of the pair run is not joined to the `--lang` runs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ClipReason {
+    /// The pair run could not read it, and the `--lang` run could.
+    Pair(SideReason),
+    /// The pair run read it, and the `--lang` run `run` could not.
+    MissingInLangRun { run: String, side: SideReason },
+    /// Neither run could read it.
+    MissingInBoth {
+        pair: SideReason,
+        run: String,
+        side: SideReason,
+    },
+}
+
+impl ClipReason {
+    /// The name the record gives the reason.
+    pub fn name(&self) -> &'static str {
+        match self {
+            ClipReason::Pair(side) => side.name(),
+            ClipReason::MissingInLangRun { .. } => "missing_in_lang_run",
+            ClipReason::MissingInBoth { .. } => "missing_in_both",
+        }
+    }
+
+    /// What the pair run did in the clip, when it could not read it.
+    pub fn pair_side(&self) -> Option<&SideReason> {
+        match self {
+            ClipReason::Pair(side) | ClipReason::MissingInBoth { pair: side, .. } => Some(side),
+            ClipReason::MissingInLangRun { .. } => None,
+        }
+    }
+
+    /// The reason as the record writes it, with the side of each run.
+    pub fn text(&self) -> String {
+        match self {
+            ClipReason::Pair(side) => side.text(),
+            ClipReason::MissingInLangRun { run, side } => {
+                format!("missing_in_lang_run ({run}): {}", side.text())
+            }
+            ClipReason::MissingInBoth { pair, run, side } => format!(
+                "missing_in_both: pair {}; {run} {}",
+                pair.text(),
+                side.text()
+            ),
+        }
+    }
+}
+
+/// A clip that could not be joined, and why.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NamedClip {
+    pub sha: String,
+    /// The number of its utterance in the pair run's manifest, from 1.
+    pub utt: u32,
+    pub reason: ClipReason,
+}
+
+/// A `--lang` run: the label the record gives it, its samples and the sha256
+/// of the clip of each of its utterances (`shas[utt - 1]`).
+pub struct ForcedRun<'a> {
+    pub label: &'a str,
+    pub samples: &'a [Sample],
+    pub shas: &'a [String],
+}
+
+/// The clips of the pair run that were joined, and the ones that were named.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClipNames {
+    pub joined: Vec<String>,
+    pub named: Vec<NamedClip>,
+}
+
+/// The repeats of each clip of a run, by the sha256 of the clip, in the order of
+/// their numbers. `shas[utt - 1]` is the clip of utterance `utt`.
+fn repeats_by_clip<'a>(
+    samples: &[Sample],
+    shas: &'a [String],
+) -> Result<BTreeMap<&'a str, Vec<Repeat>>, EvalError> {
+    let mut found: BTreeMap<&str, Vec<Repeat>> = BTreeMap::new();
+    for sample in samples {
+        let Some(sha) = usize::try_from(sample.utt)
+            .ok()
+            .and_then(|utt| utt.checked_sub(1))
+            .and_then(|at| shas.get(at))
+        else {
+            return Err(invalid(format!(
+                "utt {} has no row in the manifest",
+                sample.utt
+            )));
+        };
+        found.entry(sha).or_default().push(repeat_of(sample));
+    }
+    for repeats in found.values_mut() {
+        repeats.sort_by_key(|(number, _)| *number);
+    }
+    Ok(found)
+}
+
+/// The side of a clip in the run that read it, with the label of the run.
+type Side<'a> = (&'a str, &'a [Repeat]);
+
+/// How a clip stands between the pair run and the `--lang` run that read it.
+fn clip_reason(pair: &[Repeat], (label, forced): Side<'_>) -> Option<ClipReason> {
+    match (SideReason::of(pair), SideReason::of(forced)) {
+        (None, None) => None,
+        (Some(side), None) => Some(ClipReason::Pair(side)),
+        (None, Some(side)) => Some(ClipReason::MissingInLangRun {
+            run: label.to_owned(),
+            side,
+        }),
+        (Some(pair), Some(side)) => Some(ClipReason::MissingInBoth {
+            pair,
+            run: label.to_owned(),
+            side,
+        }),
+    }
+}
+
+/// Ties the clips of the pair run to the `--lang` runs by sha256, and gives
+/// every clip that is not joined its reason. A clip is joined when a repeat of
+/// it has `L_asr` in both runs. A clip with no sample in the pair run, or one
+/// that no `--lang` run (or no sample of it) can speak for, is an error: the
+/// record would have a clip with no reason, and the joined and the named would
+/// not add up to the clips of the manifest.
+pub fn name_unjoined_clips(
+    pair_samples: &[Sample],
+    pair_shas: &[String],
+    forced: &[ForcedRun<'_>],
+) -> Result<ClipNames, EvalError> {
+    let pair = repeats_by_clip(pair_samples, pair_shas)?;
+    let runs: Vec<(&str, BTreeMap<&str, Vec<Repeat>>)> = forced
+        .iter()
+        .map(|run| Ok((run.label, repeats_by_clip(run.samples, run.shas)?)))
+        .collect::<Result<_, EvalError>>()?;
+    let mut found = ClipNames {
+        joined: Vec::new(),
+        named: Vec::new(),
+    };
+    for (at, sha) in pair_shas.iter().enumerate() {
+        if found.joined.contains(sha) || found.named.iter().any(|clip| clip.sha == *sha) {
+            continue;
+        }
+        let utt = at + 1;
+        let no_reason = |where_: &str| {
+            invalid(format!(
+                "clip {sha} (utterance {utt}) has no sample in {where_}: no reason can be given"
+            ))
+        };
+        let pair_side = pair
+            .get(sha.as_str())
+            .ok_or_else(|| no_reason("the pair run"))?;
+        let forced_side = runs
+            .iter()
+            .find_map(|(label, repeats)| repeats.get(sha.as_str()).map(|r| (*label, r.as_slice())))
+            .ok_or_else(|| no_reason("any --lang run"))?;
+        match clip_reason(pair_side, forced_side) {
+            None => found.joined.push(sha.clone()),
+            Some(reason) => found.named.push(NamedClip {
+                sha: sha.clone(),
+                utt: u32::try_from(utt).map_err(|_| invalid(String::from("too many clips")))?,
+                reason,
+            }),
+        }
+    }
+    Ok(found)
+}
+
 /// The `latency_ms` of every `final` event of a WebSocket capture, in 10^-6 ms.
 pub fn capture_final_latencies(text: &str) -> Result<Vec<i64>, EvalError> {
     let mut found = Vec::new();

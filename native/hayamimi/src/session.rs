@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
 use hayamimi_asr::itn::Overrides;
-use hayamimi_asr::pipeline::Demotion;
+use hayamimi_asr::pipeline::{ClosedSegment, Demotion};
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::speaker_stage::Mark;
 use hayamimi_asr::vad::Sensitivity;
@@ -122,6 +122,11 @@ pub trait Hearing {
     fn reset_session(&mut self);
     /// Says what the recognizers and the route did since the last call.
     fn tell_resident(&mut self, strings: &Strings, hub: &Hub);
+    /// The stretches of voice the detector closed since the last call, each
+    /// with the rule that ended it. A script that closes none says none.
+    fn take_closed(&mut self) -> Vec<ClosedSegment> {
+        Vec::new()
+    }
 }
 
 impl Hearing for Engine {
@@ -179,6 +184,10 @@ impl Hearing for Engine {
 
     fn tell_resident(&mut self, strings: &Strings, hub: &Hub) {
         report::tell_resident(strings, hub, self);
+    }
+
+    fn take_closed(&mut self) -> Vec<ClosedSegment> {
+        Engine::take_closed(self)
     }
 }
 
@@ -255,6 +264,7 @@ impl<E: Hearing> Session<'_, E> {
         };
         self.announce(state, &finals);
         self.say_feed_waits(&finals, waited, backlog);
+        self.say_vad_closed(state.stats.samples, backlog);
         self.tell_resident();
         self.close_due_group();
         self.draft();
@@ -339,6 +349,21 @@ impl<E: Hearing> Session<'_, E> {
         }
     }
 
+    /// Says which stretches of voice the detector closed in the feed that just
+    /// ran, and how far behind the audio it was: the `fed` samples are what it
+    /// has been given, and `queued` windows had come in behind them. After the
+    /// finals are published, so a log line never delays a subtitle.
+    fn say_vad_closed(&mut self, fed: u64, queued: usize) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        let closed = engine.take_closed();
+        let received = fed + (queued * WINDOW) as u64;
+        for line in log::vad_closed_lines(self.strings, self.source, &closed, (received, fed)) {
+            log::print(&line);
+        }
+    }
+
     /// Logs and publishes what the utterances made. Every `final` goes out
     /// before the first speaker mark is computed, so a mark never delays a subtitle.
     fn announce(&mut self, state: &mut State, finals: &[Final]) {
@@ -396,6 +421,8 @@ impl<E: Hearing> Session<'_, E> {
         if let Some(engine) = self.engine.as_mut() {
             let finals = engine.finish()?;
             self.announce(state, &finals);
+            // Speech cut short by a flush has no audio waiting behind it.
+            self.say_vad_closed(state.stats.samples, 0);
             self.tell_resident();
         }
         self.with_refiner(Refiner::flush);

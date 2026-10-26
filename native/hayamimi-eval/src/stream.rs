@@ -24,7 +24,9 @@ use serde_json::Value;
 use crate::error::EvalError;
 use crate::gpu_load;
 use crate::ingest::{self, Plan, sent_at};
-use crate::latency::{Event, Sample, Summary, Window, build_samples, parse_event, summarize_run};
+use crate::latency::{
+    Event, Sample, Summary, Window, build_samples, parse_event, place_on_tool_clock, summarize_run,
+};
 use crate::log;
 use crate::machine;
 use crate::manifest::{read_rows, write_text};
@@ -316,6 +318,7 @@ pub fn run(options: &Options) -> Result<Report, EvalError> {
         }
     }
     let windows = windows_for(&plan, &sent_us, &utterances.spans, options.repeat)?;
+    place_on_tool_clock(&mut events);
     let samples = build_samples(&windows, &utterances.references, &events)?;
     let summary = summarize_run(&samples, &events)?;
 
