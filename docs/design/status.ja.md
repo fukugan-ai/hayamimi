@@ -408,3 +408,4 @@ C は順位を崩さずに、GPU と E2E の窓（P と O の slice はほとん
 | 進み具合を `state.json` だけに置く | git の外に在り公開の repo に載らないので、読み手がどの slice が済んだかを見られない |
 | `rust_port.ja.md` の slice の表に状態の列を足す | merge のたびに設計が動き、「通った」を定める所と通った記録が混ざる |
 | 行番号で指す | 直すたびに動くので、slice と commit の名前で指す |
+| zip を 9.0.0 へ上げる（RUSTSEC-2026-0367 から 0369、重大） | zip 2.4.2 は sherpa-onnx-sys 1.13.8 の build 依存で、使うのは iOS 用の archive を展開する経路だけである。対象の Linux と Windows の build には当たらず、告知の条件（特権の process が相手の zip を展開する）も満たさない。持ち主の sherpa-onnx-sys は 2.0.0 を 2026-10-23 に出している。認識の部品の major 更新なので、GPU の build と認識の結果を打ち直す slice として、受付が `state.json` の next に置いて扱う |
