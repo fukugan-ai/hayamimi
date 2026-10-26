@@ -3859,7 +3859,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-03-011 | 010 の 2 件を 1701 ms に | p95 が 1 つ外 | 1700 | `Err` | 境界、陰性 | `a_settled_page_wait_p95_of_1701_ms_is_over_the_line` |
 | T-BR-03-012 | 温まった標本 20 件が 700 ms、冷えた標本が 2500 ms と 100 ms | 冷えた最大が線ちょうど | 2500 | `Ok` | 境界 | `a_cold_sample_of_2500_ms_is_on_the_line` |
 | T-BR-03-013 | 012 の 2500 を 2501 に | 冷えた最大が 1 つ外 | 2500 | `Err`（冷えた標本の線の外と言う） | 境界、陰性 | `a_cold_sample_of_2501_ms_is_over_the_line` |
-| T-BR-03-014 | 温まった標本 20 件が 700 ms、冷えた標本が 2400 ms の 1 件と 100 ms の 1 件 | 冷えた標本の分離 | p95 に冷えた標本を入れない | `Ok`（混ぜると 22 件の 21 番目が 2400 で p95 の線 1300 の外になる。derived：手計算。分けた実装だけが通る） | 陰性 | `a_cold_sample_is_kept_out_of_the_warm_percentiles` |
+| T-BR-03-014 | 温まった標本 20 件が 700 ms、冷えた標本が 2400 ms の 2 件（2400・100 の 1 件ずつでも `Ok`） | 冷えた標本の分離 | p95 に冷えた標本を入れない | `Ok`（混ぜると 22 件の 21 番目が 2400 で p95 の線 1300 の外になる。derived：手計算。分けた実装だけが通る） | 陰性 | `a_cold_sample_is_kept_out_of_the_warm_percentiles` |
 | T-BR-03-015 | 温まった標本の d の p50 だけが 301 ms で、`L_page` の 4 つの線は内 | 段の予算の外と主指標の内 | 段の外は記録 | 判定の関数は `Ok`、記録は d の p50 を「線の外」と書く（specified：BR-3「段ごとの予算の内外も記録する」。段の外では落とさない） | 境界 | `a_stage_outside_its_budget_is_recorded_and_does_not_fail_the_run` |
 | T-BR-03-016 | 温まった標本が 0 件の記録 | 空 | 0 件を成果と読まない | `Err`（implicit：T-BR-01-016 と同じ読み） | 陰性 | `a_run_with_no_warm_sample_cannot_pass_the_budget` |
 

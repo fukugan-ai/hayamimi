@@ -216,7 +216,7 @@ fn a_cold_sample_is_kept_out_of_the_warm_percentiles() {
     let warm = page_waits_of(&twenty(700, 700, 0));
     assert!(judge_budget(&warm, &[2400, 100]).is_ok());
     // Two cold samples at 2400 ms: mixed into 22 waits, the 21st is 2400 ms and
-    // passes the p95 line of 1300 ms; kept apart they only meet the cold line.
+    // is over the p95 line of 1300 ms; kept apart they only meet the cold line.
     assert!(judge_budget(&warm, &[2400, 2400]).is_ok());
 }
 
