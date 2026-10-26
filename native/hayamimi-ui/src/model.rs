@@ -131,7 +131,7 @@ pub struct Model {
     /// Whether a translation of a partial or of a final has ever arrived; the
     /// overlay shows its translation lines from then on.
     pub tr_seen: bool,
-    /// The dashboard's strip; unlike the overlay's line a final does not clear it.
+    /// The dashboard's strip: the newest partial, empty once a final has covered it.
     pub strip_text: String,
     pub strip_quiet: bool,
     /// The newest `ROW_LIMIT` confirmed lines, oldest first.
@@ -236,6 +236,8 @@ impl Model {
             final_tr: None,
         };
         self.partial_tr = None;
+        // The final covers the partial it settled; a later partial fills the strip again.
+        self.strip_text.clear();
         self.stats.add(&found);
         push_capped(
             &mut self.finals,
@@ -254,18 +256,39 @@ impl Model {
     }
 
     fn on_refine(&mut self, found: RefineEvent, now_ms: u64) {
-        push_capped(
-            &mut self.refines,
-            &mut self.dropped_refines,
-            RefineRow {
-                id: found.id.clone(),
-                text: found.text,
-                lang: found.lang,
-                speaker: found.speaker,
-                trs: Vec::new(),
-            },
-        );
-        self.adopt_orphans(Of::Refine, found.id.as_deref(), now_ms);
+        let id = found.id.clone();
+        let row = RefineRow {
+            id: found.id,
+            text: found.text,
+            lang: found.lang,
+            speaker: found.speaker,
+            trs: Vec::new(),
+        };
+        if let Some(row) = self.replace_refine(row) {
+            push_capped(&mut self.refines, &mut self.dropped_refines, row);
+        }
+        self.adopt_orphans(Of::Refine, id.as_deref(), now_ms);
+    }
+
+    /// Puts `row` in the place of the paragraph that has its `id`, and keeps
+    /// the translations already joined to that one. Gives `row` back when it has
+    /// no `id` or no paragraph on the page has it (one pushed out of the page
+    /// comes back as a new row).
+    fn replace_refine(&mut self, row: RefineRow) -> Option<RefineRow> {
+        let Some(id) = row.id.as_deref() else {
+            return Some(row);
+        };
+        let found = self
+            .refines
+            .iter_mut()
+            .rev()
+            .find(|held| held.id.as_deref() == Some(id));
+        let Some(held) = found else {
+            return Some(row);
+        };
+        let trs = std::mem::take(&mut held.trs);
+        *held = RefineRow { trs, ..row };
+        None
     }
 
     /// The speaker of a line is found after the line was sent.
@@ -462,8 +485,8 @@ mod tests {
         model.apply(final_line("a-1", "こんにちは"), 20);
         assert_eq!(model.overlay.partial_text, "");
         assert_eq!(model.partial_tr, None);
-        // The dashboard's strip keeps the last partial.
-        assert_eq!(model.strip_text, "こん");
+        // The dashboard's strip is emptied by the final too.
+        assert_eq!(model.strip_text, "");
     }
 
     #[test]
@@ -747,5 +770,225 @@ mod tests {
                 text: String::from(" (15000 yen)")
             }]
         );
+    }
+
+    fn refine_by(id: &str, speaker: &str, text: &str) -> UiEvent {
+        event(&format!(
+            r#"{{"type":"refine","id":"{id}","text":"{text}","lang":"ja","speaker":"{speaker}"}}"#
+        ))
+    }
+
+    fn refine_translation(lang: &str, id: &str, text: &str) -> UiEvent {
+        event(&format!(
+            r#"{{"type":"translation","of":"refine","id":"{id}","lang":"{lang}","text":"{text}","status":"ok","settled":true}}"#
+        ))
+    }
+
+    fn refine_ids(model: &Model) -> Vec<Option<&str>> {
+        model.refines.iter().map(|row| row.id.as_deref()).collect()
+    }
+
+    /// T-BR-14-001
+    #[test]
+    fn br14_a_refined_paragraph_sent_again_with_its_id_replaces_the_first() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1?", "段落"), 0);
+        model.apply(refine_translation("en", "r-1", "tr1"), 1);
+        model.apply(refine_by("r-1", "S1", "段落"), 2);
+        assert_eq!(model.refines.len(), 1);
+        assert_eq!(model.refines[0].speaker, "S1");
+        assert_eq!(model.refines[0].trs.len(), 1);
+        assert_eq!(model.refines[0].trs[0].text, "tr1");
+    }
+
+    /// T-BR-14-002
+    #[test]
+    fn a_translation_arriving_after_the_replacement_joins_the_single_row() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1?", "段落"), 0);
+        model.apply(refine_by("r-1", "S1", "段落"), 1);
+        model.apply(refine_translation("en", "r-1", "tr1"), 2);
+        assert_eq!(model.refines.len(), 1);
+        assert_eq!(model.refines[0].trs[0].text, "tr1");
+    }
+
+    /// T-BR-14-003
+    #[test]
+    fn refined_paragraphs_of_different_ids_stay_two_rows() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1", "一"), 0);
+        model.apply(refine_by("r-2", "S1", "二"), 1);
+        assert_eq!(model.refines.len(), 2);
+    }
+
+    /// T-BR-14-004
+    #[test]
+    fn the_same_refine_replayed_after_a_reconnect_stays_one_row() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1", "段落"), 0);
+        model.apply(refine_by("r-1", "S1", "段落"), 1);
+        assert_eq!(model.refines.len(), 1);
+    }
+
+    /// T-BR-14-005
+    #[test]
+    fn a_replay_of_several_refines_leaves_the_same_rows() {
+        let mut model = Model::default();
+        for round in 0..2 {
+            for id in ["r-1", "r-2", "r-3"] {
+                model.apply(refine_by(id, "S1", "段落"), round);
+            }
+        }
+        assert_eq!(refine_ids(&model), [Some("r-1"), Some("r-2"), Some("r-3")]);
+    }
+
+    /// T-BR-14-006
+    #[test]
+    fn refines_without_an_id_are_never_replaced() {
+        let mut model = Model::default();
+        for number in 0..2 {
+            model.apply(
+                event(r#"{"type":"refine","text":"段落","lang":"ja","speaker":"S1"}"#),
+                number,
+            );
+        }
+        assert_eq!(model.refines.len(), 2);
+    }
+
+    /// T-BR-14-007
+    #[test]
+    fn the_later_refine_replaces_the_text_as_well() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1?", "A"), 0);
+        model.apply(refine_by("r-1", "S1?", "B"), 1);
+        assert_eq!(model.refines.len(), 1);
+        assert_eq!(model.refines[0].text, "B");
+    }
+
+    /// T-BR-14-008
+    #[test]
+    fn a_replacement_does_not_grow_the_refined_total() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1?", "段落"), 0);
+        assert_eq!(model.refine_total(), 1);
+        model.apply(refine_by("r-1", "S1", "段落"), 1);
+        assert_eq!(model.refine_total(), 1);
+    }
+
+    /// T-BR-14-009
+    #[test]
+    fn a_replacement_at_the_row_limit_drops_nothing() {
+        let mut model = Model::default();
+        for number in 0..ROW_LIMIT {
+            model.apply(refine_by(&format!("r-{number}"), "S1", "段落"), 0);
+        }
+        model.apply(refine_by(&format!("r-{}", ROW_LIMIT - 1), "S1", "段落"), 1);
+        assert_eq!(model.refines.len(), ROW_LIMIT);
+        assert_eq!(model.dropped_refines, 0);
+        // The control: a 501st distinct id does push the oldest row out.
+        model.apply(refine_by("r-new", "S1", "段落"), 2);
+        assert_eq!(model.dropped_refines, 1);
+    }
+
+    /// T-BR-14-011
+    #[test]
+    fn a_replaced_row_keeps_its_place_in_the_order() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1", "古い"), 0);
+        model.apply(refine_by("r-2", "S1", "二"), 1);
+        model.apply(refine_by("r-1", "S1", "新しい"), 2);
+        assert_eq!(refine_ids(&model), [Some("r-1"), Some("r-2")]);
+        assert_eq!(model.refines[0].text, "新しい");
+        assert_eq!(model.refine_total(), 2);
+    }
+
+    /// T-BR-14-012
+    #[test]
+    fn of_two_translations_in_one_language_the_later_one_stays() {
+        let mut model = Model::default();
+        model.apply(refine_by("r-1", "S1", "段落"), 0);
+        model.apply(refine_translation("en", "r-1", "tr1"), 1);
+        model.apply(refine_by("r-1", "S1", "段落"), 2);
+        model.apply(refine_translation("en", "r-1", "tr2"), 3);
+        model.apply(refine_translation("zh", "r-1", "tz"), 4);
+        let texts: Vec<(&str, &str)> = model.refines[0]
+            .trs
+            .iter()
+            .map(|row| (row.lang.as_str(), row.text.as_str()))
+            .collect();
+        assert_eq!(texts, [("en", "tr2"), ("zh", "tz")]);
+    }
+
+    /// T-BR-14-013
+    #[test]
+    fn a_refine_whose_earlier_row_was_pushed_out_is_appended_as_a_new_row() {
+        let mut model = Model::default();
+        for number in 1..=ROW_LIMIT + 1 {
+            model.apply(refine_by(&format!("r-{number}"), "S1", "段落"), 0);
+        }
+        assert_eq!(model.dropped_refines, 1);
+        model.apply(refine_by("r-1", "S1", "段落"), 1);
+        assert_eq!(model.refines.len(), ROW_LIMIT);
+        assert_eq!(model.dropped_refines, 2);
+        assert_eq!(
+            model.refines.back().and_then(|row| row.id.as_deref()),
+            Some("r-1")
+        );
+    }
+
+    fn partial_line(text: &str) -> UiEvent {
+        event(&format!(r#"{{"type":"partial","text":"{text}"}}"#))
+    }
+
+    /// T-BR-15-001
+    #[test]
+    fn br15_the_listening_strip_drops_a_partial_its_final_has_covered() {
+        let mut model = Model::default();
+        model.apply(partial_line("こん"), 0);
+        model.apply(final_line("a-1", "こんにちは"), 1);
+        assert_eq!(model.strip_text, "");
+        model.apply(partial_line("次"), 2);
+        assert_eq!(model.strip_text, "次");
+    }
+
+    /// T-BR-15-002
+    #[test]
+    fn a_partial_alone_stays_in_the_strip() {
+        let mut model = Model::default();
+        model.apply(partial_line("こん"), 0);
+        assert_eq!(model.strip_text, "こん");
+    }
+
+    /// T-BR-15-003
+    #[test]
+    fn a_final_empties_the_strip_text_together_with_the_partial_translation() {
+        let mut model = Model::default();
+        model.apply(partial_line("こん"), 0);
+        model.apply(translation("partial", "", "hel", false), 1);
+        assert!(model.partial_tr.is_some());
+        model.apply(final_line("a-1", "こんにちは"), 2);
+        assert_eq!(model.strip_text, "");
+        assert_eq!(model.partial_tr, None);
+    }
+
+    /// T-BR-15-004
+    #[test]
+    fn a_final_with_no_partial_before_it_leaves_the_strip_empty() {
+        let mut model = Model::default();
+        model.apply(final_line("a-1", "こんにちは"), 0);
+        assert_eq!(model.strip_text, "");
+        assert_eq!(model.finals.len(), 1);
+    }
+
+    /// T-BR-15-007
+    #[test]
+    fn a_late_final_empties_the_strip_and_the_next_partial_fills_it_again() {
+        let mut model = Model::default();
+        model.apply(partial_line("こん"), 0);
+        model.apply(partial_line("次"), 1);
+        model.apply(final_line("a-1", "こんにちは"), 2);
+        assert_eq!(model.strip_text, "");
+        model.apply(partial_line("次の"), 3);
+        assert_eq!(model.strip_text, "次の");
     }
 }
