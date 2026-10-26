@@ -44,6 +44,14 @@ pub enum EventKind {
     /// `partial`). It never closes an utterance, so it is not paired with a
     /// `final`.
     PartialTranslation,
+    /// The reply of `/ingest` to the config. `stream_us` is where the server's
+    /// stream clock stood when it replied (`stream_s`, in whole microseconds);
+    /// a server that does not say has none.
+    Ready {
+        stream_us: Option<i64>,
+    },
+    /// The server's stream clock began (`session_start`).
+    SessionStart,
     Other,
 }
 
@@ -100,6 +108,13 @@ pub fn parse_event(t_us: i64, json_text: &str) -> Result<Event, EvalError> {
             status: string_field(&value, "status"),
             src_sha256: string_field(&value, "src_sha256"),
         },
+        Some("ready") => EventKind::Ready {
+            stream_us: value
+                .get("stream_s")
+                .and_then(Value::as_f64)
+                .and_then(seconds_to_us),
+        },
+        Some("session_start") => EventKind::SessionStart,
         _ => EventKind::Other,
     };
     Ok(Event { t_us, kind })
@@ -499,6 +514,444 @@ pub fn summarize_run(samples: &[Sample], events: &[Event]) -> Result<Summary, Ev
     Ok(summary)
 }
 
+/// How far the tool's clock is ahead of the server's stream clock, in
+/// microseconds: a `final` carries `t1_s` on the stream clock, a window is on
+/// the tool's clock, and the one is put on the other by adding this.
+///
+/// `ready` says where the stream clock stood when the connection was made
+/// (`stream_s`), so the offset is the arrival of that frame minus the position;
+/// the stream clock keeps going from one client to the next, and only the
+/// position tells a second connection from the first. A server that does not
+/// say is read by its `session_start`, the moment the clock began. The first
+/// `final` is never the origin: which utterance it belongs to is what the
+/// offset is needed to decide.
+pub fn stream_offset_us(events: &[Event]) -> Option<i64> {
+    let by_ready = events.iter().find_map(|event| match event.kind {
+        EventKind::Ready {
+            stream_us: Some(position),
+        } => Some(event.t_us - position),
+        _ => None,
+    });
+    by_ready.or_else(|| {
+        events
+            .iter()
+            .find(|event| event.kind == EventKind::SessionStart)
+            .map(|event| event.t_us)
+    })
+}
+
+/// Puts the `t1_s` of every `final` on the tool's clock (see
+/// [`stream_offset_us`]). A run with no frame about the stream clock has the
+/// two clocks equal and is left as it is.
+pub fn place_on_tool_clock(events: &mut [Event]) {
+    let Some(offset) = stream_offset_us(events) else {
+        return;
+    };
+    for event in events {
+        if let EventKind::Final {
+            t1_us: Some(t1), ..
+        } = &mut event.kind
+        {
+            *t1 += offset;
+        }
+    }
+}
+
+/// The windows and the events of a run from the two files it left: the
+/// samples file (`<run>.jsonl`, one [`Sample`] a line) and the events file
+/// (`<run>.events.jsonl`, `{"t_us", "event"}` a line).
+pub fn read_record(
+    samples_text: &str,
+    events_text: &str,
+) -> Result<(Vec<Window>, Vec<Event>), EvalError> {
+    Ok((windows_of_text(samples_text)?, events_of_text(events_text)?))
+}
+
+/// The lines of a file that are not blank, with their 1-based numbers.
+fn non_blank(text: &str) -> impl Iterator<Item = (usize, &str)> {
+    text.lines()
+        .enumerate()
+        .map(|(at, line)| (at + 1, line))
+        .filter(|(_, line)| !line.trim().is_empty())
+}
+
+/// The span of each utterance of a samples file.
+fn windows_of_text(text: &str) -> Result<Vec<Window>, EvalError> {
+    non_blank(text)
+        .map(|(number, line)| {
+            let sample: Sample = serde_json::from_str(line)
+                .map_err(|error| EvalError::Invalid(format!("samples line {number}: {error}")))?;
+            Ok(Window {
+                repeat: sample.repeat,
+                utt: sample.utt,
+                t_start_us: sample.t_start_us,
+                t_end_us: sample.t_end_us,
+            })
+        })
+        .collect()
+}
+
+/// An event as the events file holds it: when it arrived and its JSON.
+type RawEvent = (i64, Value);
+
+/// The lines of an events file, unread.
+fn raw_events(text: &str) -> Result<Vec<RawEvent>, EvalError> {
+    non_blank(text)
+        .map(|(number, line)| {
+            let bad = |why: &str| EvalError::Invalid(format!("events line {number}: {why}"));
+            let value: Value =
+                serde_json::from_str(line).map_err(|error| bad(&error.to_string()))?;
+            let t_us = value
+                .get("t_us")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| bad("no integer `t_us`"))?;
+            let event = value.get("event").ok_or_else(|| bad("no `event`"))?;
+            Ok((t_us, event.clone()))
+        })
+        .collect()
+}
+
+/// The events of an events file, read the way the run reads what it hears.
+pub fn events_of_text(text: &str) -> Result<Vec<Event>, EvalError> {
+    parse_raw(&raw_events(text)?)
+}
+
+fn parse_raw(raw: &[RawEvent]) -> Result<Vec<Event>, EvalError> {
+    raw.iter()
+        .map(|(t_us, body)| parse_event(*t_us, &body.to_string()))
+        .collect()
+}
+
+/// The samples of a run built again from the two files it left, the way
+/// `stream` builds them: the finals are put on the tool's clock first.
+/// `references` has one text for each utterance number.
+pub fn samples_of_record(
+    samples_text: &str,
+    events_text: &str,
+    references: &[String],
+) -> Result<Vec<Sample>, EvalError> {
+    let (windows, mut events) = read_record(samples_text, events_text)?;
+    place_on_tool_clock(&mut events);
+    build_samples(&windows, references, &events)
+}
+
+/// The stages of the wait from the end of speech to the translation. Each is
+/// the difference of two moments on the tool's clock (design 10.13.3):
+/// `d = t_close - t_end` with `t_close = t_final - L_dec`, `L_dec` the
+/// `latency_ms` of the closing `final`, `L_tr = t_tr - t_final` and
+/// `L_e = t_settled - t_tr`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stage {
+    /// The wait for the end: `d`.
+    Wait,
+    /// The decode: `L_dec`.
+    Decode,
+    /// The draft translation: `L_tr`.
+    Draft,
+    /// The settled translation: `L_e`. Recorded, with no line.
+    Settle,
+}
+
+impl Stage {
+    /// The name the record gives the stage.
+    pub fn name(self) -> &'static str {
+        match self {
+            Stage::Wait => "d",
+            Stage::Decode => "L_dec",
+            Stage::Draft => "L_tr",
+            Stage::Settle => "L_e",
+        }
+    }
+
+    /// The line of the stage in milliseconds, `(p50, p95)`; none for a stage that has none.
+    pub fn budget_ms(self) -> Option<(i64, i64)> {
+        match self {
+            Stage::Wait => Some((300, 600)),
+            Stage::Decode => Some((270, 480)),
+            Stage::Draft => Some((100, 300)),
+            Stage::Settle => None,
+        }
+    }
+}
+
+/// The stages of one utterance that has a closing `final`, in microseconds.
+/// A stage the record cannot give is none: it is never filled with 0.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StageRow {
+    pub repeat: u32,
+    pub utt: u32,
+    /// The `lang` of the closing `final`.
+    pub lang: Option<String>,
+    /// The `id` of the closing `final`: what a page record is joined by.
+    pub final_id: Option<String>,
+    pub d_us: Option<i64>,
+    pub dec_us: Option<i64>,
+    pub tr_us: Option<i64>,
+    pub settle_us: Option<i64>,
+    /// The wait of 3.1, `t_tr - t_end`.
+    pub l_us: Option<i64>,
+    /// `t_settled - t_end`.
+    pub settled_wait_us: Option<i64>,
+}
+
+/// Microseconds as whole milliseconds, rounded toward negative infinity.
+pub fn floor_ms(micros: i64) -> i64 {
+    micros.div_euclid(1000)
+}
+
+impl StageRow {
+    pub fn d_ms(&self) -> Option<i64> {
+        self.d_us.map(floor_ms)
+    }
+
+    pub fn dec_ms(&self) -> Option<i64> {
+        self.dec_us.map(floor_ms)
+    }
+
+    pub fn tr_ms(&self) -> Option<i64> {
+        self.tr_us.map(floor_ms)
+    }
+
+    pub fn settle_ms(&self) -> Option<i64> {
+        self.settle_us.map(floor_ms)
+    }
+
+    fn of(&self, stage: Stage) -> Option<i64> {
+        match stage {
+            Stage::Wait => self.d_us,
+            Stage::Decode => self.dec_us,
+            Stage::Draft => self.tr_us,
+            Stage::Settle => self.settle_us,
+        }
+    }
+}
+
+/// The utterances of a run with a closing `final`, apart: the first of each
+/// language in the run is cold (the recognizer of that language had not read
+/// anything yet) and all the others are warm.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StageReport {
+    pub cold: Vec<StageRow>,
+    pub warm: Vec<StageRow>,
+}
+
+/// A percentile pair over the warm utterances, floored to whole milliseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageStat {
+    pub n: usize,
+    pub p50_ms: i64,
+    pub p95_ms: i64,
+}
+
+/// Whether the percentiles of a stage stand on or inside the line of the stage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Verdict {
+    pub stage: Stage,
+    pub p50_inside: bool,
+    pub p95_inside: bool,
+}
+
+/// How the record words a side of a line.
+pub fn side_of(inside: bool) -> &'static str {
+    if inside { "線の内" } else { "線の外" }
+}
+
+/// The `latency_ms` of a `final` in whole microseconds, floored. The server
+/// writes three decimals, so the value is first taken to nanoseconds to keep
+/// the noise of a binary fraction from moving the floor.
+fn latency_us(latency_ms: f64) -> Option<i64> {
+    let nanos = (latency_ms * 1_000_000.0).round();
+    (nanos.is_finite() && nanos.abs() < 9.0e18).then(|| (nanos as i64).div_euclid(1000))
+}
+
+fn text_of_body<'a>(body: &'a Value, key: &str) -> Option<&'a str> {
+    body.get(key).and_then(Value::as_str)
+}
+
+/// The closing `final` of a sample: the event that arrived when the sample says.
+fn closing_final(raw: &[RawEvent], arrived_us: i64) -> Option<&Value> {
+    raw.iter()
+        .find(|(t_us, body)| *t_us == arrived_us && text_of_body(body, "type") == Some("final"))
+        .map(|(_, body)| body)
+}
+
+/// When the settled translation of the `final` `id` arrived: the first with
+/// `of: final`, `settled: true` and `status: ok`.
+fn settled_at(raw: &[RawEvent], id: &str) -> Option<i64> {
+    raw.iter()
+        .filter(|(_, body)| {
+            text_of_body(body, "type") == Some("translation")
+                && text_of_body(body, "id") == Some(id)
+                && text_of_body(body, "of") == Some("final")
+                && body.get("settled").and_then(Value::as_bool) == Some(true)
+                && text_of_body(body, "status") == Some("ok")
+        })
+        .map(|(t_us, _)| *t_us)
+        .min()
+}
+
+/// The stages of a sample, or none for one with no closing `final`.
+fn stage_row(sample: &Sample, raw: &[RawEvent]) -> Option<StageRow> {
+    let t_final = sample.t_final_us?;
+    let closing = closing_final(raw, t_final)?;
+    let dec_us = sample.final_latency_ms.and_then(latency_us);
+    let settled = text_of_body(closing, "id").and_then(|id| settled_at(raw, id));
+    Some(StageRow {
+        repeat: sample.repeat,
+        utt: sample.utt,
+        lang: text_of_body(closing, "lang").map(str::to_owned),
+        final_id: text_of_body(closing, "id").map(str::to_owned),
+        d_us: dec_us.map(|dec| t_final - dec - sample.t_end_us),
+        dec_us,
+        tr_us: sample.l_tr_us(),
+        settle_us: settled
+            .zip(sample.t_tr_us)
+            .map(|(done, draft)| done - draft),
+        l_us: sample.l_us(),
+        settled_wait_us: settled.map(|done| done - sample.t_end_us),
+    })
+}
+
+/// Splits the rows, in the order of the run, into the first of each language and the rest.
+fn split_cold(rows: Vec<StageRow>) -> StageReport {
+    let mut seen: Vec<Option<String>> = Vec::new();
+    let (mut cold, mut warm) = (Vec::new(), Vec::new());
+    for row in rows {
+        if seen.contains(&row.lang) {
+            warm.push(row);
+        } else {
+            seen.push(row.lang.clone());
+            cold.push(row);
+        }
+    }
+    StageReport { cold, warm }
+}
+
+/// The stages of every utterance of a run, from the two files it left (the
+/// samples file and the events file). The finals are placed on the windows
+/// again, by [`samples_of_record`], so the stages do not depend on how the
+/// samples file was written. An utterance with no closing `final` has no
+/// stage and is not counted.
+pub fn stage_report(samples_text: &str, events_text: &str) -> Result<StageReport, EvalError> {
+    let windows = windows_of_text(samples_text)?;
+    let Some(longest) = windows.iter().map(|window| window.utt).max() else {
+        return Err(EvalError::Invalid(String::from(
+            "the record has no sample line",
+        )));
+    };
+    let raw = raw_events(events_text)?;
+    let mut events = parse_raw(&raw)?;
+    place_on_tool_clock(&mut events);
+    let references = vec![String::new(); longest as usize];
+    let samples = build_samples(&windows, &references, &events)?;
+    Ok(split_cold(
+        samples
+            .iter()
+            .filter_map(|sample| stage_row(sample, &raw))
+            .collect(),
+    ))
+}
+
+impl StageReport {
+    /// The percentiles of a stage over the warm utterances that have it; none
+    /// when no warm utterance does.
+    pub fn stat(&self, stage: Stage) -> Result<Option<StageStat>, EvalError> {
+        let values: Vec<i64> = self.warm.iter().filter_map(|row| row.of(stage)).collect();
+        if values.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(StageStat {
+            n: values.len(),
+            p50_ms: floor_ms(nearest_rank(&values, 50)?),
+            p95_ms: floor_ms(nearest_rank(&values, 95)?),
+        }))
+    }
+
+    /// Where the percentiles of each stage that has a line stand against it.
+    /// With no warm utterance, or a stage that has no value, nothing was
+    /// measured and the answer is an error and not a side of the line.
+    pub fn verdicts(&self) -> Result<Vec<Verdict>, EvalError> {
+        if self.warm.is_empty() {
+            return Err(EvalError::Invalid(String::from(
+                "温まった標本 0: the stages cannot be judged against their lines",
+            )));
+        }
+        [Stage::Wait, Stage::Decode, Stage::Draft]
+            .into_iter()
+            .map(|stage| self.verdict(stage))
+            .collect()
+    }
+
+    fn verdict(&self, stage: Stage) -> Result<Verdict, EvalError> {
+        let (Some(stat), Some((line50, line95))) = (self.stat(stage)?, stage.budget_ms()) else {
+            return Err(EvalError::Invalid(format!(
+                "no warm utterance has the stage {}",
+                stage.name()
+            )));
+        };
+        Ok(Verdict {
+            stage,
+            p50_inside: stat.p50_ms <= line50,
+            p95_inside: stat.p95_ms <= line95,
+        })
+    }
+
+    /// The record of the run, one line a stage.
+    pub fn render(&self) -> String {
+        let mut text = format!(
+            "冷えた標本 {}、温まった標本 {}\n",
+            self.cold.len(),
+            self.warm.len()
+        );
+        if self.warm.is_empty() {
+            text.push_str("温まった標本 0: 段の p50 と p95 は出していない\n");
+        }
+        for stage in [Stage::Wait, Stage::Decode, Stage::Draft, Stage::Settle] {
+            if !self.warm.is_empty() {
+                text.push_str(&self.stage_line(stage));
+            }
+        }
+        for row in &self.cold {
+            text.push_str(&cold_line(row));
+        }
+        text
+    }
+
+    fn stage_line(&self, stage: Stage) -> String {
+        let name = stage.name();
+        let Ok(Some(stat)) = self.stat(stage) else {
+            return format!("{name}: 値なし\n");
+        };
+        let line = |value: i64, budget: Option<i64>| match budget {
+            Some(limit) => format!("{value} ms (線 {limit} ms) {}", side_of(value <= limit)),
+            None => format!("{value} ms"),
+        };
+        let (line50, line95) = match stage.budget_ms() {
+            Some((p50, p95)) => (Some(p50), Some(p95)),
+            None => (None, None),
+        };
+        format!(
+            "{name}: n {}, p50 {}, p95 {}\n",
+            stat.n,
+            line(stat.p50_ms, line50),
+            line(stat.p95_ms, line95)
+        )
+    }
+}
+
+fn cold_line(row: &StageRow) -> String {
+    let show = |value: Option<i64>| value.map_or_else(|| String::from("なし"), |v| v.to_string());
+    format!(
+        "冷えた標本 repeat {} utt {} ({}): d {} ms, L_dec {} ms, L_tr {} ms\n",
+        row.repeat,
+        row.utt,
+        row.lang.as_deref().map_or("lang なし", |lang| lang),
+        show(row.d_ms()),
+        show(row.dec_ms()),
+        show(row.tr_ms())
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -577,12 +1030,32 @@ mod tests {
     #[test]
     fn other_types_are_other() -> Result<(), EvalError> {
         assert_eq!(
-            parse_event(1, r#"{"type":"ready","sr":16000}"#)?.kind,
+            parse_event(1, r#"{"type":"warning","message":"w"}"#)?.kind,
             EventKind::Other
         );
         assert_eq!(
             parse_event(1, r#"{"type":"partial","text":"a"}"#)?.kind,
             EventKind::Partial
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_ready_is_read_with_the_stream_position_it_names_and_without_one_it_does_not()
+    -> Result<(), EvalError> {
+        assert_eq!(
+            parse_event(1, r#"{"type":"ready","sr":16000,"stream_s":30.904}"#)?.kind,
+            EventKind::Ready {
+                stream_us: Some(30_904_000)
+            }
+        );
+        assert_eq!(
+            parse_event(1, r#"{"type":"ready","sr":16000}"#)?.kind,
+            EventKind::Ready { stream_us: None }
+        );
+        assert_eq!(
+            parse_event(1, r#"{"type":"session_start"}"#)?.kind,
+            EventKind::SessionStart
         );
         Ok(())
     }

@@ -12,8 +12,12 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
 
-use hayamimi_eval::latency::{Event, EventKind, Sample, Window, build_samples, parse_event};
+use hayamimi_eval::latency::{
+    Event, EventKind, Sample, Stage, StageReport, StageRow, Window, build_samples, floor_ms,
+    parse_event,
+};
 use hayamimi_eval::manifest::{Row, read_rows};
+use hayamimi_eval::percentile::nearest_rank;
 use serde_json::Value;
 
 use super::Failure;
@@ -722,4 +726,303 @@ pub fn record_dialog_run(
     record_fallbacks(path, &log, &events_text)?;
     record_unread(path, &log, &samples, &counted.undecided)?;
     Ok(verdict)
+}
+
+// ---- the page stage and the budget (BR-2, BR-3) ----------------------------
+
+/// One translation as the page's own clock saw it, in milliseconds of
+/// `performance.now()`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PageStamp {
+    /// The `id` of the line the translation is of.
+    pub id: String,
+    pub p_arrive: Option<f64>,
+    pub p_draw: Option<f64>,
+    /// When the tool received the same translation, on the tool's clock. It only
+    /// joins a stamp to a sample; the page stage never reads it.
+    pub tool_us: Option<i64>,
+}
+
+/// The line of the page stage in milliseconds, `(p50, p95)`.
+const PAGE_STAGE_LINE: (f64, f64) = (50.0, 100.0);
+
+/// `L_pg = p_draw - p_arrive` of one stamp. A stamp that lacks a time is
+/// named, and so is a draw that is before its arrival on the same clock.
+fn page_wait(stamp: &PageStamp) -> Result<f64, Failure> {
+    let id = &stamp.id;
+    let arrive = stamp
+        .p_arrive
+        .ok_or_else(|| format!("{id}: the page recorded no p_arrive"))?;
+    let draw = stamp
+        .p_draw
+        .ok_or_else(|| format!("{id}: the page recorded no p_draw"))?;
+    let wait = draw - arrive;
+    if wait < 0.0 {
+        return Err(format!(
+            "{id}: p_draw {draw:.3} is before p_arrive {arrive:.3}: L_pg {wait:.3} ms"
+        ));
+    }
+    Ok(wait)
+}
+
+/// `L_pg` in milliseconds of every translation the page recorded. A page that
+/// drew none of them, or none at all, has no stage and is an error.
+pub fn page_waits(stamps: &[PageStamp]) -> Result<Vec<f64>, Failure> {
+    if stamps.is_empty() {
+        return Err(String::from("the page recorded no translation"));
+    }
+    if stamps.iter().all(|stamp| stamp.p_draw.is_none()) {
+        return Err(format!(
+            "the page drew none of {} translations: no p_draw",
+            stamps.len()
+        ));
+    }
+    stamps.iter().map(page_wait).collect()
+}
+
+/// Milliseconds as whole microseconds, to the nearest.
+fn micros_of(ms: f64) -> i64 {
+    (ms * 1000.0).round() as i64
+}
+
+/// `(p50, p95)` of waits in milliseconds, nearest-rank over microseconds.
+pub fn page_percentiles(waits: &[f64]) -> Result<(f64, f64), Failure> {
+    let micros: Vec<i64> = waits.iter().map(|wait| micros_of(*wait)).collect();
+    let rank = |p: usize| -> Result<f64, Failure> {
+        let found = nearest_rank(&micros, p).map_err(|error| error.to_string())?;
+        Ok(found as f64 / 1000.0)
+    };
+    Ok((rank(50)?, rank(95)?))
+}
+
+fn side_word(inside: bool) -> &'static str {
+    if inside {
+        Verdict::Inside.word()
+    } else {
+        Verdict::Outside.word()
+    }
+}
+
+/// The record line of the page stage: its count and percentiles against its line.
+pub fn page_stage_text(waits: &[f64]) -> Result<String, Failure> {
+    let (p50, p95) = page_percentiles(waits)?;
+    Ok(format!(
+        "L_pg: n {}, p50 {p50:.3} ms (線 {} ms) {}, p95 {p95:.3} ms (線 {} ms) {}",
+        waits.len(),
+        PAGE_STAGE_LINE.0,
+        side_word(p50 <= PAGE_STAGE_LINE.0),
+        PAGE_STAGE_LINE.1,
+        side_word(p95 <= PAGE_STAGE_LINE.1)
+    ))
+}
+
+/// The stages of one warm utterance, and the two waits to the page, in whole
+/// milliseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Wait {
+    pub d_ms: i64,
+    pub dec_ms: i64,
+    pub tr_ms: i64,
+    /// `L_page = L + L_pg`.
+    pub l_page_ms: i64,
+    /// `L_settled_page = (t_settled - t_end) + L_pg`.
+    pub l_settled_page_ms: i64,
+}
+
+/// The lines of the whole wait, `(p50, p95)` in milliseconds.
+const L_PAGE_LINE: (i64, i64) = (750, 1300);
+const L_SETTLED_PAGE_LINE: (i64, i64) = (1100, 1700);
+/// The line of the largest cold `L_page`.
+const COLD_L_PAGE_LINE: i64 = 2500;
+
+fn percentiles_ms(values: &[i64]) -> Result<(i64, i64), Failure> {
+    let rank = |p: usize| nearest_rank(values, p).map_err(|error| error.to_string());
+    Ok((rank(50)?, rank(95)?))
+}
+
+/// One record line of a stage or a wait, and the sides of a line it is outside of.
+fn line_of(
+    name: &str,
+    values: &[i64],
+    line: Option<(i64, i64)>,
+    outside: &mut Vec<String>,
+) -> Result<String, Failure> {
+    let (p50, p95) = percentiles_ms(values)?;
+    let Some((line50, line95)) = line else {
+        return Ok(format!(
+            "{name}: n {}, p50 {p50} ms, p95 {p95} ms\n",
+            values.len()
+        ));
+    };
+    for (percent, value, limit) in [(50, p50, line50), (95, p95, line95)] {
+        if value > limit {
+            outside.push(format!(
+                "`{name}` の p{percent} が {value} ms で線 {limit} ms の外"
+            ));
+        }
+    }
+    Ok(format!(
+        "{name}: n {}, p50 {p50} ms (線 {line50} ms) {}, p95 {p95} ms (線 {line95} ms) {}\n",
+        values.len(),
+        side_word(p50 <= line50),
+        side_word(p95 <= line95)
+    ))
+}
+
+/// The record of the warm stages (a stage outside its line is only written),
+/// and the sides of the whole-wait lines the waits are outside of.
+fn budget_record(warm: &[Wait], cold_l_page_ms: &[i64]) -> Result<(String, Vec<String>), Failure> {
+    if warm.is_empty() {
+        return Err(String::from(
+            "温まった標本 0: the budget cannot be judged without a warm sample",
+        ));
+    }
+    let column = |pick: fn(&Wait) -> i64| -> Vec<i64> { warm.iter().map(pick).collect() };
+    let (mut ignored, mut outside) = (Vec::new(), Vec::new());
+    let mut record = String::new();
+    for (stage, values) in [
+        (Stage::Wait, column(|w| w.d_ms)),
+        (Stage::Decode, column(|w| w.dec_ms)),
+        (Stage::Draft, column(|w| w.tr_ms)),
+    ] {
+        record += &line_of(stage.name(), &values, stage.budget_ms(), &mut ignored)?;
+    }
+    for (name, values, line) in [
+        ("L_page", column(|w| w.l_page_ms), L_PAGE_LINE),
+        (
+            "L_settled_page",
+            column(|w| w.l_settled_page_ms),
+            L_SETTLED_PAGE_LINE,
+        ),
+    ] {
+        record += &line_of(name, &values, Some(line), &mut outside)?;
+    }
+    record += &cold_line_of(cold_l_page_ms, &mut outside);
+    Ok((record, outside))
+}
+
+/// The record line of the cold samples, with their largest `L_page` against its line.
+fn cold_line_of(cold_l_page_ms: &[i64], outside: &mut Vec<String>) -> String {
+    let Some(largest) = cold_l_page_ms.iter().max() else {
+        return String::from("冷えた標本 0\n");
+    };
+    if *largest > COLD_L_PAGE_LINE {
+        outside.push(format!(
+            "冷えた標本の `L_page` の最大が {largest} ms で線 {COLD_L_PAGE_LINE} ms の外"
+        ));
+    }
+    format!(
+        "冷えた標本: n {}, `L_page` の最大 {largest} ms (線 {COLD_L_PAGE_LINE} ms) {}\n",
+        cold_l_page_ms.len(),
+        side_word(*largest <= COLD_L_PAGE_LINE)
+    )
+}
+
+/// Judges the budget of design 10.13.3: the warm `L_page` and `L_settled_page`
+/// against their lines, and the largest cold `L_page` against its line. The
+/// record is returned when all are inside; a stage outside its own line is
+/// written in it and does not fail the run. With no warm sample nothing was
+/// measured and the answer is an error.
+pub fn judge_budget(warm: &[Wait], cold_l_page_ms: &[i64]) -> Result<String, Failure> {
+    let (record, outside) = budget_record(warm, cold_l_page_ms)?;
+    if outside.is_empty() {
+        Ok(record)
+    } else {
+        Err(outside.join("; "))
+    }
+}
+
+/// The waits of a run put together from its stages (BR-1) and its page stamps (BR-2).
+#[derive(Debug)]
+pub struct Joined {
+    pub warm: Vec<Wait>,
+    pub cold_l_page_ms: Vec<i64>,
+    /// `L_pg` in milliseconds of the utterances that were joined.
+    pub page_waits: Vec<f64>,
+    /// The utterances left out, each with the reason.
+    pub lacking: Vec<String>,
+}
+
+/// The wait of one utterance, or the reason it has none.
+fn wait_of(row: &StageRow, stamps: &[PageStamp]) -> Result<(Wait, f64), Failure> {
+    let id = row.final_id.as_deref().ok_or("its final has no id")?;
+    let stamp = stamps
+        .iter()
+        .find(|stamp| stamp.id == id)
+        .ok_or_else(|| format!("{id}: the page recorded no translation"))?;
+    let pg = page_wait(stamp)?;
+    let pg_us = micros_of(pg);
+    let need = |value: Option<i64>, what: &str| value.ok_or_else(|| format!("{id}: no {what}"));
+    Ok((
+        Wait {
+            d_ms: floor_ms(need(row.d_us, "d")?),
+            dec_ms: floor_ms(need(row.dec_us, "L_dec")?),
+            tr_ms: floor_ms(need(row.tr_us, "L_tr")?),
+            l_page_ms: floor_ms(need(row.l_us, "L")? + pg_us),
+            l_settled_page_ms: floor_ms(need(row.settled_wait_us, "t_settled")? + pg_us),
+        },
+        pg,
+    ))
+}
+
+/// Puts the page stamps on the utterances of a report by the `id` of the
+/// closing `final`. An utterance the page has no usable stamp for is listed in
+/// `lacking` with the reason and is in no percentile.
+pub fn join_page(report: &StageReport, stamps: &[PageStamp]) -> Result<Joined, Failure> {
+    let mut joined = Joined {
+        warm: Vec::new(),
+        cold_l_page_ms: Vec::new(),
+        page_waits: Vec::new(),
+        lacking: Vec::new(),
+    };
+    for (row, is_cold) in report
+        .warm
+        .iter()
+        .map(|row| (row, false))
+        .chain(report.cold.iter().map(|row| (row, true)))
+    {
+        match wait_of(row, stamps) {
+            Ok((wait, pg)) if is_cold => {
+                joined.cold_l_page_ms.push(wait.l_page_ms);
+                joined.page_waits.push(pg);
+            }
+            Ok((wait, pg)) => {
+                joined.warm.push(wait);
+                joined.page_waits.push(pg);
+            }
+            Err(reason) => joined
+                .lacking
+                .push(format!("repeat {} utt {}: {reason}", row.repeat, row.utt)),
+        }
+    }
+    Ok(joined)
+}
+
+/// The record of a real run: what the page was told, the stages of BR-1, the
+/// page stage and the whole waits, each against its line, and what was left
+/// out. It judges nothing.
+pub fn render_baseline(report: &StageReport, joined: &Joined) -> Result<String, Failure> {
+    let mut text = String::from(
+        "# BR-3 の今の値\n\n設計 `docs/design/conversation_subtitles.ja.md` の 10.13.3（遅れの予算と測り方）と 10.13.7（受入 ID BR-3、T-BR-03-001）の線に対する、B2 の前の今の値。合否は付けない。\n\n",
+    );
+    text += "## 段（BR-1。温まった標本は閉じる final を持つ発話の全部）\n\n";
+    text += &report.render();
+    text += "\n## 頁の段と頁までの遅れ（BR-2 の頁の時計と BR-1 を結んだ発話だけ）\n\n";
+    text += &format!(
+        "結べた発話 {}、結べなかった発話 {}\n\n",
+        joined.page_waits.len(),
+        joined.lacking.len()
+    );
+    if !joined.page_waits.is_empty() {
+        text += &page_stage_text(&joined.page_waits)?;
+        text.push('\n');
+    }
+    match budget_record(&joined.warm, &joined.cold_l_page_ms) {
+        Ok((record, _)) => text += &record,
+        Err(reason) => text += &format!("{reason}\n"),
+    }
+    for reason in &joined.lacking {
+        text += &format!("結べなかった: {reason}\n");
+    }
+    Ok(text)
 }

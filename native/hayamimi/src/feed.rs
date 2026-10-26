@@ -7,7 +7,7 @@
 
 use std::cell::Cell;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -40,6 +40,8 @@ struct Stamped {
 pub struct AudioTx {
     sender: Sender<Stamped>,
     queued: Arc<AtomicUsize>,
+    /// Windows the queue has taken since the start, from every input.
+    windows: Arc<AtomicU64>,
 }
 
 /// The receiving end, read by the loop.
@@ -58,6 +60,7 @@ pub fn channel() -> (AudioTx, AudioRx) {
         AudioTx {
             sender,
             queued: Arc::clone(&queued),
+            windows: Arc::new(AtomicU64::new(0)),
         },
         AudioRx {
             receiver,
@@ -76,6 +79,7 @@ impl AudioTx {
             return false;
         }
         self.queued.fetch_add(1, Ordering::Relaxed);
+        let is_window = matches!(item, AudioItem::Window(_));
         let stamped = Stamped {
             item,
             queued_at: Instant::now(),
@@ -84,7 +88,18 @@ impl AudioTx {
             self.queued.fetch_sub(1, Ordering::Relaxed);
             return false;
         }
+        if is_window {
+            self.windows.fetch_add(1, Ordering::Relaxed);
+        }
         true
+    }
+
+    /// Where the recognition loop's stream clock will stand when it has read
+    /// everything queued so far, in microseconds: the clock of the `t0_s` and
+    /// `t1_s` of a `final` counts the windows read, and the windows that were
+    /// dropped on a full queue were never read.
+    pub fn stream_us(&self) -> u64 {
+        self.windows.load(Ordering::Relaxed) * (WINDOW as u64) * 1_000_000 / u64::from(SAMPLE_RATE)
     }
 
     /// Puts an item on the queue, waiting while it is full. For an input
@@ -216,6 +231,34 @@ mod tests {
         drop(rx);
         assert!(!tx.send(AudioItem::Window(vec![0.0])));
         assert_eq!(queued.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn the_stream_position_counts_the_windows_the_queue_took_and_nothing_else() {
+        let (tx, _rx) = channel();
+        assert_eq!(tx.stream_us(), 0);
+        assert!(tx.send(AudioItem::Window(vec![0.0])));
+        assert!(tx.send(AudioItem::Window(vec![0.0])));
+        assert!(tx.send(AudioItem::Flush));
+        assert!(tx.send(AudioItem::End));
+        // A window is 512 samples, 32 ms at 16 kHz.
+        assert_eq!(tx.stream_us(), 64_000);
+        assert_eq!(tx.clone().stream_us(), 64_000, "clones share the count");
+    }
+
+    #[test]
+    fn a_window_dropped_on_a_full_queue_or_sent_to_a_gone_loop_is_not_on_the_stream() {
+        let (tx, _rx) = channel();
+        for _ in 0..CAPACITY {
+            assert!(tx.send(AudioItem::Window(Vec::new())));
+        }
+        let full = tx.stream_us();
+        assert!(!tx.send(AudioItem::Window(Vec::new())));
+        assert_eq!(tx.stream_us(), full);
+        let (gone, loop_gone) = channel();
+        drop(loop_gone);
+        assert!(!gone.send(AudioItem::Window(vec![0.0])));
+        assert_eq!(gone.stream_us(), 0);
     }
 
     #[test]

@@ -326,3 +326,44 @@ pub fn run_files_in(dir: &Path, silence: &str) -> Vec<(u32, PathBuf)> {
     found.sort();
     found
 }
+
+/// A sample that carries only the span of an utterance. The tools under test
+/// place the finals themselves, so what a run read is left empty.
+pub fn window_sample(
+    repeat: u32,
+    utt: u32,
+    t_start_us: i64,
+    t_end_us: i64,
+) -> hayamimi_eval::latency::Sample {
+    hayamimi_eval::latency::Sample {
+        repeat,
+        utt,
+        t_start_us,
+        t_end_us,
+        t_partial_us: None,
+        t_partial_tr_us: None,
+        t_final_us: None,
+        t_tr_us: None,
+        finals: 0,
+        text: String::new(),
+        translation: None,
+        final_latency_ms: None,
+        cer_dist: 0,
+        cer_denom: 0,
+    }
+}
+
+/// The lines of a samples file made of `samples`.
+pub fn samples_text(samples: &[hayamimi_eval::latency::Sample]) -> Result<String, Failure> {
+    let mut text = String::new();
+    for sample in samples {
+        text.push_str(&serde_json::to_string(sample).map_err(|error| error.to_string())?);
+        text.push('\n');
+    }
+    Ok(text)
+}
+
+/// One line of an events file: the event and the time it arrived.
+pub fn event_line(t_us: i64, event: Value) -> String {
+    serde_json::json!({"t_us": t_us, "event": event}).to_string()
+}

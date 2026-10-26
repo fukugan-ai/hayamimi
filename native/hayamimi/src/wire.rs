@@ -128,9 +128,12 @@ pub fn session_reset() -> Value {
     json!({"type": "session_reset"})
 }
 
-/// The reply of `/ingest` once the client's config is accepted.
-pub fn ready_event(sample_rate: u32) -> Value {
-    json!({"type": "ready", "sr": sample_rate})
+/// The reply of `/ingest` once the client's config is accepted. `stream_us` is
+/// where the stream clock stands, the clock of the `t0_s` and `t1_s` of a
+/// `final`: a client that connects after another has `final`s that count from
+/// the start of the server, not from its own start, and this is the offset.
+pub fn ready_event(sample_rate: u32, stream_us: u64) -> Value {
+    json!({"type": "ready", "sr": sample_rate, "stream_s": stream_us as f64 / 1_000_000.0})
 }
 
 /// The reply of `/ingest` to a client it refuses.
@@ -319,7 +322,10 @@ mod tests {
 
     #[test]
     fn the_ingest_replies_have_the_keys_of_the_existing_server() {
-        assert_eq!(ready_event(16_000), json!({"type": "ready", "sr": 16_000}));
+        // `stream_s` is a key added to the reply; the two it had keep their values and types.
+        let ready = ready_event(16_000, 0);
+        assert_eq!(ready["type"], "ready");
+        assert_eq!(ready["sr"], 16_000);
         assert_eq!(error_event("busy")["type"], "error");
         assert_eq!(session_reset()["type"], "session_reset");
     }

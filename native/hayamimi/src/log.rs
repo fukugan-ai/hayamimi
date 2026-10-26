@@ -6,7 +6,9 @@ use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use hayamimi_asr::pipeline::{PunctWarmup, Unread};
+use hayamimi_asr::audio::SAMPLE_RATE;
+use hayamimi_asr::endpoint::Rule;
+use hayamimi_asr::pipeline::{ClosedSegment, PunctWarmup, Unread};
 use hayamimi_asr::route::FallbackStep;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
 use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
@@ -31,6 +33,7 @@ pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
 pub const FEED_WAITED: &str = "asr.feed.waited";
+pub const VAD_CLOSED: &str = "asr.vad.closed";
 pub const EMBEDDING_STARTED: &str = "speaker.embedding.started";
 pub const ENGINE_FAILED: &str = "asr.engine.failed";
 pub const MODEL_LOADED: &str = "asr.model.loaded";
@@ -358,6 +361,58 @@ pub fn feed_waited_line(strings: &Strings, id: u64, wait: Duration, backlog: usi
     )
 }
 
+/// How far behind the audio the voice detector was, in whole milliseconds:
+/// `received` samples had come in while it had been fed `fed`. The detector
+/// is fed a window only after the window was received, so `fed` is not above
+/// `received`.
+pub fn vad_lag_ms(received: u64, fed: u64) -> u64 {
+    received.saturating_sub(fed) * 1000 / u64::from(SAMPLE_RATE)
+}
+
+/// `asr.vad.closed`: the voice detector closed one segment. `id` is the id of
+/// the `final` the segment made (`<source>-<number>`, the one `/events`
+/// carries), or null when the segment read as nothing. `lag_ms` is how far
+/// behind the audio the detector was when it closed the segment
+/// ([`vad_lag_ms`]), and `rule` is what ended it: `silence`, `early`,
+/// `max_speech`, or `flush` for the speech a leaving client cut short.
+pub fn vad_closed_line(
+    strings: &Strings,
+    id: Option<&str>,
+    received: u64,
+    fed: u64,
+    rule: Rule,
+) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        VAD_CLOSED,
+        "asr",
+        None,
+        &[
+            ("id", id.map_or(Value::Null, Value::from)),
+            ("lag_ms", Value::from(vad_lag_ms(received, fed))),
+            ("rule", Value::from(rule.name())),
+        ],
+    )
+}
+
+/// One `asr.vad.closed` line for each segment `closed` names, all closed
+/// while the detector had been fed `fed` of the `received` samples.
+pub fn vad_closed_lines(
+    strings: &Strings,
+    source: &str,
+    closed: &[ClosedSegment],
+    (received, fed): (u64, u64),
+) -> Vec<String> {
+    closed
+        .iter()
+        .map(|segment| {
+            let id = segment.id.map(|number| format!("{source}-{number}"));
+            vad_closed_line(strings, id.as_deref(), received, fed, segment.rule)
+        })
+        .collect()
+}
+
 /// Microseconds on the process's monotonic clock, from the first call.
 pub fn mono_us() -> u64 {
     static START: OnceLock<Instant> = OnceLock::new();
@@ -558,9 +613,9 @@ pub fn print(line: &str) {
 mod tests {
     use super::*;
     use crate::notice;
-    use hayamimi_asr::endpoint::{Hold, PlanKind, Tail};
+    use hayamimi_asr::endpoint::{Hold, PlanKind, Rule, Tail};
     use hayamimi_asr::ort_runtime::NodeCounts;
-    use hayamimi_asr::pipeline::UnreadReason;
+    use hayamimi_asr::pipeline::{ClosedSegment, UnreadReason};
     use hayamimi_asr::route::LangFallback;
     use hayamimi_asr::{Tier, Timings};
     use hayamimi_relay::lang::Lang;
@@ -745,6 +800,140 @@ mod tests {
         Ok(())
     }
 
+    /// The keys a line carries beyond the standard ones of every event.
+    fn extra_keys(line: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let bare = parsed(&event_line(
+            &strings()?,
+            Level::Info,
+            VAD_CLOSED,
+            "asr",
+            None,
+            &[],
+        ))?;
+        let full = parsed(line)?;
+        let (Some(bare), Some(full)) = (bare.as_object(), full.as_object()) else {
+            return Err("a line is not a JSON object".into());
+        };
+        let mut extra: Vec<String> = full
+            .keys()
+            .filter(|key| !bare.contains_key(*key))
+            .cloned()
+            .collect();
+        extra.sort();
+        Ok(extra)
+    }
+
+    /// T-BR-06-001
+    #[test]
+    fn br06_the_close_of_a_segment_logs_how_far_the_detector_lagged()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let line = vad_closed_line(&strings()?, Some("file-3"), 48_000, 32_000, Rule::Silence);
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.vad.closed");
+        assert_eq!(event["level"], "info");
+        assert_eq!(extra_keys(&line)?, ["id", "lag_ms", "rule"]);
+        assert_eq!(event["id"], "file-3");
+        assert_eq!(event["lag_ms"], 1000);
+        assert_eq!(event["rule"], "silence");
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    /// T-BR-06-002
+    #[test]
+    fn the_lag_is_the_sample_difference_in_milliseconds_at_16000_hz() {
+        let lags: Vec<u64> = [16, 160, 48_000, 15, 17, 31]
+            .iter()
+            .map(|samples| vad_lag_ms(*samples, 0))
+            .collect();
+        assert_eq!(lags, [1, 10, 3000, 0, 1, 1]);
+    }
+
+    /// T-BR-06-003
+    #[test]
+    fn a_lag_of_zero_is_written_as_the_number_zero() -> Result<(), Box<dyn std::error::Error>> {
+        let line = vad_closed_line(&strings()?, Some("file-1"), 32_000, 32_000, Rule::Silence);
+        let event = parsed(&line)?;
+        assert!(event["lag_ms"].is_u64(), "{line}");
+        assert_eq!(event["lag_ms"], 0);
+        Ok(())
+    }
+
+    /// T-BR-06-004
+    #[test]
+    fn the_rule_names_which_detector_or_limit_closed_the_segment()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let rules = [Rule::Silence, Rule::Early, Rule::MaxSpeech, Rule::Flush];
+        let strings = strings()?;
+        let mut written: Vec<Value> = Vec::new();
+        for rule in rules {
+            let event = parsed(&vad_closed_line(&strings, Some("file-1"), 0, 0, rule))?;
+            written.push(event["rule"].clone());
+        }
+        assert_eq!(written, ["silence", "early", "max_speech", "flush"]);
+        Ok(())
+    }
+
+    /// T-BR-06-005
+    #[test]
+    fn a_segment_that_made_no_final_is_logged_with_a_null_id()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let silent = parsed(&vad_closed_line(&strings()?, None, 0, 0, Rule::Silence))?;
+        let read = parsed(&vad_closed_line(
+            &strings()?,
+            Some("file-7"),
+            0,
+            0,
+            Rule::Silence,
+        ))?;
+        assert!(silent.get("id").is_some_and(Value::is_null), "{silent}");
+        assert_eq!(read["id"], "file-7");
+        Ok(())
+    }
+
+    /// T-BR-06-006
+    #[test]
+    fn one_line_is_written_per_closed_segment() -> Result<(), Box<dyn std::error::Error>> {
+        let closed = [
+            ClosedSegment {
+                id: Some(1),
+                rule: Rule::Silence,
+            },
+            ClosedSegment {
+                id: None,
+                rule: Rule::Early,
+            },
+            ClosedSegment {
+                id: Some(2),
+                rule: Rule::MaxSpeech,
+            },
+        ];
+        let feeds = [(48_000, 32_000), (320_016, 320_000), (32_000, 32_000)];
+        let mut lines = Vec::new();
+        for (received, fed) in feeds {
+            lines.extend(vad_closed_lines(
+                &strings()?,
+                "file",
+                &closed,
+                (received, fed),
+            ));
+        }
+        assert_eq!(lines.len(), closed.len() * feeds.len());
+        let lags: Vec<Value> = lines
+            .iter()
+            .map(|line| parsed(line).map(|event| event["lag_ms"].clone()))
+            .collect::<Result<_, _>>()?;
+        assert_eq!(lags, [1000, 1000, 1000, 1, 1, 1, 0, 0, 0]);
+        let first = parsed(&lines[0])?;
+        let second = parsed(&lines[1])?;
+        assert_eq!(first["id"], "file-1");
+        assert_eq!(first["rule"], "silence");
+        assert!(second["id"].is_null());
+        assert_eq!(second["rule"], "early");
+        Ok(())
+    }
+
     #[test]
     fn opening_the_server_to_the_network_is_a_warn_line_with_the_port_and_no_address()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -773,6 +962,7 @@ mod tests {
                 SPEAKER_FAILED,
                 FINAL_PUBLISHED,
                 FEED_WAITED,
+                VAD_CLOSED,
                 EMBEDDING_STARTED,
                 ENGINE_FAILED,
                 MODEL_LOADED,

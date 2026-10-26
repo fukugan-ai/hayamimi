@@ -17,6 +17,7 @@
 "refine.punct.failed" = "清書した文の句読点の復元に失敗したので、句読点なしの文で続けました"
 "refine.fallback.disabled" = "清書、または清書の句読点が使えないので、その部分を外して続けます"
 "asr.feed.waited" = "window が queue で待ってから feed を始めました"
+"asr.vad.closed" = "発話の検出器が声の区間を閉じました。lag_ms は検出器が音より遅れていた量、rule は区間を閉じた規則です"
 "speaker.embedding.started" = "発話の話者の埋め込みを始めました"
 "asr.engine.failed" = "認識の経路が失敗しました"
 "asr.partial.failed" = "進行中の発話の速報に失敗したので、飛ばしました"

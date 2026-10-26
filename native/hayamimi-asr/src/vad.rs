@@ -6,6 +6,7 @@ use hayamimi_gpu::session_lock::lock_for_session;
 use sherpa_onnx::{SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
 
 use crate::audio::{SAMPLE_RATE, WINDOW};
+use crate::endpoint::Rule;
 use crate::error::AsrError;
 
 pub const VAD_FILE: &str = "silero_vad.onnx";
@@ -149,6 +150,19 @@ pub struct Vad {
     fed: usize,
 }
 
+/// The rule that ended a segment of the main detector which holds `samples`
+/// samples when the detector's limit on continuous speech is `max_speech`
+/// seconds: the limit, when the segment is about as long as the limit allows
+/// (the detector cuts a segment a window or two short of it), else the silence.
+pub fn main_rule(samples: usize, max_speech: f32) -> Rule {
+    let limit = (f64::from(max_speech) * f64::from(SAMPLE_RATE)) as usize;
+    if samples + 2 * WINDOW >= limit {
+        Rule::MaxSpeech
+    } else {
+        Rule::Silence
+    }
+}
+
 /// The early detector's cutoff: its end line is 0.15 below, at 0.50.
 pub const EARLY_THRESHOLD: f32 = 0.65;
 /// The early detector's silence in seconds.
@@ -242,6 +256,14 @@ impl Vad {
     /// What the detector is set to now.
     pub fn sensitivity(&self) -> Sensitivity {
         self.sensitivity
+    }
+
+    /// The rule that ended `segment`, a segment of the main detector that
+    /// [`Vad::take_segments`] gave. A stretch the early detector finished is
+    /// ended by [`Rule::Early`], which is its own notice and not a segment of
+    /// this detector.
+    pub fn rule_of(&self, segment: &Segment) -> Rule {
+        main_rule(segment.samples.len(), self.sensitivity.max_speech)
     }
 
     /// Whether a new detector can replace this one without losing audio: no
@@ -471,5 +493,76 @@ mod tests {
         assert!(matches!(said, Some(AsrError::Create(_))), "{said:?}");
         assert_eq!(engine.sensitivity(), Some(unchanged));
         Ok(())
+    }
+
+    /// The rule of each segment `vad` makes from `clip`, in the order they close.
+    fn rules_heard(vad: &mut Vad, clip: &[f32]) -> Result<Vec<Rule>, AsrError> {
+        let mut rules = Vec::new();
+        for window in windows(clip) {
+            vad.accept(&window);
+            for segment in vad.take_segments()? {
+                rules.push(vad.rule_of(&segment));
+            }
+        }
+        Ok(rules)
+    }
+
+    /// The golden clip and a second of silence after it, which closes its last segment.
+    fn clip_then_silence() -> Result<Vec<f32>, AsrError> {
+        let speech = read_wav(&Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_CLIP))?;
+        Ok([speech, vec![0.0_f32; SAMPLE_RATE as usize]].concat())
+    }
+
+    /// T-BR-06-007
+    #[test]
+    fn a_segment_closed_by_the_pause_is_ruled_silence() -> Check {
+        let mut vad = Vad::open(&models_dir()?, VadSettings::default())?;
+        let rules = rules_heard(&mut vad, &clip_then_silence()?)?;
+        assert!(!rules.is_empty(), "the clip made no segment");
+        assert!(rules.iter().all(|rule| *rule == Rule::Silence), "{rules:?}");
+        Ok(())
+    }
+
+    /// T-BR-06-008
+    #[test]
+    fn a_segment_cut_at_the_longest_speech_is_ruled_max_speech() -> Check {
+        let settings = VadSettings {
+            max_speech: 1.0,
+            ..VadSettings::default()
+        };
+        let mut vad = Vad::open(&models_dir()?, settings)?;
+        let rules = rules_heard(&mut vad, &clip_then_silence()?)?;
+        assert!(rules.contains(&Rule::MaxSpeech), "{rules:?}");
+        Ok(())
+    }
+
+    /// T-BR-06-009
+    #[test]
+    fn a_segment_closed_by_the_early_detector_is_ruled_early() -> Check {
+        let mut vad = Vad::open_with_early(&models_dir()?, VadSettings::default())?;
+        let (mut early_at, mut main_at) = (None, None);
+        for (at, window) in windows(&clip_then_silence()?).enumerate() {
+            vad.accept(&window);
+            let early = vad.take_early()?;
+            let main = vad.take_segments()?;
+            early_at = early_at.or_else(|| (!early.is_empty()).then_some(at));
+            main_at = main_at.or_else(|| (!main.is_empty()).then_some(at));
+        }
+        // The early detector waits 120 ms of silence and the main one 300 ms, so the
+        // first stretch of voice is ended by the early notice before the main segment closes.
+        assert!(
+            early_at.is_some() && main_at.is_some(),
+            "{early_at:?} {main_at:?}"
+        );
+        assert!(early_at < main_at, "{early_at:?} {main_at:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_segment_as_long_as_the_limit_allows_is_ruled_max_speech_and_a_shorter_one_silence() {
+        let limit = 12 * SAMPLE_RATE as usize;
+        assert_eq!(main_rule(limit - 2 * WINDOW, 12.0), Rule::MaxSpeech);
+        assert_eq!(main_rule(limit - 2 * WINDOW - 1, 12.0), Rule::Silence);
+        assert_eq!(main_rule(0, 12.0), Rule::Silence);
     }
 }
