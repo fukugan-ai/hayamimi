@@ -94,6 +94,32 @@ fn identify_starts_loading_the_model_of_the_language_it_names() -> Result<(), Ro
 }
 
 #[test]
+fn a_pair_run_loads_the_model_of_a_language_it_reads() -> Result<(), RouteError> {
+    for (named, tier) in [("ja", Tier::Rz), ("en", Tier::V3)] {
+        let mut routed = router(
+            Script::present(&[]),
+            Some(FixedLid::naming(named)),
+            Policy::pair(),
+        );
+        assert_eq!(routed.identify(&SAMPLES)?, named);
+        assert_eq!(routed.decoder.prefetched, [tier], "{named}");
+    }
+    Ok(())
+}
+
+#[test]
+fn a_pair_run_loads_nothing_for_a_language_it_never_reads() -> Result<(), RouteError> {
+    let mut routed = router(
+        Script::present(&[]),
+        Some(FixedLid::naming("ko")),
+        Policy::pair(),
+    );
+    assert_eq!(routed.identify(&SAMPLES)?, "ko");
+    assert!(routed.decoder.prefetched.is_empty());
+    Ok(())
+}
+
+#[test]
 fn routed_asr_init_raises_not_exits_when_lid_missing() -> Result<(), RouteError> {
     // The C library ends the whole process on a missing model file. Opening the
     // identifier over a directory with no model must come back as a value.

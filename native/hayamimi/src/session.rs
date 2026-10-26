@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
 use hayamimi_asr::itn::Overrides;
+use hayamimi_asr::partial::MidwayAsked;
 use hayamimi_asr::pipeline::{ClosedSegment, Demotion};
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::speaker_stage::Mark;
@@ -127,6 +128,11 @@ pub trait Hearing {
     fn take_closed(&mut self) -> Vec<ClosedSegment> {
         Vec::new()
     }
+    /// The questions put to the language identifier in the middle of an
+    /// utterance since the last call. A script that asks none says none.
+    fn take_midway(&mut self) -> Vec<MidwayAsked> {
+        Vec::new()
+    }
 }
 
 impl Hearing for Engine {
@@ -188,6 +194,10 @@ impl Hearing for Engine {
 
     fn take_closed(&mut self) -> Vec<ClosedSegment> {
         Engine::take_closed(self)
+    }
+
+    fn take_midway(&mut self) -> Vec<MidwayAsked> {
+        Engine::take_midway(self)
     }
 }
 
@@ -265,6 +275,7 @@ impl<E: Hearing> Session<'_, E> {
         self.announce(state, &finals);
         self.say_feed_waits(&finals, waited, backlog);
         self.say_vad_closed(state.stats.samples, backlog);
+        self.say_midway();
         self.tell_resident();
         self.close_due_group();
         self.draft();
@@ -361,6 +372,18 @@ impl<E: Hearing> Session<'_, E> {
         let received = fed + (queued * WINDOW) as u64;
         for line in log::vad_closed_lines(self.strings, self.source, &closed, (received, fed)) {
             log::print(&line);
+        }
+    }
+
+    /// Says what the identifier answered when the feed that just ran asked it
+    /// the language of the utterance in progress. After the finals are
+    /// published, so a log line never delays a subtitle.
+    fn say_midway(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for asked in engine.take_midway() {
+            log::print(&log::midway_asked_line(self.strings, &asked));
         }
     }
 

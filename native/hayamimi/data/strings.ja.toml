@@ -21,6 +21,7 @@
 "speaker.embedding.started" = "発話の話者の埋め込みを始めました"
 "asr.engine.failed" = "認識の経路が失敗しました"
 "asr.partial.failed" = "進行中の発話の速報に失敗したので、飛ばしました"
+"asr.partial.lang.asked" = "進行中の発話の言語を、速報をその言語で読むために 1 回だけ判定器に聞きました。answer は答え、voice_ms は渡した声の長さ、lid_ms は判定にかかった時間です"
 "gpu.fallback.cpu" = "段を GPU から CPU へ落として続けます"
 "model.fallback.disabled" = "model が使えないので、その段を外して続けます"
 "asr.fallback.disabled" = "推論の library を開けないので、認識を外して続けます"
@@ -75,6 +76,7 @@ options:
   --min-silence <sec>  発話の終わりにする無音の秒数（既定は 0.30）
   --max-speech <sec>   この秒数の発話が続いたら確定する（既定は 12）
   --endpoint <rule>    early（既定）は短い無音で完結した文を確定する、silence は --min-silence の無音を待つ
+  --partial-lid <on|off>  --mode pair のとき、on（既定）は発話の最初の 2 秒の後に聞き取った言語で速報を読む、off は直前の確定文の言語で読む
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
@@ -89,6 +91,7 @@ missing_value = "option に値がありません。"
 bad_number = "option には正の数が要ります。"
 mode_unsupported = "--mode は balanced、fast、pair、single のどれかです。"
 endpoint_unsupported = "--endpoint は early、silence のどちらかです。"
+partial_lid_unsupported = "--partial-lid は on、off のどちらかです。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"

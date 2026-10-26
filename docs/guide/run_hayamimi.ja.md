@@ -398,6 +398,26 @@ grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.sta
 出力の順は、T の形の warm-up の event、E の形の warm-up の event、`relay.serve.started` です。
 訳の server をまだ起こしていない run では、2 本とも `translate.warmup.failed` が出ます。`detail` は `transport` です。
 
+## 速報の言語を発話の途中で決める（`--partial-lid`）
+
+`--mode pair` の run は、1 つの発話の声が 2 秒に届いた時に、言語判定器へ 1 度だけ尋ねます。
+答えが `ja` か `en` なら、その発話の残りの速報を、その言語で読みます。
+確定の言語の判定は変わりません。
+`--partial-lid off` を付けると、速報を直前の確定文の言語で読む前の動きへ戻ります。
+`--mode pair` でない run は尋ねません。
+
+尋ねた回は、`asr.partial.lang.asked`（info）が 1 行出ます。
+項目は `answer`、`voice_ms`、`lid_ms` です。
+`answer` は、`ja` か `en`、2 つの外の言語を答えた `outside`、答えなかった `failed` のどれかです。
+`outside` と `failed` の発話は、速報の言語が直前の確定文の言語のままです。
+
+```bash
+grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -o '"answer":"[a-z]*"' | sort | uniq -c
+grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.endpoint.decided` も数えて、非 0 の対照を並べます。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash

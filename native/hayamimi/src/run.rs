@@ -724,6 +724,7 @@ mod tests {
             min_silence: 0.35,
             max_speech: 12.0,
             endpoint: hayamimi_asr::endpoint::Mode::Early,
+            partial_lid: true,
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),

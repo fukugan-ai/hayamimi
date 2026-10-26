@@ -18,7 +18,7 @@ use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
 use crate::lid::{self, Identify, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
-use crate::partial::{self, DraftClock};
+use crate::partial::{self, DraftClock, MidwayAsked, MidwayLid};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
@@ -301,6 +301,10 @@ struct Route {
     history: History,
     vad_ms: f64,
     draft: DraftClock,
+    /// The language of the utterance in progress, asked once for its drafts.
+    midway: MidwayLid,
+    /// The questions that language took, until they are taken.
+    asked: Vec<MidwayAsked>,
     /// What the early detector has finalised inside the voice in progress.
     early: State<Solved>,
     /// The sentences the early path kept, until they are taken.
@@ -523,6 +527,8 @@ fn open_route(
         history: History::new(),
         vad_ms: 0.0,
         draft: DraftClock::new(),
+        midway: MidwayLid::new(),
+        asked: Vec::new(),
         early: State::default(),
         early_holds: Vec::new(),
         unread: Vec::new(),
@@ -748,6 +754,17 @@ impl Engine {
             .collect()
     }
 
+    /// The questions put to the language identifier in the middle of an
+    /// utterance since the last call, in the order they were asked. A run that
+    /// is not a pair run, and an engine with no route, ask none.
+    pub fn take_midway(&mut self) -> Vec<MidwayAsked> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| std::mem::take(&mut route.asked))
+            .collect()
+    }
+
     /// The confirmed segments that read as nothing since the last call, each
     /// with the span it covered and why it made no `final`. A candidate of the
     /// early path that read as nothing is not among them. An engine with no
@@ -828,6 +845,13 @@ impl Engine {
         finals.extend(self.finish_segments(segments, false)?);
         if let Some(route) = self.route.as_mut() {
             route.draft.observe(route.vad.detected(), window_start);
+            let speech_start = route.draft.speech_start();
+            let asked = route
+                .midway
+                .observe(&mut route.router, &route.history, speech_start);
+            if let Some(asked) = asked {
+                route.asked.push(asked);
+            }
         }
         Ok(finals)
     }
@@ -844,12 +868,10 @@ impl Engine {
             return Ok(None);
         };
         let samples = route.history.draft(start, partial::MAX_SAMPLES);
-        // A draft is read in the language of the session; before the first
+        // A draft is read in the language heard in the middle of the utterance
+        // (a pair run), else in the language of the session; before the first
         // final there is none, and the Japanese tier answers.
-        let tier = match route.router.last_lang() {
-            Some(lang) => requested_tier(lang, route.router.policy().en_tier),
-            None => Tier::Rz,
-        };
+        let tier = route.midway.tier(&route.router);
         let drafted = route.router.decoder_mut().decode_whole(tier, &samples)?;
         let text = self.replacements.apply(&drafted.text);
         Ok((!text.trim().is_empty()).then_some(text))

@@ -32,6 +32,10 @@ pub struct Policy {
     /// A live segment is read as `ja` or `en`, whatever the identifier says;
     /// the session's language is not consulted.
     pub pair: bool,
+    /// In a pair run, the drafts of an utterance are read in the language the
+    /// identifier names once the voice reaches two seconds (see
+    /// [`crate::partial::MidwayLid`]), instead of the language of the last final.
+    pub partial_lid: bool,
 }
 
 impl Policy {
@@ -46,6 +50,7 @@ impl Policy {
             second_opinion: false,
             agree_threshold: SECOND_OPINION_THRESHOLD,
             pair: false,
+            partial_lid: false,
         }
     }
 
@@ -65,6 +70,7 @@ impl Policy {
     pub fn pair() -> Policy {
         Policy {
             pair: true,
+            partial_lid: true,
             ..Policy::fast()
         }
     }
@@ -291,11 +297,14 @@ impl<D: Decode, L: Identify> Router<D, L> {
 
     /// The identifier as a public hook, so that a caller can name the language
     /// in the middle of an utterance. The model of that language starts
-    /// loading, so it is resident when the utterance ends.
+    /// loading, so it is resident when the utterance ends. A pair run reads
+    /// only `ja` and `en`, so a third language loads nothing.
     pub fn identify(&mut self, samples: &[f32]) -> Result<String, RouteError> {
         self.check_open()?;
         let lang = self.identify_lang(samples)?;
-        self.prefetch(requested_tier(&lang, self.policy.en_tier));
+        if !self.policy.pair || matches!(lang.as_str(), "ja" | "en") {
+            self.prefetch(requested_tier(&lang, self.policy.en_tier));
+        }
         Ok(lang)
     }
 

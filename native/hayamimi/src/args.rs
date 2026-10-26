@@ -51,6 +51,9 @@ pub struct Args {
     pub max_speech: f32,
     /// How the end of an utterance is decided (`--endpoint`).
     pub endpoint: Endpoint,
+    /// Whether a pair run reads the drafts of an utterance in the language
+    /// heard after its first two seconds (`--partial-lid`).
+    pub partial_lid: bool,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -81,6 +84,7 @@ pub enum ArgError {
     BadNumber,
     ModeUnsupported,
     EndpointUnsupported,
+    PartialLidUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -96,6 +100,7 @@ impl ArgError {
             ArgError::BadNumber => keys::BAD_NUMBER,
             ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
             ArgError::EndpointUnsupported => keys::ENDPOINT_UNSUPPORTED,
+            ArgError::PartialLidUnsupported => keys::PARTIAL_LID_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -176,6 +181,15 @@ fn endpoint_of(text: &str) -> Result<Endpoint, ArgError> {
     }
 }
 
+/// `--partial-lid`: `on` or `off`.
+fn partial_lid_of(text: &str) -> Result<bool, ArgError> {
+    match text {
+        "on" => Ok(true),
+        "off" => Ok(false),
+        _ => Err(ArgError::PartialLidUnsupported),
+    }
+}
+
 /// `--lang`: a language that has a recognizer of its own.
 fn lang_of(text: &str) -> Result<String, ArgError> {
     if is_routable(text) {
@@ -188,12 +202,16 @@ fn lang_of(text: &str) -> Result<String, ArgError> {
 impl Args {
     /// The policy of the language route this command line asks for.
     pub fn policy(&self) -> Policy {
-        match (&self.lang, self.mode) {
+        let chosen = match (&self.lang, self.mode) {
             (Some(lang), _) => Policy::single(lang),
             (None, Mode::Single) => Policy::single(DEFAULT_SINGLE_LANG),
             (None, Mode::Balanced) => Policy::balanced(),
             (None, Mode::Fast) => Policy::fast(),
             (None, Mode::Pair) => Policy::pair(),
+        };
+        Policy {
+            partial_lid: chosen.partial_lid && self.partial_lid,
+            ..chosen
         }
     }
 
@@ -207,6 +225,7 @@ impl Args {
             min_silence: DEFAULT_MIN_SILENCE,
             max_speech: DEFAULT_MAX_SPEECH,
             endpoint: Endpoint::Early,
+            partial_lid: true,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -229,6 +248,7 @@ impl Args {
             "--min-silence" => self.min_silence = positive_seconds(value_of(rest)?)?,
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
             "--endpoint" => self.endpoint = endpoint_of(value_of(rest)?)?,
+            "--partial-lid" => self.partial_lid = partial_lid_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -476,6 +496,47 @@ mod tests {
 
     fn policy_of(list: &[&str]) -> Result<Policy, ArgError> {
         run(list).map(|parsed| parsed.policy())
+    }
+
+    #[test]
+    fn partial_lid_is_on_in_a_pair_run_unless_it_is_switched_off() -> Result<(), ArgError> {
+        let pair = ["--wav", "a", "--mode", "pair"];
+        assert!(policy_of(&pair)?.partial_lid);
+        let off = ["--wav", "a", "--mode", "pair", "--partial-lid", "off"];
+        let switched = policy_of(&off)?;
+        assert!(!switched.partial_lid);
+        // The only difference from the pair policy is the switch.
+        assert_eq!(
+            switched,
+            Policy {
+                partial_lid: false,
+                ..Policy::pair()
+            }
+        );
+        let on = ["--wav", "a", "--mode", "pair", "--partial-lid", "on"];
+        assert_eq!(policy_of(&on)?, Policy::pair());
+        Ok(())
+    }
+
+    #[test]
+    fn partial_lid_asks_nothing_outside_a_pair_run() -> Result<(), ArgError> {
+        for mode in ["balanced", "fast", "single"] {
+            let line = ["--wav", "a", "--mode", mode, "--partial-lid", "on"];
+            assert!(!policy_of(&line)?.partial_lid, "{mode}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn partial_lid_takes_on_or_off_and_nothing_else() {
+        assert_eq!(
+            run(&["--wav", "a", "--partial-lid", "maybe"]).err(),
+            Some(ArgError::PartialLidUnsupported)
+        );
+        assert_eq!(
+            run(&["--wav", "a", "--partial-lid"]).err(),
+            Some(ArgError::MissingValue)
+        );
     }
 
     /// T-IP-03-019

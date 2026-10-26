@@ -1124,7 +1124,7 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 
 モデルの決め方（評議の条件つきの手順、順位づけ）：
 
-- **Q1 T のモデル**と**Q2 E のモデル**は、held-out で方向ごとに「STOP が 40 行中 2 行以下」と CS-6 の両方を満たす組を採る。各組の STOP の数は、採らなかった組の分もすべて `docs/results/translate_conv.md` に残す。満たす組が 2 つ以上なら STOP の少ない方を採り、STOP の差が 1 行以内の組は同じと扱って CS-6 の p95 の小さい方を採る。どの組も満たさなければ評議へ戻す。診断のために `eval --t-only`（E を外して T の訳に V を掛ける腕）を打ってよいが、その数は順位に使わない。運用で `translate.hold_rate.high` が出たら、Q1 を評議へ戻す。CAT の数の取り違えは f16 でも出た（2.3）ので、量子化を上げても直らない前提で比べる。候補は T が CAT-Translate-3.3b 正式版と TranslateGemma-4B、E が T と同じ model と、指示に従う別の model である。E に別の model を立てる場合の VRAM は 16311 MiB のうち、他の process が約 1.3 GiB、T の model が約 4 GiB を使う（2.3）。
+- **Q1 T のモデル**と**Q2 E のモデル**は、held-out で方向ごとに「STOP が 40 行中 2 行以下」と CS-6 の両方を満たす組を採る。各組の STOP の数は、採らなかった組の分もすべて `docs/results/translate_conv.md` に残す。満たす組が 2 つ以上なら STOP の少ない方を採り、STOP の差が 1 行以内の組は同じと扱って CS-6 の p95 の小さい方を採る。どの組も満たさなければ受付へ戻す。診断のために `eval --t-only`（E を外して T の訳に V を掛ける腕）を打ってよいが、その数は順位に使わない。運用で `translate.hold_rate.high` が出たら、Q1 を受付へ戻す。CAT の数の取り違えは f16 でも出た（2.3）ので、量子化を上げても直らない前提で比べる。候補は T が CAT-Translate-3.3b 正式版と TranslateGemma-4B、E が T と同じ model と、指示に従う別の model である。E に別の model を立てる場合の VRAM は 16311 MiB のうち、他の process が約 1.3 GiB、T の model が約 4 GiB を使う（2.3）。
 
 閾値で残る弱さ：
 
@@ -1134,7 +1134,7 @@ fixture の file は `native/hayamimi-relay/tests/fixtures/` に、`cs08_request
 
 - **H1** Zoom と Teams で利用者が host か guest か、どのプランか。分かるまで CS-17 と CS-18 は打てない。聞き返しはセラが持つ。
 - **H2** S2 は第三者の手引きで、Zoom 自身の文書では確かめていない（NOT VERIFIED）。CS-17 を打つ時に確かめる。
-- **H3** MPC-HC が `<動画名>.ja.srt` を自動で読むか（NOT VERIFIED）。試し 3 はセラが `mpc-hc64.ini` を控えてから打つ。読まないなら名前の規則を変える前に評議へ戻す。
+- **H3** MPC-HC が `<動画名>.ja.srt` を自動で読むか（NOT VERIFIED）。試し 3 はセラが `mpc-hc64.ini` を控えてから打つ。読まないなら名前の規則を変える前に受付へ戻す。
 - **H4** 実マイクは RDP の録音のリダイレクトを入れないと開けない。入れるのは利用者で、CS-23 はそれまで「前提なし」で止まる。
 - **H5** CAT の応答の末尾に `</s>` が文字として残る理由は未特定である（変換時の tokenizer の設定と推測、ASSUMPTION）。`stop` で出力から除けるかは CS-8 で確かめる。
 - **H6** held-out を V と表を直す席に見せないことは、repo の外に置くこと、brief に path を書かないこと、9 の外で作る読み取りの gate、使った batch を燃やす拒み（CS-30）で守る。拒みは今の code に無く、`rust_port.ja.md` の 8 の R12y が持つ。gate と拒みができるまでは、file を開くことも 2 回目に使うことも止められない。
@@ -1406,7 +1406,7 @@ LAN の端末（相手の電話）で頁を開く形は、`rust_port.ja.md` の 
 ### 10.6 採らない手段
 
 - **マイクを 2 本に分ける**：同じ場所の 1 本のマイクという場面の外である。
-- **話者ごとに押すボタン**：判定が落ちた時も 10.4 の順で必ず `ja` か `en` に決まる。ボタンは画面の状態を 1 つ増やす。IP-2 の記録が置き直した線を超えた時に、ボタンを足すか判定器を替えるかを評議の席が決める（10.12 の Q5）。
+- **話者ごとに押すボタン**：判定が落ちた時も 10.4 の順で必ず `ja` か `en` に決まる。ボタンは画面の状態を 1 つ増やす。IP-2 の記録が置き直した線を超えた時に、ボタンを足すか判定器を替えるかを受付が決める（10.12 の Q5）。
 - **`--mode balanced` のまま使う**：10.3。毎発話に SenseVoice の復号が足され、合わない発話は直前の言語で読まれる。
 - **中継で言語を判定し直す**：認識器は判定の後に選ばれるので、取り違えた言語で読んだ文は中継では直せない。
 - **毎発話を `ja` と `en` の 2 つの認識器で読み、良い方を採る**：毎発話の復号が 2 回になり、`L` に ja 135 ms か en 300 ms（p50）が足される。
@@ -1492,7 +1492,7 @@ T-IP-02-001 と T-IP-07-001 の実走は、`native/hayamimi/tests/support/dialog
 2. **数の扱い**：集めた pid がちょうど 1 つの時だけ `Llama { pid, port }` を返す。0 は `Err` で、port の値と、起こす unit の名前 `hayamimi-llama-e2e.service` を名指す。2 以上も `Err` で、集めた pid を全部名指す。
 3. **数えない物**：ほかの port の server（18081、18083、8080）、語 `--port` の無い server、`comm` か `cmdline` を読めない process は、数えずに飛ばし、`Err` にしない。run の server の `cmdline` が読めない時は 0 件の `Err` になるので、別の server を黙って選ぶことは無い。
 4. **port の値**：`dialog_run.rs` の定数 `LLAMA_PORT: u16 = 18084` とする。窓の unit の port（`rust_port.ja.md` 3.19 の「窓の訳の server」）である。`run_stack` は `find_llama(Path::new("/proc"), LLAMA_PORT)` を呼ぶ。10.9 の IP-2 と IP-7 の行の `<訳の server の port>` は、test で打つ時は 18084 である。
-5. **起こすのは席**：test は訳の server を起こさず、止めない。実走の席が、3.19 の決めの 4 と 5（18084 が空き、GPU の memory、`/health` が `ok`、`/props` と `ExecStart` の記録）で `hayamimi-llama-e2e.service` を起こし、run の後に 3.19 の決めの 7 で止める。3.19 の決めの 4 の 3（18081 を窓の間だけ止める）は、IP-2 と IP-7 の run では打たない。memory が足りない時は run を始めず、読んだ値を添えて評議の席へ出す。
+5. **起こすのは席**：test は訳の server を起こさず、止めない。実走の席が、3.19 の決めの 4 と 5（18084 が空き、GPU の memory、`/health` が `ok`、`/props` と `ExecStart` の記録）で `hayamimi-llama-e2e.service` を起こし、run の後に 3.19 の決めの 7 で止める。3.19 の決めの 4 の 3（18081 を窓の間だけ止める）は、IP-2 と IP-7 の run では打たない。memory が足りない時は run を始めず、読んだ値を添えて受付へ出す。
 6. **削る物**：`dialog_run.rs` の `port_of` を消す。`//!` の「the one that runs on the machine is found by its `--port`」と `find_llama` の doc comment は、port 18084 の server を選ぶ文に書き替える。
 
 **理由**は 3 つである。
@@ -1569,7 +1569,7 @@ IP-2、IP-4、IP-7 の数値は、`gpu_stages.md` と `lid.md` からの見積�
 
 1. IP-S3 の受入が通った後に、同じ `lat-dialog` と `lat-short` を 3 つの形で流す。`--mode fast` の run と、oracle の run と、IP-2 の陰性対照の形の `--lang ja` の run である。`--mode fast` の run は、IP-S3 の IP-2 の run で取った `ip02_fast.jsonl` を使ってよい。oracle の run は `--lang ja` と `--lang en` の 2 本を流し、clip ごとに manifest の `lang` と同じ `--lang` の側を採る（発話ごとに言語を固定した run と同じ音声、同じ時間の並びになる）。
 2. 同じ手番で、H19 の取り違えの向き（ja を en、en を ja、第三の言語）と、`lat-short` の取り違えを、`--mode fast` の run で数える。
-3. 式で置き直す。`m` を `--mode fast` の取り違えた発話の数とし、IP-2 の線は `min(2, m)`、IP-7 の線は `min(6, m_short)` とする（pair は fast より悪くならない）。`m` が線より大きい時は、線を `m` にせず評議の席へ出す。IP-4 の線は、`d50` と `d95` を `--mode fast` と oracle の差（clip ごとの中央値の差、`fast` − oracle）の p50 と p95、`w50` と `w95` を oracle の 2 回の run の clip ごとの中央値の差の絶対値の p50 と p95 として、p50 の線を `d50 + w50`、p95 の線を `d95 + w95` とする。`w` を絶対値で取るのは、`w` が同じ形の run の揺れの幅で、揺れはどちらの向きにも線を越えさせるからである。符号つきで取ると、揺れの中央値は 0 の近くに出て、負にもなり、線が狭まる。
+3. 式で置き直す。`m` を `--mode fast` の取り違えた発話の数とし、IP-2 の線は `min(2, m)`、IP-7 の線は `min(6, m_short)` とする（pair は fast より悪くならない）。`m` が線より大きい時は、線を `m` にせず受付へ出す。IP-4 の線は、`d50` と `d95` を `--mode fast` と oracle の差（clip ごとの中央値の差、`fast` − oracle）の p50 と p95、`w50` と `w95` を oracle の 2 回の run の clip ごとの中央値の差の絶対値の p50 と p95 として、p50 の線を `d50 + w50`、p95 の線を `d95 + w95` とする。`w` を絶対値で取るのは、`w` が同じ形の run の揺れの幅で、揺れはどちらの向きにも線を越えさせるからである。符号つきで取ると、揺れの中央値は 0 の近くに出て、負にもなり、線が狭まる。
 4. 置き直す席は、`m`、`m_short`、`d50`、`d95`、`w50`、`w95` と新しい値と理由を `docs/results/in-person/probe.md` に書き、同じ commit で 10.9 の IP-2、IP-4、IP-7 の行の値を書き換える。
 5. 各 ID の T の行の境界の値は、その commit の後に test-designer の席が新しい値で書き直し、`ip02.rs`、`ip04.rs`、`ip07.rs` の線の値は 10.9 の行と同じにする。
 
@@ -1718,9 +1718,9 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H26** process A が英語の認識器（Parakeet v3）を読める置き場に持つかは確かめていない。session の最初の英語の発話で認識器を読み込む時間（cold）と、`rust_port.ja.md` の R8q の先読みが main に在るかも確かめていない（NOT VERIFIED）。IP-S0 の最初の英語の発話の `asr.model.loaded` で分かる。
 - **H27** `source: file` の行は、3.12 の OBS の字幕頁（mic の段だけ）にも、Zoom と Teams への送信（3.10）にも出ない。対面と配信を同時に行う場面は、この節の外である。
 - **Q4** 閉じた。`source` は `file` で通し（10.3）、10.4 の最後の落ち先は `ja` とする。
-- **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、記録の線である。仮の値の置き直しは完成の後に 10.9.1 の手順で行い、IP-S3 の受入の run は置き直しを待たない。置き直した線を `--mode fast` が満たさない時と、pair の記録が置き直した線を超えた時は、ボタンの補助を足すか、判定器を替えるかを評議の席が決める。
+- **Q5** IP-2、IP-4、IP-7 の数値は仮の値で、記録の線である。仮の値の置き直しは完成の後に 10.9.1 の手順で行い、IP-S3 の受入の run は置き直しを待たない。置き直した線を `--mode fast` が満たさない時と、pair の記録が置き直した線を超えた時は、ボタンの補助を足すか、判定器を替えるかを受付が決める。
 - **H37** R8v の残りの手番（`rust_port.ja.md` 8 の R8v の行。RP-66 の run の結果で endpoint の code を直す手）が後から main に入る時、R8v の側は次の 2 つを守る。1 つめは、早い終わりの候補を確定と同じ `Request`（`live: true`、`pipeline.rs:1128-1150` の `decode_samples`）で解き続けることである。候補を別の経路で解くと、pair の落ち先が候補で確定した行に当たらず、`ja` と `en` の外の行が出る。2 つめは、`args.rs` の `--mode` の読み（`mode_of`、`policy`）を変えないことである。どちらかを破る R8v の commit は、R8v の席が同じ commit で IP-3 と IP-2 の記録の完全さを通し直す。もう 1 つ、pair の外の形で起きうる事を記録する。`--mode balanced` で SenseVoice の 5 言語（`sticky.rs:18` の `DUAL_CONFIRM_LANGS`）の外の言語が判定された時は、持っただけの候補の live の decode と、同じ発話の確定の decode が、どちらも `session.pending` の粘りの数を進める（`transcribe.rs:235-256` の `hold_by_hysteresis`）。そのため 1 つの発話で、2 回の判定を要る切り替え（`Policy::balanced` の `lid_switch_confirm` 2）が確かまる場合がある（NOT VERIFIED）。pair は `pending` を使わず、`--mode fast` は 1 回で切り替えるので、どちらにも当たらない。数えるのは R8v の席で、`asr.endpoint.held` の在る発話の `final` の `lang` の切り替えを、`--endpoint silence` の run と比べる。
-- **H38** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ評議の席へ出す。
+- **H38** 10.4 の 3 で、仮名と漢字が 3 割以下の文は全部 `en` へ送る。Hangul だけの文、Cyrillic だけの文がこの段に来る量と、`en` へ送った行の読みの質は測っていない（NOT VERIFIED）。IP-2 の記録の `asr.lang.fallback` の `step: script` の件数で量を数え、多ければ受付へ出す。
 - **H39** `?relay=` は `http://` と `https://` の任意の host を受けるので、利用者が開いた URL に別の server の `/events` を名指されると、頁はその server の文を訳の行として描く。文は Dioxus の text として描かれ、script にはならない。頁は自分を配る server の `id` に結べない訳を 5 秒で捨てる（`ORPHAN_HOLD_MS`）ので、名指された server が確定文と同じ `id` の訳を流した時だけ行に付く。host を `127.0.0.1` に限る形は、LAN の端末で開く形（H25）と両立しないので採らない。
 - **H40** IP-5 の偽の訳の server の固定の文が V に止められる率は測っていない。止められた訳も IP-5 は 1 つと数える（10.9）が、`ok` の文の照らしは `ok` の訳の数だけ行われる。4 つとも止められた run では文の照らしが 0 件になる（NOT VERIFIED）。IP-S2 の席が最初の run で `status` の内訳を記録する。
 - **H41** 閉じた。`rust_port.ja.md` は、cmdline の `--port` の次の語を `--own-llama-port` で名指した port と比べ、`--own-pid` を渡す起動に `--own-llama-port`（窓は 18084）を足す形で書く。3.19 の R8x-9 の行（`rust_port.ja.md:1791`）と窓 E3'' の行（`:1792`）、3.21 の 3 の決め 1 の記録（`:2035`）、確かめの表の 3（`:2043`）、`=` の形を受けない理由（`:2047`）、窓 E3'' の手順（`:2073`）、採らない手段（`:2107`）、6 の RP-83 の (9) と両方の対照（`:2420`）、7 の RP-83 の陰性の case（`:2520`）、10 の H141（`:3671`）である。採らない手段の「受ける形を増やさない」は、名指した 1 つの port を `--port <port>` の 2 語で書いた形だけを受ける形として残る。T の RP-83 の `--own-pid` を渡す行は、S83o の引数の `--own-llama-port 18084` を持つ（`rust_port_tests.ja.md` の RP-83 の材料と、T-RP-83-068〜086、088、090）。IP-S1 の実装の席は、`rp83.rs` と `support/s83.rs` の `--own-pid` の呼びに `--own-llama-port 18084` を足す。
@@ -1728,7 +1728,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 - **H43** VAD が区間を作らない声（silero の確率が 0.5 を超える塊が 0.25 秒に届かない叫びや短い感嘆。`lat-dialog` の行 3 の `ja_02`）は、訳にも log にもならない。閾値を全体で下げる形は採らない（10.9.3）。声と見なす線を動かすかは、別の受入 ID で、`eval_real` の全 clip と `lat-dialog` の切れ目への影響を測ってから決める。量は IP-2 の記録の区間の無い発話（10.9.2 の 6）で数える（NOT VERIFIED。今の数は 10.9.4 の event が無い run から出た物）。
 - **H44** IP-5 の窓（行 7 から 10）は、IP-2 の pair の記録の判定なしの発話と取り違えた発話の一覧から決めた。その一覧のうち取り違えた発話は、手で組んだ式で数えた物で、10.9.2 の関数で数え直していない（NOT VERIFIED）。数え直すのは IP-2 の記録の席で、一覧が変わって窓に掛かれば、同じ commit で 10.9 の IP-5 の行と 10.9.3 の 1 と T-IP-05-001 の行番号を直す。
 - **H45** IP-2 の実走の記録（`docs/results/in-person/ip02.md`。main の外の branch `run/ip2-ip5` に在る）の「記録だけの数」の表は、手で組んだ式で数えた。`.jsonl` の `finals` で数え直すと、pair と fast のどちらも、どの repeat にも `final` の無い発話は行 3 の 1 つ、`final` の無い repeat は 3、`finals` が 2 以上の発話は 8（行 4、11、12、19、22、23、25、30）になる。取り違えた発話、向き、`other` の数は、`record_dialog_run` を残った file に当てて数え直す（NOT VERIFIED）。直すのは IP-2 の記録の席で、その branch を main へ入れる前に、表の値を関数の出力に置き換える。
-- **H46** 18081 を止めずに 18084 の unit と `hayamimi` の model を同じ GPU に載せた時、3.19 の決めの 4 の 2 の線（14,000 MiB）に収まるかは、この文書では測っていない。18084 の server で手で打った IP-2 の run が pair と fast の両方で 90 行、`stream.machine.refused` 0 件だったことは、run の席の申告の転記である（NOT VERIFIED）。IP-S5 の後の実走の席が、起こした後の `nvidia-smi` の値を `.llm-server.txt` に残し、線を超えれば run を始めずに評議の席へ出す。
+- **H46** 18081 を止めずに 18084 の unit と `hayamimi` の model を同じ GPU に載せた時、3.19 の決めの 4 の 2 の線（14,000 MiB）に収まるかは、この文書では測っていない。18084 の server で手で打った IP-2 の run が pair と fast の両方で 90 行、`stream.machine.refused` 0 件だったことは、run の席の申告の転記である（NOT VERIFIED）。IP-S5 の後の実走の席が、起こした後の `nvidia-smi` の値を `.llm-server.txt` に残し、線を超えれば run を始めずに受付へ出す。
 - **H47** `find_llama` は `comm` と `cmdline` の port だけで選ぶので、`hayamimi-llama-e2e.service` の外の手で 18084 に起こした別の model の server も選ぶ（ASSUMPTION：18084 を使うのは窓の unit だけ）。model を選びの条件にしない（外の者が更新する file の名を門にしない）。実走の席が 10.7.2 の 5 で残す `/props` の `model_path` と unit の `ExecStart` を照らして見分ける。
 
 ### 10.13 対面のモードの磨き上げ（速さと質）
@@ -1736,7 +1736,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 対面のモードは IP-1〜IP-9 で動くようになった。
 次に詰めるのは、話し終えてから訳が頁に出るまでの遅れと、拾えない声、取り違え、頁に残る古い文である。
 主指標は 1 つで、発話の終わりから、その発話の確定文の訳が頁に初めて描かれるまでの遅れ `L_page` の p50 と p95 である。
-質は主指標を悪くしない範囲で直し、別の PC のブラウザから音を送る口（B4）は評議の判定を得てから作る。
+質は主指標を悪くしない範囲で直し、別の PC のブラウザから音を送る口（B4）は、10.13.9 の IP-S13 の始める条件が揃ってから作る。
 
 #### 10.13.1 結論
 
@@ -1876,14 +1876,19 @@ B2 の段を入れても線に届かない時は、届かない段と量を記�
 
 | 順 | 手 | 縮める段と見積り | 戻し方 | 採るか |
 |---|---|---|---|---|
-| 1 | **速報の言語を発話の途中で決める**（pair だけ）。区間の声が 2.0 秒に達した時に、それまでの声を whisper-tiny で 1 回判定し、答えが `ja` か `en` なら、その発話の残りの速報をその言語の tier で読み、速報の訳の `src_lang` もその言語にする。答えが 2 つの外か 2.0 秒に届かない発話は今のまま。確定の側の判定（10.4）は変えずに閉じた区間の全部で 1 回掛ける | 草稿の訳：使い回しが起きれば `--lang` の run と同じく p50 221 → 100 ms 以下（温まった標本）。速報の誤った向きの訳が消え、llama-server の slot の取り合いも減る | `--partial-lid off` で今の形 | 最初の段に採る（IP-S7） |
-| 2 | **確定文の訳を速報の訳の後ろに並べない**。同じ source の `final` の T か E が済むまでは、その source の速報の訳を頼まない。その間に着いた速報の text は捨てる。`final` が着いた時に走っている速報の訳は、`final` がその text を閉じるだけなら答えを `final` の T に使い回し（今の形）、そうでなければ答えを使わずに捨てる | 草稿の訳と確定の訳の p95（4 slot が重なった 1 件の 1142 ms の型） | `--partial-yield off` で今の形 | 採る（IP-S8） |
+| 1 | **速報の言語を発話の途中で決める**（pair だけ）。区間の声が 2.0 秒に達した時に、それまでの声を whisper-tiny で 1 回判定し、答えが `ja` か `en` なら、その発話の残りの速報をその言語の tier で読み、速報の訳の `src_lang` もその言語にする。答えが 2 つの外か 2.0 秒に届かない発話は今のまま。確定の側の判定（10.4）は変えずに閉じた区間の全部で 1 回掛ける | 草稿の訳：使い回しが起きれば `--lang` の run と同じく p50 221 → 100 ms 以下（温まった標本）。速報の誤った向きの訳が消え、llama-server の slot の取り合いも減る | `--partial-lid off` で今の形 | 採った（IP-S7。測った値は表の下） |
+| 2 | **確定文の訳を速報の訳の後ろに並べない**。同じ source の `final` の T か E が済むまでは、その source の速報の訳を頼まない。その間に着いた速報の text は捨てる。`final` が着いた時に走っている速報の訳は、`final` がその text を閉じるだけなら答えを `final` の T に使い回し（今の形）、そうでなければ答えを使わずに捨てる | 草稿の訳と確定の訳の p95（4 slot が重なった 1 件の 1142 ms の型） | `--partial-yield off` で今の形 | 採った（IP-S8。測った値は表の下） |
 | 3 | **終わりの待ちの内訳を測る**。区間を閉じた時に、受けた sample と VAD に渡した sample の差（遅れ）と、無音の規則（`silence` か `early`）を log に出す | 縮めない。手 4 と 5 を選ぶ材料 | log の 1 行で、戻す物は無い | 採る（IP-S6） |
-| 4 | **VAD の後ろに並ぶ速報の復号を外す**。手 3 で遅れが在れば、速報の復号を VAD に sample を渡す流れから外し、遅れている時は速報の復号を飛ばす | 終わりの待ち。冷えた標本の 2411 ms の型（H49）が当たれば p95 に効く | 前の build に戻す | 手 3 の記録で遅れが p95 100 ms を超えた時に、評議の席が採るかを決める |
-| 5 | **E を n-gram の speculative decoding で読む**。run の 18084 と利用者の 8080 の server に `--spec-type ngram-simple` を足す。E の答えは T の草稿と多くの token が重なるので、草稿の token の並びが下書きとして当たりやすい（ASSUMPTION） | 確定の訳の段だけ。主指標には効かない | 旗を外して起こし直す | 記録だけ（IP-S9）。温度 0 で確定の文が変わらないことを確かめてから評議の席が決める |
-| 6 | `--min-silence` を pair で 0.30 → 0.20 秒 | 終わりの待ち p50 で多くて 100 ms | `--min-silence 0.30` | 採らない。割れた発話（IP-2 の記録で 30 中 8）が増え、割れた行は逆の向きの訳の切れ目を増やす。手 3 の記録の後に、割れの数と並べて評議の席へ出す |
+| 4 | **VAD の後ろに並ぶ速報の復号を外す**。手 3 で遅れが在れば、速報の復号を VAD に sample を渡す流れから外し、遅れている時は速報の復号を飛ばす | 終わりの待ち。冷えた標本の 2411 ms の型（H49）が当たれば p95 に効く | 前の build に戻す | 手 3 の記録で、早い終わりの閉じの `lag_ms` が p95 で 64 ms（手 1 を外した run）から 224 ms（既定の run）へ延び、100 ms を超えた。手 11 の形で採る（IP-S19） |
+| 5 | **E を n-gram の speculative decoding で読む**。run の 18084 と利用者の 8080 の server に `--spec-type ngram-simple` を足す。E の答えは T の草稿と多くの token が重なるので、草稿の token の並びが下書きとして当たりやすい（ASSUMPTION） | 確定の訳の段だけ。主指標には効かない | 旗を外して起こし直す | 記録だけ（IP-S9）。温度 0 で確定の文が変わらないことを確かめてから受付が決める |
+| 6 | `--min-silence` を pair で 0.30 → 0.20 秒 | 終わりの待ち p50 で多くて 100 ms | `--min-silence 0.30` | 採らない。割れた発話（IP-2 の記録で 30 中 8）が増え、割れた行は逆の向きの訳の切れ目を増やす。手 3 の記録の後に、割れの数と並べて受付へ出す |
 | 7 | prompt を短くする（E の指示文と和文の型の表） | prompt の読みは温まった後 200 token に 18〜74 ms で、縮む量は数十 ms | 前の指示文に戻す | 採らない。量が小さく、E の文の質（3.5）を測り直す費用の方が大きい |
 | 8 | 閉じた区間の判定を外し、手 1 の途中の答えをそのまま確定文の言語にする | 復号 p50 で約 90 ms | 前の build に戻す | 採らない。whisper-tiny は短い声で外れが多く（`docs/eval/lid.md` の表 1。clean の 1.0 秒で ja 33%）、取り違えは逆の向きの訳になって相手に届く |
+| 9 | **持った文を、読んだ範囲が区間を覆う時に使う**。早い終わりの通知で読んだ文が不完全で持たれた時（`asr.endpoint.held`）、区間を閉じる時に、持った文の読み終わりが区間の終わりの 32 ms 前から 400 ms 後までに在り、その後ろに声が無ければ、持った文をそのまま確定文にして読み直さない。今は差が 1 窓（32 ms）以内の時だけ使う。早い終わりの通知は区間の終わりから 120 ms の無音の後に出るので、読んだ範囲がその分だけ区間の終わりを越え、持った文が使われない | `silence` で閉じた発話の `L_dec` を 0 にする。run a の 21 件が全部当たった時の上限の見積り（H72）：`L` の p50 949 → 895 ms、p95 1591 → 1373 ms。当たる件数は実走で数える | `--held-reuse strict` で今の形 | 採る（IP-S17） |
+| 10 | **認識器の thread 数を増やす**。`THREADS`（`recognizer.rs`）は 4 で、onnxruntime の既定（`intra_op_num_threads` が 0 で、物理 core の数）より少ない。`nproc` が 16 の機械で、同じ音を 4 thread と 8 thread で読み、tier ごとに復号の ms を測り比べる | 復号の ms（rz は音 1 秒あたり約 25 ms、v3 は約 50 ms）。縮む量は micro-bench を打つまで見積もらない（NOT VERIFIED） | `--asr-threads 4` で今の形 | micro-bench を先に打ち、縮む tier だけを採る（IP-S18） |
+| 11 | **速報の復号を専用の thread と専用の recognizer で回す**（手 4 の形）。速報の復号を session の loop から外し、`Refiner`（`refine.rs`）と同じ型の thread に recognizer を持たせる。VAD に sample を渡す流れと早い終わりの読みが、発話の終わりに掛かった速報の復号に握られなくなる | 英語の `d`（手 1 で p50 が +43 と +17 ms、p75 が +164 と +183 ms）と、早い終わりの閉じの `lag_ms`（p95 で 64 → 224 ms）（H71） | `--draft-worker off` で今の形 | 採る（IP-S19） |
+| 12 | **確定文の言語を、音が 4 秒に届いた時の途中の判定で決める**。確定の側の判定は区間の先頭 4 秒（`LID_MAX_SECONDS`）を読み、4 秒以上の音で p50 約 110 ms かかる。区間の声が 4 秒に届いた時に途中で引いた判定の答えが `ja` か `en` なら、閉じた時の判定を省いてその答えを使う。2 つの外の答えは今のとおり落ち先の連鎖を通る。手 8 と違い、答えを引く音の長さが確定の側の判定と同じ 4 秒で、`lid.md` の表 1 は clean の 4.0 秒で ja 100%、en 100% である | 4 秒以上の音の確定文の `L_dec` から約 110 ms（BR-3 の `final` 113 件中 61 件）（H73） | 旗（名前は IP-S20 の実装の席が引数の既存の形に揃えて決める）で今の形 | 採る（IP-S20）。確定文と `lang` が全件同じことを記録で確かめる |
+| 13 | **速報に確定と同じ ITN、句読点、置換を当てる**。今の速報は句読点が無く、疑問符や文の中の句点を持つ日本語の確定文と `reuse_match` で一致せず、訳を使い回せない。確定と同じ後処理を速報の text にも当てる。句読点は GPU で p50 6 ms で、速報の周期（0.5 秒）に入る | 日本語の `L_tr`。run e で使い回せなかった日本語の単一 `final` の発話 12 件のうち、5 件が句読点の差 | 旗（名前は IP-S21 の実装の席が決める）で今の形 | 採る（IP-S21） |
 
 手 2 の保持は、中継が stream で `final` を読んだ時に取り、その `final` の settled の訳ができた時（E の答えを V が通した直後、頁へ出す前）に返す。
 取るのは stream を読む thread なので、`final` の後ろに続く速報は、必ず保持を取った後に読まれる。
@@ -1895,6 +1900,46 @@ pair の外の言語は別の server で訳すので、速報と slot を取り�
 捨てる形は、保持の間に話し始めて話し終えた短い発話に速報の訳が付かず、その `final` の T を新しく頼むことになる。
 この量は BR-3 の run の `L_tr` に出るので、手 2 の前後を同じ機械で続けて測る。
 
+**最新情報**：onnxruntime の thread の管理の頁は、`intra_op_num_threads` を未指定か 0 にすると物理 core ごとに thread を作り、値を明示すると thread に affinity を付けないと書く。thread pool の spin は既定で有効で、推論が速くなる代わりに cpu の時間と電力を使うと書く（https://onnxruntime.ai/docs/performance/tune-performance/threading.html 、取得 2026-10-27）。
+
+**最新情報**：RNN-T の endpointer に早い終わりと遅い終わりの罰を足すと、Voice Search の test set で 90 パーセンタイルの遅れが 130 ms 縮み、2 回目の読み（LAS の再採点）と MWER 学習を足すと 160 ms 縮むと書く（arXiv:2004.11544、https://arxiv.org/abs/2004.11544 、取得 2026-10-27）。on-device の認識で利用者に見える遅れは、model の大きさや計算量より、token を出す遅れと endpointing の振る舞いの影響が大きいと書く（arXiv:2104.02207、https://arxiv.org/abs/2104.02207 、取得 2026-10-27）。
+
+手 1 と手 2 を入れた後の値を、BR-3 の実走（温まった標本 76、p50 / p95、ms）で測った。
+同じ build を旗だけ変えて続けて取り、全部の値と取った条件は `docs/results/in-person/br03_ip_s78.md` に在る。
+`br03_ip_s8.md` が既定の run（2 本のうち重い方）、`br03_ip_s8_lid_only.md` が手 2 だけを外した run、`br03_ip_s8_both_off.md` が両方を外した run である。
+
+| run | `d` | `L_dec` | `L_tr` | `L_page` | `L_settled_page` |
+|---|---|---|---|---|---|
+| 両方外す | 459 / 1086 | 290 / 504 | 222 / 398 | 1032 / 1755 | 1319 / 2067 |
+| 手 2 だけ外す | 533 / 1065 | 296 / 499 | 106 / 319 | 959 / 1641 | 1286 / 1976 |
+| 既定（a） | 535 / 1062 | 279 / 479 | 17 / 303 | 950 / 1593 | 1208 / 1927 |
+| 既定（e） | 525 / 1062 | 285 / 494 | 8 / 316 | 968 / 1615 | 1256 / 1948 |
+
+両方外した run との差は、既定の 2 本（a、e の順）で、`L_page` の p50 が -82 と -64 ms、p95 が -162 と -140 ms、`L_tr` の p50 が -205 と -214 ms、`d` の p50 が +76 と +66 ms である。
+`L_page` と `L_settled_page` は、どの run も線（`L_page` は p50 750 ms と p95 1300 ms、`L_settled_page` は p50 1100 ms と p95 1700 ms）の外である。
+
+全体の `L_tr` の p50 は、100 ms 以下の標本が 76 件のうち 16（両方外す）、37（手 2 だけ外す）、41 と 42（既定の 2 本）で、2 つの山の境に在る。
+p50 が 222、106、17、8 ms と大きく動くので、`L_tr` は言語ごとの値で読む。
+
+| run | 日本語の `L_tr`（n 32） | 英語の `L_tr`（n 44） |
+|---|---|---|
+| 両方外す | 187 / 383 | 238 / 544 |
+| 手 2 だけ外す | 141 / 338 | 2 / 247 |
+| 既定（a） | 156 / 336 | 4 / 255 |
+| 既定（e） | 139 / 329 | 4 / 258 |
+
+手 1 の使い回し（`translate.draft.reused`）は、28 件（英語 11、日本語 17）から 59 件と 60 件（英語はどちらも 35、日本語は 24 と 25）に増えた。
+英語の `L_tr` の p50 は 238 ms から 4 ms に、日本語は 187 ms から 139〜156 ms になった。
+確定文の `id`、`lang`、`text` は、113 件とも 4 本の run で同じである。
+
+手 1 は英語の `d` を上げた（H71）。
+同じ発話の `d` の差（既定 − 両方外す）は、英語（n 45）で p50 が +43 と +17 ms、p75 が +164 と +183 ms、日本語（n 33）で p50 が -2 と -1 ms である。
+`asr.vad.closed` の `lag_ms` が 0 でない早い終わりの閉じは、78 件のうち 11（両方外す）から 22〜26（手 1 が入った 3 本）に増え、p95 は 64 ms から 192〜224 ms に延びた。
+
+手 2 の保持で捨てた速報は既定の 2 本で 4 件と 6 件、`translate.slot.waited` は 0 件だった。
+手 2 を外した run との差は、`L_settled_page` の p50 が -78 と -30 ms、p95 が -49 と -28 ms、`L_page` の p50 が -9 と +9 ms、p95 が -48 と -26 ms である。
+既定の 2 本の間の差（`L_page` の p50 で 18 ms、`L_settled_page` の p50 で 48 ms）が同じ大きさなので、手 2 だけの寄与は、この 1 本の対では分けられない（H75）。
+
 手 1 を最初に採る理由は 3 つである。
 1 つめに、pair と `--lang` の差の中で、仕組みが file:line で説明でき（10.13.2）、縮む量が実測の対（温まった標本で 33 ms と 5 ms）で裏づけられた段はこれだけである。
 2 つめに、確定文の言語の決め方を変えないので、IP-2 と IP-3 の判定の答えが変わらない。
@@ -1903,28 +1948,32 @@ pair の外の言語は別の server で訳すので、速報と slot を取り�
 2.0 秒を線にするのは、`lid.md` の表 1 で whisper-tiny の正解率が 1.0 秒で ja 33% と低く、短い声で決めると速報を相手の言語へ移す外れが増えるからである。
 速報の言語の外れは確定文の言語を動かさないので、外れた時に失うのは使い回しだけである。
 2.0 秒より前の速報は今のとおり直前の確定文の言語で読む。
+途中の答えが `ja` か `en` の時は、その言語の認識器を `Router::prefetch` で先に読み込み、発話の終わりまでに常駐させる。
+2 つの外の答えでは何も読み込まない。
+pair は 2 つの外の言語を読まないので、読み込んでも常駐の枠（`--max-resident`）を使うだけになる。
+判定した時は log に 1 行（`asr.partial.lang.asked`。答え `answer`、渡した声の長さ `voice_ms`、判定の時間 `lid_ms`）を出す。
 途中の判定は確定の側の判定と同じ GPU の whisper-tiny を 1 発話に 1 回だけ足し、その時間（p50 約 91 ms）は発話の途中に入るので `L` の外である。
 VAD に sample を渡す流れの後ろに並ぶと終わりの待ちを延ばすので、判定は速報の復号と同じ所で 1 回だけ回し、手 3 の遅れの log で延びを見張る（H50）。
 
 #### 10.13.5 B3 質の手
 
 どれも原因は仮説で、確かめる test を先に置く。
-記録だけの行は完成の合否に置かず、直す手を採るかは記録を見て評議の席が決める。
+記録だけの行は完成の合否に置かず、直す手を採るかは記録を見て受付が決める。
 
 | 番号 | 見えた物 | 仮説（機構） | 確かめる test | 採る手の候補 |
 |---|---|---|---|---|
 | Q-a | 叫び声の `ja_02`（`lat-dialog` の行 3）と、`lat-short` の行 1、5、7、14 が区間にならない | silero の確率が 0.5 を超える塊が `MIN_SPEECH_SECONDS` の 0.25 秒に届かない。`lat-short` の声の長さは 0.30〜0.50 秒で、そのうち 0.5 を超える部分が 0.25 秒より短い clip が落ちる | BR-8 | `MIN_SPEECH_SECONDS` か閾値を下げる。10.9.3 のとおり閾値を全体で 0.2 にすると前後の発話を飲むので、BR-8 は飲み込みの数と並べて記録する |
 | Q-b | IP-7 の final の無い繰り返し 16 件 | 12 件は Q-a の 4 発話 × 3 回。残る 4 件は、区間は在るが復号の答えが空か、`final` が窓の外に割り当たった。IP-7 の記録の `asr.segment.unread` は 0 件なので、後者を先に疑う | BR-9 | Q-a と同じ手で 12 件が消えるかを先に見る |
 | Q-c | IP-7 で SenseVoice の印への落ち（`sv_tag`）が 14 件 | whisper-tiny が 1 秒未満の声に `ja` と `en` の外を返し、10.4 の 2 に落ちる。落ちた発話は SenseVoice の復号を 1 回足す（H24） | BR-9 | 落ちること自体は 10.4 の仕様どおりで、直さない。足した時間を記録する |
-| Q-d | 言語の取り違えが IP-2 の fast で 1 件（第三の言語）、IP-7 の pair で 1 件（ja を en） | 短い ja の返事を whisper-tiny が `en` と答え、SenseVoice に回らない（10.4 の 1 で決まる）。fast の 1 件は 2 つの外の答えをそのまま使った | BR-10 | 記録の後に評議の席が決める（10.12 の Q5） |
+| Q-d | 言語の取り違えが IP-2 の fast で 1 件（第三の言語）、IP-7 の pair で 1 件（ja を en） | 短い ja の返事を whisper-tiny が `en` と答え、SenseVoice に回らない（10.4 の 1 で決まる）。fast の 1 件は 2 つの外の答えをそのまま使った | BR-10 | 記録の後に受付が決める（10.12 の Q5） |
 | Q-e | IP-4 の 30 clip のうち 4 つが結べない | 行 3 は Q-a で区間が無い。行 9、19、21 は 3 回とも `finals` が 1 以上なのに `t_final_us` が空で、`build_samples` が「最後の `final` が最後の sample を送る前に着いた」と読んだ（10.13.2）。早い終わりで閉じた区間か、manifest の `end_sample` が声の終わりより後ろに置かれた clip で起きる | BR-11 | 記録の関数が結べない clip を理由つきで名指す。IP-4 の線と結び方は変えない |
 | Q-f | IP-4 の p95 が 381 ms で線 300 ms の外 | pair が `--lang` より遅い clip の上の方は、10.4 の 2 の SenseVoice の復号か、`correct_by_script` の読み直し（ja 135 ms、en 300 ms）を足した発話である | BR-12 | 線は動かさない。上位の clip の道が分かれば、その道の手を B2 の表へ足す |
-| Q-g | 同じ `hayamimi` の session に `stream` を 2 回目に流すと、中継には `final` 4 件と訳 4 件が来ているのに、要約が `with_final` 1/4、`cer_micros` 1641304 になる | 2 回目の run の events に `session_start` が無く（`ready` だけ）、`final` の `t0_s` と `t1_s` は 1 回目の続き（30.854 秒から）で数えられている。道具は 2 回目の窓を自分の起動から数えるので、4 件の `final` が全部 最後の窓に割り当たる（git の外の記録 `~/.cache/hayamimi-lan-20261023/played2.events.jsonl` と `played2.jsonl`。行 4 の `finals` が 4、行 1〜3 が 0） | BR-13 | 道具が、接続ごとの最初の `final` か `ingest.client.connected` を起点に置き直す形と、`hayamimi` が接続ごとに `session_start` を出す形を、BR-13 の記録で比べて評議の席が決める |
+| Q-g | 同じ `hayamimi` の session に `stream` を 2 回目に流すと、中継には `final` 4 件と訳 4 件が来ているのに、要約が `with_final` 1/4、`cer_micros` 1641304 になる | 2 回目の run の events に `session_start` が無く（`ready` だけ）、`final` の `t0_s` と `t1_s` は 1 回目の続き（30.854 秒から）で数えられている。道具は 2 回目の窓を自分の起動から数えるので、4 件の `final` が全部 最後の窓に割り当たる（git の外の記録 `~/.cache/hayamimi-lan-20261023/played2.events.jsonl` と `played2.jsonl`。行 4 の `finals` が 4、行 1〜3 が 0） | BR-13 | 道具が、接続ごとの最初の `final` か `ingest.client.connected` を起点に置き直す形と、`hayamimi` が接続ごとに `session_start` を出す形を、BR-13 の記録で比べて受付が決める |
 | Q-h | 開いたままの頁の清書（Refined）の欄に 8 件が並ぶ。前の 4 件は話者の印が `S1?` のような仮の物で訳が無く、後の 4 件は同じ 4 文が確定の話者と訳つきで出る | 清書は仮の話者で 1 回、話者が確かまった後にもう 1 回、同じ `id` で届く。頁の `on_refine` は同じ `id` の行を置き換えずに足し（10.13.2）、訳は後の行にだけ付く。もう 1 つの道は、頁が繋ぎ直した時に `Hub::subscribe` が最後の 200 件の清書を流し直し（10.2.1）、頁がそれも足すことである | BR-14 | 同じ `id` の清書は前の行を置き換え、付いていた訳を引き継ぐ |
 | Q-i | 最後の `final` の後も、頁の Listening の欄に確定前の読み（全部 大文字の `HE COULD ARRANGE … FOR CARRIE …`）が残り、確定文の欄には `Carey` と正しく出る | Listening の欄の `strip_text` は速報だけが書き、`final` は消さない（10.13.2）。`expire` は欄を薄くするだけで文を残す。大文字で句読点の無い文は、英語の速報を確定と別の読みで出しているためで、確定文と違う綴りになりうる | BR-15 | その欄の文を覆う `final` が着いたら欄を空にする。速報の綴りは直さない（速報は確定で置き換わる前提の文である） |
 
 Q-a の線を動かす時は、`eval_real` の全 clip と `lat-dialog` と `lat-short` で、区間の数、隣の発話を飲んだ区間の数、区間の無い発話の数を、今の線と並べて 1 つの記録にする。
-線を変える判断は BR-8 の記録を材料に評議の席が下す（10.12 の H43）。
+線を変える判断は BR-8 の記録を材料に受付が下す（10.12 の H43）。
 
 #### 10.13.6 B4 別の PC のブラウザから音を送る頁
 
@@ -2071,7 +2120,7 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | BR-1 | `br01_each_stage_of_the_wait_is_recorded_on_one_clock` | `native/hayamimi-eval/tests/br01.rs` | 閉じる `final` の無い発話 |
 | BR-2 | `br02_the_page_stage_is_timed_on_the_page_clock` | `native/hayamimi/tests/br02.rs` | `?relay=` の無い頁 |
 | BR-3 | `br03_the_wait_from_the_end_of_speech_to_the_page_is_inside_the_budget` | `native/hayamimi/tests/br03.rs` | 線を 1 ms 超えた合成の記録 |
-| BR-4 | `br04_a_partial_after_a_switch_is_read_in_the_language_heard_so_far` | `native/hayamimi-asr/tests/br04.rs` | 2.0 秒に届かない区間、`zh` の答え |
+| BR-4 | `br04_a_partial_after_a_switch_is_read_in_the_language_heard_so_far` | `native/hayamimi-asr/tests/br04.rs` | 2.0 秒に届かない区間、`zh` の答え、答えの失敗、pair の外の run |
 | BR-5 | `br05_a_final_is_not_queued_behind_partial_translations` | `native/hayamimi-relay/tests/br05.rs` | `--partial-yield off` |
 | BR-6 | `br06_the_close_of_a_segment_logs_how_far_the_detector_lagged` | `native/hayamimi/src/log.rs` の `mod tests`。case 行は加えて `native/hayamimi-asr/src/vad.rs` の `mod tests` | `final` にならない区間の `id` |
 | BR-7 | `br07_ngram_drafting_keeps_the_settled_text_and_records_the_e_stage` | `native/hayamimi-relay/tests/br07.rs` | 文が 1 行違う合成の組 |
@@ -2101,12 +2150,17 @@ BR-3 は B2 の段を全部 入れた後に合否を出す。
 | IP-S8 | 確定文の訳を速報の訳の後ろに並べない（`hayamimi-relay` の lane と slot、引数 `--partial-yield`） | 合否：BR-5、IP-1 の通し直し。記録：BR-3 の run の段ごとの値 | `--partial-yield off`。commit を revert |
 | IP-S9 | E の n-gram の下書きの記録。旗は run の 18084 だけに当て、18081 は触らない。続けて BR-3 の合否を出す | 合否：BR-3。記録：BR-7 | 18084 を旗なしで起こし直す |
 | IP-S10 | 頁の清書の欄と Listening の欄（`hayamimi-ui` の `model.rs`）。画面の形は変えず、行の数と欄の文だけを直す | 合否：BR-14、BR-15、IP-5 の通し直し | commit を revert |
-| IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を評議の席へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
+| IP-S11 | 質の記録の道具（BR-8、BR-9、BR-10、BR-12）。VAD の線と判定の手は変えない。記録を受付へ出す | 記録：BR-8、BR-9、BR-10、BR-12 | commit を revert |
 | IP-S12 | 頁の 3 つの枠と境目と左右の入れ替え、字幕の字体と大きさ、明るい表示と暗い表示の switch（10.13.11。`css.rs` の `TOKENS` を 2 つの組に分ける、表示を読む純関数、`hayamimi-ui` の `dashboard.rs` と `css.rs`、行の側を決める純関数、境目の比と向きを読む純関数、字体と倍率を読む純関数、`strings.*.toml` の境目と button と選ぶ口の文言。`hayamimi` の `/fonts/<id>` の route と字体の file の path の設定）。designer の席の板を得てから始め、IP-S10 の後に同じ crate で続ける | 合否：BR-19、BR-20、BR-21、BR-22、BR-23、BR-24、BR-25、BR-32、BR-33、BR-34、IP-5 の通し直し | 前の build に戻す。commit を revert |
 | IP-S13 | 別の PC のブラウザから音を送る頁（10.13.6。`--send-page`、`--serve` の listener の `/send` と合言葉で守った `/ingest`、`/send-link`、合言葉の照らしを `Lease::take` の前へ、`--ws-host` との組み合わせを止める）。始める条件は 3 つで、IP-S16 が main に在ること、P0 の P0-1 が通ったこと、designer の席の板を得たことである | 合否：BR-16、BR-17。記録：BR-18 | `--send-page` を付けない起動は今と同じ。commit を revert |
 | IP-S16 | 制御の口を LAN に開かない（10.13.6 の C6。`routes.rs` の制御の口に loopback の相手だけを受ける層、`--serve-host` が loopback の外の時に `/events` の `access-control-allow-origin` を外す）。今 LAN に開いている口を閉じる直しなので、ほかの slice より先に出す | 合否：BR-35、RP-40 の通し直し | 前の build に戻す。commit を revert |
 | IP-S14 | 会話の 2 つの言語の組を選べるようにする、言語の側の土台（10.13.12。`hayamimi` の `--pair`、`langs` の event と `/langs`、`/config` の `pair`。`hayamimi-asr` の `Policy::pair` の候補と 10.4 の落ち先の一般化。中継の `Lang` の一般化、`Source::translates`、訳の model の言語の表と `/langs`） | 合否：BR-26、BR-27、BR-28、BR-29、IP-1、IP-2（記録の完全さ）、IP-3 の通し直し | `--pair` を付けない起動は今と同じ（`en,ja`）。commit を revert |
 | IP-S15 | 頁が言語の組に従う（10.13.12。頁の言語を選ぶ口、B6 の側と字体と大きさの設定を言語の code の鍵へ移す、組を変えた所の区切りの行） | 合否：BR-30、BR-31、BR-19〜BR-25 の通し直し | 前の build に戻す。commit を revert |
+| IP-S17 | 持った文を、読んだ範囲が区間を覆う時に使う（10.13.4 の手 9。`hayamimi-asr` の `endpoint.rs` の `plan_with_gap` と `pipeline.rs`、引数 `--held-reuse`）。`held_gap_ms` を符号つきにし、`asr.endpoint.decided`、`asr.endpoint.held`、`asr.utterance.timed`、`asr.feed.waited` の行を BR-3 の記録に残す | 合否：IP-2 と IP-3 の通し直し、確定文の text が旗の前後で同じ。記録：BR-3 の run の段ごとの値 | `--held-reuse strict`。commit を revert |
+| IP-S18 | 認識器の thread 数を引数にする（手 10。`hayamimi-asr` の `recognizer.rs` の `THREADS`、引数 `--asr-threads`）。始める前に、同じ音を 4 thread と 8 thread で読む micro-bench を打ち、復号の ms が縮む tier だけを採る | 記録：micro-bench の復号の ms（tier ごと、音の長さごと）、BR-3 の run の段ごとの値 | `--asr-threads 4`。commit を revert |
+| IP-S19 | 速報の復号を専用の thread と専用の recognizer で回す（手 11。`hayamimi-asr` の `partial.rs` と `pipeline.rs`、`hayamimi` の `session.rs`、引数 `--draft-worker`）。VAD に sample を渡す流れと早い終わりの読みを、速報の復号から外す | 合否：BR-4、BR-6、IP-2 の記録の完全さの通し直し。記録：BR-3 の run の段ごとの値、`asr.vad.closed` の `lag_ms` | `--draft-worker off`。commit を revert |
+| IP-S20 | 確定文の言語を、音が 4 秒に届いた時の途中の判定で決める（手 12。`hayamimi-asr` の `route/transcribe.rs` の `Request` に途中の答えの欄を足し、`route/pair.rs` の `heard` が識別器に訊く前にそれを読む）。省くのは、4 秒以上の音で答えが `ja` か `en` の時だけである | 合否：BR-4、IP-2 と IP-3 の通し直し。記録：確定文と `lang` が旗の前後で全件同じ、BR-3 の run の段ごとの値 | 旗（名前は実装の席が決める）。commit を revert |
+| IP-S21 | 速報に確定と同じ ITN、句読点、置換を当てる（手 13。`hayamimi-asr` の `partial.rs` と `pipeline.rs`） | 合否：BR-4。記録：`translate.draft.reused` の数（言語ごと）、BR-3 の run の段ごとの値 | 旗（名前は実装の席が決める）。commit を revert |
 
 IP-S6 を最初に置くのは、段ごとの値が無いと、IP-S7 と IP-S8 の効き目を前後の差で言えないからである。
 IP-S10 と IP-S11 は IP-S7 と別の crate か test だけを触るので、IP-S6 の後に並べて出してよい。
@@ -2114,15 +2168,18 @@ IP-S12 は IP-S10 と同じ `hayamimi-ui` を触るので、IP-S10 の後に 1 �
 IP-S16 は最初に出す。IP-S13 は、IP-S16 が main に入り、P0 が通った後に始める。
 IP-S14 は `hayamimi-asr`、`hayamimi`、`hayamimi-relay` の 3 つを触り、IP-S7 と IP-S8 と同じ所（速報の言語、lane）を動かすので、IP-S8 の後に出す。
 IP-S15 は IP-S12 の画面の上に載るので、IP-S12 と IP-S14 の後に出す。
+IP-S17 から IP-S21 は `hayamimi-asr` の `pipeline.rs` を取り合うので、1 本ずつ出す。
+順は IP-S17、IP-S18、IP-S19、IP-S20、IP-S21 である。
+IP-S18 の micro-bench は他の slice と file を取り合わないので、IP-S17 の実装と並べて打ってよい。
 
 #### 10.13.10 残る穴
 
 番号は 10.12 の続きで、H48 から振る。
 
-- **H48** 予算の線（10.13.3）は、10.13.2 の 1 本の pair の run と 2 本の `--lang` の run から置いた。B2 の手 1 と 2 で主指標の p95 1300 ms に届くかは分からない（NOT VERIFIED）。p95 で最も大きい段は終わりの待ちで、手 1 と 2 はそこを縮めない。IP-S9 の BR-3 で線の外なら、手 3 の記録を材料に評議の席が手 4 と 6 を決める。
-- **H49** 最初の発話の `d` 2411 ms の原因は特定していない。認識器の読み込みと試し読みは先に済んでいる。仮説は、速報の復号が VAD に sample を渡す流れの後ろに直列に並び、温まる前の最初の速報の復号が遅く、VAD への渡しが実時間から遅れることである（`rust_port.ja.md` 3.16 の `on_window` の直列）。BR-6 の `lag_ms` が最初の発話で約 2 秒、後の発話で 0 近くになれば当たる（NOT VERIFIED）。
-- **H50** 手 1 の途中の判定は、速報の復号と同じ所で回すので、手 3 の遅れを延ばしうる。BR-6 の `lag_ms` を IP-S7 の前後で比べる（NOT VERIFIED）。
-- **H51** 手 1 で使い回しが起きるのは、最後の速報の文が確定文と `reuse_match` で一致した時だけである。英語の速報は全部 大文字で句読点が無く、確定文と綴りが違うことがある（`CARRIE` と `Carey`）。`--lang en` の run では `L_tr` の p50 が 3 ms で使い回しが起きているが、pair の英語の行で同じだけ起きるかは測っていない（NOT VERIFIED）。BR-3 の記録の `L_tr` を言語ごとに分けて書く。
+- **H48** 予算の線（10.13.3）は、10.13.2 の 1 本の pair の run と 2 本の `--lang` の run から置いた。手 1 と 2 を入れた BR-3 の run は、`L_page` の p95 が 1593 ms と 1615 ms で、線の 1300 ms に届かない（10.13.4。どちらも NAS の写しと重なった run）。p95 で最も大きい段は終わりの待ちで、手 1 と 2 はそこを縮めない。手 4 は手 11 の形で採った。手 6 は、手 3 の記録の割れた発話の数と並べて、受付が決める。
+- **H49** 最初の発話の `d` 2411 ms の原因は特定していない。認識器の読み込みと試し読みは先に済んでいる。仮説は、速報の復号が VAD に sample を渡す流れの後ろに直列に並び、温まる前の最初の速報の復号が遅く、VAD への渡しが実時間から遅れることである（`rust_port.ja.md` 3.16 の `on_window` の直列）。BR-6 の `lag_ms` が最初の発話で約 2 秒、後の発話で 0 近くになれば当たる。BR-3 の 4 本の run で、最初の発話（`file-1`）の `lag_ms` は 2688 から 3072 ms、2 番目に大きい値は 384 ms 以下で、予測に合う。原因が最初の速報の復号の遅さであることは、分けていない（NOT VERIFIED）。
+- **H50** 手 1 の途中の判定は、速報の復号と同じ所で回すので、手 3 の遅れを延ばしうる。BR-6 の `lag_ms` を IP-S7 の前後で比べた結果は H71 に在り、早い終わりの閉じの遅れは延びた。
+- **H51** 手 1 で使い回しが起きるのは、最後の速報の文が確定文と `reuse_match` で一致した時だけである。英語の速報は全部 大文字で句読点が無く、確定文と綴りが違うことがある（`CARRIE` と `Carey`）。`--lang en` の run では `L_tr` の p50 が 3 ms で使い回しが起きている。pair の英語の行でも、BR-3 の既定の 2 本の英語の `L_tr` は p50 が 4 ms で、同じだけ起きた（10.13.4）。日本語は、run e で使い回せなかった単一 `final` の発話 12 件のうち、5 件が句読点の差、3 件が途中の判定の外れ、4 件が語の差だった。句読点の差は手 13 が直す。
 - **H52** B4 の第一の形は、送る側の browser の flag（`unsafely-treat-insecure-origin-as-secure`）に 1 つの http の origin を登録する形である。flag が今の版の Chrome と Edge で効くか、Edge に同じ項目が在るか、登録した origin の頁から同じ origin の `ws` が繋がるかは確かめていない（NOT VERIFIED）。P0 で記録する。P0-1 が通らない、または P0-4 で flag が無い browser しか無い時の戻し先は、利用者の file（`--tls-cert`、`--tls-key`）で証明書を受ける TLS の listener である。その形は、listener に `/send`、その assets、`/ingest` だけを載せて `routes::router`（`routes.rs:42-57`）を載せないこと、`rustls` を `default-features = false` と `ring` の provider（`builder_with_provider`）で組み、`Cargo.lock` の `aws-lc` を 0 件、新しい `[[package]]` を 0 件にすること、PEM を `rustls-pki-types` の `PemObject` で読むこと（`rustls-pemfile` は RUSTSEC-2025-0134、保守の終わり）、鍵の file が private でなければ起動を止めること（`hayamimi_relay::access::is_private`）を条件にする。起動ごとの自己署名（`rcgen`）は、戻し先でも採らない。戻す時は設計のこの行を本文へ移し、BR-17 を TLS の形に書き替える。
 - **H69** 中継の `/events` は `access-control-allow-origin: *` を持ち（`hub.rs:26`）、中継を `--serve-host` で LAN に開くと、LAN の外の頁からも訳を読める。頁が別の port の中継を読むのに要る頭なので、IP-S16 では外さない。外す形（頁の origin だけを返す）は、`?relay=` の host を限らない決め（10.5、H39）と合わせて、別の段で決める。
 - **H70** flag は送る側の browser の安全の設定を 1 つの origin について緩める。その origin の頁は、合言葉を知らない者が開いても、利用者が許可の画面を押せばマイクを取れる（音は合言葉の無い `/ingest` には届かない）。flag の登録は `/send` を使う間だけにし、使い終えたら消す手順を IP-S13 の手順書に書く。
@@ -2131,11 +2188,16 @@ IP-S15 は IP-S12 の画面の上に載るので、IP-S12 と IP-S14 の後に�
 - **H55** llama-server は client が接続を切った時に依頼を止めるかを README に書かない。手 2 の「終わっていない速報の訳を捨てる」は、答えを使わないだけで、server の slot は答えを作り終えるまで埋まる前提で書いた（ASSUMPTION）。BR-5 の偽の答え手は同時の依頼の数を数えるので、本物の server の slot の埋まりは BR-3 の llama-server の log で数える。
 - **H56** 18084 の llama-server の log は Flash Attention を切って動くと書く。`-fa on` が CAT-Translate-3.3b の Q8_0 で効くか、効いた時に prompt の読みと 1 token の生成が縮むかは確かめていない（NOT VERIFIED）。BR-7 と同じ run の形で、旗の組を 1 つずつ記録に足す。
 - **H57** Q-h（清書の欄の重なり）の 2 つの道（同じ `id` の清書が 2 回届く道と、繋ぎ直しの流し直しの道）のどちらが今回の 8 件を作ったかは、頁の event の記録が無く特定していない。BR-14 の実走で、頁に届いた清書の `id` と話者を記録する。
-- **H58** Q-g の直しは 10.13.13 の 10 で、`ready` に `stream_s` を足して接続の時を起点にする形に決めた。`t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）は変えない。`ready` の frame を読む consumer（`hayamimi-eval` の `stream`、スマホと ESP32 の client）が知らない key を捨てるかは、`ready` を読む所を数えて確かめていない（NOT VERIFIED）。IP-S6 の実装の席が `rg -n '"ready"' native mobile` で数え、捨てない consumer が在れば評議の席へ出す。
+- **H58** Q-g の直しは 10.13.13 の 10 で、`ready` に `stream_s` を足して接続の時を起点にする形に決めた。`t0_s` と `t1_s` の時計の意味（3.3 の「流れの先頭から」）は変えない。`ready` の frame を読む consumer（`hayamimi-eval` の `stream`、スマホと ESP32 の client）が知らない key を捨てるかは、`ready` を読む所を数えて確かめていない（NOT VERIFIED）。IP-S6 の実装の席が `rg -n '"ready"' native mobile` で数え、捨てない consumer が在れば受付へ出す。
 - **H59** 10.13.11 の行の配置は、相手の行と自分の行が左右に分かれて互い違いに並ぶ形で、片側の行が続くと反対の側に空きが出る。空きの量と読みやすさは、designer の席の板と、IP-S12 の後に人が開いた頁で確かめる（NOT VERIFIED）。
 - **H60** 境目の比を覚える `localStorage` は origin ごとなので、`127.0.0.1` と `localhost` と LAN の address で開いた頁は、それぞれ別の比と左右の向きと字体の設定を持つ。1 つにそろえる口は作らない。
 - **H61** 字体の file の path を `hayamimi` に渡す口は、今は重ね窓の設定（3.12）にしか無く、`hayamimi` の頁の server が同じ file を読む設定の形は IP-S12 の実装の席が 3.12 の設定 file に揃えて決める。`/fonts/<id>` で LAN の端末へ配ることが cinecaption の配布条件（無料、改造禁止、再配布自由。S6 の転記）と UDEV Gothic の OFL 1.1 に収まるかは、原文の条件を読んで確かめていない（NOT VERIFIED）。収まらないと分かれば、その字体を一覧の `/fonts` から外し、端末に入っている時だけ名前で使う。
 - **H62** `yu-gothic`、`meiryo`、`yu-mincho` は Windows の字体で、電話や mac の端末には無いことが多い。その端末では並びの次の字体で描かれ、選んだ字体と違う字体が出る（BR-24 は computed の `font-family` の宣言を測り、実際に描いた字体は測らない）。描いた字体を測る形（DevTools の `CSS.getPlatformFontsForNode`）を BR-24 の case 行に足すかは test-designer の席が決める。
+- **H71** 手 1 は英語の速報を v3 の tier（Parakeet TDT 0.6B v3 の int8、CPU、音 1 秒あたり約 50 ms）で読ませる。速報は音 0.5 秒ごとに最大 8 秒分を読み、session の loop（`Session::on_window`）と同じ thread で回るので、発話の終わりに掛かった速報の復号が、VAD の閉じと早い終わりの読みを遅らせる。`asr.vad.closed` の `lag_ms` が 0 でない早い終わりの閉じは 78 件のうち 11 から 22〜26 に増え、英語の `d` は p50 で +43 と +17 ms 上がった（10.13.4）。この機構は、loop が 1 本の thread であることと `lag_ms` の増え方から読んだ物で、英語の速報だけを軽い tier にした run では確かめていない（NOT VERIFIED）。手 11（IP-S19）が直す。直ったかは、同じ記録の `lag_ms` と英語の `d` の差で測る。
+- **H72** 持った文を使う条件は、読んだ範囲の終わりと区間の終わりの差が 1 窓（32 ms）以内であること（`plan_with_gap`）で、早い終わりの通知が出る無音（120 ms）の分を覆わない。IP-2 の記録（`docs/results/in-person/ip02_pair.log`）では、`silence` で閉じた 35 件のうち 34 件が持った文を持ち、使われたのは 6 件で、27 件は読み直した。読み直した 27 件の `held_gap_ms` は 44〜148 ms が 24 件、212 ms、660 ms、692 ms が各 1 件である。run a の `silence` で閉じた 21 件の `L_dec` が全部 0 になった時の `L` は、p50 949 → 895 ms、p75 1133 → 1114 ms、p95 1591 → 1373 ms で、これは上限である。手 9（IP-S17）が直す。当たる件数と、使った文が読み直した文と同じ text かは、実走の記録で数える（ASSUMPTION：持った文の text は確定文と同じ）。
+- **H73** 確定の側の判定は、区間の先頭 4 秒（`LID_MAX_SECONDS`）を whisper-tiny に読ませ、`lid_ms` の p50 が 2 秒未満で 53〜71 ms、2〜4 秒で 78〜81 ms、4 秒以上で 101〜114 ms である（BR-3 の 4 本）。4 秒以上の確定文は 113 件中 61 件である。手 12（IP-S20）が直す。途中の判定の clip は検出した声の始まり（区間の始まりより約 0.3 秒後）から取るので、確定の側の clip と同じ答えになるかは、`asr.partial.lang.asked` の答えと確定文の `lang` を突き合わせて確かめる（NOT VERIFIED）。
+- **H74** 途中の言語判定 85 件のうち、答えが次の `final` の言語と違ったのは 3 件で、日本語の発話を `en` と聞いた（3 回の繰り返しの同じ発話。a、e、b の 3 本で同じ）。外れた時に失うのは使い回しだけで、確定文の言語は動かない。確定文の `id`、`lang`、`text` は、旗を外した run と既定の run で 113 件とも同じである。
+- **H75** 手 1 と手 2 の BR-3 の実走は、4 本とも NAS の定時の写し（`nas-daily-backup`。04:40 から約 08:30 JST。nice 15）と重なり、run の優先度は上げていない（実効 nice 0）。c、e、b の開始時と終了時の cpu の PSI（`some avg60`）は 0.00〜0.02 だった。全体の `L_tr` の p50 は 2 つの山の境に在り、222、106、17、8 ms と大きく動くので、言語ごとの値で読む。既定の 2 本の間の差が、手 2 を外した 1 本との差と同じ大きさなので、手 2 だけの寄与は分けられない。写しと重ならない値は、写しが約 08:30 JST に終わるまで取れない。取れ次第、旗を外した run と既定の run を同じ名前の記録に足す。
 
 #### 10.13.11 B6 頁の 3 つの枠と境目
 
@@ -2900,7 +2962,7 @@ GPU は使わない。
 - **Q-OV5**（決まった）GUI subsystem の process の log は file へ書き、規範の既定（1 日か 256 MiB の早い方）で回す（11.3）。
 - **H28** OV-S2 の席の申告。OV-V で打ち直すまで閉じない。申告の中身は、`--layout-probe` の run で cinecaption と UDEV Gothic 35 の Regular が `status: loaded`、`inner_height` が 158.0 CSS px（11.4 の `H` は 157.8 で、±1 の内）である。`missing_glyphs` の 0 は、字形を見ない `document.fonts.check` の答えだったので根拠にしない。測りは canvas の `measureText` に替えた。実 file で 0、Arial を cinecaption の face にした run で 37（試しの字の全部）で、CS-12 が陽性と陰性の対照を持つ。UDEV Gothic 35 の Bold の `status` は申告に無い（NOT VERIFIED）。OV-V が CS-12 を打ち直して閉じる。
 - **H29** `--zoom` の webview の拡大と、画面の拡大率を変えた時とで、行の割り付けが同じになるかは確かめていない（ASSUMPTION）。この機械の 150% だけは本物の拡大率で測れるので、CS-11 は 150% を本物で、100、125、200% を `--zoom` で測り、150% の `--zoom` の値と本物の値が同じかを test の出力に残す。
-- **H30** 試し 2 の縁と影が DWM の縁によるかは確かめていない（ASSUMPTION）。CS-11 の外周 8 px で分かる。消えなければ評議へ戻す。
+- **H30** 試し 2 の縁と影が DWM の縁によるかは確かめていない（ASSUMPTION）。CS-11 の外周 8 px で分かる。消えなければ受付へ戻す。
 - **H31** 1 秒ごとの上げ直しでも、全画面の排他の描画（game、MPC-HC の排他の全画面）と、他の app の最前面の窓が 1 秒の間に上がる場面では隠れる。前者は OS の作りで防げない。量は CS-7 の 10 分の run の中で 5 秒ごとに z-order を読み、重ね窓が前面の窓より下だった標本の数を記録する（合否に使わない）。
 - **H32** 認識の流れが切れている間の確定文は出ず、その間に着いた訳は 5 秒で捨てる。中継だけが生きている時に訳が消える。量は測っていない。
 - **H33** monitor は 1 枚しか無く（11.2）、2 枚の間の移動と拡大率の違う画面への移動は、この機械では測れない。2 枚目が在る時に OV-4 と CS-11 を打ち直す（前提なし）。
