@@ -462,7 +462,8 @@ fn start_servers(
             controls: Arc::clone(controls),
         };
         let ip = args.serve_host;
-        if let Some(address) = start_listener(routes::router(state), ip, port, &EVENTS, notices)? {
+        let router = routes::router_for(state, ip);
+        if let Some(address) = start_listener(router, ip, port, &EVENTS, notices)? {
             say_lan(strings, address);
         }
     }

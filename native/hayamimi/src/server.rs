@@ -18,8 +18,8 @@ use axum::response::sse::{Event, Sse};
 use axum::routing::get;
 use serde_json::Value;
 use tokio::sync::{broadcast, watch};
-use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::{Stream, StreamExt};
 
 /// Events a slow client may fall behind by before it loses the oldest ones.
 const BACKLOG: usize = 1024;
@@ -183,14 +183,25 @@ impl Default for Hub {
     }
 }
 
-/// `GET /events`: the kept events first, then every event as it is published.
-pub async fn events(State(hub): State<Hub>) -> impl IntoResponse {
+/// The kept events first, then every event as it is published.
+fn event_stream(hub: &Hub) -> Sse<impl Stream<Item = Result<Event, Infallible>> + use<>> {
     // A client that fell too far behind loses the oldest events; the stream goes on.
     let (kept, receiver) = hub.subscribe();
     let stream = tokio_stream::iter(kept)
         .chain(BroadcastStream::new(receiver).filter_map(Result::ok))
         .map(|data| Ok::<Event, Infallible>(Event::default().data(data)));
-    ([(ACCESS_CONTROL_ALLOW_ORIGIN, "*")], Sse::new(stream))
+    Sse::new(stream)
+}
+
+/// `GET /events`, readable from a page of any origin.
+pub async fn events(State(hub): State<Hub>) -> impl IntoResponse {
+    ([(ACCESS_CONTROL_ALLOW_ORIGIN, "*")], event_stream(&hub))
+}
+
+/// `GET /events` without `access-control-allow-origin`: only a page of the
+/// server's own origin reads it.
+pub async fn events_same_origin(State(hub): State<Hub>) -> impl IntoResponse {
+    event_stream(&hub)
 }
 
 /// A router with `/events` only.
@@ -222,7 +233,9 @@ pub fn bind(requested: u16) -> Result<TcpListener, std::io::Error> {
     bind_on(IpAddr::V4(Ipv4Addr::LOCALHOST), requested)
 }
 
-/// Serves `router` on `listener` from a thread called `name`; the thread ends with the process.
+/// Serves `router` on `listener` from a thread called `name`; the thread ends
+/// with the process. Each request carries the address of its peer
+/// (`ConnectInfo<SocketAddr>`), which the routes that check it read.
 pub fn serve(
     router: Router,
     listener: TcpListener,
@@ -243,7 +256,11 @@ pub fn serve(
                 };
                 // After a successful bind the only failures left are accept errors, which
                 // axum retries itself; a fatal one ends the server and nothing else.
-                let _ = axum::serve(listener, router).await;
+                let _ = axum::serve(
+                    listener,
+                    router.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .await;
             });
         })?;
     Ok(address)
@@ -300,6 +317,21 @@ mod tests {
         let body = read_until(&mut stream, "こんにちは")?;
         assert!(body.contains("data: {"), "{body}");
         assert!(body.contains("\"type\":\"final\""), "{body}");
+        Ok(())
+    }
+
+    #[test]
+    fn the_same_origin_events_reply_carries_no_allow_origin_header() -> std::io::Result<()> {
+        let router = Router::new()
+            .route("/events", get(events_same_origin))
+            .with_state(Hub::new());
+        let address = serve(router, bind(0)?, "events-same-origin")?;
+        let mut stream = get_events(address)?;
+        let head = read_until(&mut stream, "\r\n\r\n")?;
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        let lower = head.to_lowercase();
+        assert!(lower.contains("content-type: text/event-stream"), "{head}");
+        assert!(!lower.contains("access-control-allow-origin"), "{head}");
         Ok(())
     }
 
