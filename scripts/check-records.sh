@@ -14,8 +14,9 @@
 # names of the cargo test lines in .github/workflows/test.yml. It runs when the push
 # changes a directory under docs/results that the file names, or when the file uses
 # RESULTS or names no directory literally. The changed directories are read with
-# --no-renames (a file moved away counts for the directory it left) and quotepath off (a
-# name that is not ASCII is not quoted). The lists are derived on every run, so a new
+# --no-renames (a file moved away counts for the directory it left) and -z (git writes a
+# name as it is: it quotes a name that is not ASCII, or that holds a double quote or a
+# backslash, whatever core.quotepath says). The lists are derived on every run, so a new
 # reader joins without an edit here.
 #
 # How this can break, and what stops it:
@@ -84,7 +85,7 @@ repo=$(git rev-parse --show-toplevel) || exit 2
 cd "$repo" || exit 2
 git diff --quiet HEAD || die "tracked files differ from HEAD; commit first"
 git rev-parse --verify --quiet "origin/main^{commit}" > /dev/null || die "origin/main does not resolve"
-changed=$(git -c core.quotepath=false diff --name-only --no-renames origin/main HEAD -- docs/results | cut -d/ -f3 | sort -u)
+changed=$(git diff --name-only --no-renames -z origin/main HEAD -- docs/results | tr '\0' '\n' | cut -d/ -f3 | sort -u)
 [ -n "$changed" ] || die "no file under docs/results differs from origin/main; nothing to check"
 files=$(readers)
 [ "$(printf '%s\n' $files | grep -c .)" -ge 2 ] || die "the CI line yields fewer than 2 readers of docs/results; the derivation broke"

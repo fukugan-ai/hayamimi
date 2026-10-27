@@ -564,6 +564,7 @@ script は、その後ろに `test --release --jobs 2 --no-fail-fast -p <crate> 
 読む test は、`docs/results` を字面で書くか、test の共通部分の `RESULTS`（`docs/results` を指す定数）を使う `native/<crate>/tests/<名前>.rs` のうち、CI の行（`.github/workflows/test.yml` の `cargo test` の行）の `--test` に在る物です。
 その中から、`origin/main` との差で変わった directory を名指す物だけを打ちます。
 移動した file は、元の directory も変わった directory に数えます。
+名前が ASCII でない directory や、`"` と `\` を含む directory は、名前のまま数えます。
 directory を字面で名指さない物と、`RESULTS` を使う物は、必ず打ちます。
 一覧は毎回 CI の行から導くので、読む test が増えても script は書き換えません。
 
