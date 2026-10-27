@@ -24,7 +24,10 @@
 //! runs, the finals whose language was the answer of the question put when the
 //! voice reached four seconds, and those questions. Two more (T-BR-38-018 and
 //! 019) play it with the drafts read by a worker thread of IP-S19, and with
-//! them read on the thread that feeds the detector.
+//! them read on the thread that feeds the detector. The row T-BR-38-020 reads
+//! the log and the events of those two records and of the copies of the pair
+//! that was played before them: the finals of the four runs and the lines that
+//! say which thread read a draft.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -170,11 +173,16 @@ const DRAFT_WORKER_OFF: Variant = Variant {
     judges_draft: false,
 };
 
-/// The file of the variant's record that ends in `suffix`.
-fn record_of(variant: &Variant, suffix: &str) -> PathBuf {
+/// The file of the record called `step` that ends in `suffix`.
+fn record_named(step: &str, suffix: &str) -> PathBuf {
     Path::new(REPO)
         .join("docs/results/in-person")
-        .join(format!("{}{suffix}", variant.step))
+        .join(format!("{step}{suffix}"))
+}
+
+/// The file of the variant's record that ends in `suffix`.
+fn record_of(variant: &Variant, suffix: &str) -> PathBuf {
+    record_named(variant.step, suffix)
 }
 
 /// Writes `bytes` to `path`, naming the path when it cannot.
@@ -880,6 +888,113 @@ fn the_midway_and_close_runs_name_the_same_finals_and_only_midway_skips_the_ques
         four_second_questions(&close_log)?,
         0,
         "the close run put a question for a final"
+    );
+    Ok(())
+}
+
+/// The rows of a run's log that are the event `name`.
+fn rows_of(log: &str, name: &str) -> Result<Vec<Value>, Failure> {
+    let mut rows = Vec::new();
+    for line in log.lines().filter(|line| line.contains(name)) {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        if row["event"] == name {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
+}
+
+/// How many `asr.partial.read` lines of the log say a worker thread read the
+/// draft. A line with no boolean `worker` is an error, so that a count never
+/// passes over a line it could not read.
+fn worker_reads(log: &str) -> Result<usize, Failure> {
+    let mut reads = 0;
+    for row in rows_of(log, "asr.partial.read")? {
+        match row["worker"].as_bool() {
+            Some(true) => reads += 1,
+            Some(false) => {}
+            None => return Err(format!("a read line with no boolean worker: {row}")),
+        }
+    }
+    Ok(reads)
+}
+
+/// An `asr.partial.read` line of a run's log; `worker` is the JSON of the field.
+fn read_line(worker: &str) -> String {
+    format!(
+        "{{\"event\":\"asr.partial.read\",\"worker\":{worker},\"used\":true,\"audio_ms\":900,\"decode_ms\":120,\"wait_ms\":4}}\n"
+    )
+}
+
+/// The records of the first pair of IP-S19 runs, kept under names that no run
+/// rewrites: the run with the worker and the run without it.
+const FIRST_PAIR: (&str, &str) = ("br03_ip_s19_run1", "br03_ip_s19_off_run1");
+
+/// What the two records of a pair say: the finals of the run with the worker
+/// and of the run without it are the same, only the first run has drafts read
+/// by the worker, it said ready once and was not lost. Returns the finals.
+fn check_pair(on_step: &str, off_step: &str) -> Result<Vec<Final>, Failure> {
+    let on_log = read(&record_named(on_step, ".log.jsonl"))?;
+    let off_log = read(&record_named(off_step, ".log.jsonl"))?;
+    let on = finals_of(&read(&record_named(on_step, ".events.jsonl"))?)?;
+    let off = finals_of(&read(&record_named(off_step, ".events.jsonl"))?)?;
+    assert!(!on.is_empty(), "{on_step} made no final");
+    let stray = differing(&on, &off);
+    assert!(
+        stray.is_empty(),
+        "{on_step} and {off_step} differ in these finals: {stray:?}"
+    );
+    assert!(
+        worker_reads(&on_log)? >= 1,
+        "no draft of {on_step} was read by the worker"
+    );
+    assert_eq!(
+        worker_reads(&off_log)?,
+        0,
+        "a draft of {off_step} was read by a worker"
+    );
+    assert_eq!(
+        rows_of(&on_log, "asr.draft.ready")?.len(),
+        1,
+        "the worker of {on_step} did not say ready exactly once"
+    );
+    assert!(
+        rows_of(&off_log, "asr.draft.ready")?.is_empty(),
+        "{off_step} said a worker was ready"
+    );
+    assert!(
+        rows_of(&on_log, "asr.draft.lost")?.is_empty(),
+        "the worker of {on_step} was lost during the run"
+    );
+    Ok(on)
+}
+
+/// T-BR-38-020
+#[test]
+fn the_on_and_off_runs_name_the_same_finals_and_only_on_reads_by_the_worker() -> TestResult {
+    let reads = [read_line("true"), read_line("false"), read_line("true")].concat();
+    assert_eq!(worker_reads(&reads)?, 2);
+    assert_eq!(worker_reads(&read_line("false"))?, 0);
+    assert_eq!(worker_reads("")?, 0);
+    assert!(worker_reads("{\"event\":\"asr.partial.read\",\"used\":true}\n").is_err());
+    let other_event = "{\"event\":\"asr.draft.ready\",\"worker\":true}\n";
+    assert_eq!(worker_reads(other_event)?, 0);
+    let made = |id: &str, lang: &str, text: &str| {
+        (String::from(id), String::from(lang), String::from(text))
+    };
+    let same = vec![made("file-1", "ja", "あ"), made("file-2", "en", "b")];
+    assert!(differing(&same, &same).is_empty());
+    let other_text = vec![made("file-1", "ja", "い"), made("file-2", "en", "b")];
+    assert_eq!(differing(&same, &other_text), [String::from("file-1")]);
+    let longer = vec![same[0].clone(), same[1].clone(), made("file-3", "en", "c")];
+    assert_eq!(differing(&same, &longer), [String::from("file-3")]);
+
+    let last = check_pair(DRAFT_WORKER_ON.step, DRAFT_WORKER_OFF.step)?;
+    let first = check_pair(FIRST_PAIR.0, FIRST_PAIR.1)?;
+    let stray = differing(&first, &last);
+    assert!(
+        stray.is_empty(),
+        "the first pair and the last pair differ in these finals: {stray:?}"
     );
     Ok(())
 }
