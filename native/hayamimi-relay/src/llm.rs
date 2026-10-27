@@ -1124,6 +1124,8 @@ mod tests {
                 Some("other"),
             ),
             ("transport: no scripted answer", Some("other")),
+            ("transport: ", Some("other")),
+            ("transport: connection_reset", Some("connection_reset")),
             ("status 503", None),
             ("body: no choices", None),
             ("aborted", None),
