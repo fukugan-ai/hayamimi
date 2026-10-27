@@ -1908,6 +1908,7 @@ pair の外の言語は別の server で訳すので、速報と slot を取り�
 
 手 1 と手 2 を入れた後の値を、BR-3 の実走（温まった標本 76、p50 / p95、ms）で測った。
 同じ build を旗だけ変えて続けて取り、全部の値と取った条件は `docs/results/in-person/br03_ip_s78.md` に在る。
+NAS の定時の写しが動いていない窓で同じ 4 本を取り直した値は `docs/results/in-person/br03_ip_s78_quiet.md` に在る。
 `br03_ip_s8.md` が既定の run（2 本のうち重い方）、`br03_ip_s8_lid_only.md` が手 2 だけを外した run、`br03_ip_s8_both_off.md` が両方を外した run である。
 
 | run | `d` | `L_dec` | `L_tr` | `L_page` | `L_settled_page` |
