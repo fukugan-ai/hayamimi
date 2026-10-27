@@ -680,3 +680,45 @@ fn the_due_rule_of_the_clock_is_the_same_with_and_without_a_worker() -> TestResu
     assert_eq!(rig.inline_probe.count_reads(), 0);
     Ok(())
 }
+
+/// T-BR-38-022
+#[test]
+fn a_worker_found_gone_by_the_step_itself_is_replaced_by_the_inline_read_in_that_call() -> TestResult
+{
+    let (worker, _) = Script::saying(Vec::new());
+    let (inline, inline_probe) = Script::saying(vec![Answer::Text("inline")]);
+    let drafter = Drafter::start(move || worker.failing_to_prepare())?;
+    let mut rig = Rig::new(drafter, inline, inline_probe);
+    rig.hear(8_000);
+    // Nothing waits for the worker, so only a call of `step` can find it gone.
+    // The calls before that one find it not ready: they hand nothing over and read nothing.
+    let until = Instant::now() + WAIT;
+    let mut found = None;
+    while found.is_none() && Instant::now() < until {
+        let outcome = rig.step(Tier::Rz)?;
+        let said = rig.drafter.take_notes();
+        if said.contains(&DraftNote::Lost) {
+            found = Some((outcome, said));
+        } else {
+            assert!(
+                outcome.is_none(),
+                "a text came before the worker was found gone"
+            );
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+    let Some((outcome, said)) = found else {
+        return Err(Box::from("no call of step found the worker gone in time"));
+    };
+    assert_eq!(outcome, Some(String::from("inline")));
+    assert_eq!(
+        said.iter().filter(|note| **note == DraftNote::Lost).count(),
+        1
+    );
+    assert!(!rig.drafter.has_worker());
+    let seen = rig.inline_probe.next_read()?;
+    assert_eq!(seen.thread, thread::current().id());
+    assert_eq!(seen.samples.len(), 8_000);
+    assert_eq!(rig.inline_probe.count_reads(), 0);
+    Ok(())
+}
