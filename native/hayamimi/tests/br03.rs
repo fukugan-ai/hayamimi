@@ -22,7 +22,9 @@
 //! utterance, and with that measure of IP-S20 switched off. The row T-BR-37-014
 //! reads the log and the events of those two records: the finals of the two
 //! runs, the finals whose language was the answer of the question put when the
-//! voice reached four seconds, and those questions.
+//! voice reached four seconds, and those questions. Two more (T-BR-38-018 and
+//! 019) play it with the drafts read by a worker thread of IP-S19, and with
+//! them read on the thread that feeds the detector.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -146,6 +148,28 @@ const FINAL_LID_CLOSE: Variant = Variant {
     judges_draft: false,
 };
 
+/// The programs with the drafts read by a worker thread of their own (IP-S19).
+const DRAFT_WORKER_ON: Variant = Variant {
+    step: "br03_ip_s19",
+    title: "BR-3 の IP-S19 の後の値（速報を専用の thread で読む）",
+    flags: Flags {
+        hayamimi: &["--draft-worker", "on"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// IP-S19 off: the drafts are read on the thread that feeds the detector.
+const DRAFT_WORKER_OFF: Variant = Variant {
+    step: "br03_ip_s19_off",
+    title: "BR-3 の IP-S19 を旗で外した値（速報を音を渡す thread で読む）",
+    flags: Flags {
+        hayamimi: &["--draft-worker", "off"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
 /// The file of the variant's record that ends in `suffix`.
 fn record_of(variant: &Variant, suffix: &str) -> PathBuf {
     Path::new(REPO)
@@ -168,11 +192,15 @@ fn scratch() -> Result<PathBuf, Failure> {
 /// detector closed a segment and how far it lagged, the question put to the
 /// identifier in the middle of an utterance, a wait for a slot of the
 /// translation server, a text in progress let go, the translation of a text in
-/// progress taken over by the line that closed it, and (see
+/// progress taken over by the line that closed it, how each draft was read and
+/// whether the draft worker came up and stayed up, and (see
 /// [`ENDPOINT_EVENTS`]) how each segment was closed and read.
-const EVENTS_KEPT: [&str; 9] = [
+const EVENTS_KEPT: [&str; 12] = [
     "asr.vad.closed",
     "asr.partial.lang.asked",
+    "asr.partial.read",
+    "asr.draft.ready",
+    "asr.draft.lost",
     "translate.slot.waited",
     "translate.partial.skipped",
     "translate.draft.reused",
@@ -335,6 +363,34 @@ fn the_run_with_the_final_language_decided_midway_is_recorded() -> TestResult {
 #[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
 fn the_run_with_the_final_language_decided_at_the_close_is_recorded() -> TestResult {
     record_run(&FINAL_LID_CLOSE)
+}
+
+/// T-BR-38-018
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_the_draft_worker_on_is_recorded() -> TestResult {
+    record_run(&DRAFT_WORKER_ON)?;
+    let log = read(&record_of(&DRAFT_WORKER_ON, ".log.jsonl"))?;
+    for event in ["asr.partial.read", "asr.draft.ready"] {
+        assert!(
+            log.contains(event),
+            "the logs of the run have no line of {event}"
+        );
+    }
+    Ok(())
+}
+
+/// T-BR-38-019
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_the_draft_worker_off_is_recorded() -> TestResult {
+    record_run(&DRAFT_WORKER_OFF)?;
+    let log = read(&record_of(&DRAFT_WORKER_OFF, ".log.jsonl"))?;
+    assert!(
+        log.contains("asr.partial.read"),
+        "the logs of the run have no line of asr.partial.read"
+    );
+    Ok(())
 }
 
 /// How the segments the `silence` rule closed in a run were turned into text,

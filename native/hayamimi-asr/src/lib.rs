@@ -11,6 +11,7 @@ mod backend;
 pub mod cluster;
 pub mod decode;
 pub mod diarize;
+pub mod draft;
 pub mod embedder;
 pub mod endpoint;
 pub mod error;

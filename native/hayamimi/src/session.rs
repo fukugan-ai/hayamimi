@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
+use hayamimi_asr::draft::DraftNote;
 use hayamimi_asr::itn::Overrides;
 use hayamimi_asr::partial::MidwayAsked;
 use hayamimi_asr::pipeline::{ClosedSegment, Demotion};
@@ -133,6 +134,11 @@ pub trait Hearing {
     fn take_midway(&mut self) -> Vec<MidwayAsked> {
         Vec::new()
     }
+    /// What the drafts did since the last call: the worker ready, each draft
+    /// read, the worker lost. A script that reads none says none.
+    fn take_drafts(&mut self) -> Vec<DraftNote> {
+        Vec::new()
+    }
 }
 
 impl Hearing for Engine {
@@ -199,6 +205,10 @@ impl Hearing for Engine {
     fn take_midway(&mut self) -> Vec<MidwayAsked> {
         Engine::take_midway(self)
     }
+
+    fn take_drafts(&mut self) -> Vec<DraftNote> {
+        Engine::take_drafts(self)
+    }
 }
 
 /// What the loop is run with.
@@ -240,6 +250,7 @@ impl<E: Hearing> Session<'_, E> {
             pending_vad: None,
         };
         self.tell_resident();
+        self.say_drafts();
         while !self.stop.load(Ordering::Relaxed) {
             self.apply_commands(&mut state)?;
             self.retune(&mut state)?;
@@ -279,6 +290,7 @@ impl<E: Hearing> Session<'_, E> {
         self.tell_resident();
         self.close_due_group();
         self.draft();
+        self.say_drafts();
         Ok(())
     }
 
@@ -372,6 +384,18 @@ impl<E: Hearing> Session<'_, E> {
         let received = fed + (queued * WINDOW) as u64;
         for line in log::vad_closed_lines(self.strings, self.source, &closed, (received, fed)) {
             log::print(&line);
+        }
+    }
+
+    /// Says what the drafts did since the last call: the worker ready, each
+    /// draft read with its times, the worker lost. After the draft is
+    /// published, so a log line never delays a subtitle.
+    fn say_drafts(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+        for note in engine.take_drafts() {
+            log::print(&log::draft_note_line(self.strings, &note));
         }
     }
 

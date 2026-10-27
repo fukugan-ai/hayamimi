@@ -22,6 +22,7 @@ pub mod keys {
     pub const PARTIAL_LID_UNSUPPORTED: &str = "partial_lid_unsupported";
     pub const FINAL_LID_UNSUPPORTED: &str = "final_lid_unsupported";
     pub const HELD_REUSE_UNSUPPORTED: &str = "held_reuse_unsupported";
+    pub const DRAFT_WORKER_UNSUPPORTED: &str = "draft_worker_unsupported";
     pub const LANG_UNSUPPORTED: &str = "lang_unsupported";
     pub const NEED_WAV: &str = "need_wav";
     pub const NO_GPU_CHECK: &str = "no_gpu_check";
@@ -34,7 +35,7 @@ pub mod keys {
     /// Every fixed key above, for the check that both tables hold them all.
     /// The keys of a fallback notice are derived from its fields (`stage_*`,
     /// `reason_*`, `to_*`) and are checked against the lists in `notice`.
-    pub const ALL: [&str; 18] = [
+    pub const ALL: [&str; 19] = [
         HELP,
         USAGE_HINT,
         UNKNOWN_OPTION,
@@ -45,6 +46,7 @@ pub mod keys {
         PARTIAL_LID_UNSUPPORTED,
         FINAL_LID_UNSUPPORTED,
         HELD_REUSE_UNSUPPORTED,
+        DRAFT_WORKER_UNSUPPORTED,
         LANG_UNSUPPORTED,
         NEED_WAV,
         NO_GPU_CHECK,
@@ -152,6 +154,29 @@ mod tests {
                     assert!(table.cli.contains_key(&key), "{lang:?} lacks `{key}`");
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// T-BR-38-021
+    #[test]
+    fn the_draft_lines_have_a_message_in_both_languages() -> Result<(), String> {
+        use crate::log::{DRAFT_LOST, DRAFT_READY, PARTIAL_READ};
+        let english = Strings::embedded(Lang::En)?;
+        let japanese = Strings::embedded(Lang::Ja)?;
+        for event in [PARTIAL_READ, DRAFT_READY, DRAFT_LOST] {
+            for table in [&english, &japanese] {
+                assert!(
+                    table.messages.contains_key(event),
+                    "a table lacks `{event}`"
+                );
+                assert!(!table.message_for(event).is_empty(), "`{event}` is empty");
+            }
+            assert_ne!(
+                english.message_for(event),
+                japanese.message_for(event),
+                "`{event}` reads the same in both languages"
+            );
         }
         Ok(())
     }

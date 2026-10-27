@@ -12,13 +12,14 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::audio::{History, SAMPLE_RATE, windows};
 use crate::decode::{Recognizers, ResidentEvent};
+use crate::draft::{DraftNote, Drafter, READY_LIMIT, WorkerReader};
 use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State, Tail};
 use crate::error::AsrError;
 use crate::fallback::{Fallback, Gpu, Reason, Stage, To, reason_of};
 use crate::itn::{self, Overrides};
 use crate::lid::{self, Identify, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
-use crate::partial::{self, DraftClock, MidwayAsked, MidwayLid};
+use crate::partial::{DraftClock, MidwayAsked, MidwayLid};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
@@ -78,6 +79,10 @@ pub struct Settings {
     pub policy: Policy,
     /// How the end of an utterance is decided.
     pub endpoint: Mode,
+    /// Whether the drafts of the utterance in progress are read by a worker
+    /// thread with recognizers of its own, so that a draft never holds the
+    /// feed back. Off: the drafts are read on the thread that feeds.
+    pub draft_worker: bool,
 }
 
 impl Settings {
@@ -95,6 +100,7 @@ impl Settings {
             diagnose: false,
             // The library keeps the silence rule; the `hayamimi` command line asks for the early one.
             endpoint: Mode::Silence,
+            draft_worker: false,
         }
     }
 }
@@ -387,6 +393,8 @@ pub struct Engine {
     reports: Vec<SessionReport>,
     fallbacks: Vec<Fallback>,
     next_id: u64,
+    /// Reads the drafts of the utterance in progress, on a worker thread or on this one.
+    drafter: Drafter,
 }
 
 fn millis(since: Instant) -> f64 {
@@ -536,6 +544,25 @@ fn open_route(
     }))
 }
 
+/// The drafter of a run: a worker with recognizers of its own when the
+/// settings ask for one and there is a route to draft for, else the thread
+/// that feeds reads the drafts. The worker loads the Japanese recognizer and
+/// the English one the session may need, and reads silence with each, before
+/// it takes its first draft.
+fn open_drafter(settings: &Settings, routed: bool) -> Drafter {
+    if !settings.draft_worker || !routed {
+        return Drafter::inline();
+    }
+    let models = settings.models.clone();
+    let max_resident = settings.max_resident;
+    let preload: Vec<Tier> = std::iter::once(Tier::Rz)
+        .chain(english_tier_to_preload(&settings.policy))
+        .collect();
+    Drafter::start_or_inline(move || {
+        WorkerReader::new(Recognizers::new(&models, THREADS, max_resident), preload)
+    })
+}
+
 /// The device the punctuation model is tried on first. A start that found no
 /// GPU goes straight to the CPU and says so.
 fn first_device(gpu: Gpu, fallbacks: &mut Vec<Fallback>) -> Device {
@@ -643,6 +670,8 @@ impl Engine {
         let mut fallbacks = Vec::new();
         let mut reports = Vec::new();
         let route = open_route(&settings, &mut reports, &mut fallbacks)?;
+        // Started before the punctuation and speaker models are opened, so that the worker loads its recognizers meanwhile.
+        let drafter = open_drafter(&settings, route.is_some());
         let mut punctuator = None;
         let mut punct_device = None;
         if settings.stages.punctuate
@@ -665,6 +694,7 @@ impl Engine {
             reports,
             fallbacks,
             next_id: 1,
+            drafter,
         })
     }
 
@@ -695,6 +725,8 @@ impl Engine {
     /// process, and the first run of a model on the GPU, pay for the work
     /// areas the runtime takes then; this pays them before the first
     /// utterance. A punctuation read that fails does not fail the warm-up.
+    /// With a draft worker, it also waits for the worker to load and warm its
+    /// own recognizers, for [`READY_LIMIT`] at most.
     /// `None` for an engine with no route, which has no recognizer to warm.
     pub fn warm_up(&mut self) -> Option<Result<Warmup, AsrError>> {
         let route = self.route.as_mut()?;
@@ -702,6 +734,8 @@ impl Engine {
         let read = route.router.decoder_mut().decode_exact(Tier::Rz, &silence);
         let decoded = read.and_then(|done| done.ok_or(AsrError::NoRecognizer));
         let punct = self.warm_punct(decoded.is_ok());
+        // The worker loads and reads its own recognizers while this thread warms its own; the first draft is not handed over before it is ready.
+        self.drafter.wait_ready(READY_LIMIT);
         Some(decoded.map(|done| Warmup {
             tier: done.tier,
             audio_s: WARMUP_SECONDS,
@@ -856,25 +890,37 @@ impl Engine {
         Ok(finals)
     }
 
-    /// A draft of the utterance in progress, when one is due: the recognizer
+    /// A draft of the utterance in progress, when one is ready: the recognizer
     /// and the replacement dictionary only, with no ITN and no punctuation.
-    /// Nothing the final needs is touched. `None` when nothing is due, when
-    /// the draft says nothing, and when there is no route.
+    /// Nothing the final needs is touched. With a draft worker the text is the
+    /// one the worker finished since the last call, if it still belongs to the
+    /// speech in progress, and the next draft is handed over in the same call.
+    /// `None` when nothing is ready, when the draft says nothing, and when
+    /// there is no route.
     pub fn partial(&mut self) -> Result<Option<String>, AsrError> {
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
-        let Some(start) = route.draft.due(route.history.end()) else {
-            return Ok(None);
-        };
-        let samples = route.history.draft(start, partial::MAX_SAMPLES);
         // A draft is read in the language heard in the middle of the utterance
         // (a pair run), else in the language of the session; before the first
         // final there is none, and the Japanese tier answers.
         let tier = route.midway.tier(&route.router);
-        let drafted = route.router.decoder_mut().decode_whole(tier, &samples)?;
-        let text = self.replacements.apply(&drafted.text);
+        let decoder = route.router.decoder_mut();
+        let Some(drafted) = self
+            .drafter
+            .step(&mut route.draft, &route.history, tier, decoder)?
+        else {
+            return Ok(None);
+        };
+        let text = self.replacements.apply(&drafted);
         Ok((!text.trim().is_empty()).then_some(text))
+    }
+
+    /// What the drafter has to say since the last call: the worker ready,
+    /// each draft read, the worker lost. An engine that reads its drafts on
+    /// the calling thread says each read too.
+    pub fn take_drafts(&mut self) -> Vec<DraftNote> {
+        self.drafter.take_notes()
     }
 
     /// Replaces the user's replacement dictionary; the next utterance uses it.
@@ -1233,6 +1279,7 @@ impl Engine {
     /// on and the speakers heard so far are forgotten. Call it once what the
     /// detector holds is finished. Nothing is reloaded.
     pub fn reset_session(&mut self) {
+        self.drafter.reset();
         let Some(route) = self.route.as_mut() else {
             return;
         };
