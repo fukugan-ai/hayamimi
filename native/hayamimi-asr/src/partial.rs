@@ -298,6 +298,7 @@ mod tests {
         assert_eq!(MIDWAY_SAMPLES, 32_000);
     }
 
+    /// T-BR-37-015
     #[test]
     fn the_four_second_limits_match_what_the_final_identifier_reads() {
         assert_eq!(MIDWAY_CLOSING_SAMPLES, 64_000);

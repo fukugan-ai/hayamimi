@@ -410,9 +410,11 @@ grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.sta
 項目は `answer`、`voice_ms`、`lid_ms` です。
 `answer` は、`ja` か `en`、2 つの外の言語を答えた `outside`、答えなかった `failed` のどれかです。
 `outside` と `failed` の発話は、速報の言語が直前の確定文の言語のままです。
+`--final-lid midway`（既定）の run は、4 秒の問いにも同じ event を出します（後の `--final-lid` の節）。
+2 秒の問いの行は、`voice_ms` が 4000 に届かない行です。
 
 ```bash
-grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -o '"answer":"[a-z]*"' | sort | uniq -c
+grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -vE '"voice_ms":[4-9][0-9]{3}' | grep -o '"answer":"[a-z]*"' | sort | uniq -c
 grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
 ```
 
