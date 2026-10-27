@@ -80,6 +80,31 @@ pub fn check_complete(text: &str, repeats: u32, utterances: u32) -> Result<usize
     Ok(samples.len())
 }
 
+/// How many samples of a run have a closing final, and how many have a
+/// translation. An `Err` when no sample has a final, or when fewer than half as
+/// many samples have a translation as have a final: the relay stopped
+/// translating while the run went on.
+pub fn check_translated(text: &str) -> Result<(usize, usize), Failure> {
+    let samples = samples_of(text)?;
+    let finals = samples
+        .iter()
+        .filter(|sample| sample.t_final_us.is_some())
+        .count();
+    let translated = samples
+        .iter()
+        .filter(|sample| sample.t_tr_us.is_some())
+        .count();
+    if finals == 0 {
+        return Err(String::from("no sample has a final"));
+    }
+    if translated * 2 < finals {
+        return Err(format!(
+            "only {translated} of the {finals} samples with a final have a translation"
+        ));
+    }
+    Ok((finals, translated))
+}
+
 /// One event of an events file: when it arrived and what it said.
 pub struct EventLine {
     pub t_us: i64,
@@ -998,15 +1023,54 @@ pub fn join_page(report: &StageReport, stamps: &[PageStamp]) -> Result<Joined, F
     Ok(joined)
 }
 
+/// The warm utterances of the report that were spoken in `lang`, as a report of
+/// their own.
+pub fn spoken_in(report: &StageReport, lang: &str) -> StageReport {
+    StageReport {
+        cold: Vec::new(),
+        warm: report
+            .warm
+            .iter()
+            .filter(|row| row.lang.as_deref() == Some(lang))
+            .cloned()
+            .collect(),
+    }
+}
+
+/// `L_tr` of the warm utterances of each language of the pair (BR-4): how many
+/// there are and their percentiles, or the words that say there is none.
+pub fn draft_by_language_text(report: &StageReport) -> Result<String, Failure> {
+    let mut text = String::new();
+    for lang in ["ja", "en"] {
+        let found = spoken_in(report, lang)
+            .stat(Stage::Draft)
+            .map_err(|error| error.to_string())?;
+        text += &match found {
+            Some(stat) => format!(
+                "L_tr {lang}: n {}, p50 {} ms, p95 {} ms\n",
+                stat.n, stat.p50_ms, stat.p95_ms
+            ),
+            None => format!("L_tr {lang}: 温まった標本が 0 件で、値は無い\n"),
+        };
+    }
+    Ok(text)
+}
+
 /// The record of a real run: what the page was told, the stages of BR-1, the
 /// page stage and the whole waits, each against its line, and what was left
-/// out. It judges nothing.
-pub fn render_baseline(report: &StageReport, joined: &Joined) -> Result<String, Failure> {
-    let mut text = String::from(
-        "# BR-3 の今の値\n\n設計 `docs/design/conversation_subtitles.ja.md` の 10.13.3（遅れの予算と測り方）と 10.13.7（受入 ID BR-3、T-BR-03-001）の線に対する、B2 の前の今の値。合否は付けない。\n\n",
+/// out. It judges nothing. `title` names the step the values were taken at.
+pub fn render_baseline(
+    title: &str,
+    report: &StageReport,
+    joined: &Joined,
+) -> Result<String, Failure> {
+    let mut text = format!(
+        "# {title}\n\n設計 `docs/design/conversation_subtitles.ja.md` の 10.13.3（遅れの予算と測り方）と 10.13.7（受入 ID BR-3、T-BR-03-001）の線に対する値。合否は付けない。\n\n",
     );
     text += "## 段（BR-1。温まった標本は閉じる final を持つ発話の全部）\n\n";
     text += &report.render();
+    text += "\n## 速報の訳 L_tr を言語で分けた値（BR-4。温まった標本）\n\n";
+    text += &draft_by_language_text(report)?;
     text += "\n## 頁の段と頁までの遅れ（BR-2 の頁の時計と BR-1 を結んだ発話だけ）\n\n";
     text += &format!(
         "結べた発話 {}、結べなかった発話 {}\n\n",

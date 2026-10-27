@@ -6,7 +6,11 @@
 //! played at full speed and a microphone are drafted at the same points of
 //! the signal.
 
-use crate::audio::SAMPLE_RATE;
+use std::time::Instant;
+
+use crate::audio::{History, SAMPLE_RATE};
+use crate::lid::Identify;
+use crate::route::{Decode, RouteError, Router, Tier, requested_tier};
 
 /// Samples of input between two drafts: half a second.
 pub const EVERY_SAMPLES: usize = SAMPLE_RATE as usize / 2;
@@ -14,6 +18,10 @@ pub const EVERY_SAMPLES: usize = SAMPLE_RATE as usize / 2;
 pub const MIN_SPEECH_SAMPLES: usize = SAMPLE_RATE as usize / 2;
 /// The most audio one draft decodes: the last eight seconds.
 pub const MAX_SAMPLES: usize = SAMPLE_RATE as usize * 8;
+/// The voice of an utterance, in samples, at which its language is asked once
+/// for the drafts: two seconds. A shorter voice is too short for the
+/// identifier to name the language of the speaker reliably.
+pub const MIDWAY_SAMPLES: usize = SAMPLE_RATE as usize * 2;
 
 /// When a draft is due, and where the speech it covers began.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -61,6 +69,114 @@ impl DraftClock {
         }
         self.last = now;
         (now.saturating_sub(since) >= MIN_SPEECH_SAMPLES).then_some(since)
+    }
+}
+
+/// What the question put to the identifier in the middle of one utterance came to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Midway {
+    /// Not asked yet: the voice is shorter than [`MIDWAY_SAMPLES`], or the run does not ask.
+    #[default]
+    Waiting,
+    /// The identifier named `ja` or `en`.
+    Heard(&'static str),
+    /// The identifier named a language outside the pair.
+    Outside,
+    /// The identifier failed.
+    Failed,
+}
+
+/// One question put to the identifier in the middle of an utterance: what it
+/// came to, how much voice it was given and how long it took.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MidwayAsked {
+    pub answer: Midway,
+    /// The samples of voice the identifier was given.
+    pub voice_samples: usize,
+    pub lid_ms: f64,
+}
+
+/// The language of the utterance in progress, asked once for the drafts of a
+/// pair run. It is asked when the voice first reaches [`MIDWAY_SAMPLES`], with
+/// all the voice so far, and it lasts until the speech ends or is cut again.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MidwayLid {
+    since: Option<usize>,
+    answer: Midway,
+}
+
+impl MidwayLid {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// What the question came to for the utterance in progress.
+    pub fn answer(&self) -> Midway {
+        self.answer
+    }
+
+    /// The language heard in the middle of the utterance, when it is `ja` or `en`.
+    pub fn heard(&self) -> Option<&'static str> {
+        match self.answer {
+            Midway::Heard(lang) => Some(lang),
+            Midway::Waiting | Midway::Outside | Midway::Failed => None,
+        }
+    }
+
+    /// One window has been fed. `speech_start` is where the speech in progress
+    /// began (see [`DraftClock::speech_start`]). A new start is a new utterance
+    /// and forgets the answer. The identifier is asked, once, right after the
+    /// window that takes the voice to [`MIDWAY_SAMPLES`] or more, and only in a
+    /// pair run whose policy asks for it. A failed question is kept as
+    /// [`Midway::Failed`] and not asked again for this utterance. Gives back
+    /// the question when this window asked it, and none otherwise.
+    pub fn observe<D: Decode, L: Identify>(
+        &mut self,
+        router: &mut Router<D, L>,
+        history: &History,
+        speech_start: Option<usize>,
+    ) -> Option<MidwayAsked> {
+        if self.since != speech_start {
+            *self = MidwayLid {
+                since: speech_start,
+                answer: Midway::Waiting,
+            };
+        }
+        let start = speech_start?;
+        let end = history.end();
+        let asks = router.policy().pair && router.policy().partial_lid;
+        if !asks || self.answer != Midway::Waiting || end.saturating_sub(start) < MIDWAY_SAMPLES {
+            return None;
+        }
+        let voice = history.slice(start, end);
+        let asked_at = Instant::now();
+        self.answer = answer_of(router.identify(&voice));
+        Some(MidwayAsked {
+            answer: self.answer,
+            voice_samples: voice.len(),
+            lid_ms: asked_at.elapsed().as_secs_f64() * 1000.0,
+        })
+    }
+
+    /// The tier a draft is read with: the language heard in the middle of the
+    /// utterance, else the language of the last final, else Japanese (before
+    /// the first final there is none).
+    pub fn tier<D: Decode, L: Identify>(&self, router: &Router<D, L>) -> Tier {
+        match self.heard().or_else(|| router.last_lang()) {
+            Some(lang) => requested_tier(lang, router.policy().en_tier),
+            None => Tier::Rz,
+        }
+    }
+}
+
+/// The identifier's answer for a pair run: `ja` and `en` are heard, any other
+/// language is outside the pair, and an error is a failure.
+fn answer_of(said: Result<String, RouteError>) -> Midway {
+    match said {
+        Ok(code) if code == "ja" => Midway::Heard("ja"),
+        Ok(code) if code == "en" => Midway::Heard("en"),
+        Ok(_) => Midway::Outside,
+        Err(_) => Midway::Failed,
     }
 }
 
@@ -130,5 +246,6 @@ mod tests {
         assert_eq!(EVERY_SAMPLES, 8_000);
         assert_eq!(MIN_SPEECH_SAMPLES, 8_000);
         assert_eq!(MAX_SAMPLES, 128_000);
+        assert_eq!(MIDWAY_SAMPLES, 32_000);
     }
 }

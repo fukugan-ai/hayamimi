@@ -20,9 +20,10 @@ use std::path::{Path, PathBuf};
 use hayamimi_eval::latency::Sample;
 use serde_json::json;
 use support::dialog::{
-    Cell, Silent, Tally, Verdict, cells_of, check_complete, count_by_reason, count_by_step,
-    count_by_step_in, given_of, langs_of, manifest_rows, match_fallbacks, record_dialog_run,
-    record_verdict, same_language_translations, split_undecided, switches, tally, unread_rows,
+    Cell, Silent, Tally, Verdict, cells_of, check_complete, check_translated, count_by_reason,
+    count_by_step, count_by_step_in, given_of, langs_of, manifest_rows, match_fallbacks,
+    record_dialog_run, record_verdict, same_language_translations, split_undecided, switches,
+    tally, unread_rows,
 };
 use support::dialog_run::{find_llama, run_stack};
 use support::{TestResult, find_above, read};
@@ -143,6 +144,7 @@ fn ip02_each_dialog_utterance_is_read_in_its_own_language() -> TestResult {
             check_complete(&samples, DIALOG_REPEATS, DIALOG_UTTERANCES)?,
             90
         );
+        check_translated(&samples).map_err(|why| format!("{mode}: {why}"))?;
         for suffix in ["events.jsonl", "summary.json", "machine.jsonl"] {
             assert!(out.with_extension(suffix).is_file(), "{mode}: no {suffix}");
         }
@@ -177,6 +179,43 @@ fn a_record_with_a_missing_line_or_no_line_is_refused() -> TestResult {
         "{said:?}"
     );
     assert!(check_complete("", REPEATS, UTTERANCES).is_err());
+    Ok(())
+}
+
+/// A samples file of `finals` samples that have a closing final, the first
+/// `translated` of which also have a translation.
+fn translated_run(finals: u32, translated: u32) -> Result<String, Box<dyn Error>> {
+    let mut text = String::new();
+    for utt in 1..=finals {
+        let mut one = sample(1, utt);
+        one.t_final_us = Some(one.t_end_us + 800_000);
+        if utt <= translated {
+            one.t_tr_us = Some(one.t_end_us + 1_000_000);
+        }
+        text.push_str(&serde_json::to_string(&one)?);
+        text.push('\n');
+    }
+    Ok(text)
+}
+
+/// T-IP-02-023
+#[test]
+fn a_run_whose_translations_stopped_is_refused() -> TestResult {
+    assert_eq!(check_translated(&translated_run(78, 78)?)?, (78, 78));
+    assert_eq!(check_translated(&translated_run(78, 39)?)?, (78, 39));
+    let stopped = check_translated(&translated_run(78, 15)?);
+    assert!(
+        matches!(&stopped, Err(message) if message.contains("15") && message.contains("78")),
+        "{stopped:?}"
+    );
+    let under = check_translated(&translated_run(78, 38)?);
+    assert!(under.is_err(), "{under:?}");
+    let none = check_translated(&translated_run(0, 0)?);
+    assert!(
+        matches!(&none, Err(message) if message.contains("no sample has a final")),
+        "{none:?}"
+    );
+    assert!(check_translated("not a sample\n").is_err());
     Ok(())
 }
 
@@ -718,4 +757,50 @@ fn a_run_without_exactly_one_llama_server_on_its_own_port_is_refused() -> TestRe
     let one = llama_root("ip02_llama_one", &[(4003, server_words("18084"))])?;
     assert_eq!(find_llama(&one, 18084)?.pid, 4003);
     Ok(())
+}
+
+/// A child of the stack that writes more than a pipe holds is read from while it runs.
+#[cfg(unix)]
+mod drained {
+    use std::process::Child;
+    use std::time::{Duration, Instant};
+
+    use crate::support::dialog_run::drain_output;
+    use crate::support::{TestResult, spawn_binary};
+
+    /// Writes 4 000 000 bytes to each of stdout and stderr: several times what a pipe
+    /// holds (64 KiB by default on Linux; 1 MiB on the WSL2 kernel).
+    const WRITES_MUCH: &str = "head -c 4000000 /dev/zero; head -c 4000000 /dev/zero >&2";
+
+    /// Whether `child` ended within `within`.
+    fn ends_within(child: &mut Child, within: Duration) -> Result<bool, std::io::Error> {
+        let deadline = Instant::now() + within;
+        while Instant::now() < deadline {
+            if child.try_wait()?.is_some() {
+                return Ok(true);
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        Ok(false)
+    }
+
+    /// T-IP-02-022
+    #[test]
+    fn a_child_whose_output_is_drained_never_stops_on_a_full_pipe() -> TestResult {
+        let mut drained = spawn_binary("sh", &["-c", WRITES_MUCH], None, &[])?;
+        drain_output(&mut drained);
+        assert!(
+            ends_within(&mut drained, Duration::from_secs(20))?,
+            "the drained child did not end"
+        );
+        let mut unread = spawn_binary("sh", &["-c", WRITES_MUCH], None, &[])?;
+        let stopped = !ends_within(&mut unread, Duration::from_secs(2))?;
+        unread.kill()?;
+        unread.wait()?;
+        assert!(
+            stopped,
+            "a child nobody reads from ended, so the test cannot tell a full pipe"
+        );
+        Ok(())
+    }
 }

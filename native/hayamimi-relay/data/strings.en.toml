@@ -102,7 +102,7 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--partial-yield <on|off>] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
@@ -114,6 +114,7 @@ need_install_or_remove = "one of --install or --remove is required"
 no_default_dir = "cannot decide the default output location; pass --out"
 bad_port = "--serve needs a port number from 0 to 65535"
 bad_address = "--serve-host needs an IP address"
+bad_partial_yield = "--partial-yield needs on or off"
 cannot_serve = "cannot serve translations: no port could be opened"
 serving_at = "translations are served at"
 port_moved = "the requested port was taken; translations are served at"

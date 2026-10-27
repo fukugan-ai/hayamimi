@@ -41,7 +41,12 @@ const TAKEN_MAX: usize = 8;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PartialTranslation {
     Off,
+    /// The text in progress is translated whenever the worker is free.
     On,
+    /// Like `On`, and the text in progress of a source is let go while a
+    /// `final` of that source is being translated, so that the `final` is not
+    /// queued behind it on the server (see [`Mailbox::settling`]).
+    Yielding,
 }
 
 /// A text in progress to translate.
@@ -258,6 +263,8 @@ struct State {
     /// Translations a `final` took over, the oldest first.
     taken: Vec<Taken>,
     left: u64,
+    /// How many `final` lines of each source are held (see [`Settling`]).
+    settling: [usize; SOURCES],
 }
 
 impl State {
@@ -313,6 +320,29 @@ fn waited_on<'a>(
     }
 }
 
+/// What became of a text in progress that was offered to the mailbox.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Posted {
+    /// It waits for the worker, or it is the text its source had last.
+    Left,
+    /// A `final` of its source is being translated, so it was let go.
+    Yielded,
+}
+
+/// The hold a `final` keeps on its source's text in progress, from the moment
+/// the stream says it came to the moment its translation is made. It is given
+/// back when it is dropped, whichever way the line ends.
+pub struct Settling {
+    mailbox: Arc<Mailbox>,
+    source: Source,
+}
+
+impl Drop for Settling {
+    fn drop(&mut self) {
+        self.mailbox.release(self.source);
+    }
+}
+
 /// The newest text of every source, waiting for the one worker that translates.
 pub struct Mailbox {
     state: Mutex<State>,
@@ -322,29 +352,64 @@ pub struct Mailbox {
     /// One counter per source. A request is wanted while its source's counter
     /// reads what it read when the request was made.
     generations: [Arc<AtomicU64>; SOURCES],
+    /// Whether a `final` being translated holds back the text in progress of
+    /// its source (see [`Mailbox::settling`]).
+    yielding: bool,
 }
 
 impl Mailbox {
     pub fn new() -> Mailbox {
+        Mailbox::with_yield(false)
+    }
+
+    /// A mailbox that, when `yielding`, lets go of the text in progress of a
+    /// source while a `final` of that source is being translated.
+    pub fn with_yield(yielding: bool) -> Mailbox {
         Mailbox {
             state: Mutex::new(State::default()),
             wake: Condvar::new(),
             finished: Condvar::new(),
             generations: std::array::from_fn(|_| Arc::new(AtomicU64::new(0))),
+            yielding,
         }
+    }
+
+    /// Holds the text in progress of `source` for a `final` of it that is on
+    /// its way through the lane, so that the server's slots go to the `final`
+    /// first: until the hold is dropped, [`Mailbox::post`] lets the texts of
+    /// that source go. `None` when the mailbox does not yield.
+    pub fn settling(self: &Arc<Mailbox>, source: Source) -> Option<Settling> {
+        if !self.yielding {
+            return None;
+        }
+        locked(&self.state).settling[source.index()] += 1;
+        Some(Settling {
+            mailbox: Arc::clone(self),
+            source,
+        })
+    }
+
+    fn release(&self, source: Source) {
+        let mut state = locked(&self.state);
+        let held = &mut state.settling[source.index()];
+        *held = held.saturating_sub(1);
     }
 
     /// Leaves `job` in the place of the older text of its source, and makes
     /// the request for that text stop. The text the source had last changes
-    /// nothing.
-    pub fn post(&self, job: Job) {
+    /// nothing. A text of a source whose `final` is being translated is let
+    /// go, and the request it would have made is not made.
+    pub fn post(&self, job: Job) -> Posted {
         let slot = job.source.index();
         let mut state = locked(&self.state);
+        if state.settling[slot] > 0 {
+            return Posted::Yielded;
+        }
         if state.last[slot]
             .as_ref()
             .is_some_and(|tracked| tracked.text == job.text)
         {
-            return;
+            return Posted::Left;
         }
         state.left += 1;
         let order = state.left;
@@ -365,6 +430,7 @@ impl Mailbox {
         });
         drop(state);
         self.wake.notify_one();
+        Posted::Left
     }
 
     /// The utterance of `source` ended: the text in progress is of no use any
@@ -558,6 +624,9 @@ enum Unusable {
     NoSource,
     /// The source does not translate this language.
     Language,
+    /// A `final` of the source is being translated, and the server's slots go
+    /// to it first.
+    Yielded,
 }
 
 impl Unusable {
@@ -565,6 +634,7 @@ impl Unusable {
         match self {
             Unusable::NoSource => "no_source",
             Unusable::Language => "language",
+            Unusable::Yielded => "yielded",
         }
     }
 }
@@ -585,14 +655,17 @@ impl Route {
     }
 
     /// A line came. A `final` ends the utterance in progress and says what
-    /// the next line will be called.
-    pub fn note_line(&mut self, line: &Line) {
-        let Some(mailbox) = &self.mailbox else { return };
+    /// the next line will be called. It also takes the hold on the text in
+    /// progress of its source (see [`Mailbox::settling`]); the caller keeps it
+    /// until the line is translated.
+    pub fn note_line(&mut self, line: &Line) -> Option<Settling> {
+        let mailbox = self.mailbox.as_ref()?;
         if line.kind != LineKind::Final {
-            return;
+            return None;
         }
         mailbox.close(line);
         self.next = Next::after(line);
+        mailbox.settling(line.source)
     }
 
     /// A new session began: the lines may be numbered from the start again.
@@ -603,13 +676,17 @@ impl Route {
     /// The text of the utterance in progress came.
     pub fn partial(&mut self, text: &str, sink: &mut dyn LogSink) {
         let Some(mailbox) = &self.mailbox else { return };
-        match self.job_for(text) {
-            Ok(job) => mailbox.post(job),
-            Err(reason) => sink.emit(
-                LogEvent::new(Level::Debug, "translate.partial.skipped", "service")
-                    .with("reason", reason.as_str()),
-            ),
-        }
+        let skipped = match self.job_for(text) {
+            Ok(job) => match mailbox.post(job) {
+                Posted::Left => return,
+                Posted::Yielded => Unusable::Yielded,
+            },
+            Err(reason) => reason,
+        };
+        sink.emit(
+            LogEvent::new(Level::Debug, "translate.partial.skipped", "service")
+                .with("reason", skipped.as_str()),
+        );
     }
 
     fn job_for(&self, text: &str) -> Result<Job, Unusable> {
@@ -1186,5 +1263,124 @@ mod tests {
             (request.id, request.of, request.source, request.now_epoch),
             ("loopback-3", LineKind::Partial, "loopback", 5)
         );
+    }
+
+    fn yielding_mailbox() -> Arc<Mailbox> {
+        Arc::new(Mailbox::with_yield(true))
+    }
+
+    fn yielding_route() -> (Route, Arc<Mailbox>) {
+        let mailbox = yielding_mailbox();
+        (Route::new(Some(Arc::clone(&mailbox))), mailbox)
+    }
+
+    #[test]
+    fn a_text_is_let_go_while_a_final_of_its_source_is_held() {
+        let mailbox = yielding_mailbox();
+        let hold = mailbox.settling(Source::Mic);
+        assert!(hold.is_some());
+        assert_eq!(
+            mailbox.post(job(Source::Mic, "mic-2", "あ")),
+            Posted::Yielded
+        );
+        mailbox.post(job(Source::Loopback, "loopback-1", "Hi"));
+        assert_eq!(mailbox.take().0.source, Source::Loopback);
+    }
+
+    #[test]
+    fn the_text_of_another_source_is_not_let_go() {
+        let mailbox = yielding_mailbox();
+        let _hold = mailbox.settling(Source::File);
+        assert_eq!(mailbox.post(job(Source::Mic, "mic-2", "あ")), Posted::Left);
+    }
+
+    #[test]
+    fn a_text_is_left_again_once_the_hold_is_dropped() {
+        let mailbox = yielding_mailbox();
+        let hold = mailbox.settling(Source::Mic);
+        assert_eq!(
+            mailbox.post(job(Source::Mic, "mic-2", "あ")),
+            Posted::Yielded
+        );
+        drop(hold);
+        assert_eq!(mailbox.post(job(Source::Mic, "mic-2", "あ")), Posted::Left);
+        assert_eq!(mailbox.take().0.text, "あ");
+    }
+
+    #[test]
+    fn a_source_is_held_until_every_final_in_its_lane_is_settled() {
+        let mailbox = yielding_mailbox();
+        let first = mailbox.settling(Source::Mic);
+        let second = mailbox.settling(Source::Mic);
+        drop(first);
+        assert_eq!(
+            mailbox.post(job(Source::Mic, "mic-3", "あ")),
+            Posted::Yielded
+        );
+        drop(second);
+        assert_eq!(mailbox.post(job(Source::Mic, "mic-3", "あ")), Posted::Left);
+    }
+
+    #[test]
+    fn a_mailbox_that_does_not_yield_holds_nothing() {
+        let mailbox = Arc::new(Mailbox::new());
+        assert!(mailbox.settling(Source::Mic).is_none());
+        assert_eq!(mailbox.post(job(Source::Mic, "mic-2", "あ")), Posted::Left);
+    }
+
+    #[test]
+    fn giving_back_a_hold_that_was_never_taken_leaves_the_source_free() {
+        let mailbox = yielding_mailbox();
+        mailbox.release(Source::Mic);
+        assert_eq!(mailbox.post(job(Source::Mic, "mic-2", "あ")), Posted::Left);
+    }
+
+    #[test]
+    fn a_final_holds_its_source_and_a_let_go_text_is_logged_as_yielded() {
+        let (mut route, mailbox) = yielding_route();
+        let hold = route.note_line(&line(LineKind::Final, "mic-1", Source::Mic));
+        assert!(hold.is_some());
+        let mut sink = MemorySink::default();
+        route.partial("こんにち", &mut sink);
+        assert_eq!(sink.events.len(), 1);
+        assert_eq!(sink.events[0].event, "translate.partial.skipped");
+        assert_eq!(sink.events[0].fields["reason"], "yielded");
+        drop(hold);
+        let mut after = MemorySink::default();
+        route.partial("こんにち", &mut after);
+        assert!(after.events.is_empty());
+        assert_eq!(mailbox.take().0.id, "mic-2");
+    }
+
+    #[test]
+    fn a_refine_takes_no_hold() {
+        let (mut route, _mailbox) = yielding_route();
+        let hold = route.note_line(&line(LineKind::Refine, "mic-1", Source::Mic));
+        assert!(hold.is_none());
+    }
+
+    #[test]
+    fn a_route_into_a_mailbox_that_does_not_yield_takes_no_hold() {
+        let (mut route, _mailbox) = route();
+        let hold = route.note_line(&line(LineKind::Final, "mic-1", Source::Mic));
+        assert!(hold.is_none());
+    }
+
+    #[test]
+    fn a_route_into_no_mailbox_takes_no_hold() {
+        let mut route = Route::new(None);
+        let hold = route.note_line(&line(LineKind::Final, "mic-1", Source::Mic));
+        assert!(hold.is_none());
+    }
+
+    #[test]
+    fn the_final_still_stops_the_text_in_progress_while_it_holds_its_source() {
+        let (mut route, mailbox) = yielding_route();
+        route.note_line(&line(LineKind::Final, "mic-1", Source::Mic));
+        route.partial("こんにち", &mut MemorySink::default());
+        let (_, wanted) = mailbox.take();
+        let hold = route.note_line(&line(LineKind::Final, "mic-2", Source::Mic));
+        assert!(!wanted.still());
+        assert!(hold.is_some());
     }
 }

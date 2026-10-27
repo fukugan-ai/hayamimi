@@ -97,7 +97,7 @@ label = "m²"
 
 [cli]
 usage = """使い方:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--verify-text <file>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--partial-yield <on|off>] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <動画> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
@@ -109,6 +109,7 @@ need_install_or_remove = "--install か --remove のどちらかが要ります"
 no_default_dir = "既定の保存先を決められません。--out を渡してください"
 bad_port = "--serve には 0 から 65535 までの port の番号が要ります"
 bad_address = "--serve-host には IP address が要ります"
+bad_partial_yield = "--partial-yield には on か off のどちらかが要ります"
 cannot_serve = "訳を配れません。開ける port がありません"
 serving_at = "訳を次の URL で配っています"
 port_moved = "頼んだ port が使えないので、訳を次の URL で配っています"

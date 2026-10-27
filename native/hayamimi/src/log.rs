@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::SAMPLE_RATE;
 use hayamimi_asr::endpoint::Rule;
+use hayamimi_asr::partial::{Midway, MidwayAsked};
 use hayamimi_asr::pipeline::{ClosedSegment, PunctWarmup, Unread};
 use hayamimi_asr::route::FallbackStep;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
@@ -45,6 +46,7 @@ pub const SEGMENT_UNREAD: &str = "asr.segment.unread";
 pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
 pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
+pub const PARTIAL_LANG_ASKED: &str = "asr.partial.lang.asked";
 pub const DEVICE_OPENED: &str = "capture.device.opened";
 pub const INGEST_CONNECTED: &str = "ingest.client.connected";
 pub const INGEST_CLOSED: &str = "ingest.client.closed";
@@ -411,6 +413,38 @@ pub fn vad_closed_lines(
             vad_closed_line(strings, id.as_deref(), received, fed, segment.rule)
         })
         .collect()
+}
+
+/// What the identifier came to, in the words of the log: `ja` or `en` when it
+/// named one of the pair, `outside` for any other language, `failed` when it
+/// did not answer, and `waiting` for a question not asked yet.
+fn midway_answer_name(answer: Midway) -> &'static str {
+    match answer {
+        Midway::Heard(lang) => lang,
+        Midway::Outside => "outside",
+        Midway::Failed => "failed",
+        Midway::Waiting => "waiting",
+    }
+}
+
+/// `asr.partial.lang.asked`: the language of the utterance in progress was
+/// asked of the identifier, once, so that its drafts are read in that language.
+/// `answer` is what it came to ([`midway_answer_name`]), `voice_ms` the voice it
+/// was given and `lid_ms` how long the question took.
+pub fn midway_asked_line(strings: &Strings, asked: &MidwayAsked) -> String {
+    let voice_ms = (asked.voice_samples as u64) * 1000 / u64::from(SAMPLE_RATE);
+    event_line(
+        strings,
+        Level::Info,
+        PARTIAL_LANG_ASKED,
+        "asr",
+        None,
+        &[
+            ("answer", Value::from(midway_answer_name(asked.answer))),
+            ("voice_ms", Value::from(voice_ms)),
+            ("lid_ms", millis(asked.lid_ms)),
+        ],
+    )
 }
 
 /// Microseconds on the process's monotonic clock, from the first call.
@@ -821,6 +855,57 @@ mod tests {
             .collect();
         extra.sort();
         Ok(extra)
+    }
+
+    /// T-BR-04-013
+    #[test]
+    fn the_question_asked_in_the_middle_of_an_utterance_is_logged_with_what_it_came_to()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for lang in [Lang::En, Lang::Ja] {
+            let table = Strings::embedded(lang)?;
+            assert!(table.messages.contains_key(PARTIAL_LANG_ASKED), "{lang:?}");
+        }
+        let asked = MidwayAsked {
+            answer: Midway::Heard("en"),
+            voice_samples: 32_256,
+            lid_ms: 91.25,
+        };
+        let line = midway_asked_line(&strings()?, &asked);
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.partial.lang.asked");
+        assert_eq!(event["component"], "asr");
+        assert_eq!(event["level"], "info");
+        assert_eq!(extra_keys(&line)?, ["answer", "lid_ms", "voice_ms"]);
+        assert_eq!(event["answer"], "en");
+        assert_eq!(event["voice_ms"], 2016);
+        assert_eq!(event["lid_ms"], 91.25);
+        assert!(event["error_code"].is_null());
+        Ok(())
+    }
+
+    /// T-BR-04-014
+    #[test]
+    fn an_answer_outside_the_pair_and_a_failed_question_have_their_own_names()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let strings = strings()?;
+        let answers = [
+            Midway::Heard("ja"),
+            Midway::Heard("en"),
+            Midway::Outside,
+            Midway::Failed,
+        ];
+        let mut written: Vec<Value> = Vec::new();
+        for answer in answers {
+            let asked = MidwayAsked {
+                answer,
+                voice_samples: 32_000,
+                lid_ms: 0.0,
+            };
+            written.push(parsed(&midway_asked_line(&strings, &asked))?["answer"].clone());
+        }
+        assert_eq!(written, ["ja", "en", "outside", "failed"]);
+        Ok(())
     }
 
     /// T-BR-06-001

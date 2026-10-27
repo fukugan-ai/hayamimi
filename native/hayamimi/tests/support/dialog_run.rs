@@ -163,6 +163,7 @@ fn start_hayamimi(mode: &str) -> Result<(Owned, JoinHandle<String>), Failure> {
     let mut child = spawn_binary(BINARY, &args, None, &[])?;
     let stdout = child.stdout.take().ok_or("no stdout pipe")?;
     let printed = collect(stdout);
+    drain_output(&mut child);
     Ok((Owned(Some(child)), printed))
 }
 
@@ -174,7 +175,24 @@ fn start_relay(llama: &Llama) -> Result<Owned, Failure> {
     let args = [
         "live", "--events", &events, "--llm", &llm, "--serve", &serve,
     ];
-    Ok(Owned(Some(spawn_binary(&binary, &args, None, &[])?)))
+    let mut child = spawn_binary(&binary, &args, None, &[])?;
+    drain_output(&mut child);
+    Ok(Owned(Some(child)))
+}
+
+/// Reads what `child` still has on its stdout and stderr to the end, on threads
+/// of their own, and drops it. A pipe holds a fixed amount (64 KiB by default
+/// on Linux, 1 MiB on the WSL2 kernel); a child that writes more
+/// while nobody reads waits in the write until someone does. The relay is such
+/// a child: it writes a log line for each event it handles, and its
+/// translations stop once the pipe is full.
+pub fn drain_output(child: &mut Child) {
+    if let Some(stdout) = child.stdout.take() {
+        drop(collect(stdout));
+    }
+    if let Some(stderr) = child.stderr.take() {
+        drop(collect(stderr));
+    }
 }
 
 /// `hayamimi-eval stream` over `wav`, `repeat` times, into `out`.
@@ -209,7 +227,9 @@ fn stream(
 
 /// Plays `wav` `repeat` times through a stack whose `hayamimi` runs in `mode`
 /// and leaves `out` (the samples), its `.events.jsonl` sidecar and `out` with
-/// the extension `log` (what `hayamimi` printed).
+/// the extension `log` (what `hayamimi` printed). The stack is started first
+/// and the play waits for a quiet machine, because `stream` refuses a busy one
+/// at once and the models have just been read.
 pub fn run_stack(mode: &str, wav: &Path, repeat: u32, out: &Path) -> Result<(), Failure> {
     require_free_ports()?;
     let llama = find_llama(Path::new("/proc"), LLAMA_PORT)?;
@@ -221,6 +241,7 @@ pub fn run_stack(mode: &str, wav: &Path, repeat: u32, out: &Path) -> Result<(), 
     let relay = start_relay(&llama)?;
     wait_for_port(RELAY_PORT, START_WAIT)?;
     let pids = [hayamimi.child()?.id(), relay.child()?.id(), llama.pid];
+    wait_for_quiet_machine()?;
     let played = stream(wav, repeat, out, pids, &llama);
     drop(relay);
     stop_hayamimi(hayamimi)?;
@@ -285,6 +306,14 @@ pub struct Playback<'a> {
     pub wav: &'a Path,
     pub manifest: Option<&'a Path>,
     pub repeat: u32,
+}
+
+/// Arguments added to the command lines of the two programs of a paged run,
+/// after the ones the run always gives them.
+#[derive(Clone, Copy, Default)]
+pub struct Flags<'a> {
+    pub hayamimi: &'a [&'a str],
+    pub relay: &'a [&'a str],
 }
 
 /// What the measuring script of one page reported.
@@ -576,9 +605,14 @@ fn start_fake(
     Ok(Some(fake))
 }
 
-fn start_paged_hayamimi(tools: &Tools, ports: &Ports, work: &Path) -> Result<Owned, Failure> {
+fn start_paged_hayamimi(
+    tools: &Tools,
+    ports: &Ports,
+    flags: &Flags<'_>,
+    work: &Path,
+) -> Result<Owned, Failure> {
     let (events, ingest) = (ports.events.to_string(), ports.ingest.to_string());
-    let args = [
+    let mut args = vec![
         "--input",
         "ws",
         "--ws-port",
@@ -592,25 +626,32 @@ fn start_paged_hayamimi(tools: &Tools, ports: &Ports, work: &Path) -> Result<Own
         "--serve",
         events.as_str(),
     ];
+    args.extend(flags.hayamimi);
     let hayamimi = Owned::logged(BINARY, &args, &work.join("hayamimi.log"))?;
     wait_for_port(ports.events, START_WAIT)?;
     wait_for_port(ports.ingest, START_WAIT)?;
     Ok(hayamimi)
 }
 
-fn start_paged_relay(tools: &Tools, ports: &Ports, work: &Path) -> Result<Owned, Failure> {
+fn start_paged_relay(
+    tools: &Tools,
+    ports: &Ports,
+    flags: &Flags<'_>,
+    work: &Path,
+) -> Result<Owned, Failure> {
     let source = format!("http://127.0.0.1:{}/events", ports.events);
     let translator = format!("http://127.0.0.1:{}", ports.llm);
     let serve = ports.relay.to_string();
-    let args = [
+    let mut args = vec![
         "live",
         "--events",
-        &source,
+        source.as_str(),
         "--llm",
-        &translator,
+        translator.as_str(),
         "--serve",
-        &serve,
+        serve.as_str(),
     ];
+    args.extend(flags.relay);
     let relay = Owned::logged(&tools.relay, &args, &work.join("relay.log"))?;
     wait_for_port(ports.relay, START_WAIT)?;
     Ok(relay)
@@ -629,12 +670,13 @@ impl PagedStack {
         translator: &Translator,
         tools: &Tools,
         ports: &Ports,
+        flags: &Flags<'_>,
         work: &Path,
     ) -> Result<PagedStack, Failure> {
         Ok(PagedStack {
             _fake: start_fake(translator, ports, work)?,
-            _hayamimi: start_paged_hayamimi(tools, ports, work)?,
-            _relay: start_paged_relay(tools, ports, work)?,
+            _hayamimi: start_paged_hayamimi(tools, ports, flags, work)?,
+            _relay: start_paged_relay(tools, ports, flags, work)?,
         })
     }
 }
@@ -1081,10 +1123,22 @@ pub fn run_paged(
     work: &Path,
     control: bool,
 ) -> Result<PagedRun, Failure> {
+    run_paged_with(translator, playback, &Flags::default(), work, control)
+}
+
+/// [`run_paged`] with `flags` added to the command lines of `hayamimi` and of
+/// the relay.
+pub fn run_paged_with(
+    translator: &Translator,
+    playback: &Playback<'_>,
+    flags: &Flags<'_>,
+    work: &Path,
+    control: bool,
+) -> Result<PagedRun, Failure> {
     check_translator(translator)?;
     let tools = Tools::find()?;
     let ports = free_ports(translator)?;
-    let _stack = PagedStack::start(translator, &tools, &ports, work)?;
+    let _stack = PagedStack::start(translator, &tools, &ports, flags, work)?;
     let mut pages = Pages::open(&tools, &ports, work, control)?;
     pages.install()?;
     wait_for_quiet_machine()?;

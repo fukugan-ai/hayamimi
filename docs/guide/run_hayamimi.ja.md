@@ -398,6 +398,26 @@ grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.sta
 出力の順は、T の形の warm-up の event、E の形の warm-up の event、`relay.serve.started` です。
 訳の server をまだ起こしていない run では、2 本とも `translate.warmup.failed` が出ます。`detail` は `transport` です。
 
+## 速報の言語を発話の途中で決める（`--partial-lid`）
+
+`--mode pair` の run は、1 つの発話の声が 2 秒に届いた時に、言語判定器へ 1 度だけ尋ねます。
+答えが `ja` か `en` なら、その発話の残りの速報を、その言語で読みます。
+確定の言語の判定は変わりません。
+`--partial-lid off` を付けると、速報を直前の確定文の言語で読む前の動きへ戻ります。
+`--mode pair` でない run は尋ねません。
+
+尋ねた回は、`asr.partial.lang.asked`（info）が 1 行出ます。
+項目は `answer`、`voice_ms`、`lid_ms` です。
+`answer` は、`ja` か `en`、2 つの外の言語を答えた `outside`、答えなかった `failed` のどれかです。
+`outside` と `failed` の発話は、速報の言語が直前の確定文の言語のままです。
+
+```bash
+grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -o '"answer":"[a-z]*"' | sort | uniq -c
+grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.endpoint.decided` も数えて、非 0 の対照を並べます。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash
@@ -433,6 +453,23 @@ hayamimi-eval stages --provider cuda --wav lat-ja.wav --models <models> --only c
 ```
 
 `--run` を 1、2、3 と重ねたら、上の `stages-report` の `--runs` に `docs/results/r4/win/cluster_c*_idle_*.jsonl` を足して、`gpu_stages.md` を作り直します。
+
+## 確定の訳を速報の訳の後ろに並べない（`--partial-yield`）
+
+`hayamimi-relay live` は、日本語と英語を互いに訳す run で、ある入力源の確定の訳が済むまで、同じ入力源の速報の訳を依頼しません。
+訳の server の slot を、速報の訳が塞いで確定の訳を待たせないためです。
+確定が着いた時に訳している途中の速報の訳は、その確定の文を閉じるだけの物なら使い回し、違う文なら止めます。
+`--partial-yield off` を付けると、確定の訳の最中にも速報の訳を依頼する前の動きへ戻ります。
+`--no-partial-translation` は速報の訳そのものを止める旗で、`--partial-yield` と一緒に付けても、書く順によらず速報の訳を止めます。
+
+依頼しなかった速報は、`translate.partial.skipped`（debug）が 1 行出て、`reason` が `yielded` です。
+
+```bash
+grep '"event":"translate.partial.skipped"' <relay の stdout を残した file> | grep -o '"reason":"[a-z_]*"' | sort | uniq -c
+grep -c '"event":"translate.line.ok"' <relay の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る確定の訳の行も数えて、非 0 の対照を並べます。
 
 ## 話者の分離の DER
 

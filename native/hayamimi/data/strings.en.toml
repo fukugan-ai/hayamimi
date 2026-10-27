@@ -21,6 +21,7 @@
 "speaker.embedding.started" = "The speaker embedding of an utterance started"
 "asr.engine.failed" = "The recognition route failed"
 "asr.partial.failed" = "A draft of the utterance in progress failed and was skipped"
+"asr.partial.lang.asked" = "The language of the utterance in progress was asked of the identifier once, so that its drafts are read in that language; answer is what it came to, voice_ms is the voice it was given, lid_ms is how long the question took"
 "gpu.fallback.cpu" = "A stage moved from the GPU to the CPU and goes on"
 "model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
@@ -75,6 +76,7 @@ options:
   --min-silence <sec>  silence that ends an utterance (default 0.30)
   --max-speech <sec>   speech after which an utterance is finalised (default 12)
   --endpoint <rule>    early (default) finalises a complete sentence at a short silence, silence waits for --min-silence
+  --partial-lid <on|off>  with --mode pair, on (default) reads the draft of an utterance in the language heard after its first two seconds, off in the language of the last final
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
@@ -89,6 +91,7 @@ missing_value = "An option is missing its value."
 bad_number = "An option needs a positive number."
 mode_unsupported = "--mode is one of balanced, fast, pair, single."
 endpoint_unsupported = "--endpoint is one of early, silence."
+partial_lid_unsupported = "--partial-lid is one of on, off."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."

@@ -116,6 +116,7 @@ pub enum CliError {
     NeedInstallOrRemove,
     BadPort,
     BadAddress,
+    BadPartialYield,
     NeedPairsAndOut,
     NeedVideo,
 }
@@ -130,9 +131,30 @@ impl CliError {
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
             CliError::BadAddress => "bad_address",
+            CliError::BadPartialYield => "bad_partial_yield",
             CliError::NeedPairsAndOut => "need_pairs_and_out",
             CliError::NeedVideo => "need_video",
         }
+    }
+}
+
+/// The value of `--partial-yield`: `on` or `off`.
+fn yield_choice(value: &str) -> Result<bool, CliError> {
+    match value {
+        "on" => Ok(true),
+        "off" => Ok(false),
+        _ => Err(CliError::BadPartialYield),
+    }
+}
+
+/// What the two switches about the text in progress make together. Turning the
+/// translation off wins; otherwise the text in progress yields to a `final`
+/// being translated unless `--partial-yield off` was given.
+fn partial_choice(translation_off: bool, yielding: bool) -> PartialTranslation {
+    match (translation_off, yielding) {
+        (true, _) => PartialTranslation::Off,
+        (false, true) => PartialTranslation::Yielding,
+        (false, false) => PartialTranslation::On,
     }
 }
 
@@ -159,14 +181,15 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         srt: None,
         send: None,
         translate: None,
-        partial_translation: PartialTranslation::On,
+        partial_translation: PartialTranslation::Yielding,
         verify_text: None,
     };
+    let (mut translation_off, mut yielding) = (false, true);
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
         let option = arg.as_str();
         if option == "--no-partial-translation" {
-            options.partial_translation = PartialTranslation::Off;
+            translation_off = true;
             continue;
         }
         if !matches!(
@@ -180,11 +203,13 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
                 | "--send"
                 | "--translate"
                 | "--verify-text"
+                | "--partial-yield"
         ) {
             return Err(CliError::UnknownOption);
         }
         let value = rest.next().ok_or(CliError::MissingValue)?;
         match option {
+            "--partial-yield" => yielding = yield_choice(value)?,
             "--events" => options.events.push(value.clone()),
             "--llm" => options.llm.clone_from(value),
             "--llm-other" => options.llm_other.clone_from(value),
@@ -204,6 +229,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
             _ => options.serve = value.parse().map_err(|_| CliError::BadPort)?,
         }
     }
+    options.partial_translation = partial_choice(translation_off, yielding);
     Ok(options)
 }
 
@@ -796,7 +822,7 @@ mod tests {
                 srt: None,
                 send: None,
                 translate: None,
-                partial_translation: PartialTranslation::On,
+                partial_translation: PartialTranslation::Yielding,
                 verify_text: None,
             }))
         );
@@ -1001,22 +1027,28 @@ mod tests {
         assert_eq!(missing, Err(CliError::MissingValue));
     }
 
-    #[test]
-    fn the_translation_of_the_text_in_progress_is_on_unless_it_is_turned_off() {
-        let on = |list: &[&str]| match parse_args(&args(list)) {
+    fn partial_translation_of(list: &[&str]) -> Option<PartialTranslation> {
+        match parse_args(&args(list)) {
             Ok(Command::Run(Live {
                 partial_translation,
                 ..
             })) => Some(partial_translation),
             _ => None,
-        };
-        assert_eq!(on(&["live"]), Some(PartialTranslation::On));
+        }
+    }
+
+    #[test]
+    fn the_translation_of_the_text_in_progress_yields_unless_it_is_turned_off() {
         assert_eq!(
-            on(&["live", "--no-partial-translation"]),
+            partial_translation_of(&["live"]),
+            Some(PartialTranslation::Yielding)
+        );
+        assert_eq!(
+            partial_translation_of(&["live", "--no-partial-translation"]),
             Some(PartialTranslation::Off)
         );
         assert_eq!(
-            on(&[
+            partial_translation_of(&[
                 "live",
                 "--serve",
                 "0",
@@ -1025,6 +1057,46 @@ mod tests {
                 "a.srt"
             ]),
             Some(PartialTranslation::Off)
+        );
+    }
+
+    #[test]
+    fn partial_yield_off_translates_the_text_in_progress_without_yielding() {
+        assert_eq!(
+            partial_translation_of(&["live", "--partial-yield", "off"]),
+            Some(PartialTranslation::On)
+        );
+        assert_eq!(
+            partial_translation_of(&["live", "--partial-yield", "on"]),
+            Some(PartialTranslation::Yielding)
+        );
+    }
+
+    #[test]
+    fn turning_the_translation_off_wins_over_the_yield_in_either_order() {
+        for list in [
+            ["live", "--no-partial-translation", "--partial-yield", "on"],
+            ["live", "--partial-yield", "on", "--no-partial-translation"],
+            ["live", "--partial-yield", "off", "--no-partial-translation"],
+            ["live", "--no-partial-translation", "--partial-yield", "off"],
+        ] {
+            assert_eq!(
+                partial_translation_of(&list),
+                Some(PartialTranslation::Off),
+                "{list:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_yield_takes_on_or_off_and_nothing_else() {
+        for value in ["maybe", "", "ON", "1"] {
+            let parsed = parse_args(&args(&["live", "--partial-yield", value]));
+            assert_eq!(parsed, Err(CliError::BadPartialYield), "{value:?}");
+        }
+        assert_eq!(
+            parse_args(&args(&["live", "--partial-yield"])),
+            Err(CliError::MissingValue)
         );
     }
 
@@ -1098,7 +1170,7 @@ mod tests {
             srt: None,
             send: None,
             translate: None,
-            partial_translation: PartialTranslation::On,
+            partial_translation: PartialTranslation::Yielding,
             verify_text: None,
         });
         assert_eq!(parse_args(&args(&["live"])), Ok(expected));
@@ -1250,6 +1322,7 @@ mod tests {
             for key in [
                 CliError::BadPort.key(),
                 CliError::BadAddress.key(),
+                CliError::BadPartialYield.key(),
                 "cannot_serve",
                 "serving_at",
                 "port_moved",
