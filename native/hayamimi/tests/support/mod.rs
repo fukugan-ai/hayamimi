@@ -183,14 +183,24 @@ pub struct Served {
     pub wire: Vec<Value>,
 }
 
-/// A port that was free a moment ago.
+/// Ports kept above the one [`free_port`] returns, for tests that add a small
+/// offset to it (the ten ports a busy port moves on to).
+const ROOM_ABOVE: u16 = 16;
+
+/// A port that was free a moment ago, with [`ROOM_ABOVE`] ports above it.
 pub fn free_port() -> Result<u16, Failure> {
-    let listener =
-        TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|error| error.to_string())?;
-    listener
-        .local_addr()
-        .map(|address| address.port())
-        .map_err(|error| error.to_string())
+    for _ in 0..50 {
+        let listener =
+            TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|error| error.to_string())?;
+        let port = listener
+            .local_addr()
+            .map(|address| address.port())
+            .map_err(|error| error.to_string())?;
+        if port <= u16::MAX - ROOM_ABOVE {
+            return Ok(port);
+        }
+    }
+    Err(format!("every port tried was among the last {ROOM_ABOVE}"))
 }
 
 /// Reads a pipe to its end on a thread of its own.
