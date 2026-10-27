@@ -15,11 +15,14 @@
 //! measure, taken on the same machine.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
-//! written by hand; the row 002 reads a recorded run of IP-2. The rows
-//! T-BR-04-015 to 017 test the record's split of the draft translation by
-//! language, on utterances written by hand, and the rows T-BR-04-018 to 022
-//! the line of the draft translation, on the same kind of utterances. The row
-//! T-BR-04-009 reads the recorded run with IP-S7 and IP-S8 on.
+//! written by hand; the row 002 reads the pair run of IP-4, which no later run
+//! rewrites. The rows T-BR-04-015 to 017 test the record's split of the draft
+//! translation by language, on utterances written by hand, and the rows
+//! T-BR-04-018 to 022 the line of the draft translation, on the same kind of
+//! utterances. The row T-BR-04-009 reads the recorded run with IP-S7 and IP-S8
+//! on. The row 019 reads the sources of the tests: a record that a real run
+//! rewrites is named only by the test that owns the run, so a run recorded
+//! again cannot turn the hand-counted values of another test red.
 
 mod support;
 
@@ -227,9 +230,10 @@ fn the_run_with_both_measures_switched_off_is_recorded() -> TestResult {
 /// T-BR-03-002
 #[test]
 fn the_warm_stage_percentiles_of_the_pair_record_are_the_hand_counted_ones() -> TestResult {
+    // The pair run of IP-4: a record that no later run rewrites.
     let record = Path::new(REPO).join("docs/results/in-person");
-    let samples = read(&record.join("ip02_pair.jsonl"))?;
-    let events = read(&record.join("ip02_pair.events.jsonl"))?;
+    let samples = read(&record.join("ip04_pair.jsonl"))?;
+    let events = read(&record.join("ip04_pair.events.jsonl"))?;
     let report = stage_report(&samples, &events)?;
     assert_eq!(report.warm.len(), 76);
     let stat = |stage: Stage| -> Result<(i64, i64), Failure> {
@@ -262,6 +266,101 @@ fn the_warm_pair_run_has_its_draft_translation_p50_inside_100_ms_and_split_by_la
     assert_eq!(
         draft_by_language_text(&report)?,
         "L_tr ja: n 32, p50 139 ms, p95 329 ms\nL_tr en: n 44, p50 4 ms, p95 258 ms\n"
+    );
+    Ok(())
+}
+
+/// The test file that owns each record a real run rewrites, and the record's
+/// name as two parts. The name is joined at run time, so that this file does
+/// not spell the name of a record it does not own.
+const REWRITTEN: [(&str, &str, &str); 4] = [
+    ("ip02.rs", "ip02", "pair"),
+    ("ip02.rs", "ip02", "fast"),
+    ("ip07.rs", "ip07", "pair"),
+    ("br03.rs", "br03", "ip"),
+];
+
+/// The owner and the name of each record of [`REWRITTEN`].
+fn rewritten() -> Vec<(&'static str, String)> {
+    REWRITTEN
+        .iter()
+        .map(|(owner, step, tail)| (*owner, format!("{step}_{tail}")))
+        .collect()
+}
+
+/// The names among `records` that `text`, the source of the file called `file`,
+/// spells while the file is not their owner.
+fn foreign_records<'a>(
+    records: &'a [(&'static str, String)],
+    file: &str,
+    text: &str,
+) -> Vec<&'a str> {
+    records
+        .iter()
+        .filter(|(owner, name)| *owner != file && text.contains(name.as_str()))
+        .map(|(_, name)| name.as_str())
+        .collect()
+}
+
+/// The Rust files under `dir` at any depth, leaving out the build directories.
+fn rust_files(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), Failure> {
+    let said = |error: std::io::Error| format!("{}: {error}", dir.display());
+    for entry in std::fs::read_dir(dir).map_err(said)? {
+        let path = entry.map_err(said)?.path();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{} has no name", path.display()))?;
+        if path.is_dir() {
+            if !name.starts_with("target") {
+                rust_files(&path, found)?;
+            }
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            found.push(path);
+        }
+    }
+    Ok(())
+}
+
+/// T-BR-03-019
+#[test]
+fn only_the_owner_of_a_run_names_the_records_that_run_rewrites() -> TestResult {
+    let records = rewritten();
+    // The control: a file that is not the owner is found naming each record, its owner is not.
+    for (owner, name) in &records {
+        let text = format!("read(&record.join(\"{name}.jsonl\"))?");
+        let outside = foreign_records(&records, "nobody.rs", &text);
+        assert!(
+            outside.contains(&name.as_str()),
+            "{name} was not found in {text}"
+        );
+        let inside = foreign_records(&records, owner, &text);
+        assert!(
+            !inside.contains(&name.as_str()),
+            "{name} was found in its owner {owner}"
+        );
+    }
+    let mut files = Vec::new();
+    rust_files(&Path::new(REPO).join("native"), &mut files)?;
+    assert!(
+        files.len() > 200,
+        "only {} Rust files were found",
+        files.len()
+    );
+    let mut foreign = Vec::new();
+    for file in &files {
+        let name = file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("{} has no name", file.display()))?;
+        for record in foreign_records(&records, name, &read(file)?) {
+            foreign.push(format!("{} names {record}", file.display()));
+        }
+    }
+    assert!(
+        foreign.is_empty(),
+        "only the test that owns a run names the records it rewrites; \
+         read a copy under a name no run writes: {foreign:?}"
     );
     Ok(())
 }

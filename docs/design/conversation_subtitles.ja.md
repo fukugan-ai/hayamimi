@@ -1772,7 +1772,7 @@ model は今の process A と同じ置き場を使う。英語の認識器と wh
 | 頁の清書の欄 | `native/hayamimi-ui/src/model.rs` の `on_refine` | `refine` を受けるたびに `push_capped` で行を足し、同じ `id` の行を置き換えない（`:256-269`） | 同じ file の `on_speaker` は同じ `id` の行を探して書き換える（`:272-279`） |
 | 頁の Listening の欄 | 同じ file の `on_partial`、`on_final` | `strip_text` を書くのは `on_partial` だけで、`on_final` は重ね窓の行と `partial_tr` を空にするが `strip_text` を残す（`:134`、`:224-238`） | `expire` が `strip_quiet` を立てる（`:198-199`） |
 
-段ごとの遅れは、IP-4 の pair の run（`docs/results/in-person/ip02_pair.jsonl`、`--mode pair`、`lat-dialog` 90 行）と、同じ機械の `--lang` の 2 本から、次の式で数えた。
+段ごとの遅れは、IP-4 の pair の run（`docs/results/in-person/ip04_pair.jsonl`、`--mode pair`、`lat-dialog` 90 行）と、同じ機械の `--lang` の 2 本から、次の式で数えた。
 
 ```
 jq -s -c '[.[]|select(.t_final_us!=null and .final_latency_ms!=null)
@@ -1788,8 +1788,8 @@ pair の run では repeat 1 の行 1（ja）と行 2（en）、`--lang` の run
 
 | run | 標本 | n | 終わりの待ち `d` p50 / p95 | 復号 `L_dec` p50 / p95 | 草稿の訳 `L_tr` p50 / p95 |
 |---|---|---|---|---|---|
-| `ip02_pair`（pair） | 全標本 | 78 | 445 / 1081 ms | 268 / 483 ms | 233 / 363 ms |
-| `ip02_pair`（pair） | 温まった標本 | 76 | 445 / 1081 ms | 268 / 472 ms | 221 / 363 ms |
+| `ip04_pair`（pair） | 全標本 | 78 | 445 / 1081 ms | 268 / 483 ms | 233 / 363 ms |
+| `ip04_pair`（pair） | 温まった標本 | 76 | 445 / 1081 ms | 268 / 472 ms | 221 / 363 ms |
 | `ip04_lang_ja`（`--lang ja`） | 全標本 | 58 | 661 / 1000 ms | 103 / 197 ms | 54 / 440 ms |
 | `ip04_lang_ja`（`--lang ja`） | 温まった標本 | 57 | 681 / 1000 ms | 103 / 197 ms | 33 / 412 ms |
 | `ip04_lang_en`（`--lang en`） | 全標本 | 44 | 281 / 693 ms | 245 / 388 ms | 3 / 295 ms |
@@ -2196,7 +2196,7 @@ IP-S18 の micro-bench は他の slice と file を取り合わないので、IP
 - **H61** 字体の file の path を `hayamimi` に渡す口は、今は重ね窓の設定（3.12）にしか無く、`hayamimi` の頁の server が同じ file を読む設定の形は IP-S12 の実装の席が 3.12 の設定 file に揃えて決める。`/fonts/<id>` で LAN の端末へ配ることが cinecaption の配布条件（無料、改造禁止、再配布自由。S6 の転記）と UDEV Gothic の OFL 1.1 に収まるかは、原文の条件を読んで確かめていない（NOT VERIFIED）。収まらないと分かれば、その字体を一覧の `/fonts` から外し、端末に入っている時だけ名前で使う。
 - **H62** `yu-gothic`、`meiryo`、`yu-mincho` は Windows の字体で、電話や mac の端末には無いことが多い。その端末では並びの次の字体で描かれ、選んだ字体と違う字体が出る（BR-24 は computed の `font-family` の宣言を測り、実際に描いた字体は測らない）。描いた字体を測る形（DevTools の `CSS.getPlatformFontsForNode`）を BR-24 の case 行に足すかは test-designer の席が決める。
 - **H71** 手 1 は英語の速報を v3 の tier（Parakeet TDT 0.6B v3 の int8、CPU、音 1 秒あたり約 50 ms）で読ませる。速報は音 0.5 秒ごとに最大 8 秒分を読み、session の loop（`Session::on_window`）と同じ thread で回るので、発話の終わりに掛かった速報の復号が、VAD の閉じと早い終わりの読みを遅らせる。`asr.vad.closed` の `lag_ms` が 0 でない早い終わりの閉じは 78 件のうち 11 から 22〜26 に増え、英語の `d` は p50 で +43 と +17 ms 上がった（10.13.4）。この機構は、loop が 1 本の thread であることと `lag_ms` の増え方から読んだ物で、英語の速報だけを軽い tier にした run では確かめていない（NOT VERIFIED）。手 11（IP-S19）が直す。直ったかは、同じ記録の `lag_ms` と英語の `d` の差で測る。
-- **H72** 持った文を使う条件は、読んだ範囲の終わりと区間の終わりの差が 1 窓（32 ms）以内であること（`plan_with_gap`）で、早い終わりの通知が出る無音（120 ms）の分を覆わない。IP-2 の記録（`docs/results/in-person/ip02_pair.log`）では、`silence` で閉じた 35 件のうち 34 件が持った文を持ち、使われたのは 6 件で、27 件は読み直した。読み直した 27 件の `held_gap_ms` は 44〜148 ms が 24 件、212 ms、660 ms、692 ms が各 1 件である。run a の `silence` で閉じた 21 件の `L_dec` が全部 0 になった時の `L` は、p50 949 → 895 ms、p75 1133 → 1114 ms、p95 1591 → 1373 ms で、これは上限である。手 9（IP-S17）が直す。当たる件数と、使った文が読み直した文と同じ text かは、実走の記録で数える（ASSUMPTION：持った文の text は確定文と同じ）。
+- **H72** 持った文を使う条件は、読んだ範囲の終わりと区間の終わりの差が 1 窓（32 ms）以内であること（`plan_with_gap`）で、早い終わりの通知が出る無音（120 ms）の分を覆わない。IP-4 の pair の記録（`docs/results/in-person/ip04_pair.log`）では、`silence` で閉じた 35 件のうち 34 件が持った文を持ち、使われたのは 6 件で、27 件は読み直した。読み直した 27 件の `held_gap_ms` は 44〜148 ms が 24 件、212 ms、660 ms、692 ms が各 1 件である。run a の `silence` で閉じた 21 件の `L_dec` が全部 0 になった時の `L` は、p50 949 → 895 ms、p75 1133 → 1114 ms、p95 1591 → 1373 ms で、これは上限である。手 9（IP-S17）が直す。当たる件数と、使った文が読み直した文と同じ text かは、実走の記録で数える（ASSUMPTION：持った文の text は確定文と同じ）。
 - **H73** 確定の側の判定は、区間の先頭 4 秒（`LID_MAX_SECONDS`）を whisper-tiny に読ませ、`lid_ms` の p50 が 2 秒未満で 53〜71 ms、2〜4 秒で 78〜81 ms、4 秒以上で 101〜114 ms である（BR-3 の 4 本）。4 秒以上の確定文は 113 件中 61 件である。手 12（IP-S20）が直す。途中の判定の clip は検出した声の始まり（区間の始まりより約 0.3 秒後）から取るので、確定の側の clip と同じ答えになるかは、`asr.partial.lang.asked` の答えと確定文の `lang` を突き合わせて確かめる（NOT VERIFIED）。
 - **H74** 途中の言語判定 85 件のうち、答えが次の `final` の言語と違ったのは 3 件で、日本語の発話を `en` と聞いた（3 回の繰り返しの同じ発話。a、e、b の 3 本で同じ）。外れた時に失うのは使い回しだけで、確定文の言語は動かない。確定文の `id`、`lang`、`text` は、旗を外した run と既定の run で 113 件とも同じである。
 - **H75** 手 1 と手 2 の BR-3 の実走は、4 本とも NAS の定時の写し（`nas-daily-backup`。04:40 から約 08:30 JST。nice 15）と重なり、run の優先度は上げていない（実効 nice 0）。c、e、b の開始時と終了時の cpu の PSI（`some avg60`）は 0.00〜0.02 だった。全体の `L_tr` の p50 は 2 つの山の境に在り、222、106、17、8 ms と大きく動くので、言語ごとの値で読む。既定の 2 本の間の差が、手 2 を外した 1 本との差と同じ大きさなので、手 2 だけの寄与は分けられない。写しと重ならない値は、写しが約 08:30 JST に終わるまで取れない。取れ次第、旗を外した run と既定の run を同じ名前の記録に足す。
