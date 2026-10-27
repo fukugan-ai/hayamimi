@@ -440,8 +440,9 @@ pub(crate) fn default_tables_dir() -> Option<PathBuf> {
 /// Builds the pipeline of one lane against the llama-server at `llm_url`, and
 /// the watch on whether that server can be reached. The live pair and the
 /// other languages each get their own server and watch; every lane of one
-/// server shares its watch.
-fn pipeline_factory(llm_url: String) -> (MakePipeline<Reach<HttpLlm>>, Watch) {
+/// server shares its watch. A request the server's translator has to be asked
+/// again is said on `log`.
+fn pipeline_factory(llm_url: String, log: SharedSink) -> (MakePipeline<Reach<HttpLlm>>, Watch) {
     let watch = Watch::new();
     let link = watch.link();
     let make: MakePipeline<Reach<HttpLlm>> = Arc::new(move |sink: &mut dyn LogSink| {
@@ -449,7 +450,8 @@ fn pipeline_factory(llm_url: String) -> (MakePipeline<Reach<HttpLlm>>, Watch) {
             rates_path: default_rates_path(),
             tables_dir: default_tables_dir(),
         };
-        Pipeline::open(link.wrap(HttpLlm::new(&llm_url)), &config, sink)
+        let llm = HttpLlm::new(&llm_url).logging_to(log.clone());
+        Pipeline::open(link.wrap(llm), &config, sink)
     });
     (make, watch)
 }
@@ -612,8 +614,8 @@ pub fn start_live(
             .and_then(|path| open_srt(path, &mut log, strings)),
         words: Words::from_strings(strings),
     };
-    let (pair, pair_watch) = pipeline_factory(live.llm.clone());
-    let (other, other_watch) = pipeline_factory(live.llm_other.clone());
+    let (pair, pair_watch) = pipeline_factory(live.llm.clone(), log.clone());
+    let (other, other_watch) = pipeline_factory(live.llm_other.clone(), log.clone());
     relay::start_handle(
         listener,
         config,

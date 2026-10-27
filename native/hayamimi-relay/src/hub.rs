@@ -109,11 +109,7 @@ impl Hub {
 /// after it. Port 0 asks the system for any port and has no next ones. The
 /// error is the last one when none could be bound.
 pub fn bind_on(ip: IpAddr, requested: u16) -> io::Result<TcpListener> {
-    let last = if requested == 0 {
-        0
-    } else {
-        requested.saturating_add(NEXT_PORTS)
-    };
+    let last = last_port(requested);
     let mut bound = TcpListener::bind((ip, requested));
     for port in (requested..=last).skip(1) {
         if bound.is_ok() {
@@ -122,6 +118,16 @@ pub fn bind_on(ip: IpAddr, requested: u16) -> io::Result<TcpListener> {
         bound = TcpListener::bind((ip, port));
     }
     bound
+}
+
+/// The last port [`bind_on`] tries for `requested`: [`NEXT_PORTS`] ports
+/// further, or the top port when fewer are left. Port 0 has none.
+fn last_port(requested: u16) -> u16 {
+    if requested == 0 {
+        0
+    } else {
+        requested.saturating_add(NEXT_PORTS)
+    }
 }
 
 /// [`bind_on`] the loopback address: only this machine can connect.
@@ -398,16 +404,36 @@ mod tests {
         Ok(())
     }
 
+    /// A listener on a port that is not the top one, so a next port exists.
+    fn bound_below_the_top() -> io::Result<TcpListener> {
+        for _ in 0..50 {
+            let held = bind(0)?;
+            if held.local_addr()?.port() < u16::MAX {
+                return Ok(held);
+            }
+        }
+        Err(io::Error::other("every port tried was the top one"))
+    }
+
     #[test]
     fn a_taken_port_moves_to_one_of_the_next_ten() -> io::Result<()> {
-        let held = bind(0)?;
+        let held = bound_below_the_top()?;
         let taken = held.local_addr()?.port();
         let moved = bind(taken)?.local_addr()?.port();
         assert!(
-            moved > taken && moved <= taken + NEXT_PORTS,
+            moved > taken && moved <= last_port(taken),
             "{taken} -> {moved}"
         );
         Ok(())
+    }
+
+    #[test]
+    fn the_next_ports_stop_at_the_top_port() {
+        assert_eq!(last_port(100), 100 + NEXT_PORTS);
+        assert_eq!(last_port(u16::MAX - NEXT_PORTS), u16::MAX);
+        assert_eq!(last_port(u16::MAX - 2), u16::MAX);
+        assert_eq!(last_port(u16::MAX), u16::MAX);
+        assert_eq!(last_port(0), 0);
     }
 
     #[test]

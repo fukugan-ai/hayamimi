@@ -137,6 +137,8 @@ fn unreachable_sink_keeps_translations_locally() -> TestResult {
 #[test]
 fn blocked_port_uses_the_tenth_next_port() -> TestResult {
     check_port_move(8833, 8843)?;
+    check_port_move(65533, 65535)?;
+    assert!(check_port_move(65533, 65533).is_err());
     let event = serde_json::json!({"url": "http://127.0.0.1:8843/events"});
     assert_eq!(port_of(&event)?, 8843);
     Ok(())

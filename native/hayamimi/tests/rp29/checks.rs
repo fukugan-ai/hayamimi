@@ -117,13 +117,14 @@ pub fn port_of(event: &Value) -> Result<u16, Failure> {
 
 /// The server moved from the blocked port to one of the next ten.
 pub fn check_port_move(blocked: u16, actual: u16) -> Result<(), Failure> {
-    let last = blocked + NEXT_PORTS;
+    // The server stops at the top port, so near it the tenth next port does not exist.
+    let last = blocked.saturating_add(NEXT_PORTS);
     if actual > blocked && actual <= last {
         Ok(())
     } else {
         Err(format!(
             "the server is on {actual}, outside {}..={last}",
-            blocked + 1
+            blocked.saturating_add(1)
         ))
     }
 }

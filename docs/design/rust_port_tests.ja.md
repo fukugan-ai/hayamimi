@@ -1128,7 +1128,7 @@ test：`native/hayamimi/tests/rp29.rs`。受入 test の名前は `rp29_missing_
 | T-RP-29-008 | fixture：001 と同じで、`model.fallback.smaller` が 2 件 | 件数の上側 | `Err` | `Err`。1 件ずつ（specified、RP-29） | 境界、陰性 | `two_fallback_events_for_one_scene_are_rejected` |
 | T-RP-29-009 | fixture：llama-server に届かない run。終了 code 0、原文の `final` が出る、`translate.fallback.held` 1 件（`reason` = `unreachable`） | 訳の保留 | `Ok` | `Ok`（specified、RP-29、3.15 の llama-server の行） | 陰性 | `unreachable_llama_server_holds_translation_and_says_so` |
 | T-RP-29-010 | fixture：外の送り先に届かない run。`sink.fallback.local` 1 件、SRT に確定の訳が残る | 送り先の失敗 | `Ok` | `Ok`（specified、RP-29、3.15 の送り先の行） | 陰性 | `unreachable_sink_keeps_translations_locally` |
-| T-RP-29-011 | fixture：port 8833 を塞いだ run で、実際の port が 8843、`server.fallback.port` 1 件（`reason` = `in_use`）、出した URL が実際の port | 次の番号から 10 個の内側（最後） | `Ok` | `Ok`。8834 から 8843 の 10 個（derived、3.15 の「次の番号から 10 個まで」を数えた値） | 境界、陰性 | `blocked_port_uses_the_tenth_next_port` |
+| T-RP-29-011 | fixture：port 8833 を塞いだ run で、実際の port が 8843、`server.fallback.port` 1 件（`reason` = `in_use`）、出した URL が実際の port。port 65533 を塞いだ時の実際の port が 65535 と 65533 | 次の番号から 10 個の内側（最後）。port の上限で 10 個に満たない時の最後 | `Ok`。65533 の時の 65533 は `Err` | `Ok`。8834 から 8843 の 10 個（derived、3.15 の「次の番号から 10 個まで」を数えた値）。65533 の次の番号は 65534 と 65535 の 2 個で、65535 が最後（derived、port の上限 65535） | 境界、陰性 | `blocked_port_uses_the_tenth_next_port` |
 | T-RP-29-012 | fixture：011 で実際の port が 8844 | 10 個の外側 | `Err` | `Err`（derived、8844 は 11 個目） | 境界、陰性 | `blocked_port_beyond_ten_next_ports_is_rejected` |
 | T-RP-29-013 | fixture：出力の装置が無く、マイクだけが在る run。`capture.fallback.single` 1 件（`reason` = `device_missing`）。もう 1 つは両方無い run で `capture.fallback.none` 1 件 | 取り込みの装置 | `Ok` | `Ok`（specified、3.15 の取り込みの行。RP-10 の 006 と同じ型） | 陰性 | `missing_capture_devices_fall_back_to_single_or_none` |
 | T-RP-29-014 | fixture：設定の file が壊れ、前の内容も無い run。`config.fallback.default` 1 件、効いている設定の値が `hayamimi config dump` の値と全部同じ | 既定の設定 | `Ok` | `Ok`（specified、3.15 の設定の行と RP-19 の dump） | 陰性 | `broken_config_without_previous_uses_the_dump_defaults` |
@@ -4556,6 +4556,48 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - `pipeline.rs` が 4 秒の問いの答えを確定の読みに通す配線（`consider` と `process` の 2 か所、BR-37）：Silero の model を読む `Engine` が要り、CI では測れない。BR-3 の 2 本の run の `lid_ms` が 0 の確定文の数（T-BR-37-014）で測る。
 - `Engine::partial` が `Drafter::step` を通す配線と、`Engine::open` が worker を起こして `Engine::warm_up` が準備を上限つきで待つ配線（BR-38）：認識器と Silero の model を読む `Engine` が要り、CI では測れない。BR-3 の 2 本の run の `asr.partial.read` の `worker` が真の行の数と `asr.draft.ready` の数（T-BR-38-020）で測る。
 - worker が増やす memory の量と、worker の読み込みの秒数（設計 10.13.10 の H77）：run の最中に受付が測って記録する。`ready_ms` は `asr.draft.ready` の行から読む。
+
+### 4.88 RP-96（翻訳要求の打ち直し）
+
+test：`native/hayamimi-relay/tests/rp96.rs`、`native/hayamimi-relay/src/llm.rs` の `mod tests`、`native/hayamimi-relay/src/pipeline.rs` の `mod tests`、`native/hayamimi-relay/src/strings.rs` の `mod tests`。受入 test の名前は `rp96_a_closed_connection_is_asked_again_and_the_line_is_translated`。
+行は 3 つの置き場に分かれる。001 から 003 は、live の relay を偽の recognizer と偽の llama-server で起こす行で、`rp96.rs` に置く。004 から 011 と 014 は `HttpLlm` と純関数の行で `llm.rs` の `mod tests` に、012 は `pipeline.rs` の `mod tests` に、013 は `strings.rs` の `mod tests` に置く。14 行とも model も GPU も `testdata/` も読まないので、`#[ignore]` は付けない。
+command：001 から 003 は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --test rp96`。004 から 014 は `cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-relay --lib` に、絞りとして `llm::tests::`、`pipeline::tests::`、`strings::tests::` を順に足す。
+走る行の数：`--test rp96` に `-- --list 2>/dev/null | grep -c ': test$'` を足すと 3 になる。`--lib` に同じ `--list` を足した出力に `a_connection_closed_before_the_answer_is_asked_again_once` が 1 件在ることが、陽性対照である。
+関数の名前は各行の「関数の末尾」と同じにし、何も付けない。`llm.rs` の純関数は `cause_of(error: &ureq::Error) -> &'static str` と `asks_again(error: &ureq::Error) -> bool` とする。
+設計は D 3.23、D 8 の R8z、D 6 の RP-96、D 10 の H166、D 11 の S55 から S57 である。
+
+**数え方**：
+
+- 接続の数は、偽の server が accept した本数である。偽の server は 1 本の接続で 1 要求を読み、head と body を読み切ってから応答する。
+- 「応答なしで閉じる」は、request を読み切った後に何も書かずに socket を閉じる（FIN で閉じる）ことである。ureq はこれを `Error::Io` の `UnexpectedEof`（`Peer disconnected`）で返す（ureq 3.4.2 の `run.rs`。S57）。
+- 004 から 011 の log の行は、`LogSink` を実装した集め役の sink で読む。集め役は event の複製を `Arc<Mutex<Vec<LogEvent>>>` に積み、test が `SharedSink::new` で包んで `HttpLlm` に渡す。
+- 「誰も聞いていない port」は、`bind` して手放した port である。
+  多くの機械は接続を拒否し、`cause` は `connection_refused` になる。
+  firewall が接続を捨てる機械は無応答になり、要求の時間切れで `timeout` になる。
+  どちらも閉じられた接続ではないので、003 は 2 つの語のどちらかを通し、送り直さないことを検査する。
+- 001 から 003 の log の行は、`tests/support/events.rs` の `Logs` で、event 名を数えて読む。`translate.fallback.held` の数も、`/events` の `fallback` の frame ではなく、log の event 名で数える。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-96-001 | 受入：live の relay を偽の recognizer と偽の llama-server で起こす（`r8f_live.rs` と同じ組み立て）。server は 1 本目の接続で request を読み切った後に応答なしで閉じ、2 本目から固定の訳を返す。recognizer が確定文を 1 行送る | 閉じられた接続が 1 回起きる | 送り直しは 1 回 | `/events` に確定文の訳が `status` `ok` で 1 件。log の `translate.request.retried` が 1 行で `cause` が `unexpected_eof`、`translate.request.failed` と `translate.fallback.held` が 0 行。server の受けた接続が 2 本 | 陽性 | `rp96_a_closed_connection_is_asked_again_and_the_line_is_translated` |
+| T-RP-96-002 | 001 と同じ組み立てで、server がどの接続も応答なしで閉じる | 閉じられた接続が続く | 送り直しは 1 回で止まる | 訳が `status` `held` で 1 件。`translate.request.retried` が 1 行、`translate.request.failed` が 1 行で `cause` が `unexpected_eof`。server の受けた接続が 2 本ちょうど | 境界、陰性 | `a_server_that_always_hangs_up_holds_the_line_after_one_more_try` |
+| T-RP-96-003 | 001 と同じ組み立てで、`--translate zh --llm-other http://127.0.0.1:<bind して手放した port>`（誰も聞いていない port）にして確定文を送る | 接続の拒否（閉じられた接続ではない） | 送り直しは 0 回 | 訳が `status` `held` で 1 件。`translate.request.failed` が 1 行で `cause` が `connection_refused` か `timeout`、`translate.request.retried` が 0 行 | 陰性 | `a_refused_connection_is_not_asked_again` |
+| T-RP-96-004 | `HttpLlm` に `logging_to` で集め役の sink を付け、1 本目を応答なしで閉じ、2 本目が固定の答えを返す偽の server へ `complete(&Completion::new("x", 8))` する | 閉じられた接続が 1 回起きる | 送り直しは 1 回 | `Ok` で固定の答え。server の受けた接続が 2 本。集めた event に `translate.request.retried` が 1 行で `cause` が `unexpected_eof` | 陽性 | `a_connection_closed_before_the_answer_is_asked_again_once` |
+| T-RP-96-005 | 004 と同じで、server がどの接続も応答なしで閉じる | 閉じられた接続が続く | 送り直しは 1 回で止まる | `Err(LlmError::Transport(_))`。server の受けた接続が 2 本ちょうど。`translate.request.retried` が 1 行 | 境界、陰性 | `a_failure_is_asked_again_once_and_not_more` |
+| T-RP-96-006 | 004 と同じで、server が 500 を返す | 応答のある失敗 | 送り直しは 0 回 | `Err(LlmError::Status(500))`。server の受けた接続が 1 本。`translate.request.retried` が 0 行 | 陰性 | `an_answered_error_status_is_not_asked_again` |
+| T-RP-96-007 | `cause_of` に `ureq::Error::Io` の `UnexpectedEof`、`ConnectionReset`、`ConnectionAborted`、`BrokenPipe`、`ConnectionRefused`、`TimedOut`、`Other`、続けて `ureq::Error::Timeout` の `Global`、`HostNotFound`、`BadUri("x")` を順に渡す | 10 通りの分け方 | 一覧の 10 語 | 順に `unexpected_eof`、`connection_reset`、`connection_aborted`、`broken_pipe`、`connection_refused`、`timed_out`、`io_other`、`timeout`、`host_not_found`、`other` | 陽性 | `each_failure_kind_has_its_own_cause` |
+| T-RP-96-008 | `asks_again` に 007 と同じ 10 の入力を順に渡す | 閉じられた接続の 4 種と、それ以外の 6 種 | 真は 4 つだけ | 先頭の 4 つが真、残りの 6 つが偽 | 境界、陰性 | `only_the_four_closed_connection_kinds_are_asked_again` |
+| T-RP-96-009 | 004 と同じで、request に `Wanted`（counter が自分の世代と違い、`still()` が偽）を付ける | もう要らない要求 | 送り直しは 0 回 | `Err(LlmError::Aborted)`。server の受けた接続が 1 本。`translate.request.retried` が 0 行 | 陰性 | `a_request_not_wanted_any_more_is_not_asked_again` |
+| T-RP-96-010 | 004 の server を、`Reach::new` で包んだ `HttpLlm` へ `complete` する | 救えた失敗 | `Watch::drain()` の長さ 0 | `Ok`。`drain()` が空（`Held` も `Cleared` も無い） | 陽性 | `a_retry_that_succeeds_does_not_hold_the_translator` |
+| T-RP-96-011 | 004 で集めた `translate.request.retried` の event を、JSON の行にして読む | event の項目 | 該当なし | `level` が `warn`、`dependency` が `llama-server`、`duration_ms` が数、`cause` が `unexpected_eof`、`error_code` が `null`。行の文字列に `127.0.0.1` が無い | 陽性 | `the_retried_event_names_the_dependency_and_the_cause_and_no_address` |
+| T-RP-96-012 | `pipeline.rs`：台本の `Llm` が `LlmError::Transport("connection_reset: io: Connection reset by peer (os error 104)")` を返す。別の台本は `LlmError::Status(503)` を返す | `Transport` と `Status` | 該当なし | `Transport` の台本の `translate.request.failed` は `detail` が `transport`、`cause` が `connection_reset`。`Status` の台本は `cause` が `null` | 陽性、陰性 | `a_failed_request_names_its_cause_and_keeps_its_detail` |
+| T-RP-96-013 | `strings.rs`：`Strings::embedded` を `Lang::Ja` と `Lang::En` で作り、`message_for("translate.request.retried")` を引く | 表に行が在る | 該当なし | 2 つとも空でなく、event 名そのものでもない（行が無いと message は event 名になる） | 陽性 | `the_retried_event_has_a_message_in_both_languages` |
+| T-RP-96-014 | `cause_in` に、`transport: connection_reset: io: Connection reset by peer (os error 104)`、語で始まらない transport の text 2 つ（`transport: the stream ended before its last line`、`transport: no scripted answer`）、`transport: ` の後が空の text、`transport: connection_reset`（語だけで `:` が無い text）、`status 503`、`body: no choices`、`aborted` を順に渡す | 一覧の語、一覧の外の transport、transport の後が空、語だけの transport、transport でない失敗 | 該当なし | 順に `Some("connection_reset")`、`Some("other")`、`Some("other")`、`Some("other")`、`Some("connection_reset")`、`None`、`None`、`None` | 陽性、陰性 | `a_failure_text_names_its_cause_only_when_it_is_a_transport_failure` |
+
+**測らない物**：
+
+- 実際の llama-server が無通信の接続を 5 秒で閉じる瞬間の競合：偽の server は FIN で閉じる形を作るだけで、cpp-httplib の時計を再現しない。1 件の失敗の原因は、R8z-1 の後の BR-3 の流し直しで決める（H166）。機械では当たらない。
+- 本文を読む段（応答の先頭の後）の失敗：送り直さないので、test に載せない。
 
 ## 5. RP-19 の対応表
 
