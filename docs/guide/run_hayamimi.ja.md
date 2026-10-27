@@ -538,11 +538,53 @@ cargo test --release -p hayamimi -p hayamimi-asr -- --include-ignored
 | RP-21（`models fetch`。実際に取得するので network を使う） | `cargo test --release -p hayamimi --test rp21 -- --include-ignored` |
 | 文書の link（RP-19） | `cargo run --release -p hayamimi-eval -- doc-links --repo <repo>` |
 | RP-2、RP-18（GPU を使う） | `cargo test --release -p hayamimi-asr --test rp02 --test rp18 -- --include-ignored` |
+| `docs/results/` の file を変える commit の `main` への push の前（下の「記録を差し替える push の前」を読む） | `bash scripts/check-records.sh ~/.cache/hayamimi-main-lock/readers-ok cargo` |
 
 GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にします。
 Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
+
+## 記録を差し替える push の前
+
+`docs/results/` の file を変える commit を `main` へ push する前に、その記録を読む test を打ちます。
+記録を読む test は、手で数えた値を持ちます。
+記録だけを差し替えて push すると、CI がその test で落ちます。
+
+読む test を選んで打ち、全部通ると印を書くのは、次の 1 本です。
+
+```bash
+bash scripts/check-records.sh ~/.cache/hayamimi-main-lock/readers-ok cargo
+```
+
+最後の `cargo` の位置には、`cargo` の前に付ける物の全部を書きます。
+優先度、利用者、target directory、`cargo-slot` などを付ける機械では、それらを `cargo` まで並べます。
+script は、その後ろに `test --release --jobs 2 --no-fail-fast -p <crate> --test <名前> ...` を足して打ちます。
+
+読む test は、`docs/results` を名指す `native/<crate>/tests/<名前>.rs` のうち、CI の行（`.github/workflows/test.yml` の `cargo test` の行）の `--test` に在る物です。
+その中から、`origin/main` との差で変わった directory を名指す物だけを打ちます。
+directory を字面で名指さない物は、必ず打ちます。
+一覧は毎回 CI の行から導くので、読む test が増えても script は書き換えません。
+
+印は、HEAD の sha と時刻を 1 行にした file です。
+`main` への push が `docs/results/` の file を変えるとき、`.git/hooks/pre-push`（`main-lock`）は、印の sha が push する commit と同じでなければ止めます。
+印は、test が全部通ったときだけ書かれます。
+
+script が止まる形は 5 つです。
+
+| 出る言葉 | 意味 | exit |
+|---|---|---|
+| `tracked files differ from HEAD` | 木に commit していない変更がある。印は HEAD の sha を指すので、commit してから打つ | 2 |
+| `no file under docs/results differs from origin/main` | 差分に記録が無い。印は要らない | 2 |
+| `fewer than 2 readers` | CI の行から読み手を導けない。行の書き方が変わった | 2 |
+| `no reader names the changed directories` | 変えた directory を名指す test が CI の行に無い | 2 |
+| `<crate> failed` | test が落ちた。印は書かない | 1 |
+
+印を消すと、次の push は止まります。
+
+```bash
+rm ~/.cache/hayamimi-main-lock/readers-ok
+```
 
 ## RP-9 の実走（実行時の Python が 0 本）
 
