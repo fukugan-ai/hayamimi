@@ -105,6 +105,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.max_resident = args.max_resident;
     settings.endpoint = args.endpoint;
     settings.draft_worker = args.uses_draft_worker();
+    settings.asr_threads = args.asr_threads;
     settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
@@ -729,6 +730,7 @@ mod tests {
             final_midway: true,
             held_reuse: hayamimi_asr::endpoint::HeldReuse::Covering,
             draft_worker: false,
+            asr_threads: hayamimi_asr::recognizer::THREADS,
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),

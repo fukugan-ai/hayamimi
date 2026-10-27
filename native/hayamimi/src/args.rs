@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use hayamimi_asr::DEFAULT_MAX_RESIDENT;
 use hayamimi_asr::endpoint::{HeldReuse, Mode as Endpoint};
+use hayamimi_asr::recognizer::THREADS;
 use hayamimi_asr::route::{Policy, is_routable};
 
 use crate::inputs::{Input, IoArgs};
@@ -64,6 +65,8 @@ pub struct Args {
     /// thread of its own (`--draft-worker`), so that a draft never holds the
     /// feed back.
     pub draft_worker: bool,
+    /// How many threads each recognizer uses (`--asr-threads`).
+    pub asr_threads: i32,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -98,6 +101,7 @@ pub enum ArgError {
     FinalLidUnsupported,
     HeldReuseUnsupported,
     DraftWorkerUnsupported,
+    AsrThreadsUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -117,6 +121,7 @@ impl ArgError {
             ArgError::FinalLidUnsupported => keys::FINAL_LID_UNSUPPORTED,
             ArgError::HeldReuseUnsupported => keys::HELD_REUSE_UNSUPPORTED,
             ArgError::DraftWorkerUnsupported => keys::DRAFT_WORKER_UNSUPPORTED,
+            ArgError::AsrThreadsUnsupported => keys::ASR_THREADS_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -233,6 +238,17 @@ fn draft_worker_of(text: &str) -> Result<bool, ArgError> {
     }
 }
 
+/// The most threads `--asr-threads` accepts.
+const MAX_ASR_THREADS: i32 = 32;
+
+/// `--asr-threads`: a whole number of threads, from 1 to `MAX_ASR_THREADS`.
+fn asr_threads_of(text: &str) -> Result<i32, ArgError> {
+    match text.parse::<i32>() {
+        Ok(count) if (1..=MAX_ASR_THREADS).contains(&count) => Ok(count),
+        _ => Err(ArgError::AsrThreadsUnsupported),
+    }
+}
+
 /// `--lang`: a language that has a recognizer of its own.
 fn lang_of(text: &str) -> Result<String, ArgError> {
     if is_routable(text) {
@@ -274,6 +290,7 @@ impl Args {
             final_midway: true,
             held_reuse: HeldReuse::Covering,
             draft_worker: false,
+            asr_threads: THREADS,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -300,6 +317,7 @@ impl Args {
             "--final-lid" => self.final_midway = final_lid_of(value_of(rest)?)?,
             "--held-reuse" => self.held_reuse = held_reuse_of(value_of(rest)?)?,
             "--draft-worker" => self.draft_worker = draft_worker_of(value_of(rest)?)?,
+            "--asr-threads" => self.asr_threads = asr_threads_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -677,6 +695,38 @@ mod tests {
             "draft_worker_unsupported"
         );
         Ok(())
+    }
+
+    /// T-BR-39-001
+    #[test]
+    fn asr_threads_starts_at_the_recognizer_default_and_takes_one_to_thirty_two()
+    -> Result<(), ArgError> {
+        assert_eq!(run(&["--wav", "a"])?.asr_threads, THREADS);
+        for (text, count) in [("1", 1), ("4", 4), ("8", 8), ("32", 32)] {
+            let parsed = run(&["--wav", "a", "--asr-threads", text])?;
+            assert_eq!(parsed.asr_threads, count, "{text}");
+        }
+        Ok(())
+    }
+
+    /// T-BR-39-002
+    #[test]
+    fn asr_threads_refuses_what_is_not_a_whole_number_from_one_to_thirty_two() {
+        for text in ["0", "33", "-1", "8.5", "", "four", "2147483648"] {
+            assert_eq!(
+                run(&["--wav", "a", "--asr-threads", text]).err(),
+                Some(ArgError::AsrThreadsUnsupported),
+                "{text:?}"
+            );
+        }
+        assert_eq!(
+            run(&["--wav", "a", "--asr-threads"]).err(),
+            Some(ArgError::MissingValue)
+        );
+        assert_eq!(
+            ArgError::AsrThreadsUnsupported.key(),
+            "asr_threads_unsupported"
+        );
     }
 
     /// T-IP-03-019

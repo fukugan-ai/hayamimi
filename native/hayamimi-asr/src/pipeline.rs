@@ -83,6 +83,9 @@ pub struct Settings {
     /// thread with recognizers of its own, so that a draft never holds the
     /// feed back. Off: the drafts are read on the thread that feeds.
     pub draft_worker: bool,
+    /// How many threads each recognizer (the Japanese one and the English
+    /// one, and those of the draft worker) uses.
+    pub asr_threads: i32,
 }
 
 impl Settings {
@@ -101,6 +104,7 @@ impl Settings {
             // The library keeps the silence rule; the `hayamimi` command line asks for the early one.
             endpoint: Mode::Silence,
             draft_worker: false,
+            asr_threads: THREADS,
         }
     }
 }
@@ -511,7 +515,7 @@ fn open_route(
         Mode::Silence => Vad::open(&settings.models, settings.vad),
     };
     let vad = open_or_disable(opened, Stage::Vad, fallbacks)?;
-    let mut recognizers = Recognizers::new(&settings.models, THREADS, settings.max_resident);
+    let mut recognizers = recognizers_of(settings);
     let recognizer_out = recognizers.load(Tier::Rz)?;
     if let Some(reason) = recognizer_out {
         fallbacks.push(disabled(Stage::Recognizer, reason));
@@ -553,14 +557,26 @@ fn open_drafter(settings: &Settings, routed: bool) -> Drafter {
     if !settings.draft_worker || !routed {
         return Drafter::inline();
     }
-    let models = settings.models.clone();
-    let max_resident = settings.max_resident;
+    let settings = settings.clone();
+    Drafter::start_or_inline(move || worker_reader(&settings))
+}
+
+/// The recognizers of a run, each opened with the thread count the settings name.
+fn recognizers_of(settings: &Settings) -> Recognizers {
+    Recognizers::new(
+        &settings.models,
+        settings.asr_threads,
+        settings.max_resident,
+    )
+}
+
+/// The reader of the draft worker: recognizers of its own, opened with the
+/// thread count the settings name, and the tiers it loads before its first draft.
+fn worker_reader(settings: &Settings) -> WorkerReader {
     let preload: Vec<Tier> = std::iter::once(Tier::Rz)
         .chain(english_tier_to_preload(&settings.policy))
         .collect();
-    Drafter::start_or_inline(move || {
-        WorkerReader::new(Recognizers::new(&models, THREADS, max_resident), preload)
-    })
+    WorkerReader::new(recognizers_of(settings), preload)
 }
 
 /// The device the punctuation model is tried on first. A start that found no
@@ -1468,6 +1484,24 @@ mod tests {
         assert_eq!(settings.vad, VadSettings::default());
         assert!(settings.replacements.is_empty());
         assert!(!settings.diagnose);
+    }
+
+    /// T-BR-39-003
+    #[test]
+    fn the_recognizers_of_a_run_are_opened_with_the_thread_count_of_its_settings() {
+        let mut settings = Settings::new(PathBuf::from("models"));
+        assert_eq!(settings.asr_threads, THREADS);
+        assert_eq!(recognizers_of(&settings).threads(), THREADS);
+        settings.asr_threads = 8;
+        assert_eq!(recognizers_of(&settings).threads(), 8);
+    }
+
+    /// T-BR-39-004
+    #[test]
+    fn the_draft_worker_opens_its_recognizers_with_the_same_thread_count() {
+        let mut settings = Settings::new(PathBuf::from("models"));
+        settings.asr_threads = 8;
+        assert_eq!(worker_reader(&settings).threads(), 8);
     }
 
     #[test]

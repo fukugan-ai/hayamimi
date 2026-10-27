@@ -311,6 +311,11 @@ impl Recognizers {
         }
     }
 
+    /// How many threads each recognizer this engine opens uses.
+    pub fn threads(&self) -> i32 {
+        self.threads
+    }
+
     /// Makes `tier` resident. `Ok(None)` when it is; `Ok(Some(reason))` when
     /// it cannot be used here. Only a failure that is not about the model is an error.
     pub fn load(&mut self, tier: Tier) -> Result<Option<Reason>, AsrError> {

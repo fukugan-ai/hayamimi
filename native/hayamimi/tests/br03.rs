@@ -173,6 +173,28 @@ const DRAFT_WORKER_OFF: Variant = Variant {
     judges_draft: false,
 };
 
+/// The programs with each recognizer reading on eight threads (IP-S18).
+const ASR_THREADS_EIGHT: Variant = Variant {
+    step: "br03_ip_s18",
+    title: "BR-3 の IP-S18 の後の値（認識器の thread を 8 にした run）",
+    flags: Flags {
+        hayamimi: &["--asr-threads", "8"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// IP-S18 with the count it replaces: each recognizer reads on four threads.
+const ASR_THREADS_FOUR: Variant = Variant {
+    step: "br03_ip_s18_four",
+    title: "BR-3 の IP-S18 の対照（認識器の thread を 4 にした run）",
+    flags: Flags {
+        hayamimi: &["--asr-threads", "4"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
 /// The file of the record called `step` that ends in `suffix`.
 fn record_named(step: &str, suffix: &str) -> PathBuf {
     Path::new(REPO)
@@ -399,6 +421,20 @@ fn the_run_with_the_draft_worker_off_is_recorded() -> TestResult {
         "the logs of the run have no line of asr.partial.read"
     );
     Ok(())
+}
+
+/// T-BR-39-006
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_eight_asr_threads_is_recorded() -> TestResult {
+    record_run(&ASR_THREADS_EIGHT)
+}
+
+/// T-BR-39-007
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_four_asr_threads_is_recorded() -> TestResult {
+    record_run(&ASR_THREADS_FOUR)
 }
 
 /// How the segments the `silence` rule closed in a run were turned into text,

@@ -490,6 +490,27 @@ grep -c '"event":"asr.draft.ready"' <hayamimi の stdout を残した file>
 0 件の判定は、同じ command の中で、必ず出る `asr.partial.read` も数えて、非 0 の対照を並べます。
 旗を外す時は `--draft-worker off` にします。
 
+## 認識器の thread 数を決める（`--asr-threads`）
+
+認識器は、確定文と速報の音を文字にするモデルです（日本語は `rz`、`--mode pair` の英語は `v3`）。
+1 回の読みに使う CPU の thread 数は、既定で 4 です。
+`--asr-threads <n>` で、1 から 32 の整数に変えられます。
+この数は、確定文の認識器と、`--draft-worker on` の専用の認識器の両方に同じ値で渡ります。
+言語判定、VAD、句読点、話者の thread 数は変わりません。
+`--draft-worker on` と重ねると、確定文の読みと速報の読みが同時に走るので、使う thread は最大でこの数の 2 倍になります。
+
+thread を増やして読みが速くなるかは、モデルと音の長さで変わります。
+効きは、BR-3 の run の確定文の `decode_ms` を、`tier`（`rz` か `v3`）と音の長さ（`audio_s`）ごとに数えて確かめます。
+
+```bash
+jq -r 'select(.event.type=="final") | .event | [.tier, .audio_s, .decode_ms] | @tsv' <events.jsonl を残した file>
+jq -r 'select(.event.type=="partial") | .event.type' <events.jsonl を残した file> | wc -l
+```
+
+0 件の判定は、同じ command の中で、必ず出る `partial` も数えて、非 0 の対照を並べます。
+範囲の外の値（0、33、負の数、小数、空、数でない語）は、起動の時に拒否します。
+旗を外す時は `--asr-threads 4` にします。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash

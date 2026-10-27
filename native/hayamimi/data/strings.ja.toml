@@ -83,6 +83,7 @@ options:
   --final-lid <rule>  --mode pair のとき、midway（既定）は声が 4 秒に届いた時に聞き取った言語を確定文の言語にする、close は発話が終わった時にだけ聞く
   --held-reuse <rule>  covering（既定）は、早い終わりの通知で読んだ文が無音の中で終わっていれば、それを確定文にして読み直さない、strict は終わりが 1 窓（32 ms）以内の時だけそうする
   --draft-worker <on|off>  on は進行中の発話の速報を、専用の認識器を持つ専用の thread で読み、速報が feed を止めないようにする（既定は off。認識器が memory に増える）
+  --asr-threads <n>    認識器 1 つが使う thread の数。1 から 32 の整数（既定は 4）
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
@@ -101,6 +102,7 @@ partial_lid_unsupported = "--partial-lid は on、off のどちらかです。"
 final_lid_unsupported = "--final-lid は midway、close のどちらかです。"
 held_reuse_unsupported = "--held-reuse は covering、strict のどちらかです。"
 draft_worker_unsupported = "--draft-worker は on、off のどちらかです。"
+asr_threads_unsupported = "--asr-threads は 1 から 32 の整数です。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"
