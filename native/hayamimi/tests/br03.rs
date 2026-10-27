@@ -19,7 +19,10 @@
 //! `silence` closes were read by, the finals that differ between the runs, and
 //! the end of the finals made from a kept sentence. Two more (T-BR-37-012 and
 //! 013) play it with the language of a final decided in the middle of an
-//! utterance, and with that measure of IP-S20 switched off.
+//! utterance, and with that measure of IP-S20 switched off. The row T-BR-37-014
+//! reads the log and the events of those two records: the finals of the two
+//! runs, the finals whose language was the answer of the question put when the
+//! voice reached four seconds, and those questions.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -677,6 +680,150 @@ fn the_finals_covering_made_from_kept_sentences_end_with_no_pause_mark() -> Test
     assert!(
         ending.is_empty(),
         "finals made from a kept sentence end with a pause mark: {ending:?}"
+    );
+    Ok(())
+}
+
+/// The numbers of the utterances whose `asr.utterance.timed` line says the
+/// identifier took no time for the final (`lid_ms` is 0): the finals whose
+/// language was the answer to the question put when the voice reached four
+/// seconds.
+fn without_a_question(log: &str) -> Result<Vec<u64>, Failure> {
+    let mut numbers = Vec::new();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.utterance.timed"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let (Some(number), Some(lid_ms)) = (row["id"].as_u64(), row["lid_ms"].as_f64()) else {
+            return Err(format!("a timed line with no id or lid_ms: {line}"));
+        };
+        if lid_ms == 0.0 {
+            numbers.push(number);
+        }
+    }
+    Ok(numbers)
+}
+
+/// The least voice, in milliseconds, of the question that is put for the final.
+const FOUR_SECONDS_MS: u64 = 4000;
+
+/// How many `asr.partial.lang.asked` lines of the log are for a voice of four
+/// seconds or more: the question put for the final, not the one for the drafts.
+fn four_second_questions(log: &str) -> Result<usize, Failure> {
+    let mut asked = 0;
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.partial.lang.asked"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let Some(voice_ms) = row["voice_ms"].as_u64() else {
+            return Err(format!("an asked line with no voice_ms: {line}"));
+        };
+        if voice_ms >= FOUR_SECONDS_MS {
+            asked += 1;
+        }
+    }
+    Ok(asked)
+}
+
+/// The ids of the finals that are not the same in the two lists: a final whose
+/// id, language or text differs, and a final that only one list has.
+fn differing(first: &[Final], second: &[Final]) -> Vec<String> {
+    let mut ids: Vec<String> = first
+        .iter()
+        .zip(second)
+        .filter(|(one, other)| one != other)
+        .map(|(one, _)| one.0.to_owned())
+        .collect();
+    let (long, short) = if first.len() > second.len() {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    ids.extend(long[short.len()..].iter().map(|extra| extra.0.to_owned()));
+    ids
+}
+
+/// An `asr.utterance.timed` line of a run's log.
+fn timed_line(id: u64, lid_ms: &str) -> String {
+    format!("{{\"event\":\"asr.utterance.timed\",\"id\":{id},\"lid_ms\":{lid_ms}}}\n")
+}
+
+/// An `asr.partial.lang.asked` line of a run's log.
+fn asked_line(voice_ms: u64) -> String {
+    format!(
+        "{{\"event\":\"asr.partial.lang.asked\",\"answer\":\"ja\",\"lid_ms\":98.5,\"voice_ms\":{voice_ms}}}\n"
+    )
+}
+
+/// T-BR-37-014
+#[test]
+fn the_midway_and_close_runs_name_the_same_finals_and_only_midway_skips_the_question() -> TestResult
+{
+    let log = [
+        timed_line(1, "113.176"),
+        timed_line(2, "0.0"),
+        timed_line(3, "88.5"),
+        timed_line(4, "0.0"),
+    ]
+    .concat();
+    assert_eq!(without_a_question(&log)?, [2, 4]);
+    assert!(without_a_question(&timed_line(1, "38.0"))?.is_empty());
+    assert!(without_a_question("{\"event\":\"asr.utterance.timed\",\"id\":1}\n").is_err());
+    let asked = [
+        asked_line(2016),
+        asked_line(3999),
+        asked_line(4000),
+        asked_line(5200),
+    ]
+    .concat();
+    assert_eq!(four_second_questions(&asked)?, 2);
+    assert_eq!(four_second_questions("")?, 0);
+    assert!(four_second_questions("{\"event\":\"asr.partial.lang.asked\"}\n").is_err());
+    let made = |id: &str, lang: &str, text: &str| {
+        (String::from(id), String::from(lang), String::from(text))
+    };
+    let same = vec![made("file-1", "ja", "あ"), made("file-2", "en", "b")];
+    assert!(differing(&same, &same).is_empty());
+    let other_lang = vec![made("file-1", "ja", "あ"), made("file-2", "ja", "b")];
+    assert_eq!(differing(&same, &other_lang), [String::from("file-2")]);
+    let other_text = vec![made("file-1", "ja", "い"), made("file-2", "en", "b")];
+    assert_eq!(differing(&same, &other_text), [String::from("file-1")]);
+    let longer = vec![same[0].clone(), same[1].clone(), made("file-3", "en", "c")];
+    assert_eq!(differing(&same, &longer), [String::from("file-3")]);
+    assert_eq!(differing(&longer, &same), [String::from("file-3")]);
+
+    let midway_log = read(&record_of(&FINAL_LID_MIDWAY, ".log.jsonl"))?;
+    let close_log = read(&record_of(&FINAL_LID_CLOSE, ".log.jsonl"))?;
+    let midway = finals_of(&read(&record_of(&FINAL_LID_MIDWAY, ".events.jsonl"))?)?;
+    let close = finals_of(&read(&record_of(&FINAL_LID_CLOSE, ".events.jsonl"))?)?;
+    assert!(!midway.is_empty(), "the midway run made no final");
+    let stray = differing(&midway, &close);
+    assert!(
+        stray.is_empty(),
+        "the two runs differ in these finals: {stray:?}"
+    );
+    let skipped = without_a_question(&midway_log)?;
+    let asked = four_second_questions(&midway_log)?;
+    assert!(
+        !skipped.is_empty(),
+        "no final of the midway run took its language from the four-second question"
+    );
+    assert!(
+        skipped.len() <= asked,
+        "{} finals skipped the question and {asked} questions were put",
+        skipped.len()
+    );
+    let kept = without_a_question(&close_log)?;
+    assert!(
+        kept.is_empty(),
+        "finals of the close run that did not ask: {kept:?}"
+    );
+    assert_eq!(
+        four_second_questions(&close_log)?,
+        0,
+        "the close run put a question for a final"
     );
     Ok(())
 }
