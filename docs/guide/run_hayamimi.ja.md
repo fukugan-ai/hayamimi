@@ -561,19 +561,23 @@ bash scripts/check-records.sh ~/.cache/hayamimi-main-lock/readers-ok cargo
 優先度、利用者、target directory、`cargo-slot` などを付ける機械では、それらを `cargo` まで並べます。
 script は、その後ろに `test --release --jobs 2 --no-fail-fast -p <crate> --test <名前> ...` を足して打ちます。
 
-読む test は、`docs/results` を名指す `native/<crate>/tests/<名前>.rs` のうち、CI の行（`.github/workflows/test.yml` の `cargo test` の行）の `--test` に在る物です。
+読む test は、`docs/results` を字面で書くか、test の共通部分の `RESULTS`（`docs/results` を指す定数）を使う `native/<crate>/tests/<名前>.rs` のうち、CI の行（`.github/workflows/test.yml` の `cargo test` の行）の `--test` に在る物です。
 その中から、`origin/main` との差で変わった directory を名指す物だけを打ちます。
-directory を字面で名指さない物は、必ず打ちます。
+移動した file は、元の directory も変わった directory に数えます。
+directory を字面で名指さない物と、`RESULTS` を使う物は、必ず打ちます。
 一覧は毎回 CI の行から導くので、読む test が増えても script は書き換えません。
 
 印は、HEAD の sha と時刻を 1 行にした file です。
 `main` への push が `docs/results/` の file を変えるとき、`.git/hooks/pre-push`（`main-lock`）は、印の sha が push する commit と同じでなければ止めます。
 印は、test が全部通ったときだけ書かれます。
 
-script が止まる形は 5 つです。
+script が止まる形は 8 つです。
 
 | 出る言葉 | 意味 | exit |
 |---|---|---|
+| `the mark file is missing` | 印の file を渡していない | 2 |
+| `the words that start cargo are missing` | `cargo` を起こす語を渡していない | 2 |
+| `origin/main does not resolve` | `origin/main` が無い。`git fetch origin` を打つ | 2 |
 | `tracked files differ from HEAD` | 木に commit していない変更がある。印は HEAD の sha を指すので、commit してから打つ | 2 |
 | `no file under docs/results differs from origin/main` | 差分に記録が無い。印は要らない | 2 |
 | `fewer than 2 readers` | CI の行から読み手を導けない。行の書き方が変わった | 2 |
