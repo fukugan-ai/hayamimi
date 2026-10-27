@@ -253,6 +253,17 @@ fn the_reach_of_each_flag_and_close_is_the_one_in_the_design() -> TestResult {
             "{rule:?}"
         );
     }
+    for rule in [Rule::MaxSpeech, Rule::Flush, Rule::Early] {
+        let carrying = Decision {
+            silence_ms: SILENCE_MS,
+            ..closed_by(rule)
+        };
+        assert_eq!(
+            reach_for(HeldReuse::Covering, &carrying),
+            Reach::ONE_WINDOW,
+            "{rule:?} that carries a silence"
+        );
+    }
     assert_eq!(reach_for(HeldReuse::Strict, &silence), Reach::ONE_WINDOW);
     assert_eq!(
         Reach::ONE_WINDOW,
