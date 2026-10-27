@@ -908,7 +908,7 @@ RP-79 は、この event の `id` を `final` と結び、広げた判定で確�
 
 `asr.endpoint.decided` は、主検出器の segment が何で文になったかを `plan` で持つ。`held` は早い検出器が持った文をそのまま使った時、`decode` は segment 全体を読んだ時、`rest` は早い検出器が確定した線より後ろだけを読んだ時である。
 持った文が在ったのに使わず読み直した時は、`held_gap_ms` に、持った文の範囲の終わりと segment の終わりの差を、符号つきの ms で載せる。持った文の範囲が segment より後で終わっていれば正、前で終わっていれば負である。持った文が無い時と、使った時は載せない。
-持った文を使う許容は、前へは 1 窓（`WINDOW`、512 sample、32 ms）で、後ろへは引数 `--held-reuse` が決める。`strict` は後ろも 1 窓である。`covering`（既定）は、規則 `silence` で閉じた segment に限り、その規則が待った無音（`silence_ms`）までである。`max_speech` と `flush` で閉じた segment は、`covering` でも後ろへ 1 窓である。
+持った文を使う許容は、持った文の範囲の終わりと segment の終わりの差が、前へも後ろへも、引数 `--held-reuse` の決める幅の内であることである。`strict` は前後とも 1 窓（`WINDOW`、512 sample、32 ms）である。`covering`（既定）は、規則 `silence` で閉じた segment に限り、前後とも、その規則が待った無音（`silence_ms`）までである。`max_speech` と `flush` で閉じた segment は、`covering` でも前後とも 1 窓である。
 項目 `plan` と `held_gap_ms` は判定を変えない。持った文を使い回せる率と、差の分布を log から数えるために在る。
 
 ### 3.14 言語の切り替え（i18n）

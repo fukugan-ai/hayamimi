@@ -215,14 +215,16 @@ impl Reach {
     }
 }
 
-/// How far a kept sentence's range may run on past the end of the segment.
+/// How far the end of a kept sentence's range may be from the end of the
+/// segment, either way.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum HeldReuse {
-    /// One window past the end.
+    /// One window.
     Strict,
     /// Also as far as the silence the closing rule waited for: the detector
-    /// counts that silence as no voice, so the sentence has read no speech
-    /// the segment does not hold.
+    /// counts that silence as no voice, so the part of the segment the
+    /// sentence did not read holds no speech, and the part of the sentence
+    /// past the segment holds none either.
     #[default]
     Covering,
 }
@@ -231,10 +233,13 @@ pub enum HeldReuse {
 pub fn reach_for(reuse: HeldReuse, decision: &Decision) -> Reach {
     match reuse {
         HeldReuse::Strict => Reach::ONE_WINDOW,
-        HeldReuse::Covering => Reach {
-            ahead: Reach::ONE_WINDOW.ahead.max(silence_samples(decision)),
-            ..Reach::ONE_WINDOW
-        },
+        HeldReuse::Covering => {
+            let silence = silence_samples(decision);
+            Reach {
+                behind: Reach::ONE_WINDOW.behind.max(silence),
+                ahead: Reach::ONE_WINDOW.ahead.max(silence),
+            }
+        }
     }
 }
 

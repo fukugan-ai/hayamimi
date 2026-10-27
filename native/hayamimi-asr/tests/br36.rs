@@ -1,6 +1,7 @@
 //! BR-36: a sentence the early detector kept is the final of a segment when it
-//! was read to a point inside the silence that closed the segment, and is read
-//! again when it was read short, past the silence, or with voice after it.
+//! was read to a point inside the silence that closed the segment, before or
+//! after the end of the segment, and is read again when it was read to a point
+//! further from the end than that silence, or with voice after it.
 //!
 //! The state is driven through the same calls the engine makes: `hold` when the
 //! detector keeps a sentence, `note_voice` when it hears more voice, and
@@ -91,13 +92,14 @@ fn a_held_sentence_read_one_window_short_is_used_by_both_flags() -> TestResult {
 
 /// T-BR-36-003
 #[test]
-fn a_held_sentence_read_more_than_one_window_short_is_read_again_by_both_flags() -> TestResult {
-    for reuse in BOTH {
-        let (plan, gap) = planned(reuse, Rule::Silence, SEG_END - WINDOW - 1, false);
-        assert_eq!(plan, Plan::Whole, "{reuse:?}");
-        assert_eq!(gap, Some(Gap::Short(WINDOW + 1)), "{reuse:?}");
-        assert_eq!(logged_gap(&plan, gap), Some(-32), "{reuse:?}");
-    }
+fn a_held_sentence_read_more_than_one_window_short_is_used_by_covering() -> TestResult {
+    let range_end = SEG_END - WINDOW - 1;
+    let (covering, _) = planned(HeldReuse::Covering, Rule::Silence, range_end, false);
+    assert!(is_held(&covering, SEG_START), "{covering:?}");
+    let (strict, gap) = planned(HeldReuse::Strict, Rule::Silence, range_end, false);
+    assert_eq!(strict, Plan::Whole);
+    assert_eq!(gap, Some(Gap::Short(WINDOW + 1)));
+    assert_eq!(logged_gap(&strict, gap), Some(-32));
     Ok(())
 }
 
@@ -124,6 +126,31 @@ fn a_held_sentence_read_past_the_closing_silence_is_read_again_by_both_flags() -
     Ok(())
 }
 
+/// T-BR-36-016
+#[test]
+fn a_held_sentence_read_short_inside_the_closing_silence_is_used_by_covering() -> TestResult {
+    let typical = SEG_END - NOTICE_SILENCE - WINDOW;
+    for range_end in [typical, SEG_END - SILENCE] {
+        let (covering, _) = planned(HeldReuse::Covering, Rule::Silence, range_end, false);
+        assert!(is_held(&covering, SEG_START), "{range_end} {covering:?}");
+        let (strict, gap) = planned(HeldReuse::Strict, Rule::Silence, range_end, false);
+        assert_eq!(strict, Plan::Whole, "{range_end}");
+        assert_eq!(gap, Some(Gap::Short(SEG_END - range_end)), "{range_end}");
+    }
+    Ok(())
+}
+
+/// T-BR-36-017
+#[test]
+fn a_held_sentence_read_short_past_the_closing_silence_is_read_again_by_both_flags() -> TestResult {
+    for reuse in BOTH {
+        let (plan, gap) = planned(reuse, Rule::Silence, SEG_END - SILENCE - 1, false);
+        assert_eq!(plan, Plan::Whole, "{reuse:?}");
+        assert_eq!(logged_gap(&plan, gap), Some(-300), "{reuse:?}");
+    }
+    Ok(())
+}
+
 /// T-BR-36-006
 #[test]
 fn a_held_sentence_with_voice_after_it_is_never_used() -> TestResult {
@@ -142,6 +169,9 @@ fn a_close_without_silence_gets_no_wider_reach() -> TestResult {
         let (plan, gap) = planned(HeldReuse::Covering, rule, SEG_END + NOTICE_SILENCE, false);
         assert_eq!(plan, Plan::Whole, "{rule:?}");
         assert_eq!(logged_gap(&plan, gap), Some(120), "{rule:?}");
+        let (short, short_gap) = planned(HeldReuse::Covering, rule, SEG_END - WINDOW - 1, false);
+        assert_eq!(short, Plan::Whole, "{rule:?}");
+        assert_eq!(logged_gap(&short, short_gap), Some(-32), "{rule:?}");
     }
     Ok(())
 }
@@ -173,7 +203,7 @@ fn the_reach_of_each_flag_and_close_is_the_one_in_the_design() -> TestResult {
     assert_eq!(
         reach_for(HeldReuse::Covering, &silence),
         Reach {
-            behind: WINDOW,
+            behind: SILENCE,
             ahead: SILENCE
         }
     );
