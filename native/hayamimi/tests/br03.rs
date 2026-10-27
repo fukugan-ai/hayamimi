@@ -12,7 +12,12 @@
 //! Two more real runs (T-BR-03-017 and 018) start the programs with the
 //! measures of IP-S8 and of IP-S7 switched off by their flags, so that the
 //! values of the programs as they are can be set beside the values without each
-//! measure, taken on the same machine.
+//! measure, taken on the same machine. Two more (T-BR-36-012 and 013) play the
+//! dialog with a kept sentence used as it is, and with that measure of IP-S17
+//! switched off, to be set beside each other the same way. The rows T-BR-36-014,
+//! 015 and 019 read the log and the events of those two records: the plans the
+//! `silence` closes were read by, the finals that differ between the runs, and
+//! the end of the finals made from a kept sentence.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -27,9 +32,11 @@
 
 mod support;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use hayamimi_eval::latency::{Stage, StageReport, StageRow, stage_report};
+use serde_json::Value;
 use support::dialog::{
     Wait, draft_by_language_text, join_page, judge_budget, render_baseline, spoken_in,
 };
@@ -87,6 +94,30 @@ const BOTH_OFF: Variant = Variant {
     judges_draft: false,
 };
 
+/// The programs as they are after IP-S17: a kept sentence is used when it was
+/// read to a point inside the silence that closed the segment.
+const HELD_COVERING: Variant = Variant {
+    step: "br03_ip_s17",
+    title: "BR-3 の IP-S17 の後の値（持った文を無音の中まで使う）",
+    flags: Flags {
+        hayamimi: &[],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// IP-S17 off: a kept sentence is used only when it ends within one window of
+/// the end of the segment.
+const HELD_STRICT: Variant = Variant {
+    step: "br03_ip_s17_strict",
+    title: "BR-3 の IP-S17 を旗で外した値（持った文を 1 窓の内でだけ使う）",
+    flags: Flags {
+        hayamimi: &["--held-reuse", "strict"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
 /// The file of the variant's record that ends in `suffix`.
 fn record_of(variant: &Variant, suffix: &str) -> PathBuf {
     Path::new(REPO)
@@ -108,14 +139,29 @@ fn scratch() -> Result<PathBuf, Failure> {
 /// The events of the two logs of the run that the speed work reads: where the
 /// detector closed a segment and how far it lagged, the question put to the
 /// identifier in the middle of an utterance, a wait for a slot of the
-/// translation server, a text in progress let go, and the translation of a text
-/// in progress taken over by the line that closed it.
-const EVENTS_KEPT: [&str; 5] = [
+/// translation server, a text in progress let go, the translation of a text in
+/// progress taken over by the line that closed it, and (see
+/// [`ENDPOINT_EVENTS`]) how each segment was closed and read.
+const EVENTS_KEPT: [&str; 9] = [
     "asr.vad.closed",
     "asr.partial.lang.asked",
     "translate.slot.waited",
     "translate.partial.skipped",
     "translate.draft.reused",
+    "asr.endpoint.decided",
+    "asr.endpoint.held",
+    "asr.utterance.timed",
+    "asr.feed.waited",
+];
+
+/// The events of [`EVENTS_KEPT`] that every run has: the rule and the plan that
+/// made each final, a sentence the early detector kept, the stages of the
+/// reading of an utterance, and the wait for the audio to reach the engine.
+const ENDPOINT_EVENTS: [&str; 4] = [
+    "asr.endpoint.decided",
+    "asr.endpoint.held",
+    "asr.utterance.timed",
+    "asr.feed.waited",
 ];
 
 /// The lines of the logs of the run in `work` that name one of [`EVENTS_KEPT`].
@@ -194,10 +240,11 @@ fn record_run(variant: &Variant) -> TestResult {
     )?;
     keep(&record_of(variant, ".jsonl"), samples.as_bytes())?;
     keep(&record_of(variant, ".events.jsonl"), events.as_bytes())?;
-    keep(
-        &record_of(variant, ".log.jsonl"),
-        kept_lines(&work)?.as_bytes(),
-    )?;
+    let kept = kept_lines(&work)?;
+    keep(&record_of(variant, ".log.jsonl"), kept.as_bytes())?;
+    if let Some(missing) = ENDPOINT_EVENTS.iter().find(|event| !kept.contains(**event)) {
+        return Err(format!("the logs of the run have no line of {missing}").into());
+    }
     if JUDGE_AFTER_B2 {
         judge_budget(&joined.warm, &joined.cold_l_page_ms)?;
     }
@@ -226,6 +273,367 @@ fn the_run_with_the_final_translation_not_yielding_is_recorded() -> TestResult {
 #[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
 fn the_run_with_both_measures_switched_off_is_recorded() -> TestResult {
     record_run(&BOTH_OFF)
+}
+
+/// T-BR-36-012
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_covering_held_reuse_is_recorded() -> TestResult {
+    record_run(&HELD_COVERING)
+}
+
+/// T-BR-36-013
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_strict_held_reuse_is_recorded() -> TestResult {
+    record_run(&HELD_STRICT)
+}
+
+/// How the segments the `silence` rule closed in a run were turned into text,
+/// counted from the run's `asr.endpoint.decided` lines (design 10.13.4, hand 9).
+#[derive(Debug, Default, PartialEq, Eq)]
+struct HeldCounts {
+    /// Segments the `silence` rule closed that made a final.
+    silence: usize,
+    /// Of them, the sentence the early detector kept was used as it was.
+    held: usize,
+    /// The whole segment was read.
+    decode: usize,
+    /// What follows the early line was read.
+    rest: usize,
+    /// Of the segments read again although a sentence had been kept, those
+    /// whose kept sentence was read to a point at or after the segment's end.
+    over: usize,
+    /// Of the same, those whose kept sentence was read to a point before it.
+    short: usize,
+}
+
+/// Counts the `silence` closes of a run's log lines by the plan that made their
+/// final. A plan the design does not name, or a `silence` close with none, is
+/// an error: the lines would no longer mean what the count says.
+fn held_counts(log: &str) -> Result<HeldCounts, Failure> {
+    let mut counts = HeldCounts::default();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.endpoint.decided"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        if row["rule"] != "silence" {
+            continue;
+        }
+        counts.silence += 1;
+        match row["plan"].as_str() {
+            Some("held") => counts.held += 1,
+            Some("decode") => counts.decode += 1,
+            Some("rest") => counts.rest += 1,
+            Some(other) => return Err(format!("a plan the design does not name: {other}")),
+            None => return Err(String::from("a silence close with no plan")),
+        }
+        match row["held_gap_ms"].as_i64() {
+            Some(gap) if gap >= 0 => counts.over += 1,
+            Some(_) => counts.short += 1,
+            None => {}
+        }
+    }
+    Ok(counts)
+}
+
+/// T-BR-36-014
+#[test]
+fn the_held_plan_counts_and_signed_gaps_of_a_run_are_counted_from_its_log() -> TestResult {
+    let decided = |fields: &str| format!("{{\"event\":\"asr.endpoint.decided\",{fields}}}\n");
+    let log = [
+        decided("\"id\":1,\"rule\":\"silence\",\"silence_ms\":300,\"plan\":\"decode\",\"held_gap_ms\":120"),
+        decided("\"id\":2,\"rule\":\"silence\",\"silence_ms\":300,\"plan\":\"decode\",\"held_gap_ms\":-40"),
+        decided("\"id\":3,\"rule\":\"silence\",\"silence_ms\":300,\"plan\":\"held\""),
+        decided("\"id\":4,\"rule\":\"early\",\"silence_ms\":120"),
+        String::from("{\"event\":\"asr.endpoint.held\",\"reason\":\"incomplete\"}\n"),
+    ]
+    .concat();
+    assert_eq!(
+        held_counts(&log)?,
+        HeldCounts {
+            silence: 3,
+            held: 1,
+            decode: 2,
+            rest: 0,
+            over: 1,
+            short: 1,
+        }
+    );
+    let unnamed = decided("\"id\":5,\"rule\":\"silence\",\"plan\":\"guess\"");
+    assert!(held_counts(&unnamed).is_err());
+    let planless = decided("\"id\":6,\"rule\":\"silence\"");
+    assert!(held_counts(&planless).is_err());
+    assert_eq!(held_counts("")?, HeldCounts::default());
+    Ok(())
+}
+
+/// The `(id, lang, text)` of every `final` of a record's events, in the order
+/// the record has them.
+fn finals_of(events: &str) -> Result<Vec<(String, String, String)>, Failure> {
+    let mut finals = Vec::new();
+    for line in events.lines() {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let event = &row["event"];
+        if event["type"] != "final" {
+            continue;
+        }
+        let field = |key: &str| event[key].as_str().map(str::to_string);
+        match (field("id"), field("lang"), field("text")) {
+            (Some(id), Some(lang), Some(text)) => finals.push((id, lang, text)),
+            _ => return Err(format!("a final with no id, lang or text: {line}")),
+        }
+    }
+    Ok(finals)
+}
+
+/// A line of a record's events: a `final` of `lang` that says `text`.
+fn final_line(id: &str, lang: &str, text: &str) -> String {
+    let event = serde_json::json!({"type": "final", "id": id, "lang": lang, "text": text});
+    format!("{}\n", serde_json::json!({"event": event, "t_us": 1}))
+}
+
+/// A `final` of a record: its id, its language and its text.
+type Final = (String, String, String);
+
+/// The plan of every final of a run (`held`, `decode`, `rest`; none for an
+/// early close), by the number of the final.
+type Plans = BTreeMap<u64, Option<String>>;
+
+/// The number in the id of a final (`file-3` is 3), which is the number the
+/// `asr.endpoint.decided` line of that final carries.
+fn number_of(id: &str) -> Result<u64, Failure> {
+    id.strip_prefix("file-")
+        .and_then(|number| number.parse().ok())
+        .ok_or_else(|| format!("the id {id} is not file-<number>"))
+}
+
+/// The plans of a run, from its `asr.endpoint.decided` lines.
+fn plans_of(log: &str) -> Result<Plans, Failure> {
+    let mut plans = Plans::new();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.endpoint.decided"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let Some(number) = row["id"].as_u64() else {
+            return Err(format!("an endpoint line with no number: {line}"));
+        };
+        plans.insert(number, row["plan"].as_str().map(str::to_string));
+    }
+    Ok(plans)
+}
+
+/// Whether the run whose plans are `plans` made the final `number` from the
+/// sentence the early detector kept.
+fn made_from_kept(plans: &Plans, number: u64) -> bool {
+    plans
+        .get(&number)
+        .is_some_and(|plan| plan.as_deref() == Some("held"))
+}
+
+/// The pause marks of English and Japanese that a sentence closed by the
+/// `silence` rule does not end with when its final was made from a kept sentence.
+const PAUSE_MARKS: [char; 5] = [',', ';', ':', '、', '，'];
+
+/// A text without the pause marks and the full stops at its end: the one place
+/// where `covering` writes a mark that `strict` does not, for a sentence both
+/// made from the kept one.
+fn without_end_marks(text: &str) -> &str {
+    text.trim_end()
+        .trim_end_matches(|mark: char| mark == '.' || mark == '。' || PAUSE_MARKS.contains(&mark))
+}
+
+/// The ids of the finals whose text differs between a covering run and a strict
+/// run (`plans` of the two, in that order), apart from the marks at its end,
+/// although covering did not make the final from a kept sentence that strict
+/// read again.
+fn unexplained(
+    covering: &[Final],
+    strict: &[Final],
+    plans: [&Plans; 2],
+) -> Result<Vec<String>, Failure> {
+    let mut ids = Vec::new();
+    for (covered, read_again) in covering.iter().zip(strict) {
+        if without_end_marks(&covered.2) == without_end_marks(&read_again.2) {
+            continue;
+        }
+        let number = number_of(&covered.0)?;
+        if !made_from_kept(plans[0], number) || made_from_kept(plans[1], number) {
+            ids.push(covered.0.to_owned());
+        }
+    }
+    Ok(ids)
+}
+
+/// T-BR-36-015
+#[test]
+fn the_two_held_reuse_runs_differ_only_in_the_finals_covering_made_from_kept_sentences()
+-> TestResult {
+    let partial = "{\"event\":{\"type\":\"partial\",\"text\":\"a\"},\"t_us\":0}\n";
+    let first = final_line("file-1", "ja", "あ");
+    let second = final_line("file-2", "en", "b");
+    let sample = [partial, first.as_str(), second.as_str()].concat();
+    assert_eq!(
+        finals_of(&sample)?,
+        vec![
+            (
+                String::from("file-1"),
+                String::from("ja"),
+                String::from("あ")
+            ),
+            (
+                String::from("file-2"),
+                String::from("en"),
+                String::from("b")
+            ),
+        ]
+    );
+    let changed = final_line("file-1", "ja", "い");
+    let other = [partial, changed.as_str(), second.as_str()].concat();
+    assert_ne!(finals_of(&sample)?, finals_of(&other)?);
+    assert!(finals_of("{\"event\":{\"type\":\"final\",\"id\":\"file-1\"}}\n").is_err());
+    let line = |id: u64, plan: &str| {
+        format!(
+            "{{\"event\":\"asr.endpoint.decided\",\"id\":{id},\"rule\":\"silence\",\"plan\":\"{plan}\"}}\n"
+        )
+    };
+    let kept = plans_of(&[line(1, "held"), line(2, "decode")].concat())?;
+    let again = plans_of(&[line(1, "decode"), line(2, "decode")].concat())?;
+    let (a, b) = (finals_of(&sample)?, finals_of(&other)?);
+    assert!(unexplained(&a, &b, [&kept, &again])?.is_empty());
+    assert_eq!(
+        unexplained(&a, &b, [&again, &again])?,
+        [String::from("file-1")]
+    );
+    assert_eq!(
+        unexplained(&a, &b, [&kept, &kept])?,
+        [String::from("file-1")]
+    );
+    let full_stop = final_line("file-2", "en", "b.");
+    let comma = final_line("file-2", "en", "b,");
+    let stopped = finals_of(&[partial, first.as_str(), full_stop.as_str()].concat())?;
+    let paused = finals_of(&[partial, first.as_str(), comma.as_str()].concat())?;
+    let marks_only = unexplained(&stopped, &paused, [&again, &again])?;
+    assert!(marks_only.is_empty());
+    assert!(plans_of("{\"event\":\"asr.endpoint.decided\",\"plan\":\"held\"}\n").is_err());
+
+    let record = Path::new(REPO).join("docs/results/in-person");
+    let recorded =
+        |variant: &Variant, suffix: &str| read(&record.join(format!("{}{suffix}", variant.step)));
+    let covering = finals_of(&recorded(&HELD_COVERING, ".events.jsonl")?)?;
+    let strict = finals_of(&recorded(&HELD_STRICT, ".events.jsonl")?)?;
+    assert!(!covering.is_empty(), "the covering run made no final");
+    assert!(
+        covering.len() == strict.len()
+            && covering
+                .iter()
+                .zip(&strict)
+                .all(|(covered, read_again)| covered.0 == read_again.0 && covered.1 == read_again.1),
+        "the two runs did not make the same finals in the same languages"
+    );
+    let covering_log = recorded(&HELD_COVERING, ".log.jsonl")?;
+    let strict_log = recorded(&HELD_STRICT, ".log.jsonl")?;
+    let plans = [plans_of(&covering_log)?, plans_of(&strict_log)?];
+    let stray = unexplained(&covering, &strict, [&plans[0], &plans[1]])?;
+    assert!(
+        stray.is_empty(),
+        "finals differ with no kept sentence behind them: {stray:?}"
+    );
+    let covering_held = held_counts(&covering_log)?;
+    let strict_held = held_counts(&strict_log)?;
+    assert!(
+        covering_held.held > strict_held.held,
+        "covering used {} kept sentences and strict {}",
+        covering_held.held,
+        strict_held.held
+    );
+    Ok(())
+}
+
+/// The numbers of the finals a run made from the sentence the early detector
+/// kept, when the `silence` rule closed the segment, from its
+/// `asr.endpoint.decided` lines.
+fn kept_by_silence(log: &str) -> Result<Vec<u64>, Failure> {
+    let mut numbers = Vec::new();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.endpoint.decided"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        if row["rule"] != "silence" || row["plan"] != "held" {
+            continue;
+        }
+        let Some(number) = row["id"].as_u64() else {
+            return Err(format!("an endpoint line with no number: {line}"));
+        };
+        numbers.push(number);
+    }
+    Ok(numbers)
+}
+
+/// Of the English and Japanese finals whose number is in `numbers`, how many
+/// there are and the ids of those whose text ends with a pause mark.
+fn ending_with_a_pause(finals: &[Final], numbers: &[u64]) -> Result<(usize, Vec<String>), Failure> {
+    let mut checked = 0;
+    let mut ids = Vec::new();
+    for (id, lang, text) in finals {
+        if !matches!(lang.as_str(), "en" | "ja") || !numbers.contains(&number_of(id)?) {
+            continue;
+        }
+        checked += 1;
+        if text.trim_end().ends_with(PAUSE_MARKS) {
+            ids.push(id.to_owned());
+        }
+    }
+    Ok((checked, ids))
+}
+
+/// T-BR-36-019
+#[test]
+fn the_finals_covering_made_from_kept_sentences_end_with_no_pause_mark() -> TestResult {
+    let decided = |fields: &str| format!("{{\"event\":\"asr.endpoint.decided\",{fields}}}\n");
+    let log = [
+        decided("\"id\":1,\"rule\":\"silence\",\"plan\":\"held\""),
+        decided("\"id\":2,\"rule\":\"silence\",\"plan\":\"held\""),
+        decided("\"id\":3,\"rule\":\"silence\",\"plan\":\"decode\""),
+        decided("\"id\":4,\"rule\":\"max_speech\",\"plan\":\"held\""),
+        decided("\"id\":5,\"rule\":\"silence\",\"plan\":\"held\""),
+    ]
+    .concat();
+    let kept = kept_by_silence(&log)?;
+    assert_eq!(kept, [1, 2, 5]);
+    let numberless = decided("\"rule\":\"silence\",\"plan\":\"held\"");
+    assert!(kept_by_silence(&numberless).is_err());
+    let made = |id: &str, lang: &str, text: &str| {
+        (String::from(id), String::from(lang), String::from(text))
+    };
+    let finals = [
+        made("file-1", "en", "He would pay."),
+        made("file-2", "en", "He would pay, "),
+        made("file-3", "en", "He would pay,"),
+        made("file-4", "ja", "雨です、"),
+        made("file-5", "zh", "你好，"),
+    ];
+    assert_eq!(
+        ending_with_a_pause(&finals, &kept)?,
+        (2, vec![String::from("file-2")])
+    );
+    assert!(ending_with_a_pause(&[made("final-1", "en", "a")], &[1]).is_err());
+
+    let record = Path::new(REPO).join("docs/results/in-person");
+    let recorded = |suffix: &str| read(&record.join(format!("{}{suffix}", HELD_COVERING.step)));
+    let kept = kept_by_silence(&recorded(".log.jsonl")?)?;
+    assert!(!kept.is_empty(), "the covering run kept no sentence");
+    let finals = finals_of(&recorded(".events.jsonl")?)?;
+    let (checked, ending) = ending_with_a_pause(&finals, &kept)?;
+    assert_eq!(checked, kept.len(), "a kept sentence has no final");
+    assert!(
+        ending.is_empty(),
+        "finals made from a kept sentence end with a pause mark: {ending:?}"
+    );
+    Ok(())
 }
 
 /// T-BR-03-002

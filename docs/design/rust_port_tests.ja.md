@@ -3737,13 +3737,13 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 - `?relay=` の scheme の大文字小文字、decode した値の前後の空白、`held` の訳の描き方（印と理由を出し、訳の文を出さない）：10.5（T-IP-05-002、012、014、017 から 019）。
 - `--own-llama-port` の型と範囲（`0`、`65535`、`65536`、負の数、空の値、先頭に 0 のある引数、引数の重複）：10.7.1（T-IP-08-013、015 から 022）。
 
-### 4.87 BR-1〜BR-35（対面のモードの磨き上げ）
+### 4.87 BR-1〜BR-36（対面のモードの磨き上げ）
 
 **最新情報**：Chrome DevTools Protocol の CSS domain は、`CSS.getPlatformFontsForNode` が node の子の文字を描いた platform font の使用状況（`familyName`、`postScriptName`、`isCustomFont`、`glyphCount`）を返すと書く（https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json 、取得 2026-10-23）。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
-case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 35 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 11 つである。
+case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 36 まである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 12 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 - BR-5 の `Mailbox` と stream の経路の行（T-BR-05-008 から 018）は `native/hayamimi-relay/src/partial.rs` の `mod tests`、引数の行（020 から 024）は `native/hayamimi-relay/src/cli.rs` の `mod tests`。
@@ -3756,6 +3756,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-22 と BR-23 の実走の行は `native/hayamimi/tests/br21.rs`、BR-25 の実走の行は `native/hayamimi/tests/br24.rs`、BR-31 の実走の行は `native/hayamimi/tests/br30.rs`。
 - BR-26 と BR-27 の中継の行は `native/hayamimi-relay/tests/br26.rs` と `br27.rs`。
 - T-BR-35-004 は `native/hayamimi/src/routes.rs` の `mod tests`。
+- BR-36 の旗の行（T-BR-36-011）は `native/hayamimi/src/args.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 015 と 019）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 010、016 から 018）は `native/hayamimi-asr/tests/br36.rs`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -3796,7 +3797,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 **合否と記録**：
 
-- 合否に置く行は、設計 10.13.7 の合否の ID（BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17、BR-35）と、BR-19 から BR-34 の全行である（BR-26 から BR-31 の合否の置き方は設計 10.13.12 の slice の表が決める）。
+- 合否に置く行は、設計 10.13.7 の合否の ID（BR-1、BR-2、BR-3、BR-4、BR-5、BR-6、BR-11、BR-13、BR-14、BR-15、BR-16、BR-17、BR-35、BR-36）と、BR-19 から BR-34 の全行である（BR-26 から BR-31 の合否の置き方は設計 10.13.12 の slice の表が決める）。
 - BR-7、BR-8、BR-9、BR-10、BR-12、BR-18 の実走の数は記録だけで、行の合否は、数える関数が既知の入力を正しく数えることだけに置く。実走の行は数を記録の file に書き、線の外でも落とさない。
 
 **材料**：
@@ -4447,12 +4448,39 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-35-009 | LAN の相手が `POST /config` を、`Host: localhost`、`X-Forwarded-For: 127.0.0.1`、`Origin: http://127.0.0.1:<port>` を付けて打つ | 名乗りの偽り | 相手の address だけで決める | 403 で、`GET /config` の body が前後で同じ（specified：設計 10.13.6「相手の address が loopback の時だけ受け」。003 の loopback の相手が対照） | 陰性 | `a_lan_peer_cannot_pass_as_loopback_by_headers` |
 | T-BR-35-010 | 中継の hub（`hayamimi_relay::hub::bind_on` と `serve`）を `0.0.0.0` で起こし、LAN の相手が `GET /events` を打つ | 中継は C6 の外 | 今のとおり | 200 で content type が `text/event-stream`、`access-control-allow-origin: *` を持つ（specified：設計 10.13.6 の C6 と BR-35「応答は今のとおり `access-control-allow-origin: *` を持つ」、H69。005 の `hayamimi` の `/events` に頭が無いことの対照で、頭を探す関数が頭の在る応答を見つけられること） | 陽性 | `the_relay_events_reply_keeps_the_cors_header` |
 
+**BR-36（持った文を、区間を閉じた無音の中で読み終えている時に使う。`native/hayamimi-asr/tests/br36.rs`、旗の行は `native/hayamimi/src/args.rs` の `mod tests`、run の記録を読む行は `native/hayamimi/tests/br03.rs`）**
+
+材料：`hayamimi_asr::endpoint` の `State<&str>`、`Reach`、`reach_for`、`closing_text`、`note_plan`、`Decision` を公開の API から使う。標本は 16 kHz で、1 窓（`WINDOW`）は 512 標本（32 ms）、`silence` の閉じの無音は 4800 標本（300 ms）。区間は 1000 から 20000 まで（`seg_start`、`seg_end`）。持った文は `hold("held", range_end, 19000)`（第 3 引数が `floor`）。`Decision` は規則と無音を持ち、`silence` は 300 ms、`max_speech` と `flush` は 0 ms とする。`held_gap_ms` は、読んだ範囲の終わりが区間の終わりより後なら正の整数の ms で、標本から ms への四捨五入は絶対値に掛ける（半分は切り上げ）。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-36-001 | 受入：閉じが `silence`（300 ms）、`range_end` が 21920（`seg_end` の 1920 標本後。早い終わりの通知が置く 120 ms の無音）、持った後に声なし。`covering` と `strict` のそれぞれで `plan_with_gap` を呼び、`note_plan` に通す | 持った文の読みが区間の終わりを越えて、閉じた無音の中に終わる | 上の限り 4800 標本（300 ms） | `covering` は `Plan::Held`（文は `held`、start は 1000）で `held_gap_ms` が `None`。`strict` は `Plan::Whole` で `held_gap_ms` が `Some(120)`（specified：設計 10.13.4 の手 9。IP-2 の記録の読み直し 27 件の多くが 44〜148 ms） | 陽性 | `br36_a_held_sentence_that_covers_the_closing_silence_is_used_as_the_final` |
+| T-BR-36-002 | 001 の入力で `range_end` を 19488（`seg_end` の 512 標本前）にする | 下の限りの内側 | 下の限り 512 標本（1 窓） | 2 つの旗とも `Plan::Held`（specified：今の幅。`strict` の振る舞いが変わらないことの対照） | 境界 | `a_held_sentence_read_one_window_short_is_used_by_both_flags` |
+| T-BR-36-003 | 001 の入力で `range_end` を 19487（513 標本前）にする | `strict` の下の限りの外側、`covering` の下の限りの内側 | `strict` は 512 標本（1 窓） | `covering` は `Plan::Held`、`strict` は `Plan::Whole` で `held_gap_ms` が `Some(-32)`（513 標本は −32.06 ms）（specified：読み終わりが区間の終わりの手前でも、その後ろが閉じた無音の中なら、区間は声を欠かない） | 境界 | `a_held_sentence_read_more_than_one_window_short_is_used_by_covering` |
+| T-BR-36-004 | 001 の入力で `range_end` を 24800（`seg_end` の 4800 標本後）にする | 上の限りの内側 | 4800 標本 | `covering` は `Plan::Held`、`strict` は `Plan::Whole` で `Some(300)` | 境界 | `a_held_sentence_read_to_the_end_of_the_closing_silence_is_used_by_covering` |
+| T-BR-36-005 | 001 の入力で `range_end` を 24801（4801 標本後）にする | 上の限りの外側 | 4800 標本 | 2 つの旗とも `Plan::Whole`、`Some(300)`（4801 標本は 300.06 ms） | 境界 | `a_held_sentence_read_past_the_closing_silence_is_read_again_by_both_flags` |
+| T-BR-36-006 | 001 の入力で、持った後に `note_voice(19000)`（`floor` 以上の声の始まり）を呼ぶ | 持った文の後ろに声が在る | 声が在れば使わない | 2 つの旗とも `Plan::Whole`、`Some(120)`（specified：設計 10.13.4 の手 9「その後ろに声が無ければ」） | 陰性 | `a_held_sentence_with_voice_after_it_is_never_used` |
+| T-BR-36-007 | 001 の入力で、閉じの規則を (a) `max_speech`（無音 0 ms）、(b) `flush`（無音 0 ms）にする | 無音を持たない閉じ | 前の限りと後ろの限りが 512 標本 | (a) と (b) のどちらも、`covering` でも `Plan::Whole` で `Some(120)`。`range_end` を 19487（513 標本前）にした持った文も、(a) と (b) のどちらでも `Plan::Whole` で `Some(-32)`（specified：設計 10.13.4 の手 9「`max_speech` と `flush` の閉じには無音が無いので、前と後ろの限りは今の 1 窓」） | 陰性 | `a_close_without_silence_gets_no_wider_reach` |
+| T-BR-36-008 | 線が在る形：`confirm(5000, 4900)` で線（`at` 5000、`floor` 4900）を置き、`note_voice(5200)` を呼び、`hold("held", 21920, 19000)` し、001 と同じ閉じで区間 1000 から 20000 を呼ぶ | 線の後ろの持った文 | 線の `at` が区間の中（5000 は 1000 より後） | `covering` は `Plan::Held(_, 5000)`（start は線の位置）、`strict` は `Plan::Rest(5000)`（specified：`plan_with_gap` の線の枝。持った文は線から先を読んだ物） | 陽性 | `a_held_sentence_after_a_line_is_used_from_the_line_by_covering` |
+| T-BR-36-009 | 純関数：`reach_for` に (`Covering`、`silence` 300 ms)、(`Covering`、`max_speech`)、(`Covering`、`flush`)、(`Strict`、`silence` 300 ms)、規則が `max_speech`、`flush`、`early` で `silence_ms` が 300 の `Decision` に (`Covering`) | 旗と閉じの組 | 設計の手 9 | 順に `Reach { behind: 4800, ahead: 4800 }`、`Reach { behind: 512, ahead: 512 }`、`Reach { behind: 512, ahead: 512 }`、`Reach { behind: 512, ahead: 512 }`。無音を 300 ms 持つ 3 組も `Reach { behind: 512, ahead: 512 }`（specified：設計 10.13.4 の手 9「規則 `silence` で閉じた区間に限り」。幅を決めるのは規則で、`silence_ms` の値ではない） | 陽性、陰性 | `the_reach_of_each_flag_and_close_is_the_one_in_the_design` |
+| T-BR-36-010 | 純関数：`note_plan` に (`Plan::Whole`、差 +1920 標本)、(`Plan::Whole`、差 −513 標本)、(`Plan::Whole`、差 `None`)、(`Plan::Held`、差 +1920 標本)、(`Plan::Rest`、差 +1920 標本) | 符号つきの ms | 絶対値の四捨五入 | 順に `Some(120)`、`Some(-32)`、`None`、`None`（使った時は残さない）、`Some(120)`（specified：設計 10.13.4 の手 9「`held_gap_ms` は、読んだ範囲の終わりが区間の終わりより後なら正」。1920 標本は 120 ms ちょうど） | 境界 | `the_held_gap_is_a_signed_number_of_milliseconds` |
+| T-BR-36-011 | 純関数：引数の読み。(a) 旗なし、(b) `--held-reuse covering`、(c) `--held-reuse strict`、(d) `--held-reuse maybe`、(e) `--held-reuse` の値なし | 旗の値 | `strict` と `covering` の 2 つ | (a) と (b) は `HeldReuse::Covering`、(c) は `HeldReuse::Strict`。(d) は `ArgError::HeldReuseUnsupported`（key は `held_reuse_unsupported`）、(e) は値の無い旗のエラー（`--partial-lid` の同じ形の行と同じ）（specified：設計 10.13.9 の IP-S17「既定は `covering`」） | 陽性 | `held_reuse_takes_strict_or_covering_and_nothing_else` |
+| T-BR-36-012 | 実走：BR-3 の harness が、旗を付けない起動（`covering`）で `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s17`） | 既定の run | 記録が揃う | `br03_ip_s17.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれ、`.log.jsonl` に `asr.endpoint.decided`、`asr.endpoint.held`、`asr.utterance.timed`、`asr.feed.waited` の行が在る（specified：設計 10.13.9 の IP-S17「記録の道具が、これらの行も残す」） | 陽性 | `the_run_with_covering_held_reuse_is_recorded` |
+| T-BR-36-013 | 実走：同じ harness が `--held-reuse strict` を付けて流して記録する（step は `br03_ip_s17_strict`） | 旗を外した run | 記録が揃う | 012 と同じ 4 つの file が書かれる（specified：設計 10.13.9 の IP-S17「戻し方は `--held-reuse strict`」。012 と同じ build で続けて取る） | 陽性 | `the_run_with_strict_held_reuse_is_recorded` |
+| T-BR-36-014 | 純関数：run の log を読む記録の関数に、合成の 3 行（いずれも `asr.endpoint.decided` で `rule` が `silence`）を渡す。(a) `plan` が `decode` で `held_gap_ms` が 120、(b) `plan` が `decode` で `held_gap_ms` が −40、(c) `plan` が `held` | 記録の読み | 符号 | 記録の関数が、`silence` の閉じの件数、`plan`（`held`、`decode`、`rest`）ごとの件数、読み直した件の `held_gap_ms` の符号ごとの件数を出す。3 行では `silence` が 3 件、`decode` が 2 件（正が 1 件、負が 1 件）、`held` が 1 件。名指しされない `plan` と、`plan` の無い `silence` の閉じは `Err`（specified：設計 10.13.10 の H72「符号が読みどおりか」を実走の記録で確かめるための数え方） | 陽性 | `the_held_plan_counts_and_signed_gaps_of_a_run_are_counted_from_its_log` |
+| T-BR-36-015 | 実物：012 と 013 の 2 本の記録（`docs/results/in-person/br03_ip_s17*`）を読む | 旗の前後 | 確定文の割り方が同じで、text が違う確定文は持った文を使った件だけ | `type == "final"` の `[id, lang]` が 2 本で全件同じ。text は文末の `.`、`。`、読点（`,`、`;`、`:`、`、`、`，`）を除いて比べ、違う確定文は全部、012 の `asr.endpoint.decided` で `plan` が `held`、013 で `held` でない件である（`id` の番号で結ぶ）。`silence` の閉じで `plan` が `held` の件数が、012 の方が 013 より多い。手で作った 2 組の確定文で、違いが持った文の使い回しで説明できる組は空を返し、両方が読み直した組と両方が持った組は違う確定文の id を返し、文末が `b.` と `b,` だけ違う組は plan によらず空を返す（specified：設計 10.13.7 の BR-36。早い終わりの読みと区間全体の読みは音の範囲が違うので text は同じとは限らず、違いは持った文を使った件に限る。文末の記号は、持った文を使った件で `closing_text` が替えるので比べない。同じ件数を通と読まないために「多い」を求める。違った件数は設計の穴 H72 に書く） | 陽性、陰性 | `the_two_held_reuse_runs_differ_only_in_the_finals_covering_made_from_kept_sentences` |
+| T-BR-36-016 | 001 の入力で `range_end` を (a) 17568（`seg_end` の 2432 標本前。早い終わりの通知が置く無音 1920 標本と 1 窓の和）、(b) 15200（4800 標本前）にする | 前の限りの内側 | 前の限り 4800 標本（300 ms） | (a) と (b) のどちらも、`covering` は `Plan::Held`（start は 1000）、`strict` は `Plan::Whole` で差が `Gap::Short`（`seg_end` から `range_end` を引いた標本数）（specified：設計 10.13.4 の手 9） | 境界 | `a_held_sentence_read_short_inside_the_closing_silence_is_used_by_covering` |
+| T-BR-36-017 | 001 の入力で `range_end` を 15199（`seg_end` の 4801 標本前）にする | 前の限りの外側 | 前の限り 4800 標本 | 2 つの旗とも `Plan::Whole`、`held_gap_ms` は `Some(-300)`（4801 標本は −300.06 ms） | 境界 | `a_held_sentence_read_short_past_the_closing_silence_is_read_again_by_both_flags` |
+| T-BR-36-018 | 純関数：`closing_text` に (`Covering`、`silence`) の閉じで、(`en`、`He would have to pay her the money,`)、(`en`、`Done, then; `)、(`en`、`It is raining.`)、(`en`、`A, B`)、(`en`、空)、(`ja`、`雨が降っていますが、`)、(`ja`、`雨が降っています。`)、(`zh`、`你好，`)。ほかに (`Strict`、`silence`、`en`、`Done,`) と、(`Covering`、`max_speech` と `flush`、`en`、`Done,`) | 持った文の文末の記号 | 語と記号 | 順に `He would have to pay her the money.`、`Done, then.`、`It is raining.`、`A, B`、空、`雨が降っていますが。`、`雨が降っています。`、`你好，`。ほかの 3 組は `Done,` のまま（specified：設計 10.13.4 の手 9。閉じが無音なら文は終わっていて、区間全体の読みは文末に終端の記号を置く。実走で、`covering` が使った持った文の文末の `,` が、`strict` の読み直しの `.` と違う件が 4 つ出た） | 陽性、陰性 | `a_kept_sentence_closed_by_silence_ends_with_the_terminal_mark_of_its_language` |
+| T-BR-36-019 | 実物と純関数：012 の記録（`br03_ip_s17.log.jsonl` と `br03_ip_s17.events.jsonl`）を読む。先に、手で作った `asr.endpoint.decided` の 5 行（番号 1、2、5 が `silence` で `held`、3 が `silence` で `decode`、4 が `max_speech` で `held`）と 5 件の確定文（1 は英語で `.` 終わり、2 は英語で `, ` 終わり、3 は英語で `,` 終わり、4 は日本語で `、` 終わり、5 は `zh`）で、記録を読む 2 つの関数を確かめる | `silence` の閉じで持った文から作った確定文 | 文末（空白を除く）の記号 | 手で作った組では、持った文の番号が 1、2、5 と出て、そのうち英語と日本語の 2 件（1 と 2）を調べ、文末が読点の 1 件（`file-2`）だけが返る。`file-<番号>` の形でない id と、番号の無い `asr.endpoint.decided` は `Err`。記録では、`silence` の閉じで `plan` が `held` の件が 1 件以上在り、その件数と、番号で結んだ英語と日本語の確定文の件数が等しく、その確定文の全部が文末に `,`、`;`、`:`、`、`、`，` を持たない（specified：設計 10.13.4 の手 9「閉じが `silence` なら、文末の読点を終端の記号に替える」を、`closing_text` を呼ぶ `Engine::on_segment` まで含めて実走の記録で確かめる。`on_segment` は model を要して単体では呼べないので、呼び出しが外れれば、次に記録を取り直した時にこの行が落ちる） | 陽性、陰性 | `the_finals_covering_made_from_kept_sentences_end_with_no_pause_mark` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
 - 速くする手の 1 と 2：10.13.4（T-BR-04、T-BR-05）。log の 1 行：10.13.4 の手 3（T-BR-06）。n-gram の記録：手 5（T-BR-07）。
 - 質の手 Q-a から Q-i：10.13.5（T-BR-08 から T-BR-15）。
 - 別の PC のブラウザから音を送る頁：10.13.6（T-BR-16 から T-BR-18）。制御の口を LAN に開かない C6：10.13.6 の末尾（T-BR-35）。
+- 持った文を使う幅：10.13.4 の手 9（T-BR-36）。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。

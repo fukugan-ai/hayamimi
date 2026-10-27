@@ -252,7 +252,8 @@ pub fn utterance_timed_line(strings: &Strings, done: &Final) -> String {
 /// the early detector kept was used; `decode`: the whole segment was read;
 /// `rest`: what follows the early line was read). `held_gap_ms` is present
 /// when a kept sentence existed but the segment was read again: how far the
-/// ends of the two were apart. Both are absent for a sentence the early
+/// ends of the two were apart, positive when the kept sentence was read to a
+/// point after the segment's end. Both are absent for a sentence the early
 /// detector finalised itself.
 pub fn endpoint_decided_line(strings: &Strings, done: &Final) -> String {
     let endpoint = &done.endpoint;
@@ -701,7 +702,7 @@ mod tests {
         }
     }
 
-    fn finished_by(plan: Option<PlanKind>, held_gap_ms: Option<u32>) -> Final {
+    fn finished_by(plan: Option<PlanKind>, held_gap_ms: Option<i32>) -> Final {
         let mut done = finished();
         done.endpoint.plan = plan;
         done.endpoint.held_gap_ms = held_gap_ms;
@@ -723,6 +724,11 @@ mod tests {
         ))?;
         assert_eq!(decode["plan"], "decode");
         assert_eq!(decode["held_gap_ms"], 140);
+        let short = parsed(&endpoint_decided_line(
+            &strings()?,
+            &finished_by(Some(PlanKind::Decode), Some(-40)),
+        ))?;
+        assert_eq!(short["held_gap_ms"], -40);
         let nothing_kept = parsed(&endpoint_decided_line(
             &strings()?,
             &finished_by(Some(PlanKind::Decode), None),

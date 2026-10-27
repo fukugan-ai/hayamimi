@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use hayamimi_asr::DEFAULT_MAX_RESIDENT;
-use hayamimi_asr::endpoint::Mode as Endpoint;
+use hayamimi_asr::endpoint::{HeldReuse, Mode as Endpoint};
 use hayamimi_asr::route::{Policy, is_routable};
 
 use crate::inputs::{Input, IoArgs};
@@ -54,6 +54,9 @@ pub struct Args {
     /// Whether a pair run reads the drafts of an utterance in the language
     /// heard after its first two seconds (`--partial-lid`).
     pub partial_lid: bool,
+    /// How far a sentence the early detector kept may have been read past the
+    /// end of the segment and still be its text (`--held-reuse`).
+    pub held_reuse: HeldReuse,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -85,6 +88,7 @@ pub enum ArgError {
     ModeUnsupported,
     EndpointUnsupported,
     PartialLidUnsupported,
+    HeldReuseUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -101,6 +105,7 @@ impl ArgError {
             ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
             ArgError::EndpointUnsupported => keys::ENDPOINT_UNSUPPORTED,
             ArgError::PartialLidUnsupported => keys::PARTIAL_LID_UNSUPPORTED,
+            ArgError::HeldReuseUnsupported => keys::HELD_REUSE_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -190,6 +195,15 @@ fn partial_lid_of(text: &str) -> Result<bool, ArgError> {
     }
 }
 
+/// `--held-reuse`: `covering` or `strict`.
+fn held_reuse_of(text: &str) -> Result<HeldReuse, ArgError> {
+    match text {
+        "covering" => Ok(HeldReuse::Covering),
+        "strict" => Ok(HeldReuse::Strict),
+        _ => Err(ArgError::HeldReuseUnsupported),
+    }
+}
+
 /// `--lang`: a language that has a recognizer of its own.
 fn lang_of(text: &str) -> Result<String, ArgError> {
     if is_routable(text) {
@@ -211,6 +225,7 @@ impl Args {
         };
         Policy {
             partial_lid: chosen.partial_lid && self.partial_lid,
+            held_reuse: self.held_reuse,
             ..chosen
         }
     }
@@ -226,6 +241,7 @@ impl Args {
             max_speech: DEFAULT_MAX_SPEECH,
             endpoint: Endpoint::Early,
             partial_lid: true,
+            held_reuse: HeldReuse::Covering,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -249,6 +265,7 @@ impl Args {
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
             "--endpoint" => self.endpoint = endpoint_of(value_of(rest)?)?,
             "--partial-lid" => self.partial_lid = partial_lid_of(value_of(rest)?)?,
+            "--held-reuse" => self.held_reuse = held_reuse_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -537,6 +554,26 @@ mod tests {
             run(&["--wav", "a", "--partial-lid"]).err(),
             Some(ArgError::MissingValue)
         );
+    }
+
+    /// T-BR-36-011
+    #[test]
+    fn held_reuse_takes_strict_or_covering_and_nothing_else() -> Result<(), ArgError> {
+        assert_eq!(run(&["--wav", "a"])?.held_reuse, HeldReuse::Covering);
+        let covering = ["--wav", "a", "--held-reuse", "covering"];
+        assert_eq!(run(&covering)?.held_reuse, HeldReuse::Covering);
+        let strict = ["--wav", "a", "--held-reuse", "strict"];
+        assert_eq!(run(&strict)?.held_reuse, HeldReuse::Strict);
+        assert_eq!(policy_of(&strict)?.held_reuse, HeldReuse::Strict);
+        assert_eq!(
+            run(&["--wav", "a", "--held-reuse", "maybe"]).err(),
+            Some(ArgError::HeldReuseUnsupported)
+        );
+        assert_eq!(
+            run(&["--wav", "a", "--held-reuse"]).err(),
+            Some(ArgError::MissingValue)
+        );
+        Ok(())
     }
 
     /// T-IP-03-019

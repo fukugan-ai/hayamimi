@@ -3,6 +3,7 @@
 
 use std::time::Instant;
 
+use crate::endpoint::HeldReuse;
 use crate::fallback::{Fallback, Reason, Stage, To};
 use crate::lid::Identify;
 
@@ -36,6 +37,9 @@ pub struct Policy {
     /// identifier names once the voice reaches two seconds (see
     /// [`crate::partial::MidwayLid`]), instead of the language of the last final.
     pub partial_lid: bool,
+    /// How far a sentence the early detector kept may have been read past the
+    /// end of the segment and still be the segment's text.
+    pub held_reuse: HeldReuse,
 }
 
 impl Policy {
@@ -51,6 +55,7 @@ impl Policy {
             agree_threshold: SECOND_OPINION_THRESHOLD,
             pair: false,
             partial_lid: false,
+            held_reuse: HeldReuse::Covering,
         }
     }
 
