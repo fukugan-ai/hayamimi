@@ -2329,6 +2329,92 @@ Recognizer::decode_tagged(samples)   recognizer.rs:214
 受入は 6 の RP-89〜RP-95、test の名前は 7 の表、slice は上の LB-0〜LB-3、残る穴は 10 の H150〜H165 である。
 T（`rust_port_tests.ja.md`）には新しい節だけを足し、5.3 の表と T-RP-19 の固定の数には触れない。各 ID の case 行は test-designer の席が LB-0 の席より先に書く。
 
+### 3.23 翻訳要求の打ち直し（R8z）
+
+中継は翻訳の要求を llama-server へ HTTP で送る（`native/hayamimi-relay/src/llm.rs` の `HttpLlm::complete`）。
+要求が届かなかった行は `held`（訳の無い行）になり、原文の字幕だけが出て、`translate.request.failed` が 1 行出る（3.5）。
+`HttpLlm` は `ureq` の agent で接続を使い回す。
+使い回した接続を server が先に閉じていると、送った要求はその場で失敗する。
+この節は、閉じられた接続を示す失敗に限って、同じ要求を 1 回だけ送り直す。
+`L` を縮める組（3.19）には入れず、別枠に置く。
+
+#### 数えた結果
+
+- BR-3 の `--final-lid close` の run（記録 `docs/results/in-person/br03_ip_s20_close.md`）は、頁が描いた 78 発話のうち 1 件（`file-17`）で、頁が訳を記録しなかった。
+  中継の log は、その確定文の訳の要求が `transport` で失敗し（`duration_ms` 0）、同じ秒に `translate.fallback.held` と `translate.fallback.cleared` が出たと言う。
+  この run の中継の log は 874 行で、`translate.partial.ok` が 399 行、`translate.line.ok` が 196 行、`translate.request.failed` はこの 1 行だけである（`jq` で `event` を数えた。log は git の外に在る）。
+- `結べなかった発話` の行を持つ BR-3 の記録は 13 本（78 発話ずつ）で、頁が訳を記録しなかったのはこの 1 件だけである（`grep` で数えた）。
+- `HttpLlm` が持つ `ureq::Agent`（ureq 3.4.2）は、接続を最大 15 秒持つ（`max_idle_age` の既定。S57）。
+  使い回す前に、その接続が閉じられていないかを、待たない読みで確かめる（`pool.rs` の `is_open`）。
+  確かめた後に閉じられた接続への要求が失敗した時の、新しい接続での送り直しは持たない（`run.rs`、`pool.rs`、`agent.rs` に再送の処理が無く、`ConfigBuilder` に再送の項目が無い。S57）。
+- 閉じられた接続への要求は、送信で失敗すれば `Error::Io` の `BrokenPipe` か `ConnectionReset`、応答の先頭を読む段で閉じられていれば `Error::Io` の `UnexpectedEof`（文言は `Peer disconnected`。`run.rs` の応答を受ける段。S57）で返る。
+- llama-server の HTTP 部（cpp-httplib）は、`set_keep_alive_timeout` の既定が 5 秒、`set_keep_alive_max_count` の既定が 100 である（S55）。
+  llama.cpp の `tools/server/server-http.cpp` は、どちらも設定していない（S56）。
+- `Reach<HttpLlm>`（`reach.rs`）は、`Transport` の失敗が 1 回でも出ると `translate.fallback.held` を言い、次の成功で `translate.fallback.cleared` を言う。
+
+#### 方針と理由
+
+`HttpLlm` は、要求の送信から応答の先頭を受けるまでに、閉じられた接続を示す `Error::Io` が出た時だけ、同じ body を 1 回送り直す。
+閉じられた接続を示す `io::ErrorKind` は、`UnexpectedEof`、`ConnectionReset`、`ConnectionAborted`、`BrokenPipe` の 4 つである。
+閉じられた接続は agent の pool から外れるので、送り直しは別の接続か新しい接続で行われる。
+訳の要求は `temperature` が 0 で、同じ要求なら行の訳として返る答えは変わらない。
+2 回送っても、行の訳が二重に出ることは無い。
+2 回目の試みも `REQUEST_TIMEOUT`（1500 ms）で打ち切られる。
+1 回目の失敗が server の処理の途中で起きても、その行の訳が遅れるのは、最大で 1 回目の失敗までの時間に 1500 ms を足した分である。
+`Wanted` が「もう要らない」と言う要求は送り直さず、`LlmError::Aborted` で返す。
+送り直しは `Reach` の内側（`HttpLlm` の中）で行う。
+救えた失敗が `translate.fallback.held` として画面へ出ないためである。
+
+送り直したことは `translate.request.retried`（warn）に 1 行書く。
+項目は `dependency`（`llama-server`）、`duration_ms`（最初の試みの所要）、`cause`（失敗の種類）である。
+2 回目も失敗した時は、今までどおり `LlmError::Transport` を返し、`translate.request.failed` が出る。
+この行にも `cause` を足す。`detail` は `:` の手前の `transport` までで、種類が残らないためである。
+`cause` の語は次の 10 個の閉じた一覧から選び、error の文言は log に書かない。
+
+| 失敗 | `cause` | 送り直す |
+|---|---|---|
+| `Error::Io` の `UnexpectedEof` | `unexpected_eof` | 送り直す |
+| `Error::Io` の `ConnectionReset` | `connection_reset` | 送り直す |
+| `Error::Io` の `ConnectionAborted` | `connection_aborted` | 送り直す |
+| `Error::Io` の `BrokenPipe` | `broken_pipe` | 送り直す |
+| `Error::Io` の `ConnectionRefused` | `connection_refused` | 送り直さない |
+| `Error::Io` の `TimedOut` | `timed_out` | 送り直さない |
+| `Error::Io` のそれ以外 | `io_other` | 送り直さない |
+| `Error::Timeout` | `timeout` | 送り直さない |
+| `Error::HostNotFound` | `host_not_found` | 送り直さない |
+| 上のどれでもない `Transport` | `other` | 送り直さない |
+
+#### 採らない手段
+
+- **要求ごとに新しい接続を張る**：閉じられた接続への送信は起きなくなるが、1 件の失敗の原因が閉じられた接続だと決まっていない（10 の H166）。送り直しは原因が別でも、閉じられた接続を示す失敗なら同じ形で救い、`cause` が原因を残す。
+- **`max_idle_age` を server の 5 秒より短くする**：server が閉じる瞬間と、こちらが送る瞬間が重なる競合は残る。
+- **失敗を全部送り直す**：`Timeout` は最大 1500 ms を倍にし、`ConnectionRefused` は 2 回目も同じ答えになる。
+- **送り直しを時間の窓（100 ms など）で絞る**：閉じられた接続への送信は、error の種類 4 つで選べる。窓は、負荷のかかった機械で正しい送り直しを落とし、窓の内外を確かめる test も機械の遅れで揺れる。窓が守るのは 2 回目も遅い時の遅れだけで、その遅れは `REQUEST_TIMEOUT` が 1500 ms で打ち切る。
+- **送り直しを `Pipeline` の側に置く**：`Reach` が 1 回目の失敗で `held` を言い、救えた失敗でも画面に「届かない」が 1 度出る。
+- **2 回以上送り直す**：1 回で直らない失敗は、server が居ないことを示すので、`Reach` の `held` に任せる。
+
+#### 順と slice
+
+| slice | 書く file | 依存 | 資源 | 見積り |
+|---|---|---|---|---|
+| R8z-1 | `native/hayamimi-relay/src/llm.rs`（送り直し、`cause` の一覧、`HttpLlm::logging_to`）、`native/hayamimi-relay/src/pipeline.rs`（`translate.request.failed` の `cause`）、`native/hayamimi-relay/src/cli.rs`（`pipeline_factory` が log を渡す）、`native/hayamimi-relay/data/strings.ja.toml` と `strings.en.toml`、`native/hayamimi-relay/tests/rp96.rs`（作る）、`native/hayamimi-relay/tests/support/mod.rs`（応答なしで閉じる `Reply`） | 無し（`HttpLlm` を書く席は他に無い） | cargo（`hayamimi-relay`） | 90 分（推測） |
+
+E2E の窓は使わない。RP-96 の test は偽の server だけを使い、cargo の席の中で済む。
+完成までの本数（`status.ja.md` の計画）の外に置く。
+
+#### 残る穴
+
+- 閉じられた接続が BR-3 の 1 件の失敗の原因かは決まっていない（10 の H166）。
+- 応答の先頭を受けた後（本文を読む段）の失敗は送り直さない。
+  server が答え始めており、受けた分を捨てるか続きを読むかを決める材料が、`LlmError` に無いためである。
+- 最初の試みを server が受けて処理していた場合、2 回目が成功すると、server では同じ要求が 2 回走る。
+  行の訳は 1 つしか使わないので字幕には出ないが、server の時間を 1 要求分使う。
+
+#### 受入、slice、残る穴の在り処
+
+受入は 6 の RP-96、test の名前は 7 の表、slice は上の R8z-1、残る穴は 10 の H166 である。
+T（`rust_port_tests.ja.md`）には新しい節 4.88 だけを足し、5.3 の表と T-RP-19 の固定の数には触れない。
+
 ## 4. 採らない手段
 
 - **Python を残して Rust から呼ぶ**：実行時の経路に Python が残り、置き換えにならない。
@@ -2479,6 +2565,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-93 | 既定の上限が掃引で選んだ値（3.22、LB-3） | `cd native && cargo test --release --jobs 2 -p hayamimi-eval --test rp93`。`docs/results/long_buffer/sweep.tsv` を読み、`hayamimi config dump` の上限と照らす | `sweep.tsv` の選んだ行が、全部の経路で RP-90 と RP-91 を通り RP-94 も通した組のうち `C` の最も大きい物（同点は `O` = 0）である。dump の既定は、既定を替える commit の前は `off`、後は選んだ行の `C` と `O` に一致する（それ以外の値で落ちる） | dump の既定が `off`（替える前）か選んだ行（替えた後）なら通る | 選んだ行を 1 秒ずらした `sweep.tsv` と、既定を 1 秒ずらした dump で落ちる（`a_shifted_default_is_rejected`）。`sweep.tsv` が無いか列が欠けると、path と列を名指して落ちる |
 | RP-94 | 上限が復号の時間に足す分が線の内（3.22、窓 E4 だけ） | 窓 E4 で `cd native && sudo -n nice -n -5 cargo test --release --jobs 2 -p hayamimi-asr --test rp94 -- --ignored`。長い材料の組ごとに、`off` と候補の上限を交互に 5 回ずつ復号し、1 回の復号の時間（ms）を数える。始める前と終わった後の `load1` を記録し、2.0 未満で始める | 上限が足す分が p50 で 150 ms 以下（仮）、p95 で 250 ms 以下（仮）（nearest-rank）。線は 3.22 の「遅れの式」の A から引いた：p95 の 250 ms は、掃引の格子で式が最も大きい `C` = 4 秒・`T` = 25 秒の +235.0 ms を、10 ms の位へ上げて余白 15 ms を足した値。p50 の 150 ms は、長い材料（20.07〜21.19 秒。どの本も `N` は同じ）での式の値（`C` = 14 で +50.7、10 と 8 で +87.6、6 で +124.4、4 で +198.2 ms）のうち、`C` ≥ 6 を通し `C` = 4（3.22 の「採らない手段」の「いつも 4 秒で切る」）を外す値で、実測の前の仮。実測が式から 2 倍を超えて外れたら、線を引き直して評議の席へ出す | 式の値が線の内の `C`（6 秒以上）で通る。足す分を 3.22 の「遅れの式」の A と並べて出す（外れが 2 倍を超えたら式を直す。10 の H152） | `C` = 2 秒で線を超える（`a_two_second_cap_exceeds_the_line`） |
 | RP-95 | 上限で字幕が遅れない（3.22、窓 E4 だけ） | 窓 E4 で、lat-ja の E2E-1（RP-32 の交互の形）を同じ build の `--decode-cap off`（明示）と `--decode-cap <選んだ C>` で交互に流す。基準は `docs/results/r8x/e3q1.e2e1`、`e3q2.e2e1` と `docs/results/rp32/` | 既定の `L` が `off` に対して p50 で 31 ms、p95 で 100 ms を超えて悪化しない（10 の H64 の幅）。訳の取れた対が 20 / 23 以上。RP-67 の 1600 ms の線を保つ | `C` を超えた発話の数を数えて出す（0 本なら `L` は変わらない見込みの確かめ）。超えたら採らない：既定を `off` のまま替えない | `off` と `off` の対で差が幅の内（`an_off_against_off_pair_is_within_the_floor`。物差しの床。幅の内に入らなければ、cap の差を判定に使わず評議の席へ出す） |
+| RP-96 | 閉じられた接続への翻訳要求を 1 回だけ送り直し、救えた失敗が `held` にならない（3.23） | `cd native && cargo test --release --jobs 2 -p hayamimi-relay --lib llm::` と `cd native && cargo test --release --jobs 2 -p hayamimi-relay --test rp96`（偽の server だけを使い、model も GPU も要らない。`#[ignore]` を持たない） | 最初の接続を応答なしで閉じる偽の server で、`HttpLlm::complete` が答えを返し、server の受けた接続は 2 本、`translate.request.retried` は 1 行（`cause` が `unexpected_eof`）。同じ server を付けた relay の live で、確定文の訳が `ok` で 1 件出て、`translate.request.failed` と `translate.fallback.held` が 0 行。どの接続も閉じる server では `Transport` を返し、接続は 2 本ちょうど。5xx を返す server、接続を拒む port、「もう要らない」要求では、接続は 1 本で `translate.request.retried` が 0 行 | 最初の接続だけを閉じる server で答えが返る（T-RP-96-001、004） | 送り直しを外した build は 004 が落ちる。何度でも送り直す build は 005 が接続 3 本以上で落ちる。種類を選ばない build は 003 と 008 が落ちる。「もう要らない」を見ない build は 009 が落ちる。送り直しを log に書かない build は 004 と 011 が落ちる。`cause` を固定の語にした build は 007 と 012 が落ちる |
 
 ## 7. test の名前
 
@@ -2581,6 +2668,7 @@ R0 の受入（RB-1〜RB-8）は `rust_port_tests.ja.md` に在る。
 | RP-93 | `rp93_the_default_cap_is_the_one_the_sweep_chose` | `native/hayamimi-eval/tests/rp93.rs`（作る） | 1 秒ずらした dump（`a_shifted_default_is_rejected`）、列の欠けた `sweep.tsv`（`a_sweep_without_a_column_is_named`） |
 | RP-94 | `rp94_a_capped_decode_adds_at_most_150_ms_p50_and_250_ms_p95` | `native/hayamimi-asr/tests/rp94.rs`（作る。`#[ignore]`、窓 E4 だけ） | `C` = 2 秒で線を超える（`a_two_second_cap_exceeds_the_line`） |
 | RP-95 | `rp95_the_cap_does_not_delay_the_subtitle` | `native/hayamimi-eval/tests/rp95.rs`（作る。`#[ignore]`、窓 E4 だけ） | `off` と `off` の対が幅の内（`an_off_against_off_pair_is_within_the_floor`） |
+| RP-96 | `rp96_a_closed_connection_is_asked_again_and_the_line_is_translated` | `native/hayamimi-relay/tests/rp96.rs`（作る）と、`native/hayamimi-relay/src/llm.rs`、`pipeline.rs`、`strings.rs` の `mod tests` | 何度でも送り直す build（`a_failure_is_asked_again_once_and_not_more`）、種類を選ばず送り直す build（`only_the_four_closed_connection_kinds_are_asked_again`）、接続の拒否を送り直す build（`a_refused_connection_is_not_asked_again`） |
 
 test は会話字幕の設計 7.1 と同じ規則で書く（`Result` を返して `?`、`unwrap` と `expect` と `unwrap_or*` を書かない、実行時に環境変数を読まない）。
 `CUDA_VISIBLE_DEVICES`、`CUDA_CACHE_PATH`、`LANG` は test の code が読む値ではなく、test が子の process を起こすときに渡す値である。
@@ -2625,6 +2713,7 @@ Python を消すのは R11 だけで、R11 の commit を revert すれば 78 �
 | R8w | 訳の段の詰めの続き（3.18）。1：RP-32 の判定に訳の取れた割合を入れ、port の移った run を無効にし、RP-32 の run の手順に port の空きの待ちを足す（RP-72）。2：部分訳の使い回し（RP-69）と、その品質の run（RP-70。E2E の席）。3：推測デコードの llama-server の probe（RP-71。腕は N0 と S3。S3 は公開の GGUF を使い、語彙の一致と GPU の memory を確かめてから流す）と、S3 が通った時の unit の file と `hayamimi llama start` の引数。2 と 3 は触る物が重ならないので別の席で並べてよい。4：2 と 3 の build で RP-32 の Rust の run と RP-33、RP-25、RP-35 を打ち直す（E2E の席。起こす形は `sudo -n nice -n -5 <command>`） | RP-32、RP-69、RP-70、RP-71、RP-72。RP-33、RP-25、RP-35 は 4 の run で打ち直す | 1 と 2 は commit を `git revert`。3 は `systemctl --user stop hayamimi-llama-pair.service` を打ち、中継を `--llm` を付けずに起こし直す。`hayamimi llama start` の引数は commit を `git revert`。前の起動の引数は `docs/results/r8w/server-args.md` に在る |
 | R8x | 合否の線 1600 ms の下で `L` を縮める組（3.19。1200 ms と 1000 ms は目標）。R8x-1：E2E の run の門（RP-83）。R8x-2a：RP-67 の test の file `rp67.rs`（済み。RP-79 の `rp79.rs` は B を外したので作らない。H130）。R8x-2b：H88 の code（済み。3.1 の標本ごとの線）。R8x-3：認識器の初回の復号（RP-84）。R8x-4：使い回しの鍵の広げ（RP-85）。R8x-5：C と D の offline の門（RP-86 の (0)。済み、門は落ちた）。R8x-6（C と D、RP-86、RP-87）と R8x-6b（`rp86.rs`）は止める（H132）。R8x-7：句読点の段の温め（RP-84）。R8x-8：RP-85 の (4) の数え方（test だけ）。R8x-9：RP-83 の run 自身の分（3.21）。道は R8x-1、R8x-2a、R8x-2b、R8x-3、R8x-4、窓 E1、窓 E3'、R8x-7、R8x-8、R8x-9、窓 E3''、窓 E4。順と資源と見積りは 3.19 の「順と slice」 | RP-83、RP-84、RP-85、RP-67、E2E-1、E2E-2 | slice ごとに commit を `git revert`。鍵の広げは commit の revert で戻る。初回の復号は `asr.warmup.failed` を出して起動を続けるので、外すのも commit の revert |
 | R8y | log の書き込みを認識のループから外す（3.20）。R8y-1：`hayamimi` の log の queue。R8y-2：中継の log の queue。`L` を縮める組（R8x）に入れない別枠で、順と資源と見積りは 3.20 の「順と slice」 | RP-88 | slice ごとに commit を `git revert`。queue を外すと今の同期の書き込みに戻る |
+| R8z | 翻訳要求の打ち直し（3.23）。R8z-1：閉じられた接続への要求を 1 回だけ送り直し、`translate.request.retried` と `cause` を log に足す。`L` を縮める組（R8x）に入れない別枠で、順と資源と見積りは 3.23 の「順と slice」 | RP-96 | commit を `git revert`。送り直しを外すと今の 1 回きりの送信に戻る |
 | R3e | session の言語の文字を持たない 1〜2 字の確定文を捨て、`asr.final.dropped` を出す（10 の H67）。規則は `hayamimi` の確定文を出す所に置き、認識器と振り分けは変えない。VAD（Silero、`hayamimi-asr/src/vad.rs`、threshold 0.5、最短の発話 0.25 秒）は既に認識の前段に在り、`ل` の発話（1.824 秒）も VAD が声と読んで通した。VAD を前段に置くと認識の幻覚が大きく減る（S24）が、それは今の構成で既に効いており、threshold は変えない（変えると `L_asr` と RP-1 の誤り率が動き、測り直しが要る）。1〜2 字という字数の閾値に一次資料は無いので、字数だけでなく「session の言語の文字を 1 つも持たない」を併せて条件にし、本物の短い発話を落とさないことを RP-65 の陽性対照で確かめる。同じ席が、その発話が `tier` `omni` で解かれた理由を振り分けの log で読み、結果を H67 に返す。席は `hayamimi` の確定文の経路を触る実装の席 1 つ、波は受付が 8 の「R11 の後の組」と書く file の重なり（`session.rs`、`wire.rs` を書く R13-5b と R13-13）を数えて置き、見積りは 45 分 | RP-65 | commit を revert |
 | R8o | H53 の決め（評議の判定）。2（観測）：`translate.line.held` に T の側の理由を enum で足し、止めた訳の本文は log に載せず、`Observer` の `draft_verify_input` と `verify_input` から repo の外の dev 用の file へ出す（`hayamimi-relay live --verify-text <file>` を付けた時だけ。実装は `native/hayamimi-relay/src/verify_dump.rs`、T の理由は `t_hold_reason`）。1（同じ run）：`verify_markers.toml` の `ja.negation` に「なさそう」「なさげ」「なさすぎ」を足す（「なさ」だけは「なさい」「なさる」「ごめんなさい」を巻き込むので足さない）。両方止めた行は今までどおり訳を出さない。新しい held-out の組は test-designer の席が作る（RP-44） | RP-42、RP-43、RP-44 | commit を revert |
 | R3d | T-RP-1-013 の陰性対照の口：`hayamimi-eval scorecard` に、ja の clip を SenseVoice の tier へ送る評価用の引数を足す（配る `hayamimi` には足さない） | T-RP-1-013 | commit を revert |
@@ -3694,10 +3783,11 @@ T-RP-13-012、013、016、017、018 は、ja と en の外の言語で E を掛�
 - **H163** sherpa-onnx の `OfflineRecognizer::decode_multiple_streams`（crate 1.13.8 の `offline_asr.rs:691`）で片をまとめて復号すると、A の `a·(N − 1)` が縮む見込みだが、測っていない。④ 速くの段の候補で、B と同じく測った後に別の slice にする。
 - **H164** GitHub で見える `docs/design/status.ja.md`、`docs/design/status.md` と README は、LB の slice を merge する席が merge ごとに直す。
 - **H165** rp82（R13-15 が作る test で、main にまだ無い）は、T の節の file が 1 つでも repo に在ると、その節の受入の名前を全部その file の組から探す。T の 4.85 の file は LB-0〜LB-3 の間に一部だけ在る期間があり、rp82 が在れば、まだ無い名前を名指して落ちる。まだ作っていない名前に `（未実装）` を付けるか、rp82 の側で扱うかは、rp82 の持ち主の R13-15 が決める。3.22 の設計はこれに依らない。
+- **H166** BR-3 の `--final-lid close` の run の 1 件（`file-17`）の、訳の要求の `transport` の失敗（`duration_ms` 0）の原因が、server に閉じられた接続への送信かは決まっていない（ASSUMPTION）。log の時刻が秒の単位なので、失敗した要求が使った接続の、直前の使用からの間隔が、server が無通信で閉じる 5 秒の内か外かを決められない。この 1 件は再現していない。R8z-1 の後に BR-3 を流し、`translate.request.retried` の `cause` が `unexpected_eof` か `connection_reset` で出るかを数える。出なければ、原因は閉じられた接続ではない。その時は `translate.request.failed` の `cause` を見て決める。送り直しは原因に依らず、閉じられた接続を示す失敗なら救う。
 
 ## 11. 出所
 
-取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、S38〜S43 が 2026-10-20、S45〜S48 が 2026-10-21、S49〜S54 が 2026-10-22、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
+取得日は S19 と S20 が 2026-10-14、S21、S22、S25〜S37 が 2026-10-15、S38〜S43 が 2026-10-20、S45〜S48 が 2026-10-21、S49〜S54 が 2026-10-22、S55〜S57 が 2026-10-27、ほかはすべて 2026-10-13。S23 と S24 は別の席の調べ（2026-10-15）の転記で、この席は原典を開いていない。
 crate の版は crates.io の API（`https://crates.io/api/v1/crates/<名前>`）で引いた。
 S12 と S15 は別の席の調べの転記で、この席は原典を開いていない。
 
@@ -3757,3 +3847,6 @@ S12 と S15 は別の席の調べの転記で、この席は原典を開いて�
 | S52 | icefall の issue 1680：長い音声を非 streaming の model に 1 回で渡すと数語しか出なかった報告に、保守者が非 streaming の model は 20 秒未満を勧め、少し重ねた 30 秒の片に分けるよう答えた（issue の議論で、公式の文書ではない） | https://github.com/k2-fsa/icefall/issues/1680 |
 | S53 | Narayanan ほか「Recognizing long-form speech using streaming end-to-end models」：15.36 秒までの発話で学習した非 streaming の RNN-T は、長い音声で削除の誤りが多い。重ねた片（16 秒、重なり 2 秒）の復号で戻る | https://arxiv.org/abs/2005.03271 （本文は https://ar5iv.arxiv.org/html/2005.03271 で読んだ） |
 | S54 | Kim と Lee（Interspeech 2022）：Conformer の RNN-T の長い音声での削除の誤り。この席は検索の結果だけを見て、本文を開いていない | https://arxiv.org/abs/2108.10752v2 |
+| S55 | cpp-httplib の README：サーバーの `set_keep_alive_timeout` の既定は 5（秒）、`set_keep_alive_max_count` の既定は 100（0 は無制限）。最後の 1 要求に `Connection: close` を付けるかは README に書かれていない | https://github.com/yhirose/cpp-httplib |
+| S56 | llama.cpp の `tools/server/server-http.cpp`：keep-alive の設定（`set_keep_alive_timeout`、`set_keep_alive_max_count`）は書かれていない。read と write の timeout は引数の値で、HTTP の thread は `n_threads_http` 本の固定と最大 1024 本の動的 | https://github.com/ggml-org/llama.cpp/blob/master/tools/server/server-http.cpp |
+| S57 | ureq 3.4.2 の `ConfigBuilder`（docs.rs）：`max_idle_connections` の既定は 10、`max_idle_connections_per_host` は 3、`max_idle_age` は 15 秒で、再送の項目は無い。source は、`pool.rs` が取り出す前に `is_open` で閉じられていないかを確かめ、`run.rs` が応答の先頭を読めずに閉じられた接続を `Error::Io` の `UnexpectedEof`（`Peer disconnected`）で返す | https://docs.rs/ureq/3.4.2/ureq/config/struct.ConfigBuilder.html |

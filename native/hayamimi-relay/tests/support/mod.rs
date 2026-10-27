@@ -222,6 +222,12 @@ impl Reply {
             ..Reply::status(302)
         }
     }
+
+    /// No answer: the server reads the whole request and closes the connection
+    /// without writing a byte (status 0 is not a status a server sends).
+    pub fn hang_up() -> Reply {
+        Reply::status(0)
+    }
 }
 
 type Responder = Box<dyn FnMut(usize, &[u8]) -> Reply + Send>;
@@ -295,6 +301,9 @@ fn serve_one(stream: &mut TcpStream, requests: &Mutex<Vec<Vec<u8>>>, responder: 
         Err(poisoned) => poisoned.into_inner().len(),
     };
     let reply = responder(index, &raw);
+    if reply.status == 0 {
+        return;
+    }
     let location = reply
         .location
         .as_ref()
