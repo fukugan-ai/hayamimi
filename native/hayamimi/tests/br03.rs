@@ -19,10 +19,11 @@
 //! rewrites. The rows T-BR-04-015 to 017 test the record's split of the draft
 //! translation by language, on utterances written by hand, and the rows
 //! T-BR-04-018 to 022 the line of the draft translation, on the same kind of
-//! utterances. The row T-BR-04-009 reads the recorded run with IP-S7 and IP-S8
-//! on. The row 019 reads the sources of the tests: a record that a real run
-//! rewrites is named only by the test that owns the run, so a run recorded
-//! again cannot turn the hand-counted values of another test red.
+//! utterances. The row T-BR-04-009 reads a copy of the recorded run with IP-S7
+//! and IP-S8 on, which no later run rewrites. The row 019 reads the sources of
+//! the tests: a record that a real run rewrites is named only by the test that
+//! owns the run, so a run recorded again cannot turn the hand-counted values of
+//! another test red.
 
 mod support;
 
@@ -257,9 +258,10 @@ fn the_warm_stage_percentiles_of_the_pair_record_are_the_hand_counted_ones() -> 
 #[test]
 fn the_warm_pair_run_has_its_draft_translation_p50_inside_100_ms_and_split_by_language()
 -> TestResult {
+    // The pair run with IP-S7 and IP-S8 on: a record that no later run rewrites.
     let record = Path::new(REPO).join("docs/results/in-person");
-    let samples = read(&record.join("br03_ip_s8.jsonl"))?;
-    let events = read(&record.join("br03_ip_s8.events.jsonl"))?;
+    let samples = read(&record.join("br04_ip_s8.jsonl"))?;
+    let events = read(&record.join("br04_ip_s8.events.jsonl"))?;
     let report = stage_report(&samples, &events).map_err(|error| error.to_string())?;
     assert_eq!(report.warm.len(), 76);
     judge_draft_p50(&report)?;
