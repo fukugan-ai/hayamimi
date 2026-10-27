@@ -24,6 +24,7 @@ pub mod keys {
     pub const HELD_REUSE_UNSUPPORTED: &str = "held_reuse_unsupported";
     pub const DRAFT_WORKER_UNSUPPORTED: &str = "draft_worker_unsupported";
     pub const ASR_THREADS_UNSUPPORTED: &str = "asr_threads_unsupported";
+    pub const DRAFT_MARKS_UNSUPPORTED: &str = "draft_marks_unsupported";
     pub const LANG_UNSUPPORTED: &str = "lang_unsupported";
     pub const NEED_WAV: &str = "need_wav";
     pub const NO_GPU_CHECK: &str = "no_gpu_check";
@@ -36,7 +37,7 @@ pub mod keys {
     /// Every fixed key above, for the check that both tables hold them all.
     /// The keys of a fallback notice are derived from its fields (`stage_*`,
     /// `reason_*`, `to_*`) and are checked against the lists in `notice`.
-    pub const ALL: [&str; 20] = [
+    pub const ALL: [&str; 21] = [
         HELP,
         USAGE_HINT,
         UNKNOWN_OPTION,
@@ -49,6 +50,7 @@ pub mod keys {
         HELD_REUSE_UNSUPPORTED,
         DRAFT_WORKER_UNSUPPORTED,
         ASR_THREADS_UNSUPPORTED,
+        DRAFT_MARKS_UNSUPPORTED,
         LANG_UNSUPPORTED,
         NEED_WAV,
         NO_GPU_CHECK,
@@ -200,6 +202,29 @@ mod tests {
         assert_ne!(
             english.cli_text(keys::ASR_THREADS_UNSUPPORTED),
             japanese.cli_text(keys::ASR_THREADS_UNSUPPORTED)
+        );
+        Ok(())
+    }
+
+    /// T-BR-40-003
+    #[test]
+    fn the_draft_marks_help_line_and_refusal_are_in_both_languages() -> Result<(), String> {
+        let english = Strings::embedded(Lang::En)?;
+        let japanese = Strings::embedded(Lang::Ja)?;
+        for table in [&english, &japanese] {
+            assert!(
+                table
+                    .cli_text(keys::HELP)
+                    .contains("--draft-marks <on|off>"),
+                "a help text lacks the option"
+            );
+            let refusal = table.cli_text(keys::DRAFT_MARKS_UNSUPPORTED);
+            assert!(refusal.contains("--draft-marks"), "{refusal}");
+            assert!(refusal.contains("off"), "{refusal}");
+        }
+        assert_ne!(
+            english.cli_text(keys::DRAFT_MARKS_UNSUPPORTED),
+            japanese.cli_text(keys::DRAFT_MARKS_UNSUPPORTED)
         );
         Ok(())
     }

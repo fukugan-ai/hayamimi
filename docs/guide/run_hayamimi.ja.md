@@ -511,6 +511,27 @@ jq -r 'select(.event.type=="partial") | .event.type' <events.jsonl を残した 
 範囲の外の値（0、33、負の数、小数、空、数でない語）は、起動の時に拒否します。
 旗を外す時は `--asr-threads 4` にします。
 
+## 日本語の速報に確定文と同じ後処理を当てる（`--draft-marks`）
+
+速報は、発話の途中で読んだ文字です。
+日本語の認識器（`rz`）が読んだ速報は、既定では辞書の置換だけを通り、数字の書き方（ITN）と句読点は付きません。
+確定文は、ITN、句読点、辞書の置換の順に通ります。
+速報と確定文で文字が違うと、速報の訳を確定文の訳に使い回せず、訳が確定の後に始まります。
+`--draft-marks on` を付けると、`rz` の速報にも確定文と同じ順の後処理が当たります。
+他の言語の速報は変わりません。
+既定は `off` です。
+
+使い回した件数は、BR-3 の run の log で数えます。
+
+```bash
+jq -r 'select(.event=="translate.draft.reused") | .match' <log.jsonl を残した file> | sort | uniq -c
+jq -r 'select(.event=="asr.partial.read") | .event' <log.jsonl を残した file> | wc -l
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.partial.read` も数えて、非 0 の対照を並べます。
+`--draft-marks` に `on`、`off` 以外の値を渡すと、起動の時に拒否します。
+旗を外す時は `--draft-marks off` にします。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash

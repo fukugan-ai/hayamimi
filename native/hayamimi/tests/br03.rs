@@ -195,6 +195,28 @@ const ASR_THREADS_FOUR: Variant = Variant {
     judges_draft: false,
 };
 
+/// The programs with the drafts of the Japanese recognizer carrying the marks of a final (IP-S21).
+const DRAFT_MARKS_ON: Variant = Variant {
+    step: "br03_ip_s21",
+    title: "BR-3 の IP-S21 の後の値（日本語の速報に確定文と同じ ITN と句読点を当てた run）",
+    flags: Flags {
+        hayamimi: &["--draft-marks", "on"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// IP-S21 off: the drafts of the Japanese recognizer carry the dictionary only.
+const DRAFT_MARKS_OFF: Variant = Variant {
+    step: "br03_ip_s21_off",
+    title: "BR-3 の IP-S21 を旗で外した値（速報に ITN と句読点を当てない run）",
+    flags: Flags {
+        hayamimi: &["--draft-marks", "off"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
 /// The file of the record called `step` that ends in `suffix`.
 fn record_named(step: &str, suffix: &str) -> PathBuf {
     Path::new(REPO)
@@ -435,6 +457,20 @@ fn the_run_with_eight_asr_threads_is_recorded() -> TestResult {
 #[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
 fn the_run_with_four_asr_threads_is_recorded() -> TestResult {
     record_run(&ASR_THREADS_FOUR)
+}
+
+/// T-BR-40-006
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_draft_marks_on_is_recorded() -> TestResult {
+    record_run(&DRAFT_MARKS_ON)
+}
+
+/// T-BR-40-007
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_draft_marks_off_is_recorded() -> TestResult {
+    record_run(&DRAFT_MARKS_OFF)
 }
 
 /// How the segments the `silence` rule closed in a run were turned into text,

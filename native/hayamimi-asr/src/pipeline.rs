@@ -86,6 +86,11 @@ pub struct Settings {
     /// How many threads each recognizer (the Japanese one and the English
     /// one, and those of the draft worker) uses.
     pub asr_threads: i32,
+    /// Whether a draft read by the Japanese tier takes the marks of a `final`
+    /// (inverse text normalisation and punctuation) before it is handed on, so
+    /// that the translation of a draft can stand for the translation of the
+    /// `final` it closes. Off: the dictionary only.
+    pub draft_marks: bool,
 }
 
 impl Settings {
@@ -105,6 +110,7 @@ impl Settings {
             endpoint: Mode::Silence,
             draft_worker: false,
             asr_threads: THREADS,
+            draft_marks: false,
         }
     }
 }
@@ -399,10 +405,19 @@ pub struct Engine {
     next_id: u64,
     /// Reads the drafts of the utterance in progress, on a worker thread or on this one.
     drafter: Drafter,
+    /// Whether a draft of the Japanese tier takes the marks of a `final`.
+    draft_marks: bool,
 }
 
 fn millis(since: Instant) -> f64 {
     since.elapsed().as_secs_f64() * 1000.0
+}
+
+/// Whether a draft read by `tier` takes the marks of a `final`: when the
+/// setting is on and the tier is the Japanese one, the text the ITN and the
+/// punctuation model are made for.
+fn draft_wears_marks(on: bool, tier: Tier) -> bool {
+    on && tier == Tier::Rz
 }
 
 /// Milliseconds since the Unix epoch.
@@ -711,6 +726,7 @@ impl Engine {
             fallbacks,
             next_id: 1,
             drafter,
+            draft_marks: settings.draft_marks,
         })
     }
 
@@ -907,7 +923,8 @@ impl Engine {
     }
 
     /// A draft of the utterance in progress, when one is ready: the recognizer
-    /// and the replacement dictionary only, with no ITN and no punctuation.
+    /// and the replacement dictionary, and with `draft_marks` the ITN and the
+    /// punctuation of a `final` as well (see [`Engine::draft_text`]).
     /// Nothing the final needs is touched. With a draft worker the text is the
     /// one the worker finished since the last call, if it still belongs to the
     /// speech in progress, and the next draft is handed over in the same call.
@@ -928,7 +945,7 @@ impl Engine {
         else {
             return Ok(None);
         };
-        let text = self.replacements.apply(&drafted);
+        let text = self.draft_text(drafted, tier);
         Ok((!text.trim().is_empty()).then_some(text))
     }
 
@@ -1326,6 +1343,22 @@ impl Engine {
             Ok(punctuated) => (punctuated, None),
             Err(error) => (text, Some(error.to_string())),
         }
+    }
+
+    /// The text of a draft read by `tier`. With `draft_marks` and the Japanese
+    /// tier it is what [`Engine::solve`] makes of a reading, in the same
+    /// order: ITN, punctuation, dictionary, so that the `final` that closes the
+    /// draft has the same text unless the words differ. Any other draft takes
+    /// the dictionary only, since the other tiers write their own marks. A
+    /// punctuation read that fails leaves the draft without marks; the same
+    /// model fails the same way for the `final`, which reports it.
+    fn draft_text(&mut self, drafted: String, tier: Tier) -> String {
+        if !draft_wears_marks(self.draft_marks, tier) {
+            return self.replacements.apply(&drafted);
+        }
+        let (text, _) = self.normalize(drafted, PUNCTUATED_LANGUAGE);
+        let (text, _) = self.punctuate(text, PUNCTUATED_LANGUAGE);
+        self.replacements.apply(&text)
     }
 }
 
@@ -1890,6 +1923,39 @@ mod tests {
         assert!(!engine.stages.punctuate);
         engine.set_punctuate(true);
         assert!(engine.can_punctuate() && engine.stages.punctuate);
+        Ok(())
+    }
+
+    /// T-BR-40-004
+    #[test]
+    fn a_draft_takes_the_marks_of_a_final_only_from_the_japanese_tier_with_the_setting_on() {
+        assert!(draft_wears_marks(true, Tier::Rz));
+        assert!(!draft_wears_marks(false, Tier::Rz));
+        for tier in Tier::ALL.into_iter().filter(|tier| *tier != Tier::Rz) {
+            assert!(!draft_wears_marks(true, tier), "{}", tier.name());
+        }
+    }
+
+    /// T-BR-40-005
+    #[test]
+    #[ignore = "opens the fetched punctuation model"]
+    fn a_japanese_draft_has_the_marks_of_a_final_with_the_setting_on_and_none_with_it_off()
+    -> Result<(), AsrError> {
+        let raw = "けさの東京風はなさそうですけれどもね体感はどうでしょうか近藤さん";
+        let mut plain = Settings::new(fetched_models()?);
+        plain.stages.speakers = false;
+        let mut marked = plain.clone();
+        marked.draft_marks = true;
+        let mut off = Engine::open(plain)?;
+        let mut on = Engine::open(marked)?;
+        assert_eq!(off.draft_text(String::from(raw), Tier::Rz), raw);
+        let worn = on.draft_text(String::from(raw), Tier::Rz);
+        assert_ne!(worn, raw);
+        assert!(worn.contains('？') || worn.contains('。'), "{worn}");
+        assert_eq!(
+            on.draft_text(String::from("HELLO THERE"), Tier::V3),
+            "HELLO THERE"
+        );
         Ok(())
     }
 

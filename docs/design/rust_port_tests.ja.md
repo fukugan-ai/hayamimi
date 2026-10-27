@@ -3737,13 +3737,13 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 - `?relay=` の scheme の大文字小文字、decode した値の前後の空白、`held` の訳の描き方（印と理由を出し、訳の文を出さない）：10.5（T-IP-05-002、012、014、017 から 019）。
 - `--own-llama-port` の型と範囲（`0`、`65535`、`65536`、負の数、空の値、先頭に 0 のある引数、引数の重複）：10.7.1（T-IP-08-013、015 から 022）。
 
-### 4.87 BR-1〜BR-39（対面のモードの磨き上げ）
+### 4.87 BR-1〜BR-40（対面のモードの磨き上げ）
 
 **最新情報**：Chrome DevTools Protocol の CSS domain は、`CSS.getPlatformFontsForNode` が node の子の文字を描いた platform font の使用状況（`familyName`、`postScriptName`、`isCustomFont`、`glyphCount`）を返すと書く（https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json 、取得 2026-10-23）。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
-case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 39 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 15 つである。
+case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 40 まである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 16 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 - BR-5 の `Mailbox` と stream の経路の行（T-BR-05-008 から 018）は `native/hayamimi-relay/src/partial.rs` の `mod tests`、引数の行（020 から 024）は `native/hayamimi-relay/src/cli.rs` の `mod tests`。
@@ -3760,6 +3760,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-37 の旗の行（T-BR-37-011）は `native/hayamimi/src/args.rs` の `mod tests`、定数の行（015）は `native/hayamimi-asr/src/partial.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 014）は `native/hayamimi/tests/br03.rs`。
 - BR-38 の旗の行（T-BR-38-016）は `native/hayamimi/src/args.rs` の `mod tests`、log の行（017）は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行（021）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行と記録を読む行（018 から 020）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 015 と 022）は `native/hayamimi-asr/tests/br38.rs`。
 - BR-39 の旗の行（T-BR-39-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（005）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）は `native/hayamimi/tests/br03.rs`、それ以外（003、004）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
+- BR-40 の旗の行（T-BR-40-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（003）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）は `native/hayamimi/tests/br03.rs`、それ以外（004、005）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -4542,6 +4543,20 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-39-006 | 実走：BR-3 の harness が `--asr-threads 8` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s18`） | 8 thread の run | 記録が揃う | `br03_ip_s18.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれる（specified：設計 10.13.9 の IP-S18「記録：BR-3 の run の確定文の `decode_ms`」） | 陽性 | `the_run_with_eight_asr_threads_is_recorded` |
 | T-BR-39-007 | 実走：同じ harness が `--asr-threads 4` を付けて流して記録する（step は `br03_ip_s18_four`） | 4 thread の run | 記録が揃う | 006 と同じ 4 つの file が書かれる（specified：006 の対照の run） | 陽性 | `the_run_with_four_asr_threads_is_recorded` |
 
+**BR-40（日本語の速報に確定と同じ ITN と句読点を当てる。旗の行は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行は `native/hayamimi/src/strings.rs` の `mod tests`、速報の後処理の行は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`、run の記録の行は `native/hayamimi/tests/br03.rs`）**
+
+材料：`hayamimi::args::parse` に引数の並びを渡し、`Args` の `draft_marks` と `ArgError` を読む。`hayamimi_asr::pipeline` の非公開の `draft_wears_marks` に旗と tier を渡す。005 は句読点の model を持つ `Engine`（fetch 済みの model を読むので `#[ignore]`）の非公開の `draft_text` に文と tier を渡す。実走は BR-3 の harness が `--draft-marks` を付けて `lat-dialog` を `--repeat 3` で流し、記録を `docs/results/in-person/` に書く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-40-001 | 純関数：`--wav a` に `--draft-marks` を付けない行と、`on`、`off` を付けた行を `parse` に渡す | 既定と 2 つの値 | on と off | 付けない行と `off` の行は `draft_marks` が偽、`on` の行は真である（specified：設計 10.13.4 の手 13。`--draft-marks off` で今の形） | 境界 | `draft_marks_starts_off_and_takes_on_or_off` |
+| T-BR-40-002 | 純関数：`--draft-marks` に `maybe`、空、`ON`、`1`、`true` を付けた行と、値の無い行を `parse` に渡す | on と off の外 | on と off | 値のある行は `ArgError::DraftMarksUnsupported`、値の無い行は `ArgError::MissingValue` である。`DraftMarksUnsupported` の key は `draft_marks_unsupported`（specified：同） | 陰性 | `draft_marks_refuses_what_is_not_on_or_off` |
+| T-BR-40-003 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `help` の文と `draft_marks_unsupported` の文を引く | 2 つの言語 | 文 2 つ | どちらの `help` も `--draft-marks <on\|off>` を含み、拒否の文は `--draft-marks` と `off` を含み、2 つの言語で違う文である（specified：command line の文言を locale で切り替える決め） | 陽性 | `the_draft_marks_help_line_and_refusal_are_in_both_languages` |
+| T-BR-40-004 | 純関数：`draft_wears_marks` に、旗が真と偽、tier が `Tier::Rz` と、それ以外の全部（`Tier::ALL`）を渡す | 旗と tier | `Rz` だけ | 旗が真で tier が `Rz` の時だけ真である。旗が偽なら `Rz` でも偽で、旗が真でも `Rz` 以外は全部偽である（specified：設計 10.13.4 の手 13「他の tier の速報は変えない」） | 陰性 | `a_draft_takes_the_marks_of_a_final_only_from_the_japanese_tier_with_the_setting_on` |
+| T-BR-40-005 | `#[ignore]`：句読点の model を持つ 2 つの `Engine`（旗が偽と真）に、句読点の無い日本語の文 `けさの東京風はなさそうですけれどもね体感はどうでしょうか近藤さん` を `Tier::Rz` の速報として `draft_text` に渡し、真の側には英語の文 `HELLO THERE` も `Tier::V3` として渡す | 旗の 2 値と tier | 句読点が付く | 偽の側は文のまま返る。真の側は文と違い、`？` か `。` を含む。`V3` の文は変わらない（specified：同。辞書の置換はどちらの側も通る） | 陽性 | `a_japanese_draft_has_the_marks_of_a_final_with_the_setting_on_and_none_with_it_off` |
+| T-BR-40-006 | 実走：BR-3 の harness が `--draft-marks on` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s21`） | on の run | 記録が揃う | `br03_ip_s21.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれる（specified：設計 10.13.9 の IP-S21「記録：`translate.draft.reused` の数」） | 陽性 | `the_run_with_draft_marks_on_is_recorded` |
+| T-BR-40-007 | 実走：同じ harness が `--draft-marks off` を付けて流して記録する（step は `br03_ip_s21_off`） | off の run | 記録が揃う | 006 と同じ 4 つの file が書かれる（specified：006 の対照の run） | 陽性 | `the_run_with_draft_marks_off_is_recorded` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
@@ -4552,6 +4567,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 確定文の言語を途中の判定で決める：10.13.4 の手 12（T-BR-37）。
 - 速報の復号を専用の thread で回す：10.13.4 の手 11（T-BR-38）。
 - 認識器の thread 数を引数で決める：10.13.4 の手 10（T-BR-39）。既定を 8 にする条件は H83。
+- 日本語の速報に確定と同じ ITN と句読点を当てる：10.13.4 の手 13（T-BR-40）。既定を `on` にする条件は H84。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。

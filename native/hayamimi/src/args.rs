@@ -67,6 +67,9 @@ pub struct Args {
     pub draft_worker: bool,
     /// How many threads each recognizer uses (`--asr-threads`).
     pub asr_threads: i32,
+    /// Whether a draft read by the Japanese tier takes the marks of a final
+    /// (`--draft-marks`).
+    pub draft_marks: bool,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -102,6 +105,7 @@ pub enum ArgError {
     HeldReuseUnsupported,
     DraftWorkerUnsupported,
     AsrThreadsUnsupported,
+    DraftMarksUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -122,6 +126,7 @@ impl ArgError {
             ArgError::HeldReuseUnsupported => keys::HELD_REUSE_UNSUPPORTED,
             ArgError::DraftWorkerUnsupported => keys::DRAFT_WORKER_UNSUPPORTED,
             ArgError::AsrThreadsUnsupported => keys::ASR_THREADS_UNSUPPORTED,
+            ArgError::DraftMarksUnsupported => keys::DRAFT_MARKS_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -238,6 +243,15 @@ fn draft_worker_of(text: &str) -> Result<bool, ArgError> {
     }
 }
 
+/// `--draft-marks`: `on` or `off`.
+fn draft_marks_of(text: &str) -> Result<bool, ArgError> {
+    match text {
+        "on" => Ok(true),
+        "off" => Ok(false),
+        _ => Err(ArgError::DraftMarksUnsupported),
+    }
+}
+
 /// The most threads `--asr-threads` accepts.
 const MAX_ASR_THREADS: i32 = 32;
 
@@ -291,6 +305,7 @@ impl Args {
             held_reuse: HeldReuse::Covering,
             draft_worker: false,
             asr_threads: THREADS,
+            draft_marks: false,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -318,6 +333,7 @@ impl Args {
             "--held-reuse" => self.held_reuse = held_reuse_of(value_of(rest)?)?,
             "--draft-worker" => self.draft_worker = draft_worker_of(value_of(rest)?)?,
             "--asr-threads" => self.asr_threads = asr_threads_of(value_of(rest)?)?,
+            "--draft-marks" => self.draft_marks = draft_marks_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -726,6 +742,35 @@ mod tests {
         assert_eq!(
             ArgError::AsrThreadsUnsupported.key(),
             "asr_threads_unsupported"
+        );
+    }
+
+    /// T-BR-40-001
+    #[test]
+    fn draft_marks_starts_off_and_takes_on_or_off() -> Result<(), ArgError> {
+        assert!(!run(&["--wav", "a"])?.draft_marks);
+        assert!(run(&["--wav", "a", "--draft-marks", "on"])?.draft_marks);
+        assert!(!run(&["--wav", "a", "--draft-marks", "off"])?.draft_marks);
+        Ok(())
+    }
+
+    /// T-BR-40-002
+    #[test]
+    fn draft_marks_refuses_what_is_not_on_or_off() {
+        for text in ["maybe", "", "ON", "1", "true"] {
+            assert_eq!(
+                run(&["--wav", "a", "--draft-marks", text]).err(),
+                Some(ArgError::DraftMarksUnsupported),
+                "{text:?}"
+            );
+        }
+        assert_eq!(
+            run(&["--wav", "a", "--draft-marks"]).err(),
+            Some(ArgError::MissingValue)
+        );
+        assert_eq!(
+            ArgError::DraftMarksUnsupported.key(),
+            "draft_marks_unsupported"
         );
     }
 
