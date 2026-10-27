@@ -769,7 +769,7 @@ mod drained {
     use crate::support::{TestResult, spawn_binary};
 
     /// Writes 4 000 000 bytes to each of stdout and stderr: several times what a pipe
-    /// holds (64 KiB by default on Linux; a little over 1 MiB on the WSL2 kernel).
+    /// holds (64 KiB by default on Linux; 1 MiB on the WSL2 kernel).
     const WRITES_MUCH: &str = "head -c 4000000 /dev/zero; head -c 4000000 /dev/zero >&2";
 
     /// Whether `child` ended within `within`.

@@ -182,7 +182,7 @@ fn start_relay(llama: &Llama) -> Result<Owned, Failure> {
 
 /// Reads what `child` still has on its stdout and stderr to the end, on threads
 /// of their own, and drops it. A pipe holds a fixed amount (64 KiB by default
-/// on Linux, a little over 1 MiB on the WSL2 kernel); a child that writes more
+/// on Linux, 1 MiB on the WSL2 kernel); a child that writes more
 /// while nobody reads waits in the write until someone does. The relay is such
 /// a child: it writes a log line for each event it handles, and its
 /// translations stop once the pipe is full.
