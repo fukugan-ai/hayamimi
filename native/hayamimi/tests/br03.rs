@@ -17,7 +17,9 @@
 //! switched off, to be set beside each other the same way. The rows T-BR-36-014,
 //! 015 and 019 read the log and the events of those two records: the plans the
 //! `silence` closes were read by, the finals that differ between the runs, and
-//! the end of the finals made from a kept sentence.
+//! the end of the finals made from a kept sentence. Two more (T-BR-37-012 and
+//! 013) play it with the language of a final decided in the middle of an
+//! utterance, and with that measure of IP-S20 switched off.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -113,6 +115,29 @@ const HELD_STRICT: Variant = Variant {
     title: "BR-3 の IP-S17 を旗で外した値（持った文を 1 窓の内でだけ使う）",
     flags: Flags {
         hayamimi: &["--held-reuse", "strict"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// The programs as they are after IP-S20: the language of a final is decided
+/// when the voice reaches four seconds, not when the segment closes.
+const FINAL_LID_MIDWAY: Variant = Variant {
+    step: "br03_ip_s20",
+    title: "BR-3 の IP-S20 の後の値（確定文の言語を声が 4 秒に届いた時に決める）",
+    flags: Flags {
+        hayamimi: &[],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// IP-S20 off: the language of a final is asked when the segment closes.
+const FINAL_LID_CLOSE: Variant = Variant {
+    step: "br03_ip_s20_close",
+    title: "BR-3 の IP-S20 を旗で外した値（確定文の言語を閉じる時に決める）",
+    flags: Flags {
+        hayamimi: &["--final-lid", "close"],
         relay: &[],
     },
     judges_draft: false,
@@ -287,6 +312,26 @@ fn the_run_with_covering_held_reuse_is_recorded() -> TestResult {
 #[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
 fn the_run_with_strict_held_reuse_is_recorded() -> TestResult {
     record_run(&HELD_STRICT)
+}
+
+/// T-BR-37-012
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_the_final_language_decided_midway_is_recorded() -> TestResult {
+    record_run(&FINAL_LID_MIDWAY)?;
+    let log = read(&record_of(&FINAL_LID_MIDWAY, ".log.jsonl"))?;
+    assert!(
+        log.contains("asr.partial.lang.asked"),
+        "the logs of the run have no line of asr.partial.lang.asked"
+    );
+    Ok(())
+}
+
+/// T-BR-37-013
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_the_final_language_decided_at_the_close_is_recorded() -> TestResult {
+    record_run(&FINAL_LID_CLOSE)
 }
 
 /// How the segments the `silence` rule closed in a run were turned into text,
