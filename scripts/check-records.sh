@@ -17,6 +17,7 @@
 #
 # How this can break, and what stops it:
 #   first run    the release target may be cold (minutes); the words may carry a slot wait.
+#                cargo runs in native/, where the workspace is (the root has no Cargo.toml).
 #   contention   cargo's own rules for the words you pass (a slot, a target lock).
 #   start        tracked files equal HEAD (`git diff --quiet HEAD`) and origin/main resolves:
 #                the mark names HEAD, so a test of an edit that is not in HEAD would be marked.
@@ -67,7 +68,7 @@ run_crate() {
   local crate=$1 name args=()
   shift
   for name in "$@"; do args+=(--test "$name"); done
-  "${cargo[@]}" test --release --jobs 2 --no-fail-fast -p "$crate" "${args[@]}"
+  (cd native && "${cargo[@]}" test --release --jobs 2 --no-fail-fast -p "$crate" "${args[@]}")
 }
 
 mark=${1:-}
