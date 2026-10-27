@@ -144,7 +144,7 @@ fn samples_in(name: &str) -> Result<Vec<Sample>, Failure> {
 
 fn real() -> Result<Real, Failure> {
     Ok(Real {
-        pair: samples_in("ip02_pair.jsonl")?,
+        pair: samples_in("ip04_pair.jsonl")?,
         pair_shas: sha_of_each_row("testdata/manifests/lat-dialog.json")?,
         ja: samples_in("ip04_lang_ja.jsonl")?,
         ja_shas: sha_of_each_row("testdata/manifests/lat-ja.json")?,

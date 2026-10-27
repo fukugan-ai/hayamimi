@@ -9,7 +9,7 @@
 //!
 //! The real row (T-IP-04-001) reads the records of three runs taken one after
 //! the other on one machine, in `docs/results/in-person/`:
-//! `ip02_pair.jsonl` and `ip02_pair.log` (IP-2's run of `lat-dialog`),
+//! `ip04_pair.jsonl` and `ip04_pair.log` (the run of `lat-dialog` with `--mode pair`),
 //! `ip04_lang_ja.jsonl` (`lat-ja` with `--lang ja`) and `ip04_lang_en.jsonl`
 //! (`lat-en` with `--lang en`), each with the `.log` that `hayamimi` printed. It
 //! is `#[ignore]`d and runs with `-- --ignored`. Every other row feeds the tools
@@ -289,7 +289,7 @@ fn ip04_language_choice_adds_little_to_the_wait() -> TestResult {
     let record = records.join("ip04.md");
     std::fs::write(&record, "# IP-4 record\n")?;
     let pair = clips_of_run(
-        &records.join("ip02_pair.jsonl"),
+        &records.join("ip04_pair.jsonl"),
         "testdata/manifests/lat-dialog.json",
     )?;
     let mut forced = clips_of_run(
@@ -310,9 +310,9 @@ fn ip04_language_choice_adds_little_to_the_wait() -> TestResult {
         .append(true)
         .open(&record)?
         .write_all(notes.as_bytes())?;
-    let log = read(&records.join("ip02_pair.log"))?;
+    let log = read(&records.join("ip04_pair.log"))?;
     let lid = lid_stat(&log)?;
-    let samples = read_samples(&records.join("ip02_pair.jsonl")).map_err(to_failure)?;
+    let samples = read_samples(&records.join("ip04_pair.jsonl")).map_err(to_failure)?;
     let split = by_repeat(&samples)?;
     let stats = [
         ("lid_ms", Some(lid)),

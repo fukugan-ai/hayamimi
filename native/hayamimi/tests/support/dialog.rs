@@ -80,6 +80,31 @@ pub fn check_complete(text: &str, repeats: u32, utterances: u32) -> Result<usize
     Ok(samples.len())
 }
 
+/// How many samples of a run have a closing final, and how many have a
+/// translation. An `Err` when no sample has a final, or when fewer than half as
+/// many samples have a translation as have a final: the relay stopped
+/// translating while the run went on.
+pub fn check_translated(text: &str) -> Result<(usize, usize), Failure> {
+    let samples = samples_of(text)?;
+    let finals = samples
+        .iter()
+        .filter(|sample| sample.t_final_us.is_some())
+        .count();
+    let translated = samples
+        .iter()
+        .filter(|sample| sample.t_tr_us.is_some())
+        .count();
+    if finals == 0 {
+        return Err(String::from("no sample has a final"));
+    }
+    if translated * 2 < finals {
+        return Err(format!(
+            "only {translated} of the {finals} samples with a final have a translation"
+        ));
+    }
+    Ok((finals, translated))
+}
+
 /// One event of an events file: when it arrived and what it said.
 pub struct EventLine {
     pub t_us: i64,
