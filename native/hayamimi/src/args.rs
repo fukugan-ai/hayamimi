@@ -54,6 +54,9 @@ pub struct Args {
     /// Whether a pair run reads the drafts of an utterance in the language
     /// heard after its first two seconds (`--partial-lid`).
     pub partial_lid: bool,
+    /// Whether a pair run takes the language of a final from the question put
+    /// to the identifier when its voice reached four seconds (`--final-lid`).
+    pub final_midway: bool,
     /// How far a sentence the early detector kept may have been read past the
     /// end of the segment and still be its text (`--held-reuse`).
     pub held_reuse: HeldReuse,
@@ -88,6 +91,7 @@ pub enum ArgError {
     ModeUnsupported,
     EndpointUnsupported,
     PartialLidUnsupported,
+    FinalLidUnsupported,
     HeldReuseUnsupported,
     LangUnsupported,
     NeedWav,
@@ -105,6 +109,7 @@ impl ArgError {
             ArgError::ModeUnsupported => keys::MODE_UNSUPPORTED,
             ArgError::EndpointUnsupported => keys::ENDPOINT_UNSUPPORTED,
             ArgError::PartialLidUnsupported => keys::PARTIAL_LID_UNSUPPORTED,
+            ArgError::FinalLidUnsupported => keys::FINAL_LID_UNSUPPORTED,
             ArgError::HeldReuseUnsupported => keys::HELD_REUSE_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
@@ -195,6 +200,15 @@ fn partial_lid_of(text: &str) -> Result<bool, ArgError> {
     }
 }
 
+/// `--final-lid`: `midway` or `close`.
+fn final_lid_of(text: &str) -> Result<bool, ArgError> {
+    match text {
+        "midway" => Ok(true),
+        "close" => Ok(false),
+        _ => Err(ArgError::FinalLidUnsupported),
+    }
+}
+
 /// `--held-reuse`: `covering` or `strict`.
 fn held_reuse_of(text: &str) -> Result<HeldReuse, ArgError> {
     match text {
@@ -225,6 +239,7 @@ impl Args {
         };
         Policy {
             partial_lid: chosen.partial_lid && self.partial_lid,
+            final_midway: chosen.final_midway && self.final_midway,
             held_reuse: self.held_reuse,
             ..chosen
         }
@@ -241,6 +256,7 @@ impl Args {
             max_speech: DEFAULT_MAX_SPEECH,
             endpoint: Endpoint::Early,
             partial_lid: true,
+            final_midway: true,
             held_reuse: HeldReuse::Covering,
             replace: None,
             serve: None,
@@ -265,6 +281,7 @@ impl Args {
             "--max-speech" => self.max_speech = positive_seconds(value_of(rest)?)?,
             "--endpoint" => self.endpoint = endpoint_of(value_of(rest)?)?,
             "--partial-lid" => self.partial_lid = partial_lid_of(value_of(rest)?)?,
+            "--final-lid" => self.final_midway = final_lid_of(value_of(rest)?)?,
             "--held-reuse" => self.held_reuse = held_reuse_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
@@ -571,6 +588,42 @@ mod tests {
         );
         assert_eq!(
             run(&["--wav", "a", "--held-reuse"]).err(),
+            Some(ArgError::MissingValue)
+        );
+        Ok(())
+    }
+
+    /// T-BR-37-011
+    #[test]
+    fn final_lid_takes_midway_or_close_and_nothing_else_and_asks_nothing_outside_a_pair_run()
+    -> Result<(), ArgError> {
+        let pair = ["--wav", "a", "--mode", "pair"];
+        assert!(policy_of(&pair)?.final_midway);
+        let midway = ["--wav", "a", "--mode", "pair", "--final-lid", "midway"];
+        assert!(policy_of(&midway)?.final_midway);
+        let close = ["--wav", "a", "--mode", "pair", "--final-lid", "close"];
+        let closed = policy_of(&close)?;
+        assert!(!closed.final_midway);
+        // The only difference from the pair policy is the switch.
+        assert_eq!(
+            closed,
+            Policy {
+                final_midway: false,
+                ..Policy::pair()
+            }
+        );
+        for mode in ["balanced", "fast", "single"] {
+            for flag in [["--final-lid", "midway"], ["--final-lid", "close"]] {
+                let line = ["--wav", "a", "--mode", mode, flag[0], flag[1]];
+                assert!(!policy_of(&line)?.final_midway, "{mode} {flag:?}");
+            }
+        }
+        assert_eq!(
+            run(&["--wav", "a", "--final-lid", "maybe"]).err(),
+            Some(ArgError::FinalLidUnsupported)
+        );
+        assert_eq!(
+            run(&["--wav", "a", "--final-lid"]).err(),
             Some(ArgError::MissingValue)
         );
         Ok(())

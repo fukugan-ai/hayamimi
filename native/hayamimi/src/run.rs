@@ -725,6 +725,7 @@ mod tests {
             max_speech: 12.0,
             endpoint: hayamimi_asr::endpoint::Mode::Early,
             partial_lid: true,
+            final_midway: true,
             held_reuse: hayamimi_asr::endpoint::HeldReuse::Covering,
             replace: replace.map(Into::into),
             serve: None,

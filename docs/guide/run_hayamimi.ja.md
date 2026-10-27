@@ -410,9 +410,11 @@ grep -E '"event":"(translate.warmup.sent|translate.warmup.failed|relay.serve.sta
 項目は `answer`、`voice_ms`、`lid_ms` です。
 `answer` は、`ja` か `en`、2 つの外の言語を答えた `outside`、答えなかった `failed` のどれかです。
 `outside` と `failed` の発話は、速報の言語が直前の確定文の言語のままです。
+`--final-lid midway`（既定）の run は、4 秒の問いにも同じ event を出します（後の `--final-lid` の節）。
+2 秒の問いの行は、`voice_ms` が 4000 に届かない行です。
 
 ```bash
-grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -o '"answer":"[a-z]*"' | sort | uniq -c
+grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -vE '"voice_ms":[4-9][0-9]{3}' | grep -o '"answer":"[a-z]*"' | sort | uniq -c
 grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
 ```
 
@@ -437,6 +439,26 @@ grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
 ```
 
 `held` が 0 件の判定は、同じ command の中で、必ず出る `asr.endpoint.decided` も数えて、非 0 の対照を並べます。
+
+## 確定文の言語を発話の途中で決める（`--final-lid`）
+
+`--mode pair` の run は、1 つの発話の声が 4 秒に届いた時に、言語判定器へ 1 度だけ尋ねます。
+答えが `ja` か `en` で、尋ねた時の声の始まりが、確定する区間の始まりの 0.5 秒以内にあれば、発話が終わった時の言語の判定を省いて、その答えを確定文の言語にします。
+2 つの外の言語を答えた時、答えなかった時、位置が合わない時、声が 4 秒に届かなかった時は、これまでどおり発話が終わった時に尋ねます。
+`--final-lid close` を付けると、発話が終わった時にだけ尋ねる前の動きへ戻ります。
+`--mode pair` でない run は尋ねません。
+
+尋ねた回は、2 秒目の問いと同じ `asr.partial.lang.asked`（info）が 1 行出ます。
+`voice_ms` が 4000 以上の行が、この旗の問いです。
+答えを使った確定文は、`asr.utterance.timed` の `lid_ms` が 0 になります。
+
+```bash
+grep '"event":"asr.partial.lang.asked"' <hayamimi の stdout を残した file> | grep -cE '"voice_ms":[4-9][0-9]{3}'
+grep '"event":"asr.utterance.timed"' <hayamimi の stdout を残した file> | grep -cE '"lid_ms":0(\.0+)?[,}]'
+grep -c '"event":"asr.utterance.timed"' <hayamimi の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.utterance.timed` も数えて、非 0 の対照を並べます。
 
 ## ITN と句読点の後処理の CPU の時間
 

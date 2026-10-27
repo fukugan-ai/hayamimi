@@ -33,6 +33,10 @@ pub struct Request<'a> {
     pub samples: &'a [f32],
     /// A language detected earlier, in the middle of the utterance.
     pub known_lang: Option<&'a str>,
+    /// The language the identifier named once the voice of this segment
+    /// reached four seconds, from the clip this segment's own question would
+    /// read. In a pair run, `ja` or `en` here stands in for that question.
+    pub midway_lang: Option<&'a str>,
     /// Seconds of speech in the segment, when known.
     pub speech_s: Option<f64>,
     /// A final of the live stream. A decode that is not live (the refine pass)
@@ -49,6 +53,7 @@ impl<'a> Request<'a> {
         Request {
             samples,
             known_lang: None,
+            midway_lang: None,
             speech_s: None,
             live: true,
             second_opinion: None,

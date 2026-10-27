@@ -147,6 +147,12 @@ struct Draft {
 /// A router for a segment of `windows` windows, with an identifier that answers
 /// as `hears` says, and the log of its questions.
 fn router(hears: Hears, windows: usize, policy: Policy) -> (Fake, Questions) {
+    // The drafts are this test's subject; the question a final puts at four
+    // seconds of voice is BR-37's, and would change the questions counted here.
+    let policy = Policy {
+        final_midway: false,
+        ..policy
+    };
     let log = Questions::default();
     let heard = Heard {
         hears,
