@@ -1003,7 +1003,8 @@ impl Engine {
             return Ok(None);
         }
         let span = now.saturating_sub(from);
-        let Some(solved) = self.solve(&samples, span)?.candidate() else {
+        let midway = route.midway.closing_for(from);
+        let Some(solved) = self.solve(&samples, span, midway)?.candidate() else {
             return Ok(None);
         };
         let Some(route) = self.route.as_mut() else {
@@ -1123,7 +1124,8 @@ impl Engine {
             return Ok(None);
         };
         let samples = route.history.with_preroll(segment.start, &segment.samples);
-        let reading = self.solve(&samples, segment.samples.len())?;
+        let midway = route.midway.closing_for(segment.start);
+        let reading = self.solve(&samples, segment.samples.len(), midway)?;
         let span = span_seconds(&segment);
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
@@ -1145,14 +1147,21 @@ impl Engine {
 
     /// Reads `samples`, of which `speech_samples` are speech: recognition,
     /// retry, ITN, punctuation, dictionary. Audio that reads as nothing is a
-    /// blank reading that says where the text went. An engine with no route
-    /// has no recognizer to read with.
-    fn solve(&mut self, samples: &[f32], speech_samples: usize) -> Result<Reading, AsrError> {
+    /// blank reading that says where the text went. `midway` is the language
+    /// the identifier already named for these samples, when it did (see
+    /// [`MidwayLid::closing_for`]). An engine with no route has no recognizer
+    /// to read with.
+    fn solve(
+        &mut self,
+        samples: &[f32],
+        speech_samples: usize,
+        midway: Option<&'static str>,
+    ) -> Result<Reading, AsrError> {
         let started = Instant::now();
         let Some(route) = self.route.as_mut() else {
             return Err(AsrError::NoRecognizer);
         };
-        let decoded = decode_samples(route, samples, speech_samples)?;
+        let decoded = decode_samples(route, samples, speech_samples, midway)?;
         if decoded.text.trim().is_empty() {
             let (lang, tier) = (decoded.lang, decoded.tier);
             return Ok(Reading::blank(UnreadReason::EmptyDecode, lang, tier));
@@ -1320,11 +1329,13 @@ fn decode_samples(
     route: &mut Route,
     samples: &[f32],
     speech_samples: usize,
+    midway: Option<&'static str>,
 ) -> Result<Decoded, AsrError> {
     let seconds = samples.len() as f64 / f64::from(SAMPLE_RATE);
     let request = Request {
         samples,
         known_lang: None,
+        midway_lang: midway,
         speech_s: Some(speech_samples as f64 / f64::from(SAMPLE_RATE)),
         live: true,
         second_opinion: None,

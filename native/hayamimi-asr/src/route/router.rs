@@ -37,6 +37,11 @@ pub struct Policy {
     /// identifier names once the voice reaches two seconds (see
     /// [`crate::partial::MidwayLid`]), instead of the language of the last final.
     pub partial_lid: bool,
+    /// In a pair run, a final whose voice reached four seconds takes the
+    /// language the identifier named at that point (see
+    /// [`crate::partial::MidwayLid::closing_for`]), instead of asking again
+    /// when the segment closes.
+    pub final_midway: bool,
     /// How far a sentence the early detector kept may have been read past the
     /// end of the segment and still be the segment's text.
     pub held_reuse: HeldReuse,
@@ -55,6 +60,7 @@ impl Policy {
             agree_threshold: SECOND_OPINION_THRESHOLD,
             pair: false,
             partial_lid: false,
+            final_midway: false,
             held_reuse: HeldReuse::Covering,
         }
     }
@@ -76,6 +82,7 @@ impl Policy {
         Policy {
             pair: true,
             partial_lid: true,
+            final_midway: true,
             ..Policy::fast()
         }
     }

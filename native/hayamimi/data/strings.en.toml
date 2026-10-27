@@ -21,7 +21,7 @@
 "speaker.embedding.started" = "The speaker embedding of an utterance started"
 "asr.engine.failed" = "The recognition route failed"
 "asr.partial.failed" = "A draft of the utterance in progress failed and was skipped"
-"asr.partial.lang.asked" = "The language of the utterance in progress was asked of the identifier once, so that its drafts are read in that language; answer is what it came to, voice_ms is the voice it was given, lid_ms is how long the question took"
+"asr.partial.lang.asked" = "The language of the utterance in progress was asked of the identifier: the question at two seconds of voice makes its drafts read in that language, the question at four seconds decides the language of its final; answer is what it came to, voice_ms is the audio it was given, lid_ms is how long the question took"
 "gpu.fallback.cpu" = "A stage moved from the GPU to the CPU and goes on"
 "model.fallback.disabled" = "A model is not usable; the stage is left out and the run goes on"
 "asr.fallback.disabled" = "The inference libraries did not open; recognition is left out and the run goes on"
@@ -77,6 +77,7 @@ options:
   --max-speech <sec>   speech after which an utterance is finalised (default 12)
   --endpoint <rule>    early (default) finalises a complete sentence at a short silence, silence waits for --min-silence
   --partial-lid <on|off>  with --mode pair, on (default) reads the draft of an utterance in the language heard after its first two seconds, off in the language of the last final
+  --final-lid <rule>   with --mode pair, midway (default) takes the language of a final from the question put when its voice reached four seconds, close asks only when the utterance ends
   --held-reuse <rule>  covering (default) uses the sentence read at an early notice as the final when it ends inside the silence that closed the utterance, strict only when it ends within one window (32 ms)
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
@@ -93,6 +94,7 @@ bad_number = "An option needs a positive number."
 mode_unsupported = "--mode is one of balanced, fast, pair, single."
 endpoint_unsupported = "--endpoint is one of early, silence."
 partial_lid_unsupported = "--partial-lid is one of on, off."
+final_lid_unsupported = "--final-lid is one of midway, close."
 held_reuse_unsupported = "--held-reuse is one of covering, strict."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."

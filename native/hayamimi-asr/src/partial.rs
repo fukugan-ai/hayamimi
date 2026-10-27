@@ -22,6 +22,14 @@ pub const MAX_SAMPLES: usize = SAMPLE_RATE as usize * 8;
 /// for the drafts: two seconds. A shorter voice is too short for the
 /// identifier to name the language of the speaker reliably.
 pub const MIDWAY_SAMPLES: usize = SAMPLE_RATE as usize * 2;
+/// The voice of an utterance, in samples, at which its language is asked a
+/// second time, for the final: four seconds, the length of the clip the
+/// final's own question reads ([`crate::lid::LID_MAX_SECONDS`]).
+pub const MIDWAY_CLOSING_SAMPLES: usize = SAMPLE_RATE as usize * 4;
+/// How far after the start of a segment the voice may begin, in samples, for
+/// the closing answer to be the segment's: half a second. The detector places
+/// the start of the voice about 0.3 s after the start of the segment.
+pub const CLOSING_ALIGN_SAMPLES: usize = SAMPLE_RATE as usize / 2;
 
 /// When a draft is due, and where the speech it covers began.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -91,18 +99,21 @@ pub enum Midway {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MidwayAsked {
     pub answer: Midway,
-    /// The samples of voice the identifier was given.
+    /// The samples of audio the identifier was given.
     pub voice_samples: usize,
     pub lid_ms: f64,
 }
 
-/// The language of the utterance in progress, asked once for the drafts of a
-/// pair run. It is asked when the voice first reaches [`MIDWAY_SAMPLES`], with
-/// all the voice so far, and it lasts until the speech ends or is cut again.
+/// The language of the utterance in progress, asked in a pair run. It is asked
+/// once for the drafts, when the voice first reaches [`MIDWAY_SAMPLES`], with
+/// all the voice so far; and once for the final, when the voice first reaches
+/// [`MIDWAY_CLOSING_SAMPLES`], with the clip the final's own question would
+/// read. Both answers last until the speech ends or is cut again.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MidwayLid {
     since: Option<usize>,
     answer: Midway,
+    closing: Midway,
 }
 
 impl MidwayLid {
@@ -123,11 +134,27 @@ impl MidwayLid {
         }
     }
 
+    /// The language the four-second question named, when it is `ja` or `en`
+    /// and the voice it was asked about began no earlier than `from`, the start
+    /// of the segment that is closing, and at most [`CLOSING_ALIGN_SAMPLES`]
+    /// after it. A voice that began before the segment, or long after its
+    /// start, belongs to another reading.
+    pub fn closing_for(&self, from: usize) -> Option<&'static str> {
+        let Midway::Heard(lang) = self.closing else {
+            return None;
+        };
+        let ahead = self.since?.checked_sub(from)?;
+        (ahead <= CLOSING_ALIGN_SAMPLES).then_some(lang)
+    }
+
     /// One window has been fed. `speech_start` is where the speech in progress
     /// began (see [`DraftClock::speech_start`]). A new start is a new utterance
-    /// and forgets the answer. The identifier is asked, once, right after the
-    /// window that takes the voice to [`MIDWAY_SAMPLES`] or more, and only in a
-    /// pair run whose policy asks for it. A failed question is kept as
+    /// and forgets the answers. The identifier is asked right after the window
+    /// that takes the voice to [`MIDWAY_SAMPLES`] or more, for the drafts, and
+    /// right after the window that takes it to [`MIDWAY_CLOSING_SAMPLES`] or
+    /// more, for the final. Each is asked once, and only in a pair run whose
+    /// policy asks for it. When both fall due in one call the identifier is
+    /// asked once and both answers are that one. A failed question is kept as
     /// [`Midway::Failed`] and not asked again for this utterance. Gives back
     /// the question when this window asked it, and none otherwise.
     pub fn observe<D: Decode, L: Identify>(
@@ -139,21 +166,42 @@ impl MidwayLid {
         if self.since != speech_start {
             *self = MidwayLid {
                 since: speech_start,
-                answer: Midway::Waiting,
+                ..MidwayLid::default()
             };
         }
         let start = speech_start?;
-        let end = history.end();
-        let asks = router.policy().pair && router.policy().partial_lid;
-        if !asks || self.answer != Midway::Waiting || end.saturating_sub(start) < MIDWAY_SAMPLES {
+        let voice = history.end().saturating_sub(start);
+        let policy = router.policy();
+        let for_drafts = policy.pair
+            && policy.partial_lid
+            && self.answer == Midway::Waiting
+            && voice >= MIDWAY_SAMPLES;
+        let for_final = policy.pair
+            && policy.final_midway
+            && self.closing == Midway::Waiting
+            && voice >= MIDWAY_CLOSING_SAMPLES;
+        if !for_drafts && !for_final {
             return None;
         }
-        let voice = history.slice(start, end);
+        // The question for the final reads what the final's own question would:
+        // the audio from up to a second before the voice. The drafts' question
+        // reads the voice alone.
+        let audio = if for_final {
+            history.draft(start, usize::MAX)
+        } else {
+            history.slice(start, history.end())
+        };
         let asked_at = Instant::now();
-        self.answer = answer_of(router.identify(&voice));
+        let answer = answer_of(router.identify(&audio));
+        if for_drafts {
+            self.answer = answer;
+        }
+        if for_final {
+            self.closing = answer;
+        }
         Some(MidwayAsked {
-            answer: self.answer,
-            voice_samples: voice.len(),
+            answer,
+            voice_samples: audio.len(),
             lid_ms: asked_at.elapsed().as_secs_f64() * 1000.0,
         })
     }
@@ -183,6 +231,7 @@ fn answer_of(said: Result<String, RouteError>) -> Midway {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lid::LID_MAX_SECONDS;
 
     const HALF: usize = EVERY_SAMPLES;
 
@@ -247,5 +296,16 @@ mod tests {
         assert_eq!(MIN_SPEECH_SAMPLES, 8_000);
         assert_eq!(MAX_SAMPLES, 128_000);
         assert_eq!(MIDWAY_SAMPLES, 32_000);
+    }
+
+    /// T-BR-37-015
+    #[test]
+    fn the_four_second_limits_match_what_the_final_identifier_reads() {
+        assert_eq!(MIDWAY_CLOSING_SAMPLES, 64_000);
+        assert_eq!(
+            MIDWAY_CLOSING_SAMPLES,
+            (LID_MAX_SECONDS * SAMPLE_RATE as f32) as usize
+        );
+        assert_eq!(CLOSING_ALIGN_SAMPLES, 8_000);
     }
 }

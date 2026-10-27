@@ -88,10 +88,18 @@ impl<D: Decode, L: Identify> Router<D, L> {
         Ok((chosen, lid_ms))
     }
 
-    /// What the identifier answers for the segment: an early detection for a
-    /// short segment, else the identifier's own answer. An answer that is empty,
-    /// an identifier that fails and an identifier that is not there say nothing.
+    /// What the identifier answers for the segment: the answer it gave once the
+    /// voice reached four seconds, when that named `ja` or `en`; else an early
+    /// detection for a short segment; else the identifier's own answer. An
+    /// answer that is empty, an identifier that fails and an identifier that is
+    /// not there say nothing.
     fn heard(&self, request: &Request<'_>) -> (Option<String>, f64) {
+        if let Some(midway) = request
+            .midway_lang
+            .filter(|lang| matches!(*lang, "ja" | "en"))
+        {
+            return (Some(midway.to_owned()), 0.0);
+        }
         if let Some(known) = request.known_lang
             && request
                 .speech_s

@@ -429,9 +429,11 @@ fn midway_answer_name(answer: Midway) -> &'static str {
 }
 
 /// `asr.partial.lang.asked`: the language of the utterance in progress was
-/// asked of the identifier, once, so that its drafts are read in that language.
-/// `answer` is what it came to ([`midway_answer_name`]), `voice_ms` the voice it
-/// was given and `lid_ms` how long the question took.
+/// asked of the identifier: at two seconds of voice, so that its drafts are
+/// read in that language, and at four, so that its final takes that language.
+/// `answer` is what it came to ([`midway_answer_name`]), `voice_ms` the audio it
+/// was given (four seconds or more tells the second question) and `lid_ms` how
+/// long the question took.
 pub fn midway_asked_line(strings: &Strings, asked: &MidwayAsked) -> String {
     let voice_ms = (asked.voice_samples as u64) * 1000 / u64::from(SAMPLE_RATE);
     event_line(
