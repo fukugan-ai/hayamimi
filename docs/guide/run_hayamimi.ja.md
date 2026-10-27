@@ -571,19 +571,24 @@ directory を字面で名指さない物と、`RESULTS` を使う物は、必ず
 印は、HEAD の sha と時刻を 1 行にした file です。
 `main` への push が `docs/results/` の file を変えるとき、`.git/hooks/pre-push`（`main-lock`）は、印の sha が push する commit と同じでなければ止めます。
 印は、test が全部通ったときだけ書かれます。
+test を打っている間に HEAD か追跡済みの file が変わったときも、印は書かれません。
 
-script が止まる形は 8 つです。
+script が止まる形は 12 通りです。表は、script が確かめる順に並べています。
 
 | 出る言葉 | 意味 | exit |
 |---|---|---|
 | `the mark file is missing` | 印の file を渡していない | 2 |
 | `the words that start cargo are missing` | `cargo` を起こす語を渡していない | 2 |
-| `origin/main does not resolve` | `origin/main` が無い。`git fetch origin` を打つ | 2 |
+| `not inside a git working tree` | git の木の外で打っている。repo の中で打つ | 2 |
+| `the directory of the mark file is missing` | 印を置く directory が無い。test を打つ前に止める | 2 |
 | `tracked files differ from HEAD` | 木に commit していない変更がある。印は HEAD の sha を指すので、commit してから打つ | 2 |
+| `origin/main does not resolve` | `origin/main` が無い。`git fetch origin` を打つ | 2 |
 | `no file under docs/results differs from origin/main` | 差分に記録が無い。印は要らない | 2 |
 | `fewer than 2 readers` | CI の行から読み手を導けない。行の書き方が変わった | 2 |
 | `no reader names the changed directories` | 変えた directory を名指す test が CI の行に無い | 2 |
 | `<crate> failed` | test が落ちた。印は書かない | 1 |
+| `HEAD or tracked files changed while the tests ran` | test の間に木が動いた。印は書かない。打ち直す | 2 |
+| `cannot write the mark file` | 印を書けない（権限か領域）。test は通っている | 2 |
 
 印を消すと、次の push は止まります。
 
