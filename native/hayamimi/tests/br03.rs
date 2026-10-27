@@ -14,7 +14,10 @@
 //! values of the programs as they are can be set beside the values without each
 //! measure, taken on the same machine. Two more (T-BR-36-012 and 013) play the
 //! dialog with a kept sentence used as it is, and with that measure of IP-S17
-//! switched off, to be set beside each other the same way.
+//! switched off, to be set beside each other the same way. The rows T-BR-36-014,
+//! 015 and 019 read the log and the events of those two records: the plans the
+//! `silence` closes were read by, the finals that differ between the runs, and
+//! the end of the finals made from a kept sentence.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -430,9 +433,22 @@ fn made_from_kept(plans: &Plans, number: u64) -> bool {
         .is_some_and(|plan| plan.as_deref() == Some("held"))
 }
 
+/// The pause marks of English and Japanese that a sentence closed by the
+/// `silence` rule does not end with when its final was made from a kept sentence.
+const PAUSE_MARKS: [char; 5] = [',', ';', ':', '、', '，'];
+
+/// A text without the pause marks and the full stops at its end: the one place
+/// where `covering` writes a mark that `strict` does not, for a sentence both
+/// made from the kept one.
+fn without_end_marks(text: &str) -> &str {
+    text.trim_end()
+        .trim_end_matches(|mark: char| mark == '.' || mark == '。' || PAUSE_MARKS.contains(&mark))
+}
+
 /// The ids of the finals whose text differs between a covering run and a strict
-/// run (`plans` of the two, in that order) although covering did not make the
-/// final from a kept sentence that strict read again.
+/// run (`plans` of the two, in that order), apart from the marks at its end,
+/// although covering did not make the final from a kept sentence that strict
+/// read again.
 fn unexplained(
     covering: &[Final],
     strict: &[Final],
@@ -440,7 +456,7 @@ fn unexplained(
 ) -> Result<Vec<String>, Failure> {
     let mut ids = Vec::new();
     for (covered, read_again) in covering.iter().zip(strict) {
-        if covered == read_again {
+        if without_end_marks(&covered.2) == without_end_marks(&read_again.2) {
             continue;
         }
         let number = number_of(&covered.0)?;
@@ -495,6 +511,12 @@ fn the_two_held_reuse_runs_differ_only_in_the_finals_covering_made_from_kept_sen
         unexplained(&a, &b, [&kept, &kept])?,
         [String::from("file-1")]
     );
+    let full_stop = final_line("file-2", "en", "b.");
+    let comma = final_line("file-2", "en", "b,");
+    let stopped = finals_of(&[partial, first.as_str(), full_stop.as_str()].concat())?;
+    let paused = finals_of(&[partial, first.as_str(), comma.as_str()].concat())?;
+    let marks_only = unexplained(&stopped, &paused, [&again, &again])?;
+    assert!(marks_only.is_empty());
     assert!(plans_of("{\"event\":\"asr.endpoint.decided\",\"plan\":\"held\"}\n").is_err());
 
     let record = Path::new(REPO).join("docs/results/in-person");
@@ -526,6 +548,90 @@ fn the_two_held_reuse_runs_differ_only_in_the_finals_covering_made_from_kept_sen
         "covering used {} kept sentences and strict {}",
         covering_held.held,
         strict_held.held
+    );
+    Ok(())
+}
+
+/// The numbers of the finals a run made from the sentence the early detector
+/// kept, when the `silence` rule closed the segment, from its
+/// `asr.endpoint.decided` lines.
+fn kept_by_silence(log: &str) -> Result<Vec<u64>, Failure> {
+    let mut numbers = Vec::new();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.endpoint.decided"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        if row["rule"] != "silence" || row["plan"] != "held" {
+            continue;
+        }
+        let Some(number) = row["id"].as_u64() else {
+            return Err(format!("an endpoint line with no number: {line}"));
+        };
+        numbers.push(number);
+    }
+    Ok(numbers)
+}
+
+/// Of the English and Japanese finals whose number is in `numbers`, how many
+/// there are and the ids of those whose text ends with a pause mark.
+fn ending_with_a_pause(finals: &[Final], numbers: &[u64]) -> Result<(usize, Vec<String>), Failure> {
+    let mut checked = 0;
+    let mut ids = Vec::new();
+    for (id, lang, text) in finals {
+        if !matches!(lang.as_str(), "en" | "ja") || !numbers.contains(&number_of(id)?) {
+            continue;
+        }
+        checked += 1;
+        if text.trim_end().ends_with(PAUSE_MARKS) {
+            ids.push(id.to_owned());
+        }
+    }
+    Ok((checked, ids))
+}
+
+/// T-BR-36-019
+#[test]
+fn the_finals_covering_made_from_kept_sentences_end_with_no_pause_mark() -> TestResult {
+    let decided = |fields: &str| format!("{{\"event\":\"asr.endpoint.decided\",{fields}}}\n");
+    let log = [
+        decided("\"id\":1,\"rule\":\"silence\",\"plan\":\"held\""),
+        decided("\"id\":2,\"rule\":\"silence\",\"plan\":\"held\""),
+        decided("\"id\":3,\"rule\":\"silence\",\"plan\":\"decode\""),
+        decided("\"id\":4,\"rule\":\"max_speech\",\"plan\":\"held\""),
+        decided("\"id\":5,\"rule\":\"silence\",\"plan\":\"held\""),
+    ]
+    .concat();
+    let kept = kept_by_silence(&log)?;
+    assert_eq!(kept, [1, 2, 5]);
+    let numberless = decided("\"rule\":\"silence\",\"plan\":\"held\"");
+    assert!(kept_by_silence(&numberless).is_err());
+    let made = |id: &str, lang: &str, text: &str| {
+        (String::from(id), String::from(lang), String::from(text))
+    };
+    let finals = [
+        made("file-1", "en", "He would pay."),
+        made("file-2", "en", "He would pay, "),
+        made("file-3", "en", "He would pay,"),
+        made("file-4", "ja", "雨です、"),
+        made("file-5", "zh", "你好，"),
+    ];
+    assert_eq!(
+        ending_with_a_pause(&finals, &kept)?,
+        (2, vec![String::from("file-2")])
+    );
+    assert!(ending_with_a_pause(&[made("final-1", "en", "a")], &[1]).is_err());
+
+    let record = Path::new(REPO).join("docs/results/in-person");
+    let recorded = |suffix: &str| read(&record.join(format!("{}{suffix}", HELD_COVERING.step)));
+    let kept = kept_by_silence(&recorded(".log.jsonl")?)?;
+    assert!(!kept.is_empty(), "the covering run kept no sentence");
+    let finals = finals_of(&recorded(".events.jsonl")?)?;
+    let (checked, ending) = ending_with_a_pause(&finals, &kept)?;
+    assert_eq!(checked, kept.len(), "a kept sentence has no final");
+    assert!(
+        ending.is_empty(),
+        "finals made from a kept sentence end with a pause mark: {ending:?}"
     );
     Ok(())
 }
