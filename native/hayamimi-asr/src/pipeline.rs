@@ -10,7 +10,7 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use crate::audio::{History, SAMPLE_RATE, WINDOW, windows};
+use crate::audio::{History, SAMPLE_RATE, windows};
 use crate::decode::{Recognizers, ResidentEvent};
 use crate::endpoint::{self, Decision, Hold, Mode, Plan, Rule, State, Tail};
 use crate::error::AsrError;
@@ -1068,7 +1068,8 @@ impl Engine {
         };
         let decision = decision_of(&segment, route.vad.sensitivity(), flushed);
         let end = segment.start + segment.samples.len();
-        let (plan, gap) = route.early.plan_with_gap(segment.start, end, WINDOW);
+        let reach = endpoint::reach_for(route.router.policy().held_reuse, &decision);
+        let (plan, gap) = route.early.plan_with_gap(segment.start, end, reach);
         let decision = endpoint::note_plan(decision, &plan, gap);
         match plan {
             Plan::Whole => self.process(segment, ended_wall_ms, decision),
@@ -1384,6 +1385,8 @@ fn reset_parts<D: Decode, L: Identify>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio::WINDOW;
+    use crate::endpoint::{Gap, Reach};
     use crate::route::{EnTier, FallbackStep};
     use crate::speaker::Source;
 
@@ -1831,8 +1834,8 @@ mod tests {
     fn held_then_planned(solved: Solved) -> Result<Solved, Box<dyn std::error::Error>> {
         let mut state: State<Solved> = State::default();
         state.hold(solved, 1000, 900);
-        let (plan, gap) = state.plan_with_gap(100, 1000, WINDOW);
-        assert_eq!(gap, Some(0));
+        let (plan, gap) = state.plan_with_gap(100, 1000, Reach::ONE_WINDOW);
+        assert_eq!(gap, Some(Gap::Over(0)));
         let Plan::Held(held, start) = plan else {
             return Err(format!("the plan did not use the kept reading: {plan:?}").into());
         };

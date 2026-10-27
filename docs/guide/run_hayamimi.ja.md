@@ -418,6 +418,24 @@ grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
 
 0 件の判定は、同じ command の中で、必ず出る `asr.endpoint.decided` も数えて、非 0 の対照を並べます。
 
+## 早い終わりで読んだ文を確定文に使う範囲（`--held-reuse`）
+
+`--endpoint early`（既定）の run は、発話の途中で声が途切れた時に、完結していない文を確定せずに持ちます（`asr.endpoint.held`）。
+無音で発話が閉じた時に、持った文の読み終わりが発話の終わりの 1 窓（32 ms）前から、閉じに使った無音（300 ms）の後までの間にあれば、その文をそのまま確定文にして、読み直しません。
+`--held-reuse strict` を付けると、読み終わりが発話の終わりの 1 窓以内の時だけ使う前の動きへ戻ります。
+長さの限りや flush で閉じた発話は、どちらの旗でも 1 窓以内の時だけ使います。
+
+閉じるごとに、`asr.endpoint.decided`（info）が 1 行出ます。
+`plan` は、持った文を使った `held`、発話の全体を読んだ `decode`、早い終わりの線より後ろだけを読んだ `rest` のどれかです。
+`held_gap_ms` は、持った文があるのに読み直した時だけ付き、持った文の読み終わりが発話の終わりより後なら正、前なら負の ms です。
+
+```bash
+grep '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file> | grep '"rule":"silence"' | grep -o '"plan":"[a-z]*"' | sort | uniq -c
+grep -c '"event":"asr.endpoint.decided"' <hayamimi の stdout を残した file>
+```
+
+`held` が 0 件の判定は、同じ command の中で、必ず出る `asr.endpoint.decided` も数えて、非 0 の対照を並べます。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash

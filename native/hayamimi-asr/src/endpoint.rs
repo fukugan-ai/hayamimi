@@ -13,7 +13,7 @@
 //! evaluated beside the live rule ([`shadow_early_hold`]). The shadow rule is
 //! only logged; it never decides anything.
 
-use crate::audio::SAMPLE_RATE;
+use crate::audio::{SAMPLE_RATE, WINDOW};
 use crate::vad::EARLY_MIN_SEGMENT_MS;
 
 /// Sentence endings that can close a Japanese sentence.
@@ -133,8 +133,9 @@ pub struct Decision {
     pub plan: Option<PlanKind>,
     /// When the segment was read again although a sentence had been kept:
     /// how far the end of that sentence's range was from the segment's end,
-    /// in milliseconds. `None` when nothing was kept, or the kept one was used.
-    pub held_gap_ms: Option<u32>,
+    /// in milliseconds, positive when the range ended after the segment did.
+    /// `None` when nothing was kept, or the kept one was used.
+    pub held_gap_ms: Option<i32>,
 }
 
 /// How a segment of the main detector was turned into text.
@@ -159,10 +160,98 @@ impl PlanKind {
     }
 }
 
+/// How far the end of a kept sentence's range was from the end of the segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gap {
+    /// The range ended this many samples before the segment did.
+    Short(usize),
+    /// The range ended this many samples after the segment did (0: with it).
+    Over(usize),
+}
+
+impl Gap {
+    fn between(range_end: usize, seg_end: usize) -> Gap {
+        if range_end < seg_end {
+            Gap::Short(seg_end - range_end)
+        } else {
+            Gap::Over(range_end - seg_end)
+        }
+    }
+
+    /// The gap in milliseconds, rounded to the nearest and negative when the
+    /// range ended before the segment did. `None` when it does not fit.
+    pub fn signed_ms(self) -> Option<i32> {
+        let rate = SAMPLE_RATE as usize;
+        let millis = |samples: usize| i32::try_from((samples * 1000 + rate / 2) / rate).ok();
+        match self {
+            Gap::Over(samples) => millis(samples),
+            Gap::Short(samples) => millis(samples).map(|ms| -ms),
+        }
+    }
+}
+
+/// How far the end of a kept sentence's range may be from the end of the
+/// segment, in samples, for the sentence to be used as the segment's text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reach {
+    /// The most the range may end before the segment does.
+    pub behind: usize,
+    /// The most the range may end after the segment does.
+    pub ahead: usize,
+}
+
+impl Reach {
+    /// One window either way: the range ends where the segment does.
+    pub const ONE_WINDOW: Reach = Reach {
+        behind: WINDOW,
+        ahead: WINDOW,
+    };
+
+    fn holds(self, gap: Gap) -> bool {
+        match gap {
+            Gap::Short(samples) => samples <= self.behind,
+            Gap::Over(samples) => samples <= self.ahead,
+        }
+    }
+}
+
+/// How far a kept sentence's range may run on past the end of the segment.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HeldReuse {
+    /// One window past the end.
+    Strict,
+    /// Also as far as the silence the closing rule waited for: the detector
+    /// counts that silence as no voice, so the sentence has read no speech
+    /// the segment does not hold.
+    #[default]
+    Covering,
+}
+
+/// The reach of a kept sentence for a segment that `decision` closed.
+pub fn reach_for(reuse: HeldReuse, decision: &Decision) -> Reach {
+    match reuse {
+        HeldReuse::Strict => Reach::ONE_WINDOW,
+        HeldReuse::Covering => Reach {
+            ahead: Reach::ONE_WINDOW.ahead.max(silence_samples(decision)),
+            ..Reach::ONE_WINDOW
+        },
+    }
+}
+
+/// The samples of the silence the rule that closed the segment waited for:
+/// none for a limit or a flush.
+fn silence_samples(decision: &Decision) -> usize {
+    if decision.rule == Rule::Silence {
+        decision.silence_ms as usize * SAMPLE_RATE as usize / 1000
+    } else {
+        0
+    }
+}
+
 /// `decision` with the way the segment was read: the kind of `plan`, and, when
-/// the segment was read although a sentence had been kept (`gap` samples
-/// between the ends), that gap. A plan that makes no final names no kind.
-pub fn note_plan<T>(decision: Decision, plan: &Plan<T>, gap: Option<usize>) -> Decision {
+/// the segment was read although a sentence had been kept (`gap` between the
+/// ends), that gap. A plan that makes no final names no kind.
+pub fn note_plan<T>(decision: Decision, plan: &Plan<T>, gap: Option<Gap>) -> Decision {
     let plan_kind = match plan {
         Plan::Whole => Some(PlanKind::Decode),
         Plan::Rest(_) => Some(PlanKind::Rest),
@@ -170,10 +259,7 @@ pub fn note_plan<T>(decision: Decision, plan: &Plan<T>, gap: Option<usize>) -> D
         Plan::Drop => None,
     };
     let reread = matches!(plan_kind, Some(PlanKind::Decode | PlanKind::Rest));
-    let rate = SAMPLE_RATE as usize;
-    let held_gap_ms = gap
-        .filter(|_| reread)
-        .and_then(|samples| u32::try_from((samples * 1000 + rate / 2) / rate).ok());
+    let held_gap_ms = gap.filter(|_| reread).and_then(Gap::signed_ms);
     Decision {
         plan: plan_kind,
         held_gap_ms,
@@ -273,27 +359,28 @@ impl<T> State<T> {
     }
 
     /// What to do with the segment `seg_start..seg_end` of the main detector.
-    /// The state is cleared: the next utterance starts afresh. `tolerance` is
-    /// how far the segment's end may be from the end of the kept sentence's range.
-    pub fn plan(&mut self, seg_start: usize, seg_end: usize, tolerance: usize) -> Plan<T> {
-        self.plan_with_gap(seg_start, seg_end, tolerance).0
+    /// The state is cleared: the next utterance starts afresh. `reach` is how
+    /// far the end of the kept sentence's range may be from the segment's end.
+    pub fn plan(&mut self, seg_start: usize, seg_end: usize, reach: Reach) -> Plan<T> {
+        self.plan_with_gap(seg_start, seg_end, reach).0
     }
 
-    /// [`State::plan`], and how many samples the end of the kept sentence's
-    /// range was from `seg_end` (`None` when nothing was kept), whether or not
-    /// the sentence was used.
+    /// [`State::plan`], and how far the end of the kept sentence's range was
+    /// from `seg_end` (`None` when nothing was kept), whether or not the
+    /// sentence was used.
     pub fn plan_with_gap(
         &mut self,
         seg_start: usize,
         seg_end: usize,
-        tolerance: usize,
-    ) -> (Plan<T>, Option<usize>) {
+        reach: Reach,
+    ) -> (Plan<T>, Option<Gap>) {
         let line = self.line.take();
         let voice_after = std::mem::take(&mut self.line_voice_after);
         let kept = self.held.take();
-        let gap = kept.as_ref().map(|held| held.range_end.abs_diff(seg_end));
-        let held =
-            kept.filter(|held| !held.voice_after && held.range_end.abs_diff(seg_end) <= tolerance);
+        let gap = kept
+            .as_ref()
+            .map(|held| Gap::between(held.range_end, seg_end));
+        let held = kept.filter(|held| !held.voice_after && gap.is_some_and(|gap| reach.holds(gap)));
         let plan = match line {
             Some(line) if line.at > seg_start => {
                 if seg_end <= line.at || !voice_after {
@@ -506,19 +593,20 @@ mod tests {
         assert!(!is_complete("", "It is raining."));
     }
 
-    const TOLERANCE: usize = 512;
+    const TOLERANCE: usize = WINDOW;
+    const REACH: Reach = Reach::ONE_WINDOW;
 
     #[test]
     fn a_segment_with_nothing_kept_is_read_whole() {
         let mut state: State<&str> = State::default();
-        assert_eq!(state.plan(0, 1000, TOLERANCE), Plan::Whole);
+        assert_eq!(state.plan(0, 1000, REACH), Plan::Whole);
     }
 
     #[test]
     fn a_segment_after_a_line_with_no_voice_after_it_makes_no_final() {
         let mut state: State<&str> = State::default();
         state.confirm(800, 700);
-        assert_eq!(state.plan(0, 1200, TOLERANCE), Plan::Drop);
+        assert_eq!(state.plan(0, 1200, REACH), Plan::Drop);
         assert_eq!(state.line(), None);
     }
 
@@ -527,7 +615,7 @@ mod tests {
         let mut state: State<&str> = State::default();
         state.confirm(800, 700);
         state.note_voice(900);
-        assert_eq!(state.plan(0, 2000, TOLERANCE), Plan::Rest(800));
+        assert_eq!(state.plan(0, 2000, REACH), Plan::Rest(800));
     }
 
     #[test]
@@ -535,14 +623,14 @@ mod tests {
         let mut state: State<&str> = State::default();
         state.confirm(800, 700);
         state.note_voice(699);
-        assert_eq!(state.plan(0, 2000, TOLERANCE), Plan::Drop);
+        assert_eq!(state.plan(0, 2000, REACH), Plan::Drop);
     }
 
     #[test]
     fn a_segment_that_starts_after_the_line_is_the_next_utterance() {
         let mut state: State<&str> = State::default();
         state.confirm(800, 700);
-        assert_eq!(state.plan(900, 2000, TOLERANCE), Plan::Whole);
+        assert_eq!(state.plan(900, 2000, REACH), Plan::Whole);
         assert_eq!(state.line(), None);
     }
 
@@ -551,7 +639,7 @@ mod tests {
         let mut state: State<&str> = State::default();
         state.hold("kept", 1000, 900);
         assert_eq!(
-            state.plan(100, 1000 + TOLERANCE, TOLERANCE),
+            state.plan(100, 1000 + TOLERANCE, REACH),
             Plan::Held(
                 Held {
                     solved: "kept",
@@ -568,11 +656,11 @@ mod tests {
     fn a_kept_sentence_is_not_used_when_the_range_differs_or_voice_came_after() {
         let mut far: State<&str> = State::default();
         far.hold("kept", 1000, 900);
-        assert_eq!(far.plan(100, 1000 + TOLERANCE + 1, TOLERANCE), Plan::Whole);
+        assert_eq!(far.plan(100, 1000 + TOLERANCE + 1, REACH), Plan::Whole);
         let mut later: State<&str> = State::default();
         later.hold("kept", 1000, 900);
         later.note_voice(900);
-        assert_eq!(later.plan(100, 1000, TOLERANCE), Plan::Whole);
+        assert_eq!(later.plan(100, 1000, REACH), Plan::Whole);
     }
 
     #[test]
@@ -581,7 +669,7 @@ mod tests {
         state.confirm(800, 700);
         state.note_voice(900);
         state.hold("rest", 1500, 1400);
-        assert!(matches!(state.plan(0, 1500, TOLERANCE), Plan::Held(_, 800)));
+        assert!(matches!(state.plan(0, 1500, REACH), Plan::Held(_, 800)));
     }
 
     #[test]
@@ -656,8 +744,8 @@ mod tests {
 
     #[test]
     fn the_held_path_and_the_decode_path_are_named_apart() {
-        let held = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(0));
-        let decode = note_plan(silence(), &Plan::<&str>::Whole, Some(4000));
+        let held = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(Gap::Over(0)));
+        let decode = note_plan(silence(), &Plan::<&str>::Whole, Some(Gap::Short(4000)));
         assert_eq!(held.plan, Some(PlanKind::Held));
         assert_eq!(decode.plan, Some(PlanKind::Decode));
         assert_ne!(
@@ -672,21 +760,21 @@ mod tests {
 
     #[test]
     fn the_gap_is_noted_only_when_a_kept_sentence_was_read_again() {
-        let again = note_plan(silence(), &Plan::<&str>::Whole, Some(2243));
+        let again = note_plan(silence(), &Plan::<&str>::Whole, Some(Gap::Over(2243)));
         assert_eq!(again.held_gap_ms, Some(140));
-        let used = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(8));
+        let used = note_plan(silence(), &Plan::Held(kept(1000), 0), Some(Gap::Over(8)));
         assert_eq!(used.held_gap_ms, None);
         let nothing_kept = note_plan(silence(), &Plan::<&str>::Whole, None);
         assert_eq!(nothing_kept.held_gap_ms, None);
-        let rest = note_plan(silence(), &Plan::<&str>::Rest(800), Some(16));
-        assert_eq!(rest.held_gap_ms, Some(1));
+        let rest = note_plan(silence(), &Plan::<&str>::Rest(800), Some(Gap::Short(16)));
+        assert_eq!(rest.held_gap_ms, Some(-1));
         assert_eq!(again.rule, Rule::Silence);
         assert_eq!(again.silence_ms, 300);
     }
 
     #[test]
     fn a_plan_that_makes_no_final_names_no_kind() {
-        let dropped = note_plan(silence(), &Plan::<&str>::Drop, Some(100));
+        let dropped = note_plan(silence(), &Plan::<&str>::Drop, Some(Gap::Over(100)));
         assert_eq!(dropped.plan, None);
         assert_eq!(dropped.held_gap_ms, None);
     }
@@ -695,16 +783,21 @@ mod tests {
     fn the_gap_to_a_kept_sentence_is_reported_whether_or_not_it_was_used() {
         let mut used: State<&str> = State::default();
         used.hold("kept", 1000, 900);
-        let (plan, gap) = used.plan_with_gap(100, 1000 + TOLERANCE, TOLERANCE);
+        let (plan, gap) = used.plan_with_gap(100, 1000 + TOLERANCE, REACH);
         assert!(matches!(plan, Plan::Held(..)));
-        assert_eq!(gap, Some(TOLERANCE));
+        assert_eq!(gap, Some(Gap::Short(TOLERANCE)));
         let mut far: State<&str> = State::default();
         far.hold("kept", 1000, 900);
-        let (plan, gap) = far.plan_with_gap(100, 1000 + TOLERANCE + 1, TOLERANCE);
+        let (plan, gap) = far.plan_with_gap(100, 1000 + TOLERANCE + 1, REACH);
         assert_eq!(plan, Plan::Whole);
-        assert_eq!(gap, Some(TOLERANCE + 1));
+        assert_eq!(gap, Some(Gap::Short(TOLERANCE + 1)));
+        let mut over: State<&str> = State::default();
+        over.hold("kept", 1000 + TOLERANCE + 1, 900);
+        let (plan, gap) = over.plan_with_gap(100, 1000, REACH);
+        assert_eq!(plan, Plan::Whole);
+        assert_eq!(gap, Some(Gap::Over(TOLERANCE + 1)));
         let mut none: State<&str> = State::default();
-        assert_eq!(none.plan_with_gap(0, 1000, TOLERANCE), (Plan::Whole, None));
+        assert_eq!(none.plan_with_gap(0, 1000, REACH), (Plan::Whole, None));
     }
 
     #[test]

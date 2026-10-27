@@ -870,7 +870,7 @@ event の名前は `<domain>.<action>.<outcome>` の 3 つの要素にする。
 | `gpu.session.placed` | `--gpu-diagnose` で起こしたとき | ORT が CUDA に置いた node の数と CPU に置いた node の数 |
 | `asr.model.loaded` | 認識器を memory に読み込んだとき（info） | `model`（tier の名前）、`load_ms` |
 | `asr.final.dropped` | session の言語の文字を持たない 1〜2 字の確定文を出さなかったとき（info。8 の R3e） | `id`、`reason`（`off_script`） |
-| `asr.endpoint.decided` | 確定文ごとに、どの規則で区切ったか（info。3.17、8 の R8v） | `id`、`rule`（`early`、`silence`、`max_speech`、`flush`）、`silence_ms`、`plan`（`held`、`decode`、`rest`。`rule` が `early` のときは無い）、`held_gap_ms`（持った文を使わず読み直したときだけ） |
+| `asr.endpoint.decided` | 確定文ごとに、どの規則で区切ったか（info。3.17、8 の R8v） | `id`、`rule`（`early`、`silence`、`max_speech`、`flush`）、`silence_ms`、`plan`（`held`、`decode`、`rest`。`rule` が `early` のときは無い）、`held_gap_ms`（持った文を使わず読み直したときだけ。符号つき） |
 | `asr.endpoint.held` | 早い終わりの候補が文を読んだが、文が完結していないか、声が `EARLY_MIN_SEGMENT_MS` に満たず、確定せず持った時（info。3.17） | `reason`（`incomplete`、`too_short`）、`span_ms`（読んだ声の長さ）、`min_ms`、`tail`（`noun`、`honorific`、`particle`、`interjection`、`other`）、`shadow_complete`（下の影の印） |
 | `asr.model.evicted` | `--max-resident` の上限のため、最も使われていない認識器を手放したとき。新しい認識器を作る前に出す（info） | `model` |
 | `asr.lang.unknown` | SenseVoice の結果の `lang` の tag を読めないとき。言語は不明として続ける（warn） | `error_code` |
@@ -907,8 +907,9 @@ RP-79 は、この event の `id` を `final` と結び、広げた判定で確�
 - **文は書かない**：保持する値は種類と bool だけで、文の字は log にも `EarlyHold` にも載らない。
 
 `asr.endpoint.decided` は、主検出器の segment が何で文になったかを `plan` で持つ。`held` は早い検出器が持った文をそのまま使った時、`decode` は segment 全体を読んだ時、`rest` は早い検出器が確定した線より後ろだけを読んだ時である。
-持った文が在ったのに使わず読み直した時は、`held_gap_ms` に、持った文の範囲の終わりと segment の終わりの差を ms で載せる。使う許容は 1 窓（`WINDOW`、512 sample、32 ms）である。持った文が無い時と、使った時は載せない。
-`plan` と `held_gap_ms` も判定を変えない。持った文を使い回せる率と、差の分布を log から数えるために在る。
+持った文が在ったのに使わず読み直した時は、`held_gap_ms` に、持った文の範囲の終わりと segment の終わりの差を、符号つきの ms で載せる。持った文の範囲が segment より後で終わっていれば正、前で終わっていれば負である。持った文が無い時と、使った時は載せない。
+持った文を使う許容は、前へは 1 窓（`WINDOW`、512 sample、32 ms）で、後ろへは引数 `--held-reuse` が決める。`strict` は後ろも 1 窓である。`covering`（既定）は、規則 `silence` で閉じた segment に限り、その規則が待った無音（`silence_ms`）までである。`max_speech` と `flush` で閉じた segment は、`covering` でも後ろへ 1 窓である。
+項目 `plan` と `held_gap_ms` は判定を変えない。持った文を使い回せる率と、差の分布を log から数えるために在る。
 
 ### 3.14 言語の切り替え（i18n）
 

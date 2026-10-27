@@ -20,6 +20,7 @@ pub mod keys {
     pub const MODE_UNSUPPORTED: &str = "mode_unsupported";
     pub const ENDPOINT_UNSUPPORTED: &str = "endpoint_unsupported";
     pub const PARTIAL_LID_UNSUPPORTED: &str = "partial_lid_unsupported";
+    pub const HELD_REUSE_UNSUPPORTED: &str = "held_reuse_unsupported";
     pub const LANG_UNSUPPORTED: &str = "lang_unsupported";
     pub const NEED_WAV: &str = "need_wav";
     pub const NO_GPU_CHECK: &str = "no_gpu_check";
@@ -32,7 +33,7 @@ pub mod keys {
     /// Every fixed key above, for the check that both tables hold them all.
     /// The keys of a fallback notice are derived from its fields (`stage_*`,
     /// `reason_*`, `to_*`) and are checked against the lists in `notice`.
-    pub const ALL: [&str; 16] = [
+    pub const ALL: [&str; 17] = [
         HELP,
         USAGE_HINT,
         UNKNOWN_OPTION,
@@ -41,6 +42,7 @@ pub mod keys {
         MODE_UNSUPPORTED,
         ENDPOINT_UNSUPPORTED,
         PARTIAL_LID_UNSUPPORTED,
+        HELD_REUSE_UNSUPPORTED,
         LANG_UNSUPPORTED,
         NEED_WAV,
         NO_GPU_CHECK,
