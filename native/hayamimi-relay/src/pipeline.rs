@@ -34,7 +34,7 @@ use crate::annotate::{
 };
 use crate::edit_answer::translation_of;
 use crate::lang::Lang;
-use crate::llm::{Completion, Llm, LlmError, Wanted};
+use crate::llm::{Completion, Llm, LlmError, Wanted, cause_in};
 use crate::logging::{Level, LogEvent, LogSink};
 use crate::style::{Calques, JaStyle, Pattern};
 use crate::target::Target;
@@ -1037,6 +1037,7 @@ impl<L: Llm> Pipeline<L> {
                 .with("dependency", "llama-server")
                 .with("duration_ms", duration)
                 .with("detail", detail.split(':').next().map(str::to_owned))
+                .with("cause", cause_in(detail))
                 .with_error("LLM_UNAVAILABLE"),
         );
     }
@@ -1141,6 +1142,7 @@ fn partial_failed(
 mod tests {
     use super::*;
     use crate::logging::MemorySink;
+    use serde_json::Value;
     use std::cell::RefCell;
 
     struct Scripted {
@@ -1359,6 +1361,44 @@ mod tests {
                 .iter()
                 .any(|e| e.event == "translate.request.failed")
         );
+        Ok(())
+    }
+
+    /// The `translate.request.failed` event of a run whose translator fails
+    /// with `error` on the first request.
+    fn failed_event(error: LlmError) -> Result<LogEvent, Box<dyn std::error::Error>> {
+        let script = Scripted::new(vec![Err(error)]);
+        let mut sink = MemorySink::default();
+        let mut pipeline = Pipeline::open(&script, &PipelineConfig::default(), &mut sink)?;
+        let line = pipeline.run(&request("こんにちは。"), &mut NoObserver, &mut sink);
+        assert_eq!(line.hold_reason, Some(HoldReason::Unavailable));
+        let Some(event) = sink
+            .events
+            .iter()
+            .find(|e| e.event == "translate.request.failed")
+        else {
+            return Err("no translate.request.failed event".into());
+        };
+        Ok(event.clone())
+    }
+
+    /// T-RP-96-012
+    #[test]
+    fn a_failed_request_names_its_cause_and_keeps_its_detail()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let transport = failed_event(LlmError::Transport(String::from(
+            "connection_reset: io: Connection reset by peer (os error 104)",
+        )))?;
+        assert_eq!(
+            transport.fields.get("detail"),
+            Some(&Value::from("transport"))
+        );
+        assert_eq!(
+            transport.fields.get("cause"),
+            Some(&Value::from("connection_reset"))
+        );
+        let status = failed_event(LlmError::Status(503))?;
+        assert_eq!(status.fields.get("cause"), Some(&Value::Null));
         Ok(())
     }
 

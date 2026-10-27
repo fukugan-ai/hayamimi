@@ -167,4 +167,19 @@ mod tests {
         assert_eq!(en.cli_text("no_such_key"), "no_such_key");
         assert_eq!(en.message_for("fx.fetch.ok"), "Exchange rates saved");
     }
+
+    /// T-RP-96-013
+    #[test]
+    fn the_retried_event_has_a_message_in_both_languages() -> Result<(), Box<dyn std::error::Error>>
+    {
+        for lang in [Lang::Ja, Lang::En] {
+            let table = Strings::embedded(lang)?;
+            let said = table.message_for("translate.request.retried");
+            assert!(
+                !said.is_empty() && said != "translate.request.retried",
+                "{lang:?}: {said}"
+            );
+        }
+        Ok(())
+    }
 }

@@ -4,14 +4,15 @@
 //! by piece, and the connection is closed as soon as the answer is no longer
 //! wanted, so that a newer request does not queue behind a useless one.
 
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::ser::{SerializeSeq, Serializer};
 use serde::{Deserialize, Serialize};
 
+use crate::logging::{Level, LogEvent, LogSink, SharedSink};
 use crate::verify::EOS_MARKER;
 
 /// A request that has not been answered in this long counts as unavailable.
@@ -21,6 +22,8 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_millis(1500);
 #[derive(Debug)]
 pub enum LlmError {
     /// The server could not be reached, or the exchange failed or timed out.
+    /// The text opens with a word of [`CAUSES`] when the exchange with the
+    /// server failed.
     Transport(String),
     /// The server answered with a status other than 2xx.
     Status(u16),
@@ -42,6 +45,69 @@ impl std::fmt::Display for LlmError {
 }
 
 impl std::error::Error for LlmError {}
+
+/// The words a failed exchange is called in the log, so that no text of the
+/// error (an address, a path) reaches a line. The last stands for any other
+/// failure. The list is the table in `rust_port.ja.md` 3.23.
+pub const CAUSES: [&str; 10] = [
+    "unexpected_eof",
+    "connection_reset",
+    "connection_aborted",
+    "broken_pipe",
+    "connection_refused",
+    "timed_out",
+    "io_other",
+    "timeout",
+    "host_not_found",
+    "other",
+];
+
+/// The `io::ErrorKind`s that say the server had closed the connection a
+/// request was sent on.
+const CLOSED_CONNECTION: [io::ErrorKind; 4] = [
+    io::ErrorKind::UnexpectedEof,
+    io::ErrorKind::ConnectionReset,
+    io::ErrorKind::ConnectionAborted,
+    io::ErrorKind::BrokenPipe,
+];
+
+/// The word of [`CAUSES`] for a failed exchange.
+pub fn cause_of(error: &ureq::Error) -> &'static str {
+    match error {
+        ureq::Error::Io(failure) => match failure.kind() {
+            io::ErrorKind::UnexpectedEof => "unexpected_eof",
+            io::ErrorKind::ConnectionReset => "connection_reset",
+            io::ErrorKind::ConnectionAborted => "connection_aborted",
+            io::ErrorKind::BrokenPipe => "broken_pipe",
+            io::ErrorKind::ConnectionRefused => "connection_refused",
+            io::ErrorKind::TimedOut => "timed_out",
+            _ => "io_other",
+        },
+        ureq::Error::Timeout(_) => "timeout",
+        ureq::Error::HostNotFound => "host_not_found",
+        _ => "other",
+    }
+}
+
+/// Whether a failed exchange says the server had closed the connection the
+/// request was sent on, so that the same request is worth sending once more.
+pub fn asks_again(error: &ureq::Error) -> bool {
+    matches!(error, ureq::Error::Io(failure) if CLOSED_CONNECTION.contains(&failure.kind()))
+}
+
+/// The word of [`CAUSES`] that a failure's text (`LlmError`'s `Display`)
+/// carries: the word after `transport: `. A transport text that opens with
+/// none of them is `other`, as the list says. A failure that is not a
+/// transport failure has none.
+pub fn cause_in(display: &str) -> Option<&'static str> {
+    let why = display.strip_prefix("transport: ")?;
+    let word = why.split(':').next()?;
+    CAUSES
+        .iter()
+        .copied()
+        .find(|known| *known == word)
+        .or(Some("other"))
+}
 
 /// Tells a request in flight whether its answer is still wanted: it is until
 /// the counter it was made from moves on, or for as long as a line has claimed
@@ -322,7 +388,7 @@ const HEALTH_READY: &str = "ok";
 fn from_ureq(error: ureq::Error) -> LlmError {
     match error {
         ureq::Error::StatusCode(code) => LlmError::Status(code),
-        other => LlmError::Transport(other.to_string()),
+        other => LlmError::Transport(format!("{}: {other}", cause_of(&other))),
     }
 }
 
@@ -331,6 +397,8 @@ pub struct HttpLlm {
     endpoint: String,
     health: String,
     agent: ureq::Agent,
+    /// Where a request sent again is said; none says nothing.
+    log: Option<SharedSink>,
 }
 
 impl HttpLlm {
@@ -350,7 +418,14 @@ impl HttpLlm {
             endpoint: format!("{root}/v1/chat/completions"),
             health: format!("{root}/health"),
             agent: ureq::Agent::new_with_config(config),
+            log: None,
         }
+    }
+
+    /// Says each request it sends again on `sink`, as `translate.request.retried`.
+    pub fn logging_to(mut self, sink: SharedSink) -> HttpLlm {
+        self.log = Some(sink);
+        self
     }
 
     /// Whether the server answers `GET /health` with `{"status":"ok"}`. A
@@ -389,13 +464,42 @@ fn read_whole(response: &mut ureq::http::Response<ureq::Body>) -> Result<String,
 }
 
 impl HttpLlm {
-    fn post(&self, request: &Completion<'_>) -> Result<ureq::http::Response<ureq::Body>, LlmError> {
-        let body = request_body(request).map_err(|error| LlmError::Body(error.to_string()))?;
+    /// Sends the body of a request once.
+    fn send(&self, body: &str) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
         self.agent
             .post(&self.endpoint)
             .header("Content-Type", "application/json")
             .send(body)
-            .map_err(from_ureq)
+    }
+
+    /// Says that the request is sent again after `error` ended its first try.
+    fn say_retried(&self, error: &ureq::Error, first_try: Duration) {
+        let Some(sink) = &self.log else {
+            return;
+        };
+        let event = LogEvent::new(Level::Warn, "translate.request.retried", "service")
+            .with("dependency", "llama-server")
+            .with("duration_ms", u64::try_from(first_try.as_millis()).ok())
+            .with("cause", cause_of(error));
+        sink.clone().emit(event);
+    }
+
+    /// The request, sent again once when the server had closed the connection
+    /// it went out on (`rust_port.ja.md` 3.23). A request whose answer is no
+    /// longer wanted is not sent again.
+    fn post(&self, request: &Completion<'_>) -> Result<ureq::http::Response<ureq::Body>, LlmError> {
+        let body = request_body(request).map_err(|error| LlmError::Body(error.to_string()))?;
+        let started = Instant::now();
+        match self.send(&body) {
+            Err(error) if asks_again(&error) => {
+                if request.wanted.is_some_and(|wanted| !wanted.still()) {
+                    return Err(LlmError::Aborted);
+                }
+                self.say_retried(&error, started.elapsed());
+                self.send(&body).map_err(from_ureq)
+            }
+            other => other.map_err(from_ureq),
+        }
     }
 }
 
@@ -775,5 +879,257 @@ mod tests {
     #[test]
     fn an_aborted_request_is_worded() {
         assert_eq!(LlmError::Aborted.to_string(), "aborted");
+    }
+
+    // ---- a request sent again when the connection had been closed ---------
+
+    use crate::reach::{Change, Reach};
+
+    /// What the fake server does with one connection.
+    #[derive(Clone, Copy)]
+    enum Turn {
+        /// Reads the whole request, then closes without a word.
+        HangUp,
+        /// Reads the whole request, then answers with the status line and body.
+        Answer(&'static str, &'static str),
+    }
+
+    const CHAT_ANSWER: &str =
+        r#"{"choices":[{"message":{"role":"assistant","content":"Hello."}}]}"#;
+
+    /// A server on the loopback address that gives its connections their turns
+    /// in order. Returns the base URL and the number of connections it has taken.
+    fn serve_turns(turns: Vec<Turn>) -> std::io::Result<(String, Arc<AtomicU64>)> {
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
+        let base = format!("http://{}", listener.local_addr()?);
+        let taken = counter_at(0);
+        let count = Arc::clone(&taken);
+        std::thread::spawn(move || {
+            for turn in turns {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                count.fetch_add(1, Ordering::SeqCst);
+                if read_request(&mut stream).is_err() {
+                    return;
+                }
+                if let Turn::Answer(status_line, body) = turn {
+                    let answer = format!(
+                        "HTTP/1.1 {status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    // A client that hung up has no use for the answer.
+                    let _ = stream.write_all(answer.as_bytes());
+                }
+            }
+        });
+        Ok((base, taken))
+    }
+
+    /// The events a test reads back from the sink it gave a client.
+    #[derive(Clone, Default)]
+    struct Collected(Arc<std::sync::Mutex<Vec<LogEvent>>>);
+
+    impl LogSink for Collected {
+        fn emit(&mut self, event: LogEvent) {
+            match self.0.lock() {
+                Ok(mut events) => events.push(event),
+                Err(poisoned) => poisoned.into_inner().push(event),
+            }
+        }
+    }
+
+    impl Collected {
+        fn named(&self, name: &str) -> Vec<LogEvent> {
+            let events = match self.0.lock() {
+                Ok(events) => events,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            events
+                .iter()
+                .filter(|event| event.event == name)
+                .cloned()
+                .collect()
+        }
+    }
+
+    /// A client that says on `events` each request it sends again.
+    fn logging_client(base: &str) -> (HttpLlm, Collected) {
+        let events = Collected::default();
+        let llm = HttpLlm::new(base).logging_to(SharedSink::new(events.clone()));
+        (llm, events)
+    }
+
+    /// T-RP-96-004
+    #[test]
+    fn a_connection_closed_before_the_answer_is_asked_again_once()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (base, taken) = serve_turns(vec![Turn::HangUp, Turn::Answer("200 OK", CHAT_ANSWER)])?;
+        let (llm, events) = logging_client(&base);
+        let said = llm.complete(&Completion::new("x", 8))?;
+        assert_eq!(said, "Hello.");
+        assert_eq!(taken.load(Ordering::SeqCst), 2);
+        let retried = events.named("translate.request.retried");
+        assert_eq!(retried.len(), 1, "{retried:?}");
+        assert_eq!(
+            retried[0].fields.get("cause"),
+            Some(&serde_json::json!("unexpected_eof"))
+        );
+        Ok(())
+    }
+
+    /// T-RP-96-005
+    #[test]
+    fn a_failure_is_asked_again_once_and_not_more() -> Result<(), Box<dyn std::error::Error>> {
+        let (base, taken) = serve_turns(vec![Turn::HangUp; 4])?;
+        let (llm, events) = logging_client(&base);
+        let said = llm.complete(&Completion::new("x", 8));
+        assert!(matches!(said, Err(LlmError::Transport(_))), "{said:?}");
+        assert_eq!(taken.load(Ordering::SeqCst), 2);
+        assert_eq!(events.named("translate.request.retried").len(), 1);
+        let text = said.as_ref().err().map(|error| error.to_string());
+        assert_eq!(
+            text.as_deref().and_then(cause_in),
+            Some("unexpected_eof"),
+            "{text:?}"
+        );
+        Ok(())
+    }
+
+    /// T-RP-96-006
+    #[test]
+    fn an_answered_error_status_is_not_asked_again() -> Result<(), Box<dyn std::error::Error>> {
+        let (base, taken) = serve_turns(vec![Turn::Answer("500 Internal Server Error", "{}")])?;
+        let (llm, events) = logging_client(&base);
+        let said = llm.complete(&Completion::new("x", 8));
+        assert!(matches!(said, Err(LlmError::Status(500))), "{said:?}");
+        assert_eq!(taken.load(Ordering::SeqCst), 1);
+        assert!(events.named("translate.request.retried").is_empty());
+        Ok(())
+    }
+
+    /// One failed exchange of each kind the list of causes names, with its
+    /// word, in the order of the list.
+    fn failures() -> Vec<(ureq::Error, &'static str)> {
+        let io_error = |kind: io::ErrorKind| ureq::Error::Io(io::Error::from(kind));
+        vec![
+            (io_error(io::ErrorKind::UnexpectedEof), "unexpected_eof"),
+            (io_error(io::ErrorKind::ConnectionReset), "connection_reset"),
+            (
+                io_error(io::ErrorKind::ConnectionAborted),
+                "connection_aborted",
+            ),
+            (io_error(io::ErrorKind::BrokenPipe), "broken_pipe"),
+            (
+                io_error(io::ErrorKind::ConnectionRefused),
+                "connection_refused",
+            ),
+            (io_error(io::ErrorKind::TimedOut), "timed_out"),
+            (io_error(io::ErrorKind::Other), "io_other"),
+            (ureq::Error::Timeout(ureq::Timeout::Global), "timeout"),
+            (ureq::Error::HostNotFound, "host_not_found"),
+            (ureq::Error::BadUri(String::from("x")), "other"),
+        ]
+    }
+
+    /// T-RP-96-007
+    #[test]
+    fn each_failure_kind_has_its_own_cause() {
+        let failures = failures();
+        for (error, word) in &failures {
+            assert_eq!(cause_of(error), *word, "{error}");
+        }
+        let words: Vec<&str> = failures.iter().map(|(_, word)| *word).collect();
+        assert_eq!(words, CAUSES, "the list of causes and the kinds differ");
+    }
+
+    /// T-RP-96-008
+    #[test]
+    fn only_the_four_closed_connection_kinds_are_asked_again() {
+        let answers: Vec<bool> = failures()
+            .iter()
+            .map(|(error, _)| asks_again(error))
+            .collect();
+        assert_eq!(
+            answers,
+            [
+                true, true, true, true, false, false, false, false, false, false
+            ]
+        );
+    }
+
+    /// T-RP-96-009
+    #[test]
+    fn a_request_not_wanted_any_more_is_not_asked_again() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let (base, taken) = serve_turns(vec![Turn::HangUp, Turn::Answer("200 OK", CHAT_ANSWER)])?;
+        let (llm, events) = logging_client(&base);
+        let wanted = Wanted::new(counter_at(2), 1);
+        let said = llm.complete(&Completion::new("x", 8).wanted(&wanted));
+        assert!(matches!(said, Err(LlmError::Aborted)), "{said:?}");
+        assert_eq!(taken.load(Ordering::SeqCst), 1);
+        assert!(events.named("translate.request.retried").is_empty());
+        Ok(())
+    }
+
+    /// T-RP-96-010
+    #[test]
+    fn a_retry_that_succeeds_does_not_hold_the_translator() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let (base, _) = serve_turns(vec![Turn::HangUp, Turn::Answer("200 OK", CHAT_ANSWER)])?;
+        let (llm, watch) = Reach::new(HttpLlm::new(&base));
+        assert_eq!(llm.complete(&Completion::new("x", 8))?, "Hello.");
+        assert!(watch.drain().is_empty());
+        // The same watch does see a translator that stays closed.
+        let (base, _) = serve_turns(vec![Turn::HangUp; 4])?;
+        let (llm, watch) = Reach::new(HttpLlm::new(&base));
+        assert!(llm.complete(&Completion::new("x", 8)).is_err());
+        assert_eq!(watch.drain(), [Change::Held]);
+        Ok(())
+    }
+
+    /// T-RP-96-011
+    #[test]
+    fn the_retried_event_names_the_dependency_and_the_cause_and_no_address()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let (base, _) = serve_turns(vec![Turn::HangUp, Turn::Answer("200 OK", CHAT_ANSWER)])?;
+        let (llm, events) = logging_client(&base);
+        llm.complete(&Completion::new("x", 8))?;
+        let retried = events.named("translate.request.retried");
+        let Some(event) = retried.first() else {
+            return Err("no translate.request.retried event".into());
+        };
+        let line = event.to_json_line();
+        let value: serde_json::Value = serde_json::from_str(&line)?;
+        assert_eq!(value["level"], "warn");
+        assert_eq!(value["dependency"], "llama-server");
+        assert!(value["duration_ms"].is_u64(), "{line}");
+        assert_eq!(value["cause"], "unexpected_eof");
+        assert!(value["error_code"].is_null(), "{line}");
+        assert!(!line.contains("127.0.0.1"), "{line}");
+        Ok(())
+    }
+
+    /// T-RP-96-014
+    #[test]
+    fn a_failure_text_names_its_cause_only_when_it_is_a_transport_failure() {
+        let cases = [
+            (
+                "transport: connection_reset: io: Connection reset by peer (os error 104)",
+                Some("connection_reset"),
+            ),
+            (
+                "transport: the stream ended before its last line",
+                Some("other"),
+            ),
+            ("transport: no scripted answer", Some("other")),
+            ("status 503", None),
+            ("body: no choices", None),
+            ("aborted", None),
+        ];
+        for (text, word) in cases {
+            assert_eq!(cause_in(text), word, "{text}");
+        }
     }
 }
