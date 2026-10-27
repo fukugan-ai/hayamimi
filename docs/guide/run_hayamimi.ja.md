@@ -460,6 +460,36 @@ grep -c '"event":"asr.utterance.timed"' <hayamimi の stdout を残した file>
 
 0 件の判定は、同じ command の中で、必ず出る `asr.utterance.timed` も数えて、非 0 の対照を並べます。
 
+## 速報の読みを別の thread で回す（`--draft-worker`）
+
+速報は、声の途中で 0.5 秒ごとに、その時までの音（最大 8 秒）を認識器で読み直した文です。
+既定（`--draft-worker off`）の run は、この読みを字幕の loop と同じ thread で回します。
+発話の終わりに読みが掛かると、音を VAD に渡す流れと確定文を作る流れが、読みの終わるまで待たされます。
+`--draft-worker on` を付けると、速報の読みだけを専用の thread に任せ、専用の認識器（日本語の `rz` と、`--mode pair` の run では英語の `v3`）を別に読み込みます。
+loop は、頼んだ呼びでは文を受けず、後の呼びで受けます。
+頼んだ後に声の始まりが動いた速報（早い終わりで確定した発話の続き）と、session を替えた後に着いた速報は使いません。
+確定文の読みは変わりません。
+`--no-partial` の run は速報を読まないので、この旗を付けても thread を起こしません。
+
+起動の時に、専用の認識器の読み込みと試し読みを最大 30 秒待ちます。
+待ちが終わらなくても run は止まらず、準備が済んでから速報が出ます。
+専用の thread が途中で終わった時は、残りの速報を loop が読み（`off` と同じ形）、`asr.draft.lost`（warn）を 1 行出します。
+
+出る行は 3 つです。
+
+- `asr.partial.read`（info）：速報を読むごとに 1 行。項目は `worker`（専用の thread で読んだか）、`used`（文を使ったか）、`audio_ms`（読んだ音の長さ）、`decode_ms`（認識器の時間）、`wait_ms`（頼んでから使うか捨てるかまでの実時間）です。`off` の run では `wait_ms` が `decode_ms` と同じです。
+- `asr.draft.ready`（info）：専用の thread の準備が済んだ時に 1 行。項目は `ready_ms` です。
+- `asr.draft.lost`（warn）：専用の thread が終わった時に 1 行。
+
+```bash
+grep '"event":"asr.partial.read"' <hayamimi の stdout を残した file> | grep -c '"worker":true'
+grep -c '"event":"asr.partial.read"' <hayamimi の stdout を残した file>
+grep -c '"event":"asr.draft.ready"' <hayamimi の stdout を残した file>
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.partial.read` も数えて、非 0 の対照を並べます。
+旗を外す時は `--draft-worker off` にします。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash
