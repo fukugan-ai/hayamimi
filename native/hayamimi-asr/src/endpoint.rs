@@ -253,6 +253,28 @@ fn silence_samples(decision: &Decision) -> usize {
     }
 }
 
+/// The text a kept sentence is the final with, for a segment that `decision`
+/// closed. The silence rule ended the sentence, and the reading of the whole
+/// segment puts the terminal mark there; the kept sentence was read before that
+/// silence was over, so a pause mark at its end becomes the terminal mark of
+/// its language. Only `covering` does this, and only for the silence rule:
+/// `strict` and the closes by a limit or a flush keep the text as it was read.
+pub fn closing_text(reuse: HeldReuse, decision: &Decision, lang: &str, text: &str) -> String {
+    if reuse != HeldReuse::Covering || decision.rule != Rule::Silence {
+        return text.to_string();
+    }
+    let (pauses, terminal): (&[char], char) = match lang {
+        "en" => (&[',', ';', ':'], '.'),
+        "ja" => (&['、', '，'], '。'),
+        _ => return text.to_string(),
+    };
+    let body = text.trim_end();
+    if !body.ends_with(pauses) {
+        return text.to_string();
+    }
+    format!("{}{terminal}", body.trim_end_matches(pauses))
+}
+
 /// `decision` with the way the segment was read: the kind of `plan`, and, when
 /// the segment was read although a sentence had been kept (`gap` between the
 /// ends), that gap. A plan that makes no final names no kind.

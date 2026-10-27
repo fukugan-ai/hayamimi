@@ -29,6 +29,7 @@
 
 mod support;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use hayamimi_eval::latency::{Stage, StageReport, StageRow, stage_report};
@@ -362,6 +363,170 @@ fn the_held_plan_counts_and_signed_gaps_of_a_run_are_counted_from_its_log() -> T
     let planless = decided("\"id\":6,\"rule\":\"silence\"");
     assert!(held_counts(&planless).is_err());
     assert_eq!(held_counts("")?, HeldCounts::default());
+    Ok(())
+}
+
+/// The `(id, lang, text)` of every `final` of a record's events, in the order
+/// the record has them.
+fn finals_of(events: &str) -> Result<Vec<(String, String, String)>, Failure> {
+    let mut finals = Vec::new();
+    for line in events.lines() {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let event = &row["event"];
+        if event["type"] != "final" {
+            continue;
+        }
+        let field = |key: &str| event[key].as_str().map(str::to_string);
+        match (field("id"), field("lang"), field("text")) {
+            (Some(id), Some(lang), Some(text)) => finals.push((id, lang, text)),
+            _ => return Err(format!("a final with no id, lang or text: {line}")),
+        }
+    }
+    Ok(finals)
+}
+
+/// A line of a record's events: a `final` of `lang` that says `text`.
+fn final_line(id: &str, lang: &str, text: &str) -> String {
+    let event = serde_json::json!({"type": "final", "id": id, "lang": lang, "text": text});
+    format!("{}\n", serde_json::json!({"event": event, "t_us": 1}))
+}
+
+/// A `final` of a record: its id, its language and its text.
+type Final = (String, String, String);
+
+/// The plan of every final of a run (`held`, `decode`, `rest`; none for an
+/// early close), by the number of the final.
+type Plans = BTreeMap<u64, Option<String>>;
+
+/// The number in the id of a final (`file-3` is 3), which is the number the
+/// `asr.endpoint.decided` line of that final carries.
+fn number_of(id: &str) -> Result<u64, Failure> {
+    id.strip_prefix("file-")
+        .and_then(|number| number.parse().ok())
+        .ok_or_else(|| format!("the id {id} is not file-<number>"))
+}
+
+/// The plans of a run, from its `asr.endpoint.decided` lines.
+fn plans_of(log: &str) -> Result<Plans, Failure> {
+    let mut plans = Plans::new();
+    for line in log
+        .lines()
+        .filter(|line| line.contains("asr.endpoint.decided"))
+    {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let Some(number) = row["id"].as_u64() else {
+            return Err(format!("an endpoint line with no number: {line}"));
+        };
+        plans.insert(number, row["plan"].as_str().map(str::to_string));
+    }
+    Ok(plans)
+}
+
+/// Whether the run whose plans are `plans` made the final `number` from the
+/// sentence the early detector kept.
+fn made_from_kept(plans: &Plans, number: u64) -> bool {
+    plans
+        .get(&number)
+        .is_some_and(|plan| plan.as_deref() == Some("held"))
+}
+
+/// The ids of the finals whose text differs between a covering run and a strict
+/// run (`plans` of the two, in that order) although covering did not make the
+/// final from a kept sentence that strict read again.
+fn unexplained(
+    covering: &[Final],
+    strict: &[Final],
+    plans: [&Plans; 2],
+) -> Result<Vec<String>, Failure> {
+    let mut ids = Vec::new();
+    for (covered, read_again) in covering.iter().zip(strict) {
+        if covered == read_again {
+            continue;
+        }
+        let number = number_of(&covered.0)?;
+        if !made_from_kept(plans[0], number) || made_from_kept(plans[1], number) {
+            ids.push(covered.0.to_owned());
+        }
+    }
+    Ok(ids)
+}
+
+/// T-BR-36-015
+#[test]
+fn the_two_held_reuse_runs_differ_only_in_the_finals_covering_made_from_kept_sentences()
+-> TestResult {
+    let partial = "{\"event\":{\"type\":\"partial\",\"text\":\"a\"},\"t_us\":0}\n";
+    let first = final_line("file-1", "ja", "あ");
+    let second = final_line("file-2", "en", "b");
+    let sample = [partial, first.as_str(), second.as_str()].concat();
+    assert_eq!(
+        finals_of(&sample)?,
+        vec![
+            (
+                String::from("file-1"),
+                String::from("ja"),
+                String::from("あ")
+            ),
+            (
+                String::from("file-2"),
+                String::from("en"),
+                String::from("b")
+            ),
+        ]
+    );
+    let changed = final_line("file-1", "ja", "い");
+    let other = [partial, changed.as_str(), second.as_str()].concat();
+    assert_ne!(finals_of(&sample)?, finals_of(&other)?);
+    assert!(finals_of("{\"event\":{\"type\":\"final\",\"id\":\"file-1\"}}\n").is_err());
+    let line = |id: u64, plan: &str| {
+        format!(
+            "{{\"event\":\"asr.endpoint.decided\",\"id\":{id},\"rule\":\"silence\",\"plan\":\"{plan}\"}}\n"
+        )
+    };
+    let kept = plans_of(&[line(1, "held"), line(2, "decode")].concat())?;
+    let again = plans_of(&[line(1, "decode"), line(2, "decode")].concat())?;
+    let (a, b) = (finals_of(&sample)?, finals_of(&other)?);
+    assert!(unexplained(&a, &b, [&kept, &again])?.is_empty());
+    assert_eq!(
+        unexplained(&a, &b, [&again, &again])?,
+        [String::from("file-1")]
+    );
+    assert_eq!(
+        unexplained(&a, &b, [&kept, &kept])?,
+        [String::from("file-1")]
+    );
+    assert!(plans_of("{\"event\":\"asr.endpoint.decided\",\"plan\":\"held\"}\n").is_err());
+
+    let record = Path::new(REPO).join("docs/results/in-person");
+    let recorded =
+        |variant: &Variant, suffix: &str| read(&record.join(format!("{}{suffix}", variant.step)));
+    let covering = finals_of(&recorded(&HELD_COVERING, ".events.jsonl")?)?;
+    let strict = finals_of(&recorded(&HELD_STRICT, ".events.jsonl")?)?;
+    assert!(!covering.is_empty(), "the covering run made no final");
+    assert!(
+        covering.len() == strict.len()
+            && covering
+                .iter()
+                .zip(&strict)
+                .all(|(covered, read_again)| covered.0 == read_again.0 && covered.1 == read_again.1),
+        "the two runs did not make the same finals in the same languages"
+    );
+    let covering_log = recorded(&HELD_COVERING, ".log.jsonl")?;
+    let strict_log = recorded(&HELD_STRICT, ".log.jsonl")?;
+    let plans = [plans_of(&covering_log)?, plans_of(&strict_log)?];
+    let stray = unexplained(&covering, &strict, [&plans[0], &plans[1]])?;
+    assert!(
+        stray.is_empty(),
+        "finals differ with no kept sentence behind them: {stray:?}"
+    );
+    let covering_held = held_counts(&covering_log)?;
+    let strict_held = held_counts(&strict_log)?;
+    assert!(
+        covering_held.held > strict_held.held,
+        "covering used {} kept sentences and strict {}",
+        covering_held.held,
+        strict_held.held
+    );
     Ok(())
 }
 

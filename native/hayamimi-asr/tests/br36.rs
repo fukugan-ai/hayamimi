@@ -11,7 +11,8 @@
 
 use hayamimi_asr::audio::{SAMPLE_RATE, WINDOW};
 use hayamimi_asr::endpoint::{
-    Decision, Gap, Held, HeldReuse, Plan, PlanKind, Reach, Rule, State, note_plan, reach_for,
+    Decision, Gap, Held, HeldReuse, Plan, PlanKind, Reach, Rule, State, closing_text, note_plan,
+    reach_for,
 };
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -147,6 +148,43 @@ fn a_held_sentence_read_short_past_the_closing_silence_is_read_again_by_both_fla
         let (plan, gap) = planned(reuse, Rule::Silence, SEG_END - SILENCE - 1, false);
         assert_eq!(plan, Plan::Whole, "{reuse:?}");
         assert_eq!(logged_gap(&plan, gap), Some(-300), "{reuse:?}");
+    }
+    Ok(())
+}
+
+/// T-BR-36-018
+#[test]
+fn a_kept_sentence_closed_by_silence_ends_with_the_terminal_mark_of_its_language() -> TestResult {
+    let silence = closed_by(Rule::Silence);
+    let rows = [
+        (
+            "en",
+            "He would have to pay her the money,",
+            "He would have to pay her the money.",
+        ),
+        ("en", "Done, then; ", "Done, then."),
+        ("en", "It is raining.", "It is raining."),
+        ("en", "A, B", "A, B"),
+        ("en", "", ""),
+        ("ja", "雨が降っていますが、", "雨が降っていますが。"),
+        ("ja", "雨が降っています。", "雨が降っています。"),
+        ("zh", "你好，", "你好，"),
+    ];
+    for (lang, text, expected) in rows {
+        let closed = closing_text(HeldReuse::Covering, &silence, lang, text);
+        assert_eq!(closed, expected, "{lang} {text:?}");
+    }
+    assert_eq!(
+        closing_text(HeldReuse::Strict, &silence, "en", "Done,"),
+        "Done,"
+    );
+    for rule in [Rule::MaxSpeech, Rule::Flush] {
+        let close = closed_by(rule);
+        assert_eq!(
+            closing_text(HeldReuse::Covering, &close, "en", "Done,"),
+            "Done,",
+            "{rule:?}"
+        );
     }
     Ok(())
 }

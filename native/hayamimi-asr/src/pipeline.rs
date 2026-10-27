@@ -1068,7 +1068,8 @@ impl Engine {
         };
         let decision = decision_of(&segment, route.vad.sensitivity(), flushed);
         let end = segment.start + segment.samples.len();
-        let reach = endpoint::reach_for(route.router.policy().held_reuse, &decision);
+        let reuse = route.router.policy().held_reuse;
+        let reach = endpoint::reach_for(reuse, &decision);
         let (plan, gap) = route.early.plan_with_gap(segment.start, end, reach);
         let decision = endpoint::note_plan(decision, &plan, gap);
         match plan {
@@ -1098,6 +1099,7 @@ impl Engine {
                 let mut solved = held.solved;
                 // Nothing was read after the detector handed the segment over.
                 solved.l_dec_ms = 0.0;
+                solved.text = endpoint::closing_text(reuse, &decision, &solved.lang, &solved.text);
                 let speaker_audio = if self.speakers.is_some() {
                     samples
                 } else {
