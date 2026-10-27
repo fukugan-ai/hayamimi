@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use hayamimi_asr::audio::SAMPLE_RATE;
+use hayamimi_asr::draft::{DraftNote, DraftRead};
 use hayamimi_asr::endpoint::Rule;
 use hayamimi_asr::partial::{Midway, MidwayAsked};
 use hayamimi_asr::pipeline::{ClosedSegment, PunctWarmup, Unread};
@@ -23,6 +24,8 @@ use crate::strings::Strings;
 pub const BUILD_REVISION: &str = concat!("hayamimi-", env!("CARGO_PKG_VERSION"));
 /// The error code of a start without a usable CUDA device.
 pub const GPU_UNAVAILABLE_CODE: &str = "HAYAMIMI_GPU_DEVICE_UNAVAILABLE";
+/// The error code of a draft worker whose thread ended.
+pub const DRAFT_LOST_CODE: &str = "HAYAMIMI_ASR_DRAFT_LOST";
 
 pub const SESSION_CREATED: &str = "gpu.session.created";
 pub const SESSION_PLACED: &str = "gpu.session.placed";
@@ -47,6 +50,9 @@ pub const WARMUP_DECODED: &str = "asr.warmup.decoded";
 pub const WARMUP_FAILED: &str = "asr.warmup.failed";
 pub const PARTIAL_FAILED: &str = "asr.partial.failed";
 pub const PARTIAL_LANG_ASKED: &str = "asr.partial.lang.asked";
+pub const PARTIAL_READ: &str = "asr.partial.read";
+pub const DRAFT_READY: &str = "asr.draft.ready";
+pub const DRAFT_LOST: &str = "asr.draft.lost";
 pub const DEVICE_OPENED: &str = "capture.device.opened";
 pub const INGEST_CONNECTED: &str = "ingest.client.connected";
 pub const INGEST_CLOSED: &str = "ingest.client.closed";
@@ -517,6 +523,63 @@ pub fn partial_failed_line(strings: &Strings) -> String {
     )
 }
 
+/// `asr.partial.read`: one draft was read. `worker` tells whether the draft
+/// worker read it, `used` whether its text was published (a text read from
+/// speech that has moved on is dropped), `audio_ms` the audio the recognizer
+/// was given, `decode_ms` the recognizer's time and `wait_ms` the time from
+/// asking for the read to using or dropping the text. The text is not in the line.
+pub fn partial_read_line(strings: &Strings, read: &DraftRead) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        PARTIAL_READ,
+        "asr",
+        None,
+        &[
+            ("worker", Value::from(read.worker)),
+            ("used", Value::from(read.used)),
+            ("audio_ms", millis(read.audio_ms)),
+            ("decode_ms", millis(read.decode_ms)),
+            ("wait_ms", millis(read.wait_ms)),
+        ],
+    )
+}
+
+/// `asr.draft.ready`: the draft worker loaded and warmed its recognizers;
+/// `ready_ms` is how long that took from the thread's start.
+pub fn draft_ready_line(strings: &Strings, ready_ms: f64) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        DRAFT_READY,
+        "asr",
+        None,
+        &[("ready_ms", millis(ready_ms))],
+    )
+}
+
+/// `asr.draft.lost`: the draft worker is not running; the drafts are read on
+/// the thread that feeds from now on.
+pub fn draft_lost_line(strings: &Strings) -> String {
+    event_line(
+        strings,
+        Level::Warn,
+        DRAFT_LOST,
+        "asr",
+        Some(DRAFT_LOST_CODE),
+        &[],
+    )
+}
+
+/// The line of one thing the drafter said.
+pub fn draft_note_line(strings: &Strings, note: &DraftNote) -> String {
+    match note {
+        DraftNote::Ready { ready_ms } => draft_ready_line(strings, *ready_ms),
+        DraftNote::Read(read) => partial_read_line(strings, read),
+        DraftNote::Lost => draft_lost_line(strings),
+    }
+}
+
 /// `asr.warmup.decoded`: the recognizer read the start-up silence once, before
 /// the first utterance. `decode_ms` is what that first decode took. `punct_ms`
 /// is what the punctuation model's one read took; it is null when that read
@@ -913,6 +976,61 @@ mod tests {
             written.push(parsed(&midway_asked_line(&strings, &asked))?["answer"].clone());
         }
         assert_eq!(written, ["ja", "en", "outside", "failed"]);
+        Ok(())
+    }
+
+    /// T-BR-38-017
+    #[test]
+    fn the_draft_lines_carry_their_fields_and_no_text() -> Result<(), Box<dyn std::error::Error>> {
+        let strings = strings()?;
+        let read = DraftRead {
+            worker: true,
+            used: false,
+            audio_ms: 1000.0,
+            decode_ms: 212.5,
+            wait_ms: 340.25,
+        };
+        let line = partial_read_line(&strings, &read);
+        assert!(!line.contains('\n'));
+        let event = parsed(&line)?;
+        assert_eq!(event["event"], "asr.partial.read");
+        assert_eq!(event["component"], "asr");
+        assert_eq!(event["level"], "info");
+        assert_eq!(
+            extra_keys(&line)?,
+            ["audio_ms", "decode_ms", "used", "wait_ms", "worker"]
+        );
+        assert_eq!(event["worker"], true);
+        assert_eq!(event["used"], false);
+        assert_eq!(event["audio_ms"], 1000.0);
+        assert_eq!(event["decode_ms"], 212.5);
+        assert_eq!(event["wait_ms"], 340.25);
+        assert!(event["error_code"].is_null());
+
+        let ready = draft_ready_line(&strings, 3120.5);
+        let event = parsed(&ready)?;
+        assert_eq!(event["event"], "asr.draft.ready");
+        assert_eq!(event["level"], "info");
+        assert_eq!(extra_keys(&ready)?, ["ready_ms"]);
+        assert_eq!(event["ready_ms"], 3120.5);
+        assert!(event["error_code"].is_null());
+
+        let lost = draft_lost_line(&strings);
+        let event = parsed(&lost)?;
+        assert_eq!(event["event"], "asr.draft.lost");
+        assert_eq!(event["level"], "warn");
+        assert_eq!(event["error_code"], "HAYAMIMI_ASR_DRAFT_LOST");
+        assert!(extra_keys(&lost)?.is_empty());
+
+        // The notes of the drafter come out as these same three lines.
+        let notes = [
+            (DraftNote::Read(read), line),
+            (DraftNote::Ready { ready_ms: 3120.5 }, ready),
+            (DraftNote::Lost, lost),
+        ];
+        for (note, expected) in notes {
+            assert_eq!(draft_note_line(&strings, &note), expected);
+        }
         Ok(())
     }
 

@@ -3737,13 +3737,13 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 - `?relay=` の scheme の大文字小文字、decode した値の前後の空白、`held` の訳の描き方（印と理由を出し、訳の文を出さない）：10.5（T-IP-05-002、012、014、017 から 019）。
 - `--own-llama-port` の型と範囲（`0`、`65535`、`65536`、負の数、空の値、先頭に 0 のある引数、引数の重複）：10.7.1（T-IP-08-013、015 から 022）。
 
-### 4.87 BR-1〜BR-37（対面のモードの磨き上げ）
+### 4.87 BR-1〜BR-38（対面のモードの磨き上げ）
 
 **最新情報**：Chrome DevTools Protocol の CSS domain は、`CSS.getPlatformFontsForNode` が node の子の文字を描いた platform font の使用状況（`familyName`、`postScriptName`、`isCustomFont`、`glyphCount`）を返すと書く（https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json 、取得 2026-10-23）。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
-case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 36 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 12 つである。
+case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 38 まである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 14 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 - BR-5 の `Mailbox` と stream の経路の行（T-BR-05-008 から 018）は `native/hayamimi-relay/src/partial.rs` の `mod tests`、引数の行（020 から 024）は `native/hayamimi-relay/src/cli.rs` の `mod tests`。
@@ -3757,6 +3757,8 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-26 と BR-27 の中継の行は `native/hayamimi-relay/tests/br26.rs` と `br27.rs`。
 - T-BR-35-004 は `native/hayamimi/src/routes.rs` の `mod tests`。
 - BR-36 の旗の行（T-BR-36-011）は `native/hayamimi/src/args.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 015 と 019）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 010、016 から 018）は `native/hayamimi-asr/tests/br36.rs`。
+- BR-37 の旗の行（T-BR-37-011）は `native/hayamimi/src/args.rs` の `mod tests`、定数の行（015）は `native/hayamimi-asr/src/partial.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 014）は `native/hayamimi/tests/br03.rs`。
+- BR-38 の旗の行（T-BR-38-016）は `native/hayamimi/src/args.rs` の `mod tests`、log の行（017）は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行（021）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行と記録を読む行（018 から 020）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 015 と 022）は `native/hayamimi-asr/tests/br38.rs`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -4496,6 +4498,35 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-37-014 | 実物と純関数：012 と 013 の記録（`docs/results/in-person/br03_ip_s20*`）を読む。先に、手で作った記録で数える関数を確かめる | 旗の前後 | 確定文の `id`、`lang`、`text` | 手で作った記録：`asr.utterance.timed` の `lid_ms` が 0 の行を 2 つ持つ記録で、数える関数がその 2 つの番号を返し、持たない記録で空を返し、`id` か `lid_ms` の無い行は誤りにする。`asr.partial.lang.asked` の `voice_ms` が 2 016、3 999、4 000、5 200 の行を持つ記録で 4 000 以上を 2 件と数える（境界は 3 999 と 4 000）。確定文の並びが 1 件違う 2 本は違う `id` を、長さの違う 2 本は余りの `id` を名指す。実物：(1) `type == "final"` の `[id, lang, text]` の並びが 2 本で全件同じ、(2) `lid_ms` が 0 の確定文の数が `midway` の run で 1 件以上、`close` の run で 0 件、(3) `midway` の run の `asr.partial.lang.asked` のうち `voice_ms` が 4 000 以上の行が 1 件以上で、(2) の数以上、(4) `close` の run にその行が 0 件（specified：設計 10.13.9 の IP-S20、10.13.10 の H73。実走の前の記録では (2) と (4) の数が 0 になる） | 陽性と陰性 | `the_midway_and_close_runs_name_the_same_finals_and_only_midway_skips_the_question` |
 | T-BR-37-015 | 純関数：定数 | 4 秒の問いの長さ | `LID_MAX_SECONDS` | `MIDWAY_CLOSING_SAMPLES` が 64 000 で、`LID_MAX_SECONDS` に標本率 16 000 を掛けた値と等しく、`CLOSING_ALIGN_SAMPLES` が 8 000（specified：設計 10.13.4 の手 12。確定の側の判定が読む長さと同じにする） | 境界 | `the_four_second_limits_match_what_the_final_identifier_reads` |
 
+**BR-38（速報の復号を、専用の thread の recognizer で回す。`native/hayamimi-asr/tests/br38.rs`、旗の行は `native/hayamimi/src/args.rs` の `mod tests`、log の行は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行は `native/hayamimi/src/strings.rs` の `mod tests`、run の記録を読む行は `native/hayamimi/tests/br03.rs`）**
+
+材料：`hayamimi_asr::draft` の `Drafter`、`DraftReader`、`DraftNote`、`DraftRead`、`hayamimi_asr::partial` の `DraftClock`、`hayamimi_asr::audio` の `History`、`hayamimi_asr::route` の `Tier`、`hayamimi_asr::error` の `AsrError` を公開の API から使う。標本は 16 kHz で、速報の周期の 0.5 秒は 8 000 標本、音の上限の 8 秒は 128 000 標本。reader は台本で、呼ばれた thread の id、受けた tier と音を控え、答え（文、失敗、panic）を呼ばれた順に返す。台本の `prepare` と `read` は、test の手で開く門を待てる。待ちは全部、上限つき（5 秒）で、上限を過ぎたら test を落とす。時計は `DraftClock::observe(true, 0)` で声の始まりを 0 にし、窓の代わりに `History::push` で標本を足してから `step` を呼ぶ。`step` の最後の引数（worker を持たない時に読む reader）には、worker を持つ `Drafter` では読まれない台本を渡し、読まれたら数える。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-38-001 | 受入：`Drafter::start` に台本の reader（`read` は `"one"` と答える）を渡し、`wait_ready` で準備を待つ。時計は声の始まりを 0 にし、`History` に 8 000 標本を入れ、`step`（tier は `Tier::Rz`）を呼ぶ。台本が読み終えるのを待ち、160 標本を足して `step` をもう 1 回呼ぶ | 周期の最初の速報 | 8 000 標本（0.5 秒） | 1 回目の `step` は `Ok(None)` で、reader が `read` を呼んだ thread の id は test の thread と違う。2 回目の `step` は `Ok(Some("one"))`。worker を持たない時の reader は 1 回も読まれない（specified：設計 10.13.4 の手 11。頼んだ呼びは文を返さず、後の呼びが返す） | 陽性 | `br38_a_draft_is_read_by_a_worker_of_its_own_and_published_by_a_later_call` |
+| T-BR-38-002 | 台本の `prepare` が門を待つ。(a) 門が閉じたまま、`History` の終わりを 8 000 にして `step` を呼ぶ。(b) 門を開き、`wait_ready` が真を返してから、標本を足さずに `step` を呼ぶ | 準備の前後 | 準備が済むまで | (a) は `Ok(None)` で台本の `read` は 0 回。(b) の呼びで `read` が 1 回呼ばれ、音は 8 000 標本（specified：設計 10.13.4 の手 11「準備が済むまで頼みを受けない。周期の目盛りは使わない」。目盛りを (a) で使っていれば、(b) の同じ位置では周期が来ず、頼みが出ない） | 陰性 | `a_worker_takes_no_job_before_it_is_ready_and_the_due_tick_is_kept` |
+| T-BR-38-003 | 台本の `read` が門を待つ。(a) 終わり 8 000 で `step`（頼みが出る）。(b) 終わりを 16 000 にして `step`。(c) 門を開き、台本が読み終えるのを待って、標本を足さずに `step` | 読んでいる間 | 周期 1 つ分の音（8 000 標本）が (a) の後に来ている | (b) は `Ok(None)` で、台本が受けた頼みは 1 件のまま。(c) は `Ok(Some(a の文))` を返し、同じ呼びで 2 件目の頼みが出て、その音は `History::draft(0, 128 000)` と等しく 16 000 標本である（specified：設計の手 11「読んでいる間は次を頼まず、目盛りを使わない」「読み終わった次の呼びがすぐ頼む」） | 境界 | `a_busy_worker_gets_no_second_job_and_the_next_call_hands_the_latest_audio` |
+| T-BR-38-004 | 003 の (a) の後、台本が読んでいる間に、終わりを 16 000 にして `restart_at(4_000)` で声の始まりを動かし、台本が読み終えてから `step`。2 件目の答えは `"two"` | 声の始まりの移動 | 始まりが 0 から 4 000 | 読み終えた後の `step` は `Ok(None)` で、1 件目の文は使われない。同じ呼びで、始まり 4 000 からの頼みが出る。台本が 2 件目を読み終えた後の `step` は `Ok(Some("two"))`。`take_notes` の `Read` は、1 件目が `used` 偽、2 件目が `used` 真（specified：設計の手 11「声の始まりが今と同じ時だけ文にする」。早い終わりの確定で始まりが動いた後に、確定した文を覆う速報を出さない） | 陰性 | `a_result_whose_speech_start_moved_is_dropped` |
+| T-BR-38-005 | 003 の (a) の後、台本が読んでいる間に `observe(false, 12_000)` で声を終わらせ、台本が読み終えてから `step` | 声の終わり | 声の外 | `Ok(None)`。頼みは出ない（台本の `read` は 1 回のまま）。`Read` は `used` 偽の 1 件（specified：設計の手 11。確定文が出た後に、その発話の速報を出さない） | 陰性 | `a_result_after_the_speech_ended_is_dropped` |
+| T-BR-38-006 | 003 の (a) の後、台本が読んでいる間に、終わりを 16 000 にして `Drafter::reset()` を呼ぶ。声の始まりは同じ。(a) reset の直後に `step`、(b) 台本が読み終えてから `step` | session の世代 | 世代が 1 つ進む | (a) は `Ok(None)` で頼みを出さない（worker は読み中）。(b) は `Ok(None)` で、`Read` は `used` 偽の 1 件。同じ呼びで新しい頼みが出る（specified：設計の手 11「前の世代の結果を使わない」。読み中の worker は結果が着くまで空かない） | 陰性 | `a_result_of_an_earlier_session_is_dropped_and_the_worker_stays_busy_until_it_ends` |
+| T-BR-38-007 | 台本の答えが、1 件目は `Err(AsrError::NoResult)`、2 件目は `"two"`。終わり 8 000 で頼み、読み終えるのを待って終わりを 16 000 にし、`step`。続けて 2 件目を読み終えるのを待ち、`step` | 読みの失敗 | 1 件目だけ失敗 | 1 回目の `step` は `Err(AsrError::NoResult)`（`matches!`）で、同じ呼びで 2 件目の頼みが出る。2 回目の `step` は `Ok(Some("two"))`。`take_notes` の `Read` は、1 件目が `used` 偽、2 件目が `used` 真で、`Lost` は無い（specified：設計の手 11「読みの失敗は失敗として返り、worker は次の頼みを読む」。失敗が周期を止めない。失敗した読みは使った読みに数えない） | 陰性 | `a_failed_read_is_returned_by_the_later_call_and_the_next_job_is_read` |
+| T-BR-38-008 | 007 と同じ流れで、1 件目の読みが panic する台本 | panic | 1 件目だけ | 007 と同じ形で、1 回目の `step` は `Err(_)`、2 回目は `Ok(Some("two"))`。`take_notes` の `Read` は、1 件目が `used` 偽、2 件目が `used` 真で、`Lost` は無い（specified：設計の手 11「panic は失敗として返り、worker は次の頼みを読む」。`Refiner` の reader の panic の扱いと同じ） | 陰性 | `a_reader_that_panics_fails_its_job_and_not_the_worker` |
+| T-BR-38-009 | 声 20 秒（320 000 標本）を `History` に入れ、声の始まり 0、tier `Tier::V3` で `step` を呼んで頼みを出す。台本が受けた音と tier を読む。続けて tier を `Tier::Rz` にして `step`（結果を受ける） | 頼みの内容 | 音の上限 128 000 標本 | 台本が受けた音は `History::draft(0, 128 000)` と標本まで等しく、長さは 128 000。tier は頼んだ時の `Tier::V3`（specified：設計の手 11「頼みの音は声の始まりの前の最大 1 秒から今までで、最後の 8 秒まで。読む tier は頼んだ時に決めた物」） | 境界 | `a_job_carries_the_audio_the_inline_read_would_take_and_the_tier_given_when_it_was_handed` |
+| T-BR-38-010 | `Drafter::inline()`。声の始まり 0、`History` の終わり 8 000。`step` の reader は台本で、呼ばれた thread の id と音を控え、`"one"` と答える | worker を持たない形 | 今の形 | `step` は同じ呼びで `Ok(Some("one"))`。reader が呼ばれた thread は test の thread。音は `History::draft(0, 128 000)` と等しい。`Read` は `worker` 偽で、`wait_ms` が `decode_ms` と等しい（specified：設計の手 11「`--draft-worker off` は今の形」） | 陽性 | `without_a_worker_a_due_draft_is_read_in_the_same_call_on_the_callers_thread` |
+| T-BR-38-011 | 台本の `prepare` が panic して worker の thread が終わる。`wait_ready` が偽を返してから、終わり 8 000 で `step`（worker を持たない時の reader は `"inline"` と答える台本）。続けて終わり 16 000 で `step` | 終わった worker | thread が終わった | 1 回目の `step` は同じ呼びで `Ok(Some("inline"))`。`take_notes` は `Lost` をちょうど 1 件返す。2 回目も inline で読まれ、`Lost` は増えない（specified：設計の BR-38 の行「worker の thread が終わった時は、その後の速報を loop が読み、終わったことを 1 度だけ log に残す」） | 陰性 | `a_worker_that_ended_is_replaced_by_the_inline_read_and_said_once` |
+| T-BR-38-012 | worker を起こし、`read` を 1 回通した後、`close` を 2 回呼ぶ。その後、終わり 16 000 で `step`（inline の reader は `"inline"`） | 閉じる | 2 回 | 台本の `release` は 1 回で、`release` を呼んだ thread は `read` を呼んだ thread と同じで test の thread と違う。`close` の戻りの時点で、`release` の後に台本が立てた印が立っている。`close` の後の `step` は `Ok(Some("inline"))` で、`Lost` は返らない（specified：設計の手 11。run の終わりに worker が残らない） | 境界 | `closing_joins_the_worker_releases_the_reader_once_and_leaves_the_inline_read` |
+| T-BR-38-013 | 台本の `prepare` と `read` がそれぞれ 20 ms 眠る。声の始まり 0、終わり 16 000 で頼みを 1 件出し、答えを使う。`take_notes` を 2 回呼ぶ | 記録 | 1 件の速報 | 1 回目は先頭に `Ready`（`ready_ms` が 20 以上）、続いて `Read` が 1 件（`worker` 真、`used` 真、`audio_ms` が 1 000、`decode_ms` が 20 以上、`wait_ms` が `decode_ms` 以上）。2 回目は空（specified：設計の手 11 の log の 1 行 `asr.partial.read`。`audio_ms` は音の標本数を 16 で割った値、`wait_ms` は頼んでから使うまでの実時間） | 陽性 | `the_notes_name_the_ready_time_and_each_read_with_its_times` |
+| T-BR-38-014 | (a) 台本の `prepare` が何もしない。`wait_ready(5 秒)`。(b) `prepare` が門を待つ。`wait_ready(50 ms)`、門を開いて `wait_ready(5 秒)` | 準備の待ち | 上限 50 ms | (a) は真。(b) の最初は偽で、戻るまでの実時間は 50 ms 以上 2 秒未満、門を開いた後は真（specified：設計の手 11「`warm_up` が準備を上限つきで待つ」。準備が済まなくても run は止まらない） | 境界 | `waiting_for_the_worker_is_bounded_and_ends_when_it_is_ready` |
+| T-BR-38-015 | 声の始まり 0 の時計で、`History` の終わりを 4 000、8 000、12 000、16 000 と進め、各回で `step` を呼ぶ。台本は即座に答える。(a) `Drafter::inline()`。(b) worker（各回の後に読み終わりを待つ） | 周期の規則 | 8 000 標本ごと | どちらも、読み（頼み）が出るのは終わりが 8 000 と 16 000 の回だけで、音の長さは 8 000 と 16 000。(b) の文は頼んだ回の次の回に返る（8 000 の頼みの文は 12 000 の回に返る）（specified：`DraftClock::due` の規則は 2 つの形で同じ） | 陽性と境界 | `the_due_rule_of_the_clock_is_the_same_with_and_without_a_worker` |
+| T-BR-38-016 | 純関数：引数の読み。(a) 旗なし、(b) `--draft-worker on`、(c) `--draft-worker off`、(d) `--draft-worker maybe`、(e) `--draft-worker` の値なし、(f) `--draft-worker on --no-partial` | 旗の値 | `on` と `off` の 2 つ | (a) と (c) は worker を使わず、(b) は使う。(d) は `ArgError::DraftWorkerUnsupported`（key は `draft_worker_unsupported`）、(e) は値の無い旗のエラー（`--final-lid` の同じ形の行と同じ）。(f) は速報が無いので worker を使わない（specified：設計 10.13.9 の IP-S19「既定は `off`」） | 陽性と陰性 | `draft_worker_takes_on_or_off_and_nothing_else_and_starts_no_worker_without_drafts` |
+| T-BR-38-017 | 純関数：log の行。`partial_read_line`、`draft_ready_line`、`draft_lost_line` に値を渡し、続けて `draft_note_line` に同じ値の 3 つの note を渡す | 3 つの event | event 名 | `asr.partial.read` は info で `worker`、`used`、`audio_ms`、`decode_ms`、`wait_ms` を持つ。`asr.draft.ready` は info で `ready_ms` を持つ。`asr.draft.lost` は warn で `error_code` が `HAYAMIMI_ASR_DRAFT_LOST`。3 行とも速報の文字を持たない。`draft_note_line` は 3 つの note を、同じ値から作った 3 行と同じ文字列に写す（specified：設計 10.13.4 の手 11。log に本文を出さない決め） | 陽性 | `the_draft_lines_carry_their_fields_and_no_text` |
+| T-BR-38-018 | 実走：BR-3 の harness が `--draft-worker on` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s19`） | `on` の run | 記録が揃う | `br03_ip_s19.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれ、`.log.jsonl` に `asr.partial.read` と `asr.draft.ready` の行が在る（specified：設計 10.13.9 の IP-S19「記録：BR-3 の run の段ごとの値」） | 陽性 | `the_run_with_the_draft_worker_on_is_recorded` |
+| T-BR-38-019 | 実走：同じ harness が `--draft-worker off` を付けて流して記録する（step は `br03_ip_s19_off`） | `off` の run | 記録が揃う | 018 と同じ 4 つの file が書かれ、`.log.jsonl` に `asr.partial.read` の行が在る（`worker` は偽）（specified：018 の対照の run） | 陽性 | `the_run_with_the_draft_worker_off_is_recorded` |
+| T-BR-38-020 | 実物と純関数：018 と 019 の記録（`docs/results/in-person/br03_ip_s19*`）と、その前に流した組の複写（`br03_ip_s19_run1*` と `br03_ip_s19_off_run1*`。どの実走も書き直さない名前）を読む。先に、手で作った記録で数える関数を確かめる | 旗の前後 | 確定文の `id`、`lang`、`text` | 手で作った記録：`worker` が真の `asr.partial.read` を 2 行持つ記録で 2 と数え、持たない記録で 0 と数え、`worker` の無い行は誤りにする。確定文の並びが 1 件違う 2 本は違う `id` を、長さの違う 2 本は余りの `id` を名指す。実物は 2 つの組のそれぞれで、(1) `type == "final"` の `[id, lang, text]` の並びが 2 本で全件同じ、(2) `asr.partial.read` の `worker` が真の行が `on` の run に 1 件以上、`off` の run に 0 件、(3) `asr.draft.ready` が `on` の run に 1 件、`off` の run に 0 件、(4) `asr.draft.lost` が `on` の run に 0 件。加えて (5) 2 つの組の確定文の並びが全件同じ（specified：設計 10.13.9 の IP-S19、10.13.10 の H77。実走の前の記録では (2) と (3) の数が 0 になる） | 陽性と陰性 | `the_on_and_off_runs_name_the_same_finals_and_only_on_reads_by_the_worker` |
+| T-BR-38-021 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `asr.partial.read`、`asr.draft.ready`、`asr.draft.lost` の message を引く | 2 つの言語 | event 3 つ | 6 つの message がどれも空でなく、2 つの言語で違う文である（specified：log の文言を locale で切り替える決め） | 陽性 | `the_draft_lines_have_a_message_in_both_languages` |
+| T-BR-38-022 | 台本の `prepare` が panic して worker の thread が終わる。`wait_ready` を呼ばず、`History` の終わりを 8 000 にして、`step`（worker を持たない時の reader は `"inline"` と答える台本）を、`take_notes` に `Lost` が出る呼びまで繰り返す（呼びの間は 1 ms 眠り、上限 10 秒） | `step` の中で見つかる終わった worker | `wait_ready` が終わりを見つけない | `Lost` が出た呼びは、同じ呼びで `Ok(Some("inline"))` を返し、`take_notes` は `Lost` をちょうど 1 件返す。その前の呼びは `Ok(None)` で、reader は呼ばれない。reader が呼ばれた回数は 1 回、音は 8 000 標本、thread は test の thread。`has_worker` は偽（specified：設計の BR-38 の行「worker の thread が終わった時は、その後の速報を loop が読み、終わったことを 1 度だけ log に残す」。011 は `wait_ready` が終わりを見つける順で、これは `step` が見つける順である。見つけた呼びで読まなければ、その呼びの速報が 1 回欠ける） | 陰性 | `a_worker_found_gone_by_the_step_itself_is_replaced_by_the_inline_read_in_that_call` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
@@ -4504,6 +4535,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 別の PC のブラウザから音を送る頁：10.13.6（T-BR-16 から T-BR-18）。制御の口を LAN に開かない C6：10.13.6 の末尾（T-BR-35）。
 - 持った文を使う幅：10.13.4 の手 9（T-BR-36）。
 - 確定文の言語を途中の判定で決める：10.13.4 の手 12（T-BR-37）。
+- 速報の復号を専用の thread で回す：10.13.4 の手 11（T-BR-38）。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。
@@ -4523,6 +4555,8 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 仮名を持たない日本語の文が `zh,ja` の組で `zh` へ送られる量（H68）：`zh,ja` を使う時の実装の席が交互の録音で数える。T-BR-27-022 は仮名の無い文を `zh` と読む規則だけを測る。
 - 初回表示の字体 file の配布条件（H61）：原文の条件を読む者が確かめる。
 - `pipeline.rs` が 4 秒の問いの答えを確定の読みに通す配線（`consider` と `process` の 2 か所、BR-37）：Silero の model を読む `Engine` が要り、CI では測れない。BR-3 の 2 本の run の `lid_ms` が 0 の確定文の数（T-BR-37-014）で測る。
+- `Engine::partial` が `Drafter::step` を通す配線と、`Engine::open` が worker を起こして `Engine::warm_up` が準備を上限つきで待つ配線（BR-38）：認識器と Silero の model を読む `Engine` が要り、CI では測れない。BR-3 の 2 本の run の `asr.partial.read` の `worker` が真の行の数と `asr.draft.ready` の数（T-BR-38-020）で測る。
+- worker が増やす memory の量と、worker の読み込みの秒数（設計 10.13.10 の H77）：run の最中に受付が測って記録する。`ready_ms` は `asr.draft.ready` の行から読む。
 
 ### 4.88 RP-96（翻訳要求の打ち直し）
 

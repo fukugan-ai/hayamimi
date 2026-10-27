@@ -60,6 +60,10 @@ pub struct Args {
     /// How far a sentence the early detector kept may have been read past the
     /// end of the segment and still be its text (`--held-reuse`).
     pub held_reuse: HeldReuse,
+    /// Whether the drafts of the utterance in progress are read by a worker
+    /// thread of its own (`--draft-worker`), so that a draft never holds the
+    /// feed back.
+    pub draft_worker: bool,
     pub replace: Option<PathBuf>,
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
@@ -93,6 +97,7 @@ pub enum ArgError {
     PartialLidUnsupported,
     FinalLidUnsupported,
     HeldReuseUnsupported,
+    DraftWorkerUnsupported,
     LangUnsupported,
     NeedWav,
     UnknownInput,
@@ -111,6 +116,7 @@ impl ArgError {
             ArgError::PartialLidUnsupported => keys::PARTIAL_LID_UNSUPPORTED,
             ArgError::FinalLidUnsupported => keys::FINAL_LID_UNSUPPORTED,
             ArgError::HeldReuseUnsupported => keys::HELD_REUSE_UNSUPPORTED,
+            ArgError::DraftWorkerUnsupported => keys::DRAFT_WORKER_UNSUPPORTED,
             ArgError::LangUnsupported => keys::LANG_UNSUPPORTED,
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
@@ -218,6 +224,15 @@ fn held_reuse_of(text: &str) -> Result<HeldReuse, ArgError> {
     }
 }
 
+/// `--draft-worker`: `on` or `off`.
+fn draft_worker_of(text: &str) -> Result<bool, ArgError> {
+    match text {
+        "on" => Ok(true),
+        "off" => Ok(false),
+        _ => Err(ArgError::DraftWorkerUnsupported),
+    }
+}
+
 /// `--lang`: a language that has a recognizer of its own.
 fn lang_of(text: &str) -> Result<String, ArgError> {
     if is_routable(text) {
@@ -258,6 +273,7 @@ impl Args {
             partial_lid: true,
             final_midway: true,
             held_reuse: HeldReuse::Covering,
+            draft_worker: false,
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -283,6 +299,7 @@ impl Args {
             "--partial-lid" => self.partial_lid = partial_lid_of(value_of(rest)?)?,
             "--final-lid" => self.final_midway = final_lid_of(value_of(rest)?)?,
             "--held-reuse" => self.held_reuse = held_reuse_of(value_of(rest)?)?,
+            "--draft-worker" => self.draft_worker = draft_worker_of(value_of(rest)?)?,
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
@@ -298,6 +315,12 @@ impl Args {
     /// The input of the run.
     pub fn input(&self) -> Input {
         self.io.kind()
+    }
+
+    /// Whether the run starts a draft worker: it was asked for, and the run
+    /// shows drafts at all (`--no-partial` turns them off).
+    pub fn uses_draft_worker(&self) -> bool {
+        self.draft_worker && self.io.partial
     }
 }
 
@@ -625,6 +648,33 @@ mod tests {
         assert_eq!(
             run(&["--wav", "a", "--final-lid"]).err(),
             Some(ArgError::MissingValue)
+        );
+        Ok(())
+    }
+
+    /// T-BR-38-016
+    #[test]
+    fn draft_worker_takes_on_or_off_and_nothing_else_and_starts_no_worker_without_drafts()
+    -> Result<(), ArgError> {
+        assert!(!run(&["--wav", "a"])?.uses_draft_worker());
+        let on = run(&["--wav", "a", "--draft-worker", "on"])?;
+        assert!(on.draft_worker && on.uses_draft_worker());
+        let off = run(&["--wav", "a", "--draft-worker", "off"])?;
+        assert!(!off.draft_worker && !off.uses_draft_worker());
+        assert_eq!(
+            run(&["--wav", "a", "--draft-worker", "maybe"]).err(),
+            Some(ArgError::DraftWorkerUnsupported)
+        );
+        assert_eq!(
+            run(&["--wav", "a", "--draft-worker"]).err(),
+            Some(ArgError::MissingValue)
+        );
+        // A run that shows no drafts has nothing for a worker to read.
+        let silent = run(&["--wav", "a", "--draft-worker", "on", "--no-partial"])?;
+        assert!(silent.draft_worker && !silent.uses_draft_worker());
+        assert_eq!(
+            ArgError::DraftWorkerUnsupported.key(),
+            "draft_worker_unsupported"
         );
         Ok(())
     }
