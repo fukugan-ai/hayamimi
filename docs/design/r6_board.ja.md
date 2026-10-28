@@ -486,6 +486,709 @@ key は `ui.<頁>.<名前>` の形にする。
 `stage`、`reason`、`to` の語は、決まった値の分だけ `ui.fallback.stage.<stage>` の形で足し、載っていない値は受けた文字列を出す。
 `final` と `lang`、`speaker` の値は wire の値で、切り替えない（設計 3.14）。
 
+## 13. 頁の 3 つの枠と境目（IP-S12、設計 10.13.11）
+
+IP-S12 が写す見た目を決める。
+置き場、境目の振る舞い、`localStorage` の形、受入の BR-19 から BR-25 と BR-32 から BR-34 は、設計 10.13.11 が決めており、この節は変えない。
+IP-S12 の後は、6.1 の「main」の行（2 列の grid、7fr と 5fr）と「860 px 以下」の行を、この節が置き換える。
+6.1 の他の行は変えない。
+
+利用者は、字幕を動かす人と、同じ画面を読む会話の相手である。
+1 つの仕事は、2 つの言語の発話が、どちらの側の言葉かを一目で読み分けられることである。
+語りの調子と意匠の参照は 2 と 3 のままで、色と字体は今の画面の物を残す。
+既存の画面の証拠は、`css.rs` の `.latest`（:64-66）、`.chip`（:141-143）、footer の focus の輪（:176）、860 px の線（:177-180）である。
+
+13 から 15 の文言の表は、行頭を部品の名前にし、key を 2 列目に置く（部品、key、ja、en の 4 列）。
+`tests/board.rs` の `board_words` は、11 の見出しから最初の「12.」までの、行頭が `` | `ui. `` の行を、11 の文言の表（26 件）として数える。
+13 から 15 は 12 の前に在るので、行頭を `ui.` にすると CI の `--test board` が落ちる。
+IP-S12 の席は、この 4 列の表を読む test を足し、`board_words` の終わりの印を、12 の見出しの字から 13 の見出しの字へ替える。
+
+**最新情報**：WAI-ARIA APG の Window Splitter は、focus できる `separator` に `aria-valuenow`、`aria-valuemin`、`aria-valuemax`、主な枠を指す `aria-controls`、名前を持たせ、縦の線は左右の矢印、横の線は上下の矢印で動かし、Home と End を最小と最大に当てる（https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/ 、取得 2026-10-29）。
+WCAG 2.2 の 2.5.8 は、pointer の的を 24 × 24 CSS px 以上にし、それより小さい的は、24 px の円が他の的や小さい的の円に触れない時だけ通す（https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html 、取得 2026-10-29）。
+同 1.4.11 は、部品と状態を見分けるのに要る見た目（focus の輪を含む）に、隣の色との 3 : 1 を求め、枠は他に見分ける手がかりが無い時だけ要る（https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html 、取得 2026-10-29）。
+APG の switch は、状態が変わっても名前を変えないことを求める（https://www.w3.org/WAI/ARIA/apg/patterns/switch/ 、取得 2026-10-29）。
+MDN は、`color-scheme` が native の form 部品と scrollbar の色を明暗に合わせると書き（https://developer.mozilla.org/en-US/docs/Web/CSS/color-scheme 、取得 2026-10-29）、`color-mix()` を 2023 年 5 月から広く使える機能と書く（https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/color-mix 、取得 2026-10-29）。
+
+### 13.1 配置と 2 案
+
+| 案 | 構造 | 判定 |
+|---|---|---|
+| A | 操作の並びを 2 つの列の上に 1 本置く（入れ替え、側ごとの字体と大きさ、switch）。境目は 1 px の線と、中央の短い棒（つまみ）。行は両方の列で左寄せ | 採る |
+| B | 操作を header の右端の「表示」1 つにまとめ、開閉にする。境目は線だけで、pointer を重ねると太くなる。右の列の行は右寄せにして、左右を鏡に写す | 採らない |
+
+B を採らない理由は 3 つである。
+開閉の中に隠すと、選んだ字体と大きさが、開くまで見えない。設定は、準備の時に両方の側を見比べて直す物なので、見えている方がよい。
+線だけの境目は、pointer を重ねるまで動かせると分からない。key だけで操作する人は、細い線の上の focus を見つけにくい。
+右寄せの行は左端がそろわず、折り返した原文と訳の行頭を探すことになる（13.4）。
+
+製品名を替えると成り立たなくなるのは、話された言語で行を左右に分けて側ごとに字体と大きさを持つ形、組を変えた所を 2 つの言語の印で書く区切りの行（14）、合言葉を URL の fragment で受けて flag に登録する origin を示す頁（15）である。
+既定の形の棚卸しは次のとおりである。
+
+| 既定の形 | 判定 |
+|---|---|
+| 丸い knob の pill の switch | 形を変えて残す。track は r-2（4）、knob は r-1（2）の角で、2 / 4 / 6 の外の pill を足さない |
+| 点 6 つの「⋮⋮」の grip | 使わない。短い棒 1 本（4 × 32） |
+| 歯車、月、太陽の icon の button | 使わない。語（「暗い表示」「既定」）で出す。画像の icon を取らない（1 の 3） |
+| 緑、黄、赤の 3 色の meter | 使わない（15.5）。1 色の長さだけで読ませる |
+| 吹き出しで左右を分ける | 使わない。行は破線の区切り（2.5 の card を使わない決め） |
+| 影、gradient、glow、画面を覆う dialog | 使わない。開閉の欄は文書の流れの中で開く |
+
+1440 × 900 の配置は次のとおりである（左の列が英語の側、右の列が日本語の側の既定の向き）。
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│ ● Realtime Translator   会話の言語 [en▾][ja▾][決める]  [確定 7] [言語 en ja]             │  header 約 61
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ 代替で動作中  [translate → cpu (unreachable)]                                            │  fallback の帯（あるときだけ）
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ いま聞き取り中 [静か]                                                                    │  Listening の欄
+│ 它制作了一个个门铃▌                                                                      │  （2 つの列にまたがる）
+│ →en  It made a door…                                                                     │
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ [左右を入れ替える] en [標準▾][−]100%[+][既定] │ ja [標準▾][−]100%[+][既定]  [暗い表示 ▮] │  操作の並び（高さ 45）
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ 確定フィード                                                                        LIVE │  小見出し（全幅）
+├────────────────────────────────────────────┰─────────────────────────────────────────────┤
+│ [en][S2] They said the budget …      827ms ┃                                             │  左の列
+│          →ja 予算は …                      ┃ [ja][S1] はい、そうです。             403ms │  縦の境目
+│ - - - - - - - - - - - - - - - - - - - -    ┃          →en Yes, that is …                 │  （1 本、scroll は 1 つ）
+│ [en][S2] Could you send me …         611ms ┃ - - - - - - - - - - - - - - - - - -         │
+│                                   [最新へ] ┃                                             │
+┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┥  横の境目
+│ 清書                                                                             REFINED │  小見出し（全幅）
+│ S2 · en  He would have to pay her the full amount …                                      │  清書の欄（2 つの列にまたがる）
+├──────────────────────────────────────────────────────────────────────────────────────────┤
+│ 接続済み   /   /?show=final   /?show=partial   /transcript                               │  footer
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+860 px 以下は 1 列である。
+縦の線と入れ替えの button は隠し、字体と大きさの口は開閉の欄にまとめる。
+横の線と清書の欄は残し、覚えた割合（`rows`）で描く。
+
+```
+┌────────────────────────────────────────┐
+│ ● Realtime Translator                  │  header（折り返す）
+│ 会話の言語 [en▾][ja▾][決める]          │
+│ [確定 7] [言語 en ja]                  │
+├────────────────────────────────────────┤
+│ いま聞き取り中 [静か]                  │  Listening
+│ 它制作了一个个门铃▌                    │
+├────────────────────────────────────────┤
+│ [文字の設定 ⌄]            [暗い表示 ▮] │  操作の並び
+├────────────────────────────────────────┤
+│ 確定フィード                      LIVE │
+│ [en][S2] They said …             827ms │  1 列、時刻の順
+│          →ja 予算は …                  │
+│ [ja][S1] はい、そうです。        403ms │
+│                       [最新へ]         │
+┝━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┥
+│ 清書                           REFINED │  横の境目は残す
+│ S2 · en  He would have to …            │
+├────────────────────────────────────────┤
+│ 接続済み  /  /?show=final  …           │  footer
+└────────────────────────────────────────┘
+```
+
+| 領域 | 寸法と見た目 |
+|---|---|
+| header | 6.1 のまま（約 61）。`flex-wrap: wrap` と `row-gap: 4px` を足す（1440 では折り返さず、高さは変わらない）。`gap: 16px; padding: 12px 24px;` の字面は変えない（`css.rs` の test が見ている）。右の端の chip の前に、会話の言語の欄（14.1）が入る |
+| fallback の帯、Listening の欄 | 6.1 のまま。Listening の欄は 2 つの列にまたがる全幅。静まった時の印は 13.5 |
+| 操作の並び | 13.3。高さ 45（28 + 8 × 2 + 下の罫線 1）。地は無し（ink）。約 1030 px 未満では折り返し、高さは 81 |
+| 確定フィードの見出し | 6.1 の小見出し（h2）のまま。2 つの列にまたがる 1 本で、右に `LIVE` |
+| 上の列 | 縦の線で左右に分ける 1 つの scroll の領域（`role="log"`、`aria-live="polite"`）。padding 16 × 0 × 32（左右の余白は 13.4 の囲みが 24 ずつ持つ）。最小の高さ 160（見出しを含む） |
+| 縦の境目 | 13.2。scroll の領域の中の格子の 1 px の列に置き、内容と一緒に scroll する。高さは内容の高さ（短い間は領域の高さ） |
+| 横の境目 | 13.2。上の列と清書の欄の間の 1 px の行 |
+| 清書の欄 | 小見出し「清書 REFINED」（6.1 の h2）と、6.3 の `RefineParagraph` の scroll の領域。全幅、padding 16 × 24 × 32。最小の高さ 120（見出しを含む） |
+| footer | 6.5 のまま。2 行目に dashboard の送り先の案内（15.8）が入ることがある |
+
+板の値で組んだ検証用の mock（repo の外）を、`chrome-headless-shell` の 1440 × 900 で開いて `getBoundingClientRect` を読んだ。
+字は Meiryo UI で描いた。fallback の帯と速報の訳の行が出ている、縦が最も厳しい場面である。
+
+| 領域 | 高さ（px） | 備考 |
+|---|---|---|
+| header | 60.8 | 会話の言語の欄（部品の高さ 28）を入れても、6.1 の約 61 から変わらない |
+| fallback の帯 | 40.8 | あるときだけ |
+| Listening の欄 | 134.3 | 速報の訳の行が出ている時 |
+| 操作の並び | 45 | 1 行 |
+| 上の列（見出し 41.8 を含む） | 379.8 | 既定の 65 : 35。scroll の領域は 338。1 段は約 68（原文と訳の 2 行） |
+| 横の境目 | 1 | つかむ領域は 25（13.2） |
+| 清書の欄（見出しを含む） | 204.5 | |
+| footer | 33.8 | |
+
+合計は 900.0 である。
+実装した頁の値は BD-14 が取る。
+
+### 13.2 境目の見た目
+
+| 項目 | 縦の線（左右の列の境目） | 横の線（上の列と清書の欄の境目） |
+|---|---|---|
+| 要素（つかむ領域） | 幅 25、高さは scroll の領域の内容の高さ。格子の 1 px の列から、左右へ 12 px ずつはみ出す（`margin-inline: -12px`） | 幅は全幅、高さ 25。格子の 1 px の行から、上下へ 12 px ずつはみ出す（`margin-block: -12px`） |
+| 見える線（擬似要素） | 幅 1、中央、`--line` | 高さ 1、中央、`--line` |
+| つまみ（擬似要素） | 幅 4 × 高さ 32、r-1。scroll の領域の見える高さの中央に留める（`position: sticky`、`top: calc(50% - 16px)`） | 幅 32 × 高さ 4、r-1。横の中央 |
+| cursor | `col-resize` | `row-resize` |
+| pointer | `touch-action: none`。drag の間は `user-select: none` | 同じ |
+
+縦と横は同じ部品で、向きだけが違う。
+線の太さ、つまみの長さ、色、輪はそろえる。
+
+| 状態 | 線 | つまみ | 輪 |
+|---|---|---|---|
+| 通常 | 幅 1、`--line` | `--paper-faint` | なし |
+| hover | 幅 3、`--paper-faint` | `--paper-dim` | なし |
+| `:focus-visible` | 通常と同じ | 通常と同じ | 要素の内側に `outline: 2px solid var(--paper); outline-offset: -2px` |
+| drag 中（pointer capture 中） | 幅 3、`--paper` | `--paper` | なし（focus が付いていれば輪も付く） |
+
+境目の要素そのものがつかむ領域で、見える線とつまみは擬似要素で描く。
+要素は隣の囲みより前面に置く（`z-index`）。focus の輪は要素に付くので、`getComputedStyle` で読める（BD-15）。
+線は中心に重ねて太らせ、並びの寸法を動かさない。
+どの状態の変化も動かさず、即時に替える（3.3 の動きの表に足さない）。drag に遅れを入れないためである。
+tab の順は DOM の順で、操作の並び、縦の線、横の線の順に進む。
+
+つかむ領域を 25 px にするのは、WCAG 2.2 の 2.5.8（的は 24 × 24 CSS px 以上）を、24 px の円が他の的に触れない時だけ通す間隔の例外に頼らず、大きさで満たすためである。
+重なる 12 px は、各列の囲み（13.4）の padding の 24 に収まり、字に掛からない。
+輪の色は `--paper` で、地（ink、ink-2）に対し 3 : 1 以上である（13.5 の表）。輪の太さ 2 は、footer の輪（6.5）と同じである。
+つまみ、hover の線、drag の線は、境目が動かせると見分ける手がかりで、これも 3 : 1 以上である。通常の線（`--line`）は装飾の罫線で、手がかりはつまみが担う。
+
+### 13.3 入れ替えの button と選ぶ口
+
+操作の並びには `role="toolbar"` を付けない。
+付けると矢印の key で部品の間を動く約束になり、設計の「Tab で focus を移す」と食い違うからである。
+
+| 部品 | 寸法 | 見た目 |
+|---|---|---|
+| 操作の並び | 高さ 45。`display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 24px`。下に 1 px の `--line` | 左から、入れ替えの button、側の組 2 つ（左の列の側が先）、空き（`flex: 1`）、switch（13.5） |
+| button | 高さ 28、`min-width` 28、padding 0 × 10、r-3（6）、1 px の枠 | 字は sans の fs-label（12）、`--paper`。地は無し。枠は `--paper-faint` |
+| `select` | 高さ 28、`min-width` 136、padding 0 × 8、r-3、1 px の枠 | 字は sans の fs-label、地は `--ink`、枠は `--paper-faint`。矢印は native（画像を使わない） |
+| 倍率の値 | `min-width` 5ch、中央寄せ | mono の fs-label、`--paper`。`aria-hidden="true"`。読み上げは live の文（下の表の `scale_live`） |
+| 側の組 | `display: inline-flex; align-items: center; gap: 8px`、`role="group"` | 先頭に言語の印（4.1）、`select`、下げる button（「−」）、倍率の値、上げる button（「+」）、既定の button。2 つ目の組は、左に padding 16 と 1 px の `--line` の縦線 |
+| 開閉の欄（860 px 以下） | summary は button と同じ寸法 | 字の後ろに chevron（6 × 6 の枠線 2 px を 45 度回す。開くと向きを返す）。開いた中は地 `--ink-2`、1 px の `--line`、r-3、padding 8 × 12、上の余白 8。中は側の組を縦に積み、`select` は幅いっぱい、倍率の 3 つは次の行 |
+
+| 状態 | 枠 | 地 | 字 |
+|---|---|---|---|
+| 通常 | 1 px、`--paper-faint` | なし | `--paper` |
+| hover | `--paper` | なし | `--paper` |
+| `:focus-visible` | 通常のまま、外に `outline: 2px solid var(--paper); outline-offset: 2px` | | |
+| `aria-pressed="true"`（入れ替え済み） | `--paper` | `--paper` | `--ink` |
+| `disabled`（80% の下げる、200% の上げる、決められない時の決める） | 1 px の破線、`--line` | なし | `--paper-faint` |
+
+入れ替えの button の字は、押しても変えない。押した状態は地を塗って示し、色だけに頼らない。
+`disabled` の字は `--paper-faint`（暗い 5.14、明るい 5.31）で読めるまま、破線の枠で押せないと分かる。
+字体と大きさの口は `/dashboard` だけに置く。`/transcript` の `refine-text` は 18 px（`css.rs:188`）で、設計の 4 つの文字の大きさの表（16 px を基準にした 12.8 から 48 px）と値が違うからである。
+
+| 部品 | key | ja | en |
+|---|---|---|---|
+| 入れ替えの button（字と `aria-label`） | `ui.layout.swap` | 左右を入れ替える | Swap sides |
+| 縦の境目（`aria-label`） | `ui.layout.split_cols` | 左右の列の幅 | Width of the left and right columns |
+| 横の境目（`aria-label`） | `ui.layout.split_rows` | 確定フィードと清書の高さ | Heights of the final feed and the refined text |
+| 側の組（`aria-label`） | `ui.text.group` | {lang} の字幕の文字 | Subtitle text for {lang} |
+| 字体の `select`（`aria-label`） | `ui.text.font` | {lang} の字体 | Font for {lang} |
+| 字体の選択肢 `default` | `ui.text.font_default` | 標準 | Default |
+| 下げる button（`aria-label`） | `ui.text.smaller` | {lang} の字を小さくする | Make {lang} text smaller |
+| 上げる button（`aria-label`） | `ui.text.larger` | {lang} の字を大きくする | Make {lang} text larger |
+| 既定の button（字） | `ui.text.reset` | 既定 | Default |
+| 既定の button（`aria-label`） | `ui.text.reset_label` | {lang} の字の大きさを既定に戻す | Reset {lang} text size to default |
+| 倍率の live の文 | `ui.text.scale_live` | {lang} の字の大きさ {pct}% | {lang} text size {pct}% |
+| 開閉の欄の summary | `ui.text.open` | 文字の設定 | Text settings |
+| switch（字と `aria-label`） | `ui.theme.switch` | 暗い表示 | Dark display |
+| Listening の印 | `ui.dashboard.quiet` | 静か | Quiet |
+
+`{lang}` と `{pct}` の置き換えは、`{n}`（`ui.common.dropped`）と同じである。
+`{lang}` には言語の code をそのまま入れる（wire の値で、切り替えない。設計 3.14）。
+字体の名前（`cinecaption`、`UDEV Gothic 35`、`Yu Gothic UI`、`Meiryo`、`Yu Mincho`）は固有名で、文言にしない。
+既定の button の字と `aria-label` は、字の「既定」が名前に含まれる形にそろえた（WCAG 2.2 の 2.5.3）。
+
+### 13.4 行の寄せ方
+
+| 項目 | 決め |
+|---|---|
+| 寄せ | 左の列も右の列も左寄せ（`text-align: start`）。右の列を右寄せにして鏡に写す形は採らない |
+| 理由 | 右寄せは行の左端がそろわず、2 行に折れた原文と訳の行頭を探すことになる。どちらの側かは、列の位置と言語の印が示すので、寄せで重ねて示さない |
+| 行の内側 | 6.2 のまま（`auto 1fr auto`、gap 12）。言語の印と話者の印は左端、原文はその右、遅れは右端（4.1） |
+| 行の囲み | 各行は、列の幅いっぱいで、左右に padding 24 を持つ囲みに入れる。囲みを container にし、囲みの内側の幅が 340 px 以下では、行を 3 段にする（1 段目は印と遅れ、2 段目は原文、3 段目は訳）。最小の列の幅 240 でも、1 行が 4 字になる形を避ける |
+| 区切り | 各行の下の破線（6.2 の `--line-soft`）は、行が入った列の幅にだけ引く。反対の側は空ける。破線が段を踏む形に連なり、話の入れ替わりが見える（設計 10.13.10 の H59 の空きは、この形で手がかりにする） |
+| 組を変えた所 | 14.2 の区切りの行が、2 つの列と縦の線にまたがる |
+| 1 列に戻った時（860 px 以下） | 左右の囲みを 1 列にそろえる。左端と padding はそのまま。時刻の順に並べ、言語の印で読み分ける（今の形）。縦の線と入れ替えは出さない |
+
+### 13.5 明るい表示と暗い表示
+
+設計 10.13.11 が決めた値（`--ink`、`--ink-2`、`--paper`、`--paper-dim`、`--paper-faint`、`--paper-quiet`）は変えない。
+この板が決めたのは、`--line`、`--line-soft`、`--shu`、言語の色 6 つの、明るい表示の値 9 件である。
+言語の色と `--shu` は、暗い表示と同じ色相のまま、`--ink-2` の上で字として 4.5 : 1 以上になるまで暗くした。
+`--c-ja` は `--shu` と同じ値にする（暗い表示と同じ。ja は朱）。
+`--line` は、地（ink）に対する比を暗い表示の 1.43 にそろえ、罫線の重みを替えない。
+
+| 名前 | 暗い表示（3.1） | 明るい表示 | 出所 |
+|---|---|---|---|
+| ink | `#0d0f13` | `#f7f4ee` | 設計 10.13.11 |
+| ink-2 | `#14171d` | `#ece7dd` | 設計 10.13.11 |
+| line | `#2a2f3a` | `#d4cec1` | この板 |
+| line-soft | `rgba(42,47,58,.7)` | `rgba(212,206,193,.7)` | この板 |
+| paper | `#ece5d8` | `#1a1c21` | 設計 10.13.11 |
+| paper-dim | `#b0a898` | `#4a4d55` | 設計 10.13.11 |
+| paper-faint | `#8a8473` | `#62656d` | 設計 10.13.11 |
+| paper-quiet（新しい token） | `#8a8473` | `#62656d` | 設計 10.13.13 の 13 |
+| shu | `#e04f2f` | `#b8381c` | この板 |
+| c-ja | `#e04f2f` | `#b8381c` | この板 |
+| c-en | `#5b7fd4` | `#3d60b3` | この板 |
+| c-zh | `#d4a13c` | `#835e10` | この板 |
+| c-ko | `#3fae9d` | `#167163` | この板 |
+| c-yue | `#b06bc6` | `#8a46a2` | この板 |
+| c-xx | `#7a8194` | `#5e6577` | この板 |
+
+`TOKENS` は、次の 3 つの規則に分ける。
+明るい表示の色の組は 1 つの定数にして、2 か所へ差す。
+`data-theme` が無く、端末も明るい表示でなければ、暗い表示（今と同じ）で描く。
+`/send` は `data-theme` を書かず、この `@media` だけで端末に従う。
+overlay、lanes、`BASE` には `data-theme` も `color-scheme` も付けない（5 の P2 と BD-4 の透明を守る）。
+
+```
+:root, :root[data-theme="dark"] { color-scheme: dark; /* 暗い表示の色 */ }
+:root[data-theme="light"] { color-scheme: light; /* 明るい表示の色 */ }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) { color-scheme: light; /* 明るい表示の色 */ } }
+```
+
+`color-scheme` を付けるのは、native の `select`（開いた一覧）と scrollbar を、頁の明暗に合わせるためである。
+字の色の対比は、3.1 と同じ式で計算した。
+次の 1 つの command が、表の 40 件の比（paper-quiet の行は paper-faint と同じ値なので除く）と、装飾の罫線の 2 件を出す。
+
+| 前景 | 背景 | 暗い表示 | 明るい表示 | 使う所 |
+|---|---|---|---|---|
+| paper | ink | 15.31 | 15.53 | 本文、focus の輪、drag の線、switch の入 |
+| paper | ink-2 | 14.33 | 13.83 | 帯の中の字、meter の塗り |
+| paper-dim | ink | 8.13 | 7.70 | 補助の字、hover のつまみ |
+| paper-dim | ink-2 | 7.61 | 6.86 | 帯の中の補助の字、「静か」の印 |
+| paper-faint | ink | 5.14 | 5.31 | 操作の枠、つまみ、switch の切、`disabled` の字 |
+| paper-faint | ink-2 | 4.81 | 4.73 | 速報の訳の薄い部分（帯の中）、meter の枠 |
+| paper-quiet | ink-2 | 4.81 | 4.73 | 静まった欄の字（`paper-faint` と同じ値、同じ比） |
+| shu | ink | 4.87 | 5.28 | `LIVE`、`REFINED`、caret の字と塗り |
+| shu | ink-2 | 4.55 | 4.71 | 帯の中の朱 |
+| c-ja | ink-2 | 4.55 | 4.71 | 訳の行の矢印と言語の字 |
+| c-en | ink-2 | 4.64 | 4.84 | 同上 |
+| c-zh | ink-2 | 7.66 | 4.77 | 同上 |
+| c-ko | ink-2 | 6.63 | 4.76 | 同上 |
+| c-yue | ink-2 | 4.93 | 4.90 | 同上 |
+| c-xx | ink-2 | 4.61 | 4.73 | 同上 |
+| ink | c-ja | 4.87 | 5.28 | 言語の印の字 |
+| ink | c-en | 4.96 | 5.43 | 同上 |
+| ink | c-zh | 8.19 | 5.35 | 同上 |
+| ink | c-ko | 7.08 | 5.35 | 同上 |
+| ink | c-yue | 5.27 | 5.50 | 同上 |
+| ink | c-xx | 4.93 | 5.31 | 同上 |
+
+すべて 4.5 以上である（字の下限）。
+部品の見た目（輪、つまみ、枠、switch）の下限は 3 で、同じ表の paper と paper-faint の行が満たす。
+`line` と `ink` の比は暗い表示も明るい表示も 1.43 で、装飾の罫線なので下限を置かない。
+
+```sh
+awk 'function hx(c){return index("0123456789abcdef",tolower(c))-1}
+function ch(h,i,  v){v=(hx(substr(h,i,1))*16+hx(substr(h,i+1,1)))/255; return v<=0.03928?v/12.92:((v+0.055)/1.055)^2.4}
+function L(h){return 0.2126*ch(h,2)+0.7152*ch(h,4)+0.0722*ch(h,6)}
+{a=L($2); b=L($3); if(a<b){t=a;a=b;b=t} r=(a+0.05)/(b+0.05); printf "%-26s %s %s %6.2f %s\n",$1,$2,$3,r,(r>=$4?"ok":"NG")}' <<'EOF'
+dark:paper/ink          #ece5d8 #0d0f13 4.5
+light:paper/ink         #1a1c21 #f7f4ee 4.5
+dark:paper/ink-2        #ece5d8 #14171d 4.5
+light:paper/ink-2       #1a1c21 #ece7dd 4.5
+dark:paper-dim/ink      #b0a898 #0d0f13 4.5
+light:paper-dim/ink     #4a4d55 #f7f4ee 4.5
+dark:paper-dim/ink-2    #b0a898 #14171d 4.5
+light:paper-dim/ink-2   #4a4d55 #ece7dd 4.5
+dark:paper-faint/ink    #8a8473 #0d0f13 4.5
+light:paper-faint/ink   #62656d #f7f4ee 4.5
+dark:paper-faint/ink-2  #8a8473 #14171d 4.5
+light:paper-faint/ink-2 #62656d #ece7dd 4.5
+dark:shu/ink            #e04f2f #0d0f13 4.5
+light:shu/ink           #b8381c #f7f4ee 4.5
+dark:shu/ink-2          #e04f2f #14171d 4.5
+light:shu/ink-2         #b8381c #ece7dd 4.5
+dark:c-ja/ink-2         #e04f2f #14171d 4.5
+light:c-ja/ink-2        #b8381c #ece7dd 4.5
+dark:c-en/ink-2         #5b7fd4 #14171d 4.5
+light:c-en/ink-2        #3d60b3 #ece7dd 4.5
+dark:c-zh/ink-2         #d4a13c #14171d 4.5
+light:c-zh/ink-2        #835e10 #ece7dd 4.5
+dark:c-ko/ink-2         #3fae9d #14171d 4.5
+light:c-ko/ink-2        #167163 #ece7dd 4.5
+dark:c-yue/ink-2        #b06bc6 #14171d 4.5
+light:c-yue/ink-2       #8a46a2 #ece7dd 4.5
+dark:c-xx/ink-2         #7a8194 #14171d 4.5
+light:c-xx/ink-2        #5e6577 #ece7dd 4.5
+dark:ink/c-ja           #0d0f13 #e04f2f 4.5
+light:ink/c-ja          #f7f4ee #b8381c 4.5
+dark:ink/c-en           #0d0f13 #5b7fd4 4.5
+light:ink/c-en          #f7f4ee #3d60b3 4.5
+dark:ink/c-zh           #0d0f13 #d4a13c 4.5
+light:ink/c-zh          #f7f4ee #835e10 4.5
+dark:ink/c-ko           #0d0f13 #3fae9d 4.5
+light:ink/c-ko          #f7f4ee #167163 4.5
+dark:ink/c-yue          #0d0f13 #b06bc6 4.5
+light:ink/c-yue         #f7f4ee #8a46a2 4.5
+dark:ink/c-xx           #0d0f13 #7a8194 4.5
+light:ink/c-xx          #f7f4ee #5e6577 4.5
+dark:line/ink(decor)    #2a2f3a #0d0f13 0
+light:line/ink(decor)   #d4cec1 #f7f4ee 0
+EOF
+```
+
+出力に `NG` の行は無い（`... | rg -c ' NG$'` は一致 0 件で、rc は 1）。
+陰性対照は、`echo 'x #62656d #4a4d55 4.5' | awk '<上の式>'` が `1.45 NG` を返すことである。
+
+規則の側に残る色の直書きは次の 2 つで、token から作る形に直す。
+
+| 場所 | 今の値 | 直す形 |
+|---|---|---|
+| `css.rs:28` の `pulse` | `rgba(224,79,47,.5)` と `rgba(224,79,47,0)` | `color-mix(in srgb, var(--shu) 50%, transparent)` と `color-mix(in srgb, var(--shu) 0%, transparent)`。明るい表示の朱でも輪が合う |
+| `css.rs:155` の `.strip.quiet` | `opacity: .5` と `--paper-dim`（合成した比が暗い 2.86、明るい 2.37） | 設計 10.13.13 の 13 のとおり、色を `--paper-quiet` に、`opacity` を 1 に、`.strip-text` の `font-weight` を 400 にする。値はこの板が足さない |
+
+Listening の欄の「静か」の印は、欄の見出し（`strip-label`）の後ろに gap 12 で置く。
+形は 4.2 の「先出し」の印（`.tr-mark`）と同じで、字間は 0（見出しの .35em を継がない）、字は `--paper-dim`（暗い 7.61、明るい 6.86、`--ink-2` の上）である。
+出すのは `strip_quiet` の間だけで、待ちの文言（`ui.dashboard.waiting`）を出している間は出さない（文言が状態を言っている）。
+
+| 部品 | 値 |
+|---|---|
+| switch の要素 | 1 つの `button`（`role="switch"`）。高さ 28、padding 0 × 4 × 0 × 8、gap 8。中に字と track |
+| 字 | `ui.theme.switch`（13.3）、fs-label、`--paper`。状態で変えない（APG の switch） |
+| track | 36 × 20、1 px の枠 `--paper-faint`、r-2（4） |
+| knob | 14 × 14、r-1（2）。track の中で上下左右に 2 空ける |
+| 切（`aria-checked="false"`。明るい表示） | track は地なし、knob は左で `--paper-faint` |
+| 入（`aria-checked="true"`。暗い表示） | track は地も枠も `--paper`、knob は右へ 16 動いて `--ink` |
+| `:focus-visible` | `outline: 2px solid var(--paper); outline-offset: 2px` |
+| 置き場 | 操作の並びの右端（`margin-left: auto`）。860 px 以下でも隠さない。`/transcript` では、頁の先頭に右寄せで switch だけを置く（高さ 28、下の余白 16） |
+
+| 動き | 値 | 使う所 | 止める条件 |
+|---|---|---|---|
+| knob | 120 ms ease-out の `transform` | switch の knob（16 px） | `prefers-reduced-motion: reduce`（3.3 の一括の規則が止める。動かさず替える） |
+| 色の切り替え | 動かさない | 暗い表示と明るい表示の切り替え | なし |
+
+色の切り替えを動かさないのは、途中の色で字と地の比が 4.5 を割りうるからである。
+切り替えは準備の時に 1 回なので、一度に替える。
+`tone`（3.3、160 ms）は先の訳が確定の訳に替わる所のためで、切り替えのために消さない。
+
+### 13.6 受入と残る穴
+
+| ID | 何を測るか | 期待値 | 陰性対照 |
+|---|---|---|---|
+| BD-13 | 13.5 の表の全組の対比 | 明るい表示の全組が下限（字は 4.5）以上で、上の command の再計算が表と ± 0.01 で一致する。`tests/board.rs` の `colours()` は、組ごとに `TOKENS` を読む（今は全部を 1 つの表へ入れ、後の組が前の組を上書きする） | `--c-xx` を暗い表示の値 `#7a8194` にした明るい表示で、ink-2 の上の比が 4.5 を割って落ちる |
+| BD-14 | 操作の部品と境目の的の大きさ | 1440 × 900 で、操作の並びの button、`select`、switch の高さが 28 以上、幅が 28 以上。縦の線の中心から左右 12 px 内の点の `elementFromPoint` が境目の要素で、14 px 外の点は別の要素。操作の並びの高さ 45 ± 1 | 高さ 24 未満にした build で落ちる |
+| BD-15 | focus の輪 | key で focus を置いた操作の部品と境目の computed が、`outlineWidth` 2px、`outlineStyle` solid、`outlineColor` が `--paper` の値（暗い `rgb(236, 229, 216)`、明るい `rgb(26, 28, 33)`） | `outline: none` にした build で落ちる |
+| BD-16 | 左右の寄せと 3 段への切り替え | 両方の列の `row-text` の computed の `textAlign` が `start` か `left`。囲みの内側の幅が 340 px 以下の行で、`row-text` の上端が言語の印の下端以下 | 右の列を `right` にした build で落ちる |
+| BD-17 | 動きの停止 | `prefers-reduced-motion: reduce` で、switch の knob の `transitionDuration` が `0s`、`pair-divider`（14.2）の `animationName` が `none` | 指定を外した build で落ちる |
+
+| 番号 | 穴 | 持ち主と置き直す条件 |
+|---|---|---|
+| W13-1 | 操作の並びの幅（約 1030 px で 1 行）と段の高さは、板の値で組んだ mock の実測で、実装した頁の値と、読みやすさ（設計 10.13.10 の H59）は NOT VERIFIED | IP-S12 の席が BD-14 で測り、違えば 13.1 の表を直す |
+| W13-2 | 明るい表示の色は、対比だけを計算した。色覚の違う人の見え方と、明るい部屋での見え方は測っていない（言語の印は字でも読めるので、色だけに頼らない）（NOT VERIFIED） | 人が開いた頁で確かめた席が、違えば 13.5 の表を直す |
+
+## 14. 言語の組の頁（IP-S15、設計 10.13.12）
+
+IP-S15 が写す見た目を決める。
+選ぶ口の要素（`.pair-picker`、`#pair-a`、`#pair-b`、`#pair-apply`）と区切りの行（`.pair-divider`、`data-pair`）の名前は、設計 10.13.13 の 12 が決めている。
+利用者は、会話の 2 つの言語を決める人（loopback の頁）と、その字幕を読む人（LAN の頁）である。
+1 つの仕事は、今の組を取り違えずに読めることと、組を変えた所が行の中で分かることである。
+
+| 案 | 構造 | 判定 |
+|---|---|---|
+| A | 2 つの `select`（1 つめの言語、2 つめの言語）と、決める button。言語を選んでから決めるまで、組は変わらない | 採る（設計 10.13.13 の 12 の要素の名前がこの形） |
+| B | 言語の印を並べた button の対。印を押すと組の 1 つが替わり、すぐ効く | 採らない |
+
+B を採らない理由は、組を替えると認識器を読み直し（設計 10.13.12 の 4）、会話の字幕が止まるからである。
+押しただけで効く形では、2 つの言語を選ぶ途中の組でも読み直しが走る。2 つを選んでから 1 回で決める形に分ける。
+
+### 14.1 選ぶ口と示すだけの形
+
+| 項目 | 値 |
+|---|---|
+| 置き場 | header の右側、chip の前。会話の性質（設計 10.13.12）で、頁を見る人ごとの設定（13.3 の操作の並び）と分ける |
+| 構成 | 小見出し「会話の言語」（fs-label、`--paper-dim`）、`select#pair-a`、`select#pair-b`、`button#pair-apply`。gap 8、`align-items: center`。枠は付けない |
+| `select` | 13.3 の `select` の寸法（高さ 28）。字は mono の fs-label、`min-width` 0、padding 0 × 6。選択肢の字は言語の code（`en`、`ja`）そのもの |
+| 決める | 13.3 の button |
+| 選択肢 | a は、選べる組に入る言語。b は、a と組める言語（a 自身を除く）。a を替えて b が組めなくなったら、b は組める最初の言語に替える |
+| 通常 | 2 つの `select` が今の組を指し、決めるは `disabled` |
+| 替えた | 今の組と違う組を指すと、決めるが有効になる |
+| 反映中 | 決めるの字が「切り替え中…」（`ui.pair.applying`）になり、3 つとも `disabled`。認識器を読み終えて `langs` が届くと、通常に戻る |
+| 失敗 | 欄の右に 1 つの印「切り替えられませんでした」を `role="alert"` で出す（1 px の破線の枠 `--paper`、r-1、fs-label）。次に `select` を触るまで出す。時間で消さない |
+| 示すだけの形 | 相手の address が loopback でない頁（LAN の頁）、選べる組が 1 つの頁、`/langs` を読めない頁。小見出し「会話の言語」と、組の 2 つの言語の印（4.1）を gap 4 で並べる。`select` も button も出さず、`.pair-picker` は 0 個。並びは組の並び（`<a>`、`<b>`）で、入れ替え後の左右ではない |
+
+### 14.2 組を変えた所の区切りの行
+
+| 項目 | 値 |
+|---|---|
+| 要素 | `div.pair-divider`、`data-pair="<a>,<b>"`、`role` は付けない。確定フィードの格子の 1 行で、`grid-column: 1 / -1`（2 つの列と縦の線にまたがる） |
+| 中身 | 中央に「会話の言語を変えました」（`ui.pair.changed`）と、新しい組の言語の印 2 つ（4.1。code が字）。左右に 1 px の破線（`--line`）が伸びる |
+| 字 | fs-label、`--paper-dim`（暗い 8.13、明るい 7.70、ink の上） |
+| 中央の囲み | 地は `--ink`、padding 0 × 12、縦の線より前面にして、縦の線が字を横切らない。`pointer-events: none` で、囲みの下の縦の線のつかむ領域を残す |
+| 寸法 | padding 8 × 24。高さ 約 33 |
+| 出る時 | `rise`（3.3、120 ms）。`prefers-reduced-motion` で止める。`css.rs` の test は `animation: rise 120ms ease-out backwards` を 2 つと数えるので、3 つに直す |
+| 読み上げ | `role="log"` の中なので、新しい行として polite に読まれる |
+| 入れない時 | 組の順だけを変えた時（設計 10.13.13 の 7） |
+
+### 14.3 組の言語の色
+
+| 言語 | 印の地 | 備考 |
+|---|---|---|
+| ja、en、zh、ko、yue | 3.1 と 13.5 の色 | |
+| それ以外（es、fr、de ほか） | `--c-xx` | 字は code そのもの（`es`）。`??` は `lang` が空の行だけが持つ |
+| 組の 2 つとも `--c-xx`（`es,fr`） | 両方 `--c-xx` | 色で見分けず、字で見分ける。色は足さない（6 つの色の表の外を増やすと、地と字の比を測り直す表が増える） |
+
+| 部品 | key | ja | en |
+|---|---|---|---|
+| 欄の小見出し | `ui.pair.label` | 会話の言語 | Conversation languages |
+| `select#pair-a`（`aria-label`） | `ui.pair.first` | 1 つめの言語 | First language |
+| `select#pair-b`（`aria-label`） | `ui.pair.second` | 2 つめの言語 | Second language |
+| `button#pair-apply` | `ui.pair.apply` | 決める | Apply |
+| 反映中の字 | `ui.pair.applying` | 切り替え中… | Switching… |
+| 失敗の印 | `ui.pair.failed` | 切り替えられませんでした | Could not switch |
+| 区切りの行 | `ui.pair.changed` | 会話の言語を変えました | Conversation languages changed |
+
+| ID | 何を測るか | 期待値 | 陰性対照 |
+|---|---|---|---|
+| BD-18 | 区切りの行の位置 | `.pair-divider` の左端が格子の左端以下、右端が格子の右端以上（2 つの列にまたがる）、`role` 属性が無い | 1 つの列だけにまたがる build で落ちる |
+| BD-19 | 示すだけの形 | LAN の address で開いた頁の `.pair-picker` が 0 個で、組の言語の印が `<a>`、`<b>` の順に 2 つ | loopback で開いた頁は `.pair-picker` が 1 個（陽性対照） |
+| BD-20 | 組の言語の色 | `es` を含む組の印が `c-xx` の地で、字が `es` | `lang` が空の行の印は `??`（今の形） |
+
+## 15. 音を送る頁（IP-S13、設計 10.13.6 の `/send`）
+
+IP-S13 が写す見た目を決める。
+`/send` の中身（音源は 2 つ、利用者が押した時に取る、音の track が無ければ送らない、切れたら繋ぎ直さない）は設計 10.13.6 が決めている。
+利用者は、別の PC で `/send` を開く人である。hayamimi を動かす人本人とは限らない。
+1 つの仕事は、自分の PC の音を迷わず送り始め、送れていることを確かめ、止められることである。
+語りの調子は、状態が一番先に見えることである。
+`/send` は 3 つの頁と同じ token（13.5 の 2 つの組）を使う。
+`data-theme` は書かず、`prefers-color-scheme` に従う（switch は置かない）。`localStorage` は使わない。
+sheet は `BASE`、`TOKENS`、`MOTION` と、この節の `SEND` である。`PARTS` は使わない。
+
+**最新情報**：MDN は、`getDisplayMedia()` が `audio: true` でも音の track の無い stream を返しうること、利用者の操作（transient activation）を要し、無い時は `InvalidStateError` を投げること、拒否は `NotAllowedError`、source が無い時は `NotFoundError`、OS の側の失敗は `NotReadableError` と書く（https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia 、取得 2026-10-29）。
+同じく `getUserMedia()` は、insecure な context で `navigator.mediaDevices` が `undefined` になり、`TypeError` になりうる（https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia 、取得 2026-10-29）。
+Chrome の画面共有の頁（2022-09-29 更新）は、system audio を共有する check box を入れても、相手に音が届かず利用者が混乱する場面があると書く（https://developer.chrome.com/docs/web-platform/screen-sharing-controls 、取得 2026-10-29）。
+MDN の `role="meter"` は、native の `<meter>` を勧め、`aria-valuenow` を変える時は見た目の幅も更新することを求める（https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/meter_role 、取得 2026-10-29）。
+
+| 案 | 構造 | 判定 |
+|---|---|---|
+| A | 1 列。状態の文を一番上に置き、次に音の元の button、入力の大きさ、合言葉と送り先、注意 | 採る |
+| B | 2 つの音の元を、画面を左右に分けた 2 枚の面にし、それぞれに button と meter と状態を持たせる | 採らない |
+
+B を採らない理由は、音を同時に送れるのは 1 本だけ（設計 10.13.13 の 8）で、2 つの面が同時に動くように見えるからである。
+送っていない面の meter は空のまま残り、どちらが今効いているかを読み取る手間が面の数だけ増える。
+
+### 15.1 配置
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ hayamimi                                                         │  romaji（fs-label、字間 .3em）
+│ 音を送る                                                         │  h1（serif、fs-strip）
+│                                                                  │
+│ ● 送っています                                                   │  状態の文（serif、fs-strip）
+│   マイクの音を送っています。この頁を開いたままにしてください。   │  補足（fs-sub）
+│                                                                  │
+│ [マイク]  [tab か画面の音]  [止める]                             │  button（高さ 44）
+│ tab や画面の音は、共有の画面で、音声も共有する項目に…            │  助言（fs-label）
+│                                                                  │
+│ 入力の大きさ                                                     │  小見出し
+│ [███████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░]                     │  meter（高さ 12）
+│                                                                  │
+│ 送り先  http://192.168.1.5:8833                                  │  情報（dl、fs-label）
+│ 合言葉  受け取りました                                           │
+│ 使い終えたら、flag に登録した origin を消してください。          │  注記（fs-label）
+└──────────────────────────────────────────────────────────────────┘
+```
+
+| 領域 | 寸法と見た目 |
+|---|---|
+| 根 | 地は ink、字は paper、padding 32 × 24（幅 520 px 以下は 24 × 16）、最小の高さ 100vh、font-sans、fs-body。`max-width: 640px; margin-inline: 0`（左寄せ。7 の transcript と同じ流儀） |
+| 頭 | romaji `hayamimi`（fs-label、字間 .3em、`--paper-dim`）の下に h1「音を送る」（serif、fs-strip の 24 / 600 / 1.5、下の余白 24） |
+| 状態の文 | 15.2 |
+| 操作 | 状態の文の下、上の余白 24。button は gap 12 で横に並べ、折り返す。下に助言（fs-label、`--paper-dim`、上の余白 12） |
+| 入力の大きさ | 15.5。上の余白 32 |
+| 合言葉と送り先 | 15.4。上の余白 32 |
+| 注意と注記 | 15.6 |
+
+要素の名前は、設計 10.13.13 の 12 と同じ流儀で、test-designer が使う名前をここで決める。
+`#send-status`、`#send-mic`、`#send-display`、`#send-stop`、`#send-token`、`#send-meter`、`#send-origin`（注意の欄の origin の入力欄）である。
+音の元の button の字は、設計の受入が押す「マイク」と同じ字にする。
+
+### 15.2 状態と音の元の button
+
+状態は 6 つで、状態の文を 1 つだけ出す。
+
+| 状態 | 印 | 状態の文と補足の key | 音の元の 2 つ | 止める |
+|---|---|---|---|---|
+| つながっていない | 点 `--c-xx` | `ui.send.state.idle`、`ui.send.lead.idle` | 有効 | `disabled` |
+| 選んでいる（許可の画面が出ている間） | 点 `--c-xx` | `ui.send.state.choosing`、`ui.send.lead.choosing` | `disabled` | `disabled` |
+| つなげている | 点 `--shu`、pulse | `ui.send.state.connecting`（補足なし） | `disabled` | 有効 |
+| 送っている | 点 `--shu`、pulse | `ui.send.state.sending`、`ui.send.lead.sending_mic` か `ui.send.lead.sending_display` | `disabled` | 有効 |
+| 止まった | 点 `--c-xx` | `ui.send.state.stopped`。利用者が止めた時は補足なし、切れた時は `ui.send.lead.lost` | 有効 | `disabled` |
+| 誤り | 「!」の印 | `ui.send.state.failed`、補足は 15.3 の文 | 15.3 のとおり | `disabled` |
+
+| 部品 | 寸法 | 見た目 |
+|---|---|---|
+| 点 | 10 × 10 の円（6.1 の接続の点と同じ） | `--c-xx` は動かない。`--shu` は pulse（3.3）で、`prefers-reduced-motion` で止める |
+| 「!」の印 | 20 × 20、1 px の破線 `--paper`、r-1 | mono の fs-label、weight 600 の「!」。色を使わない（言語の色の朱との取り違えを避ける。4.3 と同じ理由） |
+| 状態の文 | serif、fs-strip（24 / 600 / 1.5） | `--paper`。点か印の右、gap 12 |
+| 補足 | fs-sub（15 / 1.5）、左の余白 22、上の余白 4 | 誤りの時は `--paper`、ほかは `--paper-dim` |
+| 音の元の button、止める button | 高さ 44、padding 0 × 20、r-3、1 px の枠、字は sans の fs-sub、weight 600 | 有効は、地 `--paper`、字 `--ink`、枠 `--paper`。`disabled` は、地なし、1 px の破線 `--line`、字 `--paper-faint` |
+| focus | | `outline: 2px solid var(--paper); outline-offset: 2px` |
+
+状態の文の領域は、誤り以外は `role="status"`、誤りは `role="alert"` にする。
+送っている間に補足が「この頁を開いたままにしてください」と言うのは、頁を閉じると送りが止まるからである。
+`getDisplayMedia` を持たない browser では、「tab か画面の音」を `disabled` にし、下に `ui.send.display_unsupported`（fs-label、`--paper-dim`）を出す。マイクは使える。
+
+### 15.3 誤りの文
+
+クライアントから見える形は、設計 10.13.6 の合言葉の断り（close code 1008）と、10.13.13 の 8 の 2 本目の断り（close code 1013）に合わせる。
+
+| 原因 | 見える形 | key | ja | en |
+|---|---|---|---|---|
+| `denied` | `NotAllowedError` | `ui.send.err.denied` | ブラウザの許可が出ませんでした。許可して、もう一度押してください。 | The browser did not allow it. Allow it, then press again. |
+| `not_found` | `NotFoundError` | `ui.send.err.not_found` | 送れる音の元が見つかりません。 | No source of sound was found. |
+| `not_readable` | `NotReadableError`、`AbortError` | `ui.send.err.not_readable` | 音の元を使えませんでした。ほかの app が使っていないか、確かめてください。 | The source could not be used. Check that no other app is using it. |
+| `no_audio` | `getDisplayMedia` の stream に音の track が無い | `ui.send.err.no_audio` | 音が選ばれていません。共有の画面で、音声も共有する項目にチェックを入れて、もう一度押してください。 | No audio was selected. In the share dialog, tick the item that also shares audio, then press again. |
+| `token` | `ready` の前に close code 1008 | `ui.send.err.token` | 合言葉が違います。送り先の PC の /dashboard にある案内から、開き直してください。 | The passphrase is wrong. Open this page again from the guide on the /dashboard of the PC running hayamimi. |
+| `busy` | close code 1013 | `ui.send.err.busy` | ほかの端末が音を送っています。 | Another device is already sending. |
+| `refused` | upgrade が 101 でない、`ready` の前に 1008 と 1013 以外で閉じた、開けなかった | `ui.send.err.refused` | つながりません。同じ LAN にいるか、頁を /dashboard にある URL から開いているかを、確かめてください。 | Could not connect. Check that you are on the same LAN and opened this page from the URL on the /dashboard. |
+| `other` | 上のどれでもない例外（`InvalidStateError` を含む） | `ui.send.err.other` | 送れませんでした。もう一度押してください。 | Could not send. Press again. |
+
+`token` の後は 15.4 の入力欄を出し、合言葉が 32 字の小文字の 16 進になるまで、音の元の 2 つを `disabled` にする。
+ほかの誤りは、音の元の 2 つを有効にして、押し直しで試せる。
+`ready` の後に切れた時は、誤りでなく「止まった」の `ui.send.lead.lost` で、利用者がもう一度押すまで繋ぎ直さない。
+
+### 15.4 合言葉と送り先
+
+| 項目 | 値 |
+|---|---|
+| 受け取る | URL の fragment（設計 10.13.6）。32 字の小文字の 16 進なら受け取り済みとし、入力欄を出さない。読んだら `history.replaceState` で fragment を消す |
+| 受け取り済み | 「送り先」の情報の「合言葉」の行に「受け取りました」（`ui.send.token_ok`）。合言葉の字は画面に出さない |
+| 入力欄を出す時 | fragment が無い、形が違う、頁を読み直して fragment が消えた、`token` の誤りの後 |
+| 入力欄 | `#send-token`、`type="password"`、`autocomplete="off"`、`autocapitalize="off"`、`autocorrect="off"`、`spellcheck="false"`、`maxlength` 64。高さ 40、padding 0 × 12、r-3、1 px の枠 `--paper-faint`、地 `--ink`、幅 100%。字は mono の 16（16 より小さいとスマートフォンの browser が拡大する） |
+| 見出しと数 | 上に小見出し「合言葉」（fs-label、字間 .35em、`--paper-dim`）、右端に「{n} / 32」（mono の fs-label） |
+| 助言 | 下に fs-label、`--paper-dim`（`ui.send.token_hint`）。上の余白 4 |
+| 形の誤り | 小文字の 16 進でない字が 1 字でもあれば、枠を 1 px の破線 `--paper` にし、助言を `ui.send.token_format` に替える。大文字は黙って小文字にしない（設計 10.13.6 は大文字を違う合言葉として断る）。貼り付けた前後の空白は削る |
+| start の有効 | 入力欄が出ている間は、32 字の小文字の 16 進になるまで、音の元の 2 つは `disabled` |
+| 送り先 | `dl`（fs-label、2 列、gap 4 × 16）。名前は `--paper-dim`、値は mono、`--paper`。送り先は `location.origin`、合言葉は「受け取りました」か、入力欄が出ている間は行ごと出さない |
+
+### 15.5 入力の大きさ
+
+| 項目 | 値 |
+|---|---|
+| 見出し | 「入力の大きさ」（`ui.send.level`。fs-label、字間 .35em、`--paper-dim`） |
+| 枠 | 幅 100%、高さ 12、1 px の枠 `--paper-faint`、r-1、地 `--ink-2`、`overflow: hidden`。上の余白 8 |
+| 塗り | 高さ 100%、`--paper`、`transform: scaleX(var(--level))`、`transform-origin: left`。`--level` は 0 から 1 |
+| 値 | `--level` は (dBFS + 60) / 60 を 0 から 1 に収めた値。dBFS は 100 ms ごとの RMS（送る直前の 16 kHz、mono の標本） |
+| 色 | 1 色の長さだけで読ませる。緑、黄、赤に分けない（13.1 の棚卸し） |
+| 止まっている間 | 塗りは 0 |
+| 音が無い時の印 | 送っている間に、−60 dBFS 未満が 10 秒続いたら、枠の下に印「音が入っていません」（`ui.send.silent`。fs-label、1 px の破線の枠 `--paper`、r-1、padding 0 × 4、上の余白 8）を出す。−60 以上に戻ったら消す |
+| 更新 | 100 ms ごと。`prefers-reduced-motion: reduce` では 250 ms ごと |
+| 読み上げ | 枠と塗りは `aria-hidden="true"`（1 秒に 10 回の変化を読ませない）。音が無い印だけ `role="status"` |
+
+見た目だけの部品なので、`<meter>` や `role="meter"` を使わず、`div` 2 つで組む。
+値の写しと 10 秒の線は、この板が決めた値である（W15-2）。
+
+### 15.6 secure origin の注意
+
+`isSecureContext` が偽、または `navigator.mediaDevices` が無い時だけ、状態の文の下、音の元の button の上に出す。
+この間、音の元の 2 つは `disabled` で、状態は「つながっていない」のままである。
+
+| 項目 | 値 |
+|---|---|
+| 欄 | 1 px の破線 `--paper-dim`、r-2（4）、padding 12 × 16、上の余白 24 |
+| 題 | `ui.send.secure.title`（fs-sub、weight 600） |
+| 本文 | `ui.send.secure.lead`（fs-sub） |
+| origin | `#send-origin`。読み取り専用の `input`（mono 13、高さ 36、r-3、1 px の枠 `--paper-faint`）。`user-select: all` で、1 回の click が全選択になる。copy の button は付けない（http の頁では clipboard API が使えない） |
+| 手順 | 番号付き（fs-sub）。`chrome://flags/#unsafely-treat-insecure-origin-as-secure` は `code`（mono 13）で書く。link にしない（Chromium は web の頁からの `chrome://` への移動を許さない） |
+| 結び | `ui.send.secure.edge` と `ui.send.secure.undo`（fs-label、`--paper-dim`） |
+
+`isSecureContext` が真で、host が loopback でない時（flag が効いている時）は、頁の最後に `ui.send.undo_note`（fs-label、`--paper-dim`）を出す。
+flag は送る側の browser の安全の設定を 1 つの origin について緩める（設計 10.13.10 の H70）ので、使い終えたら消す手順を、頁の側からも言う。
+
+| 部品 | key | ja | en |
+|---|---|---|---|
+| 題 | `ui.send.secure.title` | このままでは、マイクも画面の音も取れません | Microphone and screen audio cannot be used as it is |
+| 本文 | `ui.send.secure.lead` | http で開いた頁には、ブラウザが音を渡しません。このブラウザに、次の origin を 1 つだけ、安全な origin として扱わせてください。 | The browser does not give audio to a page opened over http. Make this browser treat the origin below, and only that one, as secure. |
+| origin の `aria-label` | `ui.send.secure.origin` | この頁の origin | Origin of this page |
+| 手順 1 | `ui.send.secure.step1` | アドレス欄に chrome://flags/#unsafely-treat-insecure-origin-as-secure と入れて開く。 | Open chrome://flags/#unsafely-treat-insecure-origin-as-secure in the address bar. |
+| 手順 2 | `ui.send.secure.step2` | 上の origin を欄に入れ、Enabled にする。 | Enter the origin above in the box and set it to Enabled. |
+| 手順 3 | `ui.send.secure.step3` | ブラウザを再起動して、この頁を開き直す。 | Restart the browser and open this page again. |
+| 結び（Edge） | `ui.send.secure.edge` | Edge は edge://flags の同じ名前の項目です。 | In Edge, the item with the same name is in edge://flags. |
+| 結び（消す） | `ui.send.secure.undo` | 使い終えたら、登録を消してください。 | Remove the entry when you have finished. |
+| 頁の最後の注記 | `ui.send.undo_note` | 使い終えたら、ブラウザの flag に登録した origin を消してください。 | When you have finished, remove the origin you entered in the browser flag. |
+
+### 15.7 狭い画面
+
+| 項目 | 値 |
+|---|---|
+| 幅 521 px から | 15.1 のとおり。button は横に並べ、gap 12、高さ 44 |
+| 幅 520 px 以下 | 頁の padding は 24 × 16。button は 3 つとも幅 100% で縦に並べ（マイク、tab か画面の音、止める）、高さ 48（touch の的）。状態の文は 24 のまま折り返す |
+| meter、合言葉の入力欄 | 幅 100%。入力欄の高さは 44、字は 16 |
+| 横 scroll | 出さない（`scrollWidth` が `clientWidth` 以下）。長い origin と URL は `overflow-wrap: anywhere` |
+| `getDisplayMedia` を持たない browser | 「tab か画面の音」を `disabled` にして `ui.send.display_unsupported` を出す。マイクの button は使える |
+
+### 15.8 dashboard の送り先の案内
+
+設計 10.13.6 は、`/dashboard` が `/send-link` の URL と、flag に登録する origin の文字列を並べて出すと決めている。
+見た目と文言は、この板が決める。
+
+| 項目 | 値 |
+|---|---|
+| 出る条件 | `--send-page` で起こし、`/send-link` が 200 を返した頁（loopback の相手で `Host` が loopback の名前）だけ。ほかの頁は DOM に出さない（BR-17 の T-BR-17-018） |
+| 置き場 | footer の 2 行目。footer に `flex-wrap: wrap` と `row-gap: 4px` を足す。先頭に小見出し「別の PC から音を送る」（`ui.send.guide.title`） |
+| 中身 | 2 組の（名前、値、コピー）。「送る頁の URL」（`http://<LAN の address>:<port>/send#t=<合言葉>`）と「flag に登録する origin」（`http://<LAN の address>:<port>`）を、同じ行に並べる（innerText の中で 1000 字以内、T-BR-17-017） |
+| 値 | mono の fs-label、`--paper`。名前は `--paper-dim`。`user-select: all`。幅が足りない時は `overflow-wrap: anywhere` |
+| コピー button | 13.3 の button（高さ 28）。押すと値を clipboard へ書く。押した後の 2 秒は字を「コピーしました」にし、`aria-live="polite"` で読ませる。loopback の頁は secure context なので `navigator.clipboard` が使える |
+| 合言葉 | 設計が URL の全文を出すと決めているので、伏せない |
+
+| 部品 | key | ja | en |
+|---|---|---|---|
+| 小見出し | `ui.send.guide.title` | 別の PC から音を送る | Send audio from another PC |
+| URL の名前 | `ui.send.guide.url` | 送る頁の URL | Page to open on the sending PC |
+| origin の名前 | `ui.send.guide.origin` | flag に登録する origin | Origin to enter in the flag |
+| コピー | `ui.send.guide.copy` | コピー | Copy |
+| コピー後 | `ui.send.guide.copied` | コピーしました | Copied |
+
+### 15.9 文言の表
+
+15.2 から 15.5 と 15.7 の文言である（15.3 の誤りの文、15.6 の注意の文、15.8 の案内の文は、それぞれの節の表）。
+
+| 部品 | key | ja | en |
+|---|---|---|---|
+| 題と `<title>` | `ui.send.title` | 音を送る | Send audio |
+| 補足（つながっていない） | `ui.send.lead.idle` | この PC のマイクか、tab の音を、hayamimi を動かしている PC へ送ります。 | Sends this PC's microphone or tab audio to the PC running hayamimi. |
+| 補足（選んでいる） | `ui.send.lead.choosing` | ブラウザの画面で、送る音を選んでください。 | Choose the audio to send in the browser's dialog. |
+| 補足（送っている、マイク） | `ui.send.lead.sending_mic` | マイクの音を送っています。この頁を開いたままにしてください。 | Sending the microphone. Keep this page open. |
+| 補足（送っている、画面） | `ui.send.lead.sending_display` | tab か画面の音を送っています。この頁を開いたままにしてください。 | Sending tab or screen audio. Keep this page open. |
+| 補足（切れた） | `ui.send.lead.lost` | つながりが切れたので止めました。もう一度押すまで、送りません。 | The connection was lost, so sending stopped. It will not resume until you press again. |
+| 状態（つながっていない） | `ui.send.state.idle` | つながっていません | Not connected |
+| 状態（選んでいる） | `ui.send.state.choosing` | 選んでいます | Choosing |
+| 状態（つなげている） | `ui.send.state.connecting` | つなげています… | Connecting… |
+| 状態（送っている） | `ui.send.state.sending` | 送っています | Sending |
+| 状態（止まった） | `ui.send.state.stopped` | 止まりました | Stopped |
+| 状態（誤り） | `ui.send.state.failed` | 送れませんでした | Could not send |
+| マイクの button | `ui.send.mic` | マイク | Microphone |
+| 画面の音の button | `ui.send.display` | tab か画面の音 | Tab or screen audio |
+| 止める button | `ui.send.stop` | 止める | Stop |
+| 助言 | `ui.send.hint_display` | tab や画面の音は、共有の画面で、音声も共有する項目にチェックを入れます。 | For tab or screen audio, tick the item that also shares audio in the share dialog. |
+| 画面の音が使えない | `ui.send.display_unsupported` | このブラウザは画面の音を取れません。 | This browser cannot capture tab or screen audio. |
+| meter の見出し | `ui.send.level` | 入力の大きさ | Input level |
+| 音が無い印 | `ui.send.silent` | 音が入っていません | No sound is coming in |
+| 合言葉の見出し | `ui.send.token` | 合言葉 | Passphrase |
+| 合言葉の数 | `ui.send.token_count` | {n} / 32 | {n} / 32 |
+| 合言葉の助言 | `ui.send.token_hint` | 小文字の 0 から 9 と a から f の 32 字です。hayamimi を動かしている PC の /dashboard にあります。 | 32 characters, 0-9 and a-f in lower case. It is on the /dashboard of the PC running hayamimi. |
+| 形の誤り | `ui.send.token_format` | 小文字の 0 から 9 と a から f だけです。 | Only 0-9 and a-f in lower case. |
+| 受け取り済み | `ui.send.token_ok` | 受け取りました | Received |
+| 送り先の名前 | `ui.send.dest` | 送り先 | Destination |
+
+| ID | 何を測るか | 期待値 | 陰性対照 |
+|---|---|---|---|
+| BD-21 | 状態の文 | 6 つの状態のそれぞれで、`#send-status` の text が 15.2 の key の文と一致する。誤りだけ `role="alert"`、ほかは `role="status"` | 誤りを `role="status"` にした build で落ちる |
+| BD-22 | 合言葉の入力 | fragment の無い URL で `#send-token` が出て、31 字の間と大文字を含む間は、音の元の 2 つが `disabled`。32 字の小文字の 16 進で有効になる。fragment の有る URL では `#send-token` が 0 個で、開いた後の `location.hash` が空 | 32 字の大文字で有効になる build で落ちる |
+| BD-23 | meter | `#send-meter` が `aria-hidden="true"`。`--level` が 0 から 1。−60 dBFS 未満が 10 秒続くと「音が入っていません」が出て、`role="status"` | 9 秒で出す build で落ちる |
+| BD-24 | secure でない頁の注意 | `isSecureContext` が偽の頁で、注意の欄と `#send-origin` が出て、音の元の 2 つが `disabled`。真の頁は注意の欄が 0 個 | 真の頁に注意の欄を出す build で落ちる |
+| BD-25 | 狭い画面 | 390 × 844 で、button の幅が頁の幅 − 32、高さ 48 以上。`scrollWidth` が `clientWidth` 以下 | button の幅を固定した build で落ちる |
+| BD-26 | 外への request | `/send` を開いて、同じ origin 以外への request が 0 件（BD-10 の続き） | 外の font を足した build で 1 件以上 |
+
+| 番号 | 穴 | 持ち主と置き直す条件 |
+|---|---|---|
+| W15-1 | Edge の flag の文（`ui.send.secure.edge`）は、設計 10.13.6 の P0-4 が記録するまで NOT VERIFIED。1 つの key に分けてあるので、無い時は外すだけで済む | IP-S13 の席が P0-4 の記録を読み、違えば key と表を直す |
+| W15-2 | meter の写し（−60 から 0 dBFS、100 ms の RMS）と、音が無い印の 10 秒は、この板が決めた値で、実機の音源で測っていない（NOT VERIFIED） | IP-S13 の席が BR-18 の run の記録で見て、違えば 15.5 の表を直す |
+
 ## 12. 残る穴
 
 | 番号 | 穴 | 持ち主と置き直す条件 |
