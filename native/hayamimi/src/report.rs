@@ -56,6 +56,9 @@ pub fn tell_resident(strings: &Strings, hub: &Hub, engine: &mut Engine) {
     for hold in engine.take_early_holds() {
         log::print(&log::endpoint_held_line(strings, &hold));
     }
+    for note in engine.take_predecodes() {
+        log::print(&log::predecode_line(strings, &note));
+    }
     for unread in engine.take_unread() {
         log::print(&log::segment_unread_line(strings, &unread));
     }

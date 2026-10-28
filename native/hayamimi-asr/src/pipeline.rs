@@ -20,7 +20,9 @@ use crate::itn::{self, Overrides};
 use crate::lid::{self, Identify, Lid};
 use crate::ort_runtime::{Device, NodeCounts, OrtRuntime};
 use crate::partial::{DraftClock, MidwayAsked, MidwayLid};
+use crate::predecode::{self, Ahead, Taken};
 use crate::punct::{MODEL_FILE as PUNCT_MODEL, Punctuator, warmup_sentence};
+use crate::quiet::Quiet;
 use crate::recognizer::{THREADS, WARMUP_SECONDS, model_files, warmup_silence};
 use crate::replace::Replacements;
 use crate::route::{
@@ -91,6 +93,10 @@ pub struct Settings {
     /// that the translation of a draft can stand for the translation of the
     /// `final` it closes. Off: the dictionary only.
     pub draft_marks: bool,
+    /// Whether the speech so far is read as soon as the level of the voice
+    /// falls, so that the early notice that follows finds the text ready
+    /// (see [`crate::predecode`]). Off: it is read when the notice comes.
+    pub predecode: bool,
 }
 
 impl Settings {
@@ -111,6 +117,7 @@ impl Settings {
             draft_worker: false,
             asr_threads: THREADS,
             draft_marks: false,
+            predecode: false,
         }
     }
 }
@@ -329,6 +336,12 @@ struct Route {
     unread: Vec<Unread>,
     /// The stretches of voice the detector closed and the engine read, until they are taken.
     closed: Vec<ClosedSegment>,
+    /// The level of the voice, to tell that it fell quiet (`predecode`).
+    quiet: Quiet,
+    /// The reading taken when the voice fell quiet, until a notice takes it.
+    ahead: Ahead<Solved>,
+    /// What was done with the falls, until it is taken.
+    ahead_notes: Vec<predecode::Note>,
 }
 
 /// One GPU stage moved to the CPU to give memory back.
@@ -407,6 +420,8 @@ pub struct Engine {
     drafter: Drafter,
     /// Whether a draft of the Japanese tier takes the marks of a `final`.
     draft_marks: bool,
+    /// Whether the speech so far is read when the level of the voice falls.
+    predecode: bool,
 }
 
 fn millis(since: Instant) -> f64 {
@@ -560,6 +575,9 @@ fn open_route(
         early_holds: Vec::new(),
         unread: Vec::new(),
         closed: Vec::new(),
+        quiet: Quiet::default(),
+        ahead: Ahead::default(),
+        ahead_notes: Vec::new(),
     }))
 }
 
@@ -727,6 +745,7 @@ impl Engine {
             next_id: 1,
             drafter,
             draft_marks: settings.draft_marks,
+            predecode: settings.predecode,
         })
     }
 
@@ -805,6 +824,18 @@ impl Engine {
             .as_mut()
             .into_iter()
             .flat_map(|route| std::mem::take(&mut route.early_holds))
+            .collect()
+    }
+
+    /// What was done with the falls of the voice since the last call: the
+    /// speech read when the voice fell quiet, and the early notices that took
+    /// the reading. A run without `predecode`, and an engine with no route,
+    /// have none.
+    pub fn take_predecodes(&mut self) -> Vec<predecode::Note> {
+        self.route
+            .as_mut()
+            .into_iter()
+            .flat_map(|route| std::mem::take(&mut route.ahead_notes))
             .collect()
     }
 
@@ -902,13 +933,21 @@ impl Engine {
         };
         route.history.push(window);
         let window_start = route.history.end() - window.len();
+        let fell = route
+            .quiet
+            .watch(self.predecode, window, route.history.end());
         let started = Instant::now();
         route.vad.accept(window);
         let notices = route.vad.take_early()?;
         let segments = route.vad.take_segments()?;
         route.vad_ms += millis(started);
+        // A fall in a window that brought no notice and no close: a notice or a close reads for itself.
+        let read_ahead = fell && notices.is_empty() && segments.is_empty();
         let mut finals = self.early_notices(notices)?;
         finals.extend(self.finish_segments(segments, false)?);
+        if read_ahead && finals.is_empty() {
+            self.read_ahead()?;
+        }
         if let Some(route) = self.route.as_mut() {
             route.draft.observe(route.vad.detected(), window_start);
             let speech_start = route.draft.speech_start();
@@ -1027,6 +1066,8 @@ impl Engine {
         let finals = self.finish_segments(segments, true);
         if let Some(route) = self.route.as_mut() {
             route.early.clear();
+            put_back(route);
+            route.quiet.clear();
         }
         finals
     }
@@ -1068,22 +1109,17 @@ impl Engine {
             return Ok(None);
         };
         let floor = notice.start + notice.samples.len();
-        let now = route.history.end();
-        let (from, samples) = match route.early.line() {
-            Some(line) => (line.at, route.history.slice(line.at, now)),
-            None => {
-                let Some(start) = route.draft.speech_start() else {
-                    return Ok(None);
-                };
-                (start, route.history.draft(start, usize::MAX))
-            }
-        };
-        if samples.is_empty() {
+        let Some(Stretch {
+            from,
+            samples,
+            now,
+            span,
+        }) = stretch_since_line(route)
+        else {
             return Ok(None);
-        }
-        let span = now.saturating_sub(from);
+        };
         let midway = route.midway.closing_for(from);
-        let Some(solved) = self.solve(&samples, span, midway)?.candidate() else {
+        let Some(solved) = self.candidate_at_notice(&samples, from, span, midway)? else {
             return Ok(None);
         };
         let Some(route) = self.route.as_mut() else {
@@ -1116,6 +1152,91 @@ impl Engine {
         Ok(self.finalize(solved, span, speaker_audio, ended_wall_ms, decision))
     }
 
+    /// The sentence a notice reads from the speech `from` on, `span` samples
+    /// long: the reading taken when the voice fell quiet, if it is of this
+    /// speech and no loud window came since, else a reading made now. A
+    /// candidate that reads as nothing is `None`.
+    fn candidate_at_notice(
+        &mut self,
+        samples: &[f32],
+        from: usize,
+        span: usize,
+        midway: Option<&'static str>,
+    ) -> Result<Option<Solved>, AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(None);
+        };
+        let loud_end = route.quiet.loud_end();
+        match route.ahead.take_for(from, midway, loud_end) {
+            Taken::Used(mut solved) => {
+                route.ahead_notes.push(predecode::Note {
+                    step: predecode::Step::Used,
+                    span_ms: samples_ms(span),
+                    read_ms: solved.l_dec_ms,
+                });
+                // Nothing was read after the notice.
+                solved.l_dec_ms = 0.0;
+                Ok(Some(solved))
+            }
+            Taken::Dropped(mark) => {
+                route.router.restore_session(mark);
+                Ok(self.solve(samples, span, midway)?.candidate())
+            }
+            Taken::Nothing => Ok(self.solve(samples, span, midway)?.candidate()),
+        }
+    }
+
+    /// Reads the speech since the line at once, because the voice fell quiet,
+    /// and keeps the reading for the early notice that is likely to follow.
+    /// While the reading is kept, the session's language is the one after the
+    /// reading; it goes back to the form before the reading when the reading is
+    /// dropped, and stays when the notice takes the reading. Nothing is read
+    /// when the speech could not be finalised by a notice, whatever it said.
+    fn read_ahead(&mut self) -> Result<(), AsrError> {
+        let Some(route) = self.route.as_mut() else {
+            return Ok(());
+        };
+        put_back(route);
+        if !route.vad.detected() {
+            return Ok(());
+        }
+        let Some(stretch) = stretch_since_line(route) else {
+            return Ok(());
+        };
+        if !predecode::worth_reading(stretch.span) {
+            return Ok(());
+        }
+        let midway = route.midway.closing_for(stretch.from);
+        let before = route.router.mark_session();
+        // The notice reads more speech than this: its quiet is part of the span it counts.
+        let counted = stretch.span + predecode::LEAD_SAMPLES;
+        let read = self.solve(&stretch.samples, counted, midway);
+        let Some(route) = self.route.as_mut() else {
+            return Ok(());
+        };
+        match read.map(Reading::candidate) {
+            Ok(Some(solved)) => {
+                route.ahead_notes.push(predecode::Note {
+                    step: predecode::Step::Read,
+                    span_ms: samples_ms(stretch.span),
+                    read_ms: solved.l_dec_ms,
+                });
+                route
+                    .ahead
+                    .keep(stretch.from, midway, stretch.now, solved, before);
+                Ok(())
+            }
+            Ok(None) => {
+                route.router.restore_session(before);
+                Ok(())
+            }
+            Err(error) => {
+                route.router.restore_session(before);
+                Err(error)
+            }
+        }
+    }
+
     fn finish_segments(
         &mut self,
         segments: Vec<Segment>,
@@ -1146,6 +1267,8 @@ impl Engine {
         let Some(route) = self.route.as_mut() else {
             return Ok(None);
         };
+        // A reading taken ahead of a notice that did not come is of no use to the segment that closes.
+        put_back(route);
         let decision = decision_of(&segment, route.vad.sensitivity(), flushed);
         let end = segment.start + segment.samples.len();
         let reuse = route.router.policy().held_reuse;
@@ -1318,6 +1441,9 @@ impl Engine {
         };
         let centroids = self.speakers.as_mut().map(SpeakerStage::centroids_mut);
         reset_parts(&mut route.history, &mut route.router, centroids);
+        // The session the reading ahead belongs to is gone: nothing is put back.
+        route.ahead.clear();
+        route.quiet.clear();
     }
 
     /// Inverse text normalisation, when the stage is on, and the time it took.
@@ -1359,6 +1485,46 @@ impl Engine {
         let (text, _) = self.normalize(drafted, PUNCTUATED_LANGUAGE);
         let (text, _) = self.punctuate(text, PUNCTUATED_LANGUAGE);
         self.replacements.apply(&text)
+    }
+}
+
+/// The speech since the early line, or since the speech began, up to now.
+struct Stretch {
+    /// Where it starts, in samples from the start of the audio fed to the engine.
+    from: usize,
+    samples: Vec<f32>,
+    /// Where it ends: the end of the history.
+    now: usize,
+    /// How many samples of the timeline it covers.
+    span: usize,
+}
+
+/// The speech an early notice reads: from the line the early path has
+/// finalised up to, or from the start of the speech in progress when there is
+/// none, to now. `None` outside speech and when the history holds none of it.
+fn stretch_since_line(route: &Route) -> Option<Stretch> {
+    let now = route.history.end();
+    let (from, samples) = match route.early.line() {
+        Some(line) => (line.at, route.history.slice(line.at, now)),
+        None => {
+            let start = route.draft.speech_start()?;
+            (start, route.history.draft(start, usize::MAX))
+        }
+    };
+    (!samples.is_empty()).then(|| Stretch {
+        from,
+        samples,
+        now,
+        span: now.saturating_sub(from),
+    })
+}
+
+/// Drops the reading taken ahead, if one is kept, and puts the session back as
+/// it was before that reading: the reading is read again, and a language
+/// detected in it must not count twice.
+fn put_back(route: &mut Route) {
+    if let Some(mark) = route.ahead.drop_kept() {
+        route.router.restore_session(mark);
     }
 }
 

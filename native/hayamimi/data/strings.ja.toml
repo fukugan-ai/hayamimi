@@ -7,6 +7,7 @@
 "asr.utterance.timed" = "発話を確定しました"
 "asr.endpoint.decided" = "発話の終わりを決めました"
 "asr.endpoint.held" = "文が完結していないか、完結していても短いので、早い終わりでは確定せず、無音を待ちます"
+"asr.predecode" = "声が落ちた時点で、そこまでの発話を先に読みました。または、早い終わりの通知がその読みを受け取りました"
 "asr.punct.failed" = "句読点の復元に失敗したので、句読点なしの文で続けました"
 "asr.speaker.failed" = "話者の印をつけられなかったので、印なしの文で続けました"
 "asr.final.published" = "確定文を字幕の event へ出し終えました"
@@ -85,6 +86,7 @@ options:
   --draft-worker <on|off>  on は進行中の発話の速報を、専用の認識器を持つ専用の thread で読み、速報が feed を止めないようにする（既定は off。認識器が memory に増える）
   --asr-threads <n>    認識器 1 つが使う thread の数。1 から 32 の整数（既定は 4）
   --draft-marks <on|off>  on は日本語の認識器の速報に、確定文と同じ ITN と句読点を当て、速報の訳が確定文の訳として使い回される件を増やす（既定は off）
+  --predecode <on|off>  on は声の大きさが落ちた時点で、そこまでの発話を先に読み、続く早い終わりの通知が出来上がった文を受け取れるようにする。off より読む回数が増え、読む間は音の取り込みを止め、文が off と違う発話がある（既定は off）
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
@@ -106,6 +108,7 @@ held_reuse_unsupported = "--held-reuse は covering、strict のどちらかで�
 draft_worker_unsupported = "--draft-worker は on、off のどちらかです。"
 asr_threads_unsupported = "--asr-threads は 1 から 32 の整数です。"
 draft_marks_unsupported = "--draft-marks は on、off のどちらかです。"
+predecode_unsupported = "--predecode は on、off のどちらかです。"
 lang_unsupported = "--lang には、専用の認識器を持つ言語を指定してください。"
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"

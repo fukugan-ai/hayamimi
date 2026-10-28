@@ -7,6 +7,7 @@
 "asr.utterance.timed" = "Utterance finished"
 "asr.endpoint.decided" = "The end of an utterance was decided"
 "asr.endpoint.held" = "The sentence was not complete, or was complete but too short, to end the utterance early; it waits for the silence"
+"asr.predecode" = "The speech so far was read when the voice fell quiet, or an early notice took that reading"
 "asr.punct.failed" = "Punctuation failed; the text went on without it"
 "asr.speaker.failed" = "The speaker mark failed; the text went on without it"
 "asr.final.published" = "The final subtitle was sent to the event stream"
@@ -85,6 +86,7 @@ options:
   --draft-worker <on|off>  on reads the drafts of the utterance in progress on a thread of its own with recognizers of its own, so that a draft never holds the feed back (default off; it keeps more recognizers in memory)
   --asr-threads <n>    threads each recognizer uses, a whole number from 1 to 32 (default 4)
   --draft-marks <on|off>  on gives the drafts of the Japanese recognizer the ITN and the punctuation of a final, so that the translation of a draft more often stands for the translation of the final (default off)
+  --predecode <on|off>  on reads the speech so far as soon as the level of the voice falls, so that the early notice that follows finds the text ready; it reads more often than off, holds the audio feed while it reads, and the text of some sentences differs from off (default off)
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
@@ -106,6 +108,7 @@ held_reuse_unsupported = "--held-reuse is one of covering, strict."
 draft_worker_unsupported = "--draft-worker is one of on, off."
 asr_threads_unsupported = "--asr-threads is a whole number from 1 to 32."
 draft_marks_unsupported = "--draft-marks is one of on, off."
+predecode_unsupported = "--predecode is one of on, off."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."

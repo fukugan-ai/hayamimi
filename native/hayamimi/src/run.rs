@@ -107,6 +107,7 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.draft_worker = args.uses_draft_worker();
     settings.asr_threads = args.asr_threads;
     settings.draft_marks = args.draft_marks;
+    settings.predecode = args.predecode;
     settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
@@ -753,6 +754,7 @@ mod tests {
             draft_worker: false,
             asr_threads: hayamimi_asr::recognizer::THREADS,
             draft_marks: false,
+            predecode: false,
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -843,6 +845,17 @@ mod tests {
         marked.draft_marks = true;
         let (settings, _) = settings_of(&marked, Gpu::Try);
         assert!(settings.draft_marks);
+    }
+
+    /// T-BR-43-018
+    #[test]
+    fn the_settings_of_a_run_take_the_predecode_of_its_arguments() {
+        let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
+        assert!(!settings.predecode);
+        let mut early = args_with(None, None);
+        early.predecode = true;
+        let (settings, _) = settings_of(&early, Gpu::Try);
+        assert!(settings.predecode);
     }
 
     #[test]

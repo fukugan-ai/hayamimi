@@ -231,6 +231,28 @@ const DRAFT_MARKS_OFF: Variant = Variant {
     judges_draft: false,
 };
 
+/// The programs with the speech read as soon as the voice falls quiet (IP-L8b).
+const PREDECODE_ON: Variant = Variant {
+    step: "br03_l8",
+    title: "BR-3 の L8b の後の値（声が落ちた時点で先に読む run）",
+    flags: Flags {
+        hayamimi: &["--predecode", "on"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
+/// L8b off: the speech is read when the early notice comes.
+const PREDECODE_OFF: Variant = Variant {
+    step: "br03_l8_off",
+    title: "BR-3 の L8b を旗で外した値（早い終わりの通知で読む run）",
+    flags: Flags {
+        hayamimi: &["--predecode", "off"],
+        relay: &[],
+    },
+    judges_draft: false,
+};
+
 /// The file of the record called `step` that ends in `suffix`.
 fn record_named(step: &str, suffix: &str) -> PathBuf {
     Path::new(REPO)
@@ -261,7 +283,7 @@ fn scratch() -> Result<PathBuf, Failure> {
 /// progress taken over by the line that closed it, how each draft was read and
 /// whether the draft worker came up and stayed up, and (see
 /// [`ENDPOINT_EVENTS`]) how each segment was closed and read.
-const EVENTS_KEPT: [&str; 12] = [
+const EVENTS_KEPT: [&str; 13] = [
     "asr.vad.closed",
     "asr.partial.lang.asked",
     "asr.partial.read",
@@ -272,6 +294,7 @@ const EVENTS_KEPT: [&str; 12] = [
     "translate.draft.reused",
     "asr.endpoint.decided",
     "asr.endpoint.held",
+    "asr.predecode",
     "asr.utterance.timed",
     "asr.feed.waited",
 ];
@@ -580,6 +603,61 @@ fn the_run_with_draft_marks_on_is_recorded() -> TestResult {
 #[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
 fn the_run_with_draft_marks_off_is_recorded() -> TestResult {
     record_run(&DRAFT_MARKS_OFF)
+}
+
+/// T-BR-43-020
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_predecode_on_is_recorded() -> TestResult {
+    record_run(&PREDECODE_ON)?;
+    let (read, used) = predecode_counts(&read(&record_of(&PREDECODE_ON, ".log.jsonl"))?)?;
+    assert!(read >= 1, "the logs of the run have no reading ahead");
+    assert!(used >= 1, "no early notice took a reading ahead");
+    assert!(used <= read, "{used} readings used of {read} read");
+    Ok(())
+}
+
+/// T-BR-43-021
+#[test]
+#[ignore = "starts the hayamimi binary, the relay and chrome-headless-shell, and needs the translation server on port 18084"]
+fn the_run_with_predecode_off_is_recorded() -> TestResult {
+    record_run(&PREDECODE_OFF)?;
+    let counts = predecode_counts(&read(&record_of(&PREDECODE_OFF, ".log.jsonl"))?)?;
+    assert_eq!(counts, (0, 0), "a run with predecode off read ahead");
+    Ok(())
+}
+
+/// How many readings ahead a run made and how many an early notice took,
+/// from the `asr.predecode` lines of its log. A line with a step the design
+/// does not name is an error, so that a count never passes over a line it
+/// could not read.
+fn predecode_counts(log: &str) -> Result<(usize, usize), Failure> {
+    let (mut read, mut used) = (0, 0);
+    for row in rows_of(log, "asr.predecode")? {
+        match row["step"].as_str() {
+            Some("read") => read += 1,
+            Some("used") => used += 1,
+            other => return Err(format!("a step the design does not name: {other:?}")),
+        }
+    }
+    Ok((read, used))
+}
+
+/// T-BR-43-022
+#[test]
+fn the_readings_ahead_of_a_run_and_those_taken_are_counted_from_its_log() -> TestResult {
+    let line = |step: &str| {
+        format!(
+            "{{\"event\":\"asr.predecode\",\"step\":\"{step}\",\"span_ms\":2000,\"read_ms\":300}}\n"
+        )
+    };
+    let log = [line("read"), line("read"), line("used"), line("read")].concat();
+    assert_eq!(predecode_counts(&log)?, (3, 1));
+    assert_eq!(predecode_counts("")?, (0, 0));
+    assert!(predecode_counts(&line("guess")).is_err());
+    let other = "{\"event\":\"asr.partial.read\",\"step\":\"read\"}\n";
+    assert_eq!(predecode_counts(other)?, (0, 0));
+    Ok(())
 }
 
 /// How the segments the `silence` rule closed in a run were turned into text,

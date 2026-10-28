@@ -32,7 +32,7 @@ use crate::error::AsrError;
 pub use backend::{Decode, DecodeError, Decoded};
 pub use pair::{FallbackStep, LangFallback};
 pub use refine::Refined;
-pub use router::{Policy, RouteNotice, Router};
+pub use router::{Policy, RouteNotice, Router, SessionMark};
 pub use second::{SECOND_OPINION_THRESHOLD, choose_second_opinion, hyp_agreement_cer};
 pub use sticky::{
     DUAL_CONFIRM_LANGS, Detection, Hysteresis, MIN_PROBE_S, Pending, REFINE_MIN_REGROUP_S, Sticky,
