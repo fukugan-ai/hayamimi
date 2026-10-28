@@ -92,6 +92,9 @@ Lはp50（中央値）とp95（95%の発話が収まる遅れ）で測ります�
   速報を持つ確定文の次に来て、自分の速報が無かった確定文は 4 件から 7 件あり、そのすべてで欄は待ちの文言でした。
   最後の確定文の後も、欄は待ちの文言でした。
   lock の更新と IP-S18、IP-S21、IP-S10 を入れた main の CI は、2026-10-28 に ubuntu と windows の両方で成功しました（commit d089efa）。
+  IP-S16b を入れました（書いていない席の独立検証で可）。別の site の web 頁が、動いている `hayamimi` の字幕を読んだり、音を送る socket を開いたりすることは、できなくなりました。
+  中継の `/events`、頁の制御の口、`/ingest` の握手は、loopback の頁、要求の宛先と同じ host の頁、`--allow-origin` で名指した origin だけに答え（`access-control-allow-origin: *` は無くしました）、それ以外の origin と、DNS 名で来た Host（DNS の再束縛）には 403 を返します。
+  Origin を持たない相手（curl、overlay、`hayamimi-eval`）は、これまでどおり使えます。
 - 下の表の遅れは清書を結ぶ前の build の値で、清書ありの値は窓E4で測ります（[状態表](docs/design/status.ja.md)のRP-61の行）。
 
 | 言語 | p95 | 1600 msの線 | 1200 msの目標 |
