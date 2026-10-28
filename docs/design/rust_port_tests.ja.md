@@ -3761,6 +3761,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-38 の旗の行（T-BR-38-016）は `native/hayamimi/src/args.rs` の `mod tests`、log の行（017）は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行（021）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行と記録を読む行（018 から 020）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 015 と 022）は `native/hayamimi-asr/tests/br38.rs`。
 - BR-39 の旗の行（T-BR-39-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（005）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run と記録の行（006、007、008）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（009）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（003、004）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
 - BR-40 の旗の行（T-BR-40-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（003）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）と、その記録を読む行（009）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（008）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（004、005）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
+- BR-43 の旗の行（T-BR-43-015、016）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（017）は `native/hayamimi/src/strings.rs` の `mod tests`、引数から設定への配線の行（018）は `native/hayamimi/src/run.rs` の `mod tests`、log の行（019）は `native/hayamimi/src/log.rs` の `mod tests`、BR-3 の run の行（020、021）と数える関数の行（022）は `native/hayamimi/tests/br03.rs`、言語の判定の状態を戻す行（011 から 014）は `native/hayamimi-asr/src/route/tests/mark.rs`、落ちを言う行（023 から 032、034 から 036）は `native/hayamimi-asr/src/quiet.rs` の `mod tests`、それ以外（001 から 010 と 033）は `native/hayamimi-asr/src/predecode.rs` の `mod tests`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -4582,6 +4583,49 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-40-008 | 純関数：`draft_marks` が偽の既定の引数と、真にした引数を `settings_of` に渡す | 引数から設定への配線 | 引数の値が設定へ届く | 既定の引数は設定の `draft_marks` が偽、真の引数は真である（specified：設計 10.13.4 の手 13。旗が設定の手前で落ちて、off のまま走らない） | 陰性 | `the_settings_of_a_run_take_the_draft_marks_of_its_arguments` |
 | T-BR-40-009 | 記録を読む：BR-3 の 4 本の記録（`br03_ip_s21_off_run1`、`br03_ip_s21_run1`、`br03_ip_s21_off`、`br03_ip_s21`）の `.events.jsonl` と `.log.jsonl`。手で組んだ値で、印を付けた日本語の速報を数える関数と、日本語の確定文に当たる速報の訳の使い回しを数える関数も試す | off の 2 本と on の 2 本 | 確定文は同じで、印は on にだけ付く | 4 本とも確定文の `id`、`lang`、`text` が全件同じである。日本語の字と `。`、`、`、`？`、`！` のどれかを持つ日本語の速報は、off の 2 本で 0 件、on の 2 本で 1 件以上である。日本語の確定文に当たる `translate.draft.reused` の件数は、on の 2 本の合計が off の 2 本の合計より多い。手で組んだ値では、印の無い速報、日本語の字の無い速報、本文の無い `partial`、`id` の無い使い回しの行が、数えない物か不可として扱われる（specified：設計 10.13.9 の BR-40） | 陽性 | `the_on_and_off_runs_name_the_same_finals_and_only_on_marks_the_japanese_drafts` |
 
+**BR-43（声が落ちた時点でそこまでの発話を先に読む。落ちを言う行は `native/hayamimi-asr/src/quiet.rs` の `mod tests`、読みを持つ行は `native/hayamimi-asr/src/predecode.rs` の `mod tests`、言語の判定の状態を戻す行は `native/hayamimi-asr/src/route/tests/mark.rs`、旗の行は `native/hayamimi/src/args.rs`、言語の表の行は `native/hayamimi/src/strings.rs`、配線の行は `native/hayamimi/src/run.rs`、log の行は `native/hayamimi/src/log.rs`、run の記録の行は `native/hayamimi/tests/br03.rs`）**
+
+材料：音の窓を `Quiet::observe` に渡し、落ちを言う窓の番号を読む。`Ahead` に読みを持たせ、`take_for` に音の始めと途中で聞いた言語と最後に大きかった窓の終わりを渡す。`Router` に `mark_session` と `restore_session` を使わせ、`session` の `last_lang` と `pending`（route の中だけが読む field）を読む。実走は BR-3 の harness が `--predecode` を付けて `lat-dialog` を `--repeat 3` で流し、記録を `docs/results/in-person/` に書く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-43-001 | 純関数：始め 1 秒、途中で聞いた言語 `ja`、終わり 4 秒の読みを持たせ、同じ始めと言語、最後に大きかった窓の終わり 3 秒で `take_for` を呼ぶ | 同じ音で、声が戻っていない | 読みの終わり 4 秒 | `Taken::Used` が読みを返し、読みは残らない（specified：設計 10.13.4 の手 14。通知は持った読みを使う） | 陽性 | `a_notice_for_the_same_speech_takes_the_reading` |
+| T-BR-43-002 | 純関数：001 の後にもう 1 度 `take_for` を呼ぶ | 2 度目 | 1 回 | `Taken::Nothing` である（specified：同。読みは 1 回だけ使う） | 陰性 | `a_reading_is_taken_once` |
+| T-BR-43-003 | 純関数：最後に大きかった窓の終わりを、読みの終わり 4 秒より 1 sample 後にして `take_for` を呼ぶ | 声が戻った | 読みの終わり + 1 | `Taken::Dropped` で、読みは残らない（specified：同。声が戻った後の通知は読み直す） | 陰性 | `a_loud_window_after_the_reading_drops_it` |
+| T-BR-43-004 | 純関数：最後に大きかった窓の終わりを、読みの終わりと同じ 4 秒にして `take_for` を呼ぶ | 境界：同じ sample | 読みの終わり | `Taken::Used` である（specified：同。大きな窓が読みに入っていた時は戻りではない） | 境界 | `a_loud_window_that_ended_where_the_reading_ended_does_not_drop_it` |
+| T-BR-43-005 | 純関数：音の始めを読みの始めより 1 sample 後にして `take_for` を呼ぶ | 別の音 | 始めの一致 | `Taken::Dropped` である（specified：同） | 陰性 | `speech_that_starts_elsewhere_drops_the_reading` |
+| T-BR-43-006 | 純関数：途中で聞いた言語を `None` と `en` にして `take_for` を呼ぶ（読みは `ja`） | 言語の違い | 言語の一致 | どちらも `Taken::Dropped` である（specified：同。途中の問いの答えが変わった音は別の読み） | 陰性 | `a_language_named_since_drops_the_reading` |
+| T-BR-43-007 | 純関数：何も持たない `Ahead` に `take_for` と `drop_kept` を呼ぶ | 空 | 無し | `Taken::Nothing` と `None` である（specified：同） | 境界 | `nothing_kept_is_nothing_taken` |
+| T-BR-43-008 | 純関数：読みを持たせて `drop_kept` を呼ぶ。別の `Ahead` に読みを持たせて `clear` を呼び、続けて `drop_kept` を呼ぶ | 捨てると忘れる | 戻す印の有無 | `drop_kept` は印を返して読みは残らず、`clear` の後は読みが無く `drop_kept` は `None` である（specified：同。区切りの新しい session に古い印を戻さない） | 対照 | `dropping_returns_the_session_of_before_the_reading_and_clearing_does_not` |
+| T-BR-43-009 | 純関数：`worth_reading` に、1.0 秒から 0.2 秒を引いた長さ、その 1 sample 手前、10 秒、0 を渡す | 長さの境界 | 1.0 秒 − 0.2 秒 | 真、偽、真、偽である（specified：同。通知が 1.0 秒に届かない発話は読まない） | 境界 | `speech_is_worth_reading_ahead_when_the_notice_would_make_it_long_enough` |
+| T-BR-43-010 | 純関数：`LEAD_SAMPLES` を読む | 定数 | 3200 | 3200（200 ms の 16 kHz の sample 数）である（specified：同） | 境界 | `the_lead_is_200_ms` |
+| T-BR-43-011 | 純関数：日本語に落ち着いた balanced の router に印を取り、識別器を `fr` にして 1 回読み、`restore_session` を呼ぶ | 読みを戻す | 新しい言語の数え | 読んだ後は `pending` が `fr` の 1 で、戻した後は `pending` が無く `last_lang` が `ja` である（specified：同。捨てた読みの数えを残さない） | 陽性 | `a_session_put_back_forgets_the_detection_a_reading_counted` |
+| T-BR-43-012 | 純関数：011 の後に同じ音をもう 1 度読む | 戻した後の再読 | 数えの 1 | `pending` が `fr` の 1 で `last_lang` が `ja` のままである（specified：同。同じ音を 2 度読んでも数えが 2 倍にならない） | 陽性 | `the_same_speech_read_again_after_a_restore_counts_one_detection_not_two` |
+| T-BR-43-013 | 純関数：012 の対照。戻さずに同じ音を 2 度読む | 戻さない | 数えの 2 | `pending` が無く `last_lang` が `fr` になる（specified：同。戻す仕組みが防ぐ二重の数えが実際に起きる） | 対照 | `without_a_restore_the_same_speech_read_twice_switches_the_session` |
+| T-BR-43-014 | 純関数：印を取った後で 2 度読み、`last_lang` を `fr` に置いた後に戻す | 印は写し | 取った時の状態 | `last_lang` が `ja`、`pending` が無い（specified：同） | 境界 | `a_mark_is_a_copy_so_later_readings_do_not_change_it` |
+| T-BR-43-015 | 純関数：`--wav a` に `--predecode` を付けない行と、`on`、`off` を付けた行を `parse` に渡す | 既定と 2 つの値 | on と off | 付けない行と `off` の行は `predecode` が偽、`on` の行は真である（specified：設計 10.13.4 の手 14。`--predecode off` で今の形） | 境界 | `predecode_starts_off_and_takes_on_or_off` |
+| T-BR-43-016 | 純関数：`--predecode` に `maybe`、空、`ON`、`1`、`true` を付けた行と、値の無い行を `parse` に渡す | on と off の外 | on と off | 値のある行は `ArgError::PredecodeUnsupported`、値の無い行は `ArgError::MissingValue` である。`PredecodeUnsupported` の key は `predecode_unsupported`（specified：同） | 陰性 | `predecode_refuses_what_is_not_on_or_off` |
+| T-BR-43-017 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `help` の文と `predecode_unsupported` の文を引く | 2 つの言語 | 文 2 つ | どちらの `help` も `--predecode <on\|off>` を含み、拒否の文は `--predecode` と `off` を含み、2 つの言語で違う文である（specified：command line の文言を locale で切り替える決め） | 陽性 | `the_predecode_help_line_and_refusal_are_in_both_languages` |
+| T-BR-43-018 | 純関数：`predecode` が偽の既定の引数と、真にした引数を `settings_of` に渡す | 引数から設定への配線 | 引数の値が設定へ届く | 既定の引数は設定の `predecode` が偽、真の引数は真である（specified：設計 10.13.4 の手 14。旗が設定の手前で落ちて、off のまま走らない） | 陰性 | `the_settings_of_a_run_take_the_predecode_of_its_arguments` |
+| T-BR-43-019 | 純関数：`read` と `used` の 2 つの印で `asr.predecode` の行を組み、JSON として読む | 2 つの step | step の名前 | `event` が `asr.predecode`、`level` が `info`、`step` が `read` か `used`、`span_ms` と `read_ms` が入れた値で、封筒の外の field はその 3 つだけである。文は入らない（specified：log に字幕の text を出さない決め） | 陽性 | `a_predecode_event_names_the_step_the_span_and_the_time_without_the_sentence` |
+| T-BR-43-020 | 実走：BR-3 の harness が `--predecode on` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_l8`） | on の run | 記録が揃う | `br03_l8.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれ、log に `read` が 1 件以上と `used` が 1 件以上あり、`used` は `read` を超えない（specified：設計 10.13.9 の IP-L8b「記録：BR-3 の run の `asr.predecode` の数」） | 陽性 | `the_run_with_predecode_on_is_recorded` |
+| T-BR-43-021 | 実走：同じ harness が `--predecode off` を付けて流して記録する（step は `br03_l8_off`） | off の run | 記録が揃う | 020 と同じ 4 つの file が書かれ、log に `asr.predecode` の行が 0 本である（specified：020 の対照の run。旗を外した run は読みを走らせない） | 対照 | `the_run_with_predecode_off_is_recorded` |
+| T-BR-43-022 | 純関数：log の text から `read` と `used` を数える関数に、`read` 3 本と `used` 1 本、空、知らない step の行、別の event の行を渡す | 数える関数 | step の名前 | (3, 1)、(0, 0)、不可、(0, 0) を返す（specified：同。数えは読めない行を黙って飛ばさない） | 陽性 | `the_readings_ahead_of_a_run_and_those_taken_are_counted_from_its_log` |
+| T-BR-43-023 | 純関数：声の窓 10 本の後に無音の窓 6 本を `Quiet::observe` に渡す | 無音で落ちる | 3 窓 | 落ちを言う窓は 13 番目の 1 つだけである（specified：設計 10.13.4 の手 14。96 ms の静けさ。窓の番号は書き出した値で、定数 `HANG_WINDOWS` から取らない。定数を 4 にすると落ちる） | 陽性 | `digital_silence_after_voice_falls_at_the_third_quiet_window` |
+| T-BR-43-024 | 純関数：声の窓 10 本の後に無音の窓 2 本、続けて声の窓 10 本 | 窓 2 本の静けさ | 3 窓 | 落ちを言う窓は無い（specified：同。短い間は落ちではない。2 は書き出した値で、定数を 2 にすると落ちる） | 境界 | `a_dip_shorter_than_the_hang_is_not_a_fall` |
+| T-BR-43-025 | 純関数：声、無音、声、無音の窓を渡す | 静けさごとに 1 回 | 1 回 | 落ちを言う窓は 13 番目と 31 番目である（specified：同） | 陽性 | `a_fall_is_said_once_for_each_stretch_of_quiet` |
+| T-BR-43-026 | 純関数：無音の窓だけを 20 本渡す | 声の前の静けさ | 声の後 | 落ちを言う窓は無い（specified：同） | 陰性 | `quiet_before_any_voice_is_not_a_fall` |
+| T-BR-43-027 | 純関数：声（振幅 0.3）の窓 10 本の後に、振幅 0.01（約 −40 dBFS、声より約 29.5 dB 低い）の窓 6 本 | 雑音が 20 dB より下 | 20 dB | 落ちを言う窓は 13 番目である（specified：同） | 陽性 | `a_room_noise_20_db_below_the_voice_is_quiet` |
+| T-BR-43-028 | 純関数：声の窓 10 本の後に、振幅 0.1（約 −20 dBFS、声より約 9.5 dB 低い）の窓 12 本 | 雑音が 20 dB より上 | 20 dB | 落ちを言う窓は無い（specified：同。静けさが深くない部屋では先読みを始めない） | 陰性 | `a_room_noise_closer_to_the_voice_is_never_a_fall` |
+| T-BR-43-029 | 純関数：声の窓 10 本、無音の窓 4 本、声の窓 1 本の順に渡して `loud_end` を読む | 最後に大きかった窓 | 窓の終わり | 無音の間は 10 窓の終わり、声が戻った後は 15 窓の終わりである（specified：同。読みの後に声が戻ったかを判る） | 陽性 | `the_end_of_the_last_loud_window_is_kept` |
+| T-BR-43-030 | 純関数：声の窓 10 本の後に振幅 0.01 の窓を 24 本、続けて無音の窓 6 本。別に、声の窓 10 本の後に振幅 0.01 の窓を 40 本、続けて無音の窓 6 本 | 声の最大を覚えている窓の数 | 32 窓（書き出した値） | 24 本の列は落ちを言う窓が 13 番目の 1 つだけ、40 本の列は 13 番目と 53 番目である（specified：同。声の最大は 32 窓のあいだ基準で、それを過ぎると雑音が基準になり、雑音から無音への落ちは別の落ちになる。32 を 16 にすると前者が、64 にすると後者が落ちる） | 境界 | `the_peak_is_remembered_for_32_windows_and_then_forgotten` |
+| T-BR-43-031 | 純関数：声の窓 10 本の後に `clear` し、無音の窓 6 本 | 区切りで忘れる | clear | 落ちは言わず、`loud_end` は 0 である（specified：同） | 陰性 | `clear_forgets_the_voice_so_the_next_quiet_is_no_fall` |
+| T-BR-43-032 | 純関数：`level_db` に無音の窓、振幅 1.0 の交互の窓、空の窓を渡す | 大きさの端 | −140 dBFS と 0 dBFS | 無音は −140 dBFS、振幅 1.0 の交互の窓は 0 dBFS（誤差 1e-3）、振幅 0.3 の交互の窓は −10.4576 dBFS（誤差 1e-2）、空の窓は −140 dBFS である（specified：同。値は書き出した dBFS で、定数 `SILENT_DB` から取らない） | 境界 | `the_level_of_digital_silence_is_the_lowest_and_a_full_square_wave_is_zero` |
+| T-BR-43-033 | 純関数：`Step` の名前を読む | 2 つの step | 名前 | `read` と `used` である（specified：log の step の名前） | 陽性 | `the_steps_are_named_for_the_log` |
+| T-BR-43-034 | 純関数：声（振幅 0.3）の窓 10 本の後に、声より 19.5 dB 低い窓 12 本。別に、声より 20.5 dB 低い窓 6 本 | 20 dB の両側 | 20 dB（書き出した値） | 19.5 dB の列は落ちを言う窓が無く、20.5 dB の列は 13 番目である（specified：設計 10.13.4 の手 14。`DROP_DB` を 19 にすると前者が、21 にすると後者が落ちる） | 境界 | `the_drop_that_makes_a_window_quiet_is_20_db` |
+| T-BR-43-035 | 純関数：振幅 0.002（約 −54 dBFS）の窓 10 本の後に、振幅 0.0005（約 −66 dBFS）の窓 6 本。別に、同じ 10 本の後に、振幅 0.0011（約 −59.2 dBFS）の窓 12 本 | 床の両側。声そのものが小さく、落ちは 12 dB しかない | −60 dBFS（書き出した値） | 前者は落ちを言う窓が 13 番目、後者は無い（specified：同。床以下の窓は直前の声が何でも静かで、床の上の窓は 20 dB 下がらなければ静かでない。`FLOOR_DB` を −70 にすると前者が、−58 にすると後者が落ちる） | 境界 | `a_window_at_or_below_minus_60_dbfs_is_quiet_whatever_came_before` |
+| T-BR-43-036 | 純関数：声の窓 10 本の後に無音の窓 6 本を、旗を外した形（`watch` に偽）で渡す。続けて、その状態へ旗を付けた形で無音の窓 6 本。別に、同じ窓を旗を付けた形で渡す | 旗の有無 | 外した形は落ちを言わず、大きさを覚えない | 外した形は落ちを言う窓が 0 で `loud_end` が 0、旗を付けて続けても落ちは言わない。付けた形は 13 番目で落ちを言う（specified：BR-43「旗が `off` の run は決め方を変えない」。`watch` が `enabled &&` を外すと前者が落ち、旗が偽でも `observe` を呼ぶと `loud_end` が 0 でなくなって落ちる。旗が `Engine::feed` から `watch` に渡ることは、この行では押さえず、実走の行 T-BR-43-021（`off` の run の `asr.predecode` が 0 行）が押さえる） | 陰性 | `a_run_without_predecode_says_no_fall_and_keeps_no_level` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
@@ -4593,6 +4637,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 速報の復号を専用の thread で回す：10.13.4 の手 11（T-BR-38）。
 - 認識器の thread 数を引数で決める：10.13.4 の手 10（T-BR-39）。既定を 8 にする条件は H83。
 - 日本語の速報に確定と同じ ITN と句読点を当てる：10.13.4 の手 13（T-BR-40）。既定を `on` にする条件は H84。
+- 声が落ちた時点でそこまでの発話を先に読む：10.13.4 の手 14（T-BR-43）。既定を `on` にする条件は H86。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。

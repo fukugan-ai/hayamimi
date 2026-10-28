@@ -499,7 +499,13 @@ fn hold_for(complete: bool, samples: usize) -> Option<Hold> {
     if !complete {
         return Some(Hold::Incomplete);
     }
-    (samples < EARLY_MIN_SAMPLES).then_some(Hold::TooShort)
+    (!long_enough_to_close(samples)).then_some(Hold::TooShort)
+}
+
+/// Whether `samples` samples of speech are enough for an early notice to
+/// finalise a sentence read from them.
+pub fn long_enough_to_close(samples: usize) -> bool {
+    samples >= EARLY_MIN_SAMPLES
 }
 
 /// The form a sentence ends in.

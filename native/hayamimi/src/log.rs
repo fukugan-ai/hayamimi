@@ -11,6 +11,7 @@ use hayamimi_asr::draft::{DraftNote, DraftRead};
 use hayamimi_asr::endpoint::Rule;
 use hayamimi_asr::partial::{Midway, MidwayAsked};
 use hayamimi_asr::pipeline::{ClosedSegment, PunctWarmup, Unread};
+use hayamimi_asr::predecode;
 use hayamimi_asr::route::FallbackStep;
 use hayamimi_asr::vad::EARLY_MIN_SEGMENT_MS;
 use hayamimi_asr::{EarlyHold, Final, Reason, ResidentEvent, SessionReport, Warmup};
@@ -33,6 +34,7 @@ pub const DEVICE_UNAVAILABLE: &str = "gpu.device.unavailable";
 pub const UTTERANCE_TIMED: &str = "asr.utterance.timed";
 pub const ENDPOINT_DECIDED: &str = "asr.endpoint.decided";
 pub const ENDPOINT_HELD: &str = "asr.endpoint.held";
+pub const PREDECODE: &str = "asr.predecode";
 pub const PUNCT_FAILED: &str = "asr.punct.failed";
 pub const SPEAKER_FAILED: &str = "asr.speaker.failed";
 pub const FINAL_PUBLISHED: &str = "asr.final.published";
@@ -348,6 +350,26 @@ pub fn endpoint_held_line(strings: &Strings, hold: &EarlyHold) -> String {
             ("min_ms", Value::from(EARLY_MIN_SEGMENT_MS)),
             ("tail", Value::from(hold.tail.name())),
             ("shadow_complete", Value::from(hold.shadow_complete)),
+        ],
+    )
+}
+
+/// `asr.predecode`: the speech so far was read as soon as the voice fell quiet
+/// (`step` is `read`), or an early notice took that reading as its own (`used`).
+/// `span_ms` is the speech the reading covers and `read_ms` the time it took:
+/// the time it held the feed back when read, the time it spared the notice
+/// when used. The sentence is not written.
+pub fn predecode_line(strings: &Strings, note: &predecode::Note) -> String {
+    event_line(
+        strings,
+        Level::Info,
+        PREDECODE,
+        "asr",
+        None,
+        &[
+            ("step", Value::from(note.step.name())),
+            ("span_ms", millis(note.span_ms)),
+            ("read_ms", millis(note.read_ms)),
         ],
     )
 }
@@ -1169,6 +1191,7 @@ mod tests {
                 UTTERANCE_TIMED,
                 ENDPOINT_DECIDED,
                 ENDPOINT_HELD,
+                PREDECODE,
                 PUNCT_FAILED,
                 SPEAKER_FAILED,
                 FINAL_PUBLISHED,
@@ -1426,6 +1449,42 @@ mod tests {
             assert_eq!(event["span_ms"], 480.5);
             assert_eq!(event["min_ms"], 1000);
             assert!(event["error_code"].is_null());
+        }
+        Ok(())
+    }
+
+    /// T-BR-43-019
+    #[test]
+    fn a_predecode_event_names_the_step_the_span_and_the_time_without_the_sentence()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (step, name) in [
+            (predecode::Step::Read, "read"),
+            (predecode::Step::Used, "used"),
+        ] {
+            let note = predecode::Note {
+                step,
+                span_ms: 2400.5,
+                read_ms: 312.25,
+            };
+            let line = predecode_line(&strings()?, &note);
+            assert!(!line.contains('\n'));
+            let event = parsed(&line)?;
+            assert_eq!(event["event"], "asr.predecode");
+            assert_eq!(event["level"], "info");
+            assert_eq!(event["step"], name);
+            assert_eq!(event["span_ms"], 2400.5);
+            assert_eq!(event["read_ms"], 312.25);
+            assert!(event["error_code"].is_null());
+            let Some(fields) = event.as_object() else {
+                return Err("an event line is not an object".into());
+            };
+            let mut extra: Vec<&str> = fields
+                .keys()
+                .map(String::as_str)
+                .filter(|key| !ENVELOPE.contains(key))
+                .collect();
+            extra.sort_unstable();
+            assert_eq!(extra, ["read_ms", "span_ms", "step"]);
         }
         Ok(())
     }

@@ -112,13 +112,17 @@ pub enum RouteNotice {
 }
 
 /// What the session has settled on so far.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct Session {
     /// The language of the last segment that produced text.
     pub(super) last_lang: Option<String>,
     /// A new language waiting for its confirmations.
     pub(super) pending: Option<Pending>,
 }
+
+/// What the session had settled on at a moment, for [`Router::restore_session`].
+#[derive(Debug, Clone, Default)]
+pub struct SessionMark(Session);
 
 pub struct Router<D: Decode, L: Identify> {
     pub(super) decoder: D,
@@ -192,6 +196,19 @@ impl<D: Decode, L: Identify> Router<D, L> {
     /// new stream is a switch away from whatever the last stream said.
     pub fn reset_session(&mut self) {
         self.session = Session::default();
+    }
+
+    /// The session as it stands, for a reading that may be thrown away: a
+    /// reading changes the language the session has settled on and counts a
+    /// detection of a new one, and a reading that is read again would count it twice.
+    pub fn mark_session(&self) -> SessionMark {
+        SessionMark(self.session.clone())
+    }
+
+    /// Puts the session back as [`Router::mark_session`] found it, so that
+    /// what the readings since decided about the language is forgotten.
+    pub fn restore_session(&mut self, mark: SessionMark) {
+        self.session = mark.0;
     }
 
     /// Reads every segment in `lang`, or in the identified language when `None`.
