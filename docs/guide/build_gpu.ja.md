@@ -4,7 +4,7 @@ Rust 版の認識を NVIDIA の GPU（CUDA）で動かすために、sherpa-onnx
 Windows と WSL（Linux）の両方で、1 本の音声を GPU の上で認識するところまでを、実際に打って確かめてあります。
 v2.0.1 と ORT 1.31.1 の build は、2026-10-29 に WSL で打って確かめました。
 RP-17 は 6 本とも通りました（`rp17_passed.json` の `loaded_provider` は `cuda`、ORT は 1.31.1、`onnxruntime_libraries` は 1、9.6 秒の音声から `decoded_chars` が 44。`decode_ms` は run ごとに動き、記録の値は 1743、独立検証の席の run は 674）。
-Windows の build は 2026-10-29 に v2.0.1 と ORT 1.31.1 で打ち直し、build と `hayamimi-gpu` の lib test まで通しました（RP-17 の probe は GPU を使う実走なので、この手順では打っていません。H169）。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。この組は、sherpa-onnx の object を作る前に `hayamimi-gpu` の `library::require()` が止めます（C library の `sherpa_onnx::version()` が `2.0.1` でなければ `GpuError::Library`。H168。v1.13.8 の library を `LD_LIBRARY_PATH` に置いた WSL の実走で止まることを確かめ、Windows でも、`.venv` の Python の wheel が持つ 1.13.6 の library を PATH の先頭に置いた実走で止まることを確かめました）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
+Windows の build は 2026-10-29 に v2.0.1 と ORT 1.31.1 で打ち直し、build と `hayamimi-gpu` の lib test と RP-17 まで通しました（H169）。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。この組は、sherpa-onnx の object を作る前に `hayamimi-gpu` の `library::require()` が止めます（C library の `sherpa_onnx::version()` が `2.0.1` でなければ `GpuError::Library`。H168。v1.13.8 の library を `LD_LIBRARY_PATH` に置いた WSL の実走で止まることを確かめ、Windows でも、`.venv` の Python の wheel が持つ 1.13.6 の library を PATH の先頭に置いた実走で止まることを確かめました）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
 
 ## 結果
 
@@ -229,9 +229,9 @@ WSL の 13.4.3 は、上の「手順（WSL）」の 1 と 2 のとおりです�
 cargo run --release -p xtask -- sherpa-gpu --cuda-dir "%USERPROFILE%\cuda-redist\v13.4.3" --cudnn-dir "<cuDNN 9 の CUDA 13 用 archive を展開した directory>"
 ```
 
-更新前の build は、`native/target/sherpa-gpu-cuda1341`（Windows。`linux` は WSL の `~/.local/share/hayamimi/build/cuda1341` への symlink）に残してあります。
+更新前の build は、`native/target/sherpa-gpu-cuda1341`（Windows。`linux` は WSL の `~/.local/share/hayamimi/build/cuda1341` への symlink）に残してありました。2026-10-29 に Windows の build を作り直した日の `native/target` には、この directory も `sherpa-gpu-repeat` も無く（`sherpa-gpu` だけ。H169）、WSL の `cuda1341` は在りました。
 
-**13.4.1 に戻すとき**：xtask の `--cuda-dir` を元の directory（Windows は installer の `v13.4`、WSL は `/usr/local/cuda-13.4`）に戻して build し直すか、残してある `sherpa-gpu-cuda1341` の `windows\install\lib` を `SHERPA_ONNX_LIB_DIR` にして繋ぎ直します。
+**13.4.1 に戻すとき**：xtask の `--cuda-dir` を元の directory（Windows は installer の `v13.4`、WSL は `/usr/local/cuda-13.4`）に戻して build し直すか、残してあった `sherpa-gpu-cuda1341` の `windows\install\lib` を `SHERPA_ONNX_LIB_DIR` にして繋ぎ直します（今の木には無いので、Windows は `--cuda-dir` を戻して build し直します）。
 13.4.3 の directory は次のように消します。
 
 ```bash
@@ -411,7 +411,7 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 Remove-Item -Recurse -Force "<repo>\native\target\sherpa-gpu"
 ```
 
-Windows の現行（v2.0.1 と ORT 1.31.1。WSL の現行も同じ版の `~/.local/share/hayamimi/build/cuda1343-sherpa201`）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
+Windows の現行（v2.0.1 と ORT 1.31.1。WSL の現行も同じ版の `~/.local/share/hayamimi/build/cuda1343-sherpa201`）の build は `native\target\sherpa-gpu` に在ります。2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に作る置き場で、2026-10-29 の時点では Windows のこの木に無く（Windows の 1.28.3 は未作成、WSL は symlink）、作った物はどれも同じ方法で消せます。
 Windows の `native\target\sherpa-gpu-ort1282` は ORT 1.28.2 の build で、退路ではありません。
 退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1283\<os>\install\lib` にして build します（build.json の ORT の版が 1.28.3 になるので、RP-17 はその版で判定します）。
 WSL に入れた CUDA と cuDNN の戻し方は、「手順（WSL）」の「0. 入れる前の戻し方」にあります。
