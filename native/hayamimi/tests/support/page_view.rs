@@ -195,19 +195,51 @@ pub fn judge_before_final(finals: &[AtFinal]) -> Result<BeforeCheck, Failure> {
     Ok(BeforeCheck { compared, left_out })
 }
 
-/// Whether the strip after the last `final` was judged.
+/// Whether the strip after the `final`s was judged.
 #[derive(Debug, PartialEq, Eq)]
 pub enum AfterCheck {
-    /// The strip read the waiting word of the page and carried `quiet`.
-    Waiting,
+    /// The strip read the waiting word of the page at `emptied` finals that followed a final
+    /// with a partial and had none of their own, and after the last final it read the
+    /// waiting word and carried `quiet`.
+    Waiting { emptied: usize },
     /// Partials reached the page after the last `final`, so the strip may show one.
-    NotJudged { partials: usize },
+    NotJudged { partials: usize, emptied: usize },
 }
 
-/// After the last `final` the strip reads the waiting word and carries `quiet`,
-/// unless a partial came after it. The word before any speech must be one the
-/// page can show, and a run whose last `final` had no partial before it cannot
-/// tell a strip that dropped the partial from one that never held it.
+/// How many finals found the strip at the waiting word although the final before
+/// them had a partial: no partial came in between, so the strip had nothing to
+/// show. A strip that kept the partial of the final before reads it again at
+/// the next final, and that is an error.
+fn emptied_strips(finals: &[AtFinal], waiting: &str) -> Result<usize, Failure> {
+    let mut emptied = 0;
+    for pair in finals.windows(2) {
+        let [before, found] = pair else {
+            continue;
+        };
+        let covered = before
+            .partial
+            .as_deref()
+            .is_some_and(|text| !text.is_empty());
+        if !covered || found.partial.is_some() {
+            continue;
+        }
+        if found.strip.as_deref() != Some(waiting) {
+            return Err(format!(
+                "the final {:?} found the strip reading {:?} with no partial since the final {:?} had covered one",
+                found.id, found.strip, before.id
+            ));
+        }
+        emptied += 1;
+    }
+    Ok(emptied)
+}
+
+/// A final empties the strip: the next final, when no partial came in between,
+/// finds it at the waiting word. After the last `final` the strip reads the
+/// waiting word and carries `quiet`, unless a partial came after it. The word
+/// before any speech must be one the page can show, and a run in which no final
+/// follows a final with a partial and has none of its own cannot tell a strip
+/// that dropped a partial from one that never held it, so it is no pass.
 pub fn judge_after_last(view: &PageStrip, waiting_words: &[String]) -> Result<AfterCheck, Failure> {
     let waiting = view
         .waiting
@@ -218,16 +250,20 @@ pub fn judge_after_last(view: &PageStrip, waiting_words: &[String]) -> Result<Af
             "the strip read {waiting:?} before any speech, which is no waiting word of the page"
         ));
     }
+    if view.at_final.is_empty() {
+        return Err(String::from("no final reached the page"));
+    }
+    let emptied = emptied_strips(&view.at_final, waiting)?;
+    if emptied == 0 {
+        return Err(String::from(
+            "no final followed a final with a partial without a partial of its own, so nothing shows whether a final empties the strip",
+        ));
+    }
     if view.after_last > 0 {
         return Ok(AfterCheck::NotJudged {
             partials: view.after_last,
+            emptied,
         });
-    }
-    let last = view.at_final.last().ok_or("no final reached the page")?;
-    if !last.partial.as_deref().is_some_and(|text| !text.is_empty()) {
-        return Err(String::from(
-            "no partial came before the last final, so the strip after it shows nothing to judge",
-        ));
     }
     if view.text.as_deref() != Some(waiting) {
         return Err(format!(
@@ -240,7 +276,7 @@ pub fn judge_after_last(view: &PageStrip, waiting_words: &[String]) -> Result<Af
             "after the last final the strip did not carry the class quiet",
         ));
     }
-    Ok(AfterCheck::Waiting)
+    Ok(AfterCheck::Waiting { emptied })
 }
 
 /// The three judgements of a run's page, each kept whole so that the record can
@@ -302,12 +338,12 @@ fn before_line(judged: &Result<BeforeCheck, Failure>) -> String {
 
 fn after_line(judged: &Result<AfterCheck, Failure>) -> String {
     match judged {
-        Ok(AfterCheck::Waiting) => {
-            String::from("聞き取りの欄の最後の確定の後: 待ちの文言で、quiet の class を持つ")
-        }
-        Ok(AfterCheck::NotJudged { partials }) => {
-            format!("聞き取りの欄の最後の確定の後: 速報が {partials} 件着いたので判定しない")
-        }
-        Err(said) => format!("聞き取りの欄の最後の確定の後: 不可 {said}"),
+        Ok(AfterCheck::Waiting { emptied }) => format!(
+            "聞き取りの欄の確定の後: 速報の後の確定の次の確定で、間に速報が無く欄が待ちの文言だった確定は {emptied} 件。最後の確定の後は、待ちの文言で、quiet の class を持つ"
+        ),
+        Ok(AfterCheck::NotJudged { partials, emptied }) => format!(
+            "聞き取りの欄の確定の後: 速報の後の確定の次の確定で、間に速報が無く欄が待ちの文言だった確定は {emptied} 件。最後の確定の後に速報が {partials} 件着いたので、その後の欄は判定しない"
+        ),
+        Err(said) => format!("聞き取りの欄の確定の後: 不可 {said}"),
     }
 }

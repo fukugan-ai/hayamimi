@@ -447,7 +447,7 @@ fn the_strip_of_the_page_shows_waiting_after_the_last_final() -> TestResult {
         let view = page_view_of(step)?;
         let after =
             judge_after_last(&view.strip, &words).map_err(|said| format!("{step}: {said}"))?;
-        if after == AfterCheck::Waiting {
+        if matches!(after, AfterCheck::Waiting { .. }) {
             judged += 1;
         }
     }

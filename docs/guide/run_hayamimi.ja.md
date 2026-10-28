@@ -684,12 +684,13 @@ bash scripts/tests-ran.sh <worktree> main <cargo test の log>...
 ```
 
 足した test のうち、log に `test <名前> ... ok` が無い物は `MISSING` と出て、exit は 1 です。
+`#[should_panic]` の test の通った行は `test <名前> - should panic ... ok` の形で、これも通ったと数えます。
 log が読めないときは exit 2 です。
 `#[ignore]` の test は、実走の log を渡すと `ignored ok` と出ますが、合否には数えません。
 記録がまだ無いので走らせられない test は、環境変数 `WAITING` に名前の正規表現を渡すと `waiting` と出て、合否に数えません。
 
 この 2 本が正しく数えることは、`bash tests/tests_ran_verify.sh <空の directory>` で確かめます。
-末尾の `cases=23 failures=0` が通った印です。
+末尾の `cases=26 failures=0` が通った印です。
 
 ## 記録を差し替える push の前
 

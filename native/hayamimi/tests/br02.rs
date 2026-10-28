@@ -10,7 +10,7 @@
 //!
 //! The rows 004 to 007 test the tools that turn the page's two times into a
 //! stage and its percentiles, on stamps written by hand. The row 008 reads the
-//! product's page code. The row 009, T-BR-14-014 to 018 and T-BR-15-008 to 011
+//! product's page code. The row 009, T-BR-14-014 to 020 and T-BR-15-008 to 013
 //! test what the report of the page says about the refined paragraphs and the
 //! listening strip, and how a run's page is judged, on values written by hand.
 
@@ -556,46 +556,101 @@ fn a_strip_that_shows_the_partial_before_a_final_and_waits_after_the_last_is_jud
     let strip = strip_of(finals, 0, WAITING, true);
     assert_eq!(
         judge_after_last(&strip, &waiting_words())?,
-        AfterCheck::Waiting
+        AfterCheck::Waiting { emptied: 1 }
     );
     Ok(())
+}
+
+/// A final with a partial, then a final that no partial came before.
+fn emptied_pair() -> Vec<AtFinal> {
+    vec![
+        at_final("file-1", "こん", Some("こん"), Some(400.0)),
+        at_final("file-2", WAITING, None, None),
+    ]
 }
 
 /// T-BR-15-009
 #[test]
 fn a_strip_that_keeps_the_last_partial_after_the_last_final_is_an_error() -> TestResult {
-    let finals = vec![at_final("file-1", "こん", Some("こん"), Some(400.0))];
     let words = waiting_words();
-    let kept = strip_of(finals.clone(), 0, "こん", false);
+    let kept = strip_of(emptied_pair(), 0, "こん", false);
     let said = judge_after_last(&kept, &words).err();
     assert!(
         said.as_deref()
             .is_some_and(|text| text.contains("after the last final the strip read")),
         "{said:?}"
     );
-    let not_quiet = strip_of(finals.clone(), 0, WAITING, false);
+    let not_quiet = strip_of(emptied_pair(), 0, WAITING, false);
     let said = judge_after_last(&not_quiet, &words).err();
     assert!(
         said.as_deref().is_some_and(|text| text.contains("quiet")),
         "{said:?}"
     );
-    let no_partial = strip_of(
-        vec![at_final("file-1", WAITING, None, None)],
-        0,
-        WAITING,
-        true,
-    );
-    assert!(judge_after_last(&no_partial, &words).is_err());
-    let mut unknown = strip_of(finals.clone(), 0, WAITING, true);
+    let mut unknown = strip_of(emptied_pair(), 0, WAITING, true);
     unknown.waiting = Some(String::from("Listening"));
     assert!(judge_after_last(&unknown, &words).is_err());
+    let no_final = strip_of(Vec::new(), 0, WAITING, true);
+    let said = judge_after_last(&no_final, &words).err();
+    assert!(
+        said.as_deref()
+            .is_some_and(|text| text.contains("no final reached the page")),
+        "{said:?}"
+    );
     // The control: a partial that came after the last final is the strip's to show.
-    let late = strip_of(finals, 2, "次", false);
+    let late = strip_of(emptied_pair(), 2, "次", false);
     assert_eq!(
         judge_after_last(&late, &words)?,
-        AfterCheck::NotJudged { partials: 2 }
+        AfterCheck::NotJudged {
+            partials: 2,
+            emptied: 1
+        }
     );
     Ok(())
+}
+
+/// T-BR-15-012
+#[test]
+fn a_final_that_finds_the_strip_still_showing_the_partial_before_it_is_an_error() {
+    let stale = vec![
+        at_final("file-1", "こん", Some("こん"), Some(400.0)),
+        at_final("file-2", "こん", None, None),
+    ];
+    let said = judge_after_last(&strip_of(stale, 0, WAITING, true), &waiting_words()).err();
+    assert!(
+        said.as_deref()
+            .is_some_and(|text| text.contains("file-2") && text.contains("こん")),
+        "{said:?}"
+    );
+    // The control: a partial that came before the second final is the strip's to show.
+    let shown = vec![
+        at_final("file-1", "こん", Some("こん"), Some(400.0)),
+        at_final("file-2", "次", Some("次"), Some(300.0)),
+        at_final("file-3", WAITING, None, None),
+    ];
+    assert!(judge_after_last(&strip_of(shown, 0, WAITING, true), &waiting_words()).is_ok());
+}
+
+/// T-BR-15-013
+#[test]
+fn a_run_in_which_no_final_follows_a_final_with_a_partial_without_one_of_its_own_is_no_pass() {
+    let words = waiting_words();
+    let alone = vec![at_final("file-1", "こん", Some("こん"), Some(400.0))];
+    let covered = vec![
+        at_final("file-1", "こん", Some("こん"), Some(400.0)),
+        at_final("file-2", "次", Some("次"), Some(300.0)),
+    ];
+    let uncovered = vec![
+        at_final("file-1", WAITING, None, None),
+        at_final("file-2", WAITING, None, None),
+    ];
+    for finals in [alone, covered, uncovered] {
+        let said = judge_after_last(&strip_of(finals, 0, WAITING, true), &words).err();
+        assert!(
+            said.as_deref()
+                .is_some_and(|text| text.contains("whether a final empties the strip")),
+            "{said:?}"
+        );
+    }
 }
 
 /// T-BR-15-010
@@ -620,8 +675,7 @@ fn a_strip_that_differs_from_a_settled_partial_before_a_final_is_an_error() {
 /// T-BR-15-011
 #[test]
 fn the_record_of_a_page_says_which_judgement_failed() -> TestResult {
-    let finals = vec![at_final("file-1", "こん", Some("こん"), Some(400.0))];
-    let strip = strip_of(finals, 0, WAITING, true);
+    let strip = strip_of(emptied_pair(), 0, WAITING, true);
     let good = PageView {
         refines: refines(1, 1, vec![arrival("r-1", false), arrival("r-1", true)]),
         strip: strip.clone(),
