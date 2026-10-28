@@ -490,6 +490,50 @@ grep -c '"event":"asr.draft.ready"' <hayamimi の stdout を残した file>
 0 件の判定は、同じ command の中で、必ず出る `asr.partial.read` も数えて、非 0 の対照を並べます。
 旗を外す時は `--draft-worker off` にします。
 
+## 認識器の thread 数を決める（`--asr-threads`）
+
+認識器は、確定文と速報の音を文字にするモデルです（日本語は `rz`、`--mode pair` の英語は `v3`）。
+1 回の読みに使う CPU の thread 数は、既定で 4 です。
+`--asr-threads <n>` で、1 から 32 の整数に変えられます。
+この数は、確定文の認識器と、`--draft-worker on` の専用の認識器の両方に同じ値で渡ります。
+言語判定、VAD、句読点、話者の thread 数は変わりません。
+`--draft-worker on` と重ねると、確定文の読みと速報の読みが同時に走るので、使う thread は最大でこの数の 2 倍になります。
+
+thread を増やして読みが速くなるかは、モデルと音の長さで変わります。
+同じ音を 4 thread と 8 thread で 2 本ずつ測ると、`v3` の読みは縮み、`rz` の読みは延びました。
+そのため既定は 4 のままです（設計の H83）。
+効きは、BR-3 の run の確定文の `decode_ms` を、`tier`（`rz` か `v3`）と音の長さ（`audio_s`）ごとに数えて確かめます。
+
+```bash
+jq -r 'select(.event.type=="final") | .event | [.tier, .audio_s, .decode_ms] | @tsv' <events.jsonl を残した file>
+jq -r 'select(.event.type=="partial") | .event.type' <events.jsonl を残した file> | wc -l
+```
+
+0 件の判定は、同じ command の中で、必ず出る `partial` も数えて、非 0 の対照を並べます。
+範囲の外の値（0、33、負の数、小数、空、数でない語）は、起動の時に拒否します。
+旗を外す時は `--asr-threads 4` にします。
+
+## 日本語の速報に確定文と同じ後処理を当てる（`--draft-marks`）
+
+速報は、発話の途中で読んだ文字です。
+日本語の認識器（`rz`）が読んだ速報は、既定では辞書の置換だけを通り、数字の書き方（ITN）と句読点は付きません。
+確定文は、ITN、句読点、辞書の置換の順に通ります。
+速報と確定文で文字が違うと、速報の訳を確定文の訳に使い回せず、訳が確定の後に始まります。
+`--draft-marks on` を付けると、`rz` の速報にも確定文と同じ順の後処理が当たります。
+他の言語の速報は変わりません。
+既定は `off` です。
+
+使い回した件数は、BR-3 の run の log で数えます。
+
+```bash
+jq -r 'select(.event=="translate.draft.reused") | .match' <log.jsonl を残した file> | sort | uniq -c
+jq -r 'select(.event=="asr.partial.read") | .event' <log.jsonl を残した file> | wc -l
+```
+
+0 件の判定は、同じ command の中で、必ず出る `asr.partial.read` も数えて、非 0 の対照を並べます。
+`--draft-marks` に `on`、`off` 以外の値を渡すと、起動の時に拒否します。
+旗を外す時は `--draft-marks off` にします。
+
 ## ITN と句読点の後処理の CPU の時間
 
 ```bash
@@ -616,6 +660,37 @@ GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にし�
 Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
+
+## commit の前に、足した test が走ったかを確かめる
+
+足した test と変えた test は、commit の前に実行して、通った行を残します。
+実行できなかった test は、通ったことになりません。
+
+走らせる対象は、差分から導きます。
+
+```bash
+bash scripts/touched-checks.sh <worktree> main
+```
+
+出る行は `-p <crate> --lib` と `-p <crate> --test <名前>` の形です。
+変えた file を持つ crate と、変わった test の file、`tests/support` を変えたときにそれを使う test の file が出ます。
+`# not run:` の行は、走らせなかった test の file の一覧です。
+
+出た対象を `cargo test` で走らせ、log を残します。
+その log に、足した test の全部の通った行があるかを数えます。
+
+```bash
+bash scripts/tests-ran.sh <worktree> main <cargo test の log>...
+```
+
+足した test のうち、log に `test <名前> ... ok` が無い物は `MISSING` と出て、exit は 1 です。
+`#[should_panic]` の test の通った行は `test <名前> - should panic ... ok` の形で、これも通ったと数えます。
+log が読めないときは exit 2 です。
+`#[ignore]` の test は、実走の log を渡すと `ignored ok` と出ますが、合否には数えません。
+記録がまだ無いので走らせられない test は、環境変数 `WAITING` に名前の正規表現を渡すと `waiting` と出て、合否に数えません。
+
+この 2 本が正しく数えることは、`bash tests/tests_ran_verify.sh <空の directory>` で確かめます。
+末尾の `cases=26 failures=0` が通った印です。
 
 ## 記録を差し替える push の前
 

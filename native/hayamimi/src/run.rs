@@ -105,6 +105,8 @@ fn settings_of(args: &Args, gpu: Gpu) -> (Settings, Option<Notice>) {
     settings.max_resident = args.max_resident;
     settings.endpoint = args.endpoint;
     settings.draft_worker = args.uses_draft_worker();
+    settings.asr_threads = args.asr_threads;
+    settings.draft_marks = args.draft_marks;
     settings.policy = args.policy();
     let mut notice = None;
     if let Some(path) = &args.replace {
@@ -729,6 +731,8 @@ mod tests {
             final_midway: true,
             held_reuse: hayamimi_asr::endpoint::HeldReuse::Covering,
             draft_worker: false,
+            asr_threads: hayamimi_asr::recognizer::THREADS,
+            draft_marks: false,
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -796,6 +800,28 @@ mod tests {
     fn the_state_of_the_gpu_reaches_the_settings() {
         let (settings, _) = settings_of(&args_with(None, None), Gpu::Absent(Reason::NoDevice));
         assert_eq!(settings.gpu, Gpu::Absent(Reason::NoDevice));
+    }
+
+    /// T-BR-39-009
+    #[test]
+    fn the_settings_of_a_run_take_the_thread_count_of_its_arguments() {
+        let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
+        assert_eq!(settings.asr_threads, hayamimi_asr::recognizer::THREADS);
+        let mut eight = args_with(None, None);
+        eight.asr_threads = 8;
+        let (settings, _) = settings_of(&eight, Gpu::Try);
+        assert_eq!(settings.asr_threads, 8);
+    }
+
+    /// T-BR-40-008
+    #[test]
+    fn the_settings_of_a_run_take_the_draft_marks_of_its_arguments() {
+        let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
+        assert!(!settings.draft_marks);
+        let mut marked = args_with(None, None);
+        marked.draft_marks = true;
+        let (settings, _) = settings_of(&marked, Gpu::Try);
+        assert!(settings.draft_marks);
     }
 
     #[test]

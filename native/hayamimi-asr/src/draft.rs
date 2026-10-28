@@ -63,6 +63,11 @@ impl WorkerReader {
             preload,
         }
     }
+
+    /// How many threads each recognizer of the worker uses.
+    pub fn threads(&self) -> i32 {
+        self.recognizers.threads()
+    }
 }
 
 impl DraftReader for WorkerReader {

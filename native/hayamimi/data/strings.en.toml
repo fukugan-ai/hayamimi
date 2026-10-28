@@ -83,6 +83,8 @@ options:
   --final-lid <rule>   with --mode pair, midway (default) takes the language of a final from the question put when its voice reached four seconds, close asks only when the utterance ends
   --held-reuse <rule>  covering (default) uses the sentence read at an early notice as the final when it ends inside the silence that closed the utterance, strict only when it ends within one window (32 ms)
   --draft-worker <on|off>  on reads the drafts of the utterance in progress on a thread of its own with recognizers of its own, so that a draft never holds the feed back (default off; it keeps more recognizers in memory)
+  --asr-threads <n>    threads each recognizer uses, a whole number from 1 to 32 (default 4)
+  --draft-marks <on|off>  on gives the drafts of the Japanese recognizer the ITN and the punctuation of a final, so that the translation of a draft more often stands for the translation of the final (default off)
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
@@ -101,6 +103,8 @@ partial_lid_unsupported = "--partial-lid is one of on, off."
 final_lid_unsupported = "--final-lid is one of midway, close."
 held_reuse_unsupported = "--held-reuse is one of covering, strict."
 draft_worker_unsupported = "--draft-worker is one of on, off."
+asr_threads_unsupported = "--asr-threads is a whole number from 1 to 32."
+draft_marks_unsupported = "--draft-marks is one of on, off."
 lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."

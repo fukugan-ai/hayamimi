@@ -3737,13 +3737,13 @@ fixture の行だけを打つ時は `-- --ignored` を外す。
 - `?relay=` の scheme の大文字小文字、decode した値の前後の空白、`held` の訳の描き方（印と理由を出し、訳の文を出さない）：10.5（T-IP-05-002、012、014、017 から 019）。
 - `--own-llama-port` の型と範囲（`0`、`65535`、`65536`、負の数、空の値、先頭に 0 のある引数、引数の重複）：10.7.1（T-IP-08-013、015 から 022）。
 
-### 4.87 BR-1〜BR-38（対面のモードの磨き上げ）
+### 4.87 BR-1〜BR-40（対面のモードの磨き上げ）
 
 **最新情報**：Chrome DevTools Protocol の CSS domain は、`CSS.getPlatformFontsForNode` が node の子の文字を描いた platform font の使用状況（`familyName`、`postScriptName`、`isCustomFont`、`glyphCount`）を返すと書く（https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/json/browser_protocol.json 、取得 2026-10-23）。
 
 test：受入 test の名前と置き場は設計 10.13.8、10.13.11、10.13.12 の表が決めている。
-case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 38 まである。
-case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 14 つである。
+case の `T-BR-<n>-` の `<n>` は 2 桁で、01 から 40 まである。
+case 行の test は、受入 test の置き場（設計の表の最初の file）に置く。例外は次の 16 つである。
 
 - T-BR-13-008 は `native/hayamimi/src/ingest.rs` の `mod tests`。
 - BR-5 の `Mailbox` と stream の経路の行（T-BR-05-008 から 018）は `native/hayamimi-relay/src/partial.rs` の `mod tests`、引数の行（020 から 024）は `native/hayamimi-relay/src/cli.rs` の `mod tests`。
@@ -3751,7 +3751,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-6 の純関数の行は `native/hayamimi/src/log.rs` の `mod tests`、VAD を通す行は `native/hayamimi-asr/src/vad.rs` の `mod tests`。
 - BR-4 の T-BR-04-009 と T-BR-04-015 から 022 は BR-3 の run の記録と、その言語ごとの分け方と、`L_tr` の線の判定を読むので `native/hayamimi/tests/br03.rs`。
 - T-BR-04-013 と 014 は log の行を組む関数の test なので `native/hayamimi/src/log.rs` の `mod tests`。
-- BR-14 と BR-15 の純関数の行は `native/hayamimi-ui/src/model.rs` の `mod tests`、実走の行は `native/hayamimi/tests/br14.rs`。
+- BR-14 と BR-15 の純関数の行は `native/hayamimi-ui/src/model.rs` の `mod tests`、頁の報告を判定する関数を手書きの値で試す行（T-BR-14-014 から 020、T-BR-15-008 から 013）は `native/hayamimi/tests/br02.rs`、実走の記録を読む行（T-BR-14-010、T-BR-15-005、006）は `native/hayamimi/tests/br03.rs`。
 - BR-19、BR-21、BR-22、BR-23、BR-24、BR-25、BR-30 の純関数の行は `native/hayamimi-ui/src/dashboard.rs` の `mod tests`。
 - BR-22 と BR-23 の実走の行は `native/hayamimi/tests/br21.rs`、BR-25 の実走の行は `native/hayamimi/tests/br24.rs`、BR-31 の実走の行は `native/hayamimi/tests/br30.rs`。
 - BR-26 と BR-27 の中継の行は `native/hayamimi-relay/tests/br26.rs` と `br27.rs`。
@@ -3759,6 +3759,8 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-36 の旗の行（T-BR-36-011）は `native/hayamimi/src/args.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 015 と 019）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 010、016 から 018）は `native/hayamimi-asr/tests/br36.rs`。
 - BR-37 の旗の行（T-BR-37-011）は `native/hayamimi/src/args.rs` の `mod tests`、定数の行（015）は `native/hayamimi-asr/src/partial.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 014）は `native/hayamimi/tests/br03.rs`。
 - BR-38 の旗の行（T-BR-38-016）は `native/hayamimi/src/args.rs` の `mod tests`、log の行（017）は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行（021）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行と記録を読む行（018 から 020）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 015 と 022）は `native/hayamimi-asr/tests/br38.rs`。
+- BR-39 の旗の行（T-BR-39-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（005）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run と記録の行（006、007、008）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（009）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（003、004）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
+- BR-40 の旗の行（T-BR-40-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（003）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）と、その記録を読む行（009）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（008）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（004、005）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -3850,10 +3852,11 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-02-006 | 道具：`L_pg` が 10、20、30、40 の 4 件 | nearest-rank の n = 4 | p50 は 2 番目、p95 は 4 番目 | p50 が 20、p95 が 40（derived：本節の nearest-rank。4.1） | 陽性 | `the_page_stage_percentiles_are_nearest_rank` |
 | T-BR-02-007 | 道具：同じ `L_pg` の組に、道具の時計の時刻（`t_tr` ほか）へ 1 秒を足した物を添えて 2 回渡す | 道具の時計の値 | 頁の段は頁の時計だけ | 2 回の `L_pg` の列が等しい（property：頁の段が道具の時計に依らない。specified：設計 10.13.3「頁の段は、頁の時計の 2 つの時刻の差だけで取る」） | property | `the_page_stage_does_not_depend_on_the_tool_clock` |
 | T-BR-02-008 | 道具と実物：`rg -n 'p_arrive\|p_draw' native/hayamimi-ui/src native/hayamimi/data/pages`、陽性対照として同じ式を `native/hayamimi/tests/br02.rs` に | 製品の頁の code に測りの口が無い | 0 件 | 製品側 0 件（rg の rc 1）、test 側 1 件以上（specified：設計 10.13.3「製品の頁の code には測りの口を足さない」。0 件は陽性対照の非 0 が付いて初めて読む） | 陽性、陰性 | `no_product_page_code_carries_the_measuring_hook` |
+| T-BR-02-009 | 道具：頁の報告の text に、清書の欄（流し直す前と後の `.refine-text` の数、届いた清書の `id` と話者と流し直した印）と聞き取りの欄（音の前の文、各 `final` が届いた時の欄の文と直前の速報、最後の `final` の後に着いた速報の数、読んだ時の文と `quiet`）を足した形を渡す。その欄を欠いた報告も渡す | 報告の形 | 全部の欄が要る | 足した欄が `PageRecord` の `refines` と `strip` に入る。欄を欠いた報告（欄を足す前の script の形）は誤りになる（specified：設計 10.13.3 と 10.13.13 の BR-14、BR-15） | 陽性、陰性 | `a_page_report_carries_the_refined_paragraphs_and_the_strip` |
 
 **BR-3（予算の線。`native/hayamimi/tests/br03.rs`）**
 
-材料：実走は、段ごとの値を `docs/results/in-person/<step>.md` に、標本と events を同じ名前の `.jsonl` と `.events.jsonl` に、run の log のうち速さの手が読む event（`asr.vad.closed`、`asr.partial.lang.asked`、`translate.slot.waited`、`translate.partial.skipped`、`translate.draft.reused`）の行を `.log.jsonl` に残す。`translate.draft.reused` は確定が速報の訳を使い回した行で、言語は同じ記録の `.events.jsonl` の確定の行の `id` から引く（設計 10.13.10 の H51）。`<step>` は手ごとに変え（IP-S7 と IP-S8 を入れた形は `br03_ip_s8`、旗で IP-S8 を外した対照は `br03_ip_s8_lid_only`、2 つとも外した対照は `br03_ip_s8_both_off`）、前の手の記録を上書きしない。
+材料：実走は、段ごとの値を `docs/results/in-person/<step>.md` に、標本と events を同じ名前の `.jsonl` と `.events.jsonl` に、run の log のうち速さの手が読む event（`asr.vad.closed`、`asr.partial.lang.asked`、`translate.slot.waited`、`translate.partial.skipped`、`translate.draft.reused`）の行を `.log.jsonl` に、頁が見せた清書の欄と聞き取りの欄（頁に届いた清書の `id` と話者、各 `final` が届いた時の欄の文）を `.page.json` に残す。`translate.draft.reused` は確定が速報の訳を使い回した行で、言語は同じ記録の `.events.jsonl` の確定の行の `id` から引く（設計 10.13.10 の H51）。`<step>` は手ごとに変え（IP-S7 と IP-S8 を入れた形は `br03_ip_s8`、旗で IP-S8 を外した対照は `br03_ip_s8_lid_only`、2 つとも外した対照は `br03_ip_s8_both_off`）、前の手の記録を上書きしない。
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -4048,7 +4051,7 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-13-007 | 記録 C の発話 1 の `final` を取り除き（行 1 に `final` が無い）、同じ関数に渡す | 最初の `final` が欠ける | 起点は `final` に頼らない | 発話 2 から 4 の `final` が窓 2 から 4 に 1 件ずつ割り当たる（`finals` が 0、1、1、1）。最初の `final` を起点にする実装は、発話 2 の `final` を窓 1 に置いて落ちる（specified：設計 10.13.13 の 10「最初の final を起点にする形は採らない」） | 陰性 | `the_origin_does_not_depend_on_the_first_final_of_the_connection` |
 | T-BR-13-008 | `native/hayamimi/src/ingest.rs` の `mod tests`：`ready` の frame を作る関数に、流れの位置 30904000 µs を渡す | `ready` の項目 | `stream_s` は秒の数 | frame の JSON に `stream_s` が数 30.904 で在り、`type` が `ready`、`sr` が 16000 のまま。流れの位置 0 では `stream_s` が数の 0（欠けでも null でもない）（specified：設計 10.13.13 の 10。足した key は既存の key と型を変えない：`rust_port.ja.md` の RP-12） | 陽性、境界 | `the_ready_frame_carries_the_stream_position_in_seconds` |
 
-**BR-14（同じ `id` の清書が頁で 1 行になる。`native/hayamimi-ui/src/model.rs`、実走は `native/hayamimi/tests/br14.rs`）**
+**BR-14（同じ `id` の清書が頁で 1 行になる。`native/hayamimi-ui/src/model.rs`、手書きの値の判定は `native/hayamimi/tests/br02.rs`、実走の記録を読む行は `native/hayamimi/tests/br03.rs`）**
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -4064,9 +4067,16 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-14-007 | `r-1` を話者 `S1?` と text `A` で、同じ `id` を text `B` で `apply` する | 本文が変わる | 後の物 | 行の本文が `B`（specified：BR-14「話者は後の物」と同じく、後の清書で置き換える） | 境界 | `the_later_refine_replaces_the_text_as_well` |
 | T-BR-14-008 | 置き換えの前後の `refine_total()` と `dropped_refines` | 置き換えは新しい行でない | 総数が増えない | 置き換えの後の `refine_total()` が前と同じ（1）。末尾へ追う動きを起こさない（derived：頁の `use_follow` が総数の増加で動く） | 境界 | `a_replacement_does_not_grow_the_refined_total` |
 | T-BR-14-009 | 異なる `id` の清書を 500 件 `apply` し（`ROW_LIMIT`）、最後の `id` をもう一度 `apply` する | 上限ちょうどでの置き換え | 古い行を落とさない | `refines` が 500 行のまま、`dropped_refines` が 0（置き換えが上限の押し出しを起こさない）。501 件目の異なる `id` は `dropped_refines` が 1 になる（specified：設計 10.13.13 の 27「置き換えは行の数を変えないので、古い行を押し出さない」。後者が陽性対照） | 境界 | `a_replacement_at_the_row_limit_drops_nothing` |
-| T-BR-14-010 | 実走：頁を開いたまま `lat-dialog` を流し、頁に届いた清書の `id` と話者を記録する | 実際の二重送り | 行の数 = `id` の数 | `.refine-text` の数が、届いた清書の異なる `id` の数と等しい。同じ `id` が 2 回以上届いた `id` が 1 つ以上ある run でなければ、通と読まずに「重なりが起きなかった」で落ちる（specified：BR-14。設計 10.13.10 の H57。0 件の判定を通と読まない） | 陽性 | `the_refined_rows_of_the_page_are_as_many_as_the_distinct_ids_that_arrived` |
+| T-BR-14-010 | 実走の記録：IP-S21 の BR-3 の 4 本の `<step>.page.json`（頁に届いた清書の `id` と話者、全行が描けた後に script が頁へ流し直した清書 3 件、流し直す前と後の `.refine-text` の数と、流し直す前の行を読んだ時に届いていた件数） | 実際の頁での重なり | 行の数 = 異なる `id` の数 | `refines.rows_before` が `arrived` の先頭 `arrived_before` 件の、`refines.rows` が `arrived` の全件の、異なる `id` の数（`id` の無い到着は 1 件ごとに 1 行）と等しい。`arrived` が 0 件の run と、流し直した件（`replayed` が真）が 0 件の run は、通と読まずに落ちる（specified：BR-14。設計 10.13.10 の H57。0 件の判定を通と読まない。derived：BR-3 の流れでは同じ `id` が自然には重ねて届かないので、重なりは script の流し直しで作る） | 陽性 | `the_refined_rows_of_the_page_are_as_many_as_the_distinct_ids_that_arrived` |
+| T-BR-14-014 | 純関数（`br02.rs`）：`arrived` が `r-1`、`r-2`、`r-1`（3 つ目は流し直した印つき）で、流し直す前も後も行が 2 | 重なりを流し直した頁 | 2 行 | 判定が通り、届いた 3 件、行 2、重ねて届いた 1 件、流し直した 1 件を返す（specified：BR-14） | 陽性 | `a_page_with_one_row_for_each_distinct_id_is_judged_and_the_repeats_are_counted` |
+| T-BR-14-015 | 純関数：T-BR-14-014 と同じ `arrived` で、流し直した後の行が 3（流し直す直前の行は 2）。流し直す直前から行が 3 | 置き換えず足す頁 | 行 = 異なる `id` の数 | どちらも判定が落ちる。前者の文に、流し直した後の行 3 と段落 2 が入る（specified：BR-14 の陰性対照。置き換えを持たない頁の形） | 陰性 | `a_page_with_a_row_for_every_arrival_is_not_a_page_that_replaces` |
+| T-BR-14-016 | 純関数：`arrived` が空。`arrived` が流し直しの無い 2 件。`id` の無い到着 2 件と `r-1` の到着と流し直し | 0 件と、`id` の無い到着 | 0 件は不可 | 空は落ち、流し直しの無い run は「流し直した清書が無い」で落ちる。`id` の無い到着は 1 件ごとに 1 行で、3 行と数えて通る（specified：設計 10.13.10 の H57。0 件の判定を通と読まない） | 境界 | `a_run_with_no_arrival_or_no_replay_is_no_pass_and_an_arrival_without_an_id_is_a_row` |
+| T-BR-14-017 | 純関数：異なる `id` がちょうど 500 件で行が 500。異なる `id` が 501 件で行が 500 | 頁が持つ行の上限 | 500 | 500 件は通り、501 件は「頁が持つ 500 を超える」で落ちる（specified：設計 10.13.13 の 27。頁が持てない件数を行の数の食い違いと読まない） | 境界 | `the_rows_the_page_keeps_are_the_limit_of_what_is_judged` |
+| T-BR-14-018 | 純関数：流し直す前の行を読んだ時に届いていた清書が 1 件（`r-1`）、その後に `r-2` が届き、`r-1` を流し直した頁で、行が流し直す前に 1、読んだ時に 2。流し直す前の行を 2 とした報告。届いていた件数を到着の数より多くした報告 | 行を読んだ後に届いた清書 | 読んだ時に届いていた件数までで数える | 1 つ目は通り、行は 2 と数える。2 つ目は流し直す前の行が食い違って落ちる。3 つ目は「流し直す前の到着が 4 件」と言って落ちる（derived：頁は届いた清書を少し遅れて描くので、行を読んだ時に届いていた件数で数えないと、読んだ後に届いた清書を食い違いと読む） | 境界 | `a_paragraph_that_arrived_after_the_rows_were_first_read_is_a_row_of_the_second_reading_only` |
+| T-BR-14-019 | 純関数：`r-1` の到着の次に、`r-2` を流し直した印つきで置いた `arrived` | 既出でない `id` の流し直し | 流し直した到着は、先に届いた同じ `id` の再送 | 頁を組む `refines()` が「到着 1 は流し直したのに、先に届いた同じ `id` が無い」と言って止まり、判定へ渡らない（derived：測る script は届いた清書をそのまま流し直すので、既出でない `id` の流し直しは fixture の取り違えで、判定の落ちとは別の失敗である） | 陰性 | `a_replayed_paragraph_whose_id_did_not_arrive_stops_where_the_page_is_built` |
+| T-BR-14-020 | 純関数：`r-1`、`r-1`（流し直した印つき）、`r-2` の順に置いた `arrived` | 流し直しの後に並ぶ到着 | 流し直していない到着が先に並ぶ | `refines()` が「到着 2 は流し直していないのに、流し直した到着の後に続く」と言って止まる（derived：流し直す前の件数を、流し直していない到着の数として導くので、後ろに混ざると件数が頁の読みとずれる） | 陰性 | `an_arrival_that_was_not_replayed_after_a_replayed_one_stops_where_the_page_is_built` |
 
-**BR-15（`final` が覆った速報が Listening の欄に残らない。`native/hayamimi-ui/src/model.rs`、実走は `native/hayamimi/tests/br14.rs`）**
+**BR-15（`final` が覆った速報が Listening の欄に残らない。`native/hayamimi-ui/src/model.rs`、手書きの値の判定は `native/hayamimi/tests/br02.rs`、実走の記録を読む行は `native/hayamimi/tests/br03.rs`）**
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
@@ -4074,8 +4084,14 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 | T-BR-15-002 | 速報 `こん` だけを `apply` | `final` が無い | 欄に出る | `strip_text` が `こん`（specified：BR-15 の陽性対照） | 陽性 | `a_partial_alone_stays_in_the_strip` |
 | T-BR-15-003 | 速報の訳（`of: partial`）が付いた速報の後に `final` を `apply` | 速報の訳と欄の文 | 両方消える | `strip_text` が空で、`partial_tr` が `None`（今在る test `a_final_empties_the_partial_line_and_the_translation_of_the_partial` の末尾の `strip_text` の期待値は `こん` から空へ替える。specified：BR-15。derived：その test の今の主張） | 陽性 | `a_final_empties_the_strip_text_together_with_the_partial_translation` |
 | T-BR-15-004 | 速報の無いまま `final` を `apply` | 速報が先に無い | 空のまま | `strip_text` が空で、その他の状態が `final` の分だけ動く（`finals` が 1 行） | 境界 | `a_final_with_no_partial_before_it_leaves_the_strip_empty` |
-| T-BR-15-005 | 実走：頁を開いたまま `lat-dialog` を流し、最後の `final` の後の `.strip` と `.strip-text` を読む。最後の `final` の前に届いた最後の速報の text を `/events` から取る | 実際の流れの最後 | 速報の文が残らない | `.strip-text` の text が、頁の言語の `waiting` の文言（`strings.en.toml` と `strings.ja.toml`）と等しく、最後の速報の文の字を 1 つも含まず、`.strip` が class `quiet` を持つ。DOM の文字列が 0 字であることは求めない。最後の速報の text が空の run は通と読まない（specified：BR-15 の陰性対照と設計 10.13.13 の 16） | 陰性 | `the_strip_of_the_page_shows_waiting_after_the_last_final` |
-| T-BR-15-006 | 実走：005 の run の最後の `final` の直前（最後の速報の後） | 速報の後で `final` の前 | 速報が出る | `.strip-text` の text が最後の速報の text と等しい（005 が読む欄が、速報の間は文を出すことを見る陽性対照） | 陽性 | `the_strip_of_the_page_shows_the_partial_before_its_final` |
+| T-BR-15-005 | 実走の記録：IP-S21 の BR-3 の 4 本の `<step>.page.json` の `strip`（音の前の欄の文、各 `final` が届いた時の欄の文とその `final` の前に届いた速報、最後の `final` の後に着いた速報の数、読んだ時の欄の文と `quiet` の class） | 実際の流れ | 速報の文が残らない | 音の前の欄の文が、頁の言語の `waiting` の文言（`native/hayamimi-ui/data/strings.en.toml` と `strings.ja.toml` の `ui.dashboard.waiting`）のどちらかである。速報を持つ `final` の次の `final` のうち、間に速報が届いていない物が届いた時の欄の文は、その文言と等しい。そういう `final` が 1 件も無い run は、通と読まずに落ちる。最後の `final` の後に速報が着いていない run では、読んだ時の欄の文がその文言と等しく、`quiet` の class を持つ。等しいことが、速報の文が残らないことを含む。DOM の文字列が 0 字であることは求めない。最後の `final` の後に速報が着いた run は、その後の欄を判定せず、4 本のうち 1 本も後の欄を判定できなければ落ちる（specified：BR-15 の陰性対照と設計 10.13.13 の 16） | 陰性 | `the_strip_of_the_page_shows_waiting_after_the_last_final` |
+| T-BR-15-006 | 実走の記録：同じ `strip` の各 `final` の行（`final` が届いた時の欄の文、その前に届いた最後の速報の文、その速報が `final` の何 ms 前に届いたか） | 速報の後で `final` の前 | 速報が出る | 速報が `final` の 150 ms 以上前に届いた `final` のすべてで、欄の文がその速報の文と等しい。速報が 150 ms に満たない前に届いた `final` と、速報の無い `final` は比べない。比べた `final` が 0 件の run は落ちる（005 が読む欄が、速報の間は文を出すことを見る陽性対照）（specified：BR-15。derived：頁は速報を非同期に描くので、150 ms は描き終える猶予） | 陽性 | `the_strip_of_the_page_shows_the_partial_before_its_final` |
+| T-BR-15-008 | 純関数（`br02.rs`）：`final` 4 件（速報と一致して 400 ms 前、速報なしで欄が待ちの文言、149 ms 前の速報、ちょうど 150 ms 前の速報と一致）。最後の `final` の後に速報が着かず、欄が待ちの文言で `quiet` | 描き終える猶予の境界 | 150 ms | 比べた 2 件、比べなかった 2 件で通る。`final` が欄を空にした件は 1 件で、最後の `final` の後は待ちの判定が通る（specified：BR-15） | 陽性、境界 | `a_strip_that_shows_the_partial_before_a_final_and_waits_after_the_last_is_judged` |
+| T-BR-15-009 | 純関数：速報を持つ `final` の次に速報の無い `final` が在る run で、最後の `final` の後も欄が速報のまま。待ちの文言だが `quiet` の class が無い。音の前の文が頁の言語の待ちの文言のどれでもない。`final` が 0 件。最後の `final` の後に速報が 2 件着き、欄がそれを出している | 欄に速報が残る頁と、残ってよい頁 | 待ちの文言と `quiet` | 前の 4 つは落ちる（4 つ目は `final` が頁に届いていないと言う）。最後は判定せず、着いた速報 2 件と言う（specified：BR-15 の陰性対照、設計 10.13.13 の 16、5） | 陰性 | `a_strip_that_keeps_the_last_partial_after_the_last_final_is_an_error` |
+| T-BR-15-010 | 純関数：速報 `こん` が 400 ms 前に届いたのに欄が `こ`。欄が待ちの文言のままで、速報が 100 ms 前に届いた `final` と速報の無い `final`。`final` が 0 件 | 欄が速報を出さない頁 | 一致 | 1 つ目は落ちて `id` と速報の文を言う。2 つ目は比べた `final` が 0 件で落ちる。3 つ目は落ちる（specified：BR-15。何も出さない欄を通と読まない） | 陰性 | `a_strip_that_differs_from_a_settled_partial_before_a_final_is_an_error` |
+| T-BR-15-011 | 純関数：清書の行と欄が正しい頁の判定。清書の行が流し直した後に 1 行多い頁の判定 | 記録の文 | どの判定が落ちたか | 前者は失敗が無く、記録の節に「清書の行: 頁の行は 1 行」と「待ちの文言」が入る。後者は最初の失敗の文に `refine-text` が入り、記録の節に「清書の行: 不可」が入る（specified：設計 10.13.4。0 件や不可を記録に残す） | 境界 | `the_record_of_a_page_says_which_judgement_failed` |
+| T-BR-15-012 | 純関数：速報 `こん` を持つ `final` の次の `final` で、その間に速報が届いていないのに欄が `こん` のまま。対照は、2 件目の `final` の前に速報 `次` が届き、3 件目の `final` で欄が待ちの文言の run | `final` が欄を空にしない頁 | `final` の後の欄は待ちの文言 | 1 つ目は落ちて、2 件目の `id` と `こん` を言う。対照は通る（specified：BR-15。derived：前の速報が残っていれば、次の `final` が届いた時にも同じ文が読める） | 陰性 | `a_final_that_finds_the_strip_still_showing_the_partial_before_it_is_an_error` |
+| T-BR-15-013 | 純関数：`final` が 1 件だけの run。2 件の `final` の 2 件目の前にも速報が届いた run。速報が 1 件も届かない 2 件の `final` | 速報を持つ `final` の次に、速報の無い `final` が無い run | `final` が欄を空にするかの判定 | 3 つとも落ちて、`final` が欄を空にするかを示す物が無いと言う（specified：BR-15。欄が速報を持たなかったのか、`final` が空にしたのかを区別できない run を通と読まない） | 陰性 | `a_run_in_which_no_final_follows_a_final_with_a_partial_without_one_of_its_own_is_no_pass` |
 | T-BR-15-007 | 純関数：発話 1 の速報 `こん` を `apply`、発話 2 の速報 `次` を `apply`、続けて発話 1 の `final`（遅れて着いた物）を `apply`。続けて発話 2 の速報 `次の` を `apply` | `final` が次の速報より遅れる | `final` は着いた時に必ず空にする | 遅れた `final` の後で `strip_text` が空（`次` も消える）、次の速報の後で `次の`（specified：設計 10.13.13 の 5。どの速報がどの `final` に覆われたかは見分けない） | 境界 | `a_late_final_empties_the_strip_and_the_next_partial_fills_it_again` |
 
 **B4（別の PC のブラウザから音を送る頁）の行：BR-16、BR-17、BR-18、BR-35**
@@ -4527,6 +4543,38 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-38-021 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `asr.partial.read`、`asr.draft.ready`、`asr.draft.lost` の message を引く | 2 つの言語 | event 3 つ | 6 つの message がどれも空でなく、2 つの言語で違う文である（specified：log の文言を locale で切り替える決め） | 陽性 | `the_draft_lines_have_a_message_in_both_languages` |
 | T-BR-38-022 | 台本の `prepare` が panic して worker の thread が終わる。`wait_ready` を呼ばず、`History` の終わりを 8 000 にして、`step`（worker を持たない時の reader は `"inline"` と答える台本）を、`take_notes` に `Lost` が出る呼びまで繰り返す（呼びの間は 1 ms 眠り、上限 10 秒） | `step` の中で見つかる終わった worker | `wait_ready` が終わりを見つけない | `Lost` が出た呼びは、同じ呼びで `Ok(Some("inline"))` を返し、`take_notes` は `Lost` をちょうど 1 件返す。その前の呼びは `Ok(None)` で、reader は呼ばれない。reader が呼ばれた回数は 1 回、音は 8 000 標本、thread は test の thread。`has_worker` は偽（specified：設計の BR-38 の行「worker の thread が終わった時は、その後の速報を loop が読み、終わったことを 1 度だけ log に残す」。011 は `wait_ready` が終わりを見つける順で、これは `step` が見つける順である。見つけた呼びで読まなければ、その呼びの速報が 1 回欠ける） | 陰性 | `a_worker_found_gone_by_the_step_itself_is_replaced_by_the_inline_read_in_that_call` |
 
+**BR-39（認識器の thread 数を引数で決める。旗の行は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行は `native/hayamimi/src/strings.rs` の `mod tests`、設定から認識器の集まりへの行は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`、run の記録の行は `native/hayamimi/tests/br03.rs`）**
+
+材料：`hayamimi::args::parse` に引数の並びを渡し、`Args` の `asr_threads` と `ArgError` を読む。`hayamimi_asr::pipeline` の `Settings::new` が返す設定の `asr_threads` を変え、非公開の `recognizers_of` と `worker_reader` が作る物の `threads` を読む（model は読まない）。実走は BR-3 の harness が `--asr-threads` を付けて `lat-dialog` を `--repeat 3` で流し、記録を `docs/results/in-person/` に書く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-39-001 | 純関数：`--wav a` に `--asr-threads` を付けない行と、`1`、`4`、`8`、`32` を付けた行を `parse` に渡す | 既定と範囲の中 | 1 から 32 | 付けない行は `asr_threads` が `hayamimi_asr::recognizer::THREADS`（4）である。付けた行は渡した数と等しい（specified：設計 10.13.4 の手 10。`--asr-threads 4` で今の形） | 境界 | `asr_threads_starts_at_the_recognizer_default_and_takes_one_to_thirty_two` |
+| T-BR-39-002 | 純関数：`--asr-threads` に `0`、`33`、`-1`、`8.5`、空、`four`、`2147483648` を付けた行と、値の無い行を `parse` に渡す | 範囲の外と、数でない値 | 1 から 32 | 値のある行は `ArgError::AsrThreadsUnsupported`、値の無い行は `ArgError::MissingValue` である。`AsrThreadsUnsupported` の key は `asr_threads_unsupported`（specified：同） | 陰性 | `asr_threads_refuses_what_is_not_a_whole_number_from_one_to_thirty_two` |
+| T-BR-39-003 | 純関数：`Settings::new` が返す設定と、`asr_threads` を 8 にした設定から `recognizers_of` で認識器の集まりを作り、`threads` を読む | 既定と指定 | 4 と 8 | 既定の設定は `asr_threads` が `THREADS`（4）で、作った集まりの `threads` も 4 である。8 にした設定からは 8 である（specified：設計 10.13.9 の IP-S18「`pipeline.rs` の `Settings` の `asr_threads` と `recognizers_of`」。集まりを作るだけで model は読まない） | 境界 | `the_recognizers_of_a_run_are_opened_with_the_thread_count_of_its_settings` |
+| T-BR-39-004 | 純関数：`asr_threads` を 8 にした設定から `worker_reader` で速報の worker の reader を作り、`threads` を読む | 速報の worker | 8 | 8 である（specified：設計 10.13.4 の手 10。経路の認識器と同じ数で、worker の認識器だけが 4 のまま残らない） | 陰性 | `the_draft_worker_opens_its_recognizers_with_the_same_thread_count` |
+| T-BR-39-005 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `help` の文と `asr_threads_unsupported` の文を引く | 2 つの言語 | 文 2 つ | どちらの `help` も `--asr-threads <n>` を含み、拒否の文は `--asr-threads` と `32` を含み、2 つの言語で違う文である（specified：command line の文言を locale で切り替える決め） | 陽性 | `the_asr_threads_help_line_and_refusal_are_in_both_languages` |
+| T-BR-39-006 | 実走：BR-3 の harness が `--asr-threads 8` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s18`） | 8 thread の run | 記録が揃う | `br03_ip_s18.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれる（specified：設計 10.13.9 の IP-S18「記録：BR-3 の run の確定文の `decode_ms`」） | 陽性 | `the_run_with_eight_asr_threads_is_recorded` |
+| T-BR-39-007 | 実走：同じ harness が `--asr-threads 4` を付けて流して記録する（step は `br03_ip_s18_four`） | 4 thread の run | 記録が揃う | 006 と同じ 4 つの file が書かれる（specified：006 の対照の run） | 陽性 | `the_run_with_four_asr_threads_is_recorded` |
+| T-BR-39-008 | 純関数と記録：確定文の並び（`id`、`lang`、`text`）を比べて、`text` が違う確定文を数える関数に、同じ 2 件、1 件だけ `text` が違う 2 件、1 件短い並びを渡す。続けて、4 thread の run の記録 2 本と 8 thread の run の記録 2 本（`br03_ip_s18_four_run1`、`br03_ip_s18_run1`、`br03_ip_s18_four`、`br03_ip_s18`）の `.events.jsonl` を渡す | 4 本の確定文 | `id` と `lang` が全件同じ、`text` が違う確定文は 2 件以下 | 数える関数が 0、1、1 を返し、比べる並びが無ければ 0 を返す。4 本の確定文の数が等しく、`id` と `lang` の並びが同じで、`text` が違う確定文が 2 件以下（specified：BR-39 の合格。対照：1 件だけ `text` を替えた並びと、1 件短い並びが数に入る） | 陽性、陰性 | `the_four_and_eight_thread_runs_name_the_same_finals_and_at_most_two_differ_in_text` |
+| T-BR-39-009 | 純関数：`asr_threads` が既定の引数と、8 にした引数を `settings_of` に渡す | 引数から設定への配線 | 引数の数が設定へ届く | 既定の引数は設定の `asr_threads` が `THREADS`（4）、8 の引数は 8 である（specified：設計 10.13.4 の手 10。旗が設定の手前で落ちて、4 のまま走らない） | 陰性 | `the_settings_of_a_run_take_the_thread_count_of_its_arguments` |
+
+**BR-40（日本語の速報に確定と同じ ITN と句読点を当てる。旗の行は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行は `native/hayamimi/src/strings.rs` の `mod tests`、速報の後処理の行は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`、run の記録の行は `native/hayamimi/tests/br03.rs`）**
+
+材料：`hayamimi::args::parse` に引数の並びを渡し、`Args` の `draft_marks` と `ArgError` を読む。`hayamimi_asr::pipeline` の非公開の `draft_wears_marks` に旗と tier を渡す。005 は句読点の model を持つ `Engine`（fetch 済みの model を読むので `#[ignore]`）の非公開の `draft_text` に文と tier を渡す。実走は BR-3 の harness が `--draft-marks` を付けて `lat-dialog` を `--repeat 3` で流し、記録を `docs/results/in-person/` に書く。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-BR-40-001 | 純関数：`--wav a` に `--draft-marks` を付けない行と、`on`、`off` を付けた行を `parse` に渡す | 既定と 2 つの値 | on と off | 付けない行と `off` の行は `draft_marks` が偽、`on` の行は真である（specified：設計 10.13.4 の手 13。`--draft-marks off` で今の形） | 境界 | `draft_marks_starts_off_and_takes_on_or_off` |
+| T-BR-40-002 | 純関数：`--draft-marks` に `maybe`、空、`ON`、`1`、`true` を付けた行と、値の無い行を `parse` に渡す | on と off の外 | on と off | 値のある行は `ArgError::DraftMarksUnsupported`、値の無い行は `ArgError::MissingValue` である。`DraftMarksUnsupported` の key は `draft_marks_unsupported`（specified：同） | 陰性 | `draft_marks_refuses_what_is_not_on_or_off` |
+| T-BR-40-003 | 純関数：言語の表。`strings.en.toml` と `strings.ja.toml` から `help` の文と `draft_marks_unsupported` の文を引く | 2 つの言語 | 文 2 つ | どちらの `help` も `--draft-marks <on\|off>` を含み、拒否の文は `--draft-marks` と `off` を含み、2 つの言語で違う文である（specified：command line の文言を locale で切り替える決め） | 陽性 | `the_draft_marks_help_line_and_refusal_are_in_both_languages` |
+| T-BR-40-004 | 純関数：`draft_wears_marks` に、旗が真と偽、tier が `Tier::Rz` と、それ以外の全部（`Tier::ALL`）を渡す | 旗と tier | `Rz` だけ | 旗が真で tier が `Rz` の時だけ真である。旗が偽なら `Rz` でも偽で、旗が真でも `Rz` 以外は全部偽である（specified：設計 10.13.4 の手 13「他の tier の速報は変えない」） | 陰性 | `a_draft_takes_the_marks_of_a_final_only_from_the_japanese_tier_with_the_setting_on` |
+| T-BR-40-005 | `#[ignore]`：句読点の model を持つ 2 つの `Engine`（旗が偽と真）に、句読点の無い日本語の文 `けさの東京風はなさそうですけれどもね体感はどうでしょうか近藤さん` を `Tier::Rz` の速報として `draft_text` に渡し、真の側には英語の文 `HELLO THERE` も `Tier::V3` として渡す | 旗の 2 値と tier | 句読点が付く | 偽の側は文のまま返る。真の側は文と違い、`？` か `。` を含む。`V3` の文は変わらない（specified：同。辞書の置換はどちらの側も通る） | 陽性 | `a_japanese_draft_has_the_marks_of_a_final_with_the_setting_on_and_none_with_it_off` |
+| T-BR-40-006 | 実走：BR-3 の harness が `--draft-marks on` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s21`） | on の run | 記録が揃う | `br03_ip_s21.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれる（specified：設計 10.13.9 の IP-S21「記録：`translate.draft.reused` の数」） | 陽性 | `the_run_with_draft_marks_on_is_recorded` |
+| T-BR-40-007 | 実走：同じ harness が `--draft-marks off` を付けて流して記録する（step は `br03_ip_s21_off`） | off の run | 記録が揃う | 006 と同じ 4 つの file が書かれる（specified：006 の対照の run） | 陽性 | `the_run_with_draft_marks_off_is_recorded` |
+| T-BR-40-008 | 純関数：`draft_marks` が偽の既定の引数と、真にした引数を `settings_of` に渡す | 引数から設定への配線 | 引数の値が設定へ届く | 既定の引数は設定の `draft_marks` が偽、真の引数は真である（specified：設計 10.13.4 の手 13。旗が設定の手前で落ちて、off のまま走らない） | 陰性 | `the_settings_of_a_run_take_the_draft_marks_of_its_arguments` |
+| T-BR-40-009 | 記録を読む：BR-3 の 4 本の記録（`br03_ip_s21_off_run1`、`br03_ip_s21_run1`、`br03_ip_s21_off`、`br03_ip_s21`）の `.events.jsonl` と `.log.jsonl`。手で組んだ値で、印を付けた日本語の速報を数える関数と、日本語の確定文に当たる速報の訳の使い回しを数える関数も試す | off の 2 本と on の 2 本 | 確定文は同じで、印は on にだけ付く | 4 本とも確定文の `id`、`lang`、`text` が全件同じである。日本語の字と `。`、`、`、`？`、`！` のどれかを持つ日本語の速報は、off の 2 本で 0 件、on の 2 本で 1 件以上である。日本語の確定文に当たる `translate.draft.reused` の件数は、on の 2 本の合計が off の 2 本の合計より多い。手で組んだ値では、印の無い速報、日本語の字の無い速報、本文の無い `partial`、`id` の無い使い回しの行が、数えない物か不可として扱われる（specified：設計 10.13.9 の BR-40） | 陽性 | `the_on_and_off_runs_name_the_same_finals_and_only_on_marks_the_japanese_drafts` |
+
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
 - 段ごとの遅れ、冷えた標本、線：設計 10.13.3（T-BR-01 から T-BR-03）。
@@ -4536,6 +4584,8 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 - 持った文を使う幅：10.13.4 の手 9（T-BR-36）。
 - 確定文の言語を途中の判定で決める：10.13.4 の手 12（T-BR-37）。
 - 速報の復号を専用の thread で回す：10.13.4 の手 11（T-BR-38）。
+- 認識器の thread 数を引数で決める：10.13.4 の手 10（T-BR-39）。既定を 8 にする条件は H83。
+- 日本語の速報に確定と同じ ITN と句読点を当てる：10.13.4 の手 13（T-BR-40）。既定を `on` にする条件は H84。
 - 3 つの枠、境目、入れ替え、字体と大きさ：10.13.11（T-BR-19 から T-BR-25）。H62 の決めは T-BR-24 の前書きに書いた。
 - 言語の組：10.13.12（T-BR-26 から T-BR-31）。H65 の決めは T-BR-27-016 から 019。
 - 明るい表示と暗い表示：10.13.11 の「明るい表示と暗い表示」（T-BR-32 から T-BR-34）。静まった欄の印は設計 10.13.13 の 13（`--paper-quiet`、太さ 400、印の語）で、T-BR-34-011 から 013 が測る。

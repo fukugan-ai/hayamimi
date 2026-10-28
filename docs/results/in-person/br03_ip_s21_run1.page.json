@@ -1,0 +1,1145 @@
+{
+  "refines": {
+    "rows_before": 87,
+    "arrived_before": 87,
+    "rows": 87,
+    "arrived": [
+      {
+        "id": "file-1",
+        "speaker": "S1?",
+        "replayed": false
+      },
+      {
+        "id": "file-2",
+        "speaker": "S2?",
+        "replayed": false
+      },
+      {
+        "id": "file-3",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-4",
+        "speaker": "S3?",
+        "replayed": false
+      },
+      {
+        "id": "file-5",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-6",
+        "speaker": "S4?",
+        "replayed": false
+      },
+      {
+        "id": "file-7",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-8",
+        "speaker": "S5?",
+        "replayed": false
+      },
+      {
+        "id": "file-9",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-10",
+        "speaker": "S7",
+        "replayed": false
+      },
+      {
+        "id": "file-11",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-12",
+        "speaker": "S8?",
+        "replayed": false
+      },
+      {
+        "id": "file-13",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-14",
+        "speaker": "S9?",
+        "replayed": false
+      },
+      {
+        "id": "file-15",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-16",
+        "speaker": "S10?",
+        "replayed": false
+      },
+      {
+        "id": "file-17",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-18",
+        "speaker": "S11",
+        "replayed": false
+      },
+      {
+        "id": "file-19",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-20",
+        "speaker": "S12?",
+        "replayed": false
+      },
+      {
+        "id": "file-21",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-22",
+        "speaker": "S13",
+        "replayed": false
+      },
+      {
+        "id": "file-23",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-24",
+        "speaker": "S14",
+        "replayed": false
+      },
+      {
+        "id": "file-25",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-26",
+        "speaker": "S15?",
+        "replayed": false
+      },
+      {
+        "id": "file-27",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-28",
+        "speaker": "S16?",
+        "replayed": false
+      },
+      {
+        "id": "file-29",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-30",
+        "speaker": "S1",
+        "replayed": false
+      },
+      {
+        "id": "file-31",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-32",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-33",
+        "speaker": "S3",
+        "replayed": false
+      },
+      {
+        "id": "file-34",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-35",
+        "speaker": "S4",
+        "replayed": false
+      },
+      {
+        "id": "file-36",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-37",
+        "speaker": "S5",
+        "replayed": false
+      },
+      {
+        "id": "file-38",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-39",
+        "speaker": "S7",
+        "replayed": false
+      },
+      {
+        "id": "file-40",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-41",
+        "speaker": "S8",
+        "replayed": false
+      },
+      {
+        "id": "file-42",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-43",
+        "speaker": "S9",
+        "replayed": false
+      },
+      {
+        "id": "file-44",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-45",
+        "speaker": "S10",
+        "replayed": false
+      },
+      {
+        "id": "file-46",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-47",
+        "speaker": "S11",
+        "replayed": false
+      },
+      {
+        "id": "file-48",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-49",
+        "speaker": "S12",
+        "replayed": false
+      },
+      {
+        "id": "file-50",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-51",
+        "speaker": "S13",
+        "replayed": false
+      },
+      {
+        "id": "file-52",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-53",
+        "speaker": "S14",
+        "replayed": false
+      },
+      {
+        "id": "file-54",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-55",
+        "speaker": "S15",
+        "replayed": false
+      },
+      {
+        "id": "file-56",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-57",
+        "speaker": "S16",
+        "replayed": false
+      },
+      {
+        "id": "file-58",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-59",
+        "speaker": "S1",
+        "replayed": false
+      },
+      {
+        "id": "file-60",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-61",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-62",
+        "speaker": "S3",
+        "replayed": false
+      },
+      {
+        "id": "file-63",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-64",
+        "speaker": "S4",
+        "replayed": false
+      },
+      {
+        "id": "file-65",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-66",
+        "speaker": "S5",
+        "replayed": false
+      },
+      {
+        "id": "file-67",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-68",
+        "speaker": "S7",
+        "replayed": false
+      },
+      {
+        "id": "file-69",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-70",
+        "speaker": "S8",
+        "replayed": false
+      },
+      {
+        "id": "file-71",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-72",
+        "speaker": "S9",
+        "replayed": false
+      },
+      {
+        "id": "file-73",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-74",
+        "speaker": "S10",
+        "replayed": false
+      },
+      {
+        "id": "file-75",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-76",
+        "speaker": "S11",
+        "replayed": false
+      },
+      {
+        "id": "file-77",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-78",
+        "speaker": "S12",
+        "replayed": false
+      },
+      {
+        "id": "file-79",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-80",
+        "speaker": "S13",
+        "replayed": false
+      },
+      {
+        "id": "file-81",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-82",
+        "speaker": "S14",
+        "replayed": false
+      },
+      {
+        "id": "file-83",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-84",
+        "speaker": "S15",
+        "replayed": false
+      },
+      {
+        "id": "file-85",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-86",
+        "speaker": "S16",
+        "replayed": false
+      },
+      {
+        "id": "file-87",
+        "speaker": "S2",
+        "replayed": false
+      },
+      {
+        "id": "file-1",
+        "speaker": "S1?",
+        "replayed": true
+      },
+      {
+        "id": "file-2",
+        "speaker": "S2?",
+        "replayed": true
+      },
+      {
+        "id": "file-3",
+        "speaker": "S2",
+        "replayed": true
+      }
+    ]
+  },
+  "strip": {
+    "waiting": "音声を待っています",
+    "at_final": [
+      {
+        "id": "file-1",
+        "strip": "大橋さんはやっぱり。",
+        "partial": "大橋さんはやっぱり。",
+        "gap_ms": 3233.2000000476837
+      },
+      {
+        "id": "file-2",
+        "strip": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "partial": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "gap_ms": 368.10000002384186
+      },
+      {
+        "id": "file-3",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-4",
+        "strip": "Or there would be trouble.",
+        "partial": "Or there would be trouble.",
+        "gap_ms": 0.5
+      },
+      {
+        "id": "file-5",
+        "strip": "It did not matter what he did.",
+        "partial": "It did not matter what he did.",
+        "gap_ms": 247.79999995231628
+      },
+      {
+        "id": "file-6",
+        "strip": "そこの上流から丸太を組んでいかだにしてどんどん流したんです。",
+        "partial": "そこの上流から丸太を組んでいかだにしてどんどん流したんです。",
+        "gap_ms": 116.5
+      },
+      {
+        "id": "file-7",
+        "strip": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "partial": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "gap_ms": 384.3000000715256
+      },
+      {
+        "id": "file-8",
+        "strip": "百Mのターンを迎える。",
+        "partial": "百Mのターンを迎える。",
+        "gap_ms": 237.20000004768372
+      },
+      {
+        "id": "file-9",
+        "strip": "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.",
+        "partial": "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.",
+        "gap_ms": 340.39999997615814
+      },
+      {
+        "id": "file-10",
+        "strip": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "partial": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "gap_ms": 369.39999997615814
+      },
+      {
+        "id": "file-11",
+        "strip": "He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.",
+        "partial": "He could arrange that satisfactorily, for Carrie would be glad to wait, if necessary.",
+        "gap_ms": 308.10000002384186
+      },
+      {
+        "id": "file-12",
+        "strip": "ずいぶんありましたけどね。",
+        "partial": "ずいぶんありましたけどね。",
+        "gap_ms": 184.10000002384183
+      },
+      {
+        "id": "file-13",
+        "strip": "住民によると。",
+        "partial": "住民によると。",
+        "gap_ms": 3.8000000715255737
+      },
+      {
+        "id": "file-14",
+        "strip": "過去にも似たような訪問があったといいます。",
+        "partial": "過去にも似たような訪問があったといいます。",
+        "gap_ms": 451.10000002384186
+      },
+      {
+        "id": "file-15",
+        "strip": "He would see how things turned out tomorrow, and then he would talk to her.",
+        "partial": "He would see how things turned out tomorrow, and then he would talk to her.",
+        "gap_ms": 402.0
+      },
+      {
+        "id": "file-16",
+        "strip": "They were going to meet as usual.",
+        "partial": "They were going to meet as usual.",
+        "gap_ms": 195.70000004768372
+      },
+      {
+        "id": "file-17",
+        "strip": "That's what it's me.",
+        "partial": "That's what it's me.",
+        "gap_ms": 309.10000002384186
+      },
+      {
+        "id": "file-18",
+        "strip": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "partial": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "gap_ms": 489.8000000715256
+      },
+      {
+        "id": "file-19",
+        "strip": "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？近藤さん。",
+        "partial": "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？近藤さん。",
+        "gap_ms": 369.2999999523163
+      },
+      {
+        "id": "file-20",
+        "strip": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "partial": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "gap_ms": 365.7000000476837
+      },
+      {
+        "id": "file-21",
+        "strip": "そしてもう一つ大きな勢力があります。",
+        "partial": "そしてもう一つ大きな勢力があります。",
+        "gap_ms": 540.0
+      },
+      {
+        "id": "file-22",
+        "strip": "So little did he consider Drua that it never once occurred to him to worry about his finding out.",
+        "partial": "So little did he consider Drua that it never once occurred to him to worry about his finding out.",
+        "gap_ms": 4.699999928474426
+      },
+      {
+        "id": "file-23",
+        "strip": "勝利はしたものの？",
+        "partial": "勝利はしたものの？",
+        "gap_ms": 2.0
+      },
+      {
+        "id": "file-24",
+        "strip": "10万人以上の戦死者を出した。",
+        "partial": "10万人以上の戦死者を出した。",
+        "gap_ms": 639.0
+      },
+      {
+        "id": "file-25",
+        "strip": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "partial": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "gap_ms": 495.89999997615814
+      },
+      {
+        "id": "file-26",
+        "strip": "Dario central",
+        "partial": "Dario central",
+        "gap_ms": 793.5999999046326
+      },
+      {
+        "id": "file-27",
+        "strip": "He would get one today. It would probably be on his desk when he got back.",
+        "partial": "He would get one today. It would probably be on his desk when he got back.",
+        "gap_ms": 437.60000002384186
+      },
+      {
+        "id": "file-28",
+        "strip": "He would look for it at once.",
+        "partial": "He would look for it at once.",
+        "gap_ms": 191.70000004768372
+      },
+      {
+        "id": "file-29",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-30",
+        "strip": "ヒーローよりもてめぇを信じる。",
+        "partial": "ヒーローよりもてめぇを信じる。",
+        "gap_ms": 181.20000004768372
+      },
+      {
+        "id": "file-31",
+        "strip": "After a time, he gave up waiting and drearily headed for the Madison car.",
+        "partial": "After a time, he gave up waiting and drearily headed for the Madison car.",
+        "gap_ms": 424.8000000715256
+      },
+      {
+        "id": "file-32",
+        "strip": "Kukufé nieponin ničetti mosta.",
+        "partial": "Kukufé nieponin ničetti mosta.",
+        "gap_ms": 302.6999999284744
+      },
+      {
+        "id": "file-33",
+        "strip": "ネットの見すぎを感じ使うのを嫌。",
+        "partial": "ネットの見すぎを感じ使うのを嫌。",
+        "gap_ms": 370.39999997615814
+      },
+      {
+        "id": "file-34",
+        "strip": "He went in and examined his letters, but there was nothing from Carey.",
+        "partial": "He went in and examined his letters, but there was nothing from Carey.",
+        "gap_ms": 1.3000000715255735
+      },
+      {
+        "id": "file-35",
+        "strip": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "partial": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "gap_ms": 67.19999992847443
+      },
+      {
+        "id": "file-36",
+        "strip": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "partial": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "gap_ms": 300.39999997615814
+      },
+      {
+        "id": "file-37",
+        "strip": "模擬裁判に参加した大学一年生の本音とは。",
+        "partial": "模擬裁判に参加した大学一年生の本音とは。",
+        "gap_ms": 110.0
+      },
+      {
+        "id": "file-38",
+        "strip": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "partial": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "gap_ms": 1192.399999976158
+      },
+      {
+        "id": "file-39",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-40",
+        "strip": "大橋さんはやっぱり大変でしたか？",
+        "partial": "大橋さんはやっぱり大変でしたか？",
+        "gap_ms": 284.0
+      },
+      {
+        "id": "file-41",
+        "strip": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "partial": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "gap_ms": 383.7999999523163
+      },
+      {
+        "id": "file-42",
+        "strip": "He would have to pay her the money, which she would now regularly demand,",
+        "partial": "He would have to pay her the money, which she would now regularly demand,",
+        "gap_ms": 1542.0999999046326
+      },
+      {
+        "id": "file-43",
+        "strip": "It did not matter what he did.",
+        "partial": "It did not matter what he did.",
+        "gap_ms": 338.6999999284744
+      },
+      {
+        "id": "file-44",
+        "strip": "上流から丸太を組んでいかだにしてどんどん流したんです。",
+        "partial": "上流から丸太を組んでいかだにしてどんどん流したんです。",
+        "gap_ms": 69.19999992847443
+      },
+      {
+        "id": "file-45",
+        "strip": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "partial": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "gap_ms": 374.0
+      },
+      {
+        "id": "file-46",
+        "strip": "百Mのターンを迎える。",
+        "partial": "百Mのターンを迎える。",
+        "gap_ms": 221.19999992847443
+      },
+      {
+        "id": "file-47",
+        "strip": "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.",
+        "partial": "Many little wrinkles gathered between his eyes as he contemplated this, and his brow moistened.",
+        "gap_ms": 333.39999997615814
+      },
+      {
+        "id": "file-48",
+        "strip": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "partial": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "gap_ms": 284.89999997615814
+      },
+      {
+        "id": "file-49",
+        "strip": "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.",
+        "partial": "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.",
+        "gap_ms": 520.7999999523163
+      },
+      {
+        "id": "file-50",
+        "strip": "ずいぶんありましたけどね。",
+        "partial": "ずいぶんありましたけどね。",
+        "gap_ms": 231.79999995231628
+      },
+      {
+        "id": "file-51",
+        "strip": "住民によると。",
+        "partial": "住民によると。",
+        "gap_ms": 72.39999997615814
+      },
+      {
+        "id": "file-52",
+        "strip": "過去にも似たような訪問があったといいます。",
+        "partial": "過去にも似たような訪問があったといいます。",
+        "gap_ms": 524.5
+      },
+      {
+        "id": "file-53",
+        "strip": "He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.",
+        "partial": "He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.",
+        "gap_ms": 324.6999999284744
+      },
+      {
+        "id": "file-54",
+        "strip": "Chicago got this.",
+        "partial": "Chicago got this.",
+        "gap_ms": 808.4000000953674
+      },
+      {
+        "id": "file-55",
+        "strip": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "partial": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "gap_ms": 408.8000000715256
+      },
+      {
+        "id": "file-56",
+        "strip": "けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。",
+        "partial": "けさの東京風はなさそうですけどね。体感はどうでしょうか？近藤さん。",
+        "gap_ms": 368.10000002384186
+      },
+      {
+        "id": "file-57",
+        "strip": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "partial": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "gap_ms": 339.59999990463257
+      },
+      {
+        "id": "file-58",
+        "strip": "そしてもう一つ大きな勢力があります。",
+        "partial": "そしてもう一つ大きな勢力があります。",
+        "gap_ms": 315.1999999284744
+      },
+      {
+        "id": "file-59",
+        "strip": "So little did he consider Dre that it never once occurred to him to worry about his finding out,",
+        "partial": "So little did he consider Dre that it never once occurred to him to worry about his finding out,",
+        "gap_ms": 334.60000002384186
+      },
+      {
+        "id": "file-60",
+        "strip": "勝利はしたものの？",
+        "partial": "勝利はしたものの？",
+        "gap_ms": 101.40000009536745
+      },
+      {
+        "id": "file-61",
+        "strip": "10万人以上の戦死者を出した。",
+        "partial": "10万人以上の戦死者を出した。",
+        "gap_ms": 576.0
+      },
+      {
+        "id": "file-62",
+        "strip": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "partial": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "gap_ms": 430.7000000476837
+      },
+      {
+        "id": "file-63",
+        "strip": "左寄りセンターレフト。",
+        "partial": "左寄りセンターレフト。",
+        "gap_ms": 1.100000023841858
+      },
+      {
+        "id": "file-64",
+        "strip": "He would get one today. It would probably be on his desk when he got back.",
+        "partial": "He would get one today. It would probably be on his desk when he got back.",
+        "gap_ms": 512.3000000715256
+      },
+      {
+        "id": "file-65",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-66",
+        "strip": "言ったろう。",
+        "partial": "言ったろう。",
+        "gap_ms": 105.0
+      },
+      {
+        "id": "file-67",
+        "strip": "ヒーローよりもてめェを信じる。",
+        "partial": "ヒーローよりもてめェを信じる。",
+        "gap_ms": 229.39999997615817
+      },
+      {
+        "id": "file-68",
+        "strip": "After a time he gave up waiting and drearily headed for the Madison car.",
+        "partial": "After a time he gave up waiting and drearily headed for the Madison car.",
+        "gap_ms": 429.5
+      },
+      {
+        "id": "file-69",
+        "strip": "Kuków nieponinicky most.",
+        "partial": "Kuków nieponinicky most.",
+        "gap_ms": 316.3000000715256
+      },
+      {
+        "id": "file-70",
+        "strip": "ネットの見すぎを感じ、使うのをや。",
+        "partial": "ネットの見すぎを感じ、使うのをや。",
+        "gap_ms": 360.2000000476837
+      },
+      {
+        "id": "file-71",
+        "strip": "He went in and examined his letters, but there was nothing from Carey.",
+        "partial": "He went in and examined his letters, but there was nothing from Carey.",
+        "gap_ms": 2.799999952316284
+      },
+      {
+        "id": "file-72",
+        "strip": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "partial": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "gap_ms": 365.10000002384186
+      },
+      {
+        "id": "file-73",
+        "strip": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "partial": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "gap_ms": 315.2999999523163
+      },
+      {
+        "id": "file-74",
+        "strip": "模擬裁判に参加した大学一年生の本音とは。",
+        "partial": "模擬裁判に参加した大学一年生の本音とは。",
+        "gap_ms": 122.30000007152556
+      },
+      {
+        "id": "file-75",
+        "strip": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "partial": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "gap_ms": 1202.2000000476835
+      },
+      {
+        "id": "file-76",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-77",
+        "strip": "大橋さんはやっぱり大変でしたか？",
+        "partial": "大橋さんはやっぱり大変でしたか？",
+        "gap_ms": 195.59999990463257
+      },
+      {
+        "id": "file-78",
+        "strip": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "partial": "He was in a fevered state of mind, owing to the blight his wife's action threatened to cast upon his entire future.",
+        "gap_ms": 379.6999999284744
+      },
+      {
+        "id": "file-79",
+        "strip": "He would have to pay her the money which she would now regularly demand, or there would be trouble.",
+        "partial": "He would have to pay her the money which she would now regularly demand, or there would be trouble.",
+        "gap_ms": 333.5
+      },
+      {
+        "id": "file-80",
+        "strip": "It did not matter what he did.",
+        "partial": "It did not matter what he did.",
+        "gap_ms": 261.7000000476837
+      },
+      {
+        "id": "file-81",
+        "strip": "上流から丸太を組んでいかだにしてどんどん流したんです。これを。",
+        "partial": "上流から丸太を組んでいかだにしてどんどん流したんです。これを。",
+        "gap_ms": 37.20000004768371
+      },
+      {
+        "id": "file-82",
+        "strip": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "partial": "Hurstwood walked the floor, mentally arranging the chief points of his situation.",
+        "gap_ms": 445.60000002384186
+      },
+      {
+        "id": "file-83",
+        "strip": "本多選手は得意のドルフィンキックで。",
+        "partial": "本多選手は得意のドルフィンキックで。",
+        "gap_ms": 452.60000002384186
+      },
+      {
+        "id": "file-84",
+        "strip": "Many little wrinkles gathered between his eyes as he contemplated this, and I think it's a little bit of a",
+        "partial": "Many little wrinkles gathered between his eyes as he contemplated this, and I think it's a little bit of a",
+        "gap_ms": 1612.399999976158
+      },
+      {
+        "id": "file-85",
+        "strip": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "partial": "でも駿河さん91歳。力強い走りに変わっていきます。",
+        "gap_ms": 377.59999990463257
+      },
+      {
+        "id": "file-86",
+        "strip": "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.",
+        "partial": "He could arrange that satisfactorily, for Carey would be glad to wait, if necessary.",
+        "gap_ms": 326.60000002384186
+      },
+      {
+        "id": "file-87",
+        "strip": "ずいぶんありましたけどね。",
+        "partial": "ずいぶんありましたけどね。",
+        "gap_ms": 225.59999990463257
+      },
+      {
+        "id": "file-88",
+        "strip": "住民によると。",
+        "partial": "住民によると。",
+        "gap_ms": 35.40000009536743
+      },
+      {
+        "id": "file-89",
+        "strip": "過去にも似たような訪問があったといいま。",
+        "partial": "過去にも似たような訪問があったといいま。",
+        "gap_ms": 629.0
+      },
+      {
+        "id": "file-90",
+        "strip": "He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.",
+        "partial": "He would see how things turned out tomorrow, and then he would talk to her. They were going to meet as usual.",
+        "gap_ms": 350.39999997615814
+      },
+      {
+        "id": "file-91",
+        "strip": "That's what they say.",
+        "partial": "That's what they say.",
+        "gap_ms": 358.0
+      },
+      {
+        "id": "file-92",
+        "strip": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "partial": "For some reason he felt as if something might come that way, and was relieved when all the envelopes had been scanned and nothing suspicious noticed.",
+        "gap_ms": 516.1999999284744
+      },
+      {
+        "id": "file-93",
+        "strip": "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？近藤さん。",
+        "partial": "けさの東京風はなさそうですけれどもね。体感はどうでしょうか？近藤さん。",
+        "gap_ms": 195.20000004768372
+      },
+      {
+        "id": "file-94",
+        "strip": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "partial": "While the danger had not lessened, it had not as yet materialized, and with him no news was good news.",
+        "gap_ms": 316.60000002384186
+      },
+      {
+        "id": "file-95",
+        "strip": "そしてもう一つ大きな勢力があります。",
+        "partial": "そしてもう一つ大きな勢力があります。",
+        "gap_ms": 567.6999999284744
+      },
+      {
+        "id": "file-96",
+        "strip": "So little did he consider Drua that it never once occurred to him to worry about his finding out,",
+        "partial": "So little did he consider Drua that it never once occurred to him to worry about his finding out,",
+        "gap_ms": 334.7999999523163
+      },
+      {
+        "id": "file-97",
+        "strip": "勝利はしたものの？",
+        "partial": "勝利はしたものの？",
+        "gap_ms": 41.0
+      },
+      {
+        "id": "file-98",
+        "strip": "10万人以上の戦死者を出した。",
+        "partial": "10万人以上の戦死者を出した。",
+        "gap_ms": 472.89999997615814
+      },
+      {
+        "id": "file-99",
+        "strip": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "partial": "He grew restless as he ruminated, and then decided that perhaps it was nothing.",
+        "gap_ms": 447.09999990463257
+      },
+      {
+        "id": "file-100",
+        "strip": "左寄りセンターレフト。",
+        "partial": "左寄りセンターレフト。",
+        "gap_ms": 224.5
+      },
+      {
+        "id": "file-101",
+        "strip": "He would get one today. It would probably be on his desk when he got back.",
+        "partial": "He would get one today. It would probably be on his desk when he got back.",
+        "gap_ms": 483.10000002384186
+      },
+      {
+        "id": "file-102",
+        "strip": "He would look for it at once.",
+        "partial": "He would look for it at once.",
+        "gap_ms": 179.5
+      },
+      {
+        "id": "file-103",
+        "strip": "音声を待っています",
+        "partial": null,
+        "gap_ms": null
+      },
+      {
+        "id": "file-104",
+        "strip": "ヒーローよりもてめぇを信じる。",
+        "partial": "ヒーローよりもてめぇを信じる。",
+        "gap_ms": 189.5
+      },
+      {
+        "id": "file-105",
+        "strip": "After a time he gave up waiting and drearily headed for the Madison car.",
+        "partial": "After a time he gave up waiting and drearily headed for the Madison car.",
+        "gap_ms": 377.7000000476837
+      },
+      {
+        "id": "file-106",
+        "strip": "Kukufé nie jako nie ničimo.",
+        "partial": "Kukufé nie jako nie ničimo.",
+        "gap_ms": 221.19999992847443
+      },
+      {
+        "id": "file-107",
+        "strip": "ネットの見すぎを感じ使うのを。",
+        "partial": "ネットの見すぎを感じ使うのを。",
+        "gap_ms": 481.1999999284744
+      },
+      {
+        "id": "file-108",
+        "strip": "He went in and examined his letters, but there was nothing from Carey.",
+        "partial": "He went in and examined his letters, but there was nothing from Carey.",
+        "gap_ms": 507.5
+      },
+      {
+        "id": "file-109",
+        "strip": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "partial": "さらにスピンオフドラマ波風よ立ってくれはTELASAで独占配信。",
+        "gap_ms": 32.300000071525574
+      },
+      {
+        "id": "file-110",
+        "strip": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "partial": "At one thirty he went to Rectors for lunch, and when he returned a messenger was waiting for him,",
+        "gap_ms": 347.10000002384186
+      },
+      {
+        "id": "file-111",
+        "strip": "模擬裁判に参加した大学一年生の本音とは。",
+        "partial": "模擬裁判に参加した大学一年生の本音とは。",
+        "gap_ms": 120.20000004768372
+      },
+      {
+        "id": "file-112",
+        "strip": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "partial": "HISFIRSTIMPULSEWASTOWRITEBUTFOUR。",
+        "gap_ms": 1225.1999999284744
+      },
+      {
+        "id": "file-113",
+        "strip": "Go to the",
+        "partial": "Go to the",
+        "gap_ms": 582.4000000953674
+      }
+    ],
+    "after_last": 0,
+    "text": "音声を待っています",
+    "quiet": true
+  }
+}
