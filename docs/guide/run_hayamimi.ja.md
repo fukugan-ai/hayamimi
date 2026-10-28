@@ -75,6 +75,7 @@ hayamimi --wav lat-ja.wav --models <models の directory>
 | `--wav` | 16 bit の wav。既定は音声の速さで流す。`--no-realtime` で続けて流す |
 | `--serve [port]` | `/events` を配る。port の既定は 8833 |
 | `--serve-host <address>` | `--serve` が待つ address。既定は 127.0.0.1（この機械だけ）。LAN の端末から開くときは `0.0.0.0`（次の節） |
+| `--allow-origin <origin>` | `--serve` を読んでよい別の host の頁。`http://host[:port]` の形で、頁ごとに繰り返す。この機械の頁と、要求の `Host` と同じ host の頁は、書かなくても読める（次の節） |
 | `--min-silence` | 発話の終わりにする無音の秒数。既定は 0.30 |
 | `--replace` | 置換辞書。読めなければ使わずに続ける |
 | `--gpu-diagnose` | 句読点の model の node の置き場を log に出す |
@@ -136,8 +137,17 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 `hayamimi` の `--serve` と `hayamimi-relay live` の `--serve` は、既定では 127.0.0.1 だけで待ちます。
 `--serve-host` が LAN へ開くのは `--serve` の router（頁、`/events`、`/config`、`/reset` ほか）だけです。
 `--serve-host` が loopback の外のとき、制御の口（`/config`、`/reset`、`/replacements`、`/itn_overrides`。GET も含む）は、接続の相手の address が loopback の端末だけが使え、LAN の端末には 403 を返します。
-頁と `/events` は LAN の端末にも配ります。`hayamimi` の `/events` は、このとき `access-control-allow-origin` を付けないので、別の origin の頁は読めません（`hayamimi-relay` の `/events` は付けたままです）。
-`--serve-host` が loopback のときは、今までと変わりません。
+頁と `/events` は LAN の端末にも配ります。
+`hayamimi` と `hayamimi-relay` は、どの route でも `access-control-allow-origin: *` を返しません。要求に `Origin`（頁の origin）が在るときは、その origin が次のどれかのときだけ、その origin を返し、それ以外は 403 を返して `/events` を流しません。
+
+- loopback の頁（`localhost`、`127.0.0.1`、`[::1]`。port は問いません）。
+- 要求の `Host` と同じ host の頁。頁と中継を同じ LAN の address で開く形で、設定は要りません。
+- `--allow-origin <origin>` で名指した頁。
+
+`Origin` の無い要求（頁を開く、`curl`、`hayamimi-overlay`）は受け、`access-control-allow-origin` を付けません。
+`Host` が IP address でも `localhost` でも `--allow-origin` の host でもない要求は、`Origin` の有無に依らず 403 です。DNS の書き換えで、利用者の browser が別の名前からこの機械を読むのを止めます。
+LAN の address ではなく host の名前（例：`desk`）で頁を開くときは、頁を配る `hayamimi` と中継の 2 つの process に `--allow-origin http://desk:8833` を渡します（頁の origin を、`http://host[:port]` の形で）。渡さないと 403 になり、中継の log の event `relay.events.refused` と、`hayamimi` の応答の body が理由を言います。
+`--serve-host` が loopback のときも、この判定は同じです。制御の口の相手の判定だけが今までと変わりません。
 `/ingest`（音声の入力）は `--ws-host` で別に決まり、既定は 127.0.0.1 のままです。`--serve-host` を付けても LAN には開きません。
 
 別の端末の browser で頁を開くときは、2 つの process に `--serve-host 0.0.0.0` を付けて起こします。

@@ -31,13 +31,14 @@ pub mod keys {
     pub const RUN_FAILED: &str = "run_failed";
     pub const UNKNOWN_INPUT: &str = "unknown_input";
     pub const BAD_ADDRESS: &str = "bad_address";
+    pub const BAD_ORIGIN: &str = "bad_origin";
     pub const LAN_URL: &str = "lan_url";
     pub const LAN_URL_UNKNOWN: &str = "lan_url_unknown";
 
     /// Every fixed key above, for the check that both tables hold them all.
     /// The keys of a fallback notice are derived from its fields (`stage_*`,
     /// `reason_*`, `to_*`) and are checked against the lists in `notice`.
-    pub const ALL: [&str; 21] = [
+    pub const ALL: [&str; 22] = [
         HELP,
         USAGE_HINT,
         UNKNOWN_OPTION,
@@ -57,6 +58,7 @@ pub mod keys {
         RUN_FAILED,
         UNKNOWN_INPUT,
         BAD_ADDRESS,
+        BAD_ORIGIN,
         LAN_URL,
         LAN_URL_UNKNOWN,
     ];

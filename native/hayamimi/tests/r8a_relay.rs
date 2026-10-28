@@ -18,6 +18,7 @@ use hayamimi_relay::follow::Backoff;
 use hayamimi_relay::hub as relay_hub;
 use hayamimi_relay::llm::{Completion, Llm, LlmError};
 use hayamimi_relay::logging::{LogEvent, LogSink, SharedSink};
+use hayamimi_relay::origin::Guard;
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
 
@@ -121,6 +122,7 @@ fn r8a_the_relay_translates_a_final_event_served_by_this_programs_server() -> Te
         started_epoch: 1_790_000_000,
         translate: None,
         verify_dump: None,
+        guard: Guard::default(),
     };
     let sink = SharedSink::new(OpenedFlag(Arc::clone(&opened)));
     let served = relay::start(relay_hub::bind(0)?, config, make, sink)?;

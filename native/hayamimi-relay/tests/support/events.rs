@@ -24,6 +24,7 @@ use hayamimi_relay::hub;
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::llm::{Completion, Llm, LlmError};
 use hayamimi_relay::logging::{LogEvent, LogSink, SharedSink};
+use hayamimi_relay::origin::Guard;
 use hayamimi_relay::partial::PartialTranslation;
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig, sha256_hex};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
@@ -605,6 +606,7 @@ pub fn run_relay_dumping<L: Llm + 'static>(
         started_epoch: 1_790_000_000,
         translate: None,
         verify_dump,
+        guard: Guard::default(),
     };
     let sink = SharedSink::new(logs.clone());
     let address = relay::start_partials(hub::bind(0)?, config, make, sink, outputs, partials)?;

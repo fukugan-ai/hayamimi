@@ -22,6 +22,7 @@ use hayamimi_relay::hub;
 use hayamimi_relay::lang::Lang;
 use hayamimi_relay::llm::HttpLlm;
 use hayamimi_relay::logging::{Level, LogEvent, MemorySink, SharedSink};
+use hayamimi_relay::origin::Guard;
 use hayamimi_relay::pipeline::{
     LineKind, LineRequest, NoObserver, Observer, Pipeline, PipelineConfig, Status, Translation,
 };
@@ -219,6 +220,7 @@ fn relay_translating_source(dump: Option<VerifyDump>, logs: &Logs) -> TestResult
         started_epoch: 1_790_000_000,
         translate: None,
         verify_dump: dump,
+        guard: Guard::default(),
     };
     let address = relay::start_with(
         hub::bind(0)?,

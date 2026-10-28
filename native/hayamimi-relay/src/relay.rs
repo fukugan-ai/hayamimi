@@ -37,6 +37,7 @@ use crate::lang::Lang;
 use crate::line::{Heard, Line, SOURCES, Source, hear};
 use crate::llm::Llm;
 use crate::logging::{Level, LogEvent, LogSink, SharedSink};
+use crate::origin::Guard;
 use crate::partial::{Mailbox, PartialTranslation, Route as StreamRoute, Settling};
 use crate::pipeline::{
     Drafted, LineKind, NoObserver, Observer, PartialOutcome, Pipeline, Reuse, Staged, Translation,
@@ -80,6 +81,9 @@ pub struct RelayConfig {
     /// Where the translations handed to V are written for a developer, when
     /// the run was asked to.
     pub verify_dump: Option<VerifyDump>,
+    /// The pages of other origins let in to read `/events`, besides the
+    /// pages of this machine.
+    pub guard: Guard,
 }
 
 /// Where a line of a source goes.
@@ -866,7 +870,7 @@ pub fn start_handle<L: Llm + 'static>(
 ) -> io::Result<Relay> {
     let running = Arc::new(AtomicBool::new(true));
     let mut makers = makers.into();
-    let hub = Hub::new();
+    let hub = Hub::guarded(config.guard.clone(), sink.clone());
     spawn_reach_notices(
         std::mem::take(&mut makers.watches),
         hub.clone(),

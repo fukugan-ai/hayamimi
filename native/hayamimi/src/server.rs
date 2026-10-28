@@ -12,7 +12,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use axum::Router;
 use axum::extract::State;
-use axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN;
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, Sse};
 use axum::routing::get;
@@ -193,14 +192,10 @@ fn event_stream(hub: &Hub) -> Sse<impl Stream<Item = Result<Event, Infallible>> 
     Sse::new(stream)
 }
 
-/// `GET /events`, readable from a page of any origin.
+/// `GET /events`. The reply carries no `access-control-allow-origin`: a page
+/// of another origin reads it only where [`crate::routes`] tells that page its
+/// origin.
 pub async fn events(State(hub): State<Hub>) -> impl IntoResponse {
-    ([(ACCESS_CONTROL_ALLOW_ORIGIN, "*")], event_stream(&hub))
-}
-
-/// `GET /events` without `access-control-allow-origin`: only a page of the
-/// server's own origin reads it.
-pub async fn events_same_origin(State(hub): State<Hub>) -> impl IntoResponse {
     event_stream(&hub)
 }
 
@@ -312,7 +307,6 @@ mod tests {
         assert!(head.starts_with("HTTP/1.1 200"), "{head}");
         let lower = head.to_lowercase();
         assert!(lower.contains("content-type: text/event-stream"), "{head}");
-        assert!(lower.contains("access-control-allow-origin: *"), "{head}");
         hub.publish(&serde_json::json!({"type": "final", "text": "こんにちは"}));
         let body = read_until(&mut stream, "こんにちは")?;
         assert!(body.contains("data: {"), "{body}");
@@ -321,11 +315,8 @@ mod tests {
     }
 
     #[test]
-    fn the_same_origin_events_reply_carries_no_allow_origin_header() -> std::io::Result<()> {
-        let router = Router::new()
-            .route("/events", get(events_same_origin))
-            .with_state(Hub::new());
-        let address = serve(router, bind(0)?, "events-same-origin")?;
+    fn the_events_reply_carries_no_allow_origin_header() -> std::io::Result<()> {
+        let address = start(Hub::new(), bind(0)?)?;
         let mut stream = get_events(address)?;
         let head = read_until(&mut stream, "\r\n\r\n")?;
         assert!(head.starts_with("HTTP/1.1 200"), "{head}");

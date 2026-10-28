@@ -69,6 +69,7 @@ label = "m²"
 "translate.lane.failed" = "A translation lane could not take the line"
 "translate.publish.failed" = "A translation could not be written out"
 "relay.serve.started" = "Serving translations"
+"relay.events.refused" = "A request for the translations came from a page or a host name this machine does not serve; it was refused (--allow-origin lets a page in)"
 "translate.warmup.sent" = "One short request was sent to the translator before serving, and it answered"
 "translate.warmup.failed" = "The short request sent to the translator before serving failed; serving goes on"
 "server.fallback.port" = "The requested port was taken; another one is used"
@@ -103,7 +104,7 @@ label = "m²"
 
 [cli]
 usage = """usage:
-  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--partial-yield <on|off>] [--verify-text <file>]
+  hayamimi-relay live [--llm <url>] [--llm-other <url>] [--serve <port>] [--serve-host <address>] [--allow-origin <origin>]... [--events <url>]... [--srt <file>] [--send <send.toml>] [--translate <codes>] [--no-partial-translation] [--partial-yield <on|off>] [--verify-text <file>]
   hayamimi-relay eval --pairs <dir> --out <dir> [--llm <url>] [--llm-other <url>]
   hayamimi-relay srt <video> [--llm <url>] [--ffmpeg <program>] [--hayamimi <program>] [--models <dir>]
   hayamimi-relay fx-fetch [--out <file>] [--source-url <url>]
@@ -115,6 +116,7 @@ need_install_or_remove = "one of --install or --remove is required"
 no_default_dir = "cannot decide the default output location; pass --out"
 bad_port = "--serve needs a port number from 0 to 65535"
 bad_address = "--serve-host needs an IP address"
+bad_origin = "--allow-origin needs an origin written as http://host or https://host, with a port when it has one (no path)"
 bad_partial_yield = "--partial-yield needs on or off"
 cannot_serve = "cannot serve translations: no port could be opened"
 serving_at = "translations are served at"

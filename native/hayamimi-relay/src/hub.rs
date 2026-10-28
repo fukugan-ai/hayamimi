@@ -8,7 +8,13 @@
 //! A `fallback` event stays in effect until a later one for the same stage
 //! says it is over (`to` is null). A client that connects while one is in
 //! effect receives it first, so that a screen opened late still shows it.
+//!
+//! A page of another origin reads the stream only when the hub's [`Guard`]
+//! lets that origin in: the reply then says that origin in
+//! `Access-Control-Allow-Origin`, and never `*`. A request the guard turns
+//! away is answered 403 and is not subscribed.
 
+use std::collections::BTreeSet;
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,16 +22,40 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
+use crate::logging::{Level, LogEvent, LogSink, SharedSink};
+use crate::origin::{self, Guard, Refusal, Verdict};
+
 /// Ports tried after the requested one when it is taken.
 pub const NEXT_PORTS: u16 = 10;
 /// A request head longer than this is not a request for `/events`.
 const MAX_HEAD_BYTES: usize = 8192;
 /// Time a client has to send its request head.
 const HEAD_TIMEOUT: Duration = Duration::from_secs(5);
+/// The most refused requests said in the log, one for each distinct one. A
+/// page that goes on asking is counted by the refusals it gets, not said again.
+const MAX_SAID: usize = 32;
 
-const EVENTS_HEAD: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n";
 const NOT_FOUND: &[u8] =
     b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+/// The refusal carries no `Access-Control-Allow-Origin`, so the page that was
+/// turned away cannot read even this.
+const FORBIDDEN: &[u8] =
+    b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+
+/// The head of the `/events` reply. `echo` is the origin of the page that
+/// asked, which the reply lets read the stream.
+fn events_head(echo: Option<&str>) -> Vec<u8> {
+    let mut head = String::from(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nVary: Origin\r\n",
+    );
+    if let Some(origin) = echo {
+        head.push_str("Access-Control-Allow-Origin: ");
+        head.push_str(origin);
+        head.push_str("\r\n");
+    }
+    head.push_str("Connection: close\r\n\r\n");
+    head.into_bytes()
+}
 
 type Message = Arc<str>;
 
@@ -37,10 +67,44 @@ struct State {
     fallbacks: Vec<(String, Message)>,
 }
 
+/// Where the requests turned away are said, one line for each distinct one.
+#[derive(Clone)]
+struct Refusals {
+    sink: SharedSink,
+    said: Arc<Mutex<BTreeSet<String>>>,
+}
+
+impl Refusals {
+    /// Says that a request was turned away for `reason`, naming what it
+    /// showed in `seen`, unless that has been said or too much has been.
+    fn say(&self, reason: Refusal, seen: &str) {
+        let key = format!("{}:{seen}", reason.as_str());
+        {
+            // A thread that panicked while holding the set left a set that is
+            // still whole.
+            let mut said = match self.said.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            if said.len() >= MAX_SAID || !said.insert(key) {
+                return;
+            }
+        }
+        let event = LogEvent::new(Level::Warn, "relay.events.refused", "transport")
+            .with("reason", reason.as_str())
+            .with("seen", seen);
+        self.sink.clone().emit(event);
+    }
+}
+
 /// Where translations are published.
 #[derive(Clone, Default)]
 pub struct Hub {
     state: Arc<Mutex<State>>,
+    /// The pages of other origins let in to read `/events`.
+    guard: Guard,
+    /// Where a request turned away is said, when it is said at all.
+    refusals: Option<Refusals>,
 }
 
 /// The state of the hub. A thread that panicked while holding the lock left
@@ -53,8 +117,30 @@ fn locked(state: &Mutex<State>) -> MutexGuard<'_, State> {
 }
 
 impl Hub {
+    /// A hub that lets in the pages of this machine, and says nothing of the
+    /// requests it turns away.
     pub fn new() -> Hub {
         Hub::default()
+    }
+
+    /// A hub that lets in the pages `guard` lets in, and says on `sink` each
+    /// distinct request it turns away.
+    pub fn guarded(guard: Guard, sink: SharedSink) -> Hub {
+        Hub {
+            guard,
+            refusals: Some(Refusals {
+                sink,
+                said: Arc::default(),
+            }),
+            ..Hub::default()
+        }
+    }
+
+    /// Says a request was turned away, when this hub says such things.
+    fn say_refused(&self, head: &str, reason: Refusal) {
+        if let Some(refusals) = &self.refusals {
+            refusals.say(reason, &origin::seen(head, reason));
+        }
     }
 
     /// Sends one event, a JSON text, to every connected client. A client
@@ -165,20 +251,49 @@ fn read_head(stream: &mut TcpStream) -> Option<Vec<u8>> {
     Some(raw)
 }
 
+/// What the head asks of the hub: the origin to echo, or the 403 that turns
+/// the client away. A head that is not text is no browser's and is not found.
+enum Asked {
+    Echo(Option<String>),
+    NotFound,
+    Forbidden,
+}
+
+fn ask_of(raw: &[u8], hub: &Hub) -> Asked {
+    let Ok(head) = std::str::from_utf8(raw) else {
+        return Asked::NotFound;
+    };
+    match hub.guard.judge_head(head) {
+        Verdict::Serve { echo } if get_path(raw) == Some("/events") => Asked::Echo(echo),
+        Verdict::Serve { .. } => Asked::NotFound,
+        Verdict::Refuse(reason) => {
+            hub.say_refused(head, reason);
+            Asked::Forbidden
+        }
+    }
+}
+
 /// Serves one client until it goes away.
 fn answer(mut stream: TcpStream, hub: &Hub) {
     let Some(raw) = read_head(&mut stream) else {
         return;
     };
-    if get_path(&raw) != Some("/events") {
+    let echo = match ask_of(&raw, hub) {
+        Asked::Echo(echo) => echo,
         // A client that hung up has nothing left to be told.
-        let _ = stream.write_all(NOT_FOUND);
-        return;
-    }
+        Asked::NotFound => {
+            let _ = stream.write_all(NOT_FOUND);
+            return;
+        }
+        Asked::Forbidden => {
+            let _ = stream.write_all(FORBIDDEN);
+            return;
+        }
+    };
     // Subscribed before the head goes out, so that a client that has the head
     // misses nothing published after it.
     let (events, in_effect) = hub.subscribe();
-    if stream.write_all(EVENTS_HEAD).is_err() {
+    if stream.write_all(&events_head(echo.as_deref())).is_err() {
         return;
     }
     for message in in_effect.into_iter().chain(events) {
@@ -221,6 +336,7 @@ pub fn serve_while(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::origin::Origin;
 
     fn request(address: SocketAddr, path: &str) -> io::Result<TcpStream> {
         let mut stream = TcpStream::connect(address)?;
@@ -304,6 +420,201 @@ mod tests {
         assert!(head.starts_with("HTTP/1.1 404"), "{head}");
         assert_eq!(hub.clients(), 0);
         Ok(())
+    }
+
+    /// A request for `/events` with the header lines given, each ended by CRLF.
+    fn request_with(address: SocketAddr, headers: &str) -> io::Result<TcpStream> {
+        let mut stream = TcpStream::connect(address)?;
+        stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+        write!(stream, "GET /events HTTP/1.1\r\n{headers}\r\n")?;
+        Ok(stream)
+    }
+
+    /// The head the hub answers with, in lower case.
+    fn head_of(stream: &mut TcpStream) -> io::Result<String> {
+        Ok(read_until(stream, "\r\n\r\n")?.to_lowercase())
+    }
+
+    fn named(text: &str) -> io::Result<Origin> {
+        Origin::parse(text).ok_or_else(|| io::Error::other(format!("{text} is not an origin")))
+    }
+
+    #[test]
+    fn the_events_head_says_the_origin_it_was_given_and_that_the_reply_varies() {
+        let said = events_head(Some("http://a.test:1"));
+        let said = String::from_utf8_lossy(&said).to_lowercase();
+        assert!(
+            said.contains("access-control-allow-origin: http://a.test:1\r\n"),
+            "{said}"
+        );
+        assert!(said.contains("vary: origin\r\n"), "{said}");
+        let silent = events_head(None);
+        let silent = String::from_utf8_lossy(&silent).to_lowercase();
+        assert!(!silent.contains("access-control-allow-origin"), "{silent}");
+        assert!(silent.contains("vary: origin\r\n"), "{silent}");
+        assert!(silent.ends_with("\r\n\r\n"), "{silent}");
+    }
+
+    #[test]
+    fn a_page_of_this_machine_is_told_its_own_origin_and_never_a_star() -> io::Result<()> {
+        let address = serve(bind(0)?, Hub::new())?;
+        let mut stream = request_with(
+            address,
+            "Host: 127.0.0.1:8835\r\nOrigin: http://127.0.0.1:8833\r\n",
+        )?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 200"), "{head}");
+        assert!(
+            head.contains("access-control-allow-origin: http://127.0.0.1:8833\r\n"),
+            "{head}"
+        );
+        assert!(head.contains("vary: origin\r\n"), "{head}");
+        assert!(!head.contains("access-control-allow-origin: *"), "{head}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_request_naming_no_origin_is_served_without_a_cors_header() -> io::Result<()> {
+        let address = serve(bind(0)?, Hub::new())?;
+        let mut stream = request_with(address, "Host: 127.0.0.1:8835\r\n")?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 200"), "{head}");
+        assert!(!head.contains("access-control-allow-origin"), "{head}");
+        assert!(head.contains("vary: origin\r\n"), "{head}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_page_of_another_origin_is_turned_away_and_not_subscribed() -> io::Result<()> {
+        let hub = Hub::new();
+        let address = serve(bind(0)?, hub.clone())?;
+        let mut stream = request_with(
+            address,
+            "Host: 127.0.0.1:8835\r\nOrigin: https://evil.test\r\n",
+        )?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 403"), "{head}");
+        assert!(!head.contains("access-control-allow-origin"), "{head}");
+        assert_eq!(hub.clients(), 0);
+        hub.publish("after");
+        let mut rest = String::new();
+        stream.read_to_string(&mut rest)?;
+        assert_eq!(rest, "", "nothing follows the refusal");
+        Ok(())
+    }
+
+    #[test]
+    fn the_origin_null_is_turned_away() -> io::Result<()> {
+        let address = serve(bind(0)?, Hub::new())?;
+        let mut stream = request_with(address, "Host: 127.0.0.1\r\nOrigin: null\r\n")?;
+        assert!(head_of(&mut stream)?.starts_with("http/1.1 403"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_host_that_is_a_rebound_name_is_turned_away_whatever_it_asks_for() -> io::Result<()> {
+        let hub = Hub::new();
+        let address = serve(bind(0)?, hub.clone())?;
+        let mut stream = request_with(address, "Host: rebound.test:8835\r\n")?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 403"), "{head}");
+        assert_eq!(hub.clients(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_named_origin_is_told_its_own_origin() -> io::Result<()> {
+        let guard = Guard::new(vec![named("http://desk:8833")?]);
+        let hub = Hub::guarded(guard, SharedSink::new(crate::logging::NullSink));
+        let address = serve(bind(0)?, hub)?;
+        let mut stream = request_with(address, "Host: desk:8835\r\nOrigin: http://desk:8833\r\n")?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 200"), "{head}");
+        assert!(
+            head.contains("access-control-allow-origin: http://desk:8833\r\n"),
+            "{head}"
+        );
+        let mut other = request_with(
+            address,
+            "Host: desk:8835\r\nOrigin: http://elsewhere:8833\r\n",
+        )?;
+        assert!(head_of(&mut other)?.starts_with("http/1.1 403"));
+        Ok(())
+    }
+
+    /// Keeps the events a hub says, for a test to read.
+    struct Collect(Arc<Mutex<Vec<LogEvent>>>);
+
+    impl LogSink for Collect {
+        fn emit(&mut self, event: LogEvent) {
+            match self.0.lock() {
+                Ok(mut held) => held.push(event),
+                Err(poisoned) => poisoned.into_inner().push(event),
+            }
+        }
+    }
+
+    fn said_by(events: &Mutex<Vec<LogEvent>>) -> io::Result<Vec<LogEvent>> {
+        events
+            .lock()
+            .map(|held| held.clone())
+            .map_err(|_| io::Error::other("the event list was poisoned"))
+    }
+
+    fn refused_by_origin(address: SocketAddr, origin: &str) -> io::Result<()> {
+        let mut stream =
+            request_with(address, &format!("Host: 127.0.0.1\r\nOrigin: {origin}\r\n"))?;
+        let head = head_of(&mut stream)?;
+        assert!(head.starts_with("http/1.1 403"), "{head}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_refusal_is_said_once_for_each_distinct_request() -> io::Result<()> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let hub = Hub::guarded(
+            Guard::default(),
+            SharedSink::new(Collect(Arc::clone(&events))),
+        );
+        let address = serve(bind(0)?, hub)?;
+        refused_by_origin(address, "https://evil.test")?;
+        refused_by_origin(address, "https://evil.test")?;
+        refused_by_origin(address, "https://other.test")?;
+        let said = said_by(&events)?;
+        assert_eq!(said.len(), 2, "{said:?}");
+        let first = &said[0];
+        assert_eq!(first.event, "relay.events.refused");
+        assert_eq!(first.level, Level::Warn);
+        assert_eq!(
+            first.fields.get("reason"),
+            Some(&serde_json::json!("origin"))
+        );
+        assert_eq!(
+            first.fields.get("seen"),
+            Some(&serde_json::json!("https://evil.test"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_page_that_goes_on_asking_does_not_fill_the_log() -> io::Result<()> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let hub = Hub::guarded(
+            Guard::default(),
+            SharedSink::new(Collect(Arc::clone(&events))),
+        );
+        let address = serve(bind(0)?, hub)?;
+        for number in 0..MAX_SAID + 8 {
+            refused_by_origin(address, &format!("https://e{number}.test"))?;
+        }
+        assert_eq!(said_by(&events)?.len(), MAX_SAID);
+        Ok(())
+    }
+
+    #[test]
+    fn a_hub_made_without_a_log_turns_away_without_saying_so() -> io::Result<()> {
+        let address = serve(bind(0)?, Hub::new())?;
+        refused_by_origin(address, "https://evil.test")
     }
 
     #[test]
