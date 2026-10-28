@@ -32,7 +32,10 @@
 //! records of the four runs of IP-S18 (two of each, the first pair kept under
 //! names that no run rewrites): the finals they name. Two more again (T-BR-40-006
 //! and 007) play it with the drafts of the Japanese recognizer carrying the marks
-//! of a final of IP-S21, and with that measure switched off. Every run keeps
+//! of a final of IP-S21, and with that measure switched off; the row T-BR-40-009
+//! reads the records of those four runs (two of each, the first pair kept under
+//! names that no run rewrites): the finals they name, the Japanese drafts that
+//! carry a mark, and the drafts reused for Japanese finals. Every run keeps
 //! what its page showed of the refined paragraphs and of the listening strip in
 //! `<step>.page.json`; the rows T-BR-14-010 and T-BR-15-005 and 006 read that
 //! file of the four runs of IP-S21 and judge it.
@@ -1250,6 +1253,146 @@ fn the_four_and_eight_thread_runs_name_the_same_finals_and_at_most_two_differ_in
         differ <= MOST_TEXTS_THAT_DIFFER,
         "{differ} of {} finals differ in text between the four runs",
         first.len()
+    );
+    Ok(())
+}
+
+/// The records of the first pair of IP-S21 runs, kept under names that no run
+/// rewrites: the run with the marks and the run without them.
+const FIRST_MARKS: (&str, &str) = ("br03_ip_s21_run1", "br03_ip_s21_off_run1");
+
+/// Whether a draft is Japanese writing that carries a mark of it: a letter of
+/// the kana or the Han blocks and one of the full-width stops and marks.
+fn is_marked_japanese_draft(text: &str) -> bool {
+    let japanese = text
+        .chars()
+        .any(|letter| matches!(letter, '\u{3040}'..='\u{30FF}' | '\u{4E00}'..='\u{9FFF}'));
+    japanese && text.contains(['。', '、', '？', '！'])
+}
+
+/// How many `partial` events of a record's events are marked Japanese drafts.
+/// A `partial` with no text is an error, so that a count never passes over a
+/// line it could not read.
+fn marked_japanese_drafts(events: &str) -> Result<usize, Failure> {
+    let mut marked = 0;
+    for line in events.lines() {
+        let row: Value = serde_json::from_str(line).map_err(|error| error.to_string())?;
+        let event = &row["event"];
+        if event["type"] != "partial" {
+            continue;
+        }
+        let text = event["text"]
+            .as_str()
+            .ok_or_else(|| format!("a partial with no text: {line}"))?;
+        if is_marked_japanese_draft(text) {
+            marked += 1;
+        }
+    }
+    Ok(marked)
+}
+
+/// How many `translate.draft.reused` lines of a run's log name a Japanese
+/// final of the same run. A line with no id is an error.
+fn reused_japanese_drafts(events: &str, log: &str) -> Result<usize, Failure> {
+    let japanese: Vec<String> = finals_of(events)?
+        .into_iter()
+        .filter(|one| one.1 == "ja")
+        .map(|one| one.0)
+        .collect();
+    let mut reused = 0;
+    for row in rows_of(log, "translate.draft.reused")? {
+        let id = row["id"]
+            .as_str()
+            .ok_or_else(|| format!("a reused line with no id: {row}"))?;
+        if japanese.iter().any(|known| known == id) {
+            reused += 1;
+        }
+    }
+    Ok(reused)
+}
+
+/// A line of a record's events: a `partial` that says `text`.
+fn partial_line(text: &str) -> String {
+    let event = serde_json::json!({"type": "partial", "text": text});
+    format!("{}\n", serde_json::json!({"event": event, "t_us": 1}))
+}
+
+/// A `translate.draft.reused` line of a run's log for the final `id`.
+fn reused_line(id: &str) -> String {
+    format!("{{\"event\":\"translate.draft.reused\",\"id\":\"{id}\"}}\n")
+}
+
+/// T-BR-40-009
+#[test]
+fn the_on_and_off_runs_name_the_same_finals_and_only_on_marks_the_japanese_drafts() -> TestResult {
+    assert!(is_marked_japanese_draft("大橋さんはやっぱり、"));
+    assert!(is_marked_japanese_draft("こんにちは。"));
+    assert!(is_marked_japanese_draft("本当ですか？"));
+    assert!(!is_marked_japanese_draft("大橋さんはやっぱり"));
+    assert!(!is_marked_japanese_draft(
+        "HE WAS IN A FEVERED STATE OF MIND."
+    ));
+    assert!(!is_marked_japanese_draft("。、"));
+    assert!(!is_marked_japanese_draft(""));
+    let drafts = [
+        partial_line("こんにちは、"),
+        partial_line("こんにちは"),
+        final_line("file-1", "ja", "こんにちは。"),
+        partial_line("HELLO,"),
+    ]
+    .concat();
+    assert_eq!(marked_japanese_drafts(&drafts)?, 1);
+    assert_eq!(marked_japanese_drafts("")?, 0);
+    assert!(marked_japanese_drafts("{\"event\":{\"type\":\"partial\"},\"t_us\":1}\n").is_err());
+    let finals = [
+        final_line("file-1", "ja", "あ。"),
+        final_line("file-2", "en", "b."),
+        final_line("file-3", "ja", "い。"),
+    ]
+    .concat();
+    let log = [
+        reused_line("file-1"),
+        reused_line("file-2"),
+        reused_line("file-3"),
+        reused_line("file-9"),
+    ]
+    .concat();
+    assert_eq!(reused_japanese_drafts(&finals, &log)?, 2);
+    assert_eq!(reused_japanese_drafts(&finals, "")?, 0);
+    assert!(reused_japanese_drafts(&finals, "{\"event\":\"translate.draft.reused\"}\n").is_err());
+
+    let off = [FIRST_MARKS.1, DRAFT_MARKS_OFF.step];
+    let on = [FIRST_MARKS.0, DRAFT_MARKS_ON.step];
+    let mut lists = Vec::new();
+    let mut reused_off = 0;
+    let mut reused_on = 0;
+    for step in off.iter().chain(&on) {
+        let events = read(&record_named(step, ".events.jsonl"))?;
+        let log = read(&record_named(step, ".log.jsonl"))?;
+        let finals = finals_of(&events)?;
+        assert!(!finals.is_empty(), "{step} made no final");
+        let marked = marked_japanese_drafts(&events)?;
+        let reused = reused_japanese_drafts(&events, &log)?;
+        if off.contains(step) {
+            assert_eq!(marked, 0, "a Japanese draft of {step} carries a mark");
+            reused_off += reused;
+        } else {
+            assert!(marked >= 1, "no Japanese draft of {step} carries a mark");
+            reused_on += reused;
+        }
+        lists.push(finals);
+    }
+    for (step, finals) in off.iter().chain(&on).zip(&lists) {
+        let stray = differing(&lists[0], finals);
+        assert!(
+            stray.is_empty(),
+            "{step} and {} differ in these finals: {stray:?}",
+            off[0]
+        );
+    }
+    assert!(
+        reused_on > reused_off,
+        "the on runs reused {reused_on} Japanese drafts, the off runs {reused_off}"
     );
     Ok(())
 }

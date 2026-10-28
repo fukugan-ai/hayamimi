@@ -3760,7 +3760,7 @@ case 行の test は、受入 test の置き場（設計の表の最初の file�
 - BR-37 の旗の行（T-BR-37-011）は `native/hayamimi/src/args.rs` の `mod tests`、定数の行（015）は `native/hayamimi-asr/src/partial.rs` の `mod tests`、BR-3 の run の行と記録を読む行（012 から 014）は `native/hayamimi/tests/br03.rs`。
 - BR-38 の旗の行（T-BR-38-016）は `native/hayamimi/src/args.rs` の `mod tests`、log の行（017）は `native/hayamimi/src/log.rs` の `mod tests`、言語の表の行（021）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行と記録を読む行（018 から 020）は `native/hayamimi/tests/br03.rs`、それ以外（001 から 015 と 022）は `native/hayamimi-asr/tests/br38.rs`。
 - BR-39 の旗の行（T-BR-39-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（005）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run と記録の行（006、007、008）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（009）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（003、004）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
-- BR-40 の旗の行（T-BR-40-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（003）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（008）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（004、005）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
+- BR-40 の旗の行（T-BR-40-001、002）は `native/hayamimi/src/args.rs` の `mod tests`、言語の表の行（003）は `native/hayamimi/src/strings.rs` の `mod tests`、BR-3 の run の行（006、007）と、その記録を読む行（009）は `native/hayamimi/tests/br03.rs`、引数から設定への配線の行（008）は `native/hayamimi/src/run.rs` の `mod tests`、それ以外（004、005）は `native/hayamimi-asr/src/pipeline.rs` の `mod tests`。
 - T-BR-16-024 は合言葉を照らす関数の module の `mod tests`、T-BR-17-015 と 016 は `/send-link` を組む module の `mod tests`（module の名は実装の席が決める）。
 
 どれも作る物である。
@@ -4573,6 +4573,7 @@ H62 の決め：宣言した字体は `getComputedStyle` で、描いた字体�
 | T-BR-40-006 | 実走：BR-3 の harness が `--draft-marks on` を付けて `lat-dialog` を `--repeat 3` で流して記録する（step は `br03_ip_s21`） | on の run | 記録が揃う | `br03_ip_s21.md`、`.jsonl`、`.events.jsonl`、`.log.jsonl` が書かれる（specified：設計 10.13.9 の IP-S21「記録：`translate.draft.reused` の数」） | 陽性 | `the_run_with_draft_marks_on_is_recorded` |
 | T-BR-40-007 | 実走：同じ harness が `--draft-marks off` を付けて流して記録する（step は `br03_ip_s21_off`） | off の run | 記録が揃う | 006 と同じ 4 つの file が書かれる（specified：006 の対照の run） | 陽性 | `the_run_with_draft_marks_off_is_recorded` |
 | T-BR-40-008 | 純関数：`draft_marks` が偽の既定の引数と、真にした引数を `settings_of` に渡す | 引数から設定への配線 | 引数の値が設定へ届く | 既定の引数は設定の `draft_marks` が偽、真の引数は真である（specified：設計 10.13.4 の手 13。旗が設定の手前で落ちて、off のまま走らない） | 陰性 | `the_settings_of_a_run_take_the_draft_marks_of_its_arguments` |
+| T-BR-40-009 | 記録を読む：BR-3 の 4 本の記録（`br03_ip_s21_off_run1`、`br03_ip_s21_run1`、`br03_ip_s21_off`、`br03_ip_s21`）の `.events.jsonl` と `.log.jsonl`。手で組んだ値で、印を付けた日本語の速報を数える関数と、日本語の確定文に当たる速報の訳の使い回しを数える関数も試す | off の 2 本と on の 2 本 | 確定文は同じで、印は on にだけ付く | 4 本とも確定文の `id`、`lang`、`text` が全件同じである。日本語の字と `。`、`、`、`？`、`！` のどれかを持つ日本語の速報は、off の 2 本で 0 件、on の 2 本で 1 件以上である。日本語の確定文に当たる `translate.draft.reused` の件数は、on の 2 本の合計が off の 2 本の合計より多い。手で組んだ値では、印の無い速報、日本語の字の無い速報、本文の無い `partial`、`id` の無い使い回しの行が、数えない物か不可として扱われる（specified：設計 10.13.9 の BR-40） | 陽性 | `the_on_and_off_runs_name_the_same_finals_and_only_on_marks_the_japanese_drafts` |
 
 **設計の在り処**（この席は受入の条件を足さない。行は次の節を引く）：
 
