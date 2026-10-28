@@ -389,9 +389,10 @@ mod tests {
 
     #[test]
     fn a_name_of_the_longest_length_dns_has_is_read_and_one_byte_more_is_not() {
+        // The two lengths are written out, not taken from the constant: the longest name DNS has is 253 bytes.
         let origin_of = |length: usize| format!("http://{}", "a".repeat(length));
-        assert!(Origin::parse(&origin_of(MAX_NAME_BYTES)).is_some());
-        assert_eq!(Origin::parse(&origin_of(MAX_NAME_BYTES + 1)), None);
+        assert!(Origin::parse(&origin_of(253)).is_some());
+        assert_eq!(Origin::parse(&origin_of(254)), None);
     }
 
     #[test]
