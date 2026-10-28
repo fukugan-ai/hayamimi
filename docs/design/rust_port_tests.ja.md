@@ -3963,9 +3963,9 @@ command：cargo は全部 `cd native && flock -w 1800 target/release/.cargo-lock
 
 | case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
 |---|---|---|---|---|---|---|
-| T-BR-07-001 | 受入、実走：`--spec-type ngram-simple` を付けた 18084 と付けない 18084 を別々に起こし、調整用の 40 行（3.5）を温度 0 で通す | 旗の有無 | 記録だけ | 記録に、E の段の p50 と p95 を 2 本で並べ、確定の文が 40 行で一致した数を書く。落とさない（specified：BR-7。数える関数が正しいことだけが合否） | 陽性 | `br07_ngram_drafting_keeps_the_settled_text_and_records_the_e_stage` |
-| T-BR-07-002 | 実走：旗の無い 18084 を 2 回起こして同じ 40 行を通す | 旗の無い 2 回 | 一致 40 | 一致した数が 40（specified：BR-7 の陽性対照。決定的でなければ 40 にならず、記録に「旗の無い 2 回で 40 にならない」と書く） | 陽性 | `two_runs_without_the_flag_agree_on_all_forty_lines` |
-| T-BR-07-003 | 道具：40 行のうち 1 行の文が違う合成の組 | 1 行違い | 一致の数 | 「一致 39」と書く（specified：BR-7 の陰性対照） | 陰性 | `a_pair_that_differs_on_one_line_is_written_as_39_agreeing` |
+| T-BR-07-001 | 受入、実走：`--spec-type ngram-simple` を付けた 18084 と付けない 18084 を別々に起こし、調整用の 40 行（3.5）を温度 0 で通す | 旗の有無 | 記録だけ | 記録に、E の段の p50 と p95 を 2 本で並べ、確定の文が 40 行で一致した数を書く。落とさない（specified：BR-7。数える関数が正しいことだけが合否）。数えた値（2026-10-29、`br07_ngram.md`）は、E を頼んだ行が 40 で、旗なしの 1 回目が p50 162 ms、p95 290 ms、旗つきが p50 155 ms、p95 260 ms、確定の文は旗なしの 1 回目と旗つきで 40 / 40 一致した（H92） | 陽性 | `br07_ngram_drafting_keeps_the_settled_text_and_records_the_e_stage` |
+| T-BR-07-002 | 実走：旗の無い 18084 を 2 回起こして同じ 40 行を通す | 旗の無い 2 回 | 一致 40 | 一致した数が 40（specified：BR-7 の陽性対照。決定的でなければ 40 にならず、記録に「旗の無い 2 回で 40 にならない」と書く）。数えた値（2026-10-29）は 40 / 40 で、E の段は 1 回目が p50 162 ms、p95 290 ms、2 回目が p50 155 ms、p95 255 ms だった | 陽性 | `two_runs_without_the_flag_agree_on_all_forty_lines` |
+| T-BR-07-003 | 道具：40 行のうち 1 行の文が違う合成の組。違う行は元の行と同じ長さ | 1 行違い | 一致の数 | 「一致 39 / 40」と「（40 にならない）」を書く。同じ文の組は「一致 40 / 40」で、印は付かない（specified：BR-7 の陰性対照。文の比較を長さの比較に替えると落ちる） | 陰性 | `a_pair_that_differs_on_one_line_is_written_as_39_agreeing` |
 | T-BR-07-004 | 道具：40 行が全部同じ組と、0 行の組 | 全部一致、空 | 空は誤り | 前者は「一致 40」、後者は `Err`（implicit：0 件を一致 0 と読まない） | 境界、陰性 | `an_empty_pair_of_runs_is_an_error_and_not_zero_agreeing` |
 | T-BR-07-005 | 道具：E の段の ms が 100、200、300、400 の 4 件 | nearest-rank n = 4 | p50 は 2 番目、p95 は 4 番目 | p50 が 200、p95 が 400（derived：4.1） | 陽性 | `the_e_stage_percentiles_are_nearest_rank` |
 | T-BR-07-006 | 道具：旗つきの server の起動の形を作る関数に、port 18084 と 18081 を渡す | 旗を当てる port | 18084 だけ | 18084 は `--spec-type ngram-simple` と `--port 18084` を含む形を返す。18081 は `Err`（共有の server に旗を当てない）。旗なしの形はどちらの port でも旗を含まない（specified：設計 10.13.1「共有の llama-server（127.0.0.1:18081）の旗の変更」を作らない物とする。IP-S9「旗は run の 18084 だけに当て」） | 陰性 | `the_flag_is_never_built_for_the_shared_server_port` |
