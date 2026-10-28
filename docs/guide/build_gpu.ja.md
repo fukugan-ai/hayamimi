@@ -2,17 +2,20 @@
 
 Rust 版の認識を NVIDIA の GPU（CUDA）で動かすために、sherpa-onnx の C ライブラリを自分で build し、Rust の crate をそこへ繋ぐ手順です。
 Windows と WSL（Linux）の両方で、1 本の音声を GPU の上で認識するところまでを、実際に打って確かめてあります。
+v2.0.1 と ORT 1.31.1 の build は、2026-10-29 に WSL で打って確かめました。
+RP-17 は 6 本とも通りました（`rp17_passed.json` の `loaded_provider` は `cuda`、ORT は 1.31.1、`onnxruntime_libraries` は 1、9.6 秒の音声から `decoded_chars` が 44。`decode_ms` は run ごとに動き、記録の値は 1743、独立検証の席の run は 674）。
+Windows の build は v1.13.8 と ORT 1.31.0 で確かめた手順のままで、v2.0.1 では打ち直していません。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
 
 ## 結果
 
-`cargo run -p xtask -- sherpa-gpu` が、sherpa-onnx v1.13.8 を CUDA 13.4 と ONNX Runtime（ORT）1.31.0 の CUDA 13 版で build し、動かすのに要る共有ライブラリを 1 つの directory に集めます。
+`cargo run -p xtask -- sherpa-gpu` が、sherpa-onnx v2.0.1 を CUDA 13.4 と ONNX Runtime（ORT）1.31.1 の CUDA 13 版で build し、動かすのに要る共有ライブラリを 1 つの directory に集めます。
 `hayamimi-gpu-probe` がその directory のライブラリを使って 1 本の音声（9.6 秒）を開き、認識が終わるまで GPU 用の provider（ORT が計算を GPU へ回す部品）が読み込まれていたことを JSON 1 行で報告します。
 `cargo test -p hayamimi-gpu` の RP-17 の test が、その JSON を判定します。
 
 ```text
 build の流れ
-  git clone (v1.13.8) ─┐
-  ORT 1.31.0 の archive ┼─> cmake configure/build/install ─> install/lib にライブラリを集める ─> build.json
+  git clone (v2.0.1) ─┐
+  ORT 1.31.1 の archive ┼─> cmake configure/build/install ─> install/lib にライブラリを集める ─> build.json
   CUDA 13.4 / cuDNN 9 ─┘                                                   │
                                                                            v
                               SHERPA_ONNX_LIB_DIR=install/lib ─> cargo build ─> hayamimi-gpu-probe ─> rp17_passed.json
@@ -27,8 +30,8 @@ build の流れ
 | GPU | NVIDIA GeForce RTX 5060 Ti（compute capability 12.0、driver 610.88） | 同じ GPU（WSL の driver 経由） |
 | CUDA Toolkit | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4（installer、nvcc 13.4.59）は残してある | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4.1（nvcc 13.4.59）と 13.3 は残してある |
 | cuDNN | 9.27.0 の CUDA 13 用 archive | 9.27.0.42 の cuda13 |
-| ORT | 1.31.0 の `gpu_cuda13`（Microsoft の release の zip） | 1.31.0 の `gpu_cuda13`（Microsoft の release の tgz） |
-| sherpa-onnx | v1.13.8（commit `11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf`） | 同じ |
+| ORT | 1.31.1 の `gpu_cuda13`（Microsoft の release の zip。Windows の今の build は 1.31.0） | 1.31.1 の `gpu_cuda13`（Microsoft の release の tgz） |
+| sherpa-onnx | v2.0.1（commit `af2d8d81dbfa61c4cea4c568da78f3982edca005`。Windows の今の build は v1.13.8） | v2.0.1（同じ commit） |
 | Rust | 1.99.0 | 1.99.0 |
 | 道具 | Visual Studio Build Tools（`dumpbin`）、cmake、Ninja、git、curl、tar | gcc、g++、cmake、Ninja、git、curl、tar、readelf |
 
@@ -51,7 +54,7 @@ cargo run --release -p xtask -- sherpa-gpu --cuda-dir "<CUDA 13.4 の directory>
 
 既定の置き場は `native\target\sherpa-gpu` で、git の管理外です。
 別の場所に作るときは `--out-dir` を付けます。
-版を変えるときは `--sherpa-tag` と `--ort-version` を付けます（既定は v1.13.8 と 1.31.0）。
+版を変えるときは `--sherpa-tag` と `--ort-version` を付けます（既定は v2.0.1 と 1.31.1）。
 すでに展開した ORT があるときは `--ort-dir` で渡すと、取得を省きます。
 
 xtask は次の順に 1 段階ずつ進み、失敗したらその段階の名前を言って止まります。
@@ -101,22 +104,23 @@ apt の package は使いません。
 | CUDA Toolkit 13.4.3（redistrib の部品） | `/usr/local/cuda-13.4.3` | なし |
 | CUDA Toolkit 13.4.1（更新前。redistrib の部品） | `/usr/local/cuda-13.4` | なし |
 | cuDNN 9.27.0.42（cuda13） | `/usr/local/cudnn-9.27.0.42-cuda13` | なし |
-| build の出力（3 本）と redistrib の照合表（`redist-sums`。下の表） | `~/.local/share/hayamimi/build` | なし |
+| build の出力（4 本）と redistrib の照合表（`redist-sums`。下の表） | `~/.local/share/hayamimi/build` | なし |
 
-WSL の作業 directory は 4 本あり、build の 3 本は `native/target` の下の symlink から指されます。
+WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda1343-repeat`、`cuda1341`）は `native/target` の下の symlink から指され、現行の `cuda1343-sherpa201` は symlink を持たず、`SHERPA_ONNX_LIB_DIR` で指します。同じ `~/.local/share/hayamimi/build` には、この表の外に、ORT 1.28.3 の退路の build（`ort1283`、`ort1283-target`。設計 `rust_port.ja.md` の環境の表）と、alsa の pkg-config と `libasound.so` の symlink を置いた `alsa-shim` もあります。
 `~/.cache` には何も残しません（下の手順の作業 directory `W` は、取得と build の間だけ使います）。
 取得した archive と cargo の `target` は作り直せるので残さず、redistrib の部品の sha256 の照合表だけを `redist-sums` に残します。
 
 | WSL の作業 directory | 中身 | 指す symlink | 消すと |
 |---|---|---|---|
-| `~/.local/share/hayamimi/build/cuda1343` | 現行（CUDA 13.4.3）の build（`linux` の下に `build.json` と `install`） | `native/target/sherpa-gpu/linux`（`cuda1343/linux` を指す） | 現行の `sherpa-gpu/linux` が切れる |
-| `~/.local/share/hayamimi/build/cuda1343-repeat` | 現行の 2 回目の build | `native/target/sherpa-gpu-repeat/linux`（`cuda1343-repeat/linux` を指す） | `two_builds_on_one_os_match` の実走が読めなくなる |
+| `~/.local/share/hayamimi/build/cuda1343-sherpa201` | 現行（v2.0.1 と ORT 1.31.1、CUDA 13.4.3）の build（`linux` の下に `build.json` と `install`、ほかに `ort`、`src-v2.0.1`、`downloads`） | なし（`SHERPA_ONNX_LIB_DIR` で指す） | 現行の build と probe が使えなくなる |
+| `~/.local/share/hayamimi/build/cuda1343` | v1.13.8 と ORT 1.31.0 の build（CUDA 13.4.3。WSL の退路。`linux` の下に `build.json` と `install`） | `native/target/sherpa-gpu/linux`（`cuda1343/linux` を指す） | 退路の `sherpa-gpu/linux` が切れる |
+| `~/.local/share/hayamimi/build/cuda1343-repeat` | v1.13.8 の 2 回目の build | `native/target/sherpa-gpu-repeat/linux`（`cuda1343-repeat/linux` を指す） | `two_builds_on_one_os_match` の実走が読めなくなる |
 | `~/.local/share/hayamimi/build/cuda1341` | 更新前（13.4.1）の build（directory の直下に `build.json` と `install`） | `native/target/sherpa-gpu-cuda1341/linux`（`cuda1341` を指す） | 退路の 13.4.1 の build が消える |
 | `~/.local/share/hayamimi/build/redist-sums` | CUDA 13.4.1、13.4.3、cuDNN 9.27.0.42 の redistrib の部品の一覧と sha256（`*.list`、`*.sha256`） | なし | 入れ直すときに照合の表を取り直すことになる |
 
 現行を残して片付けるときは、`cuda1343-repeat` だけを消します。
-`cuda1343` を消すと、現行の build と probe が使えなくなります。
-全部を戻すときは、4 本とも消します。
+`cuda1343` を消すと、WSL の退路（v1.13.8）が消えます。`cuda1343-sherpa201` を消すと、現行の build と probe が使えなくなります。
+全部を戻すときは、5 本とも消します。
 
 ```bash
 sudo rm -rf /usr/local/cuda-13.4.3 /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
@@ -167,16 +171,16 @@ sudo tar -xJf cudnn-linux-x86_64-9.27.0.42_cuda13-archive.tar.xz -C /usr/local/c
 
 ### 3. build して test を打つ
 
-ORT の tgz も、GitHub の release の値と照合します（1.31.0 の Linux の tgz は `2867dec99c6a4926e8142361b9d4d1518c16c85b854b4d41d28d65d3b2c81135`、244,574,938 bytes）。
+ORT の tgz も、GitHub の release の値と照合します（1.31.1 の Linux の tgz は `b2146862e691f7e338f5aff9c7a9a5567c2ca57cf01442a1adb3a13bf62d9095`、244,573,709 bytes。1.31.0 の tgz は `2867dec99c6a4926e8142361b9d4d1518c16c85b854b4d41d28d65d3b2c81135`、244,574,938 bytes）。
 xtask は `<out-dir>/downloads` に同じ名前の file が在ればそれを使うので、手で取って照合してから置きます。
 `--out-dir` を Windows の drive の上に置くと遅いので、WSL の側の directory にします。
 
 ```bash
 W=~/.cache/hayamimi-r1-wsl-20261014
-OUT=~/.local/share/hayamimi/build/cuda1343
+OUT=~/.local/share/hayamimi/build/cuda1343-sherpa201
 mkdir -p $OUT/downloads
-curl -L --fail -sS -o $OUT/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz
-sha256sum $OUT/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.0.tgz
+curl -L --fail -sS -o $OUT/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.1.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-linux-x64-gpu_cuda13-1.31.1.tgz
+sha256sum $OUT/downloads/onnxruntime-linux-x64-gpu_cuda13-1.31.1.tgz
 cd <repo>/native
 cargo run --release --target-dir $W/target -p xtask -- sherpa-gpu --cuda-dir /usr/local/cuda-13.4.3 --cudnn-dir /usr/local/cudnn-9.27.0.42-cuda13 --out-dir $OUT
 export SHERPA_ONNX_LIB_DIR=$OUT/linux/install/lib
@@ -237,10 +241,10 @@ rm -rf <Windows の user directory>/cuda-redist
 
 ## 実測した結果
 
-### ORT 1.31.0（現行）
+### ORT 1.31.0（Windows の現行。WSL は 1.31.1 に上げた）
 
 RTX 5060 Ti で `ja_014.wav`（9600 ms）を、build ごとに 4 回続けて開いた結果です（同じ音声、同じ build、cache の状態は揃えていません）。
-CUDA 13.4.1 の build（更新前）と、13.4.3 の build（現行）の両方を載せます。
+CUDA 13.4.1 の build（更新前）と、13.4.3 の build（ORT 1.31.0 の時の現行）の両方を載せます。
 
 | 欄 | Windows、13.4.1 | WSL、13.4.1 | Windows、13.4.3 | WSL、13.4.3 |
 |---|---|---|---|---|
@@ -289,8 +293,8 @@ RTX 5060 Ti（compute capability 12.0）で `sm_120a` の機械語が実際に�
 全 kernel が機械語で当たるとも言えません。
 `sm_120` の PTX から実行時に変換されて動く kernel が在るかどうかも、確かめていません（ASSUMPTION）。
 RP-24 の `sm_120` 系の判定は、`sm_120` か `sm_120a` の機械語が 1 件以上在れば真なので、3 つとも真です。
-RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（現行の build。`linux` は WSL の作業 directory への symlink）を読み、`windows_and_wsl_builds_match` が 5 項目の一致を確かめます。
-同じ OS の 2 回目の build は `native/target/sherpa-gpu-repeat/<os>/` に作り、`two_builds_on_one_os_match` が現行と比べます。
+RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（比べる組。`linux` は WSL の作業 directory `cuda1343` への symlink で、`windows` と同じ v1.13.8 と ORT 1.31.0 の build）を読み、`windows_and_wsl_builds_match` が 5 項目の一致を確かめます。
+同じ OS の 2 回目の build は `native/target/sherpa-gpu-repeat/<os>/` に作り、`two_builds_on_one_os_match` が `sherpa-gpu/<os>/` と比べます。
 実走の 2 つは `cargo test --release -p xtask --test rp24 -- --ignored` で打ちます。どちらも通りました（Windows と WSL）。
 
 ### ORT 1.28.3（退路）
@@ -381,7 +385,7 @@ test の process の中で認識を走らせて「実行物の隣」の `onnxrun
 
 ### Linux では ORT を先読みしない
 
-WSL では、`sherpa-onnx-sys` が `libonnxruntime.so`、`libonnxruntime.so.1`、`libonnxruntime.so.1.31.0` を別々の file として複写します（symlink ではなく複写）。
+WSL では、`sherpa-onnx-sys` が `libonnxruntime.so`、`libonnxruntime.so.1`、`libonnxruntime.so.1.31.1` を別々の file として複写します（symlink ではなく複写）。
 そこへ `libonnxruntime.so` を完全な path で先読みすると、`libsherpa-onnx-c-api.so` が名前（SONAME）で要求する `libonnxruntime.so.1` が別の file として読み込まれ、ORT が 2 つ入りました（`onnxruntime_libraries` が 2。RP-17 が捕まえる形）。
 そこで Linux では先読みをせず、`libsherpa-onnx-c-api.so` の RUNPATH（`$ORIGIN`）に任せて、版の問い合わせも SONAME の `libonnxruntime.so.1` で行います。
 Linux には `System32` に当たる物が無く、先読みの目的がありません。
@@ -407,7 +411,7 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 Remove-Item -Recurse -Force "<repo>\native\target\sherpa-gpu"
 ```
 
-現行（ORT 1.31.0）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
+Windows の現行（ORT 1.31.0。WSL の現行は v2.0.1 と ORT 1.31.1 の `~/.local/share/hayamimi/build/cuda1343-sherpa201`）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
 Windows の `native\target\sherpa-gpu-ort1282` は ORT 1.28.2 の build で、退路ではありません。
 退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1283\<os>\install\lib` にして build します（build.json の ORT の版が 1.28.3 になるので、RP-17 はその版で判定します）。
 WSL に入れた CUDA と cuDNN の戻し方は、「手順（WSL）」の「0. 入れる前の戻し方」にあります。

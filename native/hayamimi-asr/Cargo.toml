@@ -16,7 +16,7 @@ hound = "3"
 # ERROR POLICY: ort's errors are mapped to AsrError::Ort at the punctuation session boundary.
 ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "api-31", "load-dynamic", "cuda"] }
 # The same shared build the GPU crate links; see docs/guide/build_gpu.ja.md.
-sherpa-onnx = { version = "=1.13.8", default-features = false, features = ["shared"] }
+sherpa-onnx = { version = "=2.0.1", default-features = false, features = ["shared"] }
 unicode-normalization = "0.1"
 
 [dev-dependencies]
