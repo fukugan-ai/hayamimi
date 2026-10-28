@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 
 use crate::error::Error;
 
-/// sherpa-onnx release that the Rust crate `sherpa-onnx` 1.13.8 is built against.
-pub const DEFAULT_SHERPA_TAG: &str = "v1.13.8";
+/// sherpa-onnx release that the Rust crate `sherpa-onnx` 2.0.1 is built against.
+pub const DEFAULT_SHERPA_TAG: &str = "v2.0.1";
 /// ONNX Runtime release the CUDA 13 package of which is used; the `ort` crate defaults to this API version.
-pub const DEFAULT_ORT_VERSION: &str = "1.31.0";
+pub const DEFAULT_ORT_VERSION: &str = "1.31.1";
 
 const FLAGS: [&str; 6] = [
     "--sherpa-tag",
@@ -36,7 +36,7 @@ impl Options {
         let mut values = read_flags(args)?;
         let sherpa_tag = match values.remove("--sherpa-tag") {
             Some(tag) => tag,
-            // DEFAULT: docs/design/rust_port.ja.md 3.12 fixes sherpa-onnx v1.13.8 as the argument default.
+            // DEFAULT: docs/design/rust_port.ja.md 3.12 fixes sherpa-onnx v2.0.1 as the argument default.
             None => DEFAULT_SHERPA_TAG.to_owned(),
         };
         let ort_version = match values.remove("--ort-version") {
@@ -179,5 +179,31 @@ mod tests {
             matches!(said, Err(Error::MissingFlag("--cuda-dir"))),
             "{said:?}"
         );
+    }
+
+    /// The C library the task builds and the Rust crates that link it are one
+    /// release: a tag that drifts from the pin builds a library whose C API the
+    /// crates were not written against.
+    #[test]
+    fn the_default_tag_is_the_release_every_crate_is_pinned_to() -> Result<(), std::io::Error> {
+        let pin = format!(
+            "version = \"={}\"",
+            DEFAULT_SHERPA_TAG.trim_start_matches('v')
+        );
+        let native = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        for member in ["hayamimi-asr", "hayamimi-eval", "hayamimi-gpu"] {
+            let manifest = std::fs::read_to_string(native.join(member).join("Cargo.toml"))?;
+            let lines: Vec<&str> = manifest
+                .lines()
+                .filter(|line| {
+                    line.starts_with("sherpa-onnx = ") || line.starts_with("sherpa-onnx-sys = ")
+                })
+                .collect();
+            assert!(!lines.is_empty(), "{member} names no sherpa-onnx crate");
+            for line in lines {
+                assert!(line.contains(&pin), "{member}: {line} is not {pin}");
+            }
+        }
+        Ok(())
     }
 }
