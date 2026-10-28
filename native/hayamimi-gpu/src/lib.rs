@@ -7,6 +7,7 @@
 
 pub mod cuda;
 pub mod error;
+pub mod library;
 pub mod link_args;
 pub mod memory;
 pub mod modules;

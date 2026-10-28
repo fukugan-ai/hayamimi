@@ -317,6 +317,7 @@ fn build(models: &Path, sensitivity: Sensitivity) -> Result<VoiceActivityDetecto
     if injected_failure() {
         return Err(AsrError::Create("VAD (injected failure)"));
     }
+    hayamimi_gpu::library::require()?;
     let config = silero_config_with(models, sensitivity.settings(), sensitivity.threshold)?;
     let _building = lock_for_session();
     VoiceActivityDetector::create(&config, BUFFER_SECONDS).ok_or(AsrError::Create("VAD"))

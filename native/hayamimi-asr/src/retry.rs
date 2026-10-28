@@ -74,6 +74,7 @@ impl Splitter {
                 detector.reset();
             }
         } else {
+            hayamimi_gpu::library::require()?;
             let settings = VadSettings {
                 min_silence: MIN_SILENCE_SECONDS,
                 max_speech: need as f32,

@@ -44,6 +44,7 @@ impl Embedder {
     /// Opens the extractor under `models`. A missing file is refused first:
     /// the C library ends the whole process on a missing model.
     pub fn open(models: &Path) -> Result<Self, AsrError> {
+        hayamimi_gpu::library::require()?;
         let path = model_path(models);
         if !path.is_file() {
             return Err(AsrError::MissingModel(path));

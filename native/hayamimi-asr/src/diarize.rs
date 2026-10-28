@@ -91,6 +91,7 @@ impl GroupDiarizer {
     /// Opens the diarizer under `models`. A missing model file is refused
     /// first: the C library ends the whole process on a missing model.
     pub fn open(models: &Path, settings: DiarizeSettings) -> Result<Self, AsrError> {
+        hayamimi_gpu::library::require()?;
         let segmentation = utf8(&segmentation_path(models))?;
         let embedding = utf8(&embedder::model_path(models))?;
         let config = build_config(&segmentation, &embedding, &settings, settings.num_clusters);
