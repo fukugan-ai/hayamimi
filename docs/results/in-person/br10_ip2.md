@@ -1,0 +1,52 @@
+# IP-2 record
+
+実走は 2026-10-28 10:59 JST に始め、約 20 分で終えた。
+木は commit `7ecd526`（feat/ip-s21。IP-S18、IP-S21、IP-S10 を含む）の製品の code で、native の木は commit と同じだった（`git status` が空）。以後の commit は `tests/` の判定の関数（`br02.rs`、`br03.rs`、`support/page_view.rs`）だけを変え、`src/` は変えない。
+旗は `--asr-threads` が既定の 4、`--draft-marks` が既定の `off`、`--draft-worker` が既定の `off` で、`asr.partial.read` は pair が 697 行、fast が 684 行あり、どれも `"worker":false` である。
+`ip02-730c7bb0811547eb --ignored --test-threads 1 --exact ip02_each_dialog_utterance_is_read_in_its_own_language` を `cargo` の親 process なしで、優先度を `renice` で -5 に上げ、`ps` で -5 を確かめてから直に起こした。
+訳の server は 18084 で別に起こし、共有の 18081 は触れていない。
+結果は `test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 1221.23s` で、T-IP-02-001 が通った。
+`ip02_pair.jsonl` と `ip02_fast.jsonl` は 90 行ずつで、`stream.machine.refused` は 0 件である。
+`.summary.json` の `with_final` は pair も fast も 78、`with_translation` は pair が 78、fast が 75 である。
+以下は test が書いた記録（逐語）である。本文は前回の記録（commit `49e79c0`）と同じで、取り違えは pair が 0、fast が 1 である。
+
+## pair
+mixed-up utterances: 0 (線 2) 線の内
+utterances: 30
+ja read as en: 0
+en read as ja: 0
+mixed up toward a third language: 0
+finals in a third language: 0
+utterances split into two finals or more: 8
+repeats with no final: 3
+utterances with no final: [3]
+translations into their own language: 0
+asr.lang.fallback sv_tag: 3
+asr.lang.fallback script: 0
+asr.lang.fallback default: 0
+asr.lang.fallback sv_failed: 0
+fallback lines tied to a final: 3
+asr.segment.unread empty_decode: 2
+asr.segment.unread empty_text: 0
+utterances with no segment: [3]
+utterances read as nothing: []
+## fast
+mixed-up utterances: 1 (線 2) 線の内
+utterances: 30
+ja read as en: 0
+en read as ja: 0
+mixed up toward a third language: 1
+finals in a third language: 3
+utterances split into two finals or more: 8
+repeats with no final: 3
+utterances with no final: [3]
+translations into their own language: 0
+asr.lang.fallback sv_tag: 0
+asr.lang.fallback script: 0
+asr.lang.fallback default: 0
+asr.lang.fallback sv_failed: 0
+fallback lines tied to a final: 0
+asr.segment.unread empty_decode: 2
+asr.segment.unread empty_text: 0
+utterances with no segment: []
+utterances read as nothing: [3]

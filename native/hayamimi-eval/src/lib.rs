@@ -9,6 +9,7 @@ pub mod chrf;
 pub mod cli;
 pub mod cli_der;
 pub mod cli_stages;
+pub mod clip_path;
 pub mod compare;
 pub mod der;
 pub mod der_run;

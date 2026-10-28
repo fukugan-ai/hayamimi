@@ -14,8 +14,10 @@ use serde_json::Value;
 
 pub mod dialog;
 pub mod dialog_run;
+pub mod hand;
 pub mod llama;
 pub mod page_view;
+pub mod quality;
 
 /// What a `check_*` function returns for a wrong input: a message that
 /// names what is wrong.

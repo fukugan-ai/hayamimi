@@ -1,0 +1,272 @@
+[
+  {
+    "end_sample": 45760,
+    "lang": "ja",
+    "ref": "大橋さんはやっぱり大変でしたか？",
+    "sha256": "27ff946c9379745e86274d84ab2f40bfcd04dcf980723fce53e22336e623251a",
+    "source": "set",
+    "start_sample": 0,
+    "wav": "testdata/eval_real/ja_01.wav"
+  },
+  {
+    "end_sample": 160491,
+    "lang": "en",
+    "ref": "HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE",
+    "sha256": "fb7b67d4efb3c195148c8bf8b5a22353cd7657a5a5c6e349dff9166cf6aa6801",
+    "source": "set",
+    "start_sample": 62571,
+    "wav": "testdata/eval_real/en_01.wav"
+  },
+  {
+    "end_sample": 232359,
+    "lang": "ja",
+    "ref": "「ピカピカブ！ピカピカブ！」",
+    "sha256": "7dd1eab4e5ff2b10d0cad9ea66b5f95a5348687a01371b86152e41702f9e8247",
+    "source": "set",
+    "start_sample": 180811,
+    "wav": "testdata/eval_real/ja_02.wav"
+  },
+  {
+    "end_sample": 352999,
+    "lang": "en",
+    "ref": "HE WOULD HAVE TO PAY HER THE MONEY WHICH SHE WOULD NOW REGULARLY DEMAND OR THERE WOULD BE TROUBLE IT DID NOT MATTER WHAT HE DID",
+    "sha256": "f6683174d8f60ac119f80727e863d053dde32a754a850cc54d56c5a2ea0b098e",
+    "source": "set",
+    "start_sample": 245159,
+    "wav": "testdata/eval_real/en_02.wav"
+  },
+  {
+    "end_sample": 497291,
+    "lang": "ja",
+    "ref": "そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを。",
+    "sha256": "9dcbb1ba27946b9ad6a70df162e2e207b6b452e6ac4a57beeb355d8aebc8d18b",
+    "source": "set",
+    "start_sample": 372279,
+    "wav": "testdata/eval_real/ja_03.wav"
+  },
+  {
+    "end_sample": 579211,
+    "lang": "en",
+    "ref": "HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION",
+    "sha256": "9c834935382e88a16833f2502b1ccc709c009e012e994a8d789c1e7d9716930b",
+    "source": "set",
+    "start_sample": 510091,
+    "wav": "testdata/eval_real/en_03.wav"
+  },
+  {
+    "end_sample": 683771,
+    "lang": "ja",
+    "ref": "今、１００ｍのターンを迎える。",
+    "sha256": "2427a86abb35ad4bd751561084cf003a4c55a4b3de081c5d346eafe087108d8a",
+    "source": "set",
+    "start_sample": 600251,
+    "wav": "testdata/eval_real/ja_04.wav"
+  },
+  {
+    "end_sample": 780611,
+    "lang": "en",
+    "ref": "MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED",
+    "sha256": "9f1576d983744c579d6777497ae2839ff0da1eb36fef0bd0ea9a5395b894616f",
+    "source": "set",
+    "start_sample": 700291,
+    "wav": "testdata/eval_real/en_04.wav"
+  },
+  {
+    "end_sample": 936959,
+    "lang": "ja",
+    "ref": "でも敦賀さん、９１歳力強い走りに変わっていきます。",
+    "sha256": "e973d07f2f42fa95d75f7dd4e118386a173aad741bd18deb932ee7250a35d5bc",
+    "source": "set",
+    "start_sample": 802691,
+    "wav": "testdata/eval_real/ja_05.wav"
+  },
+  {
+    "end_sample": 1022719,
+    "lang": "en",
+    "ref": "HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY",
+    "sha256": "fafddd7a58df44a34c9eafff4c5ed09f2c5ced2f0e252d4659049c803141b11c",
+    "source": "set",
+    "start_sample": 949759,
+    "wav": "testdata/eval_real/en_05.wav"
+  },
+  {
+    "end_sample": 1177730,
+    "lang": "ja",
+    "ref": "住民によると過去にも、似たような訪問があったといいます。",
+    "sha256": "e58c317343ed1dc5857138ddee8f6af798eefbd943cf2ff9458c52f272ff630a",
+    "source": "set",
+    "start_sample": 1042079,
+    "wav": "testdata/eval_real/ja_06.wav"
+  },
+  {
+    "end_sample": 1272450,
+    "lang": "en",
+    "ref": "HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS USUAL",
+    "sha256": "9d195fec54e6c68a2a4ccfa6d05871de6c9351c0a0de992d2bc0d9b117fff424",
+    "source": "set",
+    "start_sample": 1190530,
+    "wav": "testdata/eval_real/en_06.wav"
+  },
+  {
+    "end_sample": 1327730,
+    "lang": "ja",
+    "ref": "しっかり打ち切れるかです。",
+    "sha256": "47de29d9ba5caa4e56690c782129f6dd7afa4e535a12191d4f9d8ca0369b8ff6",
+    "source": "set",
+    "start_sample": 1289330,
+    "wav": "testdata/eval_real/ja_07.wav"
+  },
+  {
+    "end_sample": 1481995,
+    "lang": "en",
+    "ref": "FOR SOME REASON HE FELT AS IF SOMETHING MIGHT COME THAT WAY AND WAS RELIEVED WHEN ALL THE ENVELOPES HAD BEEN SCANNED AND NOTHING SUSPICIOUS NOTICED",
+    "sha256": "de2c9e1a00be7be8385588200cea2ce1a7755cf6d64430fb9b7c89ff3477b774",
+    "source": "set",
+    "start_sample": 1378315,
+    "wav": "testdata/eval_real/en_07.wav"
+  },
+  {
+    "end_sample": 1588555,
+    "lang": "ja",
+    "ref": "けさの東京、風はなさそうですけどね、体感はどうでしょうか、近藤さん。",
+    "sha256": "bdd3d645760ea9fbaa642191cdd7c92afceb3acd778a8513faf05ea5477d2a60",
+    "source": "set",
+    "start_sample": 1502155,
+    "wav": "testdata/eval_real/ja_08.wav"
+  },
+  {
+    "end_sample": 1706898,
+    "lang": "en",
+    "ref": "WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALISED AND WITH HIM NO NEWS WAS GOOD NEWS",
+    "sha256": "f51899e2563bf71b16463663d6b04a7b9ee0ffff6671b4901cd2b824b18fc364",
+    "source": "set",
+    "start_sample": 1619218,
+    "wav": "testdata/eval_real/en_08.wav"
+  },
+  {
+    "end_sample": 1828418,
+    "lang": "ja",
+    "ref": "そしてもう一つ大きな勢力があります。",
+    "sha256": "29978a6b823bdc680e3cdf9dd8b0fc60d3cf166844421e956c5737d52fbc7c3b",
+    "source": "set",
+    "start_sample": 1725058,
+    "wav": "testdata/eval_real/ja_09.wav"
+  },
+  {
+    "end_sample": 1928405,
+    "lang": "en",
+    "ref": "SO LITTLE DID HE CONSIDER DROUET THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINDING OUT",
+    "sha256": "cac2ad1bb7e1deed26bad3e72b37f9e07072ffa14cf7321240dc142ceb1775a9",
+    "source": "set",
+    "start_sample": 1848725,
+    "wav": "testdata/eval_real/en_09.wav"
+  },
+  {
+    "end_sample": 2080325,
+    "lang": "ja",
+    "ref": "勝利はしたものの１０万人以上の戦死者を出していた。",
+    "sha256": "23778784c21ba848d2fd2ce4159231a3f61a6fedc5e1864316cf86057a45fcde",
+    "source": "set",
+    "start_sample": 1945925,
+    "wav": "testdata/eval_real/ja_10.wav"
+  },
+  {
+    "end_sample": 2166966,
+    "lang": "en",
+    "ref": "HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS NOTHING",
+    "sha256": "1b184f75daf0c479435c5158fb65515681eed3998d49c4a33f961cf648711ef5",
+    "source": "set",
+    "start_sample": 2099446,
+    "wav": "testdata/eval_real/en_10.wav"
+  },
+  {
+    "end_sample": 2242566,
+    "lang": "ja",
+    "ref": "センター、レフト。",
+    "sha256": "b66c3414cb1598b8673ddcf7b8aa08da9808525733137eb37af08693a4ade14e",
+    "source": "set",
+    "start_sample": 2183686,
+    "wav": "testdata/eval_real/ja_11.wav"
+  },
+  {
+    "end_sample": 2341311,
+    "lang": "en",
+    "ref": "HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK WHEN HE GOT BACK HE WOULD LOOK FOR IT AT ONCE",
+    "sha256": "3caef6dcb9321b23c41165cd7782f25272f502bada687bb32df97826f9ef7e6f",
+    "source": "set",
+    "start_sample": 2255551,
+    "wav": "testdata/eval_real/en_11.wav"
+  },
+  {
+    "end_sample": 2424444,
+    "lang": "ja",
+    "ref": "言ったろヒーローよりもてめぇを信じる。",
+    "sha256": "3e64183d9ffc937b80fa1615675587f6e1439d0f5ed07d8e7b0b95d97ca1baf0",
+    "source": "set",
+    "start_sample": 2365791,
+    "wav": "testdata/eval_real/ja_12.wav"
+  },
+  {
+    "end_sample": 2499644,
+    "lang": "en",
+    "ref": "AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADISON CAR",
+    "sha256": "8d87b4c97c001db331865d6f340392181d03355b674dfd32a7ec73930f1ef119",
+    "source": "set",
+    "start_sample": 2437244,
+    "wav": "testdata/eval_real/en_12.wav"
+  },
+  {
+    "end_sample": 2610244,
+    "lang": "ja",
+    "ref": "高校生２００人に聞きました。",
+    "sha256": "4665ccab87226b2fc7b7dd70fd4aae883c4ca256f003e34f234d80b381032ad2",
+    "source": "set",
+    "start_sample": 2515164,
+    "wav": "testdata/eval_real/ja_13.wav"
+  },
+  {
+    "end_sample": 2677124,
+    "lang": "en",
+    "ref": "HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING FROM CARRIE",
+    "sha256": "8403e01e722d04517a1a521a9f911a038d1b47f910eaead89dab6c5f898709c8",
+    "source": "set",
+    "start_sample": 2623044,
+    "wav": "testdata/eval_real/en_13.wav"
+  },
+  {
+    "end_sample": 2754774,
+    "lang": "ja",
+    "ref": "〈さらにスピンオフドラマ『波風よ立ってくれ』はＴＥＬＡＳＡで独占配信中〉",
+    "sha256": "fafaeb861885f81467e4cf2e81f2e9649a1cfea6b2efc11bd752af4fa9b4a64d",
+    "source": "set",
+    "start_sample": 2694644,
+    "wav": "testdata/eval_real/ja_14.wav"
+  },
+  {
+    "end_sample": 2844054,
+    "lang": "en",
+    "ref": "AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING FOR HIM",
+    "sha256": "cc7ffa9eb4065582e3dd34cf3f90d5b01f9b9e2f8f83f31d9d2539e74db70f01",
+    "source": "set",
+    "start_sample": 2767574,
+    "wav": "testdata/eval_real/en_14.wav"
+  },
+  {
+    "end_sample": 2926374,
+    "lang": "ja",
+    "ref": "模擬裁判に参加した大学１年生の本音とは。",
+    "sha256": "627995bdd53fac7bbb171a8e23270436c8cf65edf8c7f915ecbced714c32907a",
+    "source": "set",
+    "start_sample": 2860134,
+    "wav": "testdata/eval_real/ja_15.wav"
+  },
+  {
+    "end_sample": 3020511,
+    "lang": "en",
+    "ref": "HIS FIRST IMPULSE WAS TO WRITE BUT FOUR WORDS IN REPLY GO TO THE DEVIL",
+    "sha256": "1055462f3777bd83e23bc6bd7d67d6e3f624ccc5d70d3a368effe4802cdb34e0",
+    "source": "set",
+    "start_sample": 2953951,
+    "wav": "testdata/eval_real/en_15.wav"
+  }
+]

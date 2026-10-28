@@ -130,7 +130,7 @@ pub fn events_of(text: &str) -> Result<Vec<EventLine>, Failure> {
         .collect()
 }
 
-fn text_field<'a>(body: &'a Value, key: &str) -> Option<&'a str> {
+pub fn text_field<'a>(body: &'a Value, key: &str) -> Option<&'a str> {
     body.get(key).and_then(Value::as_str)
 }
 
@@ -378,11 +378,13 @@ pub fn same_language_translations(events_text: &str) -> Result<usize, Failure> {
         .count())
 }
 
-/// One `asr.lang.fallback` line of a log: the `final` it belongs to and the step.
+/// One `asr.lang.fallback` line of a log: the `final` it belongs to, the step,
+/// and the answer of the language identifier (`None` when the line says null).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FallbackRow {
     pub id: u64,
     pub step: String,
+    pub lid: Option<String>,
 }
 
 /// The `asr.lang.fallback` lines of a log. A line that is not JSON, or a step
@@ -407,6 +409,7 @@ pub fn fallback_rows(log_text: &str) -> Result<Vec<FallbackRow>, Failure> {
         rows.push(FallbackRow {
             id,
             step: step.to_owned(),
+            lid: text_field(&value, "lid").map(str::to_owned),
         });
     }
     Ok(rows)
@@ -427,7 +430,7 @@ pub fn count_by_step_in(path: &Path) -> Result<[usize; 4], Failure> {
 }
 
 /// The number a `final` id ends in: `file-3` gives 3.
-fn final_number(id: &str) -> Option<u64> {
+pub fn final_number(id: &str) -> Option<u64> {
     id.rsplit_once('-')?.1.parse().ok()
 }
 
@@ -473,9 +476,11 @@ pub fn match_fallbacks(log_text: &str, events_text: &str) -> Result<usize, Failu
 pub const REASONS: [&str; 2] = ["empty_decode", "empty_text"];
 
 /// One `asr.segment.unread` line of a log: why the segment made no `final`,
-/// and where on the stream it ended.
+/// and where on the stream it started (`None` when the line has no number)
+/// and ended.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnreadRow {
+    pub start_s: Option<f64>,
     pub end_s: f64,
     pub reason: String,
 }
@@ -501,6 +506,10 @@ pub fn unread_rows(log_text: &str) -> Result<Vec<UnreadRow>, Failure> {
             .filter(|seconds| seconds.is_finite())
             .ok_or_else(|| format!("log line {number} has no number `end_s`"))?;
         rows.push(UnreadRow {
+            start_s: value
+                .get("start_s")
+                .and_then(Value::as_f64)
+                .filter(|seconds| seconds.is_finite()),
             end_s,
             reason: reason.to_owned(),
         });
@@ -525,7 +534,7 @@ pub struct Silent {
 }
 
 /// A time on the stream in whole microseconds, the unit of the samples file.
-fn stream_us(seconds: f64) -> i64 {
+pub fn stream_us(seconds: f64) -> i64 {
     (seconds * 1_000_000.0).round() as i64
 }
 
