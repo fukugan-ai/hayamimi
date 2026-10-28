@@ -89,23 +89,28 @@ fn texts(headers: &HeaderMap, name: HeaderName, unreadable: Refusal) -> Result<V
         .map_err(|_| unreadable)
 }
 
+/// What `guard` says of a request, by its `Host` and `Origin` headers alone
+/// (see [`hayamimi_relay::origin`]).
+pub(crate) fn judge_headers(guard: &Guard, headers: &HeaderMap) -> Verdict {
+    match (
+        texts(headers, HOST, Refusal::Host),
+        texts(headers, ORIGIN, Refusal::Origin),
+    ) {
+        (Err(refusal), _) | (_, Err(refusal)) => Verdict::Refuse(refusal),
+        (Ok(hosts), Ok(origins)) => guard.judge(&hosts, &origins),
+    }
+}
+
 /// Lets a request through when its `Host` and `Origin` are those of a page of
-/// this machine (see [`hayamimi_relay::origin`]), by the headers alone. A page
-/// that is let in is told its own origin in the reply, never `*`, and a reply
-/// of a route never carries another `access-control-allow-origin`.
+/// this machine, by the headers alone. A page that is let in is told its own
+/// origin in the reply, never `*`, and a reply of a route never carries
+/// another `access-control-allow-origin`.
 async fn pages_of_this_machine_only(
     State(guard): State<Guard>,
     request: Request,
     next: Next,
 ) -> Response {
-    let verdict = match (
-        texts(request.headers(), HOST, Refusal::Host),
-        texts(request.headers(), ORIGIN, Refusal::Origin),
-    ) {
-        (Err(refusal), _) | (_, Err(refusal)) => Verdict::Refuse(refusal),
-        (Ok(hosts), Ok(origins)) => guard.judge(&hosts, &origins),
-    };
-    match verdict {
+    match judge_headers(&guard, request.headers()) {
         Verdict::Refuse(refusal) => refuse_page(refusal),
         Verdict::Serve { echo } => tell_origin(next.run(request).await, echo.as_deref()),
     }
@@ -113,7 +118,7 @@ async fn pages_of_this_machine_only(
 
 /// The 403 for a page or a host name this machine does not serve. It carries
 /// no CORS header, so the page that was turned away cannot read it.
-fn refuse_page(refusal: Refusal) -> Response {
+pub(crate) fn refuse_page(refusal: Refusal) -> Response {
     let message = match refusal {
         Refusal::Host => "this host name is not one of this machine (--allow-origin names one)",
         Refusal::Origin => "this page is not one this machine serves (--allow-origin names one)",

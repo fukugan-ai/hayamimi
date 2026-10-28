@@ -8,6 +8,8 @@
 //! address the request was made to, and a page the server was told of with
 //! `--allow-origin`. A page of another origin and a host name that is not one of
 //! this machine get a 403. The reply tells the page its own origin, never `*`.
+//! The WebSocket handshake of `/ingest` is judged the same way: a browser page
+//! of another web site cannot open the socket.
 //!
 //! The routes are served in this process on a port the system chose, with a
 //! stand-in for the recognition loop. A LAN peer is a connection to the
@@ -26,12 +28,16 @@ use std::time::Duration;
 
 use hayamimi_app::args::{self, Parsed};
 use hayamimi_app::control::{Command, Controls, Initial, Live};
+use hayamimi_app::feed::{self, AudioRx};
+use hayamimi_app::ingest::{self, IngestState};
 use hayamimi_app::routes::{self, AppState};
 use hayamimi_app::server::{self, Hub};
+use hayamimi_app::strings::Strings;
 use hayamimi_app::ui;
 use hayamimi_asr::itn::Overrides;
 use hayamimi_asr::replace::Replacements;
 use hayamimi_asr::vad::Sensitivity;
+use hayamimi_relay::lang::Lang;
 use hayamimi_relay::origin::{Guard, Origin};
 use serde_json::Value;
 
@@ -693,5 +699,111 @@ fn a_named_origin_is_let_in_and_an_unnamed_one_is_not() -> TestResult {
         &[("Origin", named)],
     )?;
     assert_eq!(reply.status, 403);
+    Ok(())
+}
+
+/// The key of the handshake the tests send (the example of RFC 6455).
+const SOCKET_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+
+/// A server of `/ingest`, and the queue its audio would go to.
+struct Socket {
+    port: u16,
+    _audio: AudioRx,
+}
+
+impl Socket {
+    fn at(&self, ip: IpAddr) -> SocketAddr {
+        SocketAddr::new(ip, self.port)
+    }
+}
+
+/// `/ingest` for the pages of this machine and those `guard` names, listening
+/// on `listen_on` on a port the system chose.
+fn start_ingest(listen_on: IpAddr, guard: Guard) -> Result<Socket, Box<dyn Error>> {
+    let (audio, queue) = feed::channel();
+    let state = IngestState::new(Hub::new(), audio, Arc::new(Strings::embedded(Lang::En)?));
+    let listener = server::bind_on(listen_on, 0)?;
+    let address = server::serve(ingest::router_for(state, guard), listener, "br42-ingest")?;
+    Ok(Socket {
+        port: address.port(),
+        _audio: queue,
+    })
+}
+
+/// The status of the answer to the WebSocket handshake of a client that
+/// reached `address` as `host` and, when it is a browser, from the page of
+/// `origin`. The socket is closed after the head is read.
+fn handshake_status(
+    address: SocketAddr,
+    host: &str,
+    origin: Option<&str>,
+) -> Result<u16, Box<dyn Error>> {
+    let mut stream = TcpStream::connect_timeout(&address, STEP)?;
+    stream.set_read_timeout(Some(STEP))?;
+    let mut request = format!(
+        "GET /ingest HTTP/1.1\r\nHost: {host}\r\nConnection: Upgrade\r\n\
+         Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: {SOCKET_KEY}\r\n"
+    );
+    if let Some(origin) = origin {
+        request.push_str(&format!("Origin: {origin}\r\n"));
+    }
+    request.push_str("\r\n");
+    stream.write_all(request.as_bytes())?;
+    let (status, _headers) = read_head(&mut BufReader::new(stream))?;
+    Ok(status)
+}
+
+/// T-BR-42-011. A client that names no page and a page of this machine open
+/// the `/ingest` socket (101); a page of another web site, `null` and the
+/// page of an address that is not this machine's get a 403 before the upgrade.
+#[test]
+fn a_page_of_another_origin_cannot_open_the_ingest_socket() -> TestResult {
+    let served = start_ingest(LOOPBACK, Guard::default())?;
+    let address = served.at(LOOPBACK);
+    let by_address = format!("127.0.0.1:{}", served.port);
+    let by_name = format!("localhost:{}", served.port);
+    assert_eq!(handshake_status(address, &by_address, None)?, 101);
+    let own = Some("http://127.0.0.1:8833");
+    assert_eq!(handshake_status(address, &by_address, own)?, 101);
+    let named = Some("http://localhost:8080");
+    assert_eq!(handshake_status(address, &by_name, named)?, 101);
+    for origin in ["https://evil.test", "null", "http://192.168.1.10:8833"] {
+        let status = handshake_status(address, &by_address, Some(origin))?;
+        assert_eq!(status, 403, "{origin}");
+    }
+    Ok(())
+}
+
+/// T-BR-42-012. A host name that a rebound DNS name gives is turned away from
+/// the `/ingest` socket whether the handshake names its page or not.
+#[test]
+fn a_rebound_host_name_cannot_open_the_ingest_socket() -> TestResult {
+    let served = start_ingest(LOOPBACK, Guard::default())?;
+    let address = served.at(LOOPBACK);
+    let rebound = format!("rebound.test:{}", served.port);
+    let page = format!("http://rebound.test:{}", served.port);
+    assert_eq!(handshake_status(address, &rebound, Some(&page))?, 403);
+    assert_eq!(handshake_status(address, &rebound, None)?, 403);
+    Ok(())
+}
+
+/// T-BR-42-013. A socket opened to the LAN is opened by a page of the address
+/// it was reached at, and not by a page of another address.
+#[test]
+fn a_page_of_the_lan_address_opens_the_ingest_socket_of_a_server_opened_to_the_lan() -> TestResult {
+    let served = start_ingest(ANY_HOST, Guard::default())?;
+    let lan = served.at(lan_address()?);
+    let host = lan.to_string();
+    let page = format!("http://{}:8833", lan.ip());
+    assert_eq!(handshake_status(lan, &host, Some(&page))?, 101);
+    assert_eq!(
+        handshake_status(lan, &host, Some("http://192.0.2.77:8833"))?,
+        403
+    );
+    assert_eq!(
+        handshake_status(lan, &host, Some("https://evil.test"))?,
+        403
+    );
     Ok(())
 }

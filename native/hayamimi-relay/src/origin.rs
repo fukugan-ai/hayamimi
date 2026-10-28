@@ -385,8 +385,13 @@ mod tests {
         ] {
             assert_eq!(Origin::parse(text), None, "{text:?}");
         }
-        let long = format!("http://{}.test", "a".repeat(MAX_NAME_BYTES));
-        assert_eq!(Origin::parse(&long), None);
+    }
+
+    #[test]
+    fn a_name_of_the_longest_length_dns_has_is_read_and_one_byte_more_is_not() {
+        let origin_of = |length: usize| format!("http://{}", "a".repeat(length));
+        assert!(Origin::parse(&origin_of(MAX_NAME_BYTES)).is_some());
+        assert_eq!(Origin::parse(&origin_of(MAX_NAME_BYTES + 1)), None);
     }
 
     #[test]

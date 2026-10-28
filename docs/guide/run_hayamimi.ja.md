@@ -149,6 +149,7 @@ wasm-bindgen --target web --no-typescript --out-dir target/release/ui --out-name
 LAN の address ではなく host の名前（例：`desk`）で頁を開くときは、頁を配る `hayamimi` と中継の 2 つの process に `--allow-origin http://desk:8833` を渡します（頁の origin を、`http://host[:port]` の形で）。渡さないと 403 になり、中継の log の event `relay.events.refused` と、`hayamimi` の応答の body が理由を言います。
 `--serve-host` が loopback のときも、この判定は同じです。制御の口の相手の判定だけが今までと変わりません。
 `/ingest`（音声の入力）は `--ws-host` で別に決まり、既定は 127.0.0.1 のままです。`--serve-host` を付けても LAN には開きません。
+`/ingest` の WebSocket の握手にも、同じ判定を掛けます。別の web site の頁（`Origin` が loopback でも握手の `Host` と同じ host でも `--allow-origin` でもない握手）と、DNS 名の `Host` は 403 で、frame は読みません。`Origin` を書かない client（`hayamimi-eval stream` など）は、IP address か `localhost` で繋ぐ限り今までどおり受けます。`--ws-host` を LAN に開き、host の名前（例：`desk`）で繋ぐ client には、`--allow-origin http://desk` のように、その名前を host に持つ origin を渡します。
 
 別の端末の browser で頁を開くときは、2 つの process に `--serve-host 0.0.0.0` を付けて起こします。
 端から端の受入（E2E）で別の機械の browser から頁を見るときも同じで、process A、process B、中継の command にそれぞれ足します。
