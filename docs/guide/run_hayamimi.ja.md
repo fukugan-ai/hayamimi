@@ -496,7 +496,7 @@ grep -c '"event":"asr.draft.ready"' <hayamimi の stdout を残した file>
 1 回の読みに使う CPU の thread 数は、既定で 4 です。
 `--asr-threads <n>` で、1 から 32 の整数に変えられます。
 この数は、確定文の認識器と、`--draft-worker on` の専用の認識器の両方に同じ値で渡ります。
-言語判定、VAD、句読点、話者の thread 数は変わりません。
+言語判定、VAD、句読点、話者の thread 数と、清書の再読の認識器の 2 thread は変わりません。
 `--draft-worker on` と重ねると、確定文の読みと速報の読みが同時に走るので、使う thread は最大でこの数の 2 倍になります。
 
 thread を増やして読みが速くなるかは、モデルと音の長さで変わります。
