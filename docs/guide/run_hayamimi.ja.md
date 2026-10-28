@@ -21,7 +21,7 @@ Linux（WSL）では、ALSA の開発用の package も要ります（`sudo apt-
 
 ```bash
 # WSL
-SHERPA_ONNX_LIB_DIR=<repo>/native/target/sherpa-gpu/linux/install/lib cargo build --release -p hayamimi
+SHERPA_ONNX_LIB_DIR=$HOME/.local/share/hayamimi/build/cuda1343-sherpa201/linux/install/lib cargo build --release -p hayamimi
 ```
 
 ```powershell
@@ -664,10 +664,10 @@ worktree は本体の checkout の `.claude/worktrees/` の下にあるので、
 
 ```toml
 [env]
-SHERPA_ONNX_LIB_DIR = { value = "native/target/sherpa-gpu/linux/install/lib", relative = true }
+SHERPA_ONNX_LIB_DIR = "/home/<user>/.local/share/hayamimi/build/cuda1343-sherpa201/linux/install/lib"
 ```
 
-`relative = true` の起点は、この file を置いた directory（本体の直下）です。
+WSL の現行の build（`cuda1343-sherpa201`）は `native/target` の下に symlink を持たないので、絶対 path で書きます（`<user>` は自分の user 名）。
 環境変数が先に設定されていれば、そちらが勝ちます。
 Windows の cargo も同じ file を読むので、Windows では `SHERPA_ONNX_LIB_DIR` に `native\target\sherpa-gpu\windows\install\lib` を毎回設定します。
 

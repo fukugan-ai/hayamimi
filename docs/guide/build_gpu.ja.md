@@ -106,7 +106,7 @@ apt の package は使いません。
 | cuDNN 9.27.0.42（cuda13） | `/usr/local/cudnn-9.27.0.42-cuda13` | なし |
 | build の出力（4 本）と redistrib の照合表（`redist-sums`。下の表） | `~/.local/share/hayamimi/build` | なし |
 
-WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda1343-repeat`、`cuda1341`）は `native/target` の下の symlink から指され、現行の `cuda1343-sherpa201` は symlink を持たず、`SHERPA_ONNX_LIB_DIR` で指します。同じ `~/.local/share/hayamimi/build` には、この表の外に、ORT 1.28.3 の退路の build（`ort1283`。設計 `rust_port.ja.md` の環境の表）と、その RP-17 を打った作り直せる cargo の target（`ort1283-target`）、alsa の pkg-config と `libasound.so` の symlink を置いた `alsa-shim` もあります。
+WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda1343-repeat`、`cuda1341`）は `native/target` の下の symlink から指され（2026-10-29 に確かめた時、main の木の `native/target` に、この 3 本の symlink は無かった。H169）、現行の `cuda1343-sherpa201` は symlink を持たず、`SHERPA_ONNX_LIB_DIR` で指します。同じ `~/.local/share/hayamimi/build` には、この表の外に、ORT 1.28.3 の退路の build（`ort1283`。設計 `rust_port.ja.md` の環境の表）と、その RP-17 を打った作り直せる cargo の target（`ort1283-target`）、alsa の pkg-config と `libasound.so` の symlink を置いた `alsa-shim` もあります。
 `~/.cache` には何も残しません（下の手順の作業 directory `W` は、取得と build の間だけ使います）。
 取得した archive と cargo の `target` は作り直せるので残さず、redistrib の部品の sha256 の照合表だけを `redist-sums` に残します。
 
@@ -125,7 +125,7 @@ WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda13
 ```bash
 sudo rm -rf /usr/local/cuda-13.4.3 /usr/local/cuda-13.4 /usr/local/cudnn-9.27.0.42-cuda13
 rm -rf ~/.local/share/hayamimi/build
-rm native/target/sherpa-gpu/linux native/target/sherpa-gpu-repeat/linux native/target/sherpa-gpu-cuda1341/linux
+rm -f native/target/sherpa-gpu/linux native/target/sherpa-gpu-repeat/linux native/target/sherpa-gpu-cuda1341/linux
 ```
 
 最後の行は symlink だけを消します（`rm -r` を付けないので、指す先は消えません）。
