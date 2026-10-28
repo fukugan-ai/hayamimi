@@ -20,6 +20,7 @@ use hayamimi_relay::follow::Backoff;
 use hayamimi_relay::hub;
 use hayamimi_relay::llm::{Completion, HttpLlm, Llm};
 use hayamimi_relay::logging::{LogSink, SharedSink};
+use hayamimi_relay::origin::Guard;
 use hayamimi_relay::pipeline::{Pipeline, PipelineConfig};
 use hayamimi_relay::relay::{self, Lanes, MakePipeline, RelayConfig};
 use hayamimi_relay::slots::LLAMA_SLOTS;
@@ -416,6 +417,7 @@ fn rp47_a_language_without_an_edit_asks_its_translations_one_after_the_other() -
         started_epoch: 1_790_000_000,
         translate: Some(vec![String::from("zh")]),
         verify_dump: None,
+        guard: Guard::default(),
     };
     let address = relay::start_with(
         hub::bind(0)?,

@@ -8,7 +8,8 @@
 //!
 //! The relay follows the `/events` streams of the recognizers (`follow`),
 //! translates each line in a lane of its own source (`relay`) and serves the
-//! translations (`hub`). A translation of T that passed verification is served
+//! translations (`hub`) to the pages of this machine and to the origins it was
+//! told of (`origin`). A translation of T that passed verification is served
 //! at once as a draft and replaced by the settled one; only the settled one is
 //! sent to a subtitle file and to the outside destinations (`deliver`, `srt`).
 //! The destinations are the Zoom caption API and the Teams CART link
@@ -43,6 +44,7 @@ pub mod llm;
 pub mod logging;
 pub mod media;
 pub mod numbers;
+pub mod origin;
 pub mod partial;
 pub mod pcm;
 pub mod pipeline;

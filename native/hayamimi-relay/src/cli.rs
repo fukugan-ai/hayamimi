@@ -19,6 +19,7 @@ use crate::lan::{self, LanUrl};
 use crate::lang::Lang;
 use crate::llm::{HttpLlm, Llm};
 use crate::logging::{Level, LogEvent, LogSink, SharedSink, StdoutSink};
+use crate::origin::{Guard, Origin};
 use crate::partial::PartialTranslation;
 use crate::pipeline::{Pipeline, PipelineConfig};
 use crate::reach::{Reach, Watch};
@@ -66,6 +67,9 @@ pub struct Live {
     pub serve: u16,
     /// The address `serve` listens on: the loopback unless `--serve-host` names another.
     pub serve_host: IpAddr,
+    /// The pages `/events` is read from besides the pages of this machine
+    /// (`--allow-origin`, given once for each).
+    pub allow_origins: Vec<Origin>,
     /// Where to write the settled translations as SRT cues.
     pub srt: Option<PathBuf>,
     /// The file that names the Zoom token and the Teams link; without it
@@ -116,6 +120,7 @@ pub enum CliError {
     NeedInstallOrRemove,
     BadPort,
     BadAddress,
+    BadOrigin,
     BadPartialYield,
     NeedPairsAndOut,
     NeedVideo,
@@ -131,6 +136,7 @@ impl CliError {
             CliError::NeedInstallOrRemove => "need_install_or_remove",
             CliError::BadPort => "bad_port",
             CliError::BadAddress => "bad_address",
+            CliError::BadOrigin => "bad_origin",
             CliError::BadPartialYield => "bad_partial_yield",
             CliError::NeedPairsAndOut => "need_pairs_and_out",
             CliError::NeedVideo => "need_video",
@@ -178,6 +184,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
         llm_other: DEFAULT_LLM_OTHER.to_owned(),
         serve: DEFAULT_SERVE,
         serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+        allow_origins: Vec::new(),
         srt: None,
         send: None,
         translate: None,
@@ -199,6 +206,7 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
                 | "--llm-other"
                 | "--serve"
                 | "--serve-host"
+                | "--allow-origin"
                 | "--srt"
                 | "--send"
                 | "--translate"
@@ -215,6 +223,10 @@ fn parse_run_options(args: &[String]) -> Result<Live, CliError> {
             "--llm-other" => options.llm_other.clone_from(value),
             "--serve-host" => {
                 options.serve_host = value.parse().map_err(|_| CliError::BadAddress)?;
+            }
+            "--allow-origin" => {
+                let origin = Origin::parse(value).ok_or(CliError::BadOrigin)?;
+                options.allow_origins.push(origin);
             }
             "--srt" => options.srt = Some(PathBuf::from(value)),
             "--send" => options.send = Some(PathBuf::from(value)),
@@ -605,6 +617,7 @@ pub fn start_live(
             .verify_text
             .as_deref()
             .and_then(|path| VerifyDump::open(path, &mut log)),
+        guard: Guard::new(live.allow_origins.clone()),
     };
     let outputs = Outputs {
         destinations,
@@ -821,6 +834,7 @@ mod tests {
                 llm_other: String::from(DEFAULT_LLM_OTHER),
                 serve: 9100,
                 serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+                allow_origins: Vec::new(),
                 srt: None,
                 send: None,
                 translate: None,
@@ -861,6 +875,37 @@ mod tests {
             serve_host_of(&["live", "--serve-host"]),
             Err(CliError::MissingValue)
         );
+    }
+
+    #[test]
+    fn live_takes_each_allow_origin_it_is_given_and_refuses_what_is_not_an_origin()
+    -> Result<(), String> {
+        let live = live_of(&[
+            "live",
+            "--allow-origin",
+            "http://192.168.1.10:8833",
+            "--allow-origin",
+            "https://desk.test",
+        ])?;
+        let named: Vec<Origin> = ["http://192.168.1.10:8833", "https://desk.test"]
+            .iter()
+            .filter_map(|text| Origin::parse(text))
+            .collect();
+        assert_eq!(live.allow_origins, named);
+        assert_eq!(named.len(), 2);
+        assert!(live_of(&["live"])?.allow_origins.is_empty());
+        for bad in ["null", "desk.test", "http://desk.test/x", "*"] {
+            assert_eq!(
+                parse_args(&args(&["live", "--allow-origin", bad])),
+                Err(CliError::BadOrigin),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            parse_args(&args(&["live", "--allow-origin"])),
+            Err(CliError::MissingValue)
+        );
+        Ok(())
     }
 
     fn live_of(list: &[&str]) -> Result<Live, String> {
@@ -1169,6 +1214,7 @@ mod tests {
             llm_other: String::from(DEFAULT_LLM_OTHER),
             serve: 8835,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            allow_origins: Vec::new(),
             srt: None,
             send: None,
             translate: None,

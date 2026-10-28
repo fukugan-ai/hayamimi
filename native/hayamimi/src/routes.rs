@@ -10,12 +10,13 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::{ConnectInfo, DefaultBodyLimit, FromRef, Request, State};
-use axum::http::StatusCode;
-use axum::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE};
+use axum::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE, HOST, ORIGIN, VARY};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{MethodRouter, get, post};
+use axum::routing::{get, post};
 use hayamimi_asr::vad::Sensitivity;
+use hayamimi_relay::origin::{Guard, Refusal, Verdict};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -40,36 +41,109 @@ impl FromRef<AppState> for Hub {
     }
 }
 
-/// The routes of the server.
+/// The routes of the server, for the pages of this machine.
 pub fn router(state: AppState) -> Router {
-    assemble(state, control_routes(), get(server::events))
+    assemble(state, control_routes(), Guard::default())
 }
 
-/// The routes of the server for a listener on `serve_host`. When that is not
-/// a loopback address, the control routes answer a peer on this machine only,
-/// and `/events` carries no `access-control-allow-origin`: a page opened from
-/// the network reads it from its own origin. The routes must be served with
-/// connection info (see [`server::serve`]); a request without a peer address
-/// is refused.
-pub fn router_for(state: AppState, serve_host: IpAddr) -> Router {
+/// The routes of the server for a listener on `serve_host`, for the pages of
+/// this machine and the origins `guard` names. When `serve_host` is not a
+/// loopback address, the control routes answer a peer on this machine only.
+/// The routes must be served with connection info (see [`server::serve`]); a
+/// request without a peer address is refused.
+pub fn router_for(state: AppState, serve_host: IpAddr, guard: Guard) -> Router {
     if is_loopback_address(serve_host) {
-        return router(state);
+        return assemble(state, control_routes(), guard);
     }
     let guarded = control_routes().layer(middleware::from_fn(loopback_peers_only));
-    assemble(state, guarded, get(server::events_same_origin))
+    assemble(state, guarded, guard)
 }
 
-/// The pages, `/events` and the control routes.
-fn assemble(state: AppState, control: Router<AppState>, events: MethodRouter<AppState>) -> Router {
+/// The pages, `/events` and the control routes, behind the guard: a request
+/// of a page this machine does not serve, or to a host name that is not one of
+/// this machine, is answered 403 before any route sees it.
+fn assemble(state: AppState, control: Router<AppState>, guard: Guard) -> Router {
     Router::new()
         .route("/", get(ui::index))
-        .route("/events", events)
+        .route("/events", get(server::events))
         .route("/dashboard", get(ui::index))
         .route("/transcript", get(ui::index))
         .route("/ui/{*path}", get(ui::file))
         .merge(control)
         .layer(DefaultBodyLimit::max(api::MAX_BODY))
+        .layer(middleware::from_fn_with_state(
+            guard,
+            pages_of_this_machine_only,
+        ))
         .with_state(state)
+}
+
+/// The values of a header as text. A value that is not text is no browser's
+/// and is counted against `unreadable`.
+fn texts(headers: &HeaderMap, name: HeaderName, unreadable: Refusal) -> Result<Vec<&str>, Refusal> {
+    headers
+        .get_all(name)
+        .iter()
+        .map(HeaderValue::to_str)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| unreadable)
+}
+
+/// What `guard` says of a request, by its `Host` and `Origin` headers alone
+/// (see [`hayamimi_relay::origin`]).
+pub(crate) fn judge_headers(guard: &Guard, headers: &HeaderMap) -> Verdict {
+    match (
+        texts(headers, HOST, Refusal::Host),
+        texts(headers, ORIGIN, Refusal::Origin),
+    ) {
+        (Err(refusal), _) | (_, Err(refusal)) => Verdict::Refuse(refusal),
+        (Ok(hosts), Ok(origins)) => guard.judge(&hosts, &origins),
+    }
+}
+
+/// Lets a request through when its `Host` and `Origin` are those of a page of
+/// this machine, by the headers alone. A page that is let in is told its own
+/// origin in the reply, never `*`, and a reply of a route never carries
+/// another `access-control-allow-origin`.
+async fn pages_of_this_machine_only(
+    State(guard): State<Guard>,
+    request: Request,
+    next: Next,
+) -> Response {
+    match judge_headers(&guard, request.headers()) {
+        Verdict::Refuse(refusal) => refuse_page(refusal),
+        Verdict::Serve { echo } => tell_origin(next.run(request).await, echo.as_deref()),
+    }
+}
+
+/// The 403 for a page or a host name this machine does not serve. It carries
+/// no CORS header, so the page that was turned away cannot read it.
+pub(crate) fn refuse_page(refusal: Refusal) -> Response {
+    let message = match refusal {
+        Refusal::Host => "this host name is not one of this machine (--allow-origin names one)",
+        Refusal::Origin => "this page is not one this machine serves (--allow-origin names one)",
+    };
+    (
+        StatusCode::FORBIDDEN,
+        [(CONTENT_TYPE, "application/json; charset=utf-8")],
+        json!({"error": message}).to_string(),
+    )
+        .into_response()
+}
+
+/// `reply` with `Vary: Origin`, and with the origin of the page it is for as
+/// its `access-control-allow-origin` when the request named one.
+fn tell_origin(mut reply: Response, echo: Option<&str>) -> Response {
+    let headers = reply.headers_mut();
+    headers.remove(ACCESS_CONTROL_ALLOW_ORIGIN);
+    headers.append(VARY, HeaderValue::from_static("Origin"));
+    // An origin the guard let in is made of characters a header holds. Were it
+    // not, the reply would carry no allow-origin header and the browser would
+    // not let the page read it.
+    if let Some(Ok(value)) = echo.map(HeaderValue::from_str) {
+        headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, value);
+    }
+    reply
 }
 
 /// The routes that read or change the settings of the run.
@@ -119,10 +193,7 @@ fn refuse_peer() -> Response {
 fn json_reply(status: StatusCode, body: String) -> Response {
     (
         status,
-        [
-            (CONTENT_TYPE, "application/json; charset=utf-8"),
-            (ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
-        ],
+        [(CONTENT_TYPE, "application/json; charset=utf-8")],
         body,
     )
         .into_response()

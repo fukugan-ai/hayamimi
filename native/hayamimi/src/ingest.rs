@@ -7,16 +7,22 @@
 //! audio client is accepted at a time; a second one is told so and closed.
 //! When the client leaves, what the detector holds is cut, as no silence will
 //! follow it.
+//!
+//! The handshake is judged by its `Host` and `Origin` as a page's request is
+//! (see [`crate::routes`]): a page of another web site, and a `Host` that is a
+//! DNS name this machine was not told of, get a 403 and no socket.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use axum::Router;
-use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Request, State};
+use axum::middleware;
 use axum::response::Response;
 use axum::routing::get;
 use hayamimi_asr::audio::SAMPLE_RATE;
+use hayamimi_relay::origin::{Guard, Verdict};
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::broadcast::error::RecvError;
@@ -24,6 +30,7 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::capture::convert::{Chain, pcm16_to_f32};
 use crate::feed::{AudioItem, AudioTx};
 use crate::log;
+use crate::routes;
 use crate::server::Hub;
 use crate::strings::Strings;
 use crate::wire;
@@ -54,11 +61,39 @@ impl IngestState {
     }
 }
 
-/// The routes of the `/ingest` server.
+/// The routes of the `/ingest` server, for the pages of this machine.
 pub fn router(state: IngestState) -> Router {
+    router_for(state, Guard::default())
+}
+
+/// The routes of the `/ingest` server for the pages of this machine and the
+/// origins `guard` names. A WebSocket is not held to the same-origin policy:
+/// a page of any web site can open one to this machine, read the events it
+/// mirrors and feed it audio. The browser names the page in the `Origin` of
+/// the handshake, so the handshake is judged as the request of a page is.
+pub fn router_for(state: IngestState, guard: Guard) -> Router {
     Router::new()
         .route("/ingest", get(upgrade))
+        .layer(middleware::from_fn_with_state(
+            guard,
+            pages_that_may_open_the_socket,
+        ))
         .with_state(state)
+}
+
+/// Lets a handshake through when its `Host` and `Origin` are those of a page
+/// of this machine (see [`routes::judge_headers`]); a client that names no
+/// `Origin` is not a browser and is let in. A refusal is a 403 before the
+/// upgrade, so no frame is read from it.
+async fn pages_that_may_open_the_socket(
+    State(guard): State<Guard>,
+    request: Request,
+    next: middleware::Next,
+) -> Response {
+    match routes::judge_headers(&guard, request.headers()) {
+        Verdict::Refuse(refusal) => routes::refuse_page(refusal),
+        Verdict::Serve { .. } => next.run(request).await,
+    }
 }
 
 async fn upgrade(State(state): State<IngestState>, ws: WebSocketUpgrade) -> Response {

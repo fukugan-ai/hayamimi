@@ -450,6 +450,42 @@ fn say_lan(strings: &Strings, address: SocketAddr) {
     eprintln!("{line}");
 }
 
+/// Starts the subtitle server `--serve` asks for, for the pages of this
+/// machine and the origins `--allow-origin` named, and returns where it listens.
+fn start_pages(
+    args: &Args,
+    hub: &Hub,
+    controls: &Arc<Controls>,
+    notices: &mut Vec<Notice>,
+) -> Result<Option<SocketAddr>, RunError> {
+    let Some(port) = args.serve else {
+        return Ok(None);
+    };
+    let state = AppState {
+        hub: hub.clone(),
+        controls: Arc::clone(controls),
+    };
+    let router = routes::router_for(state, args.serve_host, args.guard());
+    start_listener(router, args.serve_host, port, &EVENTS, notices)
+}
+
+/// Starts the `/ingest` socket the input asks for, for the pages of this
+/// machine and the origins `--allow-origin` named, and returns where it listens.
+fn start_ingest(
+    args: &Args,
+    strings: &Strings,
+    hub: &Hub,
+    audio: &AudioTx,
+    notices: &mut Vec<Notice>,
+) -> Result<Option<SocketAddr>, RunError> {
+    let Some(port) = args.io.ingest_port() else {
+        return Ok(None);
+    };
+    let state = IngestState::new(hub.clone(), audio.clone(), Arc::new(strings.clone()));
+    let router = ingest::router_for(state, args.guard());
+    start_listener(router, args.io.ws_host, port, &INGEST, notices)
+}
+
 /// Starts the servers the command line asks for.
 fn start_servers(
     args: &Args,
@@ -459,27 +495,10 @@ fn start_servers(
     audio: &AudioTx,
     notices: &mut Vec<Notice>,
 ) -> Result<(), RunError> {
-    if let Some(port) = args.serve {
-        let state = AppState {
-            hub: hub.clone(),
-            controls: Arc::clone(controls),
-        };
-        let ip = args.serve_host;
-        let router = routes::router_for(state, ip);
-        if let Some(address) = start_listener(router, ip, port, &EVENTS, notices)? {
-            say_lan(strings, address);
-        }
+    if let Some(address) = start_pages(args, hub, controls, notices)? {
+        say_lan(strings, address);
     }
-    if let Some(port) = args.io.ingest_port() {
-        let state = IngestState::new(hub.clone(), audio.clone(), Arc::new(strings.clone()));
-        start_listener(
-            ingest::router(state),
-            args.io.ws_host,
-            port,
-            &INGEST,
-            notices,
-        )?;
-    }
+    start_ingest(args, strings, hub, audio, notices)?;
     Ok(())
 }
 
@@ -710,6 +729,7 @@ mod tests {
     use crate::inputs::IoArgs;
     use hayamimi_asr::{Fallback, Stage, To};
     use hayamimi_relay::lang::Lang;
+    use hayamimi_relay::origin::Origin;
     use std::cell::{Cell, RefCell};
     use std::net::Ipv4Addr;
     use std::rc::Rc;
@@ -736,6 +756,7 @@ mod tests {
             replace: replace.map(Into::into),
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            allow_origins: Vec::new(),
             diagnose: false,
             refine: true,
             max_resident: None,
@@ -942,6 +963,134 @@ mod tests {
             return Err("a free port gave no address".into());
         };
         assert!(address.ip().is_loopback() && address.port() != 0);
+        Ok(())
+    }
+
+    /// The first line of the answer to a `GET path` that carries `headers`.
+    fn status_of(address: SocketAddr, path: &str, headers: &str) -> Fallible<String> {
+        use std::io::{Read, Write};
+        let mut stream = std::net::TcpStream::connect(address)?;
+        stream.set_read_timeout(Some(std::time::Duration::from_secs(5)))?;
+        write!(stream, "GET {path} HTTP/1.1\r\n{headers}\r\n")?;
+        let mut seen = String::new();
+        let mut buffer = [0_u8; 512];
+        while !seen.contains("\r\n\r\n") {
+            let count = stream.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            seen.push_str(&String::from_utf8_lossy(&buffer[..count]));
+        }
+        seen.lines()
+            .next()
+            .map(str::to_owned)
+            .ok_or_else(|| "the answer has no status line".into())
+    }
+
+    type Fallible<T> = Result<T, Box<dyn std::error::Error>>;
+
+    /// The server `--serve 0` starts for `args`, on the loopback.
+    fn started_for(args: &Args) -> Fallible<SocketAddr> {
+        let (controls, _commands) = controls_over(true);
+        let mut notices = Vec::new();
+        let started = start_pages(args, &Hub::new(), &controls, &mut notices)
+            .map_err(|_| "the server did not start")?;
+        started.ok_or_else(|| "--serve gave no address".into())
+    }
+
+    #[test]
+    fn the_allow_origin_flag_reaches_the_pages_the_server_lets_read() -> TestResult {
+        let mut args = args_with(None, None);
+        args.serve = Some(0);
+        let named = Origin::parse("http://desk:8833").ok_or("not an origin")?;
+        args.allow_origins = vec![named];
+        let address = started_for(&args)?;
+        let host = format!(
+            "Host: desk:{}\r\nOrigin: http://desk:8833\r\n",
+            address.port()
+        );
+        assert_eq!(status_of(address, "/events", &host)?, "HTTP/1.1 200 OK");
+
+        // The same request, when the flag was not given, is turned away.
+        args.allow_origins = Vec::new();
+        let address = started_for(&args)?;
+        let host = format!(
+            "Host: desk:{}\r\nOrigin: http://desk:8833\r\n",
+            address.port()
+        );
+        assert_eq!(
+            status_of(address, "/events", &host)?,
+            "HTTP/1.1 403 Forbidden"
+        );
+        Ok(())
+    }
+
+    /// The `/ingest` socket `--ws-port 0` starts for `args`, on the loopback.
+    fn ingest_started_for(args: &Args) -> Fallible<(SocketAddr, feed::AudioRx)> {
+        let (audio, queue) = feed::channel();
+        let strings = Strings::embedded(Lang::En)?;
+        let mut notices = Vec::new();
+        let started = start_ingest(args, &strings, &Hub::new(), &audio, &mut notices)
+            .map_err(|_| "the socket did not start")?;
+        let address = started.ok_or("--ws-port gave no address")?;
+        Ok((address, queue))
+    }
+
+    /// The headers of a WebSocket handshake that the page `desk:8833` makes.
+    fn handshake_of_desk(port: u16) -> String {
+        format!(
+            "Host: desk:{port}\r\nOrigin: http://desk:8833\r\nConnection: Upgrade\r\n\
+             Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
+             Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+        )
+    }
+
+    #[test]
+    fn the_allow_origin_flag_reaches_the_pages_the_ingest_socket_lets_open() -> TestResult {
+        let mut args = args_with(None, None);
+        args.io.ws_port = Some(0);
+        let named = Origin::parse("http://desk:8833").ok_or("not an origin")?;
+        args.allow_origins = vec![named];
+        let (address, _queue) = ingest_started_for(&args)?;
+        assert_eq!(
+            status_of(address, "/ingest", &handshake_of_desk(address.port()))?,
+            "HTTP/1.1 101 Switching Protocols"
+        );
+
+        // The same handshake, when the flag was not given, is turned away.
+        args.allow_origins = Vec::new();
+        let (address, _queue) = ingest_started_for(&args)?;
+        assert_eq!(
+            status_of(address, "/ingest", &handshake_of_desk(address.port()))?,
+            "HTTP/1.1 403 Forbidden"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn no_ws_port_and_no_ws_input_start_no_ingest_socket() -> TestResult {
+        let strings = Strings::embedded(Lang::En)?;
+        let (audio, _queue) = feed::channel();
+        let mut notices = Vec::new();
+        let started = start_ingest(
+            &args_with(None, None),
+            &strings,
+            &Hub::new(),
+            &audio,
+            &mut notices,
+        )
+        .map_err(|_| "start_ingest failed")?;
+        assert_eq!(started, None);
+        Ok(())
+    }
+
+    #[test]
+    fn no_serve_flag_starts_no_server() -> TestResult {
+        let (controls, _commands) = controls_over(true);
+        let mut notices = Vec::new();
+        let started = start_pages(&args_with(None, None), &Hub::new(), &controls, &mut notices)
+            .map_err(|_| "start_pages failed")?;
+        assert_eq!(started, None);
         Ok(())
     }
 

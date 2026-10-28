@@ -88,6 +88,7 @@ options:
   --replace <file>     置換辞書。1 行に wrong=right を 1 つ
   --serve [port]       字幕の event を /events で配る（既定の port は 8833）
   --serve-host <address>  --serve が待つ address（既定は 127.0.0.1。0.0.0.0 にすると network へ開く）
+  --allow-origin <origin>  --serve を読んでよい別の host の頁。http://host[:port] の形で、頁ごとに繰り返す（この機械の頁は常に読める）
   --max-resident <n>   日本語の認識器のほかに memory へ置く認識器の数（既定は 3。0 なら全部）
   --gpu-budget <MiB>   使用中の GPU memory がこの値になったら段を CPU へ移す（既定は 14000）
   --gpu-diagnose       GPU の model の node がどこへ置かれたかを log に出す
@@ -109,6 +110,7 @@ lang_unsupported = "--lang には、専用の認識器を持つ言語を指定�
 need_wav = "入力が要ります。--wav <file>、または --input の mic、speaker、mix、ws を渡してください。"
 unknown_input = "--input に渡せるのは wav、mic、speaker、mix、ws です。"
 bad_address = "--ws-host と --serve-host には IP address が要ります。"
+bad_origin = "--allow-origin には http://host か https://host の形の origin が要ります（port があれば付け、path は付けません）。"
 lan_url = "同じ network の別の端末からは次の URL で開けます:"
 lan_url_unknown = "この機械は network への経路を持たず、別の端末向けの address を決められません。この機械の address と server の port で開いてください。"
 no_gpu_check = "GPU と driver は次の command で確かめられます: nvidia-smi"

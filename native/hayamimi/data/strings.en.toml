@@ -88,6 +88,7 @@ options:
   --replace <file>     replacement dictionary, one wrong=right per line
   --serve [port]       serve the subtitle events at /events (default port 8833)
   --serve-host <address>  address --serve listens on (default 127.0.0.1; 0.0.0.0 opens it to the network)
+  --allow-origin <origin>  a page of another host, written http://host[:port], that may read --serve (repeat it for each; the pages of this machine always may)
   --max-resident <n>   recognizers kept in memory besides the Japanese one (default 3; 0 keeps all)
   --gpu-budget <MiB>   GPU memory in use at which a stage moves to the CPU (default 14000)
   --gpu-diagnose       log where the nodes of each GPU model were placed
@@ -109,6 +110,7 @@ lang_unsupported = "--lang names a language that has a recognizer of its own."
 need_wav = "An input is required: pass --wav <file>, or --input mic, speaker, mix or ws."
 unknown_input = "--input takes wav, mic, speaker, mix or ws."
 bad_address = "--ws-host and --serve-host need an IP address."
+bad_origin = "--allow-origin needs an origin written as http://host or https://host, with a port when it has one (no path)."
 lan_url = "Open from another device on the network at:"
 lan_url_unknown = "This machine has no route to a network, so no address for other devices can be named. Use the address of this machine with the port of the server."
 no_gpu_check = "Check the GPU and the driver with: nvidia-smi"

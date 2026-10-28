@@ -8,6 +8,7 @@ use hayamimi_asr::DEFAULT_MAX_RESIDENT;
 use hayamimi_asr::endpoint::{HeldReuse, Mode as Endpoint};
 use hayamimi_asr::recognizer::THREADS;
 use hayamimi_asr::route::{Policy, is_routable};
+use hayamimi_relay::origin::{Guard, Origin};
 
 use crate::inputs::{Input, IoArgs};
 use crate::strings::keys;
@@ -74,6 +75,9 @@ pub struct Args {
     pub serve: Option<u16>,
     /// The address `--serve` listens on: the loopback unless `--serve-host` names another.
     pub serve_host: IpAddr,
+    /// The pages of other hosts `--serve` is read from besides the pages of
+    /// this machine (`--allow-origin`, given once for each).
+    pub allow_origins: Vec<Origin>,
     pub diagnose: bool,
     /// Whether the groups of finished utterances are read again (`--no-refine` turns it off).
     pub refine: bool,
@@ -110,6 +114,7 @@ pub enum ArgError {
     NeedWav,
     UnknownInput,
     BadAddress,
+    BadOrigin,
 }
 
 impl ArgError {
@@ -131,6 +136,7 @@ impl ArgError {
             ArgError::NeedWav => keys::NEED_WAV,
             ArgError::UnknownInput => keys::UNKNOWN_INPUT,
             ArgError::BadAddress => keys::BAD_ADDRESS,
+            ArgError::BadOrigin => keys::BAD_ORIGIN,
         }
     }
 }
@@ -185,6 +191,11 @@ fn address_of(rest: &mut Rest<'_>) -> Result<IpAddr, ArgError> {
     value_of(rest)?
         .parse::<IpAddr>()
         .map_err(|_| ArgError::BadAddress)
+}
+
+/// `--allow-origin`: `http://host[:port]` or `https://host[:port]`.
+fn origin_of(rest: &mut Rest<'_>) -> Result<Origin, ArgError> {
+    Origin::parse(value_of(rest)?).ok_or(ArgError::BadOrigin)
 }
 
 /// `--mode`: one of the four ways of choosing a language.
@@ -273,6 +284,12 @@ fn lang_of(text: &str) -> Result<String, ArgError> {
 }
 
 impl Args {
+    /// The pages `--serve` lets read its streams and routes: the pages of this
+    /// machine, and the origins `--allow-origin` named.
+    pub fn guard(&self) -> Guard {
+        Guard::new(self.allow_origins.clone())
+    }
+
     /// The policy of the language route this command line asks for.
     pub fn policy(&self) -> Policy {
         let chosen = match (&self.lang, self.mode) {
@@ -309,6 +326,7 @@ impl Args {
             replace: None,
             serve: None,
             serve_host: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            allow_origins: Vec::new(),
             diagnose: false,
             refine: true,
             max_resident: DEFAULT_MAX_RESIDENT,
@@ -337,6 +355,7 @@ impl Args {
             "--replace" => self.replace = Some(PathBuf::from(value_of(rest)?)),
             "--serve" => self.serve = Some(port_of(rest)?),
             "--serve-host" => self.serve_host = address_of(rest)?,
+            "--allow-origin" => self.allow_origins.push(origin_of(rest)?),
             "--gpu-diagnose" => self.diagnose = true,
             "--no-refine" => self.refine = false,
             "--max-resident" => self.max_resident = resident_cap(value_of(rest)?)?,
@@ -881,6 +900,38 @@ mod tests {
         assert_eq!(
             run(&["--serve-host", "192.168.200.20", "--wav", "a"])?.serve_host,
             IpAddr::V4(Ipv4Addr::new(192, 168, 200, 20))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serve_takes_each_allow_origin_it_is_given_and_refuses_what_is_not_an_origin()
+    -> Result<(), ArgError> {
+        assert!(run(&["--wav", "a"])?.allow_origins.is_empty());
+        let given = run(&[
+            "--wav",
+            "a",
+            "--allow-origin",
+            "http://192.168.1.10:8833",
+            "--allow-origin",
+            "https://desk.test",
+        ])?;
+        let named: Vec<Origin> = ["http://192.168.1.10:8833", "https://desk.test"]
+            .iter()
+            .filter_map(|text| Origin::parse(text))
+            .collect();
+        assert_eq!(named.len(), 2);
+        assert_eq!(given.allow_origins, named);
+        for bad in ["null", "desk.test", "http://desk.test/x", "*"] {
+            assert_eq!(
+                parse(&args(&["--wav", "a", "--allow-origin", bad])),
+                Err(ArgError::BadOrigin),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            parse(&args(&["--wav", "a", "--allow-origin"])),
+            Err(ArgError::MissingValue)
         );
         Ok(())
     }
