@@ -857,10 +857,10 @@ link 引数の検査は、`cargo metadata` で `hayamimi-gpu` 自身と、`hayam
 | T-RP-17-028 | fixture：通った run の出力と `build.json` | `rp17_passed.json` の書き出し | 書かれる | `native/target/sherpa-gpu/<os>/rp17_passed.json` が在り、`build.json` の sha256 と probe の出力を持つ。sha256 は test が `build.json` から出した値と同じ（derived、`sha256` の関数は RB-2 の 007 で確かめた物。specified、RP-17） | 陽性 | `passing_probe_writes_rp17_passed_json_with_the_build_json_sha256` |
 | T-RP-17-029 | fixture：009 の失敗した run | 落ちた run | 書かれない | `rp17_passed.json` を書かない。同じ path に前の記録が在っても、その sha256 が今の `build.json` と合わなければ RP-24 が `Err` にする（RP-24 の 014。specified、RP-17 の「通ったときは」） | 陰性 | `failing_probe_does_not_write_rp17_passed_json` |
 | T-RP-17-030 | fixture：依存する crate が 0 本で、`hayamimi-gpu` 自身の tests に link 引数の 2 本が無い `cargo metadata` | 依存が 0 本でも自身を数える | `Err` | `Err` で `hayamimi-gpu` と tests を名指し。数える crate は自身の 1 本で、空とは読まない（specified、3.4 の規則 3） | 境界、陰性 | `gpu_crate_itself_is_counted_when_nothing_depends_on_it` |
-| T-RP-17-031 | WSL から打つ通常の test（`#[ignore]` なし）：`native/target/sherpa-gpu/linux`（WSL の退路の `~/.local/share/hayamimi/build/cuda1343/linux` を指す symlink。`rust_port.ja.md` の 3.12 の環境の表）の先の probe の実行 file に `readelf -d` を打ち、`LD_LIBRARY_PATH` を子の process に渡さずに `<hy> gpu-probe` を起こして、認識器が開いている間の `/proc/<pid>/maps` を読む | Linux の RPATH | 通常（WSL から打つ。Windows からは symlink を読めず os error 1920 になる） | `readelf -d` の出力に `RPATH` の行が在って値が `$ORIGIN`、渡さない run で 001 の形が通る。`maps` に cuBLAS、cudart、cuDNN、ORT の行が各 1 件以上在って全部が実行 file の directory の下、`/usr/local/cuda-13.3` を含む path が 0 件。環境変数は test が読まず、子の process から外すだけである（specified、3.12 の「`$ORIGIN` の RPATH」） | 陽性 | `wsl_probe_has_origin_rpath_and_loads_every_library_from_its_own_directory` |
+| T-RP-17-031 | WSL から打つ通常の test（`#[ignore]` なし）：probe の実行 file（`CARGO_BIN_EXE_hayamimi-gpu-probe`）に `readelf -d` を打ち、`LD_LIBRARY_PATH` を子の process に渡さずに `<hy> gpu-probe` を起こして、認識器が開いている間の `/proc/<pid>/maps` を読む | Linux の RPATH | 通常（WSL から打つ。Windows からは symlink を読めず os error 1920 になる） | `readelf -d` の出力に `RPATH` の行が在って値が `$ORIGIN`、渡さない run で 001 の形が通る。`maps` に cuBLAS、cudart、cuDNN、ORT の行が各 1 件以上在って全部が実行 file の directory の下、`/usr/local/cuda-13.3` を含む path が 0 件。環境変数は test が読まず、子の process から外すだけである。記録 `rp17_passed.json` は、test を build した時の `SHERPA_ONNX_LIB_DIR` が指す build の `linux` の下に書く（現行は `~/.local/share/hayamimi/build/cuda1343-sherpa201/linux`。WSL の退路の `cuda1343/linux` は `native/target/sherpa-gpu/linux` の symlink の先。`rust_port.ja.md` の 3.12 の環境の表）（specified、3.12 の「`$ORIGIN` の RPATH」） | 陽性 | `wsl_probe_has_origin_rpath_and_loads_every_library_from_its_own_directory` |
 | T-RP-17-032 | fixture `rp17_readelf_runpath_only.txt`：`readelf -d` の出力に `RUNPATH` の行が在って値が `$ORIGIN`、`RPATH` の行は無い | RUNPATH だけでは足りない | `Err` | `check_rpath` が `Err` で RUNPATH だけだと言う。RUNPATH は実行 file が直に依る library にしか効かず、ORT の CUDA の provider が後から開く cuBLAS と cuDNN に効かないからである。031 の実物では `Ok`（specified、3.12 の「RUNPATH では足りない」） | 陰性 | `runpath_only_is_rejected_because_it_does_not_reach_libraries_opened_later` |
 | T-RP-17-033 | fixture `rp17_readelf_rpath_without_origin.txt`：`RPATH` の行が在るが値が `/opt/ort` で `$ORIGIN` を含まない | RPATH の中身 | `Err` | `Err` で `$ORIGIN` が無いと言う。RPATH の行が在るだけでは通さない（derived、032 の隣の入力） | 境界、陰性 | `rpath_without_origin_is_rejected` |
-| T-RP-17-034 | fixture `rp17_readelf_no_rpath.txt`：`-Wl,-rpath,$ORIGIN` を付けずに link した実行 file の `readelf -d` の出力の形で、`RPATH` も `RUNPATH` も無い | どちらも無い | `Err` | `Err` で RPATH が無いと言う。その形の実行 file は `LD_LIBRARY_PATH` が無いと起動しない。031 の build（`cuda1343`）では `Ok`（specified、3.12） | 陰性 | `readelf_output_without_rpath_is_rejected` |
+| T-RP-17-034 | fixture `rp17_readelf_no_rpath.txt`：`-Wl,-rpath,$ORIGIN` を付けずに link した実行 file の `readelf -d` の出力の形で、`RPATH` も `RUNPATH` も無い | どちらも無い | `Err` | `Err` で RPATH が無いと言う。その形の実行 file は `LD_LIBRARY_PATH` が無いと起動しない。031 の実物では `Ok`（specified、3.12） | 陰性 | `readelf_output_without_rpath_is_rejected` |
 | T-RP-17-035 | fixture `rp17_maps_with_cuda_13_3.txt`：`maps` に cuBLAS が `/usr/local/cuda-13.3/` の下から読まれた行が 1 件在る | system の CUDA 13.3 が読まれた | `Err` | `Err` で `/usr/local/cuda-13.3` の path を名指し。031 の実物では 0 件で `Ok`（specified、3.12。R1 の実測では 13.3 の cuBLAS が読まれた） | 陰性 | `maps_with_a_cuda_13_3_path_is_rejected` |
 | T-RP-17-036 | fixture `rp17_maps_no_libraries.txt`：cuBLAS、cudart、cuDNN、ORT の行が 1 件も無い `maps` | 空の読み | `Err` | `Err`。対象の library の行が 0 件の `maps` を「13.3 の path が 0 件」と読まない（implicit） | 境界、陰性 | `maps_without_any_target_library_is_an_error_not_a_pass` |
 
@@ -4711,6 +4711,37 @@ command：001 から 003 は `cd native && flock -w 1800 target/release/.cargo-l
 
 - 実際の llama-server が無通信の接続を 5 秒で閉じる瞬間の競合：偽の server は FIN で閉じる形を作るだけで、cpp-httplib の時計を再現しない。1 件の失敗の原因は、R8z-1 の後の BR-3 の流し直しで決める（H166）。機械では当たらない。
 - 本文を読む段（応答の先頭の後）の失敗：送り直さないので、test に載せない。
+
+### 4.89 RP-97（sherpa-onnx の C library の版）
+
+test：`native/hayamimi-gpu/src/library.rs` の `mod tests`（001 から 006 と 008）と `native/hayamimi-gpu/src/error.rs` の `mod tests`（007）。受入 test の名前は `every_function_that_creates_a_sherpa_object_asks_first` と `the_linked_library_is_the_expected_release` である。
+8 行とも model も GPU も使わず、CI の `--lib` で走る。003 の古い library での実走だけは、古い library を要るので CI では打たない。
+command：`cd native && flock -w 1800 target/release/.cargo-lock true && cargo test --release --jobs 2 -p hayamimi-gpu --lib library::` と、同じ command の末尾を `error::` にした物。
+走る行の数：`--lib` に `-- --list 2>/dev/null | grep -c 'library::tests'` を足すと 7 になる。`error::tests::a_library_of_another_release_names_both_releases_and_the_remedy` が 1 件在ることが、007 の陽性対照である。
+設計は D 10 の H168 である。
+
+**数え方**：
+
+- 「作る呼び」は `OfflineRecognizer::create(`、`OnlineRecognizer::create(`、`VoiceActivityDetector::create(`、`SpokenLanguageIdentification::create(`、`SpeakerEmbeddingExtractor::create(`、`OfflineSpeakerDiarization::create(`、`CircularBuffer::new(`、`LinearResampler::create(` の 8 つの文字列である。
+- 「検査」は `library::require()?` と `library_ok()?` の 2 つの文字列である。後者は `hayamimi-eval` の `stage_models.rs` の補助の関数で、前者を呼ぶ。
+- 走査の対象は、`native` の下の `<crate>/src/` の `.rs` で、path の部品に `tests` か `target` が在る物を除く（部品で読むので、区切り文字が `/` でも `\` でも同じに働く）。走査は、file の改行を `\n` にそろえ、`#[cfg(test)]` の直後に `mod tests` が続く所から後ろと、`//` で始まる行を除き、関数の先頭の行（`fn `、`pub fn `、`pub(crate) fn `、`pub(super) fn `）で区切って、関数ごとに最初の作る呼びと最初の検査の位置を比べる。
+
+| case | 入力 | 同値類と境界 | 閾値 | 期待値と式（oracle） | 対照 | 関数の末尾 |
+|---|---|---|---|---|---|---|
+| T-RP-97-001 | `judge("2.0.1")` と `judge(EXPECTED)` | 期待する版 | 該当なし | どちらも `Ok(())` | 陽性 | `the_release_the_library_names_is_accepted` |
+| T-RP-97-002 | `judge` に `1.13.8`、`2.0.0`、`2.0.10`、`2.0.1` に改行を足した物、`v2.0.1`、`2.0`、空の文字列を順に渡す | 古い版、近い版、前方一致、改行つき、接頭辞つき、短い版、空 | 7 通りとも不一致 | 7 通りとも `Err` で、渡した文字列そのもの（`2.0.10` と改行つきを通さない） | 境界、陰性 | `another_release_is_refused_with_the_version_it_gave` |
+| T-RP-97-003 | `require()` を、この process が読み込んだ C library に打つ。同じ test binary を、`LD_LIBRARY_PATH` を古い library（`~/.local/share/hayamimi/build/cuda1343/linux/install/lib`、1.13.8）にして打ち直す | 読み込んだ library の版 | 版の文字列が `2.0.1` | 新しい library では `Ok`。古い library では `Err` の文字列が『release 1.13.8』、『written for 2.0.1』、`SHERPA_ONNX_LIB_DIR` を含み、test は落ちる（specified：H168 の陰性対照。2 回目の実走は CI では打たない） | 陽性、陰性 | `the_linked_library_is_the_expected_release` |
+| T-RP-97-004 | `native/*/Cargo.toml` の `sherpa-onnx` で始まる全行 | 3 つの crate の pin | `version = "=2.0.1"` | 全行が `EXPECTED` の pin を含む。行が 4 本に満たなければ落ちる（走査が壊れた時に 0 件を通さない） | 陰性、境界 | `the_expected_release_is_the_pin_of_every_crate` |
+| T-RP-97-005 | 走査の関数に、検査の無い作る呼び、検査が先に在る物、補助の `library_ok()?` が先に在る物、検査が後ろに在る物、2 関数のうち 1 つだけ検査が在る物、test module の中の作る呼び、comment の中の作る呼びを順に渡す | 7 つの形 | 該当なし | 順に、検査なしの関数が 1、`(1, [])`、`(1, [])`、検査なしの関数が 1、`(2, [検査の無い方の関数])`、`(0, [])`、`(0, [])` | 陽性、陰性 | `the_scan_wants_a_check_ahead_of_the_first_creation_of_each_function` |
+| T-RP-97-006 | `native/*/src` の全 `.rs`（`/tests/` と `/target` の下を除く）に走査を当てる | 実物の全 file | 作る呼びが 15 以上 | 検査が最初の作る呼びの前に無い関数が 0 件。作る呼びが 15 に満たなければ落ちる（0 件を成果にしない） | 陽性（実物）、陰性（数え損ね） | `every_function_that_creates_a_sherpa_object_asks_first` |
+| T-RP-97-007 | `GpuError::Library { found: "1.13.8", expected: "2.0.1" }` の文字列 | 版 2 つと直し方 | 該当なし | 文字列が `1.13.8`、`2.0.1`、`SHERPA_ONNX_LIB_DIR`、`sherpa-gpu` を含む | 陽性 | `a_library_of_another_release_names_both_releases_and_the_remedy` |
+| T-RP-97-008 | 走査の対象を決める関数に、`hayamimi-asr/src/vad.rs`、`hayamimi-eval/src/route/pair.rs` と、`hayamimi-asr/tests/br04.rs`、`hayamimi-asr/src/route/tests/mod.rs`、`hayamimi-asr/examples/probe.rs`、`target/debug/build/x/src/lib.rs`、`xtask/src/target/x.rs`、`vad.rs` を順に渡す | crate の `src` と、tests、examples、target、深さの足りない path | 該当なし | 前の 2 つが真、後の 6 つが偽（Windows の CI で区切りが `\` でも走査が 0 件にならないよう、path を文字列でなく部品で読む） | 陽性、陰性 | `only_the_sources_of_a_crate_are_scanned` |
+
+**測らない物**：
+
+- Windows で、古い library を指した時に実際に止まること：Windows の機械で打っていない（H168 の NOT VERIFIED）。
+- 版の文字列が同じで中身が違う library：止めない。
+- `hayamimi` 本体を古い library で起こした時の画面の文言：`GpuError::Library` の文字列を各 crate の error が包んで出す形は読んだが、本体の起動で打ってはいない。
 
 ## 5. RP-19 の対応表
 

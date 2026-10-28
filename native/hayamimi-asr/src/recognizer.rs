@@ -178,6 +178,7 @@ impl Recognizer {
 
     /// Opens the recognizer of `tier` under `models` with `threads` threads.
     pub fn open_tier(models: &Path, tier: Tier, threads: i32) -> Result<Self, AsrError> {
+        hayamimi_gpu::library::require()?;
         let mut config = OfflineRecognizerConfig::default();
         model_of(tier, models, &mut config.model_config)?;
         decoding_of(tier, &mut config);

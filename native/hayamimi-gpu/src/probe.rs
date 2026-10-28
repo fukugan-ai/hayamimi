@@ -175,6 +175,7 @@ fn open_audio(args: &ProbeArgs) -> Result<Opened, GpuError> {
     config.model_config.num_threads = 2;
     config.decoding_method = Some(String::from("greedy_search"));
 
+    crate::library::require()?;
     let Some(wave) = Wave::read(&utf8(&args.wav)?) else {
         return Err(GpuError::Wave);
     };

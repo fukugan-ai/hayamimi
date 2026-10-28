@@ -43,6 +43,11 @@ pub enum GpuError {
     Io(io::Error),
     /// The result of a recognition is not JSON.
     ResultNotJson(serde_json::Error),
+    /// The sherpa-onnx C library that was loaded is not the release these crates were written against.
+    Library {
+        found: String,
+        expected: &'static str,
+    },
 }
 
 impl fmt::Display for GpuError {
@@ -73,6 +78,12 @@ impl fmt::Display for GpuError {
             GpuError::ResultNotJson(source) => {
                 write!(f, "the recognition result is not JSON: {source}")
             }
+            GpuError::Library { found, expected } => write!(
+                f,
+                "the sherpa-onnx C library is release {found}, but this build was written for {expected}; \
+                 point SHERPA_ONNX_LIB_DIR (and LD_LIBRARY_PATH or PATH) at a library built by \
+                 `cargo run -p xtask -- sherpa-gpu` (docs/guide/build_gpu.ja.md)"
+            ),
         }
     }
 }
@@ -107,5 +118,19 @@ mod tests {
     #[test]
     fn a_bad_sample_rate_is_shown() {
         assert!(GpuError::SampleRate(0).to_string().contains('0'));
+    }
+
+    #[test]
+    fn a_library_of_another_release_names_both_releases_and_the_remedy() {
+        let said = GpuError::Library {
+            found: String::from("1.13.8"),
+            expected: "2.0.1",
+        }
+        .to_string();
+        assert!(said.contains("1.13.8") && said.contains("2.0.1"), "{said}");
+        assert!(
+            said.contains("SHERPA_ONNX_LIB_DIR") && said.contains("sherpa-gpu"),
+            "{said}"
+        );
     }
 }

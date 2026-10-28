@@ -114,12 +114,18 @@ pub fn punct_bert_file(models: &Path) -> Result<PathBuf, EvalError> {
     existing(models, &["mojicast-punct-onnx", "punct_bert.onnx"]).map(PathBuf::from)
 }
 
+/// Refuses a sherpa-onnx C library of another release before an object is made (`hayamimi_gpu::library`).
+pub fn library_ok() -> Result<(), EvalError> {
+    hayamimi_gpu::library::require().map_err(|why| EvalError::Invalid(why.to_string()))
+}
+
 /// The Japanese and English transducer, decoded the way the Python pipeline decodes it.
 pub fn recognizer(
     models: &Path,
     provider: &str,
     precision: Precision,
 ) -> Result<OfflineRecognizer, EvalError> {
+    library_ok()?;
     let file = |kind: &str| {
         let name = format!("{kind}-epoch-35-avg-1{}.onnx", precision.infix());
         existing(models, &[RECOGNIZER_DIR, &name])
@@ -140,6 +146,7 @@ pub fn recognizer(
 
 /// Silero with the thresholds of the live pipeline.
 pub fn vad(models: &Path, provider: &str) -> Result<VoiceActivityDetector, EvalError> {
+    library_ok()?;
     let config = VadModelConfig {
         silero_vad: SileroVadModelConfig {
             model: Some(existing(models, &[VAD_FILE])?),
@@ -165,6 +172,7 @@ pub fn language_id(
     provider: &str,
     precision: Precision,
 ) -> Result<SpokenLanguageIdentification, EvalError> {
+    library_ok()?;
     let file = |kind: &str| {
         let name = format!("tiny-{kind}{}.onnx", precision.infix());
         existing(models, &[WHISPER_DIR, &name])
@@ -188,6 +196,7 @@ pub fn speaker_extractor(
     models: &Path,
     provider: &str,
 ) -> Result<SpeakerEmbeddingExtractor, EvalError> {
+    library_ok()?;
     let config = SpeakerEmbeddingExtractorConfig {
         model: Some(existing(models, &[SPEAKER_FILE])?),
         num_threads: SPEAKER_THREADS,
@@ -204,6 +213,7 @@ pub fn diarizer(
     provider: &str,
     precision: Precision,
 ) -> Result<OfflineSpeakerDiarization, EvalError> {
+    library_ok()?;
     let segmentation_file = format!("model{}.onnx", precision.infix());
     let config = OfflineSpeakerDiarizationConfig {
         segmentation: OfflineSpeakerSegmentationModelConfig {

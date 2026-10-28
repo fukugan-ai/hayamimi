@@ -164,6 +164,7 @@ pub fn build_lid_guarded<T>(
 }
 
 fn create(files: &[String; 2], provider: Device) -> Result<SpokenLanguageIdentification, AsrError> {
+    hayamimi_gpu::library::require()?;
     let config = SpokenLanguageIdentificationConfig {
         whisper: SpokenLanguageIdentificationWhisperConfig {
             encoder: Some(files[0].clone()),

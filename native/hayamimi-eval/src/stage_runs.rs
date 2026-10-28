@@ -436,6 +436,7 @@ impl Run<'_> {
     }
 
     fn measure_resample(&mut self) -> Result<(), EvalError> {
+        crate::stage_models::library_ok()?;
         let up = LinearResampler::create(SAMPLE_RATE, CAPTURE_RATE)
             .ok_or_else(|| invalid("cannot create the up-sampler"))?;
         let down = LinearResampler::create(CAPTURE_RATE, SAMPLE_RATE)
@@ -473,6 +474,7 @@ impl Run<'_> {
             .ok_or_else(|| invalid("no utterances"))?;
         let capacity = i32::try_from(longest + PREROLL)
             .map_err(|_| invalid("the ring capacity does not fit i32"))?;
+        crate::stage_models::library_ok()?;
         let ring = CircularBuffer::new(capacity)
             .ok_or_else(|| invalid("cannot create the ring buffer"))?;
         self.host_stage(

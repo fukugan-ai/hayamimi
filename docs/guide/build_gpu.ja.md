@@ -4,7 +4,7 @@ Rust 版の認識を NVIDIA の GPU（CUDA）で動かすために、sherpa-onnx
 Windows と WSL（Linux）の両方で、1 本の音声を GPU の上で認識するところまでを、実際に打って確かめてあります。
 v2.0.1 と ORT 1.31.1 の build は、2026-10-29 に WSL で打って確かめました。
 RP-17 は 6 本とも通りました（`rp17_passed.json` の `loaded_provider` は `cuda`、ORT は 1.31.1、`onnxruntime_libraries` は 1、9.6 秒の音声から `decoded_chars` が 44。`decode_ms` は run ごとに動き、記録の値は 1743、独立検証の席の run は 674）。
-Windows の build は v1.13.8 と ORT 1.31.0 で確かめた手順のままで、v2.0.1 では打ち直していません。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
+Windows の build は v1.13.8 と ORT 1.31.0 で確かめた手順のままで、v2.0.1 では打ち直していません。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。この組は、sherpa-onnx の object を作る前に `hayamimi-gpu` の `library::require()` が止めます（C library の `sherpa_onnx::version()` が `2.0.1` でなければ `GpuError::Library`。H168。v1.13.8 の library を `LD_LIBRARY_PATH` に置いた WSL の実走で止まることを確かめ、Windows では打っていません）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
 
 ## 結果
 
@@ -106,7 +106,7 @@ apt の package は使いません。
 | cuDNN 9.27.0.42（cuda13） | `/usr/local/cudnn-9.27.0.42-cuda13` | なし |
 | build の出力（4 本）と redistrib の照合表（`redist-sums`。下の表） | `~/.local/share/hayamimi/build` | なし |
 
-WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda1343-repeat`、`cuda1341`）は `native/target` の下の symlink から指され、現行の `cuda1343-sherpa201` は symlink を持たず、`SHERPA_ONNX_LIB_DIR` で指します。同じ `~/.local/share/hayamimi/build` には、この表の外に、ORT 1.28.3 の退路の build（`ort1283`、`ort1283-target`。設計 `rust_port.ja.md` の環境の表）と、alsa の pkg-config と `libasound.so` の symlink を置いた `alsa-shim` もあります。
+WSL の作業 directory は 5 本あり、build の 3 本（`cuda1343`、`cuda1343-repeat`、`cuda1341`）は `native/target` の下の symlink から指され、現行の `cuda1343-sherpa201` は symlink を持たず、`SHERPA_ONNX_LIB_DIR` で指します。同じ `~/.local/share/hayamimi/build` には、この表の外に、ORT 1.28.3 の退路の build（`ort1283`。設計 `rust_port.ja.md` の環境の表）と、その RP-17 を打った作り直せる cargo の target（`ort1283-target`）、alsa の pkg-config と `libasound.so` の symlink を置いた `alsa-shim` もあります。
 `~/.cache` には何も残しません（下の手順の作業 directory `W` は、取得と build の間だけ使います）。
 取得した archive と cargo の `target` は作り直せるので残さず、redistrib の部品の sha256 の照合表だけを `redist-sums` に残します。
 
