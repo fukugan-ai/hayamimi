@@ -4,7 +4,7 @@ Rust 版の認識を NVIDIA の GPU（CUDA）で動かすために、sherpa-onnx
 Windows と WSL（Linux）の両方で、1 本の音声を GPU の上で認識するところまでを、実際に打って確かめてあります。
 v2.0.1 と ORT 1.31.1 の build は、2026-10-29 に WSL で打って確かめました。
 RP-17 は 6 本とも通りました（`rp17_passed.json` の `loaded_provider` は `cuda`、ORT は 1.31.1、`onnxruntime_libraries` は 1、9.6 秒の音声から `decoded_chars` が 44。`decode_ms` は run ごとに動き、記録の値は 1743、独立検証の席の run は 674）。
-Windows の build は v1.13.8 と ORT 1.31.0 で確かめた手順のままで、v2.0.1 では打ち直していません。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。この組は、sherpa-onnx の object を作る前に `hayamimi-gpu` の `library::require()` が止めます（C library の `sherpa_onnx::version()` が `2.0.1` でなければ `GpuError::Library`。H168。v1.13.8 の library を `LD_LIBRARY_PATH` に置いた WSL の実走で止まることを確かめ、Windows では打っていません）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
+Windows の build は 2026-10-29 に v2.0.1 と ORT 1.31.1 で打ち直し、build と `hayamimi-gpu` の lib test まで通しました（RP-17 の probe は GPU を使う実走なので、この手順では打っていません。H169）。crate は `=2.0.1` なので、Windows の `SHERPA_ONNX_LIB_DIR` を v1.13.8 の library のままにして build すると、`SherpaOnnxSpeechSegment` の `start` と、`SherpaOnnxCircularBufferHead` の戻りと `SherpaOnnxCircularBufferGet` の開始位置の型（v1.13.8 は `int32`、v2.0.1 は `int64`）が合わない組になり、誤った値を読むおそれがあります（打っていません）。この組は、sherpa-onnx の object を作る前に `hayamimi-gpu` の `library::require()` が止めます（C library の `sherpa_onnx::version()` が `2.0.1` でなければ `GpuError::Library`。H168。v1.13.8 の library を `LD_LIBRARY_PATH` に置いた WSL の実走で止まることを確かめ、Windows でも、`.venv` の Python の wheel が持つ 1.13.6 の library を PATH の先頭に置いた実走で止まることを確かめました）。Windows でも、C library を v2.0.1 で作り直した directory を指してから build します。
 
 ## 結果
 
@@ -30,8 +30,8 @@ build の流れ
 | GPU | NVIDIA GeForce RTX 5060 Ti（compute capability 12.0、driver 610.88） | 同じ GPU（WSL の driver 経由） |
 | CUDA Toolkit | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4（installer、nvcc 13.4.59）は残してある | 13.4.3（redistrib、nvcc 13.4.92）。更新前の 13.4.1（nvcc 13.4.59）と 13.3 は残してある |
 | cuDNN | 9.27.0 の CUDA 13 用 archive | 9.27.0.42 の cuda13 |
-| ORT | 1.31.1 の `gpu_cuda13`（Microsoft の release の zip。Windows の今の build は 1.31.0） | 1.31.1 の `gpu_cuda13`（Microsoft の release の tgz） |
-| sherpa-onnx | v2.0.1（commit `af2d8d81dbfa61c4cea4c568da78f3982edca005`。Windows の今の build は v1.13.8） | v2.0.1（同じ commit） |
+| ORT | 1.31.1 の `gpu_cuda13`（Microsoft の release の zip） | 1.31.1 の `gpu_cuda13`（Microsoft の release の tgz） |
+| sherpa-onnx | v2.0.1（commit `af2d8d81dbfa61c4cea4c568da78f3982edca005`） | v2.0.1（同じ commit） |
 | Rust | 1.99.0 | 1.99.0 |
 | 道具 | Visual Studio Build Tools（`dumpbin`）、cmake、Ninja、git、curl、tar | gcc、g++、cmake、Ninja、git、curl、tar、readelf |
 
@@ -241,7 +241,7 @@ rm -rf <Windows の user directory>/cuda-redist
 
 ## 実測した結果
 
-### ORT 1.31.0（Windows の現行。WSL は 1.31.1 に上げた）
+### ORT 1.31.0（2026-10-29 に Windows も 1.31.1 に上げる前の測定）
 
 RTX 5060 Ti で `ja_014.wav`（9600 ms）を、build ごとに 4 回続けて開いた結果です（同じ音声、同じ build、cache の状態は揃えていません）。
 CUDA 13.4.1 の build（更新前）と、13.4.3 の build（ORT 1.31.0 の時の現行）の両方を載せます。
@@ -293,9 +293,9 @@ RTX 5060 Ti（compute capability 12.0）で `sm_120a` の機械語が実際に�
 全 kernel が機械語で当たるとも言えません。
 `sm_120` の PTX から実行時に変換されて動く kernel が在るかどうかも、確かめていません（ASSUMPTION）。
 RP-24 の `sm_120` 系の判定は、`sm_120` か `sm_120a` の機械語が 1 件以上在れば真なので、3 つとも真です。
-RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（比べる組。`linux` は WSL の作業 directory `cuda1343` への symlink で、`windows` と同じ v1.13.8 と ORT 1.31.0 の build）を読み、`windows_and_wsl_builds_match` が 5 項目の一致を確かめます。
+RP-24 の実走は、`native/target/sherpa-gpu/{windows,linux}/`（比べる組。打った時は、`linux` が WSL の作業 directory `cuda1343` への symlink で、`windows` と同じ v1.13.8 と ORT 1.31.0 の build でした）を読み、`windows_and_wsl_builds_match` が 5 項目の一致を確かめます。
 同じ OS の 2 回目の build は `native/target/sherpa-gpu-repeat/<os>/` に作り、`two_builds_on_one_os_match` が `sherpa-gpu/<os>/` と比べます。
-実走の 2 つは `cargo test --release -p xtask --test rp24 -- --ignored` で打ちます。どちらも通りました（Windows と WSL）。
+実走の 2 つは `cargo test --release -p xtask --test rp24 -- --ignored` で打ちます。どちらも通りました（Windows と WSL）。Windows の build を v2.0.1 と ORT 1.31.1 に作り直した後は、`linux` の symlink も 2 回目の build も作っておらず、RP-24 は v2.0.1 で打ち直していません。
 
 ### ORT 1.28.3（退路）
 
@@ -411,7 +411,7 @@ Linux には `System32` に当たる物が無く、先読みの目的があり�
 Remove-Item -Recurse -Force "<repo>\native\target\sherpa-gpu"
 ```
 
-Windows の現行（ORT 1.31.0。WSL の現行は v2.0.1 と ORT 1.31.1 の `~/.local/share/hayamimi/build/cuda1343-sherpa201`）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
+Windows の現行（v2.0.1 と ORT 1.31.1。WSL の現行も同じ版の `~/.local/share/hayamimi/build/cuda1343-sherpa201`）の build は `native\target\sherpa-gpu` に、2 回目の build は `native\target\sherpa-gpu-repeat` に、退路（ORT 1.28.3）の build は `native\target\sherpa-gpu-ort1283` に在り（Windows の 1.28.3 は未作成、WSL は symlink）、どれも同じ方法で消せます。
 Windows の `native\target\sherpa-gpu-ort1282` は ORT 1.28.2 の build で、退路ではありません。
 退路に戻すには、`SHERPA_ONNX_LIB_DIR` を `native\target\sherpa-gpu-ort1283\<os>\install\lib` にして build します（build.json の ORT の版が 1.28.3 になるので、RP-17 はその版で判定します）。
 WSL に入れた CUDA と cuDNN の戻し方は、「手順（WSL）」の「0. 入れる前の戻し方」にあります。
