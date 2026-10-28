@@ -1,0 +1,217 @@
+[
+  {
+    "end_sample": 121600,
+    "fleurs_id": 1669,
+    "lang": "ja",
+    "ref": "警察のチャンドラ・シェカール・ソランキ総監によれば、被告人は顔を隠して法廷に出頭したそうです。",
+    "sha256": "638d54e8eb6dcde05e1725eaef62ab0e542db7cd11893241632b55226ed10fd5",
+    "source": "golden",
+    "start_sample": 0,
+    "wav": "tests/golden/ja/ja_014.wav"
+  },
+  {
+    "end_sample": 276480,
+    "fleurs_id": 1674,
+    "lang": "ja",
+    "ref": "1分間で沸騰する地域もあれば、沸騰するまでに何分もかかる地域もあります。",
+    "sha256": "738ada9dd3dc4c594b399b4405c74a6b1df857405e09f88f21485401c0986c58",
+    "source": "golden",
+    "start_sample": 177600,
+    "wav": "tests/golden/ja/ja_024.wav"
+  },
+  {
+    "end_sample": 427200,
+    "fleurs_id": 1677,
+    "lang": "ja",
+    "ref": "現在、翅を折り返すことができない昆虫はトンボとカゲロウのみです。",
+    "sha256": "790e808712d69163e57e3875732cd57352623d96360e8ac4c153db47f27fa095",
+    "source": "golden",
+    "start_sample": 340800,
+    "wav": "tests/golden/ja/ja_033.wav"
+  },
+  {
+    "end_sample": 554560,
+    "fleurs_id": 1679,
+    "lang": "ja",
+    "ref": "エアロスミスはツアーで予定していたコンサートを中止しました。",
+    "sha256": "5729b0cac23301db6083e31f4c142e715e2d4e7004d876fc9b37450011ce146d",
+    "source": "golden",
+    "start_sample": 489600,
+    "wav": "tests/golden/ja/ja_036.wav"
+  },
+  {
+    "end_sample": 725120,
+    "fleurs_id": 1684,
+    "lang": "ja",
+    "ref": "アピアはサモアの首都です。この町はウポル島にあり、人口は4万人弱です。",
+    "sha256": "2b52a2e5fbdac946fe2f094b5fe0911e291396e35bc3ef433963d3506a3a21bf",
+    "source": "golden",
+    "start_sample": 617280,
+    "wav": "tests/golden/ja/ja_044.wav"
+  },
+  {
+    "end_sample": 904320,
+    "fleurs_id": 1702,
+    "lang": "ja",
+    "ref": "わずか2週間でアメリカ軍と自由フランス軍は南フランスを解放し、ドイツに向かっていました。",
+    "sha256": "c3eeedb6db02dc6947f3664f1a0144c97157603e1c80dd92989fef4cd0538a86",
+    "source": "golden",
+    "start_sample": 786240,
+    "wav": "tests/golden/ja/ja_079.wav"
+  },
+  {
+    "end_sample": 1122560,
+    "fleurs_id": 1705,
+    "lang": "ja",
+    "ref": "1940年8月15日、連合国は南フランスに侵攻し、その侵攻は「ドラグーン作戦」と呼ばれました。",
+    "sha256": "11a15112d5e9f37d48dda5147a762d34e449af8072f5c5d6aac1eaffbd411f90",
+    "source": "golden",
+    "start_sample": 968640,
+    "wav": "tests/golden/ja/ja_085.wav"
+  },
+  {
+    "end_sample": 1329280,
+    "fleurs_id": 1710,
+    "lang": "ja",
+    "ref": "先週、経済産業省は、Appleが「深刻ではない」とする過熱事故を追加で34件報告したと発表しました。",
+    "sha256": "920d16c63c80a9bc20f842259bbf59b31d0a3573f803104a837d1a3e9a525579",
+    "source": "golden",
+    "start_sample": 1192320,
+    "wav": "tests/golden/ja/ja_090.wav"
+  },
+  {
+    "end_sample": 1441600,
+    "lang": "ja",
+    "ref": "大橋さんはやっぱり大変でしたか？",
+    "sha256": "27ff946c9379745e86274d84ab2f40bfcd04dcf980723fce53e22336e623251a",
+    "source": "set",
+    "start_sample": 1395840,
+    "wav": "testdata/eval_real/ja_01.wav"
+  },
+  {
+    "end_sample": 1521159,
+    "lang": "ja",
+    "ref": "「ピカピカブ！ピカピカブ！」",
+    "sha256": "7dd1eab4e5ff2b10d0cad9ea66b5f95a5348687a01371b86152e41702f9e8247",
+    "source": "set",
+    "start_sample": 1469611,
+    "wav": "testdata/eval_real/ja_02.wav"
+  },
+  {
+    "end_sample": 1670171,
+    "lang": "ja",
+    "ref": "そこの上流から丸太を組んでいかだにしてどんどん流したんですこれを。",
+    "sha256": "9dcbb1ba27946b9ad6a70df162e2e207b6b452e6ac4a57beeb355d8aebc8d18b",
+    "source": "set",
+    "start_sample": 1545159,
+    "wav": "testdata/eval_real/ja_03.wav"
+  },
+  {
+    "end_sample": 1777691,
+    "lang": "ja",
+    "ref": "今、１００ｍのターンを迎える。",
+    "sha256": "2427a86abb35ad4bd751561084cf003a4c55a4b3de081c5d346eafe087108d8a",
+    "source": "set",
+    "start_sample": 1694171,
+    "wav": "testdata/eval_real/ja_04.wav"
+  },
+  {
+    "end_sample": 1939679,
+    "lang": "ja",
+    "ref": "でも敦賀さん、９１歳力強い走りに変わっていきます。",
+    "sha256": "e973d07f2f42fa95d75f7dd4e118386a173aad741bd18deb932ee7250a35d5bc",
+    "source": "set",
+    "start_sample": 1805411,
+    "wav": "testdata/eval_real/ja_05.wav"
+  },
+  {
+    "end_sample": 2099330,
+    "lang": "ja",
+    "ref": "住民によると過去にも、似たような訪問があったといいます。",
+    "sha256": "e58c317343ed1dc5857138ddee8f6af798eefbd943cf2ff9458c52f272ff630a",
+    "source": "set",
+    "start_sample": 1963679,
+    "wav": "testdata/eval_real/ja_06.wav"
+  },
+  {
+    "end_sample": 2161730,
+    "lang": "ja",
+    "ref": "しっかり打ち切れるかです。",
+    "sha256": "47de29d9ba5caa4e56690c782129f6dd7afa4e535a12191d4f9d8ca0369b8ff6",
+    "source": "set",
+    "start_sample": 2123330,
+    "wav": "testdata/eval_real/ja_07.wav"
+  },
+  {
+    "end_sample": 2309915,
+    "lang": "ja",
+    "ref": "けさの東京、風はなさそうですけどね、体感はどうでしょうか、近藤さん。",
+    "sha256": "bdd3d645760ea9fbaa642191cdd7c92afceb3acd778a8513faf05ea5477d2a60",
+    "source": "set",
+    "start_sample": 2223515,
+    "wav": "testdata/eval_real/ja_08.wav"
+  },
+  {
+    "end_sample": 2455138,
+    "lang": "ja",
+    "ref": "そしてもう一つ大きな勢力があります。",
+    "sha256": "29978a6b823bdc680e3cdf9dd8b0fc60d3cf166844421e956c5737d52fbc7c3b",
+    "source": "set",
+    "start_sample": 2351778,
+    "wav": "testdata/eval_real/ja_09.wav"
+  },
+  {
+    "end_sample": 2621045,
+    "lang": "ja",
+    "ref": "勝利はしたものの１０万人以上の戦死者を出していた。",
+    "sha256": "23778784c21ba848d2fd2ce4159231a3f61a6fedc5e1864316cf86057a45fcde",
+    "source": "set",
+    "start_sample": 2486645,
+    "wav": "testdata/eval_real/ja_10.wav"
+  },
+  {
+    "end_sample": 2710246,
+    "lang": "ja",
+    "ref": "センター、レフト。",
+    "sha256": "b66c3414cb1598b8673ddcf7b8aa08da9808525733137eb37af08693a4ade14e",
+    "source": "set",
+    "start_sample": 2651366,
+    "wav": "testdata/eval_real/ja_11.wav"
+  },
+  {
+    "end_sample": 2793084,
+    "lang": "ja",
+    "ref": "言ったろヒーローよりもてめぇを信じる。",
+    "sha256": "3e64183d9ffc937b80fa1615675587f6e1439d0f5ed07d8e7b0b95d97ca1baf0",
+    "source": "set",
+    "start_sample": 2734431,
+    "wav": "testdata/eval_real/ja_12.wav"
+  },
+  {
+    "end_sample": 2912164,
+    "lang": "ja",
+    "ref": "高校生２００人に聞きました。",
+    "sha256": "4665ccab87226b2fc7b7dd70fd4aae883c4ca256f003e34f234d80b381032ad2",
+    "source": "set",
+    "start_sample": 2817084,
+    "wav": "testdata/eval_real/ja_13.wav"
+  },
+  {
+    "end_sample": 2996294,
+    "lang": "ja",
+    "ref": "〈さらにスピンオフドラマ『波風よ立ってくれ』はＴＥＬＡＳＡで独占配信中〉",
+    "sha256": "fafaeb861885f81467e4cf2e81f2e9649a1cfea6b2efc11bd752af4fa9b4a64d",
+    "source": "set",
+    "start_sample": 2936164,
+    "wav": "testdata/eval_real/ja_14.wav"
+  },
+  {
+    "end_sample": 3086534,
+    "lang": "ja",
+    "ref": "模擬裁判に参加した大学１年生の本音とは。",
+    "sha256": "627995bdd53fac7bbb171a8e23270436c8cf65edf8c7f915ecbced714c32907a",
+    "source": "set",
+    "start_sample": 3020294,
+    "wav": "testdata/eval_real/ja_15.wav"
+  }
+]

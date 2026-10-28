@@ -1,0 +1,182 @@
+[
+  {
+    "end_sample": 5120,
+    "lang": "ja",
+    "ref": "はい",
+    "sha256": "89962cad9f652140d8fc370d2e24509bb55f5532922b6d439b808b01c0c29cdc",
+    "source": "set",
+    "start_sample": 0,
+    "wav": "testdata/lat-short/ja01.wav"
+  },
+  {
+    "end_sample": 31698,
+    "lang": "en",
+    "ref": "No",
+    "sha256": "e5ecd04d3b1150afaf0daa38ce4d6569fb2719de9261adf2dceb9bb3f1434313",
+    "source": "set",
+    "start_sample": 25298,
+    "wav": "testdata/lat-short/en01.wav"
+  },
+  {
+    "end_sample": 59209,
+    "lang": "ja",
+    "ref": "いいえ",
+    "sha256": "4e0682a1b1c91b9a8359ee4c5431813be126b3e27814f345ae8e273b0c8c5713",
+    "source": "set",
+    "start_sample": 51849,
+    "wav": "testdata/lat-short/ja02.wav"
+  },
+  {
+    "end_sample": 85719,
+    "lang": "en",
+    "ref": "Yeah",
+    "sha256": "57b04f6f63b311d05536ed7812c6d5fd45f655881afb5727e3b8ad5776fa0211",
+    "source": "set",
+    "start_sample": 79319,
+    "wav": "testdata/lat-short/en02.wav"
+  },
+  {
+    "end_sample": 110925,
+    "lang": "ja",
+    "ref": "ええ",
+    "sha256": "67b5d25b06988359c7d3258606c1b48d5e74f54ed2d27833e6e323088528ea99",
+    "source": "set",
+    "start_sample": 105805,
+    "wav": "testdata/lat-short/ja03.wav"
+  },
+  {
+    "end_sample": 137879,
+    "lang": "en",
+    "ref": "Yep",
+    "sha256": "1efdb2e21f5a03c2233adcc64a70dc676db824500ad336f05459e477089d6c02",
+    "source": "set",
+    "start_sample": 131159,
+    "wav": "testdata/lat-short/en03.wav"
+  },
+  {
+    "end_sample": 163889,
+    "lang": "ja",
+    "ref": "うん",
+    "sha256": "0dd74a5b8709eda3cd0aa4693755de117b6c7b9c2cabe8afe840437a35e68db6",
+    "source": "set",
+    "start_sample": 159089,
+    "wav": "testdata/lat-short/ja04.wav"
+  },
+  {
+    "end_sample": 190862,
+    "lang": "en",
+    "ref": "Nope",
+    "sha256": "90c83c3bbf30f2c0cddbf30847cd7a4092313f6ace2b344e35d3ed08ec62e95a",
+    "source": "set",
+    "start_sample": 184142,
+    "wav": "testdata/lat-short/en04.wav"
+  },
+  {
+    "end_sample": 219368,
+    "lang": "ja",
+    "ref": "いいね",
+    "sha256": "b2d23f0f1d28d73b80a7dd40aa94a00cf1951e432b6546b7922093cd6821512e",
+    "source": "set",
+    "start_sample": 212008,
+    "wav": "testdata/lat-short/ja05.wav"
+  },
+  {
+    "end_sample": 246677,
+    "lang": "en",
+    "ref": "Hi",
+    "sha256": "9d0b3dd1e4c2d94d50c73c588e44ca844551c5f4c0faa7ab418cb34520677ec7",
+    "source": "set",
+    "start_sample": 239637,
+    "wav": "testdata/lat-short/en05.wav"
+  },
+  {
+    "end_sample": 274475,
+    "lang": "ja",
+    "ref": "ごめん",
+    "sha256": "5cb1c2356c12af2261b57b48de918c1c12e28b264ce8c5d5993a069d8fdad913",
+    "source": "set",
+    "start_sample": 266795,
+    "wav": "testdata/lat-short/ja06.wav"
+  },
+  {
+    "end_sample": 301365,
+    "lang": "en",
+    "ref": "Hey",
+    "sha256": "39a178f6b3f7e764b380904aa4fdea6b86ca4428e8191886d012fccfb7d94341",
+    "source": "set",
+    "start_sample": 294645,
+    "wav": "testdata/lat-short/en06.wav"
+  },
+  {
+    "end_sample": 329712,
+    "lang": "ja",
+    "ref": "どうぞ",
+    "sha256": "676911205fe2334a1630f49468e8d6b27245c7129be64ce515b1d647a4cacfa5",
+    "source": "set",
+    "start_sample": 321712,
+    "wav": "testdata/lat-short/ja07.wav"
+  },
+  {
+    "end_sample": 356345,
+    "lang": "en",
+    "ref": "Bye",
+    "sha256": "cd79e5830baf8ae25a9ce88b385a1a19fbd2383fd83597505a27943ea6006f0e",
+    "source": "set",
+    "start_sample": 349945,
+    "wav": "testdata/lat-short/en07.wav"
+  },
+  {
+    "end_sample": 382925,
+    "lang": "ja",
+    "ref": "だめ",
+    "sha256": "a0a236acad80fc0ec428fb5ff752bf1af52835fb8a64102f3fe0d65a4610fe3b",
+    "source": "set",
+    "start_sample": 376525,
+    "wav": "testdata/lat-short/ja08.wav"
+  },
+  {
+    "end_sample": 410145,
+    "lang": "en",
+    "ref": "Good",
+    "sha256": "d68961116b67a6c60733c93110c1dc2457c286f653802ff9920a00c9a1bee41e",
+    "source": "set",
+    "start_sample": 403105,
+    "wav": "testdata/lat-short/en08.wav"
+  },
+  {
+    "end_sample": 437751,
+    "lang": "ja",
+    "ref": "よし",
+    "sha256": "39660155edda3f7c19c78f8f3a0f17cf72cc4d44649d7f2cbcae32dcd8078cb0",
+    "source": "set",
+    "start_sample": 430391,
+    "wav": "testdata/lat-short/ja09.wav"
+  },
+  {
+    "end_sample": 465585,
+    "lang": "en",
+    "ref": "True",
+    "sha256": "09d2b50d6dff21cc01c09a2ae24dc34de06fe863c9885dbafc9d2c3bb16792c3",
+    "source": "set",
+    "start_sample": 457905,
+    "wav": "testdata/lat-short/en09.wav"
+  },
+  {
+    "end_sample": 492193,
+    "lang": "ja",
+    "ref": "ぜひ",
+    "sha256": "57a19f7e9d7308c8aae66a4b911907743f90571a3eb0ef1ed7c5e1195ade04ce",
+    "source": "set",
+    "start_sample": 485793,
+    "wav": "testdata/lat-short/ja10.wav"
+  },
+  {
+    "end_sample": 520345,
+    "lang": "en",
+    "ref": "Cool",
+    "sha256": "cd409ee10f63c8c74395b9454d120f85b926b52b826b96f1f130d24bf72fd985",
+    "source": "set",
+    "start_sample": 512345,
+    "wav": "testdata/lat-short/en10.wav"
+  }
+]

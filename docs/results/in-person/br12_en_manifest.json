@@ -1,0 +1,137 @@
+[
+  {
+    "end_sample": 97920,
+    "lang": "en",
+    "ref": "HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE",
+    "sha256": "fb7b67d4efb3c195148c8bf8b5a22353cd7657a5a5c6e349dff9166cf6aa6801",
+    "source": "set",
+    "start_sample": 0,
+    "wav": "testdata/eval_real/en_01.wav"
+  },
+  {
+    "end_sample": 237280,
+    "lang": "en",
+    "ref": "HE WOULD HAVE TO PAY HER THE MONEY WHICH SHE WOULD NOW REGULARLY DEMAND OR THERE WOULD BE TROUBLE IT DID NOT MATTER WHAT HE DID",
+    "sha256": "f6683174d8f60ac119f80727e863d053dde32a754a850cc54d56c5a2ea0b098e",
+    "source": "set",
+    "start_sample": 129440,
+    "wav": "testdata/eval_real/en_02.wav"
+  },
+  {
+    "end_sample": 336880,
+    "lang": "en",
+    "ref": "HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION",
+    "sha256": "9c834935382e88a16833f2502b1ccc709c009e012e994a8d789c1e7d9716930b",
+    "source": "set",
+    "start_sample": 267760,
+    "wav": "testdata/eval_real/en_03.wav"
+  },
+  {
+    "end_sample": 449440,
+    "lang": "en",
+    "ref": "MANY LITTLE WRINKLES GATHERED BETWEEN HIS EYES AS HE CONTEMPLATED THIS AND HIS BROW MOISTENED",
+    "sha256": "9f1576d983744c579d6777497ae2839ff0da1eb36fef0bd0ea9a5395b894616f",
+    "source": "set",
+    "start_sample": 369120,
+    "wav": "testdata/eval_real/en_04.wav"
+  },
+  {
+    "end_sample": 555680,
+    "lang": "en",
+    "ref": "HE COULD ARRANGE THAT SATISFACTORILY FOR CARRIE WOULD BE GLAD TO WAIT IF NECESSARY",
+    "sha256": "fafddd7a58df44a34c9eafff4c5ed09f2c5ced2f0e252d4659049c803141b11c",
+    "source": "set",
+    "start_sample": 482720,
+    "wav": "testdata/eval_real/en_05.wav"
+  },
+  {
+    "end_sample": 668160,
+    "lang": "en",
+    "ref": "HE WOULD SEE HOW THINGS TURNED OUT TO MORROW AND THEN HE WOULD TALK TO HER THEY WERE GOING TO MEET AS USUAL",
+    "sha256": "9d195fec54e6c68a2a4ccfa6d05871de6c9351c0a0de992d2bc0d9b117fff424",
+    "source": "set",
+    "start_sample": 586240,
+    "wav": "testdata/eval_real/en_06.wav"
+  },
+  {
+    "end_sample": 799920,
+    "lang": "en",
+    "ref": "FOR SOME REASON HE FELT AS IF SOMETHING MIGHT COME THAT WAY AND WAS RELIEVED WHEN ALL THE ENVELOPES HAD BEEN SCANNED AND NOTHING SUSPICIOUS NOTICED",
+    "sha256": "de2c9e1a00be7be8385588200cea2ce1a7755cf6d64430fb9b7c89ff3477b774",
+    "source": "set",
+    "start_sample": 696240,
+    "wav": "testdata/eval_real/en_07.wav"
+  },
+  {
+    "end_sample": 918960,
+    "lang": "en",
+    "ref": "WHILE THE DANGER HAD NOT LESSENED IT HAD NOT AS YET MATERIALISED AND WITH HIM NO NEWS WAS GOOD NEWS",
+    "sha256": "f51899e2563bf71b16463663d6b04a7b9ee0ffff6671b4901cd2b824b18fc364",
+    "source": "set",
+    "start_sample": 831280,
+    "wav": "testdata/eval_real/en_08.wav"
+  },
+  {
+    "end_sample": 1028000,
+    "lang": "en",
+    "ref": "SO LITTLE DID HE CONSIDER DROUET THAT IT NEVER ONCE OCCURRED TO HIM TO WORRY ABOUT HIS FINDING OUT",
+    "sha256": "cac2ad1bb7e1deed26bad3e72b37f9e07072ffa14cf7321240dc142ceb1775a9",
+    "source": "set",
+    "start_sample": 948320,
+    "wav": "testdata/eval_real/en_09.wav"
+  },
+  {
+    "end_sample": 1124240,
+    "lang": "en",
+    "ref": "HE GREW RESTLESS AS HE RUMINATED AND THEN DECIDED THAT PERHAPS IT WAS NOTHING",
+    "sha256": "1b184f75daf0c479435c5158fb65515681eed3998d49c4a33f961cf648711ef5",
+    "source": "set",
+    "start_sample": 1056720,
+    "wav": "testdata/eval_real/en_10.wav"
+  },
+  {
+    "end_sample": 1237920,
+    "lang": "en",
+    "ref": "HE WOULD GET ONE TO DAY IT WOULD PROBABLY BE ON HIS DESK WHEN HE GOT BACK HE WOULD LOOK FOR IT AT ONCE",
+    "sha256": "3caef6dcb9321b23c41165cd7782f25272f502bada687bb32df97826f9ef7e6f",
+    "source": "set",
+    "start_sample": 1152160,
+    "wav": "testdata/eval_real/en_11.wav"
+  },
+  {
+    "end_sample": 1336000,
+    "lang": "en",
+    "ref": "AFTER A TIME HE GAVE UP WAITING AND DREARILY HEADED FOR THE MADISON CAR",
+    "sha256": "8d87b4c97c001db331865d6f340392181d03355b674dfd32a7ec73930f1ef119",
+    "source": "set",
+    "start_sample": 1273600,
+    "wav": "testdata/eval_real/en_12.wav"
+  },
+  {
+    "end_sample": 1416800,
+    "lang": "en",
+    "ref": "HE WENT IN AND EXAMINED HIS LETTERS BUT THERE WAS NOTHING FROM CARRIE",
+    "sha256": "8403e01e722d04517a1a521a9f911a038d1b47f910eaead89dab6c5f898709c8",
+    "source": "set",
+    "start_sample": 1362720,
+    "wav": "testdata/eval_real/en_13.wav"
+  },
+  {
+    "end_sample": 1522000,
+    "lang": "en",
+    "ref": "AT ONE THIRTY HE WENT TO RECTOR'S FOR LUNCH AND WHEN HE RETURNED A MESSENGER WAS WAITING FOR HIM",
+    "sha256": "cc7ffa9eb4065582e3dd34cf3f90d5b01f9b9e2f8f83f31d9d2539e74db70f01",
+    "source": "set",
+    "start_sample": 1445520,
+    "wav": "testdata/eval_real/en_14.wav"
+  },
+  {
+    "end_sample": 1615840,
+    "lang": "en",
+    "ref": "HIS FIRST IMPULSE WAS TO WRITE BUT FOUR WORDS IN REPLY GO TO THE DEVIL",
+    "sha256": "1055462f3777bd83e23bc6bd7d67d6e3f624ccc5d70d3a368effe4802cdb34e0",
+    "source": "set",
+    "start_sample": 1549280,
+    "wav": "testdata/eval_real/en_15.wav"
+  }
+]
