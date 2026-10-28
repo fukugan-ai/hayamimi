@@ -500,6 +500,8 @@ grep -c '"event":"asr.draft.ready"' <hayamimi の stdout を残した file>
 `--draft-worker on` と重ねると、確定文の読みと速報の読みが同時に走るので、使う thread は最大でこの数の 2 倍になります。
 
 thread を増やして読みが速くなるかは、モデルと音の長さで変わります。
+同じ音を 4 thread と 8 thread で 2 本ずつ測ると、`v3` の読みは縮み、`rz` の読みは延びました。
+そのため既定は 4 のままです（設計の H83）。
 効きは、BR-3 の run の確定文の `decode_ms` を、`tier`（`rz` か `v3`）と音の長さ（`audio_s`）ごとに数えて確かめます。
 
 ```bash
@@ -658,6 +660,36 @@ GPU を隠す環境変数は、Linux では `CUDA_VISIBLE_DEVICES` を空にし�
 Windows の driver は空の値を無視するので、`-1` にします。
 Windows は言語を system の設定から取り、`LANG` では変わりません。
 言語の比較（en と ja）は Linux でだけ打ちます。
+
+## commit の前に、足した test が走ったかを確かめる
+
+足した test と変えた test は、commit の前に実行して、通った行を残します。
+実行できなかった test は、通ったことになりません。
+
+走らせる対象は、差分から導きます。
+
+```bash
+bash scripts/touched-checks.sh <worktree> main
+```
+
+出る行は `-p <crate> --lib` と `-p <crate> --test <名前>` の形です。
+変えた file を持つ crate と、変わった test の file、`tests/support` を変えたときにそれを使う test の file が出ます。
+`# not run:` の行は、走らせなかった test の file の一覧です。
+
+出た対象を `cargo test` で走らせ、log を残します。
+その log に、足した test の全部の通った行があるかを数えます。
+
+```bash
+bash scripts/tests-ran.sh <worktree> main <cargo test の log>...
+```
+
+足した test のうち、log に `test <名前> ... ok` が無い物は `MISSING` と出て、exit は 1 です。
+log が読めないときは exit 2 です。
+`#[ignore]` の test は、実走の log を渡すと `ignored ok` と出ますが、合否には数えません。
+記録がまだ無いので走らせられない test は、環境変数 `WAITING` に名前の正規表現を渡すと `waiting` と出て、合否に数えません。
+
+この 2 本が正しく数えることは、`bash tests/tests_ran_verify.sh <空の directory>` で確かめます。
+末尾の `cases=23 failures=0` が通った印です。
 
 ## 記録を差し替える push の前
 

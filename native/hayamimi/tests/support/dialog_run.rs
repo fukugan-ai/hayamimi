@@ -25,6 +25,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::dialog::PageStamp;
+use super::page_view::{PageRefines, PageStrip};
 use super::{BINARY, Failure, collect, find_above, models_dir, path_text, spawn_binary};
 
 const EVENTS_PORT: u16 = 8833;
@@ -292,6 +293,10 @@ const CONNECT_GRACE: Duration = Duration::from_secs(3);
 const DRAW_WAIT: Duration = Duration::from_secs(180);
 /// How long a page is given after its last translation, for a page that should show none.
 const SHOW_GRACE: Duration = Duration::from_secs(2);
+/// How many of the refined paragraphs the page got are sent to it again once every line is drawn.
+const REPLAYED_PARAGRAPHS: usize = 3;
+/// How long the page is given to draw what it got, before and after the paragraphs are sent again.
+const REPLAY_GRACE: Duration = Duration::from_secs(1);
 
 /// The translation server of a paged run.
 pub enum Translator {
@@ -330,6 +335,10 @@ pub struct PageRecord {
     /// translation the relay withheld (a digit, a name, a negation in the
     /// source) or could not make.
     pub marks_in_rows: usize,
+    /// The refined paragraphs that reached the page and the rows it drew.
+    pub refines: PageRefines,
+    /// The listening strip over the run.
+    pub strip: PageStrip,
 }
 
 /// What a paged run left: the samples file (its `.events.jsonl` beside it) and
@@ -351,6 +360,8 @@ struct Report {
     rows: usize,
     trs_in_rows: usize,
     marks_in_rows: usize,
+    refines: PageRefines,
+    strip: PageStrip,
 }
 
 /// Reads the text the script's `__br_report` returns. A line the page received
@@ -378,6 +389,8 @@ pub fn page_record_of(report: &str) -> Result<PageRecord, Failure> {
         rows: read.rows,
         trs_in_rows: read.trs_in_rows,
         marks_in_rows: read.marks_in_rows,
+        refines: read.refines,
+        strip: read.strip,
     })
 }
 
@@ -387,20 +400,54 @@ pub fn page_record_of(report: &str) -> Result<PageRecord, Failure> {
 /// and the translations of the relay give `p_arrive`, the first shown
 /// translation of a line, on the connection the page draws from. A connection
 /// of the script's own would be told of a translation a little after the page
-/// is, and `p_draw` could then come before `p_arrive`. It is put into the page
-/// by the tests and is no part of the product.
+/// is, and `p_draw` could then come before `p_arrive`. It also notes, on the
+/// same stream, the refined paragraphs that arrive and, at each `final`, what the
+/// listening strip shows and the newest partial before it (`page_view`). A
+/// message that the browser did not deliver (`isTrusted` false) is one the
+/// script sent again. It is put into the page by the tests and is no part of
+/// the product.
 const START_SCRIPT: &str = r#"(() => {
-  const state = { finals: [], arrive: {}, draw: [] };
+  const state = {
+    finals: [], arrive: {}, draw: [], arrived: [], refine_data: [], at_final: [],
+    partial: null, after_last: 0, waiting: null, rows_before: null, arrived_before: null,
+    source: null,
+  };
   window.__br = state;
+  state.strip = () => {
+    const found = document.querySelector('.strip-text');
+    return found === null ? null : found.textContent;
+  };
+  const text = (value) => (typeof value === 'string' ? value : null);
+  const noted = (event, data, delivered) => {
+    const now = performance.now();
+    if (event.type === 'partial') {
+      state.partial = { text: String(event.text), at: now };
+      state.after_last += 1;
+    } else if (event.type === 'refine') {
+      state.arrived.push({ id: text(event.id), speaker: text(event.speaker), replayed: !delivered });
+      if (delivered) state.refine_data.push(data);
+    } else if (event.type === 'final') {
+      state.finals.push(event.id);
+      state.at_final.push({
+        id: text(event.id),
+        strip: state.strip(),
+        partial: state.partial === null ? null : state.partial.text,
+        gap_ms: state.partial === null ? null : now - state.partial.at,
+      });
+      state.partial = null;
+      state.after_last = 0;
+    }
+  };
   const Native = window.EventSource;
   window.EventSource = class extends Native {
     constructor(url, init) {
       super(url, init);
       const from = this.url;
+      if (from.includes(':@EVENTS@/')) state.source = this;
       this.addEventListener('message', (message) => {
         let event;
         try { event = JSON.parse(message.data); } catch (error) { return; }
-        if (from.includes(':@EVENTS@/') && event.type === 'final') state.finals.push(event.id);
+        if (from.includes(':@EVENTS@/')) noted(event, message.data, message.isTrusted);
         const shown = from.includes(':@RELAY@/') && event.type === 'translation'
           && event.of === 'final' && typeof event.text === 'string' && event.text.length > 0
           && (event.status === undefined || event.status === 'ok');
@@ -415,9 +462,22 @@ const START_SCRIPT: &str = r#"(() => {
 /// The second measuring script, put into the page once the dashboard is
 /// drawn. `p_draw` is the first time a `row` holds a `tr` that shows text: a
 /// `tr` with only a mark (a withheld translation) is no draw. A row is told
-/// from the others by the order it first appears in.
+/// from the others by the order it first appears in. It reads the strip before
+/// any speech (the waiting word), and `__br_replay` sends the first refined
+/// paragraphs the page got to the page again, as a stream that is joined again
+/// sends what it already sent.
 const SWEEP_SCRIPT: &str = r#"(() => {
   const state = window.__br;
+  state.waiting = state.strip();
+  const refined = () => document.querySelectorAll('.refine-text').length;
+  window.__br_replay = (count) => {
+    state.rows_before = refined();
+    state.arrived_before = state.arrived.length;
+    if (state.source === null) return 0;
+    const sent = state.refine_data.slice(0, count);
+    for (const data of sent) state.source.dispatchEvent(new MessageEvent('message', { data }));
+    return sent.length;
+  };
   const ordinals = new WeakMap();
   let next = 0;
   const sweep = () => {
@@ -442,6 +502,19 @@ const SWEEP_SCRIPT: &str = r#"(() => {
     trs_in_rows: document.querySelectorAll('.row .tr .tr-text').length,
     marks_in_rows: Array.from(document.querySelectorAll('.row .tr'))
       .filter((tr) => !tr.querySelector('.tr-text')).length,
+    refines: {
+      rows_before: state.rows_before,
+      arrived_before: state.arrived_before,
+      rows: refined(),
+      arrived: state.arrived,
+    },
+    strip: {
+      waiting: state.waiting,
+      at_final: state.at_final,
+      after_last: state.after_last,
+      text: state.strip(),
+      quiet: document.querySelector('.strip.quiet') !== null,
+    },
   });
   return true;
 })()"#;
@@ -959,10 +1032,24 @@ impl Page {
         self.devtools.evaluate(SWEEP_SCRIPT).map(|_| ())
     }
 
+    /// Sends the first refined paragraphs the page got to the page again. The
+    /// page draws what it got a moment after it got it, so it is given that
+    /// moment before the rows are first read and again before they are read
+    /// after the replay. Every line is drawn by then, so the stages the script
+    /// timed are not touched.
+    fn replay(&mut self) -> Result<(), Failure> {
+        std::thread::sleep(REPLAY_GRACE);
+        self.devtools
+            .evaluate(&format!("window.__br_replay({REPLAYED_PARAGRAPHS})"))?;
+        std::thread::sleep(REPLAY_GRACE);
+        Ok(())
+    }
+
     /// What the script saw, once every line has a translation drawn or `within` has passed.
     fn record(&mut self, within: Duration) -> Result<PageRecord, Failure> {
         // What the page shows by then is judged, whether or not it is all there.
         self.holds_within(within, "window.__br_done()")?;
+        self.replay()?;
         let report = self.devtools.evaluate("window.__br_report()")?;
         let text = report.as_str().ok_or("the page report is not text")?;
         page_record_of(text)

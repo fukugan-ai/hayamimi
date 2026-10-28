@@ -27,7 +27,15 @@
 //! them read on the thread that feeds the detector. The row T-BR-38-020 reads
 //! the log and the events of those two records and of the copies of the pair
 //! that was played before them: the finals of the four runs and the lines that
-//! say which thread read a draft.
+//! say which thread read a draft. Two more (T-BR-39-006 and 007) play it with the
+//! recognizers on eight threads and on four, and the row T-BR-39-008 reads the
+//! records of the four runs of IP-S18 (two of each, the first pair kept under
+//! names that no run rewrites): the finals they name. Two more again (T-BR-40-006
+//! and 007) play it with the drafts of the Japanese recognizer carrying the marks
+//! of a final of IP-S21, and with that measure switched off. Every run keeps
+//! what its page showed of the refined paragraphs and of the listening strip in
+//! `<step>.page.json`; the rows T-BR-14-010 and T-BR-15-005 and 006 read that
+//! file of the four runs of IP-S21 and judge it.
 //!
 //! The rows 003 to 016 test the function that judges the budget, on waits
 //! written by hand; the row 002 reads the pair run of IP-4, which no later run
@@ -51,6 +59,9 @@ use support::dialog::{
     Wait, draft_by_language_text, join_page, judge_budget, render_baseline, spoken_in,
 };
 use support::dialog_run::{Flags, LLAMA_PORT, Playback, Translator, run_paged_with};
+use support::page_view::{
+    AfterCheck, PageView, judge_after_last, judge_before_final, judge_page, judge_refines,
+};
 use support::{Failure, REPO, TestResult, find_above, read};
 
 /// Whether the run judges the budget. The speed measures of B2 (design 10.13.4,
@@ -342,9 +353,19 @@ fn record_run(variant: &Variant) -> TestResult {
     let events = read(&run.played.with_extension("events.jsonl"))?;
     let report = stage_report(&samples, &events).map_err(|error| error.to_string())?;
     let joined = join_page(&report, &run.with_relay.stamps)?;
+    let view = PageView {
+        refines: run.with_relay.refines.clone(),
+        strip: run.with_relay.strip.clone(),
+    };
+    let judged = judge_page(&view, &waiting_words()?);
+    let baseline = render_baseline(variant.title, &report, &joined)?;
     keep(
         &record_of(variant, ".md"),
-        render_baseline(variant.title, &report, &joined)?.as_bytes(),
+        format!("{baseline}{}", judged.lines()).as_bytes(),
+    )?;
+    keep(
+        &record_of(variant, ".page.json"),
+        page_json(&view)?.as_bytes(),
     )?;
     keep(&record_of(variant, ".jsonl"), samples.as_bytes())?;
     keep(&record_of(variant, ".events.jsonl"), events.as_bytes())?;
@@ -358,6 +379,91 @@ fn record_run(variant: &Variant) -> TestResult {
     }
     if variant.judges_draft {
         judge_draft_p50(&report)?;
+    }
+    // The record is kept first: a page that fails here still leaves what it showed.
+    if let Some(said) = judged.first_failure() {
+        return Err(format!("the page of the run: {said}").into());
+    }
+    Ok(())
+}
+
+/// The page view of a run as its record keeps it.
+fn page_json(view: &PageView) -> Result<String, Failure> {
+    let mut text = serde_json::to_string_pretty(view).map_err(|error| error.to_string())?;
+    text.push('\n');
+    Ok(text)
+}
+
+/// The page view the run of `step` kept.
+fn page_view_of(step: &str) -> Result<PageView, Failure> {
+    let path = record_named(step, ".page.json");
+    serde_json::from_str(&read(&path)?).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+/// The word the strip of the page shows while it waits, in one language of the page.
+fn waiting_word(lang: &str) -> Result<String, Failure> {
+    let path = Path::new(REPO).join(format!("native/hayamimi-ui/data/strings.{lang}.toml"));
+    let table: toml::Table =
+        toml::from_str(&read(&path)?).map_err(|error| format!("{}: {error}", path.display()))?;
+    table
+        .get("ui")
+        .and_then(|ui| ui.get("dashboard"))
+        .and_then(|dashboard| dashboard.get("waiting"))
+        .and_then(toml::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{}: no ui.dashboard.waiting", path.display()))
+}
+
+/// The words the strip of the page shows while it waits, one for each language of the page.
+fn waiting_words() -> Result<Vec<String>, Failure> {
+    ["en", "ja"].into_iter().map(waiting_word).collect()
+}
+
+/// The runs of IP-S21 whose records keep a view of the page: the first pair,
+/// then the last pair.
+const PAGE_STEPS: [&str; 4] = [
+    "br03_ip_s21_off_run1",
+    "br03_ip_s21_run1",
+    DRAFT_MARKS_OFF.step,
+    DRAFT_MARKS_ON.step,
+];
+
+/// T-BR-14-010
+#[test]
+fn the_refined_rows_of_the_page_are_as_many_as_the_distinct_ids_that_arrived() -> TestResult {
+    for step in PAGE_STEPS {
+        let view = page_view_of(step)?;
+        judge_refines(&view.refines).map_err(|said| format!("{step}: {said}"))?;
+    }
+    Ok(())
+}
+
+/// T-BR-15-005
+#[test]
+fn the_strip_of_the_page_shows_waiting_after_the_last_final() -> TestResult {
+    let words = waiting_words()?;
+    let mut judged = 0;
+    for step in PAGE_STEPS {
+        let view = page_view_of(step)?;
+        let after =
+            judge_after_last(&view.strip, &words).map_err(|said| format!("{step}: {said}"))?;
+        if after == AfterCheck::Waiting {
+            judged += 1;
+        }
+    }
+    assert!(
+        judged > 0,
+        "no run kept a strip that could be judged after its last final"
+    );
+    Ok(())
+}
+
+/// T-BR-15-006
+#[test]
+fn the_strip_of_the_page_shows_the_partial_before_its_final() -> TestResult {
+    for step in PAGE_STEPS {
+        let view = page_view_of(step)?;
+        judge_before_final(&view.strip.at_final).map_err(|said| format!("{step}: {said}"))?;
     }
     Ok(())
 }
@@ -1067,6 +1173,83 @@ fn the_on_and_off_runs_name_the_same_finals_and_only_on_reads_by_the_worker() ->
     assert!(
         stray.is_empty(),
         "the first pair and the last pair differ in these finals: {stray:?}"
+    );
+    Ok(())
+}
+
+/// The records of the first pair of IP-S18 runs, kept under names that no run
+/// rewrites: the run with four threads and the run with eight.
+const FIRST_THREADS: (&str, &str) = ("br03_ip_s18_four_run1", "br03_ip_s18_run1");
+
+/// How many finals of `first` are not worded the same in every list of
+/// `others`: a final counts when one of the lists gives its position another
+/// text, or has no final there.
+fn texts_that_differ(first: &[Final], others: &[&[Final]]) -> usize {
+    first
+        .iter()
+        .enumerate()
+        .filter(|(at, one)| {
+            others
+                .iter()
+                .any(|list| list.get(*at).is_none_or(|other| other.2 != one.2))
+        })
+        .count()
+}
+
+/// The most finals of the four runs of IP-S18 that may be worded differently
+/// (design BR-39).
+const MOST_TEXTS_THAT_DIFFER: usize = 2;
+
+/// T-BR-39-008
+#[test]
+fn the_four_and_eight_thread_runs_name_the_same_finals_and_at_most_two_differ_in_text() -> TestResult
+{
+    let made = |id: &str, lang: &str, text: &str| {
+        (String::from(id), String::from(lang), String::from(text))
+    };
+    let base = vec![made("file-1", "ja", "あ"), made("file-2", "en", "b")];
+    let other_text = vec![made("file-1", "ja", "い"), made("file-2", "en", "b")];
+    let shorter = vec![made("file-1", "ja", "あ")];
+    assert_eq!(texts_that_differ(&base, &[&base, &base]), 0);
+    assert_eq!(texts_that_differ(&base, &[&base, &other_text]), 1);
+    assert_eq!(texts_that_differ(&base, &[&shorter]), 1);
+    assert_eq!(texts_that_differ(&base, &[]), 0);
+
+    let steps = [
+        FIRST_THREADS.0,
+        FIRST_THREADS.1,
+        ASR_THREADS_FOUR.step,
+        ASR_THREADS_EIGHT.step,
+    ];
+    let mut runs = Vec::new();
+    for step in steps {
+        let finals = finals_of(&read(&record_named(step, ".events.jsonl"))?)?;
+        assert!(!finals.is_empty(), "{step} made no final");
+        runs.push(finals);
+    }
+    let first = &runs[0];
+    for (step, finals) in steps.iter().zip(&runs) {
+        assert_eq!(
+            finals.len(),
+            first.len(),
+            "{step} has another number of finals"
+        );
+        let keys: Vec<(&str, &str)> = finals
+            .iter()
+            .map(|one| (one.0.as_str(), one.1.as_str()))
+            .collect();
+        let want: Vec<(&str, &str)> = first
+            .iter()
+            .map(|one| (one.0.as_str(), one.1.as_str()))
+            .collect();
+        assert_eq!(keys, want, "{step} names other ids or languages");
+    }
+    let others: Vec<&[Final]> = runs[1..].iter().map(Vec::as_slice).collect();
+    let differ = texts_that_differ(first, &others);
+    assert!(
+        differ <= MOST_TEXTS_THAT_DIFFER,
+        "{differ} of {} finals differ in text between the four runs",
+        first.len()
     );
     Ok(())
 }

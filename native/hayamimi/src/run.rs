@@ -802,6 +802,28 @@ mod tests {
         assert_eq!(settings.gpu, Gpu::Absent(Reason::NoDevice));
     }
 
+    /// T-BR-39-009
+    #[test]
+    fn the_settings_of_a_run_take_the_thread_count_of_its_arguments() {
+        let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
+        assert_eq!(settings.asr_threads, hayamimi_asr::recognizer::THREADS);
+        let mut eight = args_with(None, None);
+        eight.asr_threads = 8;
+        let (settings, _) = settings_of(&eight, Gpu::Try);
+        assert_eq!(settings.asr_threads, 8);
+    }
+
+    /// T-BR-40-008
+    #[test]
+    fn the_settings_of_a_run_take_the_draft_marks_of_its_arguments() {
+        let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
+        assert!(!settings.draft_marks);
+        let mut marked = args_with(None, None);
+        marked.draft_marks = true;
+        let (settings, _) = settings_of(&marked, Gpu::Try);
+        assert!(settings.draft_marks);
+    }
+
     #[test]
     fn the_routes_start_from_the_settings_of_the_run() {
         let (settings, _) = settings_of(&args_with(None, None), Gpu::Try);
